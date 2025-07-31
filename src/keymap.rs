@@ -5,6 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::time::Instant;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeymapConfig {
@@ -19,12 +20,16 @@ pub struct KeymapConfig {
 #[derive(Clone)]
 pub struct KeyHandler {
     keymap_config: KeymapConfig,
+    pending_sequence: String,
+    last_key_time: Option<std::time::Instant>,
 }
 
 impl KeyHandler {
     pub fn new() -> Self {
         Self {
             keymap_config: Self::load_default_keymaps(),
+            pending_sequence: String::new(),
+            last_key_time: None,
         }
     }
 
@@ -78,8 +83,53 @@ impl KeyHandler {
         }
     }
 
-    pub fn handle_key(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+    pub fn handle_key(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
         let key_string = Self::key_event_to_string(key);
+
+        // Handle key sequences for normal mode
+        if matches!(editor.mode(), Mode::Normal) {
+            // Check for timeout (reset sequence if too much time passed)
+            let now = Instant::now();
+            if let Some(last_time) = self.last_key_time {
+                if now.duration_since(last_time).as_millis() > 1000 {
+                    self.pending_sequence.clear();
+                }
+            }
+            self.last_key_time = Some(now);
+
+            // Add current key to sequence
+            if !self.pending_sequence.is_empty() {
+                self.pending_sequence.push_str(&key_string);
+            } else {
+                self.pending_sequence = key_string.clone();
+            }
+
+            // Check if sequence matches any command
+            if let Some(action) = self.keymap_config.normal_mode.get(&self.pending_sequence) {
+                let action_result = self.execute_action(editor, action, key);
+                self.pending_sequence.clear();
+                return action_result;
+            }
+
+            // Check if pending sequence could be part of a longer command
+            let has_potential_match = self
+                .keymap_config
+                .normal_mode
+                .keys()
+                .any(|k| k.starts_with(&self.pending_sequence) && k != &self.pending_sequence);
+
+            if !has_potential_match {
+                // No potential matches, try single key
+                if let Some(action) = self.keymap_config.normal_mode.get(&key_string) {
+                    let action_result = self.execute_action(editor, action, key);
+                    self.pending_sequence.clear();
+                    return action_result;
+                }
+                self.pending_sequence.clear();
+            }
+
+            return Ok(());
+        }
 
         let action = match editor.mode() {
             Mode::Normal => self.keymap_config.normal_mode.get(&key_string),

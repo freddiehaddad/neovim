@@ -174,9 +174,12 @@ impl Editor {
             if let Event::Key(key_event) = event::read()? {
                 // Only process key press events, not release events
                 if key_event.kind == KeyEventKind::Press {
-                    // Clone the key handler to avoid borrowing issues
-                    let key_handler = self.key_handler.clone();
-                    key_handler.handle_key(self, key_event)?;
+                    // Temporarily extract key_handler to avoid borrowing conflicts
+                    let mut key_handler =
+                        std::mem::replace(&mut self.key_handler, KeyHandler::new());
+                    let result = key_handler.handle_key(self, key_event);
+                    self.key_handler = key_handler;
+                    result?;
                     return Ok(true); // Input was processed
                 }
             }
