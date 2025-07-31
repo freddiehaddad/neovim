@@ -1,5 +1,6 @@
 use crate::buffer::Buffer;
 use crate::config::EditorConfig;
+use crate::config_watcher::{ConfigChangeEvent, ConfigWatcher};
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
@@ -52,6 +53,8 @@ pub struct Editor {
     last_render_time: Instant,
     /// Minimum time between renders (60 FPS = ~16ms)
     render_interval: Duration,
+    /// Configuration file watcher for hot reloading
+    config_watcher: Option<ConfigWatcher>,
 }
 
 impl Editor {
@@ -66,6 +69,9 @@ impl Editor {
         ui.show_cursor_line = config.display.show_cursor_line;
 
         let key_handler = KeyHandler::new();
+
+        // Initialize config watcher for hot reloading
+        let config_watcher = ConfigWatcher::new().ok(); // Don't fail if watcher can't be created
 
         Ok(Self {
             buffers: HashMap::new(),
@@ -84,6 +90,7 @@ impl Editor {
             status_message: String::new(),
             last_render_time: Instant::now(),
             render_interval: Duration::from_millis(16), // ~60 FPS
+            config_watcher,
         })
     }
 
@@ -191,6 +198,26 @@ impl Editor {
     }
 
     fn handle_input(&mut self) -> Result<bool> {
+        let mut input_processed = false;
+
+        // Check for config file changes first
+        if let Some(ref watcher) = self.config_watcher {
+            let changes = watcher.check_for_changes();
+            for change in changes {
+                match change {
+                    ConfigChangeEvent::EditorConfigChanged => {
+                        self.reload_editor_config();
+                        input_processed = true;
+                    }
+                    ConfigChangeEvent::KeymapConfigChanged => {
+                        self.reload_keymap_config();
+                        input_processed = true;
+                    }
+                }
+            }
+        }
+
+        // Handle keyboard input
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
                 // Only process key press events, not release events
@@ -201,11 +228,12 @@ impl Editor {
                     let result = key_handler.handle_key(self, key_event);
                     self.key_handler = key_handler;
                     result?;
-                    return Ok(true); // Input was processed
+                    input_processed = true;
                 }
             }
         }
-        Ok(false) // No input was processed
+
+        Ok(input_processed)
     }
 
     // Getters for UI and other components
@@ -437,5 +465,24 @@ impl Editor {
             self.config.display.show_line_numbers,
             self.config.display.show_relative_numbers,
         )
+    }
+
+    /// Reload editor configuration from editor.toml
+    fn reload_editor_config(&mut self) {
+        let new_config = EditorConfig::load();
+
+        // Update UI to reflect new config values
+        self.ui.show_line_numbers = new_config.display.show_line_numbers;
+        self.ui.show_relative_numbers = new_config.display.show_relative_numbers;
+        self.ui.show_cursor_line = new_config.display.show_cursor_line;
+
+        self.config = new_config;
+        self.status_message = "Editor configuration reloaded".to_string();
+    }
+
+    /// Reload keymap configuration from keymaps.toml
+    fn reload_keymap_config(&mut self) {
+        self.key_handler = KeyHandler::new(); // This will reload the keymaps.toml
+        self.status_message = "Keymap configuration reloaded".to_string();
     }
 }

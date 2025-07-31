@@ -1,6 +1,7 @@
 pub mod buffer;
 pub mod command;
 pub mod config;
+pub mod config_watcher;
 pub mod editor;
 pub mod file;
 pub mod keymap;

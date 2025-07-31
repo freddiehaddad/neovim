@@ -119,33 +119,82 @@ impl EditorConfig {
             // Display settings
             "number" | "nu" => {
                 self.display.show_line_numbers = value.parse().unwrap_or(true);
-                Ok(format!("Line numbers: {}", if self.display.show_line_numbers { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Line numbers: {}",
+                    if self.display.show_line_numbers {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
             "relativenumber" | "rnu" => {
                 self.display.show_relative_numbers = value.parse().unwrap_or(false);
-                Ok(format!("Relative line numbers: {}", if self.display.show_relative_numbers { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Relative line numbers: {}",
+                    if self.display.show_relative_numbers {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
             "cursorline" | "cul" => {
                 self.display.show_cursor_line = value.parse().unwrap_or(false);
-                Ok(format!("Cursor line: {}", if self.display.show_cursor_line { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Cursor line: {}",
+                    if self.display.show_cursor_line {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
-            
+
             // Behavior settings
             "ignorecase" | "ic" => {
                 self.behavior.ignore_case = value.parse().unwrap_or(false);
-                Ok(format!("Ignore case: {}", if self.behavior.ignore_case { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Ignore case: {}",
+                    if self.behavior.ignore_case {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
             "smartcase" | "scs" => {
                 self.behavior.smart_case = value.parse().unwrap_or(false);
-                Ok(format!("Smart case: {}", if self.behavior.smart_case { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Smart case: {}",
+                    if self.behavior.smart_case {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
             "hlsearch" | "hls" => {
                 self.behavior.highlight_search = value.parse().unwrap_or(true);
-                Ok(format!("Search highlighting: {}", if self.behavior.highlight_search { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Search highlighting: {}",
+                    if self.behavior.highlight_search {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
             "expandtab" | "et" => {
                 self.behavior.expand_tabs = value.parse().unwrap_or(false);
-                Ok(format!("Expand tabs: {}", if self.behavior.expand_tabs { "enabled" } else { "disabled" }))
+                Ok(format!(
+                    "Expand tabs: {}",
+                    if self.behavior.expand_tabs {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
             }
             "tabstop" | "ts" => {
                 if let Ok(width) = value.parse::<usize>() {
@@ -155,8 +204,8 @@ impl EditorConfig {
                     Err("Invalid tab width".to_string())
                 }
             }
-            
-            _ => Err(format!("Unknown setting: {}", setting))
+
+            _ => Err(format!("Unknown setting: {}", setting)),
         }
     }
 }
