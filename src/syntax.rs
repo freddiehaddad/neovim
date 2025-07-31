@@ -10,7 +10,11 @@ impl SyntaxHighlighter {
         Self {}
     }
 
-    pub fn highlight_line(&self, _line: &str, _language: &str) -> Vec<(usize, usize, HighlightType)> {
+    pub fn highlight_line(
+        &self,
+        _line: &str,
+        _language: &str,
+    ) -> Vec<(usize, usize, HighlightType)> {
         // TODO: Implement syntax highlighting
         Vec::new()
     }

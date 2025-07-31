@@ -20,9 +20,9 @@ impl SearchEngine {
 
     pub fn search(&mut self, pattern: &str, text: &[String]) -> Vec<SearchResult> {
         self.last_search = Some(pattern.to_string());
-        
+
         let mut results = Vec::new();
-        
+
         if self.use_regex {
             if let Ok(regex) = Regex::new(pattern) {
                 for (line_num, line) in text.iter().enumerate() {

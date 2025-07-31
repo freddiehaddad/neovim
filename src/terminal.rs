@@ -1,11 +1,11 @@
+use crate::mode::Position;
 use crossterm::{
     cursor,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType},
     ExecutableCommand, QueueableCommand,
 };
-use std::io::{self, Write, Stdout};
-use crate::mode::Position;
+use std::io::{self, Stdout, Write};
 
 pub struct Terminal {
     stdout: Stdout,
@@ -18,9 +18,9 @@ impl Terminal {
         terminal::enable_raw_mode()?;
         stdout.execute(terminal::Clear(ClearType::All))?;
         stdout.execute(cursor::Hide)?;
-        
+
         let size = terminal::size()?;
-        
+
         Ok(Self { stdout, size })
     }
 
@@ -44,7 +44,8 @@ impl Terminal {
     }
 
     pub fn move_cursor(&mut self, pos: Position) -> io::Result<()> {
-        self.stdout.execute(cursor::MoveTo(pos.col as u16, pos.row as u16))?;
+        self.stdout
+            .execute(cursor::MoveTo(pos.col as u16, pos.row as u16))?;
         Ok(())
     }
 
@@ -94,7 +95,8 @@ impl Terminal {
     }
 
     pub fn queue_move_cursor(&mut self, pos: Position) -> io::Result<()> {
-        self.stdout.queue(cursor::MoveTo(pos.col as u16, pos.row as u16))?;
+        self.stdout
+            .queue(cursor::MoveTo(pos.col as u16, pos.row as u16))?;
         Ok(())
     }
 

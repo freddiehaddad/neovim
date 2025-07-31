@@ -39,7 +39,7 @@ impl Position {
     pub fn new(row: usize, col: usize) -> Self {
         Self { row, col }
     }
-    
+
     pub fn zero() -> Self {
         Self { row: 0, col: 0 }
     }

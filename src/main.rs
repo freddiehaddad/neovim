@@ -1,7 +1,7 @@
+use anyhow::Result;
 use neovim::Editor;
 use std::env;
 use std::path::PathBuf;
-use anyhow::Result;
 
 fn main() -> Result<()> {
     // Initialize logging

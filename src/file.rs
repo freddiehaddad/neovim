@@ -1,9 +1,9 @@
 // File operations and management
 // This will handle file I/O, directory browsing, etc.
 
-use std::path::{Path, PathBuf};
-use std::fs;
 use anyhow::Result;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub struct FileManager {
     current_dir: PathBuf,
@@ -26,11 +26,11 @@ impl FileManager {
 
     pub fn list_directory<P: AsRef<Path>>(&self, path: P) -> Result<Vec<DirEntry>> {
         let mut entries = Vec::new();
-        
+
         for entry in fs::read_dir(path)? {
             let entry = entry?;
             let metadata = entry.metadata()?;
-            
+
             entries.push(DirEntry {
                 name: entry.file_name().to_string_lossy().to_string(),
                 path: entry.path(),
@@ -40,12 +40,10 @@ impl FileManager {
         }
 
         // Sort directories first, then files
-        entries.sort_by(|a, b| {
-            match (a.is_dir, b.is_dir) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.name.cmp(&b.name),
-            }
+        entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.cmp(&b.name),
         });
 
         Ok(entries)

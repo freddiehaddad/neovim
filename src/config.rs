@@ -22,7 +22,7 @@ pub enum ConfigValue {
 impl Default for Config {
     fn default() -> Self {
         let mut settings = HashMap::new();
-        
+
         // Default Vim settings
         settings.insert("number".to_string(), ConfigValue::Bool(false));
         settings.insert("relativenumber".to_string(), ConfigValue::Bool(false));
@@ -32,7 +32,7 @@ impl Default for Config {
         settings.insert("autoindent".to_string(), ConfigValue::Bool(true));
         settings.insert("hlsearch".to_string(), ConfigValue::Bool(true));
         settings.insert("incsearch".to_string(), ConfigValue::Bool(true));
-        
+
         Self {
             settings,
             keymaps: HashMap::new(),

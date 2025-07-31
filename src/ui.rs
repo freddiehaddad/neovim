@@ -1,6 +1,6 @@
 use crate::editor::EditorRenderState;
-use crate::terminal::Terminal;
 use crate::mode::{Mode, Position};
+use crate::terminal::Terminal;
 use crossterm::style::Color;
 use std::io;
 
@@ -11,17 +11,15 @@ pub struct UI {
 
 impl UI {
     pub fn new() -> Self {
-        Self {
-            viewport_top: 0,
-        }
+        Self { viewport_top: 0 }
     }
 
     fn update_viewport(&mut self, buffer: &crate::buffer::Buffer, height: u16) -> (usize, usize) {
         let content_height = height.saturating_sub(2) as usize; // Reserve space for status and command line
-        
+
         // Check if cursor is outside current viewport
         let viewport_bottom = self.viewport_top + content_height;
-        
+
         if buffer.cursor.row < self.viewport_top {
             // Cursor moved above viewport - scroll up
             self.viewport_top = buffer.cursor.row;
@@ -30,21 +28,25 @@ impl UI {
             self.viewport_top = buffer.cursor.row.saturating_sub(content_height - 1);
         }
         // If cursor is within viewport, don't change viewport_top
-        
+
         (self.viewport_top, content_height)
     }
 
-    pub fn render(&mut self, terminal: &mut Terminal, editor_state: &EditorRenderState) -> io::Result<()> {
+    pub fn render(
+        &mut self,
+        terminal: &mut Terminal,
+        editor_state: &EditorRenderState,
+    ) -> io::Result<()> {
         let (width, height) = terminal.size();
-        
+
         // Use queued operations to reduce flicker
         terminal.hide_cursor()?;
-        
+
         // Update viewport based on cursor position first
         if let Some(buffer) = &editor_state.current_buffer {
             self.update_viewport(buffer, height);
         }
-        
+
         // Render buffer content
         if let Some(buffer) = &editor_state.current_buffer {
             self.render_buffer(terminal, buffer, width, height)?;
@@ -61,17 +63,17 @@ impl UI {
         // Position cursor and show it
         if let Some(buffer) = &editor_state.current_buffer {
             let content_height = height.saturating_sub(2) as usize;
-            
+
             // Calculate screen cursor position relative to the current viewport
             let screen_row = buffer.cursor.row.saturating_sub(self.viewport_top);
             let screen_col = buffer.cursor.col;
-            
+
             // Ensure cursor is within visible bounds
             if screen_row < content_height {
                 terminal.move_cursor(Position::new(screen_row, screen_col))?;
             }
         }
-        
+
         terminal.show_cursor()?;
         Ok(())
     }
@@ -89,7 +91,7 @@ impl UI {
         for (screen_row, buffer_row) in (start_row..).take(content_height).enumerate() {
             terminal.move_cursor(Position::new(screen_row, 0))?;
             terminal.clear_line()?; // Clear only this line instead of whole screen
-            
+
             if let Some(line) = buffer.get_line(buffer_row) {
                 // Truncate line if it's too long
                 let display_line = if line.len() > width as usize {
@@ -118,7 +120,7 @@ impl UI {
     ) -> io::Result<()> {
         let status_row = height.saturating_sub(2);
         terminal.move_cursor(Position::new(status_row as usize, 0))?;
-        
+
         // Clear the status line first
         terminal.clear_line()?;
 
@@ -127,7 +129,7 @@ impl UI {
         terminal.set_foreground_color(Color::Black)?;
 
         let mut status_text = String::new();
-        
+
         // Mode indicator
         status_text.push_str(&format!(" {} ", editor_state.mode));
 
@@ -180,12 +182,12 @@ impl UI {
     ) -> io::Result<()> {
         let command_row = height.saturating_sub(1);
         terminal.move_cursor(Position::new(command_row as usize, 0))?;
-        
+
         // Clear the command line first
         terminal.clear_line()?;
 
         let command_text = &editor_state.command_line;
-        
+
         // Truncate if too long
         let display_text = if command_text.len() > width as usize {
             &command_text[..width as usize]
