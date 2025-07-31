@@ -5,6 +5,7 @@ A Vim/Neovim clone written in Rust with full feature parity as the goal.
 ## Current Features ✅
 
 ### Core Editor Functionality
+
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
 - **Buffer Management**: Multiple buffer support with undo/redo
 - **Basic Text Operations**: Insert, delete, line breaks
@@ -13,6 +14,7 @@ A Vim/Neovim clone written in Rust with full feature parity as the goal.
 - **Status Line**: Shows current mode, file info, cursor position
 
 ### Vim Keybindings
+
 - **Insert Mode**: `i`, `I`, `a`, `A`, `o`, `O`
 - **Navigation**: `h/j/k/l`, arrow keys
 - **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`
@@ -20,6 +22,7 @@ A Vim/Neovim clone written in Rust with full feature parity as the goal.
 - **File Operations**: `:w`, `:q`, `:wq`, `:e filename`
 
 ### Ex Commands
+
 - `:q` - Quit
 - `:q!` - Force quit
 - `:w` - Save file
@@ -40,6 +43,7 @@ cargo run -- filename.txt
 ```
 
 ### Basic Usage
+
 1. Start in Normal mode
 2. Press `i` to enter Insert mode and type text
 3. Press `Esc` to return to Normal mode
@@ -49,6 +53,7 @@ cargo run -- filename.txt
 ## Architecture
 
 ### Core Modules
+
 - **Editor**: Main editor state and coordination
 - **Buffer**: Text buffer with undo/redo support
 - **Terminal**: Raw terminal interface using crossterm
@@ -57,6 +62,7 @@ cargo run -- filename.txt
 - **Mode**: Editor mode definitions and cursor positioning
 
 ### Planned Modules
+
 - **Syntax**: Tree-sitter integration for syntax highlighting
 - **LSP**: Language Server Protocol client
 - **Search**: Pattern matching and text search
@@ -66,6 +72,7 @@ cargo run -- filename.txt
 ## Development Roadmap
 
 ### Phase 1: Core Vim Features ⏳
+
 - [ ] Text objects (`aw`, `iw`, `ap`, etc.)
 - [ ] Operators (`d`, `c`, `y`, `p`) with motions
 - [ ] Word movement (`w`, `b`, `e`)
@@ -73,18 +80,21 @@ cargo run -- filename.txt
 - [ ] Search and replace with regex
 
 ### Phase 2: Advanced Editing 📅
+
 - [ ] Macros and command repetition
 - [ ] Code folding and auto-indentation  
 - [ ] Multiple windows and tabs
 - [ ] File explorer and buffer management
 
 ### Phase 3: IDE Features 📅
+
 - [ ] LSP client with autocompletion
 - [ ] Syntax highlighting with Tree-sitter
 - [ ] Diagnostics and error handling
 - [ ] Go-to definition and hover info
 
 ### Phase 4: Extensibility 📅
+
 - [ ] Lua scripting API
 - [ ] Plugin system and package manager
 - [ ] Custom keybindings and commands
@@ -104,12 +114,14 @@ cargo run -- filename.txt
 This is a learning project to understand how text editors work. Contributions welcome!
 
 ### Getting Started
+
 1. Clone the repository
 2. Install Rust (1.70+)
 3. Run `cargo run` to test the editor
 4. Check issues for features to implement
 
 ### Code Structure
+
 - Keep modules focused and well-documented
 - Follow Rust best practices
 - Add tests for new functionality
@@ -118,6 +130,7 @@ This is a learning project to understand how text editors work. Contributions we
 ## Inspiration
 
 This project is inspired by:
+
 - [Neovim](https://neovim.io/) - The extensible Vim editor
 - [Helix](https://helix-editor.com/) - A Kakoune-inspired editor
 - [Xi Editor](https://xi-editor.io/) - A modern text editor with async architecture
