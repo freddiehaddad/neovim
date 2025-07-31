@@ -256,6 +256,8 @@ impl KeyHandler {
             "replace_mode" => self.action_replace_mode(editor)?,
             "search_forward" => self.action_search_forward(editor)?,
             "search_backward" => self.action_search_backward(editor)?,
+            "search_next" => self.action_search_next(editor)?,
+            "search_previous" => self.action_search_previous(editor)?,
 
             // File operations
             "save_file" => self.action_save_file(editor)?,
@@ -457,8 +459,10 @@ impl KeyHandler {
     }
 
     fn action_execute_search(&self, editor: &mut Editor) -> Result<()> {
-        let search_term = &editor.command_line()[1..];
-        editor.set_status_message(format!("Searching for: {}", search_term));
+        let search_term = editor.command_line()[1..].to_string();
+        if !search_term.is_empty() {
+            editor.search(&search_term);
+        }
         editor.set_mode(Mode::Normal);
         editor.set_command_line(String::new());
         Ok(())
@@ -773,13 +777,23 @@ impl KeyHandler {
         Ok(())
     }
 
+    fn action_search_next(&self, editor: &mut Editor) -> Result<()> {
+        editor.search_next();
+        Ok(())
+    }
+
+    fn action_search_previous(&self, editor: &mut Editor) -> Result<()> {
+        editor.search_previous();
+        Ok(())
+    }
+
     fn action_find_next(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Find next not implemented".to_string());
+        editor.search_next();
         Ok(())
     }
 
     fn action_find_previous(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Find previous not implemented".to_string());
+        editor.search_previous();
         Ok(())
     }
 }

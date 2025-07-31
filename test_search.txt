@@ -1,0 +1,5 @@
+This is a test file for search functionality.
+Here we have multiple instances of the word "test".
+Testing search with various test cases.
+The test should find all test occurrences.
+End of test file with final test word.

@@ -1,6 +1,7 @@
 use crate::buffer::Buffer;
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
+use crate::search::{SearchEngine, SearchResult};
 use crate::terminal::Terminal;
 use crate::ui::UI;
 use anyhow::Result;
@@ -32,6 +33,12 @@ pub struct Editor {
     ui: UI,
     /// Key handler for mode-specific input
     key_handler: KeyHandler,
+    /// Search engine for text search
+    search_engine: SearchEngine,
+    /// Current search results
+    search_results: Vec<SearchResult>,
+    /// Current search result index
+    current_search_index: Option<usize>,
     /// Whether the editor should quit
     should_quit: bool,
     /// Command line content (for command mode)
@@ -58,6 +65,9 @@ impl Editor {
             terminal,
             ui,
             key_handler,
+            search_engine: SearchEngine::new(),
+            search_results: Vec::new(),
+            current_search_index: None,
             should_quit: false,
             command_line: String::new(),
             status_message: String::new(),
@@ -236,5 +246,90 @@ impl Editor {
             self.status_message = "File saved".to_string();
         }
         Ok(())
+    }
+
+    /// Perform a search in the current buffer
+    pub fn search(&mut self, pattern: &str) -> bool {
+        let lines = if let Some(buffer) = self.current_buffer() {
+            buffer.lines.clone()
+        } else {
+            return false;
+        };
+
+        let search_results = self.search_engine.search(pattern, &lines);
+        self.search_results = search_results;
+
+        if !self.search_results.is_empty() {
+            self.current_search_index = Some(0);
+            self.move_to_search_result(0);
+            self.status_message = format!("Found {} matches", self.search_results.len());
+            true
+        } else {
+            self.current_search_index = None;
+            self.status_message = format!("Pattern not found: {}", pattern);
+            false
+        }
+    }
+
+    /// Move to the next search result
+    pub fn search_next(&mut self) -> bool {
+        if self.search_results.is_empty() {
+            self.status_message = "No search results".to_string();
+            return false;
+        }
+
+        if let Some(current_index) = self.current_search_index {
+            let next_index = (current_index + 1) % self.search_results.len();
+            self.current_search_index = Some(next_index);
+            self.move_to_search_result(next_index);
+            self.status_message =
+                format!("Match {} of {}", next_index + 1, self.search_results.len());
+            true
+        } else {
+            self.current_search_index = Some(0);
+            self.move_to_search_result(0);
+            true
+        }
+    }
+
+    /// Move to the previous search result
+    pub fn search_previous(&mut self) -> bool {
+        if self.search_results.is_empty() {
+            self.status_message = "No search results".to_string();
+            return false;
+        }
+
+        if let Some(current_index) = self.current_search_index {
+            let prev_index = if current_index == 0 {
+                self.search_results.len() - 1
+            } else {
+                current_index - 1
+            };
+            self.current_search_index = Some(prev_index);
+            self.move_to_search_result(prev_index);
+            self.status_message =
+                format!("Match {} of {}", prev_index + 1, self.search_results.len());
+            true
+        } else {
+            self.current_search_index = Some(0);
+            self.move_to_search_result(0);
+            true
+        }
+    }
+
+    /// Move cursor to a specific search result
+    fn move_to_search_result(&mut self, index: usize) {
+        if let Some(result) = self.search_results.get(index).cloned() {
+            if let Some(buffer) = self.current_buffer_mut() {
+                buffer.cursor.row = result.line;
+                buffer.cursor.col = result.start_col;
+            }
+        }
+    }
+
+    /// Clear current search results
+    pub fn clear_search(&mut self) {
+        self.search_results.clear();
+        self.current_search_index = None;
     }
 }
