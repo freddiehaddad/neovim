@@ -438,6 +438,9 @@ impl KeyHandler {
             "set rnu" | "set relativenumber" => editor.set_line_numbers(false, true),
             "set nornu" | "set norelativenumber" => editor.set_line_numbers(true, false),
             "set nu rnu" | "set number relativenumber" => editor.set_line_numbers(true, true),
+            // Cursor line commands
+            "set cul" | "set cursorline" => editor.set_cursor_line(true),
+            "set nocul" | "set nocursorline" => editor.set_cursor_line(false),
             _ => editor.set_status_message(format!("Unknown command: {}", command)),
         }
 

@@ -11,6 +11,8 @@ pub struct UI {
     pub show_line_numbers: bool,
     /// Show relative line numbers
     pub show_relative_numbers: bool,
+    /// Highlight the current cursor line
+    pub show_cursor_line: bool,
 }
 
 impl UI {
@@ -19,6 +21,7 @@ impl UI {
             viewport_top: 0,
             show_line_numbers: true,      // Enable by default like Vim
             show_relative_numbers: false, // Disabled by default
+            show_cursor_line: false, // Disabled by default (can be enabled with :set cursorline)
         }
     }
 
@@ -121,9 +124,23 @@ impl UI {
             terminal.move_cursor(Position::new(screen_row, 0))?;
             terminal.clear_line()?; // Clear only this line instead of whole screen
 
+            // Check if this is the cursor line for highlighting
+            let is_cursor_line = self.show_cursor_line && buffer_row == buffer.cursor.row;
+
+            // Set cursor line background if enabled
+            if is_cursor_line {
+                terminal.set_background_color(Color::DarkGrey)?;
+            }
+
             // Render line numbers
             if self.show_line_numbers || self.show_relative_numbers {
-                self.render_line_number(terminal, buffer, buffer_row, line_number_width)?;
+                self.render_line_number(
+                    terminal,
+                    buffer,
+                    buffer_row,
+                    line_number_width,
+                    is_cursor_line,
+                )?;
             }
 
             // Move to text area
@@ -139,10 +156,14 @@ impl UI {
                 terminal.print(display_line)?;
             } else {
                 // Show tilde for empty lines (like Vim)
-                terminal.set_foreground_color(Color::Blue)?;
+                if !is_cursor_line {
+                    terminal.set_foreground_color(Color::Blue)?;
+                }
                 terminal.print("~")?;
-                terminal.reset_color()?;
             }
+
+            // Reset colors after each line
+            terminal.reset_color()?;
         }
 
         Ok(())
@@ -154,9 +175,15 @@ impl UI {
         buffer: &crate::buffer::Buffer,
         buffer_row: usize,
         width: usize,
+        is_cursor_line: bool,
     ) -> io::Result<()> {
-        // Set line number colors (gray by default)
-        terminal.set_foreground_color(Color::DarkGrey)?;
+        // Set line number colors - highlight current line number if on cursor line
+        if is_cursor_line && self.show_cursor_line {
+            terminal.set_foreground_color(Color::Yellow)?;
+            terminal.set_background_color(Color::DarkGrey)?;
+        } else {
+            terminal.set_foreground_color(Color::DarkGrey)?;
+        }
 
         if buffer_row < buffer.lines.len() {
             let line_num = if self.show_relative_numbers {
@@ -185,7 +212,7 @@ impl UI {
             terminal.print(&spaces)?;
         }
 
-        terminal.reset_color()?;
+        // Don't reset color here - let the caller handle it
         Ok(())
     }
 

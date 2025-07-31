@@ -368,4 +368,26 @@ impl Editor {
         };
         self.status_message = status.to_string();
     }
+
+    /// Toggle cursor line highlighting
+    pub fn toggle_cursor_line(&mut self) {
+        self.ui.show_cursor_line = !self.ui.show_cursor_line;
+        let status = if self.ui.show_cursor_line {
+            "Cursor line highlighting enabled"
+        } else {
+            "Cursor line highlighting disabled"
+        };
+        self.status_message = status.to_string();
+    }
+
+    /// Set cursor line highlighting
+    pub fn set_cursor_line(&mut self, enabled: bool) {
+        self.ui.show_cursor_line = enabled;
+        let status = if enabled {
+            "Cursor line highlighting enabled"
+        } else {
+            "Cursor line highlighting disabled"
+        };
+        self.status_message = status.to_string();
+    }
 }
