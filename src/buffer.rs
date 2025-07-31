@@ -1,7 +1,7 @@
 use crate::mode::{Position, Selection};
+use anyhow::Result;
 use std::collections::VecDeque;
 use std::path::PathBuf;
-use anyhow::Result;
 
 /// Represents a text buffer with content and metadata
 #[derive(Debug, Clone)]
@@ -79,7 +79,7 @@ impl Buffer {
 
     pub fn insert_char(&mut self, ch: char) {
         self.save_state();
-        
+
         if self.cursor.row >= self.lines.len() {
             self.lines.push(String::new());
         }
@@ -94,7 +94,7 @@ impl Buffer {
 
     pub fn insert_line_break(&mut self) {
         self.save_state();
-        
+
         if self.cursor.row >= self.lines.len() {
             self.lines.push(String::new());
             self.cursor.row = self.lines.len() - 1;
@@ -133,7 +133,11 @@ impl Buffer {
     }
 
     pub fn move_cursor(&mut self, new_pos: Position) {
-        let max_row = if self.lines.is_empty() { 0 } else { self.lines.len() - 1 };
+        let max_row = if self.lines.is_empty() {
+            0
+        } else {
+            self.lines.len() - 1
+        };
         let row = new_pos.row.min(max_row);
         let max_col = if row < self.lines.len() {
             self.lines[row].len()
@@ -141,7 +145,7 @@ impl Buffer {
             0
         };
         let col = new_pos.col.min(max_col);
-        
+
         self.cursor = Position::new(row, col);
     }
 
@@ -150,10 +154,10 @@ impl Buffer {
             lines: self.lines.clone(),
             cursor: self.cursor,
         };
-        
+
         self.undo_stack.push_back(state);
         self.redo_stack.clear();
-        
+
         // Limit undo stack size
         if self.undo_stack.len() > 1000 {
             self.undo_stack.pop_front();
@@ -167,7 +171,7 @@ impl Buffer {
                 cursor: self.cursor,
             };
             self.redo_stack.push_back(current_state);
-            
+
             self.lines = state.lines;
             self.cursor = state.cursor;
             self.modified = true;
@@ -184,7 +188,7 @@ impl Buffer {
                 cursor: self.cursor,
             };
             self.undo_stack.push_back(current_state);
-            
+
             self.lines = state.lines;
             self.cursor = state.cursor;
             self.modified = true;
