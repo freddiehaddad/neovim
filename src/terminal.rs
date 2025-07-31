@@ -2,7 +2,7 @@ use crate::mode::Position;
 use crossterm::{
     cursor,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
-    terminal::{self, Clear, ClearType},
+    terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand, QueueableCommand,
 };
 use std::io::{self, Stdout, Write};
@@ -15,6 +15,9 @@ pub struct Terminal {
 impl Terminal {
     pub fn new() -> io::Result<Self> {
         let mut stdout = io::stdout();
+
+        // Enter alternate screen before enabling raw mode
+        stdout.execute(EnterAlternateScreen)?;
         terminal::enable_raw_mode()?;
         stdout.execute(terminal::Clear(ClearType::All))?;
         stdout.execute(cursor::Hide)?;
@@ -118,8 +121,14 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        let _ = terminal::disable_raw_mode();
+        // Restore cursor and colors first
         let _ = self.stdout.execute(cursor::Show);
         let _ = self.stdout.execute(ResetColor);
+
+        // Disable raw mode before leaving alternate screen
+        let _ = terminal::disable_raw_mode();
+
+        // Leave alternate screen to restore original terminal content
+        let _ = self.stdout.execute(LeaveAlternateScreen);
     }
 }
