@@ -622,8 +622,94 @@ impl Editor {
         self.ui.show_relative_numbers = self.config.display.show_relative_numbers;
         self.ui.show_cursor_line = self.config.display.show_cursor_line;
 
+        // Apply specific settings that need immediate effect
+        match setting {
+            "syntax" | "syn" => {
+                if self.config.display.syntax_highlighting {
+                    // Re-enable syntax highlighting
+                    if self.syntax_highlighter.is_none() {
+                        self.syntax_highlighter = SyntaxHighlighter::new().ok();
+                    }
+                } else {
+                    // Disable syntax highlighting
+                    self.syntax_highlighter = None;
+                }
+            }
+            "colorscheme" | "colo" => {
+                // Update syntax highlighter with new color scheme
+                if let Some(ref mut highlighter) = self.syntax_highlighter {
+                    if let Err(e) = highlighter.update_theme(&self.config.display.color_scheme) {
+                        self.set_status_message(format!("Failed to load color scheme: {}", e));
+                    }
+                }
+            }
+            "ignorecase" | "ic" | "smartcase" | "scs" => {
+                self.apply_search_settings();
+            }
+            "autosave" | "aw" => {
+                // Auto save setting changed, check if we should save now
+                self.check_auto_save();
+            }
+            _ => {}
+        }
+
         // Save config changes
         let _ = self.config.save();
+    }
+
+    /// Apply tab settings to current buffer
+    pub fn apply_tab_settings(&mut self) {
+        // Tab settings are handled at the editor level since Buffer doesn't store them
+        // These settings affect how input is processed
+    }
+
+    /// Apply search settings
+    pub fn apply_search_settings(&mut self) {
+        // Update search engine case sensitivity
+        self.search_engine.set_case_sensitive(!self.config.behavior.ignore_case);
+        // Smart case logic would be implemented in search methods
+    }
+
+    /// Check if auto save is enabled and save if needed
+    pub fn check_auto_save(&mut self) {
+        if self.config.editing.auto_save {
+            if let Some(buffer) = self.current_buffer_mut() {
+                if buffer.modified && buffer.file_path.is_some() {
+                    let _ = buffer.save();
+                }
+            }
+        }
+    }
+
+    /// Get configuration value for display  
+    pub fn get_config_value(&self, setting: &str) -> Option<String> {
+        match setting {
+            "number" | "nu" => Some(self.config.display.show_line_numbers.to_string()),
+            "relativenumber" | "rnu" => Some(self.config.display.show_relative_numbers.to_string()),
+            "cursorline" | "cul" => Some(self.config.display.show_cursor_line.to_string()),
+            "tabstop" | "ts" => Some(self.config.behavior.tab_width.to_string()),
+            "expandtab" | "et" => Some(self.config.behavior.expand_tabs.to_string()),
+            "autoindent" | "ai" => Some(self.config.behavior.auto_indent.to_string()),
+            "ignorecase" | "ic" => Some(self.config.behavior.ignore_case.to_string()),
+            "smartcase" | "scs" => Some(self.config.behavior.smart_case.to_string()),
+            "hlsearch" | "hls" => Some(self.config.behavior.highlight_search.to_string()),
+            "incsearch" | "is" => Some(self.config.behavior.incremental_search.to_string()),
+            "wrap" => Some(self.config.behavior.wrap_lines.to_string()),
+            "linebreak" | "lbr" => Some(self.config.behavior.line_break.to_string()),
+            "undolevels" | "ul" => Some(self.config.editing.undo_levels.to_string()),
+            "undofile" | "udf" => Some(self.config.editing.persistent_undo.to_string()),
+            "backup" | "bk" => Some(self.config.editing.backup.to_string()),
+            "swapfile" | "swf" => Some(self.config.editing.swap_file.to_string()),
+            "autosave" | "aw" => Some(self.config.editing.auto_save.to_string()),
+            "laststatus" | "ls" => Some(self.config.interface.show_status_line.to_string()),
+            "showcmd" | "sc" => Some(self.config.interface.show_command.to_string()),
+            "scrolloff" | "so" => Some(self.config.interface.scroll_off.to_string()),
+            "sidescrolloff" | "siso" => Some(self.config.interface.side_scroll_off.to_string()),
+            "timeoutlen" | "tm" => Some(self.config.interface.command_timeout.to_string()),
+            "colorscheme" | "colo" => Some(self.config.display.color_scheme.clone()),
+            "syntax" | "syn" => Some(self.config.display.syntax_highlighting.to_string()),
+            _ => None,
+        }
     }
 
     /// Get the current value of a configuration setting

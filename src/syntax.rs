@@ -197,6 +197,21 @@ impl SyntaxHighlighter {
         None
     }
 
+    pub fn update_theme(&mut self, theme_name: &str) -> Result<()> {
+        // Reload the config to get updated themes
+        self.config = Self::load_config()?;
+        
+        // Validate that the theme exists
+        if !self.config.themes.contains_key(theme_name) {
+            return Err(anyhow!("Theme '{}' not found", theme_name));
+        }
+        
+        // Update the default theme in the config
+        self.config.general.default_theme = theme_name.to_string();
+        
+        Ok(())
+    }
+
     pub fn highlight_text(&mut self, text: &str, language: &str) -> Result<Vec<HighlightRange>> {
         if !self.config.general.enabled {
             return Ok(Vec::new());

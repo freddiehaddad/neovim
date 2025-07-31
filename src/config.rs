@@ -204,6 +204,169 @@ impl EditorConfig {
                     Err("Invalid tab width".to_string())
                 }
             }
+            "autoindent" | "ai" => {
+                self.behavior.auto_indent = value.parse().unwrap_or(true);
+                Ok(format!(
+                    "Auto indent: {}",
+                    if self.behavior.auto_indent {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "incsearch" | "is" => {
+                self.behavior.incremental_search = value.parse().unwrap_or(true);
+                Ok(format!(
+                    "Incremental search: {}",
+                    if self.behavior.incremental_search {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "wrap" => {
+                self.behavior.wrap_lines = value.parse().unwrap_or(false);
+                Ok(format!(
+                    "Line wrap: {}",
+                    if self.behavior.wrap_lines {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "linebreak" | "lbr" => {
+                self.behavior.line_break = value.parse().unwrap_or(false);
+                Ok(format!(
+                    "Line break: {}",
+                    if self.behavior.line_break {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+
+            // Editing settings
+            "undolevels" | "ul" => {
+                if let Ok(levels) = value.parse::<usize>() {
+                    self.editing.undo_levels = levels;
+                    Ok(format!("Undo levels: {}", levels))
+                } else {
+                    Err("Invalid undo levels".to_string())
+                }
+            }
+            "undofile" | "udf" => {
+                self.editing.persistent_undo = value.parse().unwrap_or(false);
+                Ok(format!(
+                    "Persistent undo: {}",
+                    if self.editing.persistent_undo {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "backup" | "bk" => {
+                self.editing.backup = value.parse().unwrap_or(false);
+                Ok(format!(
+                    "Backup files: {}",
+                    if self.editing.backup {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "swapfile" | "swf" => {
+                self.editing.swap_file = value.parse().unwrap_or(false);
+                Ok(format!(
+                    "Swap file: {}",
+                    if self.editing.swap_file {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "autosave" | "aw" => {
+                self.editing.auto_save = value.parse().unwrap_or(false);
+                Ok(format!(
+                    "Auto save: {}",
+                    if self.editing.auto_save {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+
+            // Interface settings
+            "laststatus" | "ls" => {
+                self.interface.show_status_line = value.parse().unwrap_or(true);
+                Ok(format!(
+                    "Status line: {}",
+                    if self.interface.show_status_line {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "showcmd" | "sc" => {
+                self.interface.show_command = value.parse().unwrap_or(true);
+                Ok(format!(
+                    "Show command: {}",
+                    if self.interface.show_command {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
+            "scrolloff" | "so" => {
+                if let Ok(lines) = value.parse::<usize>() {
+                    self.interface.scroll_off = lines;
+                    Ok(format!("Scroll offset: {}", lines))
+                } else {
+                    Err("Invalid scroll offset".to_string())
+                }
+            }
+            "sidescrolloff" | "siso" => {
+                if let Ok(cols) = value.parse::<usize>() {
+                    self.interface.side_scroll_off = cols;
+                    Ok(format!("Side scroll offset: {}", cols))
+                } else {
+                    Err("Invalid side scroll offset".to_string())
+                }
+            }
+            "timeoutlen" | "tm" => {
+                if let Ok(timeout) = value.parse::<u64>() {
+                    self.interface.command_timeout = timeout;
+                    Ok(format!("Command timeout: {} ms", timeout))
+                } else {
+                    Err("Invalid timeout value".to_string())
+                }
+            }
+
+            // Display settings
+            "colorscheme" | "colo" => {
+                self.display.color_scheme = value.to_string();
+                Ok(format!("Color scheme: {}", value))
+            }
+            "syntax" | "syn" => {
+                self.display.syntax_highlighting = value.parse().unwrap_or(true);
+                Ok(format!(
+                    "Syntax highlighting: {}",
+                    if self.display.syntax_highlighting {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ))
+            }
 
             _ => Err(format!("Unknown setting: {}", setting)),
         }

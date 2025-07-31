@@ -18,6 +18,14 @@ impl SearchEngine {
         }
     }
 
+    pub fn set_case_sensitive(&mut self, case_sensitive: bool) {
+        self.case_sensitive = case_sensitive;
+    }
+
+    pub fn set_use_regex(&mut self, use_regex: bool) {
+        self.use_regex = use_regex;
+    }
+
     pub fn search(&mut self, pattern: &str, text: &[String]) -> Vec<SearchResult> {
         self.last_search = Some(pattern.to_string());
 

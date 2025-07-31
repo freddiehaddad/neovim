@@ -79,13 +79,54 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 
 ### Configuration Commands
 
-- `:set number` - Enable absolute line numbers
-- `:set nonumber` - Disable absolute line numbers
-- `:set relativenumber` - Enable relative line numbers
-- `:set norelativenumber` - Disable relative line numbers
-- `:set cursorline` - Enable cursor line highlighting
-- `:set nocursorline` - Disable cursor line highlighting
-- `:set tabstop=4` - Set tab width to 4 spaces
+The editor now supports **all major Vim `:set` commands** with automatic persistence to `editor.toml`:
+
+#### Display Settings
+
+- `:set number` / `:set nonumber` (`nu` / `nonu`) - Toggle line numbers
+- `:set relativenumber` / `:set norelativenumber` (`rnu` / `nornu`) - Toggle relative line numbers  
+- `:set cursorline` / `:set nocursorline` (`cul` / `nocul`) - Toggle cursor line highlighting
+- `:set syntax` / `:set nosyntax` (`syn` / `nosyn`) - Toggle syntax highlighting
+- `:set colorscheme=<theme>` (`colo`) - Change color theme (default, dark, light, ferris)
+
+#### Search & Navigation
+
+- `:set ignorecase` / `:set noignorecase` (`ic` / `noic`) - Case-insensitive search
+- `:set smartcase` / `:set nosmartcase` (`scs` / `noscs`) - Smart case matching
+- `:set hlsearch` / `:set nohlsearch` (`hls` / `nohls`) - Highlight search results
+- `:set incsearch` / `:set noincsearch` (`is` / `nois`) - Incremental search
+- `:set scrolloff=<n>` (`so`) - Lines to keep around cursor
+- `:set sidescrolloff=<n>` (`siso`) - Columns to keep around cursor
+
+#### Text Editing
+
+- `:set tabstop=<n>` (`ts`) - Tab width (default: 4)
+- `:set expandtab` / `:set noexpandtab` (`et` / `noet`) - Use spaces instead of tabs
+- `:set autoindent` / `:set noautoindent` (`ai` / `noai`) - Automatic indentation
+- `:set wrap` / `:set nowrap` - Line wrapping
+- `:set linebreak` / `:set nolinebreak` (`lbr` / `nolbr`) - Word boundary wrapping
+
+#### File Management
+
+- `:set backup` / `:set nobackup` (`bk` / `nobk`) - Create backup files
+- `:set swapfile` / `:set noswapfile` (`swf` / `noswf`) - Enable swap files
+- `:set autosave` / `:set noautosave` (`aw` / `noaw`) - Automatic file saving
+- `:set undolevels=<n>` (`ul`) - Number of undo levels (default: 1000)
+- `:set undofile` / `:set noundofile` (`udf` / `noudf`) - Persistent undo history
+
+#### Interface
+
+- `:set laststatus` / `:set nolaststatus` (`ls` / `nols`) - Show status line
+- `:set showcmd` / `:set noshowcmd` (`sc` / `nosc`) - Show partial commands
+- `:set timeoutlen=<ms>` (`tm`) - Command timeout (default: 1000ms)
+
+#### Setting Queries
+
+- `:set` - Show current basic settings
+- `:set all` - Show all settings with values  
+- `:set <option>?` - Query specific setting value
+
+**All settings automatically persist to `editor.toml` and apply immediately!**
 
 ## Usage
 

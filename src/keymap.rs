@@ -843,6 +843,48 @@ impl KeyHandler {
     fn handle_set_command(&self, editor: &mut Editor, args: &str) {
         let args = args.trim();
 
+        // Handle empty set command - show some basic settings
+        if args.is_empty() {
+            let mut settings = Vec::new();
+            settings.push(format!("number: {}", editor.get_config_value("number").unwrap_or_default()));
+            settings.push(format!("relativenumber: {}", editor.get_config_value("relativenumber").unwrap_or_default()));
+            settings.push(format!("cursorline: {}", editor.get_config_value("cursorline").unwrap_or_default()));
+            settings.push(format!("tabstop: {}", editor.get_config_value("tabstop").unwrap_or_default()));
+            settings.push(format!("expandtab: {}", editor.get_config_value("expandtab").unwrap_or_default()));
+            editor.set_status_message(format!("Current settings: {}", settings.join(", ")));
+            return;
+        }
+
+        // Handle :set all command
+        if args == "all" {
+            let all_settings = [
+                "number", "relativenumber", "cursorline", "tabstop", "expandtab", "autoindent",
+                "ignorecase", "smartcase", "hlsearch", "incsearch", "wrap", "linebreak",
+                "undolevels", "undofile", "backup", "swapfile", "autosave", "laststatus",
+                "showcmd", "scrolloff", "sidescrolloff", "timeoutlen", "colorscheme", "syntax"
+            ];
+            
+            let mut all_values = Vec::new();
+            for setting in &all_settings {
+                if let Some(value) = editor.get_config_value(setting) {
+                    all_values.push(format!("{}={}", setting, value));
+                }
+            }
+            
+            editor.set_status_message(format!("All settings: {}", all_values.join(" | ")));
+            return;
+        }
+
+        // Handle query for specific setting (e.g., "set number?")
+        if let Some(setting) = args.strip_suffix('?') {
+            if let Some(value) = editor.get_config_value(setting) {
+                editor.set_status_message(format!("{}: {}", setting, value));
+            } else {
+                editor.set_status_message(format!("Unknown setting: {}", setting));
+            }
+            return;
+        }
+
         // Handle "no" prefix for disabling options
         if let Some(setting) = args.strip_prefix("no") {
             match setting {
@@ -860,6 +902,51 @@ impl KeyHandler {
                     editor.set_config_setting("cursorline", "false");
                     editor.set_cursor_line(false);
                 }
+                "ignorecase" | "ic" => {
+                    editor.set_config_setting("ignorecase", "false");
+                }
+                "smartcase" | "scs" => {
+                    editor.set_config_setting("smartcase", "false");
+                }
+                "hlsearch" | "hls" => {
+                    editor.set_config_setting("hlsearch", "false");
+                }
+                "expandtab" | "et" => {
+                    editor.set_config_setting("expandtab", "false");
+                }
+                "autoindent" | "ai" => {
+                    editor.set_config_setting("autoindent", "false");
+                }
+                "incsearch" | "is" => {
+                    editor.set_config_setting("incsearch", "false");
+                }
+                "wrap" => {
+                    editor.set_config_setting("wrap", "false");
+                }
+                "linebreak" | "lbr" => {
+                    editor.set_config_setting("linebreak", "false");
+                }
+                "undofile" | "udf" => {
+                    editor.set_config_setting("undofile", "false");
+                }
+                "backup" | "bk" => {
+                    editor.set_config_setting("backup", "false");
+                }
+                "swapfile" | "swf" => {
+                    editor.set_config_setting("swapfile", "false");
+                }
+                "autosave" | "aw" => {
+                    editor.set_config_setting("autosave", "false");
+                }
+                "laststatus" | "ls" => {
+                    editor.set_config_setting("laststatus", "false");
+                }
+                "showcmd" | "sc" => {
+                    editor.set_config_setting("showcmd", "false");
+                }
+                "syntax" | "syn" => {
+                    editor.set_config_setting("syntax", "false");
+                }
                 _ => editor.set_status_message(format!("Unknown option: no{}", setting)),
             }
             return;
@@ -875,6 +962,42 @@ impl KeyHandler {
                     } else {
                         editor.set_status_message("Invalid tab width value".to_string());
                     }
+                }
+                "undolevels" | "ul" => {
+                    if let Ok(_levels) = value.parse::<usize>() {
+                        editor.set_config_setting("undolevels", value);
+                        editor.set_status_message(format!("Undo levels set to {}", value));
+                    } else {
+                        editor.set_status_message("Invalid undo levels value".to_string());
+                    }
+                }
+                "scrolloff" | "so" => {
+                    if let Ok(_lines) = value.parse::<usize>() {
+                        editor.set_config_setting("scrolloff", value);
+                        editor.set_status_message(format!("Scroll offset set to {}", value));
+                    } else {
+                        editor.set_status_message("Invalid scroll offset value".to_string());
+                    }
+                }
+                "sidescrolloff" | "siso" => {
+                    if let Ok(_cols) = value.parse::<usize>() {
+                        editor.set_config_setting("sidescrolloff", value);
+                        editor.set_status_message(format!("Side scroll offset set to {}", value));
+                    } else {
+                        editor.set_status_message("Invalid side scroll offset value".to_string());
+                    }
+                }
+                "timeoutlen" | "tm" => {
+                    if let Ok(_timeout) = value.parse::<u64>() {
+                        editor.set_config_setting("timeoutlen", value);
+                        editor.set_status_message(format!("Command timeout set to {} ms", value));
+                    } else {
+                        editor.set_status_message("Invalid timeout value".to_string());
+                    }
+                }
+                "colorscheme" | "colo" => {
+                    editor.set_config_setting("colorscheme", value);
+                    editor.set_status_message(format!("Color scheme set to {}", value));
                 }
                 _ => editor.set_status_message(format!("Unknown setting: {}", setting)),
             }
@@ -896,6 +1019,66 @@ impl KeyHandler {
             "cursorline" | "cul" => {
                 editor.set_config_setting("cursorline", "true");
                 editor.set_cursor_line(true);
+            }
+            "ignorecase" | "ic" => {
+                editor.set_config_setting("ignorecase", "true");
+                editor.set_status_message("Ignore case enabled".to_string());
+            }
+            "smartcase" | "scs" => {
+                editor.set_config_setting("smartcase", "true");
+                editor.set_status_message("Smart case enabled".to_string());
+            }
+            "hlsearch" | "hls" => {
+                editor.set_config_setting("hlsearch", "true");
+                editor.set_status_message("Search highlighting enabled".to_string());
+            }
+            "expandtab" | "et" => {
+                editor.set_config_setting("expandtab", "true");
+                editor.set_status_message("Expand tabs enabled".to_string());
+            }
+            "autoindent" | "ai" => {
+                editor.set_config_setting("autoindent", "true");
+                editor.set_status_message("Auto indent enabled".to_string());
+            }
+            "incsearch" | "is" => {
+                editor.set_config_setting("incsearch", "true");
+                editor.set_status_message("Incremental search enabled".to_string());
+            }
+            "wrap" => {
+                editor.set_config_setting("wrap", "true");
+                editor.set_status_message("Line wrap enabled".to_string());
+            }
+            "linebreak" | "lbr" => {
+                editor.set_config_setting("linebreak", "true");
+                editor.set_status_message("Line break enabled".to_string());
+            }
+            "undofile" | "udf" => {
+                editor.set_config_setting("undofile", "true");
+                editor.set_status_message("Persistent undo enabled".to_string());
+            }
+            "backup" | "bk" => {
+                editor.set_config_setting("backup", "true");
+                editor.set_status_message("Backup files enabled".to_string());
+            }
+            "swapfile" | "swf" => {
+                editor.set_config_setting("swapfile", "true");
+                editor.set_status_message("Swap file enabled".to_string());
+            }
+            "autosave" | "aw" => {
+                editor.set_config_setting("autosave", "true");
+                editor.set_status_message("Auto save enabled".to_string());
+            }
+            "laststatus" | "ls" => {
+                editor.set_config_setting("laststatus", "true");
+                editor.set_status_message("Status line enabled".to_string());
+            }
+            "showcmd" | "sc" => {
+                editor.set_config_setting("showcmd", "true");
+                editor.set_status_message("Show command enabled".to_string());
+            }
+            "syntax" | "syn" => {
+                editor.set_config_setting("syntax", "true");
+                editor.set_status_message("Syntax highlighting enabled".to_string());
             }
             _ => editor.set_status_message(format!("Unknown option: {}", args)),
         }
