@@ -1,12 +1,12 @@
 use crate::buffer::Buffer;
-use crate::terminal::Terminal;
-use crate::mode::Mode;
 use crate::keymap::KeyHandler;
+use crate::mode::Mode;
+use crate::terminal::Terminal;
 use crate::ui::UI;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 // Struct to hold editor state for rendering without borrowing issues
@@ -82,7 +82,7 @@ impl Editor {
 
             // Only handle input, render only when needed
             let input_handled = self.handle_input()?;
-            
+
             // Only re-render if we processed an input event and enough time has passed
             if input_handled {
                 let now = Instant::now();
@@ -112,8 +112,7 @@ impl Editor {
     }
 
     pub fn current_buffer(&self) -> Option<&Buffer> {
-        self.current_buffer_id
-            .and_then(|id| self.buffers.get(&id))
+        self.current_buffer_id.and_then(|id| self.buffers.get(&id))
     }
 
     pub fn current_buffer_mut(&mut self) -> Option<&mut Buffer> {
@@ -140,7 +139,7 @@ impl Editor {
         }
 
         self.buffers.remove(&id);
-        
+
         // Switch to another buffer if we closed the current one
         if self.current_buffer_id == Some(id) {
             self.current_buffer_id = self.buffers.keys().next().copied();
@@ -155,7 +154,7 @@ impl Editor {
         let current_buffer = self.current_buffer().cloned();
         let command_line = self.command_line.clone();
         let status_message = self.status_message.clone();
-        
+
         // Create a temporary editor state for rendering
         let editor_state = EditorRenderState {
             mode,
@@ -163,7 +162,7 @@ impl Editor {
             command_line,
             status_message,
         };
-        
+
         // Now we can safely borrow terminal mutably
         self.ui.render(&mut self.terminal, &editor_state)?;
         self.terminal.flush()?;
@@ -220,7 +219,7 @@ impl Editor {
             self.status_message = "Unsaved changes! Use :q! to force quit".to_string();
             return;
         }
-        
+
         self.should_quit = true;
     }
 
