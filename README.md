@@ -7,19 +7,24 @@ A Vim/Neovim clone written in Rust with full feature parity as the goal.
 ### Core Editor Functionality
 
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
+- **TOML-based Keymap System**: Configurable keybindings loaded from `keymaps.toml`
+- **Key Sequence Support**: Multi-character commands like `dd`, `gg`, `yy` with timeout
 - **Buffer Management**: Multiple buffer support with undo/redo
-- **Basic Text Operations**: Insert, delete, line breaks
-- **Cursor Movement**: hjkl movement, arrow keys
+- **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
+- **Basic Text Operations**: Insert, delete, line breaks, word movement
+- **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
 - **Terminal Interface**: Raw terminal input/output with crossterm
 - **Status Line**: Shows current mode, file info, cursor position
 
 ### Vim Keybindings
 
 - **Insert Mode**: `i`, `I`, `a`, `A`, `o`, `O`
-- **Navigation**: `h/j/k/l`, arrow keys
-- **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`
+- **Navigation**: `h/j/k/l`, arrow keys, `w/b/e` (word movement), `0/$` (line start/end), `gg/G` (buffer start/end)
+- **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`, `R` (replace mode)
+- **Delete Operations**: `x` (delete char), `X` (delete char before), `dd` (delete line)
+- **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
-- **File Operations**: `:w`, `:q`, `:wq`, `:e filename`
+- **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`
 
 ### Ex Commands
 
@@ -50,14 +55,32 @@ cargo run -- filename.txt
 4. Use `hjkl` or arrow keys to move cursor
 5. Type `:w` to save, `:q` to quit
 
+### Configuration
+
+The editor uses a revolutionary TOML-based keymap system that breaks from traditional Vim by making all keybindings configurable. The `keymaps.toml` file defines mode-specific keybindings:
+
+```toml
+[normal_mode]
+"h" = "cursor_left"
+"j" = "cursor_down"
+"dd" = "delete_line"
+"yy" = "yank_line"
+
+[insert_mode]
+"Escape" = "normal_mode"
+"Char" = "insert_char"
+```
+
+This allows complete customization of the editor's behavior while maintaining Vim compatibility by default.
+
 ## Architecture
 
 ### Core Modules
 
 - **Editor**: Main editor state and coordination
-- **Buffer**: Text buffer with undo/redo support
+- **Buffer**: Text buffer with undo/redo support and clipboard operations
 - **Terminal**: Raw terminal interface using crossterm
-- **Keymap**: Modal key handling and command execution
+- **Keymap**: TOML-based configurable key handling with sequence support
 - **UI**: Rendering engine for status line and content
 - **Mode**: Editor mode definitions and cursor positioning
 
@@ -73,9 +96,14 @@ cargo run -- filename.txt
 
 ### Phase 1: Core Vim Features ⏳
 
+- [x] **TOML-based Keymap System**: Configurable keybindings (revolutionary departure from traditional Vim)
+- [x] **Key Sequences**: Multi-character commands like `dd`, `gg`, `yy` with timeout support
+- [x] **Copy/Paste Operations**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), `p/P` (put)
+- [x] **Word Movement**: `w` (next word), `b` (previous word), `e` (word end)
+- [x] **Delete Operations**: `x`, `X`, `dd` for character and line deletion
+- [x] **Line Navigation**: `0` (line start), `$` (line end), `gg` (buffer start), `G` (buffer end)
 - [ ] Text objects (`aw`, `iw`, `ap`, etc.)
 - [ ] Operators (`d`, `c`, `y`, `p`) with motions
-- [ ] Word movement (`w`, `b`, `e`)
 - [ ] Visual mode selection and operations
 - [ ] Search and replace with regex
 
@@ -104,10 +132,14 @@ cargo run -- filename.txt
 
 - **crossterm**: Cross-platform terminal manipulation
 - **tokio**: Async runtime for LSP and file operations
-- **serde**: JSON serialization for LSP and config
-- **tree-sitter**: Syntax parsing and highlighting
+- **serde/serde_json**: JSON serialization for LSP and data structures
+- **toml**: TOML parsing for configuration files (keymaps.toml)
 - **regex**: Pattern matching for search/replace
 - **anyhow/thiserror**: Error handling
+- **unicode-width/unicode-segmentation**: Proper Unicode text handling
+- **notify**: File system watching
+- **tree-sitter**: Syntax parsing and highlighting (planned)
+- **log/env_logger**: Logging infrastructure
 
 ## Contributing
 
