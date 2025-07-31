@@ -309,7 +309,7 @@ impl KeyHandler {
 
     fn action_new_line(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
-            buffer.insert_char('\n');
+            buffer.insert_line_break();
         }
         Ok(())
     }
