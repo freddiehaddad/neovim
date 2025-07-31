@@ -1,5 +1,6 @@
 use crate::editor::EditorRenderState;
 use crate::mode::{Mode, Position};
+use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
 use crossterm::style::Color;
 use std::io;
@@ -60,7 +61,7 @@ impl UI {
 
         // Render buffer content
         if let Some(buffer) = &editor_state.current_buffer {
-            self.render_buffer(terminal, buffer, width, height)?;
+            self.render_buffer(terminal, buffer, editor_state, width, height)?;
         }
 
         // Render status line
@@ -102,6 +103,7 @@ impl UI {
         &self,
         terminal: &mut Terminal,
         buffer: &crate::buffer::Buffer,
+        editor_state: &EditorRenderState,
         width: u16,
         height: u16,
     ) -> io::Result<()> {
@@ -147,13 +149,18 @@ impl UI {
             terminal.move_cursor(Position::new(screen_row, text_start_col))?;
 
             if let Some(line) = buffer.get_line(buffer_row) {
-                // Truncate line if it's too long
-                let display_line = if line.len() > text_width {
-                    &line[..text_width]
+                // Check if we have syntax highlights for this line
+                if let Some(highlights) = editor_state.syntax_highlights.get(&buffer_row) {
+                    self.render_highlighted_line(terminal, line, highlights, text_width)?;
                 } else {
-                    line
-                };
-                terminal.print(display_line)?;
+                    // Render line without syntax highlighting
+                    let display_line = if line.len() > text_width {
+                        &line[..text_width]
+                    } else {
+                        line
+                    };
+                    terminal.print(display_line)?;
+                }
             } else {
                 // Show tilde for empty lines (like Vim)
                 if !is_cursor_line {
@@ -164,6 +171,62 @@ impl UI {
 
             // Reset colors after each line
             terminal.reset_color()?;
+        }
+
+        Ok(())
+    }
+
+    fn render_highlighted_line(
+        &self,
+        terminal: &mut Terminal,
+        line: &str,
+        highlights: &[HighlightRange],
+        max_width: usize,
+    ) -> io::Result<()> {
+        let line_bytes = line.as_bytes();
+        let mut current_pos = 0;
+
+        // Truncate highlights to fit within max_width
+        let display_len = std::cmp::min(line.len(), max_width);
+
+        for highlight in highlights {
+            let start = std::cmp::min(highlight.start, display_len);
+            let end = std::cmp::min(highlight.end, display_len);
+
+            if start >= display_len {
+                break;
+            }
+
+            // Print any text before this highlight
+            if current_pos < start {
+                let text_before =
+                    std::str::from_utf8(&line_bytes[current_pos..start]).unwrap_or("");
+                terminal.print(text_before)?;
+            }
+
+            // Apply highlight style and print highlighted text
+            if let Some(color) = highlight.style.to_color() {
+                terminal.set_foreground_color(color)?;
+            }
+
+            if highlight.style.bold.unwrap_or(false) {
+                // Note: Bold support would need to be added to terminal module
+            }
+
+            let highlighted_text = std::str::from_utf8(&line_bytes[start..end]).unwrap_or("");
+            terminal.print(highlighted_text)?;
+
+            // Reset color
+            terminal.reset_color()?;
+
+            current_pos = end;
+        }
+
+        // Print any remaining text after the last highlight
+        if current_pos < display_len {
+            let remaining_text =
+                std::str::from_utf8(&line_bytes[current_pos..display_len]).unwrap_or("");
+            terminal.print(remaining_text)?;
         }
 
         Ok(())

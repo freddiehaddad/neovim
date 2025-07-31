@@ -9,9 +9,18 @@ A revolutionary Vim/Neovim clone written in Rust that breaks from traditional Vi
 Unlike traditional Vim, this editor uses **human-readable TOML files** for all configuration:
 
 - **`keymaps.toml`** - Complete keymap customization
-- **`editor.toml`** - Comprehensive editor settings (30+ options)
+- **`editor.toml`** - Comprehensive editor settings (30+ options)  
+- **`syntax.toml`** - Advanced syntax highlighting themes and language support
 - **No more scattered hardcoded defaults** - everything is configurable
 - **Persistent settings** - all `:set` commands automatically save to configuration
+
+### 🎨 Tree-sitter Syntax Highlighting
+
+- **Professional-grade syntax highlighting** powered by Tree-sitter AST parsing
+- **Rust-inspired color schemes** with semantic meaning and visual identity
+- **Multi-language support** with extensible language definitions
+- **Real-time highlighting** with accurate syntax recognition
+- **Customizable themes** including default, dark, light, and special "Ferris" theme
 
 ### 🎯 Familiar Vim Interface with Modern Backend
 
@@ -26,12 +35,16 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
 - **TOML-based Keymap System**: Configurable keybindings loaded from `keymaps.toml`
 - **TOML-based Editor Settings**: Comprehensive configuration in `editor.toml`
+- **Tree-sitter Syntax Highlighting**: Professional AST-based syntax highlighting with `syntax.toml`
+- **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
+- **Rust-Inspired Color Schemes**: Beautiful themes reflecting Rust's safety and performance values
 - **Key Sequence Support**: Multi-character commands like `dd`, `gg`, `yy` with timeout
-- **Buffer Management**: Multiple buffer support with undo/redo
-- **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
-- **Search Engine**: Regex-capable search with `/`, `n`, `N` navigation
+- **Advanced Search Engine**: Regex-capable search with `/`, `n`, `N` navigation
 - **Line Numbers**: Absolute, relative, and hybrid line number modes
 - **Cursor Line Highlighting**: Visual cursor line highlighting
+- **Configuration Hot Reloading**: Live updates when TOML files change
+- **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
+- **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
 - **Basic Text Operations**: Insert, delete, line breaks, word movement
 - **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
 - **Terminal Interface**: Raw terminal input/output with crossterm
@@ -53,7 +66,10 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - `:q!` - Force quit
 - `:w` - Save file
 - `:wq` - Save and quit
-- `:e <filename>` - Open file
+- `:e <filename>` - Open file in new buffer
+- `:b <buffer>` - Switch to buffer by number or name
+- `:bd` - Delete current buffer
+- `:ls` - List all open buffers
 
 ### Search Commands
 
@@ -120,7 +136,37 @@ cargo run -- filename.txt
 
 ### Configuration
 
-The editor features a **revolutionary TOML-based configuration system** that completely replaces traditional Vim's scattered settings approach.
+The editor features a **revolutionary TOML-based configuration system** that completely replaces traditional Vim's scattered settings approach, plus advanced Tree-sitter syntax highlighting.
+
+#### Syntax Highlighting Configuration (`syntax.toml`)
+
+The `syntax.toml` file provides comprehensive syntax highlighting with multiple themes:
+
+```toml
+[general]
+enabled = true
+default_theme = "default"  # Can be "default", "dark", "light", or "ferris"
+
+# Language definitions
+[languages.rust]
+name = "Rust"
+extensions = ["rs"]
+grammar = "rust"
+comment_token = "//"
+
+# Rust-inspired color themes
+[themes.default]
+# Basic syntax elements with Rust language colors
+keyword = { fg = "#ce422b", bold = true }        # Rust red/orange - core keywords
+string = { fg = "#b4a72e", italic = true }       # Golden yellow - string literals  
+comment = { fg = "#5c6773", italic = true }      # Muted gray - comments
+number = { fg = "#ff9940", bold = true }         # Bright orange - numeric literals
+function = { fg = "#39adb5", bold = true }       # Teal blue - functions (reliability)
+type = { fg = "#86b300", bold = true }           # Fresh green - types (safety)
+variable = { fg = "#dbd7ca" }                    # Light cream - variables
+
+# Alternative themes available: dark, light, ferris
+```
 
 #### Editor Configuration (`editor.toml`)
 
@@ -194,6 +240,14 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 #### Available Configuration Settings
 
+**Syntax Highlighting:**
+
+- `enabled` - Enable/disable syntax highlighting globally
+- `default_theme` - Active color theme ("default", "dark", "light", "ferris")
+- **Language Support**: Extensible language definitions with Tree-sitter grammars
+- **Color Themes**: Rust-inspired themes with semantic color meaning
+- **Real-time Updates**: Live theme switching and configuration reloading
+
 **Display Settings:**
 
 - `show_line_numbers` - Show absolute line numbers (`:set number`)
@@ -233,19 +287,21 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 ### Core Modules
 
 - **Editor**: Main editor state and coordination with TOML-based configuration
-- **Config**: TOML configuration management for both keymaps and editor settings
-- **Buffer**: Text buffer with undo/redo support and clipboard operations
-- **Terminal**: Raw terminal interface using crossterm
+- **Config**: TOML configuration management for keymaps, editor settings, and syntax themes
+- **Buffer**: Multi-buffer management with undo/redo support and clipboard operations
+- **Terminal**: Raw terminal interface using crossterm with alternate screen support
 - **Keymap**: TOML-based configurable key handling with sequence support
-- **UI**: Rendering engine for status line, line numbers, cursor line, and content
+- **UI**: Advanced rendering engine for status line, line numbers, cursor line, and syntax-highlighted content
 - **Mode**: Editor mode definitions and cursor positioning
 - **Search**: Regex-capable search engine with result navigation
+- **Syntax**: Tree-sitter integration for professional syntax highlighting with configurable themes
 
-### Planned Modules
+### Implemented Features ✅
 
-- **Syntax**: Tree-sitter integration for syntax highlighting
-- **LSP**: Language Server Protocol client
-- **Plugin**: Lua scripting and plugin system
+- **Tree-sitter Syntax Highlighting**: AST-based syntax highlighting with Rust-inspired themes
+- **Multi-Buffer System**: Complete buffer management with Ex commands
+- **Configuration Hot Reloading**: Live updates when TOML configuration files change
+- **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 
 ## Development Roadmap
 
@@ -253,6 +309,10 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 - [x] **TOML-based Keymap System**: Configurable keybindings (revolutionary departure from traditional Vim)
 - [x] **TOML-based Editor Configuration**: Comprehensive settings system with 30+ options
+- [x] **Tree-sitter Syntax Highlighting**: Professional AST-based highlighting with Rust-inspired themes
+- [x] **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
+- [x] **Configuration Hot Reloading**: Live updates when TOML files change
+- [x] **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 - [x] **Persistent Configuration**: All `:set` commands save to `editor.toml` automatically
 - [x] **Search Engine**: Regex-capable search with `/`, `n`, `N` navigation
 - [x] **Line Numbers**: Absolute (`:set number`), relative (`:set relativenumber`), and hybrid modes
@@ -277,7 +337,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 ### Phase 3: IDE Features 📅
 
 - [ ] LSP client with autocompletion
-- [ ] Syntax highlighting with Tree-sitter
+- [x] Syntax highlighting with Tree-sitter (✅ Implemented)
 - [ ] Diagnostics and error handling
 - [ ] Go-to definition and hover info
 
@@ -290,15 +350,16 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 ## Dependencies
 
-- **crossterm**: Cross-platform terminal manipulation
-- **toml**: TOML parsing for configuration files (`keymaps.toml`, `editor.toml`)
+- **crossterm**: Cross-platform terminal manipulation with alternate screen support
+- **toml**: TOML parsing for configuration files (`keymaps.toml`, `editor.toml`, `syntax.toml`)
 - **serde**: Serialization framework for TOML configuration
 - **anyhow**: Error handling for configuration and file operations
 - **regex**: Pattern matching for search functionality
 - **unicode-width/unicode-segmentation**: Proper Unicode text handling
+- **tree-sitter**: AST-based syntax parsing and highlighting (✅ Implemented)
+- **tree-sitter-rust**: Rust grammar for Tree-sitter (✅ Implemented)
+- **notify**: File system watching for configuration hot reloading (planned)
 - **tokio**: Async runtime for LSP and file operations (planned)
-- **tree-sitter**: Syntax parsing and highlighting (planned)
-- **notify**: File system watching (planned)
 - **log/env_logger**: Logging infrastructure (planned)
 
 ## Contributing

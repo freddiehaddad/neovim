@@ -4,6 +4,7 @@ use crate::config_watcher::{ConfigChangeEvent, ConfigWatcher};
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
+use crate::syntax::{HighlightRange, SyntaxHighlighter};
 use crate::terminal::Terminal;
 use crate::ui::UI;
 use anyhow::Result;
@@ -20,6 +21,7 @@ pub struct EditorRenderState {
     pub status_message: String,
     pub buffer_count: usize,
     pub current_buffer_id: Option<usize>,
+    pub syntax_highlights: HashMap<usize, Vec<HighlightRange>>, // line_index -> highlights
 }
 
 pub struct Editor {
@@ -57,6 +59,8 @@ pub struct Editor {
     render_interval: Duration,
     /// Configuration file watcher for hot reloading
     config_watcher: Option<ConfigWatcher>,
+    /// Syntax highlighter for code highlighting
+    syntax_highlighter: Option<SyntaxHighlighter>,
 }
 
 impl Editor {
@@ -74,6 +78,9 @@ impl Editor {
 
         // Initialize config watcher for hot reloading
         let config_watcher = ConfigWatcher::new().ok(); // Don't fail if watcher can't be created
+
+        // Initialize syntax highlighter
+        let syntax_highlighter = SyntaxHighlighter::new().ok(); // Don't fail if highlighter can't be created
 
         Ok(Self {
             buffers: HashMap::new(),
@@ -93,6 +100,7 @@ impl Editor {
             last_render_time: Instant::now(),
             render_interval: Duration::from_millis(16), // ~60 FPS
             config_watcher,
+            syntax_highlighter,
         })
     }
 
@@ -319,6 +327,26 @@ impl Editor {
         let command_line = self.command_line.clone();
         let status_message = self.status_message.clone();
 
+        // Generate syntax highlights for visible lines
+        let mut syntax_highlights = HashMap::new();
+        if let Some(buffer) = &current_buffer {
+            // We'll highlight the first 100 lines for now (should be optimized later)
+            for line_index in 0..std::cmp::min(buffer.lines.len(), 100) {
+                if let Some(line) = buffer.get_line(line_index) {
+                    let file_path = buffer
+                        .file_path
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string());
+                    if let Some(path) = file_path {
+                        let highlights = self.get_syntax_highlights(line, Some(&path));
+                        if !highlights.is_empty() {
+                            syntax_highlights.insert(line_index, highlights);
+                        }
+                    }
+                }
+            }
+        }
+
         // Create a temporary editor state for rendering
         let editor_state = EditorRenderState {
             mode,
@@ -327,6 +355,7 @@ impl Editor {
             status_message,
             buffer_count: self.buffers.len(),
             current_buffer_id: self.current_buffer_id,
+            syntax_highlights,
         };
 
         // Now we can safely borrow terminal mutably
@@ -603,6 +632,48 @@ impl Editor {
             self.config.display.show_line_numbers,
             self.config.display.show_relative_numbers,
         )
+    }
+
+    /// Get syntax highlights for a line of text
+    pub fn get_syntax_highlights(
+        &mut self,
+        text: &str,
+        file_path: Option<&str>,
+    ) -> Vec<crate::syntax::HighlightRange> {
+        if let (Some(highlighter), Some(path)) = (&mut self.syntax_highlighter, file_path) {
+            if let Some(language) = highlighter.detect_language_from_extension(path) {
+                highlighter
+                    .highlight_text(text, &language)
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Get highlighted text for a specific line in the current buffer
+    pub fn get_line_highlights(&mut self, line_index: usize) -> Vec<crate::syntax::HighlightRange> {
+        // Get the necessary data first to avoid borrow conflicts
+        let (line_text, file_path) = {
+            if let Some(buffer) = self.current_buffer() {
+                let line = buffer.get_line(line_index).map(|s| s.to_string());
+                let path = buffer
+                    .file_path
+                    .as_ref()
+                    .map(|p| p.to_string_lossy().to_string());
+                (line, path)
+            } else {
+                (None, None)
+            }
+        };
+
+        if let (Some(line), Some(path)) = (line_text, file_path) {
+            self.get_syntax_highlights(&line, Some(&path))
+        } else {
+            Vec::new()
+        }
     }
 
     /// Reload editor configuration from editor.toml
