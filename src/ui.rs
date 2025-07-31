@@ -51,8 +51,8 @@ impl UI {
     ) -> io::Result<()> {
         let (width, height) = terminal.size();
 
-        // Use queued operations to reduce flicker
-        terminal.hide_cursor()?;
+        // Start double buffering - queue all operations without immediate display
+        terminal.queue_hide_cursor()?;
 
         // Update viewport based on cursor position first
         if let Some(buffer) = &editor_state.current_buffer {
@@ -91,11 +91,16 @@ impl UI {
 
             // Ensure cursor is within visible bounds
             if screen_row < content_height {
-                terminal.move_cursor(Position::new(screen_row, screen_col))?;
+                terminal.queue_move_cursor(Position::new(screen_row, screen_col))?;
             }
         }
 
-        terminal.show_cursor()?;
+        terminal.queue_show_cursor()?;
+
+        // End double buffering - flush all queued operations at once
+        // This eliminates flicker by making all changes appear atomically
+        terminal.flush()?;
+
         Ok(())
     }
 
@@ -123,15 +128,15 @@ impl UI {
         let text_width = width.saturating_sub(text_start_col as u16) as usize;
 
         for (screen_row, buffer_row) in (start_row..).take(content_height).enumerate() {
-            terminal.move_cursor(Position::new(screen_row, 0))?;
-            terminal.clear_line()?; // Clear only this line instead of whole screen
+            terminal.queue_move_cursor(Position::new(screen_row, 0))?;
+            terminal.queue_clear_line()?; // Clear only this line instead of whole screen
 
             // Check if this is the cursor line for highlighting
             let is_cursor_line = self.show_cursor_line && buffer_row == buffer.cursor.row;
 
             // Set cursor line background if enabled
             if is_cursor_line {
-                terminal.set_background_color(Color::DarkGrey)?;
+                terminal.queue_set_bg_color(Color::DarkGrey)?;
             }
 
             // Render line numbers
@@ -146,7 +151,7 @@ impl UI {
             }
 
             // Move to text area
-            terminal.move_cursor(Position::new(screen_row, text_start_col))?;
+            terminal.queue_move_cursor(Position::new(screen_row, text_start_col))?;
 
             if let Some(line) = buffer.get_line(buffer_row) {
                 // Check if we have syntax highlights for this line
@@ -159,18 +164,18 @@ impl UI {
                     } else {
                         line
                     };
-                    terminal.print(display_line)?;
+                    terminal.queue_print(display_line)?;
                 }
             } else {
                 // Show tilde for empty lines (like Vim)
                 if !is_cursor_line {
-                    terminal.set_foreground_color(Color::Blue)?;
+                    terminal.queue_set_fg_color(Color::Blue)?;
                 }
-                terminal.print("~")?;
+                terminal.queue_print("~")?;
             }
 
             // Reset colors after each line
-            terminal.reset_color()?;
+            terminal.queue_reset_color()?;
         }
 
         Ok(())
@@ -201,12 +206,12 @@ impl UI {
             if current_pos < start {
                 let text_before =
                     std::str::from_utf8(&line_bytes[current_pos..start]).unwrap_or("");
-                terminal.print(text_before)?;
+                terminal.queue_print(text_before)?;
             }
 
             // Apply highlight style and print highlighted text
             if let Some(color) = highlight.style.to_color() {
-                terminal.set_foreground_color(color)?;
+                terminal.queue_set_fg_color(color)?;
             }
 
             if highlight.style.bold.unwrap_or(false) {
@@ -214,10 +219,10 @@ impl UI {
             }
 
             let highlighted_text = std::str::from_utf8(&line_bytes[start..end]).unwrap_or("");
-            terminal.print(highlighted_text)?;
+            terminal.queue_print(highlighted_text)?;
 
             // Reset color
-            terminal.reset_color()?;
+            terminal.queue_reset_color()?;
 
             current_pos = end;
         }
@@ -226,7 +231,7 @@ impl UI {
         if current_pos < display_len {
             let remaining_text =
                 std::str::from_utf8(&line_bytes[current_pos..display_len]).unwrap_or("");
-            terminal.print(remaining_text)?;
+            terminal.queue_print(remaining_text)?;
         }
 
         Ok(())
@@ -242,10 +247,10 @@ impl UI {
     ) -> io::Result<()> {
         // Set line number colors - highlight current line number if on cursor line
         if is_cursor_line && self.show_cursor_line {
-            terminal.set_foreground_color(Color::Yellow)?;
-            terminal.set_background_color(Color::DarkGrey)?;
+            terminal.queue_set_fg_color(Color::Yellow)?;
+            terminal.queue_set_bg_color(Color::DarkGrey)?;
         } else {
-            terminal.set_foreground_color(Color::DarkGrey)?;
+            terminal.queue_set_fg_color(Color::DarkGrey)?;
         }
 
         if buffer_row < buffer.lines.len() {
@@ -268,11 +273,11 @@ impl UI {
             };
 
             let line_num_str = format!("{:>width$} ", line_num, width = width - 1);
-            terminal.print(&line_num_str)?;
+            terminal.queue_print(&line_num_str)?;
         } else {
             // Empty line - just print spaces
             let spaces = " ".repeat(width);
-            terminal.print(&spaces)?;
+            terminal.queue_print(&spaces)?;
         }
 
         // Don't reset color here - let the caller handle it
@@ -287,14 +292,14 @@ impl UI {
         height: u16,
     ) -> io::Result<()> {
         let status_row = height.saturating_sub(2);
-        terminal.move_cursor(Position::new(status_row as usize, 0))?;
+        terminal.queue_move_cursor(Position::new(status_row as usize, 0))?;
 
         // Clear the status line first
-        terminal.clear_line()?;
+        terminal.queue_clear_line()?;
 
         // Set status line colors
-        terminal.set_background_color(Color::White)?;
-        terminal.set_foreground_color(Color::Black)?;
+        terminal.queue_set_bg_color(Color::White)?;
+        terminal.queue_set_fg_color(Color::Black)?;
 
         let mut status_text = String::new();
 
@@ -342,8 +347,8 @@ impl UI {
             status_text.truncate(width as usize);
         }
 
-        terminal.print(&status_text)?;
-        terminal.reset_color()?;
+        terminal.queue_print(&status_text)?;
+        terminal.queue_reset_color()?;
 
         Ok(())
     }
@@ -356,10 +361,10 @@ impl UI {
         height: u16,
     ) -> io::Result<()> {
         let command_row = height.saturating_sub(1);
-        terminal.move_cursor(Position::new(command_row as usize, 0))?;
+        terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
 
         // Clear the command line first
-        terminal.clear_line()?;
+        terminal.queue_clear_line()?;
 
         let command_text = &editor_state.command_line;
 
@@ -370,7 +375,7 @@ impl UI {
             command_text
         };
 
-        terminal.print(display_text)?;
+        terminal.queue_print(display_text)?;
 
         Ok(())
     }

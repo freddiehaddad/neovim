@@ -666,7 +666,8 @@ impl Editor {
     /// Apply search settings
     pub fn apply_search_settings(&mut self) {
         // Update search engine case sensitivity
-        self.search_engine.set_case_sensitive(!self.config.behavior.ignore_case);
+        self.search_engine
+            .set_case_sensitive(!self.config.behavior.ignore_case);
         // Smart case logic would be implemented in search methods
     }
 

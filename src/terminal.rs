@@ -1,9 +1,8 @@
 use crate::mode::Position;
 use crossterm::{
-    cursor,
+    ExecutableCommand, QueueableCommand, cursor,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand, QueueableCommand,
 };
 use std::io::{self, Stdout, Write};
 
@@ -115,6 +114,21 @@ impl Terminal {
 
     pub fn queue_reset_color(&mut self) -> io::Result<()> {
         self.stdout.queue(ResetColor)?;
+        Ok(())
+    }
+
+    pub fn queue_clear_line(&mut self) -> io::Result<()> {
+        self.stdout.queue(Clear(ClearType::CurrentLine))?;
+        Ok(())
+    }
+
+    pub fn queue_hide_cursor(&mut self) -> io::Result<()> {
+        self.stdout.queue(cursor::Hide)?;
+        Ok(())
+    }
+
+    pub fn queue_show_cursor(&mut self) -> io::Result<()> {
+        self.stdout.queue(cursor::Show)?;
         Ok(())
     }
 }

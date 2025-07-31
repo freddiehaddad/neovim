@@ -846,11 +846,28 @@ impl KeyHandler {
         // Handle empty set command - show some basic settings
         if args.is_empty() {
             let mut settings = Vec::new();
-            settings.push(format!("number: {}", editor.get_config_value("number").unwrap_or_default()));
-            settings.push(format!("relativenumber: {}", editor.get_config_value("relativenumber").unwrap_or_default()));
-            settings.push(format!("cursorline: {}", editor.get_config_value("cursorline").unwrap_or_default()));
-            settings.push(format!("tabstop: {}", editor.get_config_value("tabstop").unwrap_or_default()));
-            settings.push(format!("expandtab: {}", editor.get_config_value("expandtab").unwrap_or_default()));
+            settings.push(format!(
+                "number: {}",
+                editor.get_config_value("number").unwrap_or_default()
+            ));
+            settings.push(format!(
+                "relativenumber: {}",
+                editor
+                    .get_config_value("relativenumber")
+                    .unwrap_or_default()
+            ));
+            settings.push(format!(
+                "cursorline: {}",
+                editor.get_config_value("cursorline").unwrap_or_default()
+            ));
+            settings.push(format!(
+                "tabstop: {}",
+                editor.get_config_value("tabstop").unwrap_or_default()
+            ));
+            settings.push(format!(
+                "expandtab: {}",
+                editor.get_config_value("expandtab").unwrap_or_default()
+            ));
             editor.set_status_message(format!("Current settings: {}", settings.join(", ")));
             return;
         }
@@ -858,19 +875,39 @@ impl KeyHandler {
         // Handle :set all command
         if args == "all" {
             let all_settings = [
-                "number", "relativenumber", "cursorline", "tabstop", "expandtab", "autoindent",
-                "ignorecase", "smartcase", "hlsearch", "incsearch", "wrap", "linebreak",
-                "undolevels", "undofile", "backup", "swapfile", "autosave", "laststatus",
-                "showcmd", "scrolloff", "sidescrolloff", "timeoutlen", "colorscheme", "syntax"
+                "number",
+                "relativenumber",
+                "cursorline",
+                "tabstop",
+                "expandtab",
+                "autoindent",
+                "ignorecase",
+                "smartcase",
+                "hlsearch",
+                "incsearch",
+                "wrap",
+                "linebreak",
+                "undolevels",
+                "undofile",
+                "backup",
+                "swapfile",
+                "autosave",
+                "laststatus",
+                "showcmd",
+                "scrolloff",
+                "sidescrolloff",
+                "timeoutlen",
+                "colorscheme",
+                "syntax",
             ];
-            
+
             let mut all_values = Vec::new();
             for setting in &all_settings {
                 if let Some(value) = editor.get_config_value(setting) {
                     all_values.push(format!("{}={}", setting, value));
                 }
             }
-            
+
             editor.set_status_message(format!("All settings: {}", all_values.join(" | ")));
             return;
         }
