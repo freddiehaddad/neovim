@@ -48,6 +48,15 @@
 "X" = "delete_char_before_cursor"
 "dd" = "delete_line"
 
+# Yank (copy) operations
+"yy" = "yank_line"
+"yw" = "yank_word"
+"y$" = "yank_to_end_of_line"
+
+# Put (paste) operations
+"p" = "put_after"
+"P" = "put_before"
+
 # File operations
 "Ctrl+s" = "save_file"
 "Ctrl+q" = "quit"

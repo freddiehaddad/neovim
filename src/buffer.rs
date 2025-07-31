@@ -3,6 +3,30 @@ use anyhow::Result;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
+/// Types of content that can be yanked
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum YankType {
+    Character, // Character-wise yank (like yanking a word)
+    Line,      // Line-wise yank (like yy)
+    Block,     // Block-wise yank (visual block mode)
+}
+
+/// Content stored in the clipboard
+#[derive(Debug, Clone)]
+pub struct ClipboardContent {
+    pub text: String,
+    pub yank_type: YankType,
+}
+
+impl Default for ClipboardContent {
+    fn default() -> Self {
+        Self {
+            text: String::new(),
+            yank_type: YankType::Character,
+        }
+    }
+}
+
 /// Represents a text buffer with content and metadata
 #[derive(Debug, Clone)]
 pub struct Buffer {
@@ -24,6 +48,8 @@ pub struct Buffer {
     pub redo_stack: VecDeque<BufferState>,
     /// Buffer type (normal, help, quickfix, etc.)
     pub buffer_type: BufferType,
+    /// Clipboard for yank/put operations
+    pub clipboard: ClipboardContent,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +79,7 @@ impl Buffer {
             undo_stack: VecDeque::new(),
             redo_stack: VecDeque::new(),
             buffer_type: BufferType::Normal,
+            clipboard: ClipboardContent::default(),
         }
     }
 
@@ -74,6 +101,7 @@ impl Buffer {
             undo_stack: VecDeque::new(),
             redo_stack: VecDeque::new(),
             buffer_type: BufferType::Normal,
+            clipboard: ClipboardContent::default(),
         })
     }
 
@@ -354,5 +382,152 @@ impl Buffer {
         }
 
         self.cursor.col = pos.min(line.len().saturating_sub(1));
+    }
+
+    /// Yank (copy) the current line
+    pub fn yank_line(&mut self) {
+        if self.cursor.row < self.lines.len() {
+            let line = &self.lines[self.cursor.row];
+            self.clipboard = ClipboardContent {
+                text: line.clone(),
+                yank_type: YankType::Line,
+            };
+        }
+    }
+
+    /// Yank (copy) the current word
+    pub fn yank_word(&mut self) {
+        if self.cursor.row >= self.lines.len() {
+            return;
+        }
+
+        let line = &self.lines[self.cursor.row];
+        if self.cursor.col >= line.len() {
+            return;
+        }
+
+        let start_pos = self.cursor.col;
+        let mut end_pos = start_pos;
+
+        // Find end of current word
+        while end_pos < line.len() && !line.chars().nth(end_pos).unwrap_or(' ').is_whitespace() {
+            end_pos += 1;
+        }
+
+        if end_pos > start_pos {
+            let word = &line[start_pos..end_pos];
+            self.clipboard = ClipboardContent {
+                text: word.to_string(),
+                yank_type: YankType::Character,
+            };
+        }
+    }
+
+    /// Yank (copy) text from current cursor to end of line
+    pub fn yank_to_end_of_line(&mut self) {
+        if self.cursor.row < self.lines.len() {
+            let line = &self.lines[self.cursor.row];
+            let text = if self.cursor.col < line.len() {
+                &line[self.cursor.col..]
+            } else {
+                ""
+            };
+
+            self.clipboard = ClipboardContent {
+                text: text.to_string(),
+                yank_type: YankType::Character,
+            };
+        }
+    }
+
+    /// Put (paste) clipboard content after cursor
+    pub fn put_after(&mut self) {
+        match self.clipboard.yank_type {
+            YankType::Line => {
+                self.save_state();
+                // Insert new line after current line
+                let new_line = self.clipboard.text.clone();
+                if self.cursor.row + 1 <= self.lines.len() {
+                    self.lines.insert(self.cursor.row + 1, new_line);
+                    self.cursor.row += 1;
+                    self.cursor.col = 0;
+                    self.modified = true;
+                }
+            }
+            YankType::Character => {
+                self.save_state();
+                // Insert text after cursor position
+                if self.cursor.row < self.lines.len() {
+                    let line = &mut self.lines[self.cursor.row];
+                    let insert_pos = if self.cursor.col < line.len() {
+                        self.cursor.col + 1
+                    } else {
+                        line.len()
+                    };
+                    line.insert_str(insert_pos, &self.clipboard.text);
+                    self.cursor.col = insert_pos + self.clipboard.text.len() - 1;
+                    self.modified = true;
+                }
+            }
+            YankType::Block => {
+                // TODO: Implement block paste
+                self.put_after_character();
+            }
+        }
+    }
+
+    /// Put (paste) clipboard content before cursor
+    pub fn put_before(&mut self) {
+        match self.clipboard.yank_type {
+            YankType::Line => {
+                self.save_state();
+                // Insert new line before current line
+                let new_line = self.clipboard.text.clone();
+                self.lines.insert(self.cursor.row, new_line);
+                self.cursor.col = 0;
+                self.modified = true;
+            }
+            YankType::Character => {
+                self.save_state();
+                // Insert text at cursor position
+                if self.cursor.row < self.lines.len() {
+                    let line = &mut self.lines[self.cursor.row];
+                    line.insert_str(self.cursor.col, &self.clipboard.text);
+                    self.cursor.col += self.clipboard.text.len() - 1;
+                    self.modified = true;
+                }
+            }
+            YankType::Block => {
+                // TODO: Implement block paste
+                self.put_before_character();
+            }
+        }
+    }
+
+    /// Helper for character-wise paste after cursor
+    fn put_after_character(&mut self) {
+        self.save_state();
+        if self.cursor.row < self.lines.len() {
+            let line = &mut self.lines[self.cursor.row];
+            let insert_pos = if self.cursor.col < line.len() {
+                self.cursor.col + 1
+            } else {
+                line.len()
+            };
+            line.insert_str(insert_pos, &self.clipboard.text);
+            self.cursor.col = insert_pos + self.clipboard.text.len().saturating_sub(1);
+            self.modified = true;
+        }
+    }
+
+    /// Helper for character-wise paste before cursor
+    fn put_before_character(&mut self) {
+        self.save_state();
+        if self.cursor.row < self.lines.len() {
+            let line = &mut self.lines[self.cursor.row];
+            line.insert_str(self.cursor.col, &self.clipboard.text);
+            self.cursor.col += self.clipboard.text.len().saturating_sub(1);
+            self.modified = true;
+        }
     }
 }

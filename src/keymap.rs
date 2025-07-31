@@ -223,6 +223,15 @@ impl KeyHandler {
             "delete_char_before_cursor" => self.action_delete_char_before_cursor(editor)?,
             "delete_line" => self.action_delete_line(editor)?,
 
+            // Yank (copy) operations
+            "yank_line" => self.action_yank_line(editor)?,
+            "yank_word" => self.action_yank_word(editor)?,
+            "yank_to_end_of_line" => self.action_yank_to_end_of_line(editor)?,
+
+            // Put (paste) operations
+            "put_after" => self.action_put_after(editor)?,
+            "put_before" => self.action_put_before(editor)?,
+
             // Line movement
             "line_start" => self.action_line_start(editor)?,
             "line_end" => self.action_line_end(editor)?,
@@ -705,6 +714,46 @@ impl KeyHandler {
     fn action_delete_line(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.delete_line();
+        }
+        Ok(())
+    }
+
+    fn action_yank_line(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.yank_line();
+            editor.set_status_message("Line yanked".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_yank_word(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.yank_word();
+            editor.set_status_message("Word yanked".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_yank_to_end_of_line(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.yank_to_end_of_line();
+            editor.set_status_message("Text yanked to end of line".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_put_after(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.put_after();
+            editor.set_status_message("Text pasted after cursor".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_put_before(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.put_before();
+            editor.set_status_message("Text pasted before cursor".to_string());
         }
         Ok(())
     }
