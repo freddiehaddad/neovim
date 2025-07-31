@@ -332,4 +332,40 @@ impl Editor {
         self.search_results.clear();
         self.current_search_index = None;
     }
+
+    /// Toggle absolute line numbers
+    pub fn toggle_line_numbers(&mut self) {
+        self.ui.show_line_numbers = !self.ui.show_line_numbers;
+        let status = if self.ui.show_line_numbers {
+            "Line numbers enabled"
+        } else {
+            "Line numbers disabled"
+        };
+        self.status_message = status.to_string();
+    }
+
+    /// Toggle relative line numbers
+    pub fn toggle_relative_numbers(&mut self) {
+        self.ui.show_relative_numbers = !self.ui.show_relative_numbers;
+        let status = if self.ui.show_relative_numbers {
+            "Relative line numbers enabled"
+        } else {
+            "Relative line numbers disabled"
+        };
+        self.status_message = status.to_string();
+    }
+
+    /// Set line number display options
+    pub fn set_line_numbers(&mut self, absolute: bool, relative: bool) {
+        self.ui.show_line_numbers = absolute;
+        self.ui.show_relative_numbers = relative;
+
+        let status = match (absolute, relative) {
+            (true, true) => "Hybrid line numbers enabled",
+            (true, false) => "Absolute line numbers enabled",
+            (false, true) => "Relative line numbers enabled",
+            (false, false) => "Line numbers disabled",
+        };
+        self.status_message = status.to_string();
+    }
 }

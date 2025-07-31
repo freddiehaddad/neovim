@@ -432,6 +432,12 @@ impl KeyHandler {
                     editor.quit();
                 }
             }
+            // Line number commands
+            "set nu" | "set number" => editor.set_line_numbers(true, false),
+            "set nonu" | "set nonumber" => editor.set_line_numbers(false, false),
+            "set rnu" | "set relativenumber" => editor.set_line_numbers(false, true),
+            "set nornu" | "set norelativenumber" => editor.set_line_numbers(true, false),
+            "set nu rnu" | "set number relativenumber" => editor.set_line_numbers(true, true),
             _ => editor.set_status_message(format!("Unknown command: {}", command)),
         }
 

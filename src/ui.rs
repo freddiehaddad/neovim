@@ -7,11 +7,19 @@ use std::io;
 pub struct UI {
     /// Top row of the current viewport
     viewport_top: usize,
+    /// Show absolute line numbers
+    pub show_line_numbers: bool,
+    /// Show relative line numbers
+    pub show_relative_numbers: bool,
 }
 
 impl UI {
     pub fn new() -> Self {
-        Self { viewport_top: 0 }
+        Self {
+            viewport_top: 0,
+            show_line_numbers: true,      // Enable by default like Vim
+            show_relative_numbers: false, // Disabled by default
+        }
     }
 
     fn update_viewport(&mut self, buffer: &crate::buffer::Buffer, height: u16) -> (usize, usize) {
@@ -64,9 +72,18 @@ impl UI {
         if let Some(buffer) = &editor_state.current_buffer {
             let content_height = height.saturating_sub(2) as usize;
 
+            // Calculate line number column width
+            let line_number_width = if self.show_line_numbers || self.show_relative_numbers {
+                let max_line_num = buffer.lines.len();
+                let width = max_line_num.to_string().len();
+                (width + 1).max(4) // At least 4 chars wide, +1 for space
+            } else {
+                0
+            };
+
             // Calculate screen cursor position relative to the current viewport
             let screen_row = buffer.cursor.row.saturating_sub(self.viewport_top);
-            let screen_col = buffer.cursor.col;
+            let screen_col = buffer.cursor.col + line_number_width;
 
             // Ensure cursor is within visible bounds
             if screen_row < content_height {
@@ -88,14 +105,34 @@ impl UI {
         let content_height = height.saturating_sub(2) as usize;
         let start_row = self.viewport_top;
 
+        // Calculate line number column width
+        let line_number_width = if self.show_line_numbers || self.show_relative_numbers {
+            let max_line_num = buffer.lines.len();
+            let width = max_line_num.to_string().len();
+            (width + 1).max(4) // At least 4 chars wide, +1 for space
+        } else {
+            0
+        };
+
+        let text_start_col = line_number_width;
+        let text_width = width.saturating_sub(text_start_col as u16) as usize;
+
         for (screen_row, buffer_row) in (start_row..).take(content_height).enumerate() {
             terminal.move_cursor(Position::new(screen_row, 0))?;
             terminal.clear_line()?; // Clear only this line instead of whole screen
 
+            // Render line numbers
+            if self.show_line_numbers || self.show_relative_numbers {
+                self.render_line_number(terminal, buffer, buffer_row, line_number_width)?;
+            }
+
+            // Move to text area
+            terminal.move_cursor(Position::new(screen_row, text_start_col))?;
+
             if let Some(line) = buffer.get_line(buffer_row) {
                 // Truncate line if it's too long
-                let display_line = if line.len() > width as usize {
-                    &line[..width as usize]
+                let display_line = if line.len() > text_width {
+                    &line[..text_width]
                 } else {
                     line
                 };
@@ -108,6 +145,47 @@ impl UI {
             }
         }
 
+        Ok(())
+    }
+
+    fn render_line_number(
+        &self,
+        terminal: &mut Terminal,
+        buffer: &crate::buffer::Buffer,
+        buffer_row: usize,
+        width: usize,
+    ) -> io::Result<()> {
+        // Set line number colors (gray by default)
+        terminal.set_foreground_color(Color::DarkGrey)?;
+
+        if buffer_row < buffer.lines.len() {
+            let line_num = if self.show_relative_numbers {
+                let current_line = buffer.cursor.row;
+                if buffer_row == current_line {
+                    // Show absolute line number for current line
+                    buffer_row + 1
+                } else {
+                    // Show relative distance
+                    if buffer_row > current_line {
+                        buffer_row - current_line
+                    } else {
+                        current_line - buffer_row
+                    }
+                }
+            } else {
+                // Show absolute line numbers
+                buffer_row + 1
+            };
+
+            let line_num_str = format!("{:>width$} ", line_num, width = width - 1);
+            terminal.print(&line_num_str)?;
+        } else {
+            // Empty line - just print spaces
+            let spaces = " ".repeat(width);
+            terminal.print(&spaces)?;
+        }
+
+        terminal.reset_color()?;
         Ok(())
     }
 
