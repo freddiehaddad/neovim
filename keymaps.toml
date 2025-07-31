@@ -43,6 +43,11 @@
 # Commands
 ":" = "command_mode"
 
+# Delete operations
+"x" = "delete_char_at_cursor"
+"X" = "delete_char_before_cursor"
+"dd" = "delete_line"
+
 # File operations
 "Ctrl+s" = "save_file"
 "Ctrl+q" = "quit"

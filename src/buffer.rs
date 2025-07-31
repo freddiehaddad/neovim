@@ -214,4 +214,145 @@ impl Buffer {
         }
         Ok(())
     }
+
+    /// Delete character at cursor position (like 'x' in Vim)
+    pub fn delete_char_at_cursor(&mut self) -> bool {
+        if self.cursor.row < self.lines.len() {
+            if self.cursor.col < self.lines[self.cursor.row].len() {
+                self.save_state();
+                let line = &mut self.lines[self.cursor.row];
+                line.remove(self.cursor.col);
+                self.modified = true;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Delete character before cursor (like 'X' in Vim)
+    pub fn delete_char_before_cursor(&mut self) -> bool {
+        if self.cursor.col > 0 {
+            self.save_state();
+            let line = &mut self.lines[self.cursor.row];
+            if self.cursor.col <= line.len() {
+                line.remove(self.cursor.col - 1);
+                self.cursor.col -= 1;
+                self.modified = true;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Delete entire line (like 'dd' in Vim)
+    pub fn delete_line(&mut self) -> bool {
+        if !self.lines.is_empty() && self.cursor.row < self.lines.len() {
+            self.save_state();
+
+            // If this is the only line, just clear it
+            if self.lines.len() == 1 {
+                self.lines[0].clear();
+                self.cursor.col = 0;
+            } else {
+                // Remove the line
+                self.lines.remove(self.cursor.row);
+
+                // Adjust cursor position
+                if self.cursor.row >= self.lines.len() {
+                    self.cursor.row = self.lines.len() - 1;
+                }
+                self.cursor.col = 0;
+            }
+
+            self.modified = true;
+            return true;
+        }
+        false
+    }
+
+    /// Move cursor to start of next word
+    pub fn move_to_next_word(&mut self) {
+        if self.cursor.row >= self.lines.len() {
+            return;
+        }
+
+        let line = &self.lines[self.cursor.row];
+        let mut pos = self.cursor.col;
+
+        // Skip current word
+        while pos < line.len() && !line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+            pos += 1;
+        }
+
+        // Skip whitespace
+        while pos < line.len() && line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+            pos += 1;
+        }
+
+        // If we reached end of line, go to next line
+        if pos >= line.len() && self.cursor.row + 1 < self.lines.len() {
+            self.cursor.row += 1;
+            self.cursor.col = 0;
+        } else {
+            self.cursor.col = pos.min(line.len());
+        }
+    }
+
+    /// Move cursor to start of previous word
+    pub fn move_to_previous_word(&mut self) {
+        if self.cursor.col > 0 {
+            let line = &self.lines[self.cursor.row];
+            let mut pos = self.cursor.col - 1;
+
+            // Skip whitespace
+            while pos > 0 && line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+                pos -= 1;
+            }
+
+            // Skip word
+            while pos > 0 && !line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
+                pos -= 1;
+            }
+
+            self.cursor.col = pos;
+        } else if self.cursor.row > 0 {
+            // Go to end of previous line
+            self.cursor.row -= 1;
+            if let Some(line) = self.lines.get(self.cursor.row) {
+                self.cursor.col = line.len();
+            }
+        }
+    }
+
+    /// Move cursor to end of current word
+    pub fn move_to_word_end(&mut self) {
+        if self.cursor.row >= self.lines.len() {
+            return;
+        }
+
+        let line = &self.lines[self.cursor.row];
+        if self.cursor.col >= line.len() {
+            return;
+        }
+
+        let mut pos = self.cursor.col;
+
+        // If we're on whitespace, skip to next word first
+        if line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+            while pos < line.len() && line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+                pos += 1;
+            }
+        }
+
+        // Move to end of current word
+        while pos < line.len() && !line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+            pos += 1;
+        }
+
+        if pos > 0 {
+            pos -= 1; // Back up to last character of word
+        }
+
+        self.cursor.col = pos.min(line.len().saturating_sub(1));
+    }
 }

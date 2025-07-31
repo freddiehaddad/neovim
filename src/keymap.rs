@@ -163,10 +163,15 @@ impl KeyHandler {
             "cursor_up" => self.action_cursor_up(editor)?,
             "cursor_down" => self.action_cursor_down(editor)?,
 
-            // Word movement (TODO: implement proper word movement)
-            "word_forward" => self.action_cursor_right(editor)?, // Temporary fallback
-            "word_backward" => self.action_cursor_left(editor)?, // Temporary fallback
-            "word_end" => self.action_cursor_right(editor)?,     // Temporary fallback
+            // Word movement
+            "word_forward" => self.action_word_forward(editor)?,
+            "word_backward" => self.action_word_backward(editor)?,
+            "word_end" => self.action_word_end(editor)?,
+
+            // Delete operations
+            "delete_char_at_cursor" => self.action_delete_char_at_cursor(editor)?,
+            "delete_char_before_cursor" => self.action_delete_char_before_cursor(editor)?,
+            "delete_line" => self.action_delete_line(editor)?,
 
             // Line movement
             "line_start" => self.action_line_start(editor)?,
@@ -614,36 +619,42 @@ impl KeyHandler {
 
     fn action_word_forward(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
-            // Simple word forward: move to next space or end of line
-            if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                let mut pos = buffer.cursor.col;
-                while pos < line.len() && !line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
-                    pos += 1;
-                }
-                while pos < line.len() && line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
-                    pos += 1;
-                }
-                buffer.cursor.col = pos;
-            }
+            buffer.move_to_next_word();
         }
         Ok(())
     }
 
     fn action_word_backward(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
-            // Simple word backward: move to previous space or start of line
-            if buffer.cursor.col > 0 {
-                let mut col = buffer.cursor.col - 1;
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    while col > 0 && line.chars().nth(col).unwrap_or(' ').is_whitespace() {
-                        col -= 1;
-                    }
-                    while col > 0 && !line.chars().nth(col - 1).unwrap_or(' ').is_whitespace() {
-                        col -= 1;
-                    }
-                }
-                buffer.cursor.col = col;
-            }
+            buffer.move_to_previous_word();
+        }
+        Ok(())
+    }
+
+    fn action_word_end(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.move_to_word_end();
+        }
+        Ok(())
+    }
+
+    fn action_delete_char_at_cursor(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.delete_char_at_cursor();
+        }
+        Ok(())
+    }
+
+    fn action_delete_char_before_cursor(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.delete_char_before_cursor();
+        }
+        Ok(())
+    }
+
+    fn action_delete_line(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.delete_line();
         }
         Ok(())
     }
