@@ -2,317 +2,674 @@ use crate::editor::Editor;
 use crate::mode::Mode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeymapConfig {
+    pub normal_mode: HashMap<String, String>,
+    pub insert_mode: HashMap<String, String>,
+    pub command_mode: HashMap<String, String>,
+    pub visual_mode: HashMap<String, String>,
+    pub replace_mode: HashMap<String, String>,
+    pub search_mode: HashMap<String, String>,
+}
 
 #[derive(Clone)]
-pub struct KeyHandler;
+pub struct KeyHandler {
+    keymap_config: KeymapConfig,
+}
 
 impl KeyHandler {
     pub fn new() -> Self {
-        Self
+        Self {
+            keymap_config: Self::load_default_keymaps(),
+        }
+    }
+
+    fn load_default_keymaps() -> KeymapConfig {
+        // Try to load from keymaps.toml file, fall back to defaults if not found
+        if let Ok(config_content) = fs::read_to_string("keymaps.toml") {
+            if let Ok(config) = toml::from_str(&config_content) {
+                return config;
+            }
+        }
+
+        // Fallback to minimal default keymaps
+        Self::create_default_keymaps()
+    }
+
+    fn create_default_keymaps() -> KeymapConfig {
+        let mut normal_mode = HashMap::new();
+        normal_mode.insert("h".to_string(), "cursor_left".to_string());
+        normal_mode.insert("j".to_string(), "cursor_down".to_string());
+        normal_mode.insert("k".to_string(), "cursor_up".to_string());
+        normal_mode.insert("l".to_string(), "cursor_right".to_string());
+        normal_mode.insert("i".to_string(), "insert_mode".to_string());
+        normal_mode.insert(":".to_string(), "command_mode".to_string());
+        normal_mode.insert("/".to_string(), "search_forward".to_string());
+
+        let mut insert_mode = HashMap::new();
+        insert_mode.insert("Escape".to_string(), "normal_mode".to_string());
+        insert_mode.insert("Char".to_string(), "insert_char".to_string());
+        insert_mode.insert("Enter".to_string(), "new_line".to_string());
+        insert_mode.insert("Backspace".to_string(), "delete_char".to_string());
+
+        let mut command_mode = HashMap::new();
+        command_mode.insert("Escape".to_string(), "normal_mode".to_string());
+        command_mode.insert("Enter".to_string(), "execute_command".to_string());
+        command_mode.insert("Char".to_string(), "append_command".to_string());
+        command_mode.insert("Backspace".to_string(), "delete_command_char".to_string());
+
+        let mut search_mode = HashMap::new();
+        search_mode.insert("Escape".to_string(), "normal_mode".to_string());
+        search_mode.insert("Enter".to_string(), "execute_search".to_string());
+        search_mode.insert("Char".to_string(), "append_search".to_string());
+        search_mode.insert("Backspace".to_string(), "delete_search_char".to_string());
+
+        KeymapConfig {
+            normal_mode,
+            insert_mode,
+            command_mode,
+            visual_mode: HashMap::new(),
+            replace_mode: HashMap::new(),
+            search_mode,
+        }
     }
 
     pub fn handle_key(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match editor.mode() {
-            Mode::Normal => self.handle_normal_mode(editor, key),
-            Mode::Insert => self.handle_insert_mode(editor, key),
-            Mode::Command => self.handle_command_mode(editor, key),
-            Mode::Visual | Mode::VisualLine | Mode::VisualBlock => {
-                self.handle_visual_mode(editor, key)
+        let key_string = Self::key_event_to_string(key);
+
+        let action = match editor.mode() {
+            Mode::Normal => self.keymap_config.normal_mode.get(&key_string),
+            Mode::Insert => {
+                if let KeyCode::Char(_) = key.code {
+                    if !key.modifiers.contains(KeyModifiers::CONTROL)
+                        && !key.modifiers.contains(KeyModifiers::ALT)
+                    {
+                        self.keymap_config.insert_mode.get("Char")
+                    } else {
+                        self.keymap_config.insert_mode.get(&key_string)
+                    }
+                } else {
+                    self.keymap_config.insert_mode.get(&key_string)
+                }
             }
-            Mode::Replace => self.handle_replace_mode(editor, key),
-            Mode::Search => self.handle_search_mode(editor, key),
+            Mode::Command => {
+                if let KeyCode::Char(_) = key.code {
+                    if !key.modifiers.contains(KeyModifiers::CONTROL)
+                        && !key.modifiers.contains(KeyModifiers::ALT)
+                    {
+                        self.keymap_config.command_mode.get("Char")
+                    } else {
+                        self.keymap_config.command_mode.get(&key_string)
+                    }
+                } else {
+                    self.keymap_config.command_mode.get(&key_string)
+                }
+            }
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock => {
+                self.keymap_config.visual_mode.get(&key_string)
+            }
+            Mode::Replace => {
+                if let KeyCode::Char(_) = key.code {
+                    self.keymap_config.replace_mode.get("Char")
+                } else {
+                    self.keymap_config.replace_mode.get(&key_string)
+                }
+            }
+            Mode::Search => {
+                if let KeyCode::Char(_) = key.code {
+                    if !key.modifiers.contains(KeyModifiers::CONTROL)
+                        && !key.modifiers.contains(KeyModifiers::ALT)
+                    {
+                        self.keymap_config.search_mode.get("Char")
+                    } else {
+                        self.keymap_config.search_mode.get(&key_string)
+                    }
+                } else {
+                    self.keymap_config.search_mode.get(&key_string)
+                }
+            }
+        };
+
+        if let Some(action_name) = action {
+            self.execute_action(editor, action_name, key)?;
+        }
+
+        Ok(())
+    }
+
+    fn key_event_to_string(key: KeyEvent) -> String {
+        match key.code {
+            KeyCode::Char(c) => c.to_string(),
+            KeyCode::Enter => "Enter".to_string(),
+            KeyCode::Left => "Left".to_string(),
+            KeyCode::Right => "Right".to_string(),
+            KeyCode::Up => "Up".to_string(),
+            KeyCode::Down => "Down".to_string(),
+            KeyCode::Backspace => "Backspace".to_string(),
+            KeyCode::Esc => "Escape".to_string(),
+            _ => "Unknown".to_string(),
         }
     }
 
-    fn handle_normal_mode(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Char('i') => {
-                editor.set_mode(Mode::Insert);
+    fn execute_action(&self, editor: &mut Editor, action: &str, key: KeyEvent) -> Result<()> {
+        match action {
+            // Movement actions
+            "cursor_left" => self.action_cursor_left(editor)?,
+            "cursor_right" => self.action_cursor_right(editor)?,
+            "cursor_up" => self.action_cursor_up(editor)?,
+            "cursor_down" => self.action_cursor_down(editor)?,
+
+            // Word movement (TODO: implement proper word movement)
+            "word_forward" => self.action_cursor_right(editor)?, // Temporary fallback
+            "word_backward" => self.action_cursor_left(editor)?, // Temporary fallback
+            "word_end" => self.action_cursor_right(editor)?,     // Temporary fallback
+
+            // Line movement
+            "line_start" => self.action_line_start(editor)?,
+            "line_end" => self.action_line_end(editor)?,
+            "line_first_char" => self.action_line_start(editor)?, // Temporary fallback
+
+            // Buffer movement
+            "buffer_start" => self.action_buffer_start(editor)?,
+            "buffer_end" => self.action_buffer_end(editor)?,
+
+            // Mode transitions
+            "insert_mode" => self.action_insert_mode(editor)?,
+            "insert_line_start" => self.action_insert_line_start(editor)?,
+            "insert_after" => self.action_insert_after(editor)?,
+            "insert_line_end" => self.action_insert_line_end(editor)?,
+            "insert_line_below" => self.action_insert_line_below(editor)?,
+            "insert_line_above" => self.action_insert_line_above(editor)?,
+            "normal_mode" => self.action_normal_mode(editor)?,
+            "command_mode" => self.action_command_mode(editor)?,
+            "visual_mode" => self.action_visual_mode(editor)?,
+            "visual_line_mode" => self.action_visual_line_mode(editor)?,
+            "visual_block_mode" => self.action_visual_block_mode(editor)?,
+            "replace_mode" => self.action_replace_mode(editor)?,
+            "search_forward" => self.action_search_forward(editor)?,
+            "search_backward" => self.action_search_backward(editor)?,
+
+            // File operations
+            "save_file" => self.action_save_file(editor)?,
+            "quit" => self.action_quit(editor)?,
+
+            // Undo/Redo
+            "undo" => self.action_undo(editor)?,
+            "redo" => self.action_redo(editor)?,
+
+            // Insert mode actions
+            "insert_char" => self.action_insert_char(editor, key)?,
+            "new_line" => self.action_new_line(editor)?,
+            "delete_char" => self.action_delete_char(editor)?,
+            "delete_char_forward" => self.action_delete_char_forward(editor)?,
+            "insert_tab" => self.action_insert_tab(editor)?,
+
+            // Command mode actions
+            "append_command" => self.action_append_command(editor, key)?,
+            "delete_command_char" => self.action_delete_command_char(editor)?,
+            "execute_command" => self.action_execute_command(editor)?,
+
+            // Search mode actions
+            "append_search" => self.action_append_search(editor, key)?,
+            "delete_search_char" => self.action_delete_search_char(editor)?,
+            "execute_search" => self.action_execute_search(editor)?,
+
+            // Visual mode actions
+            "delete_selection" => self.action_delete_selection(editor)?,
+            "yank_selection" => self.action_yank_selection(editor)?,
+            "change_selection" => self.action_change_selection(editor)?,
+
+            // Replace mode actions
+            "replace_char" => self.action_replace_char(editor, key)?,
+
+            _ => return Ok(()), // Unknown action, ignore
+        }
+        Ok(())
+    }
+
+    // Action implementations
+    fn action_cursor_left(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if buffer.cursor.col > 0 {
+                buffer.cursor.col -= 1;
             }
-            KeyCode::Char('I') => {
-                // Insert at beginning of line
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.cursor.col = 0;
-                }
-                editor.set_mode(Mode::Insert);
-            }
-            KeyCode::Char('a') => {
-                // Insert after cursor
-                if let Some(buffer) = editor.current_buffer_mut() {
+        }
+        Ok(())
+    }
+
+    fn action_cursor_right(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                if buffer.cursor.col < line.len() {
                     buffer.cursor.col += 1;
                 }
-                editor.set_mode(Mode::Insert);
             }
-            KeyCode::Char('A') => {
-                // Insert at end of line
+        }
+        Ok(())
+    }
+
+    fn action_cursor_up(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if buffer.cursor.row > 0 {
+                buffer.cursor.row -= 1;
+                if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                    buffer.cursor.col = buffer.cursor.col.min(line.len());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_cursor_down(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if buffer.cursor.row < buffer.lines.len() - 1 {
+                buffer.cursor.row += 1;
+                if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                    buffer.cursor.col = buffer.cursor.col.min(line.len());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_insert_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Insert);
+        Ok(())
+    }
+
+    fn action_normal_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Normal);
+        Ok(())
+    }
+
+    fn action_command_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Command);
+        editor.set_command_line(":".to_string());
+        Ok(())
+    }
+
+    fn action_search_forward(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Search);
+        editor.set_command_line("/".to_string());
+        Ok(())
+    }
+
+    fn action_insert_char(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            if let Some(buffer) = editor.current_buffer_mut() {
+                buffer.insert_char(ch);
+            }
+        }
+        Ok(())
+    }
+
+    fn action_new_line(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.insert_char('\n');
+        }
+        Ok(())
+    }
+
+    fn action_delete_char(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.delete_char();
+        }
+        Ok(())
+    }
+
+    fn action_append_command(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            let mut command = editor.command_line().to_string();
+            command.push(ch);
+            editor.set_command_line(command);
+        }
+        Ok(())
+    }
+
+    fn action_delete_command_char(&self, editor: &mut Editor) -> Result<()> {
+        let mut command = editor.command_line().to_string();
+        if command.len() > 1 {
+            command.pop();
+            editor.set_command_line(command);
+        }
+        Ok(())
+    }
+
+    fn action_execute_command(&self, editor: &mut Editor) -> Result<()> {
+        let command = editor.command_line().trim_start_matches(':').to_string();
+
+        match command.as_str() {
+            "q" | "quit" => editor.quit(),
+            "q!" | "quit!" => editor.force_quit(),
+            "w" | "write" => {
                 if let Some(buffer) = editor.current_buffer_mut() {
-                    if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                        buffer.cursor.col = line.len();
+                    match buffer.save() {
+                        Ok(_) => editor.set_status_message("File saved".to_string()),
+                        Err(e) => editor.set_status_message(format!("Error saving: {}", e)),
                     }
                 }
-                editor.set_mode(Mode::Insert);
             }
-            KeyCode::Char('o') => {
-                // Open new line below
+            "wq" | "x" => {
                 if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.cursor.col = 0;
-                    buffer.cursor.row += 1;
-                    buffer.lines.insert(buffer.cursor.row, String::new());
+                    match buffer.save() {
+                        Ok(_) => {
+                            editor.set_status_message("File saved".to_string());
+                            editor.quit();
+                        }
+                        Err(e) => editor.set_status_message(format!("Error saving: {}", e)),
+                    }
+                } else {
+                    editor.quit();
+                }
+            }
+            _ => editor.set_status_message(format!("Unknown command: {}", command)),
+        }
+
+        editor.set_mode(Mode::Normal);
+        editor.set_command_line(String::new());
+        Ok(())
+    }
+
+    fn action_append_search(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            let mut search = editor.command_line().to_string();
+            search.push(ch);
+            editor.set_command_line(search);
+        }
+        Ok(())
+    }
+
+    fn action_delete_search_char(&self, editor: &mut Editor) -> Result<()> {
+        let mut search = editor.command_line().to_string();
+        if search.len() > 1 {
+            search.pop();
+            editor.set_command_line(search);
+        }
+        Ok(())
+    }
+
+    fn action_execute_search(&self, editor: &mut Editor) -> Result<()> {
+        let search_term = &editor.command_line()[1..];
+        editor.set_status_message(format!("Searching for: {}", search_term));
+        editor.set_mode(Mode::Normal);
+        editor.set_command_line(String::new());
+        Ok(())
+    }
+
+    // Additional action implementations
+    fn action_line_start(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.col = 0;
+        }
+        Ok(())
+    }
+
+    fn action_line_end(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = line.len();
+            }
+        }
+        Ok(())
+    }
+
+    fn action_buffer_start(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+        Ok(())
+    }
+
+    fn action_buffer_end(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.row = buffer.lines.len().saturating_sub(1);
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = line.len();
+            }
+        }
+        Ok(())
+    }
+
+    fn action_insert_line_start(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.col = 0;
+        }
+        editor.set_mode(Mode::Insert);
+        Ok(())
+    }
+
+    fn action_insert_after(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                if buffer.cursor.col < line.len() {
+                    buffer.cursor.col += 1;
+                }
+            }
+        }
+        editor.set_mode(Mode::Insert);
+        Ok(())
+    }
+
+    fn action_insert_line_end(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = line.len();
+            }
+        }
+        editor.set_mode(Mode::Insert);
+        Ok(())
+    }
+
+    fn action_insert_line_below(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let row = buffer.cursor.row;
+            buffer.lines.insert(row + 1, String::new());
+            buffer.cursor.row = row + 1;
+            buffer.cursor.col = 0;
+            buffer.modified = true;
+        }
+        editor.set_mode(Mode::Insert);
+        Ok(())
+    }
+
+    fn action_insert_line_above(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let row = buffer.cursor.row;
+            buffer.lines.insert(row, String::new());
+            buffer.cursor.col = 0;
+            buffer.modified = true;
+        }
+        editor.set_mode(Mode::Insert);
+        Ok(())
+    }
+
+    fn action_visual_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Visual);
+        Ok(())
+    }
+
+    fn action_visual_line_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::VisualLine);
+        Ok(())
+    }
+
+    fn action_visual_block_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::VisualBlock);
+        Ok(())
+    }
+
+    fn action_replace_mode(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Replace);
+        Ok(())
+    }
+
+    fn action_search_backward(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_mode(Mode::Search);
+        editor.set_command_line("?".to_string());
+        Ok(())
+    }
+
+    fn action_save_file(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            match buffer.save() {
+                Ok(_) => editor.set_status_message("File saved".to_string()),
+                Err(e) => editor.set_status_message(format!("Error saving: {}", e)),
+            }
+        }
+        Ok(())
+    }
+
+    fn action_quit(&self, editor: &mut Editor) -> Result<()> {
+        editor.quit();
+        Ok(())
+    }
+
+    fn action_undo(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.undo();
+        }
+        Ok(())
+    }
+
+    fn action_redo(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.redo();
+        }
+        Ok(())
+    }
+
+    fn action_delete_char_forward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.lines.get_mut(buffer.cursor.row) {
+                if buffer.cursor.col < line.len() {
+                    line.remove(buffer.cursor.col);
                     buffer.modified = true;
                 }
-                editor.set_mode(Mode::Insert);
             }
-            KeyCode::Char('O') => {
-                // Open new line above
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.lines.insert(buffer.cursor.row, String::new());
-                    buffer.cursor.col = 0;
-                    buffer.modified = true;
-                }
-                editor.set_mode(Mode::Insert);
-            }
-            KeyCode::Char('v') => {
-                editor.set_mode(Mode::Visual);
-            }
-            KeyCode::Char('V') => {
-                editor.set_mode(Mode::VisualLine);
-            }
-            KeyCode::Char(':') => {
-                editor.set_mode(Mode::Command);
-                editor.set_command_line(":".to_string());
-            }
-            KeyCode::Char('/') => {
-                editor.set_mode(Mode::Search);
-                editor.set_command_line("/".to_string());
-            }
-            KeyCode::Char('h') | KeyCode::Left => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if buffer.cursor.col > 0 {
-                        buffer.cursor.col -= 1;
-                    }
-                }
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if buffer.cursor.row < buffer.lines.len() - 1 {
-                        buffer.cursor.row += 1;
-                        // Clamp column to line length
-                        if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                            buffer.cursor.col = buffer.cursor.col.min(line.len());
-                        }
-                    }
-                }
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if buffer.cursor.row > 0 {
-                        buffer.cursor.row -= 1;
-                        // Clamp column to line length
-                        if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                            buffer.cursor.col = buffer.cursor.col.min(line.len());
-                        }
-                    }
-                }
-            }
-            KeyCode::Char('l') | KeyCode::Right => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if let Some(line) = buffer.get_line(buffer.cursor.row) {
+        }
+        Ok(())
+    }
+
+    fn action_insert_tab(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.insert_char('\t');
+        }
+        Ok(())
+    }
+
+    fn action_replace_char(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            if let Some(buffer) = editor.current_buffer_mut() {
+                if let Some(line) = buffer.lines.get_mut(buffer.cursor.row) {
+                    if buffer.cursor.col < line.len() {
+                        line.replace_range(
+                            buffer.cursor.col..buffer.cursor.col + 1,
+                            &ch.to_string(),
+                        );
                         if buffer.cursor.col < line.len() {
                             buffer.cursor.col += 1;
                         }
+                        buffer.modified = true;
                     }
                 }
             }
-            KeyCode::Char('u') => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.undo();
-                }
-            }
-            KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.redo();
-                }
-            }
-            KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                editor.quit();
-            }
-            _ => {}
         }
         Ok(())
     }
 
-    fn handle_insert_mode(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                editor.set_mode(Mode::Normal);
-            }
-            KeyCode::Char(ch) => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.insert_char(ch);
-                }
-            }
-            KeyCode::Enter => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.insert_line_break();
-                }
-            }
-            KeyCode::Backspace => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    buffer.delete_char();
-                }
-            }
-            KeyCode::Left => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if buffer.cursor.col > 0 {
-                        buffer.cursor.col -= 1;
-                    }
-                }
-            }
-            KeyCode::Right => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                        if buffer.cursor.col < line.len() {
-                            buffer.cursor.col += 1;
-                        }
-                    }
-                }
-            }
-            KeyCode::Up => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if buffer.cursor.row > 0 {
-                        buffer.cursor.row -= 1;
-                        if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                            buffer.cursor.col = buffer.cursor.col.min(line.len());
-                        }
-                    }
-                }
-            }
-            KeyCode::Down => {
-                if let Some(buffer) = editor.current_buffer_mut() {
-                    if buffer.cursor.row < buffer.lines.len() - 1 {
-                        buffer.cursor.row += 1;
-                        if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                            buffer.cursor.col = buffer.cursor.col.min(line.len());
-                        }
-                    }
-                }
-            }
-            _ => {}
+    fn action_delete_selection(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Delete selection not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_yank_selection(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Yank selection not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_change_selection(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Change selection not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_page_up(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.row = buffer.cursor.row.saturating_sub(10);
         }
         Ok(())
     }
 
-    fn handle_command_mode(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                editor.set_mode(Mode::Normal);
-            }
-            KeyCode::Enter => {
-                let command = editor.command_line().to_string();
-                self.execute_command(editor, &command)?;
-                editor.set_mode(Mode::Normal);
-            }
-            KeyCode::Char(ch) => {
-                let mut cmd = editor.command_line().to_string();
-                cmd.push(ch);
-                editor.set_command_line(cmd);
-            }
-            KeyCode::Backspace => {
-                let mut cmd = editor.command_line().to_string();
-                if cmd.len() > 1 {  // Keep the ':'
-                    cmd.pop();
-                    editor.set_command_line(cmd);
+    fn action_page_down(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let max_row = buffer.lines.len().saturating_sub(1);
+            buffer.cursor.row = std::cmp::min(buffer.cursor.row + 10, max_row);
+        }
+        Ok(())
+    }
+
+    fn action_word_forward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            // Simple word forward: move to next space or end of line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                let mut pos = buffer.cursor.col;
+                while pos < line.len() && !line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+                    pos += 1;
                 }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn handle_visual_mode(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                editor.set_mode(Mode::Normal);
-            }
-            // TODO: Implement visual mode navigation and operations
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn handle_replace_mode(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                editor.set_mode(Mode::Normal);
-            }
-            // TODO: Implement replace mode
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn handle_search_mode(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        match key.code {
-            KeyCode::Esc => {
-                editor.set_mode(Mode::Normal);
-            }
-            KeyCode::Enter => {
-                let search_term = &editor.command_line()[1..]; // Remove '/'
-                // TODO: Implement search functionality
-                editor.set_status_message(format!("Searching for: {}", search_term));
-                editor.set_mode(Mode::Normal);
-            }
-            KeyCode::Char(ch) => {
-                let mut search = editor.command_line().to_string();
-                search.push(ch);
-                editor.set_command_line(search);
-            }
-            KeyCode::Backspace => {
-                let mut search = editor.command_line().to_string();
-                if search.len() > 1 {  // Keep the '/'
-                    search.pop();
-                    editor.set_command_line(search);
+                while pos < line.len() && line.chars().nth(pos).unwrap_or(' ').is_whitespace() {
+                    pos += 1;
                 }
+                buffer.cursor.col = pos;
             }
-            _ => {}
         }
         Ok(())
     }
 
-    fn execute_command(&self, editor: &mut Editor, command: &str) -> Result<()> {
-        let cmd = command.trim_start_matches(':');
-        
-        match cmd {
-            "q" => {
-                editor.quit();
-            }
-            "q!" => {
-                editor.force_quit();
-            }
-            "w" => {
-                editor.save_current_buffer()?;
-            }
-            "wq" => {
-                editor.save_current_buffer()?;
-                editor.quit();
-            }
-            cmd if cmd.starts_with("e ") => {
-                let filename = &cmd[2..];
-                let path = std::path::PathBuf::from(filename);
-                match editor.create_buffer(Some(path)) {
-                    Ok(_) => {
-                        editor.set_status_message(format!("Opened: {}", filename));
+    fn action_word_backward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            // Simple word backward: move to previous space or start of line
+            if buffer.cursor.col > 0 {
+                let mut col = buffer.cursor.col - 1;
+                if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                    while col > 0 && line.chars().nth(col).unwrap_or(' ').is_whitespace() {
+                        col -= 1;
                     }
-                    Err(e) => {
-                        editor.set_status_message(format!("Error: {}", e));
+                    while col > 0 && !line.chars().nth(col - 1).unwrap_or(' ').is_whitespace() {
+                        col -= 1;
                     }
                 }
-            }
-            _ => {
-                editor.set_status_message(format!("Unknown command: {}", cmd));
+                buffer.cursor.col = col;
             }
         }
-        
+        Ok(())
+    }
+
+    fn action_copy_selection(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Copy selection not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_paste(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Paste not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_goto_line(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Goto line not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_find_next(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Find next not implemented".to_string());
+        Ok(())
+    }
+
+    fn action_find_previous(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_status_message("Find previous not implemented".to_string());
         Ok(())
     }
 }

@@ -1,17 +1,18 @@
 pub mod buffer;
-pub mod editor;
-pub mod terminal;
-pub mod keymap;
 pub mod command;
 pub mod config;
-pub mod syntax;
-pub mod lsp;
-pub mod search;
-pub mod mode;
-pub mod ui;
+pub mod editor;
 pub mod file;
+pub mod keymap;
+pub mod lsp;
+pub mod mode;
 pub mod plugin;
+pub mod search;
+pub mod syntax;
+pub mod terminal;
+pub mod ui;
 
-pub use editor::Editor;
 pub use buffer::Buffer;
+pub use editor::Editor;
+pub use keymap::KeyHandler;
 pub use terminal::Terminal;

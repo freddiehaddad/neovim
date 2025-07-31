@@ -1,0 +1,114 @@
+# Default Keymaps Configuration
+# This file defines all keybindings for the editor
+# Format: key = "action" or key = { action = "command", args = ["arg1", "arg2"] }
+
+[normal_mode]
+# Movement
+"h" = "cursor_left"
+"j" = "cursor_down"
+"k" = "cursor_up"
+"l" = "cursor_right"
+"Left" = "cursor_left"
+"Down" = "cursor_down"
+"Up" = "cursor_up"
+"Right" = "cursor_right"
+
+"w" = "word_forward"
+"b" = "word_backward"
+"e" = "word_end"
+"0" = "line_start"
+"^" = "line_first_char"
+"$" = "line_end"
+"gg" = "buffer_start"
+"G" = "buffer_end"
+
+# Mode transitions
+"i" = "insert_mode"
+"I" = "insert_line_start"
+"a" = "insert_after"
+"A" = "insert_line_end"
+"o" = "insert_line_below"
+"O" = "insert_line_above"
+"v" = "visual_mode"
+"V" = "visual_line_mode"
+"Ctrl+v" = "visual_block_mode"
+"R" = "replace_mode"
+
+# Search
+"/" = "search_forward"
+"?" = "search_backward"
+"n" = "search_next"
+"N" = "search_previous"
+
+# Commands
+":" = "command_mode"
+
+# File operations
+"Ctrl+s" = "save_file"
+"Ctrl+q" = "quit"
+
+# Undo/Redo
+"u" = "undo"
+"Ctrl+r" = "redo"
+
+[insert_mode]
+# Basic editing
+"Char" = "insert_char"
+"Enter" = "new_line"
+"Backspace" = "delete_char"
+"Delete" = "delete_char_forward"
+"Tab" = "insert_tab"
+
+# Movement in insert mode
+"Left" = "cursor_left"
+"Right" = "cursor_right"
+"Up" = "cursor_up"
+"Down" = "cursor_down"
+
+# Mode transitions
+"Escape" = "normal_mode"
+"Ctrl+c" = "normal_mode"
+
+[command_mode]
+# Command execution
+"Enter" = "execute_command"
+"Escape" = "normal_mode"
+"Ctrl+c" = "normal_mode"
+
+# Editing command line
+"Char" = "append_command"
+"Backspace" = "delete_command_char"
+
+[visual_mode]
+# Movement (inherits from normal mode)
+"h" = "cursor_left"
+"j" = "cursor_down"
+"k" = "cursor_up"
+"l" = "cursor_right"
+"w" = "word_forward"
+"b" = "word_backward"
+"0" = "line_start"
+"$" = "line_end"
+
+# Actions
+"d" = "delete_selection"
+"y" = "yank_selection"
+"c" = "change_selection"
+
+# Mode transitions
+"Escape" = "normal_mode"
+"v" = "normal_mode"
+
+[replace_mode]
+# Character replacement
+"Char" = "replace_char"
+"Escape" = "normal_mode"
+"Ctrl+c" = "normal_mode"
+
+[search_mode]
+# Search input
+"Char" = "append_search"
+"Enter" = "execute_search"
+"Escape" = "normal_mode"
+"Ctrl+c" = "normal_mode"
+"Backspace" = "delete_search_char"
