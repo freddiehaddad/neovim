@@ -441,7 +441,14 @@ impl KeyHandler {
             // Cursor line commands
             "set cul" | "set cursorline" => editor.set_cursor_line(true),
             "set nocul" | "set nocursorline" => editor.set_cursor_line(false),
-            _ => editor.set_status_message(format!("Unknown command: {}", command)),
+            _ => {
+                // Try to handle generic :set commands
+                if command.starts_with("set ") {
+                    self.handle_set_command(editor, &command[4..]);
+                } else {
+                    editor.set_status_message(format!("Unknown command: {}", command));
+                }
+            }
         }
 
         editor.set_mode(Mode::Normal);
@@ -804,5 +811,67 @@ impl KeyHandler {
     fn action_find_previous(&self, editor: &mut Editor) -> Result<()> {
         editor.search_previous();
         Ok(())
+    }
+
+    /// Handle generic :set commands
+    fn handle_set_command(&self, editor: &mut Editor, args: &str) {
+        let args = args.trim();
+
+        // Handle "no" prefix for disabling options
+        if let Some(setting) = args.strip_prefix("no") {
+            match setting {
+                "number" | "nu" => {
+                    editor.set_config_setting("number", "false");
+                    let (_, relative) = editor.get_line_number_state();
+                    editor.set_line_numbers(false, relative);
+                }
+                "relativenumber" | "rnu" => {
+                    editor.set_config_setting("relativenumber", "false");
+                    let (absolute, _) = editor.get_line_number_state();
+                    editor.set_line_numbers(absolute, false);
+                }
+                "cursorline" | "cul" => {
+                    editor.set_config_setting("cursorline", "false");
+                    editor.set_cursor_line(false);
+                }
+                _ => editor.set_status_message(format!("Unknown option: no{}", setting)),
+            }
+            return;
+        }
+
+        // Handle setting with values (e.g., "tabstop=4")
+        if let Some((setting, value)) = args.split_once('=') {
+            match setting.trim() {
+                "tabstop" | "ts" => {
+                    if let Ok(_width) = value.parse::<usize>() {
+                        editor.set_config_setting("tabstop", value);
+                        editor.set_status_message(format!("Tab width set to {}", value));
+                    } else {
+                        editor.set_status_message("Invalid tab width value".to_string());
+                    }
+                }
+                _ => editor.set_status_message(format!("Unknown setting: {}", setting)),
+            }
+            return;
+        }
+
+        // Handle boolean options (enable)
+        match args {
+            "number" | "nu" => {
+                editor.set_config_setting("number", "true");
+                let (_, relative) = editor.get_line_number_state();
+                editor.set_line_numbers(true, relative);
+            }
+            "relativenumber" | "rnu" => {
+                editor.set_config_setting("relativenumber", "true");
+                let (absolute, _) = editor.get_line_number_state();
+                editor.set_line_numbers(absolute, true);
+            }
+            "cursorline" | "cul" => {
+                editor.set_config_setting("cursorline", "true");
+                editor.set_cursor_line(true);
+            }
+            _ => editor.set_status_message(format!("Unknown option: {}", args)),
+        }
     }
 }

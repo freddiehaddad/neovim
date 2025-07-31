@@ -1,4 +1,5 @@
 use crate::buffer::Buffer;
+use crate::config::EditorConfig;
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
@@ -33,6 +34,8 @@ pub struct Editor {
     ui: UI,
     /// Key handler for mode-specific input
     key_handler: KeyHandler,
+    /// Editor configuration
+    config: EditorConfig,
     /// Search engine for text search
     search_engine: SearchEngine,
     /// Current search results
@@ -54,7 +57,14 @@ pub struct Editor {
 impl Editor {
     pub fn new() -> Result<Self> {
         let terminal = Terminal::new()?;
-        let ui = UI::new();
+        let config = EditorConfig::load();
+
+        // Initialize UI with config values
+        let mut ui = UI::new();
+        ui.show_line_numbers = config.display.show_line_numbers;
+        ui.show_relative_numbers = config.display.show_relative_numbers;
+        ui.show_cursor_line = config.display.show_cursor_line;
+
         let key_handler = KeyHandler::new();
 
         Ok(Self {
@@ -65,6 +75,7 @@ impl Editor {
             terminal,
             ui,
             key_handler,
+            config,
             search_engine: SearchEngine::new(),
             search_results: Vec::new(),
             current_search_index: None,
@@ -357,6 +368,10 @@ impl Editor {
 
     /// Set line number display options
     pub fn set_line_numbers(&mut self, absolute: bool, relative: bool) {
+        self.config.display.show_line_numbers = absolute;
+        self.config.display.show_relative_numbers = relative;
+
+        // Update UI to reflect config changes
         self.ui.show_line_numbers = absolute;
         self.ui.show_relative_numbers = relative;
 
@@ -367,27 +382,60 @@ impl Editor {
             (false, false) => "Line numbers disabled",
         };
         self.status_message = status.to_string();
+
+        // Save config changes
+        let _ = self.config.save();
     }
 
     /// Toggle cursor line highlighting
     pub fn toggle_cursor_line(&mut self) {
-        self.ui.show_cursor_line = !self.ui.show_cursor_line;
-        let status = if self.ui.show_cursor_line {
+        self.config.display.show_cursor_line = !self.config.display.show_cursor_line;
+        self.ui.show_cursor_line = self.config.display.show_cursor_line;
+        let status = if self.config.display.show_cursor_line {
             "Cursor line highlighting enabled"
         } else {
             "Cursor line highlighting disabled"
         };
         self.status_message = status.to_string();
+
+        // Save config changes
+        let _ = self.config.save();
     }
 
     /// Set cursor line highlighting
     pub fn set_cursor_line(&mut self, enabled: bool) {
+        self.config.display.show_cursor_line = enabled;
         self.ui.show_cursor_line = enabled;
+
         let status = if enabled {
             "Cursor line highlighting enabled"
         } else {
             "Cursor line highlighting disabled"
         };
         self.status_message = status.to_string();
+
+        // Save config changes
+        let _ = self.config.save();
+    }
+
+    /// Set a configuration setting by name
+    pub fn set_config_setting(&mut self, setting: &str, value: &str) {
+        let _ = self.config.set_setting(setting, value);
+
+        // Update UI to reflect config changes
+        self.ui.show_line_numbers = self.config.display.show_line_numbers;
+        self.ui.show_relative_numbers = self.config.display.show_relative_numbers;
+        self.ui.show_cursor_line = self.config.display.show_cursor_line;
+
+        // Save config changes
+        let _ = self.config.save();
+    }
+
+    /// Get the current value of a configuration setting
+    pub fn get_line_number_state(&self) -> (bool, bool) {
+        (
+            self.config.display.show_line_numbers,
+            self.config.display.show_relative_numbers,
+        )
     }
 }
