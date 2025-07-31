@@ -65,6 +65,10 @@
 "u" = "undo"
 "Ctrl+r" = "redo"
 
+# Buffer management
+"Ctrl+n" = "buffer_next"
+"Ctrl+p" = "buffer_previous"
+
 [insert_mode]
 # Basic editing
 "Char" = "insert_char"

@@ -267,6 +267,10 @@ impl KeyHandler {
             "undo" => self.action_undo(editor)?,
             "redo" => self.action_redo(editor)?,
 
+            // Buffer management actions
+            "buffer_next" => self.action_buffer_next(editor)?,
+            "buffer_previous" => self.action_buffer_previous(editor)?,
+
             // Insert mode actions
             "insert_char" => self.action_insert_char(editor, key)?,
             "new_line" => self.action_new_line(editor)?,
@@ -441,9 +445,61 @@ impl KeyHandler {
             // Cursor line commands
             "set cul" | "set cursorline" => editor.set_cursor_line(true),
             "set nocul" | "set nocursorline" => editor.set_cursor_line(false),
+
+            // Buffer management commands
+            "bn" | "bnext" => {
+                if editor.switch_to_next_buffer() {
+                    editor.set_status_message("Switched to next buffer".to_string());
+                } else {
+                    editor.set_status_message("No next buffer".to_string());
+                }
+            }
+            "bp" | "bprev" | "bprevious" => {
+                if editor.switch_to_previous_buffer() {
+                    editor.set_status_message("Switched to previous buffer".to_string());
+                } else {
+                    editor.set_status_message("No previous buffer".to_string());
+                }
+            }
+            "bd" | "bdelete" => match editor.close_current_buffer() {
+                Ok(msg) => editor.set_status_message(msg),
+                Err(e) => editor.set_status_message(format!("Error: {}", e)),
+            },
+            "bd!" | "bdelete!" => match editor.force_close_current_buffer() {
+                Ok(msg) => editor.set_status_message(msg),
+                Err(e) => editor.set_status_message(format!("Error: {}", e)),
+            },
+            "ls" | "buffers" => {
+                let buffer_list = editor.list_buffers();
+                editor.set_status_message(buffer_list);
+            }
             _ => {
-                // Try to handle generic :set commands
-                if command.starts_with("set ") {
+                // Handle :e filename and :b commands
+                if command.starts_with("e ") {
+                    let filename = command[2..].trim();
+                    match editor.open_file(filename) {
+                        Ok(msg) => editor.set_status_message(msg),
+                        Err(e) => editor.set_status_message(format!("Error opening file: {}", e)),
+                    }
+                } else if command.starts_with("b ") {
+                    let buffer_ref = command[2..].trim();
+                    if let Ok(buffer_id) = buffer_ref.parse::<usize>() {
+                        if editor.switch_to_buffer(buffer_id) {
+                            editor.set_status_message(format!("Switched to buffer {}", buffer_id));
+                        } else {
+                            editor.set_status_message(format!("No buffer with ID {}", buffer_id));
+                        }
+                    } else {
+                        // Try to switch by filename
+                        if editor.switch_to_buffer_by_name(buffer_ref) {
+                            editor
+                                .set_status_message(format!("Switched to buffer '{}'", buffer_ref));
+                        } else {
+                            editor
+                                .set_status_message(format!("No buffer matching '{}'", buffer_ref));
+                        }
+                    }
+                } else if command.starts_with("set ") {
                     self.handle_set_command(editor, &command[4..]);
                 } else {
                     editor.set_status_message(format!("Unknown command: {}", command));
@@ -624,6 +680,16 @@ impl KeyHandler {
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.redo();
         }
+        Ok(())
+    }
+
+    fn action_buffer_next(&self, editor: &mut Editor) -> Result<()> {
+        editor.switch_to_next_buffer();
+        Ok(())
+    }
+
+    fn action_buffer_previous(&self, editor: &mut Editor) -> Result<()> {
+        editor.switch_to_previous_buffer();
         Ok(())
     }
 

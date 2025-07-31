@@ -238,6 +238,13 @@ impl UI {
         // Mode indicator
         status_text.push_str(&format!(" {} ", editor_state.mode));
 
+        // Buffer information
+        if editor_state.buffer_count > 1 {
+            if let Some(buffer_id) = editor_state.current_buffer_id {
+                status_text.push_str(&format!(" [{}] ", buffer_id));
+            }
+        }
+
         // File information
         if let Some(buffer) = &editor_state.current_buffer {
             if let Some(path) = &buffer.file_path {

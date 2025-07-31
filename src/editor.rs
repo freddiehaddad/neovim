@@ -18,6 +18,8 @@ pub struct EditorRenderState {
     pub current_buffer: Option<Buffer>,
     pub command_line: String,
     pub status_message: String,
+    pub buffer_count: usize,
+    pub current_buffer_id: Option<usize>,
 }
 
 pub struct Editor {
@@ -176,6 +178,140 @@ impl Editor {
         Ok(())
     }
 
+    /// Open a file in a new buffer
+    pub fn open_file(&mut self, filename: &str) -> Result<String> {
+        let path = PathBuf::from(filename);
+        let buffer_id = self.create_buffer(Some(path))?;
+        Ok(format!("Opened '{}' in buffer {}", filename, buffer_id))
+    }
+
+    /// Switch to the next buffer in the list
+    pub fn switch_to_next_buffer(&mut self) -> bool {
+        if self.buffers.len() <= 1 {
+            return false;
+        }
+
+        let buffer_ids: Vec<usize> = self.buffers.keys().copied().collect();
+        let current_index = buffer_ids
+            .iter()
+            .position(|&id| Some(id) == self.current_buffer_id)
+            .unwrap_or(0);
+
+        let next_index = (current_index + 1) % buffer_ids.len();
+        self.current_buffer_id = Some(buffer_ids[next_index]);
+        true
+    }
+
+    /// Switch to the previous buffer in the list
+    pub fn switch_to_previous_buffer(&mut self) -> bool {
+        if self.buffers.len() <= 1 {
+            return false;
+        }
+
+        let buffer_ids: Vec<usize> = self.buffers.keys().copied().collect();
+        let current_index = buffer_ids
+            .iter()
+            .position(|&id| Some(id) == self.current_buffer_id)
+            .unwrap_or(0);
+
+        let prev_index = if current_index == 0 {
+            buffer_ids.len() - 1
+        } else {
+            current_index - 1
+        };
+        self.current_buffer_id = Some(buffer_ids[prev_index]);
+        true
+    }
+
+    /// Close the current buffer
+    pub fn close_current_buffer(&mut self) -> Result<String> {
+        if let Some(current_id) = self.current_buffer_id {
+            if let Some(buffer) = self.buffers.get(&current_id) {
+                if buffer.modified {
+                    return Ok("Buffer has unsaved changes! Use :bd! to force close".to_string());
+                }
+            }
+
+            self.buffers.remove(&current_id);
+
+            // Switch to another buffer or create a new one if this was the last
+            if self.buffers.is_empty() {
+                self.create_buffer(None)?;
+                Ok("Closed buffer, created new empty buffer".to_string())
+            } else {
+                self.current_buffer_id = self.buffers.keys().next().copied();
+                Ok("Buffer closed".to_string())
+            }
+        } else {
+            Ok("No buffer to close".to_string())
+        }
+    }
+
+    /// Force close the current buffer (ignore unsaved changes)
+    pub fn force_close_current_buffer(&mut self) -> Result<String> {
+        if let Some(current_id) = self.current_buffer_id {
+            self.buffers.remove(&current_id);
+
+            // Switch to another buffer or create a new one if this was the last
+            if self.buffers.is_empty() {
+                self.create_buffer(None)?;
+                Ok("Closed buffer (discarded changes), created new empty buffer".to_string())
+            } else {
+                self.current_buffer_id = self.buffers.keys().next().copied();
+                Ok("Buffer closed (discarded changes)".to_string())
+            }
+        } else {
+            Ok("No buffer to close".to_string())
+        }
+    }
+
+    /// Switch to buffer by name (partial matching)
+    pub fn switch_to_buffer_by_name(&mut self, name: &str) -> bool {
+        for (id, buffer) in &self.buffers {
+            if let Some(file_path) = &buffer.file_path {
+                if let Some(filename) = file_path.file_name() {
+                    if filename.to_string_lossy().contains(name) {
+                        self.current_buffer_id = Some(*id);
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// List all open buffers
+    pub fn list_buffers(&self) -> String {
+        if self.buffers.is_empty() {
+            return "No buffers open".to_string();
+        }
+
+        let mut buffer_list = String::from("Buffers: ");
+        for (id, buffer) in &self.buffers {
+            let is_current = Some(*id) == self.current_buffer_id;
+            let modified = if buffer.modified { "+" } else { "" };
+            let name = buffer
+                .file_path
+                .as_ref()
+                .and_then(|p| p.file_name())
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "[No Name]".to_string());
+
+            buffer_list.push_str(&format!(
+                "{}{}:{}{}{}",
+                if is_current { "[" } else { "" },
+                id,
+                name,
+                modified,
+                if is_current { "]" } else { "" }
+            ));
+
+            buffer_list.push(' ');
+        }
+
+        buffer_list.trim_end().to_string()
+    }
+
     fn render(&mut self) -> Result<()> {
         // Collect all needed data first
         let mode = self.mode;
@@ -189,6 +325,8 @@ impl Editor {
             current_buffer,
             command_line,
             status_message,
+            buffer_count: self.buffers.len(),
+            current_buffer_id: self.current_buffer_id,
         };
 
         // Now we can safely borrow terminal mutably

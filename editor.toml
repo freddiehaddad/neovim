@@ -4,9 +4,9 @@
 
 [display]
 # Line number settings
-show_line_numbers = false    # :set number / :set nonumber
+show_line_numbers = true     # :set number / :set nonumber
 show_relative_numbers = true # :set relativenumber / :set norelativenumber
-show_cursor_line = true      # :set cursorline / :set nocursorline
+show_cursor_line = false     # :set cursorline / :set nocursorline
 
 # Color and appearance
 color_scheme = "default"   # Color scheme to use
