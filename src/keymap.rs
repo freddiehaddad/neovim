@@ -681,21 +681,6 @@ impl KeyHandler {
         Ok(())
     }
 
-    fn action_page_up(&self, editor: &mut Editor) -> Result<()> {
-        if let Some(buffer) = editor.current_buffer_mut() {
-            buffer.cursor.row = buffer.cursor.row.saturating_sub(10);
-        }
-        Ok(())
-    }
-
-    fn action_page_down(&self, editor: &mut Editor) -> Result<()> {
-        if let Some(buffer) = editor.current_buffer_mut() {
-            let max_row = buffer.lines.len().saturating_sub(1);
-            buffer.cursor.row = std::cmp::min(buffer.cursor.row + 10, max_row);
-        }
-        Ok(())
-    }
-
     fn action_word_forward(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_next_word();
@@ -778,37 +763,12 @@ impl KeyHandler {
         Ok(())
     }
 
-    fn action_copy_selection(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Copy selection not implemented".to_string());
-        Ok(())
-    }
-
-    fn action_paste(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Paste not implemented".to_string());
-        Ok(())
-    }
-
-    fn action_goto_line(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Goto line not implemented".to_string());
-        Ok(())
-    }
-
     fn action_search_next(&self, editor: &mut Editor) -> Result<()> {
         editor.search_next();
         Ok(())
     }
 
     fn action_search_previous(&self, editor: &mut Editor) -> Result<()> {
-        editor.search_previous();
-        Ok(())
-    }
-
-    fn action_find_next(&self, editor: &mut Editor) -> Result<()> {
-        editor.search_next();
-        Ok(())
-    }
-
-    fn action_find_previous(&self, editor: &mut Editor) -> Result<()> {
         editor.search_previous();
         Ok(())
     }
