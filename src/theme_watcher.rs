@@ -1,5 +1,5 @@
 use crate::theme::ThemeConfig;
-use notify::{RecommendedWatcher, RecursiveMode, Watcher, Event, EventKind};
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
@@ -13,7 +13,10 @@ pub struct ThemeWatcher {
 impl ThemeWatcher {
     /// Create a new theme watcher for themes.toml
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let (sender, receiver): (Sender<notify::Result<Event>>, Receiver<notify::Result<Event>>) = mpsc::channel();
+        let (sender, receiver): (
+            Sender<notify::Result<Event>>,
+            Receiver<notify::Result<Event>>,
+        ) = mpsc::channel();
 
         let mut watcher = notify::recommended_watcher(move |res| {
             let _ = sender.send(res);
@@ -67,21 +70,19 @@ impl ThemeWatcher {
     /// Wait for theme file changes (blocking with timeout)
     pub fn wait_for_changes(&self, timeout: Duration) -> Result<bool, Box<dyn std::error::Error>> {
         match self.receiver.recv_timeout(timeout) {
-            Ok(Ok(event)) => {
-                match event.kind {
-                    EventKind::Modify(_) => {
-                        if event.paths.iter().any(|path| {
-                            path.file_name()
-                                .and_then(|name| name.to_str())
-                                .map(|name| name == "themes.toml")
-                                .unwrap_or(false)
-                        }) {
-                            return Ok(true);
-                        }
+            Ok(Ok(event)) => match event.kind {
+                EventKind::Modify(_) => {
+                    if event.paths.iter().any(|path| {
+                        path.file_name()
+                            .and_then(|name| name.to_str())
+                            .map(|name| name == "themes.toml")
+                            .unwrap_or(false)
+                    }) {
+                        return Ok(true);
                     }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
             Ok(Err(_)) => {
                 // Error in file watching
             }
@@ -138,7 +139,10 @@ impl ThemeManager {
     }
 
     /// Set the current theme and save to file
-    pub fn set_current_theme(&mut self, theme_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_current_theme(
+        &mut self,
+        theme_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if self.config.themes.contains_key(theme_name) {
             self.config.set_current_theme(theme_name);
             self.config.save()?;
@@ -160,8 +164,6 @@ impl ThemeManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::time::Duration;
 
     #[test]
     fn test_theme_manager_creation() {
@@ -173,8 +175,7 @@ mod tests {
     #[test]
     fn test_theme_config_reload() {
         let mut manager = ThemeManager::new();
-        let original_theme = manager.current_theme_name().to_string();
-        
+
         // Reload should work even if file hasn't changed
         let result = manager.reload();
         assert!(result.is_ok());
