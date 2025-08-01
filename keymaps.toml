@@ -69,6 +69,18 @@
 "Ctrl+n" = "buffer_next"
 "Ctrl+p" = "buffer_previous"
 
+# Additional navigation keys
+"Home" = "line_start"
+"End" = "line_end"
+"PageUp" = "buffer_start"
+"PageDown" = "buffer_end"
+
+# Function keys for common operations
+"F1" = "command_mode"  # Help/command mode
+"F2" = "save_file"     # Quick save
+"F3" = "search_forward" # Find
+"F10" = "quit"         # Exit
+
 [insert_mode]
 # Basic editing
 "Char" = "insert_char"
@@ -86,6 +98,13 @@
 # Mode transitions
 "Escape" = "normal_mode"
 "Ctrl+c" = "normal_mode"
+
+# Additional navigation in insert mode
+"Home" = "line_start"
+"End" = "line_end"
+"Ctrl+a" = "line_start"
+"Ctrl+e" = "line_end"
+"Ctrl+w" = "delete_word_backward"
 
 [command_mode]
 # Command execution
@@ -116,6 +135,48 @@
 # Mode transitions
 "Escape" = "normal_mode"
 "v" = "normal_mode"
+
+[visual_line_mode]
+# Movement (inherits from normal mode)
+"h" = "cursor_left"
+"j" = "cursor_down"
+"k" = "cursor_up"
+"l" = "cursor_right"
+"w" = "word_forward"
+"b" = "word_backward"
+"0" = "line_start"
+"$" = "line_end"
+
+# Actions
+"d" = "delete_selection"
+"y" = "yank_selection"
+"c" = "change_selection"
+
+# Mode transitions
+"Escape" = "normal_mode"
+"V" = "normal_mode"
+"v" = "visual_mode"
+
+[visual_block_mode]
+# Movement (inherits from normal mode)
+"h" = "cursor_left"
+"j" = "cursor_down"
+"k" = "cursor_up"
+"l" = "cursor_right"
+"w" = "word_forward"
+"b" = "word_backward"
+"0" = "line_start"
+"$" = "line_end"
+
+# Actions
+"d" = "delete_selection"
+"y" = "yank_selection"
+"c" = "change_selection"
+
+# Mode transitions
+"Escape" = "normal_mode"
+"Ctrl+v" = "normal_mode"
+"v" = "visual_mode"
 
 [replace_mode]
 # Character replacement

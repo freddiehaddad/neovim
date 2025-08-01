@@ -13,6 +13,8 @@ pub struct KeymapConfig {
     pub insert_mode: HashMap<String, String>,
     pub command_mode: HashMap<String, String>,
     pub visual_mode: HashMap<String, String>,
+    pub visual_line_mode: HashMap<String, String>,
+    pub visual_block_mode: HashMap<String, String>,
     pub replace_mode: HashMap<String, String>,
     pub search_mode: HashMap<String, String>,
 }
@@ -34,52 +36,38 @@ impl KeyHandler {
     }
 
     fn load_default_keymaps() -> KeymapConfig {
-        // Try to load from keymaps.toml file, fall back to defaults if not found
+        // Try to load from keymaps.toml file
         if let Ok(config_content) = fs::read_to_string("keymaps.toml") {
             if let Ok(config) = toml::from_str(&config_content) {
                 return config;
             }
         }
 
-        // Fallback to minimal default keymaps
-        Self::create_default_keymaps()
+        // Fallback to empty keymaps - this should rarely happen
+        // Users should have a keymaps.toml file
+        eprintln!("Warning: Could not load keymaps.toml, using minimal fallback");
+        Self::create_minimal_fallback()
     }
 
-    fn create_default_keymaps() -> KeymapConfig {
+    fn create_minimal_fallback() -> KeymapConfig {
+        // Absolute minimal keymaps just to exit gracefully
         let mut normal_mode = HashMap::new();
-        normal_mode.insert("h".to_string(), "cursor_left".to_string());
-        normal_mode.insert("j".to_string(), "cursor_down".to_string());
-        normal_mode.insert("k".to_string(), "cursor_up".to_string());
-        normal_mode.insert("l".to_string(), "cursor_right".to_string());
-        normal_mode.insert("i".to_string(), "insert_mode".to_string());
         normal_mode.insert(":".to_string(), "command_mode".to_string());
-        normal_mode.insert("/".to_string(), "search_forward".to_string());
-
-        let mut insert_mode = HashMap::new();
-        insert_mode.insert("Escape".to_string(), "normal_mode".to_string());
-        insert_mode.insert("Char".to_string(), "insert_char".to_string());
-        insert_mode.insert("Enter".to_string(), "new_line".to_string());
-        insert_mode.insert("Backspace".to_string(), "delete_char".to_string());
-
+        
         let mut command_mode = HashMap::new();
         command_mode.insert("Escape".to_string(), "normal_mode".to_string());
         command_mode.insert("Enter".to_string(), "execute_command".to_string());
         command_mode.insert("Char".to_string(), "append_command".to_string());
-        command_mode.insert("Backspace".to_string(), "delete_command_char".to_string());
-
-        let mut search_mode = HashMap::new();
-        search_mode.insert("Escape".to_string(), "normal_mode".to_string());
-        search_mode.insert("Enter".to_string(), "execute_search".to_string());
-        search_mode.insert("Char".to_string(), "append_search".to_string());
-        search_mode.insert("Backspace".to_string(), "delete_search_char".to_string());
 
         KeymapConfig {
             normal_mode,
-            insert_mode,
+            insert_mode: HashMap::new(),
             command_mode,
             visual_mode: HashMap::new(),
+            visual_line_mode: HashMap::new(),
+            visual_block_mode: HashMap::new(),
             replace_mode: HashMap::new(),
-            search_mode,
+            search_mode: HashMap::new(),
         }
     }
 
@@ -159,8 +147,14 @@ impl KeyHandler {
                     self.keymap_config.command_mode.get(&key_string)
                 }
             }
-            Mode::Visual | Mode::VisualLine | Mode::VisualBlock => {
+            Mode::Visual => {
                 self.keymap_config.visual_mode.get(&key_string)
+            }
+            Mode::VisualLine => {
+                self.keymap_config.visual_line_mode.get(&key_string)
+            }
+            Mode::VisualBlock => {
+                self.keymap_config.visual_block_mode.get(&key_string)
             }
             Mode::Replace => {
                 if let KeyCode::Char(_) = key.code {
@@ -192,17 +186,52 @@ impl KeyHandler {
     }
 
     fn key_event_to_string(key: KeyEvent) -> String {
-        match key.code {
-            KeyCode::Char(c) => c.to_string(),
-            KeyCode::Enter => "Enter".to_string(),
-            KeyCode::Left => "Left".to_string(),
-            KeyCode::Right => "Right".to_string(),
-            KeyCode::Up => "Up".to_string(),
-            KeyCode::Down => "Down".to_string(),
-            KeyCode::Backspace => "Backspace".to_string(),
-            KeyCode::Esc => "Escape".to_string(),
-            _ => "Unknown".to_string(),
+        let mut result = String::new();
+        
+        // Add modifiers
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            result.push_str("Ctrl+");
         }
+        if key.modifiers.contains(KeyModifiers::ALT) {
+            result.push_str("Alt+");
+        }
+        if key.modifiers.contains(KeyModifiers::SHIFT) {
+            result.push_str("Shift+");
+        }
+        
+        // Add the key itself
+        match key.code {
+            KeyCode::Char(c) => {
+                // Don't add Shift+ for uppercase letters as they're already shifted
+                if key.modifiers.contains(KeyModifiers::SHIFT) && c.is_ascii_lowercase() {
+                    result.truncate(result.len() - 6); // Remove "Shift+"
+                    result.push(c.to_ascii_uppercase());
+                } else if key.modifiers.contains(KeyModifiers::SHIFT) && c.is_ascii_uppercase() {
+                    result.truncate(result.len() - 6); // Remove "Shift+"
+                    result.push(c);
+                } else {
+                    result.push(c);
+                }
+            }
+            KeyCode::Enter => result.push_str("Enter"),
+            KeyCode::Left => result.push_str("Left"),
+            KeyCode::Right => result.push_str("Right"),
+            KeyCode::Up => result.push_str("Up"),
+            KeyCode::Down => result.push_str("Down"),
+            KeyCode::Backspace => result.push_str("Backspace"),
+            KeyCode::Esc => result.push_str("Escape"),
+            KeyCode::Tab => result.push_str("Tab"),
+            KeyCode::Delete => result.push_str("Delete"),
+            KeyCode::Home => result.push_str("Home"),
+            KeyCode::End => result.push_str("End"),
+            KeyCode::PageUp => result.push_str("PageUp"),
+            KeyCode::PageDown => result.push_str("PageDown"),
+            KeyCode::Insert => result.push_str("Insert"),
+            KeyCode::F(n) => result.push_str(&format!("F{}", n)),
+            _ => result.push_str("Unknown"),
+        }
+        
+        result
     }
 
     fn execute_action(&self, editor: &mut Editor, action: &str, key: KeyEvent) -> Result<()> {
