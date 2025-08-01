@@ -32,17 +32,7 @@ impl HighlightStyle {
         // Convert Color to hex string for storage
         let color_string = match color {
             Color::Rgb { r, g, b } => format!("#{:02x}{:02x}{:02x}", r, g, b),
-            Color::Black => "#000000".to_string(),
-            Color::Red => "#ff0000".to_string(),
-            Color::Green => "#00ff00".to_string(),
-            Color::Yellow => "#ffff00".to_string(),
-            Color::Blue => "#0000ff".to_string(),
-            Color::Magenta => "#ff00ff".to_string(),
-            Color::Cyan => "#00ffff".to_string(),
-            Color::White => "#ffffff".to_string(),
-            Color::DarkGrey => "#808080".to_string(),
-            Color::Grey => "#c0c0c0".to_string(),
-            _ => "#ffffff".to_string(), // Default fallback
+            _ => "#ffffff".to_string(), // Default fallback for any non-RGB colors
         };
 
         HighlightStyle {
@@ -62,18 +52,8 @@ impl HighlightStyle {
                 let b = u8::from_str_radix(&color_str[5..7], 16).ok()?;
                 Some(Color::Rgb { r, g, b })
             } else {
-                // Fallback to basic colors for better terminal compatibility
-                match color_str.as_str() {
-                    "blue" => Some(Color::Blue),
-                    "red" => Some(Color::Red),
-                    "green" => Some(Color::Green),
-                    "yellow" => Some(Color::Yellow),
-                    "magenta" => Some(Color::Magenta),
-                    "cyan" => Some(Color::Cyan),
-                    "white" => Some(Color::White),
-                    "black" => Some(Color::Black),
-                    _ => None,
-                }
+                // Return None for invalid hex colors
+                None
             }
         })
     }
