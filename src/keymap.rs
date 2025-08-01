@@ -209,6 +209,10 @@ impl KeyHandler {
                 } else if key.modifiers.contains(KeyModifiers::SHIFT) && c.is_ascii_uppercase() {
                     result.truncate(result.len() - 6); // Remove "Shift+"
                     result.push(c);
+                } else if key.modifiers.contains(KeyModifiers::SHIFT) && "!@#$%^&*()_+{}|:\"<>?~".contains(c) {
+                    // For shifted special characters, remove Shift+ as the character itself represents the shifted version
+                    result.truncate(result.len() - 6); // Remove "Shift+"
+                    result.push(c);
                 } else {
                     result.push(c);
                 }
