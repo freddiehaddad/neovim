@@ -77,6 +77,16 @@
 "Ctrl+d" = "scroll_down_half_page" # Scroll down half page
 "Ctrl+u" = "scroll_up_half_page"   # Scroll up half page
 
+# Centering operations (z commands)
+"zz" = "center_cursor"             # Center current line in viewport
+"zt" = "cursor_to_top"             # Move current line to top of viewport
+"zb" = "cursor_to_bottom"          # Move current line to bottom of viewport
+
+# Alternative center commands
+"z." = "center_cursor"             # Center current line (alternative)
+"z-" = "cursor_to_bottom"          # Move current line to bottom (alternative)
+"zEnter" = "cursor_to_top"         # Move current line to top (alternative)
+
 # Additional navigation keys
 "Home" = "line_start"
 "End" = "line_end"

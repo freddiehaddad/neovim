@@ -470,4 +470,31 @@ impl UI {
         let half_page_size = 10; // Default to 10 lines
         self.viewport_top = self.viewport_top.saturating_sub(half_page_size);
     }
+
+    // Centering methods (z commands in Vim)
+    pub fn center_cursor(&mut self, cursor_row: usize, terminal_height: u16) {
+        // zz: Center current line in viewport
+        let content_height = terminal_height.saturating_sub(2) as usize; // Reserve space for status and command line
+        let half_height = content_height / 2;
+        
+        // Set viewport so cursor line is in the middle
+        self.viewport_top = cursor_row.saturating_sub(half_height);
+    }
+
+    pub fn cursor_to_top(&mut self, cursor_row: usize) {
+        // zt: Move current line to top of viewport
+        self.viewport_top = cursor_row;
+    }
+
+    pub fn cursor_to_bottom(&mut self, cursor_row: usize, terminal_height: u16) {
+        // zb: Move current line to bottom of viewport
+        let content_height = terminal_height.saturating_sub(2) as usize; // Reserve space for status and command line
+        
+        // Set viewport so cursor line is at the bottom
+        self.viewport_top = cursor_row.saturating_sub(content_height.saturating_sub(1));
+    }
+
+    pub fn set_viewport_top(&mut self, viewport_top: usize) {
+        self.viewport_top = viewport_top;
+    }
 }

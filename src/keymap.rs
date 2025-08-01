@@ -26,6 +26,12 @@ pub struct KeyHandler {
     last_key_time: Option<std::time::Instant>,
 }
 
+impl Default for KeyHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyHandler {
     pub fn new() -> Self {
         Self {
@@ -327,6 +333,11 @@ impl KeyHandler {
             "scroll_up_page" => self.action_scroll_up_page(editor)?,
             "scroll_down_half_page" => self.action_scroll_down_half_page(editor)?,
             "scroll_up_half_page" => self.action_scroll_up_half_page(editor)?,
+
+            // Centering actions (z commands)
+            "center_cursor" => self.action_center_cursor(editor)?,
+            "cursor_to_top" => self.action_cursor_to_top(editor)?,
+            "cursor_to_bottom" => self.action_cursor_to_bottom(editor)?,
 
             _ => return Ok(()), // Unknown action, ignore
         }
@@ -926,6 +937,22 @@ impl KeyHandler {
 
     fn action_scroll_up_half_page(&self, editor: &mut Editor) -> Result<()> {
         editor.scroll_up_half_page();
+        Ok(())
+    }
+
+    // Centering action implementations (z commands)
+    fn action_center_cursor(&self, editor: &mut Editor) -> Result<()> {
+        editor.center_cursor();
+        Ok(())
+    }
+
+    fn action_cursor_to_top(&self, editor: &mut Editor) -> Result<()> {
+        editor.cursor_to_top();
+        Ok(())
+    }
+
+    fn action_cursor_to_bottom(&self, editor: &mut Editor) -> Result<()> {
+        editor.cursor_to_bottom();
         Ok(())
     }
 

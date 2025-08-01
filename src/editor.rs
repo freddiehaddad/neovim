@@ -425,9 +425,8 @@ impl Editor {
             if let Event::Key(key_event) = event::read()? {
                 // Only process key press events, not release events
                 if key_event.kind == KeyEventKind::Press {
-                    // Temporarily extract key_handler to avoid borrowing conflicts
-                    let mut key_handler =
-                        std::mem::replace(&mut self.key_handler, KeyHandler::new());
+                    // Clone the KeyHandler to preserve state across calls
+                    let mut key_handler = self.key_handler.clone();
                     let result = key_handler.handle_key(self, key_event);
                     self.key_handler = key_handler;
                     result?;
@@ -840,11 +839,14 @@ impl Editor {
         let old_viewport_top = self.ui.viewport_top();
         self.ui.scroll_down_line();
         let new_viewport_top = self.ui.viewport_top();
-        
+
         // Adjust cursor to maintain screen position
         if let Some(buffer) = self.current_buffer_mut() {
             if old_viewport_top != new_viewport_top {
-                buffer.cursor.row = buffer.cursor.row.saturating_add(new_viewport_top - old_viewport_top);
+                buffer.cursor.row = buffer
+                    .cursor
+                    .row
+                    .saturating_add(new_viewport_top - old_viewport_top);
                 buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
             }
         }
@@ -855,11 +857,14 @@ impl Editor {
         let old_viewport_top = self.ui.viewport_top();
         self.ui.scroll_up_line();
         let new_viewport_top = self.ui.viewport_top();
-        
+
         // Adjust cursor to maintain screen position
         if let Some(buffer) = self.current_buffer_mut() {
             if old_viewport_top != new_viewport_top {
-                buffer.cursor.row = buffer.cursor.row.saturating_sub(old_viewport_top - new_viewport_top);
+                buffer.cursor.row = buffer
+                    .cursor
+                    .row
+                    .saturating_sub(old_viewport_top - new_viewport_top);
             }
         }
     }
@@ -869,14 +874,14 @@ impl Editor {
         let old_viewport_top = self.ui.viewport_top();
         self.ui.scroll_down_page();
         let new_viewport_top = self.ui.viewport_top();
-        
+
         // Move cursor down by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
             if old_viewport_top != new_viewport_top {
                 let scroll_amount = new_viewport_top - old_viewport_top;
                 buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
                 buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
-                
+
                 // Ensure cursor column is valid for the new line
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
@@ -890,13 +895,13 @@ impl Editor {
         let old_viewport_top = self.ui.viewport_top();
         self.ui.scroll_up_page();
         let new_viewport_top = self.ui.viewport_top();
-        
+
         // Move cursor up by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
             if old_viewport_top != new_viewport_top {
                 let scroll_amount = old_viewport_top - new_viewport_top;
                 buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
-                
+
                 // Ensure cursor column is valid for the new line
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
@@ -910,14 +915,14 @@ impl Editor {
         let old_viewport_top = self.ui.viewport_top();
         self.ui.scroll_down_half_page();
         let new_viewport_top = self.ui.viewport_top();
-        
+
         // Move cursor down by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
             if old_viewport_top != new_viewport_top {
                 let scroll_amount = new_viewport_top - old_viewport_top;
                 buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
                 buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
-                
+
                 // Ensure cursor column is valid for the new line
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
@@ -927,22 +932,57 @@ impl Editor {
     }
 
     pub fn scroll_up_half_page(&mut self) {
-        // Ctrl+u: Scroll up half page, cursor moves with viewport  
+        // Ctrl+u: Scroll up half page, cursor moves with viewport
         let old_viewport_top = self.ui.viewport_top();
         self.ui.scroll_up_half_page();
         let new_viewport_top = self.ui.viewport_top();
-        
+
         // Move cursor up by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
             if old_viewport_top != new_viewport_top {
                 let scroll_amount = old_viewport_top - new_viewport_top;
                 buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
-                
+
                 // Ensure cursor column is valid for the new line
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
                 }
             }
+        }
+    }
+
+    // Centering methods (z commands in Vim)
+    pub fn center_cursor(&mut self) {
+        // zz: Center current line in viewport
+        if let Some(buffer) = self.current_buffer() {
+            let cursor_row = buffer.cursor.row;
+            let buffer_lines_len = buffer.lines.len();
+            let (_, height) = self.terminal.size();
+
+            self.ui.center_cursor(cursor_row, height);
+
+            // Ensure we don't scroll past the end of the buffer
+            let content_height = height.saturating_sub(2) as usize;
+            let max_viewport_top = buffer_lines_len.saturating_sub(content_height);
+            let current_viewport = self.ui.viewport_top().min(max_viewport_top);
+            self.ui.set_viewport_top(current_viewport);
+        }
+    }
+
+    pub fn cursor_to_top(&mut self) {
+        // zt: Move current line to top of viewport
+        if let Some(buffer) = self.current_buffer() {
+            let cursor_row = buffer.cursor.row;
+            self.ui.cursor_to_top(cursor_row);
+        }
+    }
+
+    pub fn cursor_to_bottom(&mut self) {
+        // zb: Move current line to bottom of viewport
+        if let Some(buffer) = self.current_buffer() {
+            let cursor_row = buffer.cursor.row;
+            let (_, height) = self.terminal.size();
+            self.ui.cursor_to_bottom(cursor_row, height);
         }
     }
 }
