@@ -341,11 +341,11 @@ impl Editor {
             // Get the visible range from UI by temporarily calling update_viewport
             let (_, height) = self.terminal.size();
             let content_height = height.saturating_sub(2) as usize;
-            
+
             // Calculate viewport - this should match UI logic exactly
             let viewport_bottom = self.ui.viewport_top() + content_height;
             let cursor_row = buffer.cursor.row;
-            
+
             let viewport_top = if cursor_row < self.ui.viewport_top() {
                 cursor_row
             } else if cursor_row >= viewport_bottom {
@@ -353,11 +353,12 @@ impl Editor {
             } else {
                 self.ui.viewport_top()
             };
-            
+
             // Only highlight visible lines + a small buffer for smooth scrolling
             let highlight_start = viewport_top;
-            let highlight_end = std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
-            
+            let highlight_end =
+                std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
+
             for line_index in highlight_start..highlight_end {
                 if let Some(line) = buffer.get_line(line_index) {
                     let file_path = buffer

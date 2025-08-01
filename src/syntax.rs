@@ -161,6 +161,10 @@ impl SyntaxHighlighter {
                             self.current_syntax_theme.comment.clone(),
                         ),
                     });
+                    
+                    // Skip processing children for comments to avoid highlighting
+                    // individual comment markers (like the third '/' in doc comments)
+                    continue;
                 }
                 "integer_literal" | "float_literal" => {
                     highlights.push(HighlightRange {
@@ -379,6 +383,53 @@ mod tests {
             closing_brace.is_some(),
             "Closing curly brace should be highlighted"
         );
+    }
+
+    #[test]
+    fn test_doc_comment_highlighting() {
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+        
+        let test_code = r#"/// This is a doc comment
+//! This is an inner doc comment  
+fn test() {
+    // Regular comment
+    /* Block comment */
+    let x = 5;
+}"#;
+        
+        // Test highlighting
+        let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+        
+        // Print all highlights to see what we're getting
+        for highlight in &highlights {
+            let text = &test_code[highlight.start..highlight.end];
+            println!("Highlighted: '{}' ({}..{})", text.replace('\n', "\\n"), highlight.start, highlight.end);
+        }
+        
+        // Check that doc comments are not duplicated
+        let doc_comment_highlights: Vec<_> = highlights.iter().filter(|h| {
+            let text = &test_code[h.start..h.end];
+            text.contains("///") || text.contains("//!")
+        }).collect();
+        
+        // Should have exactly 2 highlights: one for /// and one for //!
+        assert_eq!(doc_comment_highlights.len(), 2, "Should have exactly 2 doc comment highlights (/// and //!)");
+        
+        // Check that regular comments work too
+        let regular_comment_highlights: Vec<_> = highlights.iter().filter(|h| {
+            let text = &test_code[h.start..h.end];
+            text.starts_with("// Regular") || text.starts_with("/* Block")
+        }).collect();
+        
+        assert_eq!(regular_comment_highlights.len(), 2, "Should have exactly 2 regular comment highlights");
+        
+        // Ensure no individual slashes are highlighted separately from comments
+        let individual_slash_highlights: Vec<_> = highlights.iter().filter(|h| {
+            let text = &test_code[h.start..h.end];
+            text == "/" && h.end - h.start == 1
+        }).collect();
+        
+        assert_eq!(individual_slash_highlights.len(), 0, "Should not have individual slash highlights separate from comments");
     }
 
     #[test]
