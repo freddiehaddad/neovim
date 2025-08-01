@@ -185,14 +185,27 @@ impl SyntaxHighlighter {
                             start: macro_name_node.start_byte(),
                             end: macro_name_node.end_byte(),
                             style: HighlightStyle::from_color(
-                                self.current_syntax_theme.function.clone(),
+                                self.current_syntax_theme.macro_color.clone(),
                             ),
                         });
                     }
+                    
+                    // Add children to stack, but skip the first child (macro name) since we already highlighted it
+                    for i in 1..node.child_count() {
+                        if let Some(child) = node.child(i) {
+                            stack.push(child);
+                        }
+                    }
+                    continue; // Skip the normal child processing for this node
                 }
                 "identifier" => {
-                    // Check if this identifier is in a type position
+                    // Skip identifiers that are part of macro invocations (already highlighted)
                     if let Some(parent) = node.parent() {
+                        if parent.kind() == "macro_invocation" && parent.child(0).map(|c| c.id()) == Some(node.id()) {
+                            // This is the macro name, already highlighted above
+                            continue;
+                        }
+                        
                         match parent.kind() {
                             "type_identifier" | "primitive_type" => {
                                 highlights.push(HighlightRange {
