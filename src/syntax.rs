@@ -6,6 +6,36 @@ use tree_sitter::{Language, Parser};
 
 use crate::theme::{SyntaxTheme, ThemeConfig};
 
+/// Check if a node is an implicit return value (last expression in a function block)
+fn is_implicit_return(node: &tree_sitter::Node, block_parent: &tree_sitter::Node) -> bool {
+    // Check if the block is part of a function
+    if let Some(function_parent) = block_parent.parent() {
+        if function_parent.kind() != "function_item" {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    // Find the last meaningful child of the block (excluding closing brace)
+    let mut last_meaningful_child = None;
+    for i in 0..block_parent.child_count() {
+        if let Some(child) = block_parent.child(i) {
+            // Skip punctuation like opening/closing braces
+            if !matches!(child.kind(), "{" | "}") {
+                last_meaningful_child = Some(child);
+            }
+        }
+    }
+
+    // Check if this node is the last meaningful child
+    if let Some(last_child) = last_meaningful_child {
+        last_child.id() == node.id()
+    } else {
+        false
+    }
+}
+
 // Get the Rust language from the tree-sitter-rust crate
 fn get_rust_language() -> Language {
     tree_sitter_rust::LANGUAGE.into()
@@ -161,7 +191,7 @@ impl SyntaxHighlighter {
                             self.current_syntax_theme.comment.clone(),
                         ),
                     });
-                    
+
                     // Skip processing children for comments to avoid highlighting
                     // individual comment markers (like the third '/' in doc comments)
                     continue;
@@ -209,6 +239,18 @@ impl SyntaxHighlighter {
                             && parent.child(0).map(|c| c.id()) == Some(node.id())
                         {
                             // This is the macro name, already highlighted above
+                            continue;
+                        }
+
+                        // Check if this identifier is an implicit return value
+                        if parent.kind() == "block" && is_implicit_return(&node, &parent) {
+                            highlights.push(HighlightRange {
+                                start: node.start_byte(),
+                                end: node.end_byte(),
+                                style: HighlightStyle::from_color(
+                                    self.current_syntax_theme.function.clone(), // Use function color for return values
+                                ),
+                            });
                             continue;
                         }
 
@@ -388,7 +430,7 @@ mod tests {
     #[test]
     fn test_doc_comment_highlighting() {
         let mut highlighter = SyntaxHighlighter::new().unwrap();
-        
+
         let test_code = r#"/// This is a doc comment
 //! This is an inner doc comment  
 fn test() {
@@ -396,65 +438,157 @@ fn test() {
     /* Block comment */
     let x = 5;
 }"#;
-        
+
         // Test highlighting
         let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
-        
+
         // Print all highlights to see what we're getting
         for highlight in &highlights {
             let text = &test_code[highlight.start..highlight.end];
-            println!("Highlighted: '{}' ({}..{})", text.replace('\n', "\\n"), highlight.start, highlight.end);
+            println!(
+                "Highlighted: '{}' ({}..{})",
+                text.replace('\n', "\\n"),
+                highlight.start,
+                highlight.end
+            );
         }
-        
+
         // Check that doc comments are not duplicated
-        let doc_comment_highlights: Vec<_> = highlights.iter().filter(|h| {
-            let text = &test_code[h.start..h.end];
-            text.contains("///") || text.contains("//!")
-        }).collect();
-        
+        let doc_comment_highlights: Vec<_> = highlights
+            .iter()
+            .filter(|h| {
+                let text = &test_code[h.start..h.end];
+                text.contains("///") || text.contains("//!")
+            })
+            .collect();
+
         // Should have exactly 2 highlights: one for /// and one for //!
-        assert_eq!(doc_comment_highlights.len(), 2, "Should have exactly 2 doc comment highlights (/// and //!)");
-        
+        assert_eq!(
+            doc_comment_highlights.len(),
+            2,
+            "Should have exactly 2 doc comment highlights (/// and //!)"
+        );
+
         // Check that regular comments work too
-        let regular_comment_highlights: Vec<_> = highlights.iter().filter(|h| {
-            let text = &test_code[h.start..h.end];
-            text.starts_with("// Regular") || text.starts_with("/* Block")
-        }).collect();
-        
-        assert_eq!(regular_comment_highlights.len(), 2, "Should have exactly 2 regular comment highlights");
-        
+        let regular_comment_highlights: Vec<_> = highlights
+            .iter()
+            .filter(|h| {
+                let text = &test_code[h.start..h.end];
+                text.starts_with("// Regular") || text.starts_with("/* Block")
+            })
+            .collect();
+
+        assert_eq!(
+            regular_comment_highlights.len(),
+            2,
+            "Should have exactly 2 regular comment highlights"
+        );
+
         // Ensure no individual slashes are highlighted separately from comments
-        let individual_slash_highlights: Vec<_> = highlights.iter().filter(|h| {
-            let text = &test_code[h.start..h.end];
-            text == "/" && h.end - h.start == 1
-        }).collect();
-        
-        assert_eq!(individual_slash_highlights.len(), 0, "Should not have individual slash highlights separate from comments");
+        let individual_slash_highlights: Vec<_> = highlights
+            .iter()
+            .filter(|h| {
+                let text = &test_code[h.start..h.end];
+                text == "/" && h.end - h.start == 1
+            })
+            .collect();
+
+        assert_eq!(
+            individual_slash_highlights.len(),
+            0,
+            "Should not have individual slash highlights separate from comments"
+        );
     }
 
     #[test]
     fn test_large_file_highlighting() {
         let mut highlighter = SyntaxHighlighter::new().unwrap();
-        
+
         // Create a long piece of code
         let mut long_code = String::new();
         for i in 1..=200 {
             long_code.push_str(&format!("    println!(\"Line {}\");\n", i));
         }
         long_code = format!("fn main() {{\n{}}}", long_code);
-        
+
         // Test highlighting the entire code
         let highlights = highlighter.highlight_text(&long_code, "rust").unwrap();
-        
+
         // Verify we got highlights throughout the file, not just the first 100 lines
         assert!(!highlights.is_empty(), "Should have syntax highlights");
-        
+
         // Check that we have highlights near the end of the file
         let code_len = long_code.len();
         let has_late_highlights = highlights.iter().any(|h| h.start > code_len / 2);
-        assert!(has_late_highlights, "Should have highlights in the latter half of the file");
-        
-        println!("Highlighted {} ranges in {} character file", highlights.len(), code_len);
+        assert!(
+            has_late_highlights,
+            "Should have highlights in the latter half of the file"
+        );
+
+        println!(
+            "Highlighted {} ranges in {} character file",
+            highlights.len(),
+            code_len
+        );
+    }
+
+    #[test]
+    fn test_return_expression_highlighting() {
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+
+        let test_code = r#"fn add(a: i32, b: i32) -> i32 {
+    let sum = a + b;
+    sum  // implicit return
+}
+
+fn explicit_return() -> i32 {
+    return 42;
+}
+
+fn simple_return() -> i32 {
+    42
+}"#;
+
+        // Parse with Tree-sitter to see the AST structure
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        if let Some(tree) = parser.parse(test_code, None) {
+            let root_node = tree.root_node();
+            print_return_tree(&root_node, test_code, 0);
+        }
+
+        // Test highlighting
+        let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+
+        // Print all highlights to see what we're getting
+        for highlight in &highlights {
+            let text = &test_code[highlight.start..highlight.end];
+            println!(
+                "Highlighted: '{}' ({}..{})",
+                text.replace('\n', "\\n"),
+                highlight.start,
+                highlight.end
+            );
+        }
+    }
+
+    fn print_return_tree(node: &tree_sitter::Node, source: &str, depth: usize) {
+        let indent = "  ".repeat(depth);
+        let node_text = &source[node.start_byte()..node.end_byte()];
+        println!(
+            "{}kind: '{}', text: '{}'",
+            indent,
+            node.kind(),
+            node_text.replace('\n', "\\n")
+        );
+
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i) {
+                print_return_tree(&child, source, depth + 1);
+            }
+        }
     }
 }
 
