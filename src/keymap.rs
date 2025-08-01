@@ -743,17 +743,17 @@ impl KeyHandler {
                 if buffer.cursor.col > 0 {
                     // Find the start of the current word or previous word
                     let mut pos = buffer.cursor.col;
-                    
+
                     // Skip any whitespace before the cursor
                     while pos > 0 && line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
                         pos -= 1;
                     }
-                    
+
                     // Delete the word characters
                     while pos > 0 && !line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
                         pos -= 1;
                     }
-                    
+
                     // Remove the characters from pos to cursor
                     line.drain(pos..buffer.cursor.col);
                     buffer.cursor.col = pos;
