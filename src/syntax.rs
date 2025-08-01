@@ -189,7 +189,7 @@ impl SyntaxHighlighter {
                             ),
                         });
                     }
-                    
+
                     // Add children to stack, but skip the first child (macro name) since we already highlighted it
                     for i in 1..node.child_count() {
                         if let Some(child) = node.child(i) {
@@ -201,11 +201,13 @@ impl SyntaxHighlighter {
                 "identifier" => {
                     // Skip identifiers that are part of macro invocations (already highlighted)
                     if let Some(parent) = node.parent() {
-                        if parent.kind() == "macro_invocation" && parent.child(0).map(|c| c.id()) == Some(node.id()) {
+                        if parent.kind() == "macro_invocation"
+                            && parent.child(0).map(|c| c.id()) == Some(node.id())
+                        {
                             // This is the macro name, already highlighted above
                             continue;
                         }
-                        
+
                         match parent.kind() {
                             "type_identifier" | "primitive_type" => {
                                 highlights.push(HighlightRange {
@@ -258,6 +260,20 @@ impl SyntaxHighlighter {
                         end: node.end_byte(),
                         style: HighlightStyle::from_color(
                             self.current_syntax_theme.keyword.clone(),
+                        ),
+                    });
+                }
+                // Punctuation and operators
+                "{" | "}" | "(" | ")" | "[" | "]" | ";" | ":" | "," | "." | "=" | "+"
+                | "-" | "*" | "/" | "%" | "&" | "|" | "^" | "!" | "<" | ">" | "?"
+                | "==" | "!=" | "<=" | ">=" | "&&" | "||" | "++" | "--" | "+=" | "-="
+                | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<" | ">>" | "<<=" | ">>="
+                | "->" | "=>" | "::" | ".." | "..=" => {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.operator.clone(),
                         ),
                     });
                 }
@@ -324,6 +340,36 @@ impl SyntaxHighlighter {
         self.parsers.clear();
         self.initialize_parsers()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_punctuation_highlighting() {
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+        
+        let test_code = "fn test() { let x = 5; }";
+        let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+        
+        // Print all highlights to see what we're getting
+        for highlight in &highlights {
+            let text = &test_code[highlight.start..highlight.end];
+            println!("Highlighted: '{}' ({}..{})", text, highlight.start, highlight.end);
+        }
+        
+        // Check that curly braces are highlighted
+        let opening_brace = highlights.iter().find(|h| {
+            &test_code[h.start..h.end] == "{"
+        });
+        let closing_brace = highlights.iter().find(|h| {
+            &test_code[h.start..h.end] == "}"
+        });
+        
+        assert!(opening_brace.is_some(), "Opening curly brace should be highlighted");
+        assert!(closing_brace.is_some(), "Closing curly brace should be highlighted");
     }
 }
 
