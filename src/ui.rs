@@ -426,4 +426,15 @@ impl UI {
 
         Ok(())
     }
+
+    /// Get the current viewport top position
+    pub fn viewport_top(&self) -> usize {
+        self.viewport_top
+    }
+
+    /// Get the current viewport range
+    pub fn viewport_range(&self, height: u16) -> (usize, usize) {
+        let content_height = height.saturating_sub(2) as usize;
+        (self.viewport_top, content_height)
+    }
 }

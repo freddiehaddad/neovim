@@ -264,11 +264,11 @@ impl SyntaxHighlighter {
                     });
                 }
                 // Punctuation and operators
-                "{" | "}" | "(" | ")" | "[" | "]" | ";" | ":" | "," | "." | "=" | "+"
-                | "-" | "*" | "/" | "%" | "&" | "|" | "^" | "!" | "<" | ">" | "?"
-                | "==" | "!=" | "<=" | ">=" | "&&" | "||" | "++" | "--" | "+=" | "-="
-                | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<" | ">>" | "<<=" | ">>="
-                | "->" | "=>" | "::" | ".." | "..=" => {
+                "{" | "}" | "(" | ")" | "[" | "]" | ";" | ":" | "," | "." | "=" | "+" | "-"
+                | "*" | "/" | "%" | "&" | "|" | "^" | "!" | "<" | ">" | "?" | "==" | "!="
+                | "<=" | ">=" | "&&" | "||" | "++" | "--" | "+=" | "-=" | "*=" | "/=" | "%="
+                | "&=" | "|=" | "^=" | "<<" | ">>" | "<<=" | ">>=" | "->" | "=>" | "::" | ".."
+                | "..=" => {
                     highlights.push(HighlightRange {
                         start: node.start_byte(),
                         end: node.end_byte(),
@@ -350,26 +350,60 @@ mod tests {
     #[test]
     fn test_punctuation_highlighting() {
         let mut highlighter = SyntaxHighlighter::new().unwrap();
-        
+
         let test_code = "fn test() { let x = 5; }";
         let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
-        
+
         // Print all highlights to see what we're getting
         for highlight in &highlights {
             let text = &test_code[highlight.start..highlight.end];
-            println!("Highlighted: '{}' ({}..{})", text, highlight.start, highlight.end);
+            println!(
+                "Highlighted: '{}' ({}..{})",
+                text, highlight.start, highlight.end
+            );
         }
-        
+
         // Check that curly braces are highlighted
-        let opening_brace = highlights.iter().find(|h| {
-            &test_code[h.start..h.end] == "{"
-        });
-        let closing_brace = highlights.iter().find(|h| {
-            &test_code[h.start..h.end] == "}"
-        });
+        let opening_brace = highlights
+            .iter()
+            .find(|h| &test_code[h.start..h.end] == "{");
+        let closing_brace = highlights
+            .iter()
+            .find(|h| &test_code[h.start..h.end] == "}");
+
+        assert!(
+            opening_brace.is_some(),
+            "Opening curly brace should be highlighted"
+        );
+        assert!(
+            closing_brace.is_some(),
+            "Closing curly brace should be highlighted"
+        );
+    }
+
+    #[test]
+    fn test_large_file_highlighting() {
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
         
-        assert!(opening_brace.is_some(), "Opening curly brace should be highlighted");
-        assert!(closing_brace.is_some(), "Closing curly brace should be highlighted");
+        // Create a long piece of code
+        let mut long_code = String::new();
+        for i in 1..=200 {
+            long_code.push_str(&format!("    println!(\"Line {}\");\n", i));
+        }
+        long_code = format!("fn main() {{\n{}}}", long_code);
+        
+        // Test highlighting the entire code
+        let highlights = highlighter.highlight_text(&long_code, "rust").unwrap();
+        
+        // Verify we got highlights throughout the file, not just the first 100 lines
+        assert!(!highlights.is_empty(), "Should have syntax highlights");
+        
+        // Check that we have highlights near the end of the file
+        let code_len = long_code.len();
+        let has_late_highlights = highlights.iter().any(|h| h.start > code_len / 2);
+        assert!(has_late_highlights, "Should have highlights in the latter half of the file");
+        
+        println!("Highlighted {} ranges in {} character file", highlights.len(), code_len);
     }
 }
 
