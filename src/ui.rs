@@ -2,7 +2,7 @@ use crate::editor::EditorRenderState;
 use crate::mode::{Mode, Position};
 use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
-use crossterm::style::Color;
+use crate::theme::{ThemeConfig, UITheme};
 use std::io;
 
 pub struct UI {
@@ -14,15 +14,50 @@ pub struct UI {
     pub show_relative_numbers: bool,
     /// Highlight the current cursor line
     pub show_cursor_line: bool,
+    /// Current UI theme from themes.toml
+    theme: UITheme,
 }
 
 impl UI {
     pub fn new() -> Self {
+        // Load theme configuration from themes.toml
+        let theme_config = ThemeConfig::load();
+        let current_theme = theme_config.get_current_theme();
+
         Self {
             viewport_top: 0,
             show_line_numbers: true,      // Enable by default like Vim
             show_relative_numbers: false, // Disabled by default
-            show_cursor_line: false, // Disabled by default (can be enabled with :set cursorline)
+            show_cursor_line: true,       // Enable by default
+            theme: current_theme.ui,      // Use theme from themes.toml
+        }
+    }
+
+    /// Set the UI theme by loading from themes.toml
+    pub fn set_theme(&mut self, theme_name: &str) {
+        let theme_config = ThemeConfig::load();
+        if let Some(complete_theme) = theme_config.get_theme(theme_name) {
+            self.theme = complete_theme.ui;
+        } else {
+            // Fallback to default theme if theme not found
+            let default_theme = theme_config.get_current_theme();
+            self.theme = default_theme.ui;
+        }
+    }
+
+    /// Get current theme name
+    pub fn theme_name(&self) -> &'static str {
+        // Load current theme from config
+        let theme_config = ThemeConfig::load();
+        // For now, return the current theme name - could be enhanced to track theme state
+        if theme_config.theme.current == "dark" {
+            "dark"
+        } else if theme_config.theme.current == "light" {
+            "light"
+        } else if theme_config.theme.current == "ferris" {
+            "ferris"
+        } else {
+            "default"
         }
     }
 
@@ -134,9 +169,9 @@ impl UI {
             // Check if this is the cursor line for highlighting
             let is_cursor_line = self.show_cursor_line && buffer_row == buffer.cursor.row;
 
-            // Set cursor line background if enabled
+            // Set cursor line background if enabled using theme
             if is_cursor_line {
-                terminal.queue_set_bg_color(Color::DarkGrey)?;
+                terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
             }
 
             // Render line numbers
@@ -167,9 +202,9 @@ impl UI {
                     terminal.queue_print(display_line)?;
                 }
             } else {
-                // Show tilde for empty lines (like Vim)
+                // Show tilde for empty lines (like Vim) using theme color
                 if !is_cursor_line {
-                    terminal.queue_set_fg_color(Color::Blue)?;
+                    terminal.queue_set_fg_color(self.theme.empty_line)?;
                 }
                 terminal.queue_print("~")?;
             }
@@ -214,7 +249,7 @@ impl UI {
                 terminal.queue_set_fg_color(color)?;
             }
 
-            if highlight.style.bold.unwrap_or(false) {
+            if highlight.style.bold {
                 // Note: Bold support would need to be added to terminal module
             }
 
@@ -245,12 +280,12 @@ impl UI {
         width: usize,
         is_cursor_line: bool,
     ) -> io::Result<()> {
-        // Set line number colors - highlight current line number if on cursor line
+        // Set line number colors using theme - highlight current line number if on cursor line
         if is_cursor_line && self.show_cursor_line {
-            terminal.queue_set_fg_color(Color::Yellow)?;
-            terminal.queue_set_bg_color(Color::DarkGrey)?;
+            terminal.queue_set_fg_color(self.theme.line_number_current)?;
+            terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
         } else {
-            terminal.queue_set_fg_color(Color::DarkGrey)?;
+            terminal.queue_set_fg_color(self.theme.line_number)?;
         }
 
         if buffer_row < buffer.lines.len() {
@@ -297,9 +332,18 @@ impl UI {
         // Clear the status line first
         terminal.queue_clear_line()?;
 
-        // Set status line colors
-        terminal.queue_set_bg_color(Color::White)?;
-        terminal.queue_set_fg_color(Color::Black)?;
+        // Set status line colors using theme
+        let status_color = if editor_state
+            .current_buffer
+            .as_ref()
+            .map_or(false, |b| b.modified)
+        {
+            self.theme.status_modified
+        } else {
+            self.theme.status_bg
+        };
+        terminal.queue_set_bg_color(status_color)?;
+        terminal.queue_set_fg_color(self.theme.status_fg)?;
 
         let mut status_text = String::new();
 
@@ -363,8 +407,10 @@ impl UI {
         let command_row = height.saturating_sub(1);
         terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
 
-        // Clear the command line first
+        // Clear the command line first and set theme colors
         terminal.queue_clear_line()?;
+        terminal.queue_set_bg_color(self.theme.command_line_bg)?;
+        terminal.queue_set_fg_color(self.theme.command_line_fg)?;
 
         let command_text = &editor_state.command_line;
 
@@ -376,6 +422,7 @@ impl UI {
         };
 
         terminal.queue_print(display_text)?;
+        terminal.queue_reset_color()?;
 
         Ok(())
     }

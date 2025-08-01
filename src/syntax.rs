@@ -1,131 +1,128 @@
 use anyhow::{Result, anyhow};
 use crossterm::style::Color;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::{Language, Parser, Query};
+
+use crate::theme::{SyntaxTheme, ThemeConfig};
 
 // Get the Rust language from the tree-sitter-rust crate
 fn get_rust_language() -> Language {
     tree_sitter_rust::LANGUAGE.into()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SyntaxConfig {
-    pub general: GeneralConfig,
-    pub languages: HashMap<String, LanguageConfig>,
-    pub themes: HashMap<String, ThemeConfig>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeneralConfig {
-    pub enabled: bool,
-    pub default_theme: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LanguageConfig {
-    pub name: String,
-    pub extensions: Vec<String>,
-    pub grammar: String,
-    pub comment_token: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThemeConfig {
-    pub keyword: Option<StyleConfig>,
-    pub string: Option<StyleConfig>,
-    pub comment: Option<StyleConfig>,
-    pub number: Option<StyleConfig>,
-    pub boolean: Option<StyleConfig>,
-    pub operator: Option<StyleConfig>,
-    pub punctuation: Option<StyleConfig>,
-    pub function: Option<StyleConfig>,
-    #[serde(rename = "type")]
-    pub type_: Option<StyleConfig>,
-    pub variable: Option<StyleConfig>,
-    pub constant: Option<StyleConfig>,
-    pub property: Option<StyleConfig>,
-    pub escape: Option<StyleConfig>,
-    pub error: Option<StyleConfig>,
-    pub warning: Option<StyleConfig>,
-    pub heading: Option<StyleConfig>,
-    pub emphasis: Option<StyleConfig>,
-    pub strong: Option<StyleConfig>,
-    pub code: Option<StyleConfig>,
-    pub link: Option<StyleConfig>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StyleConfig {
-    pub fg: Option<String>,
-    pub bg: Option<String>,
-    pub bold: Option<bool>,
-    pub italic: Option<bool>,
-    pub underline: Option<bool>,
-}
-
 #[derive(Debug, Clone)]
 pub struct HighlightRange {
     pub start: usize,
     pub end: usize,
-    pub style: StyleConfig,
+    pub style: HighlightStyle,
+}
+
+#[derive(Debug, Clone)]
+pub struct HighlightStyle {
+    pub fg_color: Option<String>,
+    pub bg_color: Option<String>,
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+}
+
+impl HighlightStyle {
+    pub fn from_color(color: Color) -> Self {
+        // Convert Color to hex string for storage
+        let color_string = match color {
+            Color::Rgb { r, g, b } => format!("#{:02x}{:02x}{:02x}", r, g, b),
+            Color::Black => "#000000".to_string(),
+            Color::Red => "#ff0000".to_string(),
+            Color::Green => "#00ff00".to_string(),
+            Color::Yellow => "#ffff00".to_string(),
+            Color::Blue => "#0000ff".to_string(),
+            Color::Magenta => "#ff00ff".to_string(),
+            Color::Cyan => "#00ffff".to_string(),
+            Color::White => "#ffffff".to_string(),
+            Color::DarkGrey => "#808080".to_string(),
+            Color::Grey => "#c0c0c0".to_string(),
+            _ => "#ffffff".to_string(), // Default fallback
+        };
+
+        HighlightStyle {
+            fg_color: Some(color_string),
+            bg_color: None,
+            bold: false,
+            italic: false,
+            underline: false,
+        }
+    }
+
+    pub fn to_color(&self) -> Option<Color> {
+        self.fg_color.as_ref().and_then(|color_str| {
+            if color_str.starts_with('#') && color_str.len() == 7 {
+                let r = u8::from_str_radix(&color_str[1..3], 16).ok()?;
+                let g = u8::from_str_radix(&color_str[3..5], 16).ok()?;
+                let b = u8::from_str_radix(&color_str[5..7], 16).ok()?;
+                Some(Color::Rgb { r, g, b })
+            } else {
+                // Fallback to basic colors for better terminal compatibility
+                match color_str.as_str() {
+                    "blue" => Some(Color::Blue),
+                    "red" => Some(Color::Red),
+                    "green" => Some(Color::Green),
+                    "yellow" => Some(Color::Yellow),
+                    "magenta" => Some(Color::Magenta),
+                    "cyan" => Some(Color::Cyan),
+                    "white" => Some(Color::White),
+                    "black" => Some(Color::Black),
+                    _ => None,
+                }
+            }
+        })
+    }
 }
 
 pub struct SyntaxHighlighter {
-    config: SyntaxConfig,
     parsers: HashMap<String, Parser>,
     queries: HashMap<String, Query>,
+    theme_config: ThemeConfig,
+    current_syntax_theme: SyntaxTheme,
 }
 
 impl SyntaxHighlighter {
     pub fn new() -> Result<Self> {
-        let config = Self::load_config()?;
+        // Load the theme system
+        let theme_config = ThemeConfig::load();
+        let current_theme = theme_config.get_current_theme();
+
         let mut highlighter = SyntaxHighlighter {
-            config,
             parsers: HashMap::new(),
             queries: HashMap::new(),
+            theme_config,
+            current_syntax_theme: current_theme.syntax,
         };
 
         highlighter.initialize_parsers()?;
         Ok(highlighter)
     }
 
-    fn load_config() -> Result<SyntaxConfig> {
-        let config_content = std::fs::read_to_string("syntax.toml")
-            .map_err(|_| anyhow!("Could not read syntax.toml"))?;
-
-        let config: SyntaxConfig = toml::from_str(&config_content)
-            .map_err(|e| anyhow!("Failed to parse syntax.toml: {}", e))?;
-
-        Ok(config)
-    }
-
     fn initialize_parsers(&mut self) -> Result<()> {
-        for (lang_key, lang_config) in &self.config.languages {
-            let language = match lang_config.grammar.as_str() {
-                "rust" => get_rust_language(),
-                _ => continue, // Only Rust supported for now
-            };
+        // Hardcoded Rust language support
+        let language = get_rust_language();
 
-            let mut parser = Parser::new();
-            parser
-                .set_language(&language)
-                .map_err(|e| anyhow!("Failed to set language for {}: {}", lang_key, e))?;
+        let mut parser = Parser::new();
+        parser
+            .set_language(&language)
+            .map_err(|e| anyhow!("Failed to set language for rust: {}", e))?;
 
-            self.parsers.insert(lang_key.clone(), parser);
+        self.parsers.insert("rust".to_string(), parser);
 
-            // Create basic highlighting query for this language
-            let query_string = self.create_highlight_query(&lang_config.grammar);
+        // Create basic highlighting query for Rust
+        let query_string = self.create_highlight_query("rust");
 
-            if let Ok(query) = Query::new(&language, &query_string) {
-                self.queries.insert(lang_key.clone(), query);
-            }
+        if let Ok(query) = Query::new(&language, &query_string) {
+            self.queries.insert("rust".to_string(), query);
         }
 
         Ok(())
     }
-
     fn create_highlight_query(&self, grammar: &str) -> String {
         match grammar {
             "rust" => {
@@ -188,35 +185,35 @@ impl SyntaxHighlighter {
     pub fn detect_language_from_extension(&self, file_path: &str) -> Option<String> {
         let extension = Path::new(file_path).extension()?.to_str()?;
 
-        for (lang_key, lang_config) in &self.config.languages {
-            if lang_config.extensions.contains(&extension.to_string()) {
-                return Some(lang_key.clone());
-            }
+        // Hardcoded language detection for Rust
+        if extension == "rs" {
+            Some("rust".to_string())
+        } else {
+            None
         }
-
-        None
     }
 
     pub fn update_theme(&mut self, theme_name: &str) -> Result<()> {
-        // Reload the config to get updated themes
-        self.config = Self::load_config()?;
-        
+        // Reload the theme config to get updated themes
+        self.theme_config = ThemeConfig::load();
+
         // Validate that the theme exists
-        if !self.config.themes.contains_key(theme_name) {
-            return Err(anyhow!("Theme '{}' not found", theme_name));
+        if let Some(complete_theme) = self.theme_config.get_theme(theme_name) {
+            self.current_syntax_theme = complete_theme.syntax;
+        } else {
+            // Fallback to current theme if theme not found
+            let current_theme = self.theme_config.get_current_theme();
+            self.current_syntax_theme = current_theme.syntax;
+            return Err(anyhow!(
+                "Theme '{}' not found, using current theme",
+                theme_name
+            ));
         }
-        
-        // Update the default theme in the config
-        self.config.general.default_theme = theme_name.to_string();
-        
+
         Ok(())
     }
 
     pub fn highlight_text(&mut self, text: &str, language: &str) -> Result<Vec<HighlightRange>> {
-        if !self.config.general.enabled {
-            return Ok(Vec::new());
-        }
-
         let parser = self
             .parsers
             .get_mut(language)
@@ -228,67 +225,56 @@ impl SyntaxHighlighter {
 
         let mut highlights = Vec::new();
 
-        let theme = self
-            .config
-            .themes
-            .get(&self.config.general.default_theme)
-            .ok_or_else(|| anyhow!("Default theme not found"))?;
-
-        // Use a simplified approach for Tree-sitter 0.25.8
-        // Try a different approach - query all nodes manually
+        // Use a simplified approach - query all nodes manually using the Tree-sitter tree
         let mut stack = vec![tree.root_node()];
 
         while let Some(node) = stack.pop() {
             let node_kind = node.kind();
 
-            // Check for Tree-sitter node types first (more accurate)
+            // Check for Tree-sitter node types and apply our new theme colors
             match node_kind {
                 "string_literal" | "raw_string_literal" | "char_literal" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "string") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(self.current_syntax_theme.string.clone()),
+                    });
                 }
                 "line_comment" | "block_comment" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "comment") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.comment.clone(),
+                        ),
+                    });
                 }
                 "integer_literal" | "float_literal" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "number") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(self.current_syntax_theme.number.clone()),
+                    });
                 }
                 "boolean_literal" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "boolean") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.boolean.clone(),
+                        ),
+                    });
                 }
                 "macro_invocation" => {
                     // For macro invocations, highlight only the macro name (first child), not the entire call
                     if let Some(macro_name_node) = node.child(0) {
-                        if let Some(style) = self.get_style_for_capture(theme, "function") {
-                            highlights.push(HighlightRange {
-                                start: macro_name_node.start_byte(),
-                                end: macro_name_node.end_byte(),
-                                style: style.clone(),
-                            });
-                        }
+                        highlights.push(HighlightRange {
+                            start: macro_name_node.start_byte(),
+                            end: macro_name_node.end_byte(),
+                            style: HighlightStyle::from_color(
+                                self.current_syntax_theme.function.clone(),
+                            ),
+                        });
                     }
                 }
                 "identifier" => {
@@ -296,44 +282,44 @@ impl SyntaxHighlighter {
                     if let Some(parent) = node.parent() {
                         match parent.kind() {
                             "type_identifier" | "primitive_type" => {
-                                if let Some(style) = self.get_style_for_capture(theme, "type") {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: style.clone(),
-                                    });
-                                }
+                                highlights.push(HighlightRange {
+                                    start: node.start_byte(),
+                                    end: node.end_byte(),
+                                    style: HighlightStyle::from_color(
+                                        self.current_syntax_theme.type_color.clone(),
+                                    ),
+                                });
                             }
                             _ => {
                                 // Regular identifier - could be variable, function name, etc.
-                                if let Some(style) = self.get_style_for_capture(theme, "variable") {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: style.clone(),
-                                    });
-                                }
+                                highlights.push(HighlightRange {
+                                    start: node.start_byte(),
+                                    end: node.end_byte(),
+                                    style: HighlightStyle::from_color(
+                                        self.current_syntax_theme.variable.clone(),
+                                    ),
+                                });
                             }
                         }
                     }
                 }
                 "type_identifier" | "primitive_type" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "type") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.type_color.clone(),
+                        ),
+                    });
                 }
                 "field_identifier" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "property") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.property.clone(),
+                        ),
+                    });
                 }
                 // Keywords - Tree-sitter recognizes these as their literal text
                 "use" | "fn" | "let" | "mut" | "if" | "else" | "for" | "while" | "loop"
@@ -341,16 +327,16 @@ impl SyntaxHighlighter {
                 | "trait" | "type" | "const" | "static" | "mod" | "extern" | "pub" | "async"
                 | "await" | "unsafe" | "where" | "as" | "in" | "self" | "Self" | "super"
                 | "crate" => {
-                    if let Some(style) = self.get_style_for_capture(theme, "keyword") {
-                        highlights.push(HighlightRange {
-                            start: node.start_byte(),
-                            end: node.end_byte(),
-                            style: style.clone(),
-                        });
-                    }
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.keyword.clone(),
+                        ),
+                    });
                 }
                 _ => {
-                    // Only rely on Tree-sitter's node types - no fallback text matching
+                    // Only rely on Tree-sitter's node types
                 }
             }
 
@@ -377,14 +363,27 @@ impl SyntaxHighlighter {
             highlights
                 .into_iter()
                 .map(|h| {
-                    let highlight_type = match h.style.fg.as_deref() {
-                        Some("#569cd6") => HighlightType::Keyword,
-                        Some("#ce9178") => HighlightType::String,
-                        Some("#6a9955") => HighlightType::Comment,
-                        Some("#dcdcaa") => HighlightType::Function,
-                        Some("#4ec9b0") => HighlightType::Type,
-                        Some("#b5cea8") => HighlightType::Number,
-                        _ => HighlightType::Variable,
+                    // Try to map highlights to basic types by checking patterns
+                    let text_segment = &line[h.start..h.end];
+                    let highlight_type = if text_segment.contains("//")
+                        || text_segment.contains("/*")
+                    {
+                        HighlightType::Comment
+                    } else if text_segment.starts_with('"') || text_segment.starts_with('\'') {
+                        HighlightType::String
+                    } else if text_segment.chars().all(|c| c.is_numeric() || c == '.') {
+                        HighlightType::Number
+                    } else if text_segment == "fn" || text_segment == "let" || text_segment == "if"
+                    {
+                        HighlightType::Keyword
+                    } else if text_segment
+                        .chars()
+                        .next()
+                        .map_or(false, |c| c.is_uppercase())
+                    {
+                        HighlightType::Type
+                    } else {
+                        HighlightType::Variable
                     };
                     (h.start, h.end, highlight_type)
                 })
@@ -394,74 +393,12 @@ impl SyntaxHighlighter {
         }
     }
 
-    fn get_style_for_capture<'a>(
-        &self,
-        theme: &'a ThemeConfig,
-        capture_name: &str,
-    ) -> Option<&'a StyleConfig> {
-        match capture_name {
-            "keyword" => theme.keyword.as_ref(),
-            "string" => theme.string.as_ref(),
-            "comment" => theme.comment.as_ref(),
-            "number" => theme.number.as_ref(),
-            "boolean" => theme.boolean.as_ref(),
-            "operator" => theme.operator.as_ref(),
-            "punctuation" => theme.punctuation.as_ref(),
-            "function" => theme.function.as_ref(),
-            "type" => theme.type_.as_ref(),
-            "variable" => theme.variable.as_ref(),
-            "constant" => theme.constant.as_ref(),
-            "property" => theme.property.as_ref(),
-            "escape" => theme.escape.as_ref(),
-            "error" => theme.error.as_ref(),
-            "warning" => theme.warning.as_ref(),
-            "heading" => theme.heading.as_ref(),
-            "emphasis" => theme.emphasis.as_ref(),
-            "strong" => theme.strong.as_ref(),
-            "code" => theme.code.as_ref(),
-            "link" => theme.link.as_ref(),
-            _ => None,
-        }
-    }
-
     pub fn reload_config(&mut self) -> Result<()> {
-        self.config = Self::load_config()?;
+        // Since we no longer use external config, just reinitialize parsers
         self.parsers.clear();
         self.queries.clear();
         self.initialize_parsers()?;
         Ok(())
-    }
-}
-
-impl StyleConfig {
-    pub fn to_color(&self) -> Option<Color> {
-        self.fg.as_ref().and_then(|color_str| {
-            if color_str.starts_with('#') && color_str.len() == 7 {
-                let r = u8::from_str_radix(&color_str[1..3], 16).ok()?;
-                let g = u8::from_str_radix(&color_str[3..5], 16).ok()?;
-                let b = u8::from_str_radix(&color_str[5..7], 16).ok()?;
-                Some(Color::Rgb { r, g, b })
-            } else {
-                // Fallback to basic colors for better terminal compatibility
-                match color_str.as_str() {
-                    "blue" => Some(Color::Blue),
-                    "red" => Some(Color::Red),
-                    "green" => Some(Color::Green),
-                    "yellow" => Some(Color::Yellow),
-                    "magenta" => Some(Color::Magenta),
-                    "cyan" => Some(Color::Cyan),
-                    "white" => Some(Color::White),
-                    "black" => Some(Color::Black),
-                    "#569cd6" => Some(Color::Blue), // keyword color -> blue
-                    "#ce9178" => Some(Color::Yellow), // string color -> yellow
-                    "#6a9955" => Some(Color::Green), // comment color -> green
-                    "#b5cea8" => Some(Color::Cyan), // number color -> cyan
-                    "#dcdcaa" => Some(Color::Yellow), // function color -> yellow
-                    "#4ec9b0" => Some(Color::Cyan), // type color -> cyan
-                    _ => None,
-                }
-            }
-        })
     }
 }
 

@@ -1,0 +1,180 @@
+# Comprehensive theme configuration for UI and Syntax highlighting
+# This file supports hot reloading - changes take effect immediately
+
+[theme]
+# Current active theme: "default", "dark", "light", or "ferris"
+current = "default"
+
+# Default Rust-inspired theme (balanced for general use)
+[themes.default]
+name = "Rust Default"
+description = "Balanced Rust-inspired theme with safety green accents"
+
+[themes.default.ui]
+# Status line
+status_bg = "#86b300"           # Safety green from types
+status_fg = "#dbd7ca"           # Light cream from variables  
+status_modified = "#ce422b"     # Rust red for modifications
+
+# Line numbers
+line_number = "#5c6773"         # Muted gray from comments
+line_number_current = "#f79718" # Vibrant orange from constants
+
+# UI backgrounds
+cursor_line_bg = "#2d2d2d"      # Darker background for cursor line
+empty_line = "#39adb5"          # Teal from functions
+
+# Command line
+command_line_bg = "#1c1c1c"     # Dark background
+command_line_fg = "#dbd7ca"     # Light cream
+
+# Selection and messages
+selection_bg = "#59c2ff"        # Sky blue from properties
+warning = "#ff9940"             # Orange from warnings
+error = "#ff3333"               # Bright red from errors
+
+[themes.default.syntax]
+# Text and basic elements
+text = "#dbd7ca"                # Light cream base text
+comment = "#5c6773"             # Muted gray
+keyword = "#ff6b35"             # Rust orange
+operator = "#ff9940"            # Warning orange
+
+# Data types and structures
+type = "#86b300"                # Safety green
+struct = "#86b300"              # Safety green
+enum = "#86b300"                # Safety green
+
+# Values and literals
+string = "#a8cc8c"              # Light green
+number = "#d19a66"              # Golden orange
+boolean = "#56b6c2"             # Cyan
+character = "#a8cc8c"           # Light green
+
+# Functions and methods
+function = "#39adb5"            # Teal
+method = "#39adb5"              # Teal
+macro = "#c678dd"               # Purple
+
+# Variables and identifiers
+variable = "#dbd7ca"            # Light cream
+parameter = "#e06c75"           # Soft red
+property = "#59c2ff"            # Sky blue
+constant = "#f79718"            # Vibrant orange
+
+# Dark theme for low-light environments
+[themes.dark]
+name = "Rust Dark"
+description = "High contrast dark theme for late-night coding"
+
+[themes.dark.ui]
+status_bg = "#a3d977"           # Bright green
+status_fg = "#282828"           # Dark text for contrast
+status_modified = "#ff6b35"     # Bright rust orange
+line_number = "#7c7c7c"         # Medium gray
+line_number_current = "#ffd23f" # Bright golden
+cursor_line_bg = "#373737"      # Darker background
+empty_line = "#00d4aa"          # Bright teal
+command_line_bg = "#191919"     # Very dark background
+command_line_fg = "#ffffff"     # White text
+selection_bg = "#a3d977"        # Match status bg
+warning = "#ffd23f"             # Bright golden
+error = "#ff6b35"               # Bright rust orange
+
+[themes.dark.syntax]
+text = "#ffffff"                # Pure white text
+comment = "#7c7c7c"             # Medium gray
+keyword = "#ff6b35"             # Bright rust orange
+operator = "#ffd23f"            # Bright golden
+type = "#a3d977"                # Bright green
+struct = "#a3d977"              # Bright green
+enum = "#a3d977"                # Bright green
+string = "#98d982"              # Bright light green
+number = "#ffb347"              # Bright golden orange
+boolean = "#00d4aa"             # Bright teal
+character = "#98d982"           # Bright light green
+function = "#00d4aa"            # Bright teal
+method = "#00d4aa"              # Bright teal
+macro = "#e879f9"               # Bright purple
+variable = "#ffffff"            # Pure white
+parameter = "#ff9999"           # Bright soft red
+property = "#87ceeb"            # Bright sky blue
+constant = "#ffd23f"            # Bright golden
+
+# Light theme for well-lit environments
+[themes.light]
+name = "Rust Light"
+description = "Clean light theme for daytime productivity"
+
+[themes.light.ui]
+status_bg = "#22863a"           # Forest green
+status_fg = "#ffffff"           # White text
+status_modified = "#b7410e"     # Dark rust red
+line_number = "#8e8e93"         # Light gray
+line_number_current = "#007acc" # Deep blue
+cursor_line_bg = "#f5f5f5"      # Very light background
+empty_line = "#007acc"          # Deep blue
+command_line_bg = "#fafafa"     # Almost white
+command_line_fg = "#282828"     # Dark text
+selection_bg = "#22863a"        # Match status bg
+warning = "#8b6914"             # Dark golden
+error = "#b7410e"               # Dark rust red
+
+[themes.light.syntax]
+text = "#1d1d1f"                # Dark text
+comment = "#8e8e93"             # Light gray
+keyword = "#ad3da4"             # Purple
+operator = "#ad3da4"            # Purple
+type = "#0f68a0"                # Blue
+struct = "#0f68a0"              # Blue
+enum = "#0f68a0"                # Blue
+string = "#00a33f"              # Green
+number = "#ad3da4"              # Purple
+boolean = "#ad3da4"             # Purple
+character = "#00a33f"           # Green
+function = "#0969da"            # Blue
+method = "#0969da"              # Blue
+macro = "#ad3da4"               # Purple
+variable = "#1d1d1f"            # Dark text
+parameter = "#953800"           # Brown
+property = "#0969da"            # Blue
+constant = "#ad3da4"            # Purple
+
+# Ferris theme (playful Rust mascot inspired)
+[themes.ferris]
+name = "Ferris"
+description = "Playful theme inspired by Rust's beloved mascot"
+
+[themes.ferris.ui]
+status_bg = "#ff6347"           # Tomato red (Ferris's shell)
+status_fg = "#ffffff"           # White text
+status_modified = "#ff4500"     # Orange red
+line_number = "#708090"         # Slate gray
+line_number_current = "#ffa500" # Orange
+cursor_line_bg = "#2f2f2f"      # Dark gray
+empty_line = "#40e0d0"          # Turquoise
+command_line_bg = "#1a1a1a"     # Very dark
+command_line_fg = "#ffffff"     # White text
+selection_bg = "#ff6347"        # Match status bg
+warning = "#ffa500"             # Orange
+error = "#ff4500"               # Orange red
+
+[themes.ferris.syntax]
+text = "#f0f0f0"                # Light text
+comment = "#708090"             # Slate gray
+keyword = "#ff6347"             # Tomato red
+operator = "#ffa500"            # Orange
+type = "#ff7f50"                # Coral
+struct = "#ff7f50"              # Coral
+enum = "#ff7f50"                # Coral
+string = "#98fb98"              # Pale green
+number = "#ffd700"              # Gold
+boolean = "#40e0d0"             # Turquoise
+character = "#98fb98"           # Pale green
+function = "#40e0d0"            # Turquoise
+method = "#40e0d0"              # Turquoise
+macro = "#da70d6"               # Orchid
+variable = "#f0f0f0"            # Light text
+parameter = "#ffb6c1"           # Light pink
+property = "#87ceeb"            # Sky blue
+constant = "#ffd700"            # Gold

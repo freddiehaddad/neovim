@@ -10,7 +10,7 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 
 - **`keymaps.toml`** - Complete keymap customization
 - **`editor.toml`** - Comprehensive editor settings (30+ options)  
-- **`syntax.toml`** - Advanced syntax highlighting themes and language support
+- **`themes.toml`** - Advanced syntax highlighting themes and UI colors
 - **No more scattered hardcoded defaults** - everything is configurable
 - **Persistent settings** - all `:set` commands automatically save to configuration
 
@@ -35,7 +35,7 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
 - **TOML-based Keymap System**: Configurable keybindings loaded from `keymaps.toml`
 - **TOML-based Editor Settings**: Comprehensive configuration in `editor.toml`
-- **Tree-sitter Syntax Highlighting**: Professional AST-based syntax highlighting with `syntax.toml`
+- **Tree-sitter Syntax Highlighting**: Professional AST-based syntax highlighting with built-in Rust support
 - **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
 - **Rust-Inspired Color Schemes**: Beautiful themes reflecting Rust's safety and performance values
 - **Key Sequence Support**: Multi-character commands like `dd`, `gg`, `yy` with timeout
@@ -179,32 +179,31 @@ cargo run -- filename.txt
 
 The editor features a **revolutionary TOML-based configuration system** that completely replaces traditional Vim's scattered settings approach, plus advanced Tree-sitter syntax highlighting.
 
-#### Syntax Highlighting Configuration (`syntax.toml`)
+#### Syntax Highlighting
 
-The `syntax.toml` file provides comprehensive syntax highlighting with multiple themes:
+Syntax highlighting is built-in and powered by Tree-sitter with automatic Rust language support. Colors are configured through the unified `themes.toml` file:
 
 ```toml
-[general]
-enabled = true
-default_theme = "default"  # Can be "default", "dark", "light", or "ferris"
-
-# Language definitions
-[languages.rust]
-name = "Rust"
-extensions = ["rs"]
-grammar = "rust"
-comment_token = "//"
-
-# Rust-inspired color themes
-[themes.default]
-# Basic syntax elements with Rust language colors
-keyword = { fg = "#ce422b", bold = true }        # Rust red/orange - core keywords
-string = { fg = "#b4a72e", italic = true }       # Golden yellow - string literals  
-comment = { fg = "#5c6773", italic = true }      # Muted gray - comments
-number = { fg = "#ff9940", bold = true }         # Bright orange - numeric literals
-function = { fg = "#39adb5", bold = true }       # Teal blue - functions (reliability)
-type = { fg = "#86b300", bold = true }           # Fresh green - types (safety)
-variable = { fg = "#dbd7ca" }                    # Light cream - variables
+[themes.default.syntax]
+# Rust-inspired syntax colors with semantic meaning
+text = "#dbd7ca"              # Light cream - default text
+comment = "#5c6773"           # Muted gray - comments
+keyword = "#ce422b"           # Rust red/orange - core keywords
+operator = "#ff6a00"          # Bright rust orange - operators  
+type = "#86b300"              # Fresh green - types (safety)
+struct = "#86b300"            # Fresh green - struct definitions
+enum = "#86b300"              # Fresh green - enum definitions
+string = "#b4a72e"            # Golden yellow - string literals
+number = "#ff9940"            # Bright orange - numeric literals
+boolean = "#ce422b"           # Rust red - boolean values
+character = "#b4a72e"         # Golden yellow - character literals
+function = "#39adb5"          # Teal blue - functions (reliability)
+method = "#39adb5"            # Teal blue - method calls
+macro = "#f29718"             # Vibrant orange - macros
+variable = "#dbd7ca"          # Light cream - variables
+parameter = "#dbd7ca"         # Light cream - parameters
+property = "#59c2ff"          # Sky blue - properties/fields
+constant = "#f29718"          # Vibrant orange - constants
 
 # Alternative themes available: dark, light, ferris
 ```
@@ -392,7 +391,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 ## Dependencies
 
 - **crossterm**: Cross-platform terminal manipulation with alternate screen support
-- **toml**: TOML parsing for configuration files (`keymaps.toml`, `editor.toml`, `syntax.toml`)
+- **toml**: TOML parsing for configuration files (`keymaps.toml`, `editor.toml`, `themes.toml`)
 - **serde**: Serialization framework for TOML configuration
 - **anyhow**: Error handling for configuration and file operations
 - **regex**: Pattern matching for search functionality

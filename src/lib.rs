@@ -11,6 +11,8 @@ pub mod plugin;
 pub mod search;
 pub mod syntax;
 pub mod terminal;
+pub mod theme;
+pub mod theme_watcher;
 pub mod ui;
 
 pub use buffer::Buffer;

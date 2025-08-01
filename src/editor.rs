@@ -6,6 +6,7 @@ use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
 use crate::syntax::{HighlightRange, SyntaxHighlighter};
 use crate::terminal::Terminal;
+use crate::theme_watcher::ThemeManager;
 use crate::ui::UI;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
@@ -59,6 +60,8 @@ pub struct Editor {
     render_interval: Duration,
     /// Configuration file watcher for hot reloading
     config_watcher: Option<ConfigWatcher>,
+    /// Theme manager for hot reloading themes
+    theme_manager: ThemeManager,
     /// Syntax highlighter for code highlighting
     syntax_highlighter: Option<SyntaxHighlighter>,
 }
@@ -73,11 +76,15 @@ impl Editor {
         ui.show_line_numbers = config.display.show_line_numbers;
         ui.show_relative_numbers = config.display.show_relative_numbers;
         ui.show_cursor_line = config.display.show_cursor_line;
+        ui.set_theme(&config.display.color_scheme);
 
         let key_handler = KeyHandler::new();
 
         // Initialize config watcher for hot reloading
         let config_watcher = ConfigWatcher::new().ok(); // Don't fail if watcher can't be created
+
+        // Initialize theme manager for hot reloading themes
+        let theme_manager = ThemeManager::new();
 
         // Initialize syntax highlighter
         let syntax_highlighter = SyntaxHighlighter::new().ok(); // Don't fail if highlighter can't be created
@@ -100,6 +107,7 @@ impl Editor {
             last_render_time: Instant::now(),
             render_interval: Duration::from_millis(16), // ~60 FPS
             config_watcher,
+            theme_manager,
             syntax_highlighter,
         })
     }
@@ -384,6 +392,14 @@ impl Editor {
             }
         }
 
+        // Check for theme file changes
+        if let Ok(theme_changed) = self.theme_manager.check_and_reload() {
+            if theme_changed {
+                self.reload_ui_theme();
+                input_processed = true;
+            }
+        }
+
         // Handle keyboard input
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key_event) = event::read()? {
@@ -621,6 +637,7 @@ impl Editor {
         self.ui.show_line_numbers = self.config.display.show_line_numbers;
         self.ui.show_relative_numbers = self.config.display.show_relative_numbers;
         self.ui.show_cursor_line = self.config.display.show_cursor_line;
+        self.ui.set_theme(&self.config.display.color_scheme);
 
         // Apply specific settings that need immediate effect
         match setting {
@@ -636,6 +653,10 @@ impl Editor {
                 }
             }
             "colorscheme" | "colo" => {
+                // Update theme manager to match the new colorscheme
+                let _ = self.theme_manager.set_current_theme(value);
+                self.ui.set_theme(value);
+
                 // Update syntax highlighter with new color scheme
                 if let Some(ref mut highlighter) = self.syntax_highlighter {
                     if let Err(e) = highlighter.update_theme(&self.config.display.color_scheme) {
@@ -780,5 +801,16 @@ impl Editor {
     fn reload_keymap_config(&mut self) {
         self.key_handler = KeyHandler::new(); // This will reload the keymaps.toml
         self.status_message = "Keymap configuration reloaded".to_string();
+    }
+
+    /// Reload UI theme from themes.toml
+    fn reload_ui_theme(&mut self) {
+        // Get the current theme name from the theme manager
+        let current_theme = self.theme_manager.current_theme_name();
+
+        // Update the UI with the new theme
+        self.ui.set_theme(current_theme);
+
+        self.status_message = format!("Theme '{}' reloaded", current_theme);
     }
 }
