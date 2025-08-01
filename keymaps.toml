@@ -69,11 +69,19 @@
 "Ctrl+n" = "buffer_next"
 "Ctrl+p" = "buffer_previous"
 
+# Scrolling operations (Vim-style)
+"Ctrl+e" = "scroll_down_line"      # Scroll down one line
+"Ctrl+y" = "scroll_up_line"        # Scroll up one line
+"Ctrl+f" = "scroll_down_page"      # Scroll down one page (Page Down)
+"Ctrl+b" = "scroll_up_page"        # Scroll up one page (Page Up)
+"Ctrl+d" = "scroll_down_half_page" # Scroll down half page
+"Ctrl+u" = "scroll_up_half_page"   # Scroll up half page
+
 # Additional navigation keys
 "Home" = "line_start"
 "End" = "line_end"
-"PageUp" = "buffer_start"
-"PageDown" = "buffer_end"
+"PageUp" = "scroll_up_page"        # Map PageUp to scroll up page
+"PageDown" = "scroll_down_page"    # Map PageDown to scroll down page
 
 # Function keys for common operations
 "F1" = "command_mode"  # Help/command mode

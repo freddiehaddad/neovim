@@ -833,4 +833,29 @@ impl Editor {
 
         self.status_message = format!("Theme '{}' reloaded", current_theme);
     }
+
+    // Scrolling methods
+    pub fn scroll_down_line(&mut self) {
+        self.ui.scroll_down_line();
+    }
+
+    pub fn scroll_up_line(&mut self) {
+        self.ui.scroll_up_line();
+    }
+
+    pub fn scroll_down_page(&mut self) {
+        self.ui.scroll_down_page();
+    }
+
+    pub fn scroll_up_page(&mut self) {
+        self.ui.scroll_up_page();
+    }
+
+    pub fn scroll_down_half_page(&mut self) {
+        self.ui.scroll_down_half_page();
+    }
+
+    pub fn scroll_up_half_page(&mut self) {
+        self.ui.scroll_up_half_page();
+    }
 }

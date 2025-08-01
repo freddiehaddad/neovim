@@ -53,7 +53,7 @@ impl KeyHandler {
         // Absolute minimal keymaps just to exit gracefully
         let mut normal_mode = HashMap::new();
         normal_mode.insert(":".to_string(), "command_mode".to_string());
-        
+
         let mut command_mode = HashMap::new();
         command_mode.insert("Escape".to_string(), "normal_mode".to_string());
         command_mode.insert("Enter".to_string(), "execute_command".to_string());
@@ -147,15 +147,9 @@ impl KeyHandler {
                     self.keymap_config.command_mode.get(&key_string)
                 }
             }
-            Mode::Visual => {
-                self.keymap_config.visual_mode.get(&key_string)
-            }
-            Mode::VisualLine => {
-                self.keymap_config.visual_line_mode.get(&key_string)
-            }
-            Mode::VisualBlock => {
-                self.keymap_config.visual_block_mode.get(&key_string)
-            }
+            Mode::Visual => self.keymap_config.visual_mode.get(&key_string),
+            Mode::VisualLine => self.keymap_config.visual_line_mode.get(&key_string),
+            Mode::VisualBlock => self.keymap_config.visual_block_mode.get(&key_string),
             Mode::Replace => {
                 if let KeyCode::Char(_) = key.code {
                     self.keymap_config.replace_mode.get("Char")
@@ -187,7 +181,7 @@ impl KeyHandler {
 
     fn key_event_to_string(key: KeyEvent) -> String {
         let mut result = String::new();
-        
+
         // Add modifiers
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             result.push_str("Ctrl+");
@@ -198,7 +192,7 @@ impl KeyHandler {
         if key.modifiers.contains(KeyModifiers::SHIFT) {
             result.push_str("Shift+");
         }
-        
+
         // Add the key itself
         match key.code {
             KeyCode::Char(c) => {
@@ -230,7 +224,7 @@ impl KeyHandler {
             KeyCode::F(n) => result.push_str(&format!("F{}", n)),
             _ => result.push_str("Unknown"),
         }
-        
+
         result
     }
 
@@ -305,6 +299,7 @@ impl KeyHandler {
             "new_line" => self.action_new_line(editor)?,
             "delete_char" => self.action_delete_char(editor)?,
             "delete_char_forward" => self.action_delete_char_forward(editor)?,
+            "delete_word_backward" => self.action_delete_word_backward(editor)?,
             "insert_tab" => self.action_insert_tab(editor)?,
 
             // Command mode actions
@@ -324,6 +319,14 @@ impl KeyHandler {
 
             // Replace mode actions
             "replace_char" => self.action_replace_char(editor, key)?,
+
+            // Scrolling actions
+            "scroll_down_line" => self.action_scroll_down_line(editor)?,
+            "scroll_up_line" => self.action_scroll_up_line(editor)?,
+            "scroll_down_page" => self.action_scroll_down_page(editor)?,
+            "scroll_up_page" => self.action_scroll_up_page(editor)?,
+            "scroll_down_half_page" => self.action_scroll_down_half_page(editor)?,
+            "scroll_up_half_page" => self.action_scroll_up_half_page(editor)?,
 
             _ => return Ok(()), // Unknown action, ignore
         }
@@ -734,6 +737,33 @@ impl KeyHandler {
         Ok(())
     }
 
+    fn action_delete_word_backward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.lines.get_mut(buffer.cursor.row) {
+                if buffer.cursor.col > 0 {
+                    // Find the start of the current word or previous word
+                    let mut pos = buffer.cursor.col;
+                    
+                    // Skip any whitespace before the cursor
+                    while pos > 0 && line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
+                        pos -= 1;
+                    }
+                    
+                    // Delete the word characters
+                    while pos > 0 && !line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
+                        pos -= 1;
+                    }
+                    
+                    // Remove the characters from pos to cursor
+                    line.drain(pos..buffer.cursor.col);
+                    buffer.cursor.col = pos;
+                    buffer.modified = true;
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn action_insert_tab(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.insert_char('\t');
@@ -865,6 +895,37 @@ impl KeyHandler {
 
     fn action_search_previous(&self, editor: &mut Editor) -> Result<()> {
         editor.search_previous();
+        Ok(())
+    }
+
+    // Scrolling action implementations
+    fn action_scroll_down_line(&self, editor: &mut Editor) -> Result<()> {
+        editor.scroll_down_line();
+        Ok(())
+    }
+
+    fn action_scroll_up_line(&self, editor: &mut Editor) -> Result<()> {
+        editor.scroll_up_line();
+        Ok(())
+    }
+
+    fn action_scroll_down_page(&self, editor: &mut Editor) -> Result<()> {
+        editor.scroll_down_page();
+        Ok(())
+    }
+
+    fn action_scroll_up_page(&self, editor: &mut Editor) -> Result<()> {
+        editor.scroll_up_page();
+        Ok(())
+    }
+
+    fn action_scroll_down_half_page(&self, editor: &mut Editor) -> Result<()> {
+        editor.scroll_down_half_page();
+        Ok(())
+    }
+
+    fn action_scroll_up_half_page(&self, editor: &mut Editor) -> Result<()> {
+        editor.scroll_up_half_page();
         Ok(())
     }
 

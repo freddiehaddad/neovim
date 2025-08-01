@@ -437,4 +437,37 @@ impl UI {
         let content_height = height.saturating_sub(2) as usize;
         (self.viewport_top, content_height)
     }
+
+    // Scrolling methods
+    pub fn scroll_down_line(&mut self) {
+        self.viewport_top = self.viewport_top.saturating_add(1);
+    }
+
+    pub fn scroll_up_line(&mut self) {
+        self.viewport_top = self.viewport_top.saturating_sub(1);
+    }
+
+    pub fn scroll_down_page(&mut self) {
+        // Use a more conservative page scroll (like vim's Ctrl+f)
+        let page_size = 20; // Default to 20 lines if we can't get terminal size
+        self.viewport_top = self.viewport_top.saturating_add(page_size);
+    }
+
+    pub fn scroll_up_page(&mut self) {
+        // Use a more conservative page scroll (like vim's Ctrl+b)
+        let page_size = 20; // Default to 20 lines if we can't get terminal size
+        self.viewport_top = self.viewport_top.saturating_sub(page_size);
+    }
+
+    pub fn scroll_down_half_page(&mut self) {
+        // Vim-style half-page scroll (Ctrl+d)
+        let half_page_size = 10; // Default to 10 lines
+        self.viewport_top = self.viewport_top.saturating_add(half_page_size);
+    }
+
+    pub fn scroll_up_half_page(&mut self) {
+        // Vim-style half-page scroll (Ctrl+u)
+        let half_page_size = 10; // Default to 10 lines
+        self.viewport_top = self.viewport_top.saturating_sub(half_page_size);
+    }
 }
