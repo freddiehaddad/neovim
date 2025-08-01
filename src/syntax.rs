@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use crossterm::style::Color;
 use std::collections::HashMap;
 use std::path::Path;
-use tree_sitter::{Language, Parser, Query};
+use tree_sitter::{Language, Parser};
 
 use crate::theme::{SyntaxTheme, ThemeConfig};
 
@@ -81,7 +81,6 @@ impl HighlightStyle {
 
 pub struct SyntaxHighlighter {
     parsers: HashMap<String, Parser>,
-    queries: HashMap<String, Query>,
     theme_config: ThemeConfig,
     current_syntax_theme: SyntaxTheme,
 }
@@ -94,7 +93,6 @@ impl SyntaxHighlighter {
 
         let mut highlighter = SyntaxHighlighter {
             parsers: HashMap::new(),
-            queries: HashMap::new(),
             theme_config,
             current_syntax_theme: current_theme.syntax,
         };
@@ -114,72 +112,7 @@ impl SyntaxHighlighter {
 
         self.parsers.insert("rust".to_string(), parser);
 
-        // Create basic highlighting query for Rust
-        let query_string = self.create_highlight_query("rust");
-
-        if let Ok(query) = Query::new(&language, &query_string) {
-            self.queries.insert("rust".to_string(), query);
-        }
-
         Ok(())
-    }
-    fn create_highlight_query(&self, grammar: &str) -> String {
-        match grammar {
-            "rust" => {
-                // Simplified query - let Tree-sitter handle the structure
-                ""
-            },
-            "javascript" => r#"
-                (string) @string
-                (template_string) @string
-                (comment) @comment
-                (number) @number
-                (true) @boolean
-                (false) @boolean
-                ["function" "const" "let" "var" "if" "else" "for" "while" "return" "class" "extends" "import" "export" "from" "as" "default"] @keyword
-                (function_declaration name: (identifier) @function)
-                (call_expression function: (identifier) @function)
-                (property_identifier) @property
-            "#,
-            "python" => r#"
-                (string) @string
-                (comment) @comment
-                (integer) @number
-                (float) @number
-                (true) @boolean
-                (false) @boolean
-                (none) @constant
-                ["def" "class" "if" "elif" "else" "for" "while" "return" "import" "from" "as" "try" "except" "finally" "with" "lambda" "and" "or" "not" "in" "is"] @keyword
-                (function_definition name: (identifier) @function)
-                (call function: (identifier) @function)
-                (attribute attribute: (identifier) @property)
-            "#,
-            "markdown" => r#"
-                (atx_heading) @heading
-                (code_span) @code
-                (fenced_code_block) @code
-                (emphasis) @emphasis
-                (strong_emphasis) @strong
-                (link) @link
-            "#,
-            "json" => r#"
-                (string) @string
-                (number) @number
-                (true) @boolean
-                (false) @boolean
-                (null) @constant
-            "#,
-            "toml" => r#"
-                (string) @string
-                (comment) @comment
-                (integer) @number
-                (float) @number
-                (boolean) @boolean
-                (bare_key) @property
-                (quoted_key) @property
-            "#,
-            _ => "",
-        }.to_string()
     }
 
     pub fn detect_language_from_extension(&self, file_path: &str) -> Option<String> {
@@ -396,7 +329,6 @@ impl SyntaxHighlighter {
     pub fn reload_config(&mut self) -> Result<()> {
         // Since we no longer use external config, just reinitialize parsers
         self.parsers.clear();
-        self.queries.clear();
         self.initialize_parsers()?;
         Ok(())
     }
