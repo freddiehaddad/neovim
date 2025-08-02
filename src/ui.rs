@@ -208,19 +208,19 @@ impl UI {
                 let line = &buffer.lines[buffer_row];
 
                 // Check for syntax highlighting
-                if let Some(buffer_id) = window.buffer_id {
-                    let key = (buffer_id, buffer_row);
-                    if let Some(highlights) = editor_state.syntax_highlights.get(&key) {
-                        self.render_highlighted_line(terminal, line, highlights, text_width)?;
+                if let Some(highlights) = editor_state
+                    .syntax_highlights
+                    .get(&(window.buffer_id.unwrap_or(0), buffer_row))
+                {
+                    self.render_highlighted_line(terminal, line, highlights, text_width)?;
+                } else {
+                    // Render line without syntax highlighting
+                    let display_line = if line.len() > text_width {
+                        &line[..text_width]
                     } else {
-                        // fallback when no syntax highlighting exists for this line
-                        let display_line = if line.len() > text_width {
-                            &line[..text_width]
-                        } else {
-                            line
-                        };
-                        terminal.queue_print(display_line)?;
-                    }
+                        line
+                    };
+                    terminal.queue_print(display_line)?;
                 }
             } else {
                 // Empty line - render line number if enabled
