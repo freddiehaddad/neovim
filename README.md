@@ -48,6 +48,7 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **Scroll Offset**: Configurable `scroll_off` to maintain cursor distance from viewport edges
 - **Configuration Hot Reloading**: Live updates when TOML files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
+- **Comprehensive Logging**: Debug-friendly logging system for development and troubleshooting
 - **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
 - **Basic Text Operations**: Insert, delete, line breaks, word movement
 - **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
@@ -445,6 +446,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **Window Resizing**: Complete window resizing system with `Ctrl+w` combinations
 - **Configuration Hot Reloading**: Live updates when TOML configuration files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
+- **Comprehensive Logging**: Debug-friendly logging system for troubleshooting and development
 
 ## Development Roadmap
 
@@ -470,6 +472,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - [x] **Viewport Centering**: Z-commands (`zz`, `zt`, `zb`) for cursor positioning in viewport
 - [x] **Scroll Offset**: Configurable `scroll_off` setting to maintain cursor distance from edges
 - [x] **Window Resizing**: Complete window resizing with `Ctrl+w >/</+/-` keybindings
+- [x] **Comprehensive Logging**: Debug-friendly logging system for development and troubleshooting
 - [ ] Text objects (`aw`, `iw`, `ap`, etc.)
 - [ ] Operators (`d`, `c`, `y`, `p`) with motions
 - [ ] Visual mode selection and operations
@@ -508,7 +511,46 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **tree-sitter-rust**: Rust grammar for Tree-sitter (✅ Implemented)
 - **notify**: File system watching for configuration hot reloading (planned)
 - **tokio**: Async runtime for LSP and file operations (planned)
-- **log/env_logger**: Logging infrastructure (planned)
+- **log/env_logger**: Logging infrastructure for debugging and development (✅ Implemented)
+
+## Debugging and Development
+
+### Logging System
+
+The editor includes comprehensive logging for debugging and development:
+
+```bash
+# Enable info-level logging (startup, file operations, major events)
+$env:RUST_LOG="info"; cargo run filename.txt
+
+# Enable debug logging (detailed key events, mode changes, buffer operations)
+$env:RUST_LOG="debug"; cargo run filename.txt
+
+# Enable trace logging (very detailed event tracking)
+$env:RUST_LOG="trace"; cargo run filename.txt
+
+# Redirect logs to file for analysis
+$env:RUST_LOG="debug"; cargo run filename.txt 2> debug.log
+```
+
+**What gets logged:**
+
+- Editor initialization and configuration loading
+- Key events and mode transitions (helpful for debugging input issues)
+- File operations (save, load, buffer creation)
+- Search operations and results
+- Window management and resizing
+- Error conditions and warnings
+
+**Log levels:**
+
+- `ERROR`: Critical errors that prevent operation
+- `WARN`: Warning conditions that don't stop execution
+- `INFO`: General information about major operations
+- `DEBUG`: Detailed information for debugging
+- `TRACE`: Very detailed trace information
+
+See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation.
 
 ## Contributing
 

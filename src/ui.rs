@@ -194,7 +194,13 @@ impl UI {
                     .syntax_highlights
                     .get(&(window.buffer_id.unwrap_or(0), buffer_row))
                 {
-                    self.render_highlighted_line(terminal, line, highlights, text_width, is_cursor_line)?
+                    self.render_highlighted_line(
+                        terminal,
+                        line,
+                        highlights,
+                        text_width,
+                        is_cursor_line,
+                    )?
                 } else {
                     // Render line without syntax highlighting
                     let display_line = if line.len() > text_width {

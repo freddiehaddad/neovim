@@ -4,8 +4,16 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    // Initialize logging
+    // Initialize logging - you can uncomment one of these options:
+
+    // Option 1: Default stderr logging (current)
     env_logger::init();
+
+    // Option 2: Log to file (uncomment to use)
+    // use env_logger::Target;
+    // env_logger::Builder::from_default_env()
+    //     .target(Target::Pipe(Box::new(std::fs::File::create("neovim.log")?)))
+    //     .init();
 
     // Create editor instance
     let mut editor = Editor::new()?;

@@ -11,6 +11,7 @@ use crate::ui::UI;
 use crate::window::{SplitDirection, WindowManager};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
+use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -74,11 +75,18 @@ pub struct Editor {
 
 impl Editor {
     pub fn new() -> Result<Self> {
+        info!("Initializing Editor");
+
         let terminal = Terminal::new()?;
         let config = EditorConfig::load();
+        debug!(
+            "Editor configuration loaded: color_scheme={}, line_numbers={}",
+            config.display.color_scheme, config.display.show_line_numbers
+        );
 
         // Get terminal size for window manager
         let (terminal_width, terminal_height) = terminal.size();
+        info!("Terminal size: {}x{}", terminal_width, terminal_height);
 
         // Initialize UI with config values
         let mut ui = UI::new();
@@ -93,14 +101,33 @@ impl Editor {
         let window_manager = WindowManager::new(terminal_width, terminal_height);
 
         // Initialize config watcher for hot reloading
-        let config_watcher = ConfigWatcher::new().ok(); // Don't fail if watcher can't be created
+        let config_watcher = match ConfigWatcher::new() {
+            Ok(watcher) => {
+                info!("Configuration file watcher initialized");
+                Some(watcher)
+            }
+            Err(e) => {
+                warn!("Failed to initialize config watcher: {}", e);
+                None
+            }
+        };
 
         // Initialize theme manager for hot reloading themes
         let theme_manager = ThemeManager::new();
 
         // Initialize syntax highlighter
-        let syntax_highlighter = SyntaxHighlighter::new().ok(); // Don't fail if highlighter can't be created
+        let syntax_highlighter = match SyntaxHighlighter::new() {
+            Ok(highlighter) => {
+                info!("Syntax highlighter initialized");
+                Some(highlighter)
+            }
+            Err(e) => {
+                warn!("Failed to initialize syntax highlighter: {}", e);
+                None
+            }
+        };
 
+        info!("Editor initialization completed successfully");
         Ok(Self {
             buffers: HashMap::new(),
             current_buffer_id: None,
@@ -126,8 +153,11 @@ impl Editor {
     }
 
     pub fn run(&mut self) -> Result<()> {
+        info!("Starting editor main loop");
+
         // Create an initial buffer if none exists
         if self.buffers.is_empty() {
+            debug!("No buffers exist, creating initial empty buffer");
             self.create_buffer(None)?;
         }
 
@@ -136,6 +166,7 @@ impl Editor {
 
         loop {
             if self.should_quit {
+                info!("Editor quit requested, exiting main loop");
                 break;
             }
 
@@ -144,11 +175,13 @@ impl Editor {
 
             // Always re-render if we processed an input event (removed frame rate limiting for responsiveness)
             if input_handled {
+                trace!("Input handled, triggering render");
                 self.render()?;
                 self.last_render_time = Instant::now();
             }
         }
 
+        info!("Editor main loop completed");
         Ok(())
     }
 
@@ -157,13 +190,16 @@ impl Editor {
         self.next_buffer_id += 1;
 
         let buffer = if let Some(path) = file_path {
+            info!("Creating buffer {} from file: {:?}", id, path);
             Buffer::from_file(id, path)?
         } else {
+            debug!("Creating empty buffer {}", id);
             Buffer::new(id)
         };
 
         self.buffers.insert(id, buffer);
         self.current_buffer_id = Some(id);
+        debug!("Buffer {} created and set as current", id);
 
         // Assign buffer to current window
         if let Some(current_window) = self.window_manager.current_window_mut() {
@@ -171,6 +207,10 @@ impl Editor {
             // Initialize window cursor position from buffer's cursor position
             if let Some(buffer) = self.buffers.get(&id) {
                 current_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
+                trace!(
+                    "Window cursor position initialized: row={}, col={}",
+                    buffer.cursor.row, buffer.cursor.col
+                );
             }
         }
 
@@ -188,16 +228,21 @@ impl Editor {
 
     pub fn switch_to_buffer(&mut self, id: usize) -> bool {
         if self.buffers.contains_key(&id) {
+            info!("Switching to buffer ID: {}", id);
             self.current_buffer_id = Some(id);
             true
         } else {
+            warn!("Attempted to switch to non-existent buffer ID: {}", id);
             false
         }
     }
 
     pub fn close_buffer(&mut self, id: usize) -> Result<()> {
+        info!("Closing buffer ID: {}", id);
+
         if let Some(buffer) = self.buffers.get(&id) {
             if buffer.modified {
+                warn!("Buffer {} has unsaved changes, cannot close", id);
                 // TODO: Handle unsaved changes
                 self.status_message = "Buffer has unsaved changes!".to_string();
                 return Ok(());
@@ -205,10 +250,19 @@ impl Editor {
         }
 
         self.buffers.remove(&id);
+        info!("Successfully removed buffer ID: {}", id);
 
         // Switch to another buffer if we closed the current one
         if self.current_buffer_id == Some(id) {
             self.current_buffer_id = self.buffers.keys().next().copied();
+            if let Some(new_id) = self.current_buffer_id {
+                info!(
+                    "Switched to buffer ID: {} after closing current buffer",
+                    new_id
+                );
+            } else {
+                info!("No buffers remaining after closing buffer {}", id);
+            }
         }
 
         Ok(())
@@ -457,10 +511,12 @@ impl Editor {
             for change in changes {
                 match change {
                     ConfigChangeEvent::EditorConfigChanged => {
+                        info!("Editor configuration file changed, reloading");
                         self.reload_editor_config();
                         input_processed = true;
                     }
                     ConfigChangeEvent::KeymapConfigChanged => {
+                        info!("Keymap configuration file changed, reloading");
                         self.reload_keymap_config();
                         input_processed = true;
                     }
@@ -471,6 +527,7 @@ impl Editor {
         // Check for theme file changes
         if let Ok(theme_changed) = self.theme_manager.check_and_reload() {
             if theme_changed {
+                info!("Theme files changed, reloading UI theme");
                 self.reload_ui_theme();
                 input_processed = true;
             }
@@ -479,8 +536,11 @@ impl Editor {
         // Handle keyboard input with minimal delay for responsiveness
         if event::poll(std::time::Duration::from_millis(1))? {
             if let Event::Key(key_event) = event::read()? {
+                trace!("Key event received: {:?}", key_event);
+
                 let should_process = match key_event.kind {
                     KeyEventKind::Press => {
+                        trace!("Processing key press event");
                         self.has_processed_any_press = true;
                         true
                     }
@@ -496,17 +556,23 @@ impl Editor {
                         let is_normal_mode = matches!(self.mode, Mode::Normal);
 
                         if (!self.has_processed_any_press || is_important_key) && is_normal_mode {
+                            trace!("Processing key release event for important key in normal mode");
                             self.has_processed_any_press = true;
                             true
                         } else if !self.has_processed_any_press {
                             // Still process first release event regardless of mode for startup
+                            trace!("Processing first key release event at startup");
                             self.has_processed_any_press = true;
                             true
                         } else {
+                            trace!("Ignoring key release event");
                             false
                         }
                     }
-                    _ => false,
+                    _ => {
+                        trace!("Ignoring non-press/release key event");
+                        false
+                    }
                 };
 
                 if should_process {
@@ -520,6 +586,7 @@ impl Editor {
                 }
             } else if let Event::Resize(width, height) = event::read()? {
                 // Handle terminal resize
+                info!("Terminal resize event: {}x{}", width, height);
                 self.window_manager.resize_terminal(width, height);
                 input_processed = true;
             }
@@ -553,6 +620,7 @@ impl Editor {
     }
 
     pub fn set_status_message(&mut self, message: String) {
+        debug!("Status message updated: '{}'", message);
         self.status_message = message;
     }
 
@@ -573,17 +641,33 @@ impl Editor {
 
     pub fn save_current_buffer(&mut self) -> Result<()> {
         if let Some(buffer) = self.current_buffer_mut() {
-            buffer.save()?;
-            self.status_message = "File saved".to_string();
+            info!("Saving buffer with file path: {:?}", buffer.file_path);
+            match buffer.save() {
+                Ok(_) => {
+                    info!("Successfully saved buffer");
+                    self.status_message = "File saved".to_string();
+                }
+                Err(e) => {
+                    error!("Failed to save buffer: {}", e);
+                    self.status_message = format!("Error saving file: {}", e);
+                    return Err(e);
+                }
+            }
+        } else {
+            warn!("No current buffer to save");
+            self.status_message = "No file to save".to_string();
         }
         Ok(())
     }
 
     /// Perform a search in the current buffer
     pub fn search(&mut self, pattern: &str) -> bool {
+        info!("Performing search for pattern: '{}'", pattern);
+
         let lines = if let Some(buffer) = self.current_buffer() {
             buffer.lines.clone()
         } else {
+            warn!("No current buffer for search");
             return false;
         };
 
@@ -591,11 +675,17 @@ impl Editor {
         self.search_results = search_results;
 
         if !self.search_results.is_empty() {
+            info!(
+                "Search found {} matches for pattern: '{}'",
+                self.search_results.len(),
+                pattern
+            );
             self.current_search_index = Some(0);
             self.move_to_search_result(0);
             self.status_message = format!("Found {} matches", self.search_results.len());
             true
         } else {
+            info!("Search found no matches for pattern: '{}'", pattern);
             self.current_search_index = None;
             self.status_message = format!("Pattern not found: {}", pattern);
             false
@@ -1407,9 +1497,19 @@ impl Editor {
         // a mutable reference to the Editor. This is safe because we know the KeyHandler
         // and Editor don't overlap in memory.
 
+        debug!(
+            "Handling key event: {:?} in mode: {:?}",
+            key_event, self.mode
+        );
+
         unsafe {
             let key_handler_ptr = &mut self.key_handler as *mut KeyHandler;
             let result = (*key_handler_ptr).handle_key(self, key_event);
+
+            if let Err(ref e) = result {
+                error!("Error handling key event {:?}: {}", key_event, e);
+            }
+
             result
         }
     }
