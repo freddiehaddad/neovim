@@ -42,9 +42,11 @@ auto_save = false # Automatically save files
 # Status line
 show_status_line = true        # Show status line
 status_line_format = "default" # Status line format
+
 # Command line
 command_timeout = 1000 # Timeout for key sequences (ms)
 show_command = true    # Show partial commands
+
 # Scrolling
 scroll_off = 0      # Lines to keep above/below cursor
 side_scroll_off = 0 # Columns to keep left/right of cursor

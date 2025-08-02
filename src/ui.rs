@@ -488,7 +488,7 @@ impl UI {
         let padding = width as usize - status_text.len().min(width as usize);
         status_text.push_str(&" ".repeat(padding));
 
-        // Truncate if too long (keep prefix for suggestion logic)
+        // Truncate if too long
         if status_text.len() > width as usize {
             status_text.truncate(width as usize);
         }
@@ -508,24 +508,23 @@ impl UI {
     ) -> io::Result<()> {
         let command_row = height.saturating_sub(1);
         terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
-
+        // Clear the command line first and set theme colors
         terminal.queue_clear_line()?;
         terminal.queue_set_bg_color(self.theme.command_line_bg)?;
         terminal.queue_set_fg_color(self.theme.command_line_fg)?;
 
         let command_text = &editor_state.command_line;
 
-        // Truncate if too long (keep prefix for suggestion logic)
+        // Truncate if too long
         let display_text = if command_text.len() > width as usize {
             &command_text[..width as usize]
         } else {
             command_text
         };
 
-        // Print the base user input
-        terminal.queue_print(display_text)?;
 
-        // Inline completion (ghost text) if suggestion exists
+        terminal.queue_print(display_text)?;
+        // Inline completion if suggestion exists
         if let Some(sugg) = editor_state.current_suggestion() {
             let stripped = editor_state.command_line.trim_start_matches(':');
             let mut completion_suffix: Option<&str> = None;
@@ -568,7 +567,6 @@ impl UI {
 
         Ok(())
     }
-
     /// Get the current viewport top position
     pub fn viewport_top(&self) -> usize {
         self.viewport_top

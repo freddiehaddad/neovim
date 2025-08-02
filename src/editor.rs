@@ -69,7 +69,7 @@ pub struct Editor {
     /// Command line content (for command mode)
     command_line: String,
     /// Status message
-        status_message: String,
+    status_message: String,
     /// Last render time for frame rate limiting
     last_render_time: Instant,
     /// Minimum time between renders (60 FPS = ~16ms)
