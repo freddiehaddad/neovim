@@ -27,7 +27,6 @@ pub struct EditorRenderState {
     pub current_window_id: Option<usize>,
     pub window_manager: WindowManager,
     pub syntax_highlights: HashMap<(usize, usize), Vec<HighlightRange>>, // (buffer_id, line_index) -> highlights
-    pub syntax_highlights: HashMap<usize, Vec<HighlightRange>>, // line_index -> highlights
     pub command_suggestions: Vec<String>,
     pub selected_suggestion_index: usize,
 }
