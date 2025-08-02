@@ -1,32 +1,51 @@
-[display]
-show_line_numbers = true
-show_relative_numbers = false
-show_cursor_line = false
-color_scheme = "default"
-syntax_highlighting = true
+# Editor Configuration
+# This file defines default editor settings and behaviors
+# Format: setting = value
 
-[behavior]
-tab_width = 4
-expand_tabs = false
-auto_indent = true
-ignore_case = false
-smart_case = false
-highlight_search = true
-incremental_search = true
-wrap_lines = false
-line_break = false
+[display]
+# Line number settings
+show_line_numbers = true     # :set number / :set nonumber
+show_relative_numbers = true # :set relativenumber / :set norelativenumber
+show_cursor_line = false     # :set cursorline / :set nocursorline
+
+# Color and appearance
+color_scheme = "default"   # Color scheme to use
+syntax_highlighting = true # Enable syntax highlighting
+
+# Tab and indentation
+tab_width = 4       # Width of tab characters
+expand_tabs = false # Use spaces instead of tabs (:set expandtab)
+auto_indent = true  # Automatic indentation
+
+# Search settings
+ignore_case = false       # Ignore case in searches (:set ignorecase)
+smart_case = false        # Smart case searching (:set smartcase)
+highlight_search = true   # Highlight search results (:set hlsearch)
+incremental_search = true # Incremental search (:set incsearch)
+
+# Text wrapping
+wrap_lines = false # Wrap long lines (:set wrap)
+line_break = false # Break lines at word boundaries (:set linebreak)
 
 [editing]
-undo_levels = 1000
-persistent_undo = false
-backup = false
-swap_file = false
-auto_save = false
+# Undo and history
+undo_levels = 1000      # Number of undo levels
+persistent_undo = false # Save undo history to file
+
+# Backup and swap files
+backup = false    # Create backup files
+swap_file = false # Create swap files
+auto_save = false # Automatically save files
 
 [interface]
-show_status_line = true
-status_line_format = "default"
-command_timeout = 1000
-show_command = true
-scroll_off = 0
-side_scroll_off = 0
+# Status line
+show_status_line = true        # Show status line
+status_line_format = "default" # Status line format
+
+# Command line
+command_timeout = 1000 # Timeout for key sequences (ms)
+show_command = true    # Show partial commands
+
+# Scrolling
+scroll_off = 0      # Lines to keep above/below cursor
+side_scroll_off = 0 # Columns to keep left/right of cursor
