@@ -358,22 +358,30 @@ impl Editor {
         let command_line = self.command_line.clone();
         let status_message = self.status_message.clone();
 
-        // Update window viewport based on cursor position
+        // Update window viewport based on cursor position and scroll_off setting
         if let Some(buffer) = &current_buffer {
             if let Some(current_window) = self.window_manager.current_window_mut() {
                 let content_height = current_window.content_height();
                 let cursor_row = buffer.cursor.row;
+                let scroll_off = self.config.interface.scroll_off;
 
-                // Check if cursor is outside current viewport
-                let viewport_bottom = current_window.viewport_top + content_height;
+                // Calculate effective scroll boundaries considering scroll_off
+                let scroll_off_top = current_window.viewport_top + scroll_off;
+                let scroll_off_bottom =
+                    current_window.viewport_top + content_height.saturating_sub(scroll_off + 1);
 
-                if cursor_row < current_window.viewport_top {
-                    // Cursor moved above viewport - scroll up
-                    current_window.viewport_top = cursor_row;
-                } else if cursor_row >= viewport_bottom {
-                    // Cursor moved below viewport - scroll down
-                    current_window.viewport_top = cursor_row.saturating_sub(content_height - 1);
+                if cursor_row < scroll_off_top {
+                    // Cursor is too close to top of viewport - scroll up
+                    current_window.viewport_top = cursor_row.saturating_sub(scroll_off);
+                } else if cursor_row > scroll_off_bottom {
+                    // Cursor is too close to bottom of viewport - scroll down
+                    current_window.viewport_top =
+                        cursor_row.saturating_sub(content_height.saturating_sub(scroll_off + 1));
                 }
+
+                // Ensure viewport doesn't go below zero or beyond buffer end
+                let max_viewport_top = buffer.lines.len().saturating_sub(content_height);
+                current_window.viewport_top = current_window.viewport_top.min(max_viewport_top);
             }
         }
 
@@ -909,13 +917,19 @@ impl Editor {
 
     pub fn scroll_down_page(&mut self) {
         // Ctrl+f: Scroll down one page using current window height
-        let (old_viewport_top, new_viewport_top) = {
+        let (old_viewport_top, new_viewport_top, content_height, scroll_off) = {
             if let Some(current_window) = self.window_manager.current_window_mut() {
                 let page_size = current_window.content_height().saturating_sub(1); // Leave 1 line for overlap
                 let old_viewport_top = current_window.viewport_top;
                 current_window.viewport_top = current_window.viewport_top.saturating_add(page_size);
                 let new_viewport_top = current_window.viewport_top;
-                (old_viewport_top, new_viewport_top)
+                let content_height = current_window.content_height();
+                (
+                    old_viewport_top,
+                    new_viewport_top,
+                    content_height,
+                    self.config.interface.scroll_off,
+                )
             } else {
                 return;
             }
@@ -926,6 +940,16 @@ impl Editor {
             let scroll_amount = new_viewport_top - old_viewport_top;
             buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
             buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
+
+            // Apply scroll_off to keep cursor within visible bounds
+            let min_cursor_row = new_viewport_top + scroll_off;
+            let max_cursor_row = new_viewport_top + content_height.saturating_sub(scroll_off + 1);
+
+            if buffer.cursor.row < min_cursor_row {
+                buffer.cursor.row = min_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            } else if buffer.cursor.row > max_cursor_row {
+                buffer.cursor.row = max_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            }
 
             // Ensure cursor column is valid for the new line
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
@@ -936,13 +960,19 @@ impl Editor {
 
     pub fn scroll_up_page(&mut self) {
         // Ctrl+b: Scroll up one page using current window height
-        let (old_viewport_top, new_viewport_top) = {
+        let (old_viewport_top, new_viewport_top, content_height, scroll_off) = {
             if let Some(current_window) = self.window_manager.current_window_mut() {
                 let page_size = current_window.content_height().saturating_sub(1); // Leave 1 line for overlap
                 let old_viewport_top = current_window.viewport_top;
                 current_window.viewport_top = current_window.viewport_top.saturating_sub(page_size);
                 let new_viewport_top = current_window.viewport_top;
-                (old_viewport_top, new_viewport_top)
+                let content_height = current_window.content_height();
+                (
+                    old_viewport_top,
+                    new_viewport_top,
+                    content_height,
+                    self.config.interface.scroll_off,
+                )
             } else {
                 return;
             }
@@ -953,6 +983,16 @@ impl Editor {
             let scroll_amount = old_viewport_top - new_viewport_top;
             buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
 
+            // Apply scroll_off to keep cursor within visible bounds
+            let min_cursor_row = new_viewport_top + scroll_off;
+            let max_cursor_row = new_viewport_top + content_height.saturating_sub(scroll_off + 1);
+
+            if buffer.cursor.row < min_cursor_row {
+                buffer.cursor.row = min_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            } else if buffer.cursor.row > max_cursor_row {
+                buffer.cursor.row = max_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            }
+
             // Ensure cursor column is valid for the new line
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
                 buffer.cursor.col = buffer.cursor.col.min(line.len());
@@ -962,14 +1002,20 @@ impl Editor {
 
     pub fn scroll_down_half_page(&mut self) {
         // Ctrl+d: Scroll down half page using current window height
-        let (old_viewport_top, new_viewport_top) = {
+        let (old_viewport_top, new_viewport_top, content_height, scroll_off) = {
             if let Some(current_window) = self.window_manager.current_window_mut() {
                 let half_page_size = (current_window.content_height() / 2).max(1);
                 let old_viewport_top = current_window.viewport_top;
                 current_window.viewport_top =
                     current_window.viewport_top.saturating_add(half_page_size);
                 let new_viewport_top = current_window.viewport_top;
-                (old_viewport_top, new_viewport_top)
+                let content_height = current_window.content_height();
+                (
+                    old_viewport_top,
+                    new_viewport_top,
+                    content_height,
+                    self.config.interface.scroll_off,
+                )
             } else {
                 return;
             }
@@ -981,6 +1027,16 @@ impl Editor {
             buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
             buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
 
+            // Apply scroll_off to keep cursor within visible bounds
+            let min_cursor_row = new_viewport_top + scroll_off;
+            let max_cursor_row = new_viewport_top + content_height.saturating_sub(scroll_off + 1);
+
+            if buffer.cursor.row < min_cursor_row {
+                buffer.cursor.row = min_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            } else if buffer.cursor.row > max_cursor_row {
+                buffer.cursor.row = max_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            }
+
             // Ensure cursor column is valid for the new line
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
                 buffer.cursor.col = buffer.cursor.col.min(line.len());
@@ -990,14 +1046,20 @@ impl Editor {
 
     pub fn scroll_up_half_page(&mut self) {
         // Ctrl+u: Scroll up half page using current window height
-        let (old_viewport_top, new_viewport_top) = {
+        let (old_viewport_top, new_viewport_top, content_height, scroll_off) = {
             if let Some(current_window) = self.window_manager.current_window_mut() {
                 let half_page_size = (current_window.content_height() / 2).max(1);
                 let old_viewport_top = current_window.viewport_top;
                 current_window.viewport_top =
                     current_window.viewport_top.saturating_sub(half_page_size);
                 let new_viewport_top = current_window.viewport_top;
-                (old_viewport_top, new_viewport_top)
+                let content_height = current_window.content_height();
+                (
+                    old_viewport_top,
+                    new_viewport_top,
+                    content_height,
+                    self.config.interface.scroll_off,
+                )
             } else {
                 return;
             }
@@ -1007,6 +1069,16 @@ impl Editor {
         if let Some(buffer) = self.current_buffer_mut() {
             let scroll_amount = old_viewport_top - new_viewport_top;
             buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
+
+            // Apply scroll_off to keep cursor within visible bounds
+            let min_cursor_row = new_viewport_top + scroll_off;
+            let max_cursor_row = new_viewport_top + content_height.saturating_sub(scroll_off + 1);
+
+            if buffer.cursor.row < min_cursor_row {
+                buffer.cursor.row = min_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            } else if buffer.cursor.row > max_cursor_row {
+                buffer.cursor.row = max_cursor_row.min(buffer.lines.len().saturating_sub(1));
+            }
 
             // Ensure cursor column is valid for the new line
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
