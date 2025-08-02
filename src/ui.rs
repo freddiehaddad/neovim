@@ -189,12 +189,12 @@ impl UI {
 
                 let line = &buffer.lines[buffer_row];
 
-                // Check for syntax highlighting
-                if let Some(highlights) = editor_state
+                // Track how much content we've rendered for cursor line filling
+                let content_rendered = if let Some(highlights) = editor_state
                     .syntax_highlights
                     .get(&(window.buffer_id.unwrap_or(0), buffer_row))
                 {
-                    self.render_highlighted_line(terminal, line, highlights, text_width)?;
+                    self.render_highlighted_line(terminal, line, highlights, text_width, is_cursor_line)?
                 } else {
                     // Render line without syntax highlighting
                     let display_line = if line.len() > text_width {
@@ -203,6 +203,14 @@ impl UI {
                         line
                     };
                     terminal.queue_print(display_line)?;
+                    display_line.len()
+                };
+
+                // Fill remaining width with cursor line background if this is the cursor line
+                if is_cursor_line && content_rendered < text_width {
+                    let remaining_width = text_width - content_rendered;
+                    let filler = " ".repeat(remaining_width);
+                    terminal.queue_print(&filler)?;
                 }
             } else {
                 // Empty line - render line number if enabled
@@ -223,6 +231,15 @@ impl UI {
                     terminal.queue_set_fg_color(self.theme.empty_line)?;
                 }
                 terminal.queue_print("~")?;
+
+                // Fill remaining width with cursor line background if this is the cursor line
+                if is_cursor_line {
+                    let remaining_width = text_width - 1; // -1 for the tilde character
+                    if remaining_width > 0 {
+                        let filler = " ".repeat(remaining_width);
+                        terminal.queue_print(&filler)?;
+                    }
+                }
             }
 
             // Reset colors after each line
@@ -314,7 +331,8 @@ impl UI {
         line: &str,
         highlights: &[HighlightRange],
         max_width: usize,
-    ) -> io::Result<()> {
+        is_cursor_line: bool,
+    ) -> io::Result<usize> {
         let line_bytes = line.as_bytes();
         let mut current_pos = 0;
 
@@ -348,8 +366,11 @@ impl UI {
             let highlighted_text = std::str::from_utf8(&line_bytes[start..end]).unwrap_or("");
             terminal.queue_print(highlighted_text)?;
 
-            // Reset color
+            // Reset colors but restore cursor line background if needed
             terminal.queue_reset_color()?;
+            if is_cursor_line && self.show_cursor_line {
+                terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
+            }
 
             current_pos = end;
         }
@@ -361,7 +382,7 @@ impl UI {
             terminal.queue_print(remaining_text)?;
         }
 
-        Ok(())
+        Ok(display_len)
     }
 
     fn render_line_number(
