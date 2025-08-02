@@ -171,6 +171,10 @@ impl Editor {
         // Assign buffer to current window
         if let Some(current_window) = self.window_manager.current_window_mut() {
             current_window.set_buffer(id);
+            // Initialize window cursor position from buffer's cursor position
+            if let Some(buffer) = self.buffers.get(&id) {
+                current_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
+            }
         }
 
         Ok(id)
@@ -461,6 +465,10 @@ impl Editor {
                     let result = key_handler.handle_key(self, key_event);
                     self.key_handler = key_handler;
                     result?;
+
+                    // Sync the current buffer's cursor position to the current window
+                    self.sync_cursor_to_current_window();
+
                     input_processed = true;
                 }
             } else if let Event::Resize(width, height) = event::read()? {
@@ -1021,18 +1029,27 @@ impl Editor {
         }
     }
 
+    /// Helper method to set up a new window with buffer and cursor position
+    fn setup_new_window(&mut self, new_window_id: usize) {
+        if let Some(buffer_id) = self.current_buffer_id {
+            if let Some(buffer) = self.buffers.get(&buffer_id) {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                    // Copy current cursor position to the new window
+                    new_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
+                }
+            }
+        }
+    }
+
     // Split window methods
     pub fn split_horizontal(&mut self) -> String {
         if let Some(new_window_id) = self
             .window_manager
             .split_current_window(SplitDirection::Horizontal)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created horizontal split (window {})", new_window_id)
         } else {
             "Failed to create horizontal split".to_string()
@@ -1044,12 +1061,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::Vertical)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created vertical split (window {})", new_window_id)
         } else {
             "Failed to create vertical split".to_string()
@@ -1061,12 +1074,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::HorizontalAbove)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created horizontal split above (window {})", new_window_id)
         } else {
             "Failed to create horizontal split above".to_string()
@@ -1078,12 +1087,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::HorizontalBelow)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created horizontal split below (window {})", new_window_id)
         } else {
             "Failed to create horizontal split below".to_string()
@@ -1095,12 +1100,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::VerticalLeft)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created vertical split left (window {})", new_window_id)
         } else {
             "Failed to create vertical split left".to_string()
@@ -1112,12 +1113,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::VerticalRight)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created vertical split right (window {})", new_window_id)
         } else {
             "Failed to create vertical split right".to_string()
@@ -1138,40 +1135,91 @@ impl Editor {
 
     // Window navigation methods
     pub fn move_to_window_left(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_left();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
     pub fn move_to_window_right(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_right();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
     pub fn move_to_window_up(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_up();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
     pub fn move_to_window_down(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_down();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
-    fn update_current_buffer_from_window(&mut self) {
-        if let Some(current_window) = self.window_manager.current_window() {
-            self.current_buffer_id = current_window.buffer_id;
+    fn sync_cursor_to_current_window(&mut self) {
+        if let (Some(current_buffer_id), Some(current_window_id)) = (
+            self.current_buffer_id,
+            self.window_manager.current_window_id(),
+        ) {
+            if let Some(current_buffer) = self.buffers.get(&current_buffer_id) {
+                if let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
+                {
+                    current_window
+                        .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
+                }
+            }
+        }
+    }
+
+    fn save_current_cursor_to_window(&mut self) {
+        if let (Some(current_buffer_id), Some(current_window_id)) = (
+            self.current_buffer_id,
+            self.window_manager.current_window_id(),
+        ) {
+            if let Some(current_buffer) = self.buffers.get(&current_buffer_id) {
+                if let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
+                {
+                    current_window
+                        .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
+                }
+            }
+        }
+    }
+
+    fn restore_cursor_from_current_window(&mut self) {
+        // Switch to the new window's buffer
+        if let Some(new_window) = self.window_manager.current_window() {
+            self.current_buffer_id = new_window.buffer_id;
+
+            // Restore cursor position from the new window
+            if let Some(buffer_id) = new_window.buffer_id {
+                let (cursor_row, cursor_col) = new_window.get_cursor_position();
+                if let Some(buffer) = self.buffers.get_mut(&buffer_id) {
+                    buffer.move_cursor(crate::mode::Position::new(cursor_row, cursor_col));
+                }
+            }
         }
     }
 }

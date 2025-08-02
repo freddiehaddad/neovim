@@ -19,6 +19,9 @@ pub struct Window {
     pub width: u16,
     pub height: u16,
     pub viewport_top: usize,
+    /// Cursor position within this window's buffer
+    pub cursor_row: usize,
+    pub cursor_col: usize,
 }
 
 impl Window {
@@ -31,11 +34,22 @@ impl Window {
             width,
             height,
             viewport_top: 0,
+            cursor_row: 0,
+            cursor_col: 0,
         }
     }
 
     pub fn set_buffer(&mut self, buffer_id: usize) {
         self.buffer_id = Some(buffer_id);
+    }
+
+    pub fn save_cursor_position(&mut self, row: usize, col: usize) {
+        self.cursor_row = row;
+        self.cursor_col = col;
+    }
+
+    pub fn get_cursor_position(&self) -> (usize, usize) {
+        (self.cursor_row, self.cursor_col)
     }
 
     pub fn content_height(&self) -> usize {
