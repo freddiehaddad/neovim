@@ -156,6 +156,10 @@
 "Char" = "append_command"
 "Backspace" = "delete_command_char"
 
+# Autocomplete
+"Tab" = "cycle_suggestion"
+"Right" = "accept_suggestion"
+
 [visual_mode]
 # Movement (inherits from normal mode)
 "h" = "cursor_left"

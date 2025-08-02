@@ -1,5 +1,6 @@
 pub mod buffer;
 pub mod command;
+pub mod command_registry;
 pub mod config;
 pub mod config_watcher;
 pub mod editor;

@@ -3,6 +3,7 @@ use crate::mode::{Mode, Position};
 use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
 use crate::theme::{ThemeConfig, UITheme};
+use crossterm::style::Color;
 use std::io;
 
 pub struct UI {
@@ -16,6 +17,8 @@ pub struct UI {
     pub show_cursor_line: bool,
     /// Current UI theme from themes.toml
     theme: UITheme,
+    /// For inline suggestions / completion
+    ghost_text_color: Color,
 }
 
 impl UI {
@@ -30,6 +33,7 @@ impl UI {
             show_relative_numbers: false, // Disabled by default
             show_cursor_line: true,       // Enable by default
             theme: current_theme.ui,      // Use theme from themes.toml
+            ghost_text_color: current_theme.syntax.comment, // Auto Complete Theme
         }
     }
 
@@ -38,10 +42,12 @@ impl UI {
         let theme_config = ThemeConfig::load();
         if let Some(complete_theme) = theme_config.get_theme(theme_name) {
             self.theme = complete_theme.ui;
+            self.ghost_text_color = complete_theme.syntax.comment;
         } else {
             // Fallback to default theme if theme not found
             let default_theme = theme_config.get_current_theme();
             self.theme = default_theme.ui;
+            self.ghost_text_color = default_theme.syntax.comment;
         }
     }
 
@@ -80,6 +86,16 @@ impl UI {
         // Render command line if in command or search mode
         if editor_state.mode == Mode::Command || editor_state.mode == Mode::Search {
             self.render_command_line(terminal, editor_state, width, height)?;
+        } else {
+            // Clear command line and any leftover suggestion line so stale completions disappear
+            let command_row = height.saturating_sub(1);
+            terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
+            terminal.queue_clear_line()?;
+            let suggestion_row = command_row.saturating_add(1);
+            if suggestion_row < height {
+                terminal.queue_move_cursor(Position::new(suggestion_row as usize, 0))?;
+                terminal.queue_clear_line()?;
+            }
         }
 
         // Position cursor and show it
@@ -492,25 +508,98 @@ impl UI {
         let command_row = height.saturating_sub(1);
         terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
 
-        // Clear the command line first and set theme colors
         terminal.queue_clear_line()?;
         terminal.queue_set_bg_color(self.theme.command_line_bg)?;
         terminal.queue_set_fg_color(self.theme.command_line_fg)?;
 
         let command_text = &editor_state.command_line;
 
-        // Truncate if too long
+        // Truncate if too long (keep prefix for suggestion logic)
         let display_text = if command_text.len() > width as usize {
             &command_text[..width as usize]
         } else {
             command_text
         };
 
+        // Print the base user input
         terminal.queue_print(display_text)?;
+
+        // Inline completion (ghost text) if suggestion exists
+        if let Some(sugg) = editor_state.current_suggestion() {
+            let stripped = editor_state.command_line.trim_start_matches(':');
+            let mut completion_suffix: Option<&str> = None;
+
+            if let Some(after_set) = stripped.strip_prefix("set ") {
+                // Completing a ":set <arg>" token
+                if sugg.starts_with(after_set) && sugg != after_set {
+                    completion_suffix = Some(&sugg[after_set.len()..]);
+                }
+            } else {
+                // Top-level ex command completion
+                if sugg.starts_with(stripped) && sugg != stripped {
+                    completion_suffix = Some(&sugg[stripped.len()..]);
+                }
+            }
+
+            if let Some(to_show) = completion_suffix {
+                let remaining_space = width as usize - display_text.len();
+                let to_print = if to_show.len() > remaining_space {
+                    &to_show[..remaining_space]
+                } else {
+                    to_show
+                };
+                terminal.queue_set_fg_color(self.ghost_text_color)?; // dimmed style
+                terminal.queue_print(to_print)?;
+                terminal.queue_reset_color()?;
+            }
+        }
+
+        // If there are no suggestions, clear the previous suggestion row.
+        if editor_state.command_suggestions.is_empty() {
+            let suggestion_row = command_row + 1;
+            if suggestion_row < height {
+                terminal.queue_move_cursor(Position::new(suggestion_row as usize, 0))?;
+                terminal.queue_clear_line()?;
+            }
+        }
+
         terminal.queue_reset_color()?;
+
+        // Optional: render a small suggestion list below command line
+        // Suggestion list or clear it if empty
+        let suggestion_row = command_row + 1;
+        if !editor_state.command_suggestions.is_empty() {
+            if suggestion_row < height {
+                terminal.queue_move_cursor(Position::new(suggestion_row as usize, 0))?;
+                terminal.queue_clear_line()?;
+                for (i, suggestion) in editor_state
+                    .command_suggestions
+                    .iter()
+                    .take(5)
+                    .enumerate()
+                {
+                    if i == editor_state.selected_suggestion_index {
+                        terminal.queue_set_bg_color(self.theme.status_modified)?; // highlight
+                        terminal.queue_set_fg_color(self.theme.status_fg)?;
+                        terminal.queue_print(&format!(" {} ", suggestion))?;
+                        terminal.queue_reset_color()?;
+                    } else {
+                        terminal.queue_print(&format!(" {} ", suggestion))?;
+                    }
+                }
+            }
+        } else {
+            // No suggestions: explicitly wipe the old suggestion row
+            if suggestion_row < height {
+                terminal.queue_move_cursor(Position::new(suggestion_row as usize, 0))?;
+                terminal.queue_clear_line()?;
+            }
+        }
+
 
         Ok(())
     }
+
 
     /// Get the current viewport top position
     pub fn viewport_top(&self) -> usize {

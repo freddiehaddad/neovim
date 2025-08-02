@@ -27,6 +27,16 @@ pub struct EditorRenderState {
     pub current_window_id: Option<usize>,
     pub window_manager: WindowManager,
     pub syntax_highlights: HashMap<usize, Vec<HighlightRange>>, // line_index -> highlights
+    pub command_suggestions: Vec<String>,
+    pub selected_suggestion_index: usize,
+}
+
+impl EditorRenderState {
+    pub fn current_suggestion(&self) -> Option<String> {
+        self.command_suggestions
+            .get(self.selected_suggestion_index)
+            .cloned()
+    }
 }
 
 pub struct Editor {
@@ -58,8 +68,6 @@ pub struct Editor {
     should_quit: bool,
     /// Command line content (for command mode)
     command_line: String,
-    /// Status message
-    status_message: String,
     /// Last render time for frame rate limiting
     last_render_time: Instant,
     /// Minimum time between renders (60 FPS = ~16ms)
@@ -70,7 +78,14 @@ pub struct Editor {
     theme_manager: ThemeManager,
     /// Syntax highlighter for code highlighting
     syntax_highlighter: Option<SyntaxHighlighter>,
+    /// Status message
+    status_message: String,
+    /// Autocomplete state for ex commands
+    command_suggestions: Vec<String>,
+    selected_suggestion_index: usize,
 }
+
+use crate::command_registry;
 
 impl Editor {
     pub fn new() -> Result<Self> {
@@ -122,6 +137,8 @@ impl Editor {
             config_watcher,
             theme_manager,
             syntax_highlighter,
+            command_suggestions: Vec::new(),
+            selected_suggestion_index: 0,
         })
     }
 
@@ -409,6 +426,8 @@ impl Editor {
             current_buffer,
             all_buffers: self.buffers.clone(),
             command_line,
+            command_suggestions: self.command_suggestions.clone(),
+            selected_suggestion_index: self.selected_suggestion_index,
             status_message,
             buffer_count: self.buffers.len(),
             current_buffer_id: self.current_buffer_id,
@@ -480,8 +499,15 @@ impl Editor {
 
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode = mode;
-        if mode != Mode::Command {
+        if mode == Mode::Command {
+            if self.command_line.is_empty() {
+                self.command_line = ":".to_string();
+            }
+            self.update_command_suggestions();
+        } else {
             self.command_line.clear();
+            self.command_suggestions.clear();
+            self.selected_suggestion_index = 0;
         }
     }
 
@@ -491,7 +517,71 @@ impl Editor {
 
     pub fn set_command_line(&mut self, text: String) {
         self.command_line = text;
+        if self.mode == Mode::Command {
+           self.update_command_suggestions();
+        }
     }
+    // command_registry - update
+    pub fn update_command_suggestions(&mut self) {
+        // Drop the leading ':' and any leading whitespace after it.
+        let without_colon = self.command_line.strip_prefix(':').unwrap_or(&self.command_line);
+        let trimmed = without_colon.trim_start();
+
+        // If nothing substantive has been typed yet (e.g. just ":" or ":   "), don't show suggestions.
+        if trimmed.is_empty() {
+            self.command_suggestions.clear();
+            self.selected_suggestion_index = 0;
+            return;
+        }
+
+        // Otherwise, run the normal suggester.
+        self.command_suggestions = command_registry::suggest(trimmed);
+        self.selected_suggestion_index = 0;
+    }
+
+
+        /// Get the currently selected suggestion, if any.
+    pub fn current_suggestion(&self) -> Option<String> {
+            self.command_suggestions
+                .get(self.selected_suggestion_index)
+                .cloned()
+        }
+
+        /// Cycle to the next suggestion (e.g., on Tab).
+    pub fn cycle_suggestion(&mut self) {
+            if !self.command_suggestions.is_empty() {
+                self.selected_suggestion_index =
+                    (self.selected_suggestion_index + 1) % self.command_suggestions.len();
+            }
+        }
+
+    pub fn accept_current_suggestion(&mut self) {
+        if let Some(sugg) = self.current_suggestion() {
+            // Strip leading ':' to work on the body
+            let mut body = self.command_line.trim_start_matches(':').to_string();
+
+            // Replace only the last token after whitespace (or whole thing if no whitespace)
+            if let Some(idx) = body.rfind(char::is_whitespace) {
+                body.replace_range(idx + 1.., &sugg);
+            } else {
+                body = sugg.clone();
+            }
+
+            self.command_line = format!(":{}", body);
+
+            // For commands that typically take further args, add a trailing space so user can continue typing
+            if matches!(sugg.as_str(), "set" | "e" | "edit" | "b" | "bn" | "bp") {
+                if !self.command_line.ends_with(' ') {
+                    self.command_line.push(' ');
+                }
+            }
+
+            self.command_suggestions.clear();
+            self.selected_suggestion_index = 0;
+        }
+    }
+
+
 
     pub fn status_message(&self) -> &str {
         &self.status_message

@@ -80,6 +80,12 @@ impl KeyHandler {
     pub fn handle_key(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
         let key_string = Self::key_event_to_string(key);
 
+        // Explicit escape-from-command-mode shortcut so suggestions get cleared
+            if editor.mode() == Mode::Command && key.code == KeyCode::Esc {
+                editor.set_mode(Mode::Normal);
+                return Ok(());
+            }
+
         // Handle key sequences for normal mode
         if matches!(editor.mode(), Mode::Normal) {
             // Check for timeout (reset sequence if too much time passed)
@@ -359,6 +365,11 @@ impl KeyHandler {
             "window_up" => self.action_window_up(editor)?,
             "window_down" => self.action_window_down(editor)?,
 
+            // Tab Auto Complete
+            "cycle_suggestion" => self.action_cycle_suggestion(editor)?,
+            "accept_suggestion" => self.action_accept_suggestion(editor)?,
+
+
             _ => return Ok(()), // Unknown action, ignore
         }
         Ok(())
@@ -469,6 +480,15 @@ impl KeyHandler {
             command.pop();
             editor.set_command_line(command);
         }
+        Ok(())
+    }
+
+    fn action_cycle_suggestion(&self, editor: &mut Editor) -> Result<()> {
+        editor.cycle_suggestion();
+        Ok(())
+    }
+    fn action_accept_suggestion(&self, editor: &mut Editor) -> Result<()> {
+        editor.accept_current_suggestion();
         Ok(())
     }
 
