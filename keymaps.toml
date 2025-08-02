@@ -109,6 +109,12 @@
 "Ctrl+w c" = "close_window"        # Close current window
 "Ctrl+w q" = "close_window"        # Close current window (alternative)
 
+# Window resizing
+"Ctrl+w >" = "resize_window_wider"     # Make window wider
+"Ctrl+w <" = "resize_window_narrower"  # Make window narrower
+"Ctrl+w +" = "resize_window_taller"    # Make window taller
+"Ctrl+w -" = "resize_window_shorter"   # Make window shorter
+
 # Additional navigation keys
 "Home" = "line_start"
 "End" = "line_end"

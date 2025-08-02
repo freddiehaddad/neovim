@@ -1204,6 +1204,55 @@ impl Editor {
         result
     }
 
+    // Window resizing methods
+    pub fn resize_window_wider(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_wider(resize_amount)
+        {
+            format!("Window resized wider by {} columns", resize_amount)
+        } else {
+            "Cannot resize window wider".to_string()
+        }
+    }
+
+    pub fn resize_window_narrower(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_narrower(resize_amount)
+        {
+            format!("Window resized narrower by {} columns", resize_amount)
+        } else {
+            "Cannot resize window narrower".to_string()
+        }
+    }
+
+    pub fn resize_window_taller(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_taller(resize_amount)
+        {
+            format!("Window resized taller by {} rows", resize_amount)
+        } else {
+            "Cannot resize window taller".to_string()
+        }
+    }
+
+    pub fn resize_window_shorter(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_shorter(resize_amount)
+        {
+            format!("Window resized shorter by {} rows", resize_amount)
+        } else {
+            "Cannot resize window shorter".to_string()
+        }
+    }
+
     fn sync_cursor_to_current_window(&mut self) {
         if let (Some(current_buffer_id), Some(current_window_id)) = (
             self.current_buffer_id,

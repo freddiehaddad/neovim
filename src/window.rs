@@ -420,6 +420,185 @@ impl WindowManager {
         }
     }
 
+    // Window resizing methods
+    pub fn resize_current_window_wider(&mut self, amount: u16) -> bool {
+        let current_id = match self.current_window_id {
+            Some(id) => id,
+            None => return false,
+        };
+
+        if let Some(current_window) = self.windows.get_mut(&current_id) {
+            // Find windows to the right that we can shrink
+            let mut windows_to_shrink = Vec::new();
+            let right_edge = current_window.x + current_window.width;
+
+            for window in self.windows.values() {
+                if window.id != current_id && window.x == right_edge {
+                    windows_to_shrink.push(window.id);
+                }
+            }
+
+            if !windows_to_shrink.is_empty() && amount > 0 {
+                // Check if we can shrink the right windows by the requested amount
+                let mut can_shrink = true;
+                for &window_id in &windows_to_shrink {
+                    if let Some(window) = self.windows.get(&window_id) {
+                        if window.width <= amount {
+                            can_shrink = false;
+                            break;
+                        }
+                    }
+                }
+
+                if can_shrink {
+                    // Expand current window
+                    if let Some(current_window) = self.windows.get_mut(&current_id) {
+                        current_window.width += amount;
+                    }
+
+                    // Shrink and move right windows
+                    for &window_id in &windows_to_shrink {
+                        if let Some(window) = self.windows.get_mut(&window_id) {
+                            window.width -= amount;
+                            window.x += amount;
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn resize_current_window_narrower(&mut self, amount: u16) -> bool {
+        let current_id = match self.current_window_id {
+            Some(id) => id,
+            None => return false,
+        };
+
+        if let Some(current_window) = self.windows.get(&current_id) {
+            if current_window.width <= amount {
+                return false; // Can't shrink below minimum size
+            }
+
+            let current_right = current_window.x + current_window.width;
+
+            // Find windows to the right that we can expand
+            let mut windows_to_expand = Vec::new();
+            for window in self.windows.values() {
+                if window.id != current_id && window.x == current_right {
+                    windows_to_expand.push(window.id);
+                }
+            }
+
+            if !windows_to_expand.is_empty() {
+                // Shrink current window
+                if let Some(current_window) = self.windows.get_mut(&current_id) {
+                    current_window.width -= amount;
+                }
+
+                // Expand and move right windows
+                for &window_id in &windows_to_expand {
+                    if let Some(window) = self.windows.get_mut(&window_id) {
+                        window.width += amount;
+                        window.x -= amount;
+                    }
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn resize_current_window_taller(&mut self, amount: u16) -> bool {
+        let current_id = match self.current_window_id {
+            Some(id) => id,
+            None => return false,
+        };
+
+        if let Some(current_window) = self.windows.get_mut(&current_id) {
+            // Find windows below that we can shrink
+            let mut windows_to_shrink = Vec::new();
+            let bottom_edge = current_window.y + current_window.height;
+
+            for window in self.windows.values() {
+                if window.id != current_id && window.y == bottom_edge {
+                    windows_to_shrink.push(window.id);
+                }
+            }
+
+            if !windows_to_shrink.is_empty() && amount > 0 {
+                // Check if we can shrink the bottom windows by the requested amount
+                let mut can_shrink = true;
+                for &window_id in &windows_to_shrink {
+                    if let Some(window) = self.windows.get(&window_id) {
+                        if window.height <= amount {
+                            can_shrink = false;
+                            break;
+                        }
+                    }
+                }
+
+                if can_shrink {
+                    // Expand current window
+                    if let Some(current_window) = self.windows.get_mut(&current_id) {
+                        current_window.height += amount;
+                    }
+
+                    // Shrink and move bottom windows
+                    for &window_id in &windows_to_shrink {
+                        if let Some(window) = self.windows.get_mut(&window_id) {
+                            window.height -= amount;
+                            window.y += amount;
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn resize_current_window_shorter(&mut self, amount: u16) -> bool {
+        let current_id = match self.current_window_id {
+            Some(id) => id,
+            None => return false,
+        };
+
+        if let Some(current_window) = self.windows.get(&current_id) {
+            if current_window.height <= amount {
+                return false; // Can't shrink below minimum size
+            }
+
+            let current_bottom = current_window.y + current_window.height;
+
+            // Find windows below that we can expand
+            let mut windows_to_expand = Vec::new();
+            for window in self.windows.values() {
+                if window.id != current_id && window.y == current_bottom {
+                    windows_to_expand.push(window.id);
+                }
+            }
+
+            if !windows_to_expand.is_empty() {
+                // Shrink current window
+                if let Some(current_window) = self.windows.get_mut(&current_id) {
+                    current_window.height -= amount;
+                }
+
+                // Expand and move bottom windows
+                for &window_id in &windows_to_expand {
+                    if let Some(window) = self.windows.get_mut(&window_id) {
+                        window.height += amount;
+                        window.y -= amount;
+                    }
+                }
+                return true;
+            }
+        }
+        false
+    }
+
     fn resize_windows_to_fill_space(&mut self) {
         // Simple implementation: if only one window left, make it fill the screen
         if self.windows.len() == 1 {

@@ -93,8 +93,8 @@ impl KeyHandler {
 
             // Add current key to sequence
             if !self.pending_sequence.is_empty() {
-                // For single character keys, concatenate without space
-                // For multi-character keys (like Ctrl+w), add space
+                // For single character keys after single character sequences, concatenate without space
+                // Example: "g" + "g" = "gg"
                 if key_string.len() == 1
                     && self.pending_sequence.len() == 1
                     && self
@@ -105,14 +105,10 @@ impl KeyHandler {
                         .is_ascii_alphabetic()
                 {
                     self.pending_sequence.push_str(&key_string);
-                } else if key_string.starts_with("Ctrl+")
-                    || key_string.starts_with("Alt+")
-                    || key_string.starts_with("Shift+")
-                    || self.pending_sequence.contains(' ')
-                {
-                    self.pending_sequence.push(' ');
-                    self.pending_sequence.push_str(&key_string);
                 } else {
+                    // For all other cases, add space between keys
+                    // Example: "Ctrl+w" + "h" = "Ctrl+w h"
+                    self.pending_sequence.push(' ');
                     self.pending_sequence.push_str(&key_string);
                 }
             } else {
@@ -378,6 +374,12 @@ impl KeyHandler {
             "window_right" => self.action_window_right(editor)?,
             "window_up" => self.action_window_up(editor)?,
             "window_down" => self.action_window_down(editor)?,
+
+            // Window resizing actions
+            "resize_window_wider" => self.action_resize_window_wider(editor)?,
+            "resize_window_narrower" => self.action_resize_window_narrower(editor)?,
+            "resize_window_taller" => self.action_resize_window_taller(editor)?,
+            "resize_window_shorter" => self.action_resize_window_shorter(editor)?,
 
             _ => return Ok(()), // Unknown action, ignore
         }
@@ -1077,6 +1079,31 @@ impl KeyHandler {
         if !editor.move_to_window_down() {
             editor.set_status_message("No window below".to_string());
         }
+        Ok(())
+    }
+
+    // Window resizing action implementations
+    fn action_resize_window_wider(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.resize_window_wider();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_resize_window_narrower(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.resize_window_narrower();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_resize_window_taller(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.resize_window_taller();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_resize_window_shorter(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.resize_window_shorter();
+        editor.set_status_message(message);
         Ok(())
     }
 

@@ -50,3 +50,6 @@ show_command = true    # Show partial commands
 # Scrolling
 scroll_off = 0      # Lines to keep above/below cursor
 side_scroll_off = 0 # Columns to keep left/right of cursor
+
+# Window management
+window_resize_amount = 1 # Amount to resize windows by (rows/columns)

@@ -52,6 +52,7 @@ pub struct InterfaceConfig {
     pub show_command: bool,
     pub scroll_off: usize,
     pub side_scroll_off: usize,
+    pub window_resize_amount: u16,
 }
 
 impl Default for EditorConfig {
@@ -89,6 +90,7 @@ impl Default for EditorConfig {
                 show_command: true,
                 scroll_off: 0,
                 side_scroll_off: 0,
+                window_resize_amount: 1,
             },
         }
     }
