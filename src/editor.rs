@@ -1016,15 +1016,18 @@ impl Editor {
         if let Some(buffer) = self.current_buffer() {
             let cursor_row = buffer.cursor.row;
             let buffer_lines_len = buffer.lines.len();
-            let (_, height) = self.terminal.size();
 
-            self.ui.center_cursor(cursor_row, height);
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let content_height = current_window.content_height();
+                let half_height = content_height / 2;
 
-            // Ensure we don't scroll past the end of the buffer
-            let content_height = height.saturating_sub(2) as usize;
-            let max_viewport_top = buffer_lines_len.saturating_sub(content_height);
-            let current_viewport = self.ui.viewport_top().min(max_viewport_top);
-            self.ui.set_viewport_top(current_viewport);
+                // Set viewport so cursor line is in the middle
+                current_window.viewport_top = cursor_row.saturating_sub(half_height);
+
+                // Ensure we don't scroll past the end of the buffer
+                let max_viewport_top = buffer_lines_len.saturating_sub(content_height);
+                current_window.viewport_top = current_window.viewport_top.min(max_viewport_top);
+            }
         }
     }
 
@@ -1032,7 +1035,9 @@ impl Editor {
         // zt: Move current line to top of viewport
         if let Some(buffer) = self.current_buffer() {
             let cursor_row = buffer.cursor.row;
-            self.ui.cursor_to_top(cursor_row);
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                current_window.viewport_top = cursor_row;
+            }
         }
     }
 
@@ -1040,8 +1045,13 @@ impl Editor {
         // zb: Move current line to bottom of viewport
         if let Some(buffer) = self.current_buffer() {
             let cursor_row = buffer.cursor.row;
-            let (_, height) = self.terminal.size();
-            self.ui.cursor_to_bottom(cursor_row, height);
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let content_height = current_window.content_height();
+
+                // Set viewport so cursor line is at the bottom
+                current_window.viewport_top =
+                    cursor_row.saturating_sub(content_height.saturating_sub(1));
+            }
         }
     }
 

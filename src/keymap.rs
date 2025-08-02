@@ -93,8 +93,28 @@ impl KeyHandler {
 
             // Add current key to sequence
             if !self.pending_sequence.is_empty() {
-                self.pending_sequence.push(' ');
-                self.pending_sequence.push_str(&key_string);
+                // For single character keys, concatenate without space
+                // For multi-character keys (like Ctrl+w), add space
+                if key_string.len() == 1
+                    && self.pending_sequence.len() == 1
+                    && self
+                        .pending_sequence
+                        .chars()
+                        .next()
+                        .unwrap_or(' ')
+                        .is_ascii_alphabetic()
+                {
+                    self.pending_sequence.push_str(&key_string);
+                } else if key_string.starts_with("Ctrl+")
+                    || key_string.starts_with("Alt+")
+                    || key_string.starts_with("Shift+")
+                    || self.pending_sequence.contains(' ')
+                {
+                    self.pending_sequence.push(' ');
+                    self.pending_sequence.push_str(&key_string);
+                } else {
+                    self.pending_sequence.push_str(&key_string);
+                }
             } else {
                 self.pending_sequence = key_string.clone();
             }
