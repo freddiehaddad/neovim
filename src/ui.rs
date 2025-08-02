@@ -190,7 +190,10 @@ impl UI {
                 let line = &buffer.lines[buffer_row];
 
                 // Check for syntax highlighting
-                if let Some(highlights) = editor_state.syntax_highlights.get(&buffer_row) {
+                if let Some(highlights) = editor_state
+                    .syntax_highlights
+                    .get(&(window.buffer_id.unwrap_or(0), buffer_row))
+                {
                     self.render_highlighted_line(terminal, line, highlights, text_width)?;
                 } else {
                     // Render line without syntax highlighting

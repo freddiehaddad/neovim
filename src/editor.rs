@@ -26,7 +26,7 @@ pub struct EditorRenderState {
     pub current_buffer_id: Option<usize>,
     pub current_window_id: Option<usize>,
     pub window_manager: WindowManager,
-    pub syntax_highlights: HashMap<usize, Vec<HighlightRange>>, // line_index -> highlights
+    pub syntax_highlights: HashMap<(usize, usize), Vec<HighlightRange>>, // (buffer_id, line_index) -> highlights
 }
 
 pub struct Editor {
@@ -377,33 +377,49 @@ impl Editor {
             }
         }
 
-        // Generate syntax highlights for visible lines only
+        // Generate syntax highlights for all visible windows
         let mut syntax_highlights = HashMap::new();
-        if let Some(buffer) = &current_buffer {
-            // Get the visible range from current window
-            if let Some(current_window) = self.window_manager.current_window() {
-                let content_height = current_window.content_height();
-                let viewport_top = current_window.viewport_top;
 
-                // Only highlight visible lines + a small buffer for smooth scrolling
-                let highlight_start = viewport_top;
-                let highlight_end =
-                    std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
+        // First, collect all the lines that need highlighting from all windows
+        let mut lines_to_highlight = HashMap::new(); // (buffer_id, line_index) -> (line_content, file_path)
 
-                for line_index in highlight_start..highlight_end {
-                    if let Some(line) = buffer.get_line(line_index) {
-                        let file_path = buffer
-                            .file_path
-                            .as_ref()
-                            .map(|p| p.to_string_lossy().to_string());
-                        if let Some(path) = file_path {
-                            let highlights = self.get_syntax_highlights(line, Some(&path));
-                            if !highlights.is_empty() {
-                                syntax_highlights.insert(line_index, highlights);
+        for window in self.window_manager.all_windows().values() {
+            if let Some(buffer_id) = window.buffer_id {
+                if let Some(buffer) = self.buffers.get(&buffer_id) {
+                    let content_height = window.content_height();
+                    let viewport_top = window.viewport_top;
+
+                    // Only highlight visible lines + a small buffer for smooth scrolling
+                    let highlight_start = viewport_top;
+                    let highlight_end =
+                        std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
+
+                    for line_index in highlight_start..highlight_end {
+                        let key = (buffer_id, line_index);
+                        // Skip if we already have this line queued for highlighting
+                        if lines_to_highlight.contains_key(&key) {
+                            continue;
+                        }
+
+                        if let Some(line) = buffer.get_line(line_index) {
+                            let file_path = buffer
+                                .file_path
+                                .as_ref()
+                                .map(|p| p.to_string_lossy().to_string());
+                            if let Some(path) = file_path {
+                                lines_to_highlight.insert(key, (line.clone(), path));
                             }
                         }
                     }
                 }
+            }
+        }
+
+        // Now generate syntax highlights for all collected lines
+        for (key, (line_content, file_path)) in lines_to_highlight {
+            let highlights = self.get_syntax_highlights(&line_content, Some(&file_path));
+            if !highlights.is_empty() {
+                syntax_highlights.insert(key, highlights);
             }
         }
 
