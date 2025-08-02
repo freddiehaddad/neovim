@@ -43,6 +43,9 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **Advanced Search Engine**: Regex-capable search with `/`, `n`, `N` navigation
 - **Line Numbers**: Absolute, relative, and hybrid line number modes
 - **Cursor Line Highlighting**: Visual cursor line highlighting
+- **Scrolling Commands**: Page/half-page scrolling (`Ctrl+f/b/d/u`) and line scrolling (`Ctrl+e/y`)
+- **Viewport Centering**: Z-commands (`zz`, `zt`, `zb`) for cursor positioning
+- **Scroll Offset**: Configurable `scroll_off` to maintain cursor distance from viewport edges
 - **Configuration Hot Reloading**: Live updates when TOML files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 - **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
@@ -67,6 +70,14 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
   - `Ctrl+w V` - Vertical split (left)
   - `Ctrl+w h/j/k/l` - Navigate between windows
   - `Ctrl+w c` - Close current window
+  - `Ctrl+w >/</+/-` - Resize windows (wider/narrower/taller/shorter)
+- **Scrolling Commands**:
+  - `Ctrl+f/Ctrl+b` - Page down/up
+  - `Ctrl+d/Ctrl+u` - Half page down/up
+  - `Ctrl+e/Ctrl+y` - Line down/up
+  - `zz` - Center cursor line
+  - `zt` - Move cursor line to top
+  - `zb` - Move cursor line to bottom
 
 ### Ex Commands
 
@@ -110,7 +121,7 @@ The editor now supports **all major Vim `:set` commands** with automatic persist
 - `:set smartcase` / `:set nosmartcase` (`scs` / `noscs`) - Smart case matching
 - `:set hlsearch` / `:set nohlsearch` (`hls` / `nohls`) - Highlight search results
 - `:set incsearch` / `:set noincsearch` (`is` / `nois`) - Incremental search
-- `:set scrolloff=<n>` (`so`) - Lines to keep around cursor
+- `:set scrolloff=<n>` (`so`) - Lines to keep around cursor (default: 3)
 - `:set sidescrolloff=<n>` (`siso`) - Columns to keep around cursor
 
 #### Text Editing
@@ -134,6 +145,8 @@ The editor now supports **all major Vim `:set` commands** with automatic persist
 - `:set laststatus` / `:set nolaststatus` (`ls` / `nols`) - Show status line
 - `:set showcmd` / `:set noshowcmd` (`sc` / `nosc`) - Show partial commands
 - `:set timeoutlen=<ms>` (`tm`) - Command timeout (default: 1000ms)
+- `:set scrolloff=<n>` (`so`) - Lines to keep around cursor (default: 3)
+- `:set sidescrolloff=<n>` (`siso`) - Columns to keep around cursor
 
 #### Setting Queries
 
@@ -190,6 +203,13 @@ The editor features a complete window management system similar to Vim:
 - `Ctrl+w j` - Move to window below
 - `Ctrl+w k` - Move to window above  
 - `Ctrl+w l` - Move to window on the right
+
+**Resizing:**
+
+- `Ctrl+w >` - Make window wider
+- `Ctrl+w <` - Make window narrower
+- `Ctrl+w +` - Make window taller
+- `Ctrl+w -` - Make window shorter
 
 **Features:**
 
@@ -288,7 +308,9 @@ auto_save = false             # Automatically save files
 show_status_line = true       # Show status line
 command_timeout = 1000        # Timeout for key sequences (ms)
 show_command = true           # Show partial commands
-scroll_off = 0                # Lines to keep above/below cursor
+scroll_off = 3                # Lines to keep above/below cursor
+side_scroll_off = 0           # Columns to keep left/right of cursor
+window_resize_amount = 1      # Amount to resize windows by (rows/columns)
 ```
 
 #### Keymap Configuration (`keymaps.toml`)
@@ -315,6 +337,25 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 "Ctrl+w k" = "move_to_window_up"
 "Ctrl+w l" = "move_to_window_right"
 "Ctrl+w c" = "close_window"
+
+# Window resizing keybindings
+"Ctrl+w >" = "resize_window_wider"
+"Ctrl+w <" = "resize_window_narrower"
+"Ctrl+w +" = "resize_window_taller"
+"Ctrl+w -" = "resize_window_shorter"
+
+# Scrolling commands
+"Ctrl+f" = "scroll_down_page"      # Page down
+"Ctrl+b" = "scroll_up_page"        # Page up
+"Ctrl+d" = "scroll_down_half_page" # Half page down
+"Ctrl+u" = "scroll_up_half_page"   # Half page up
+"Ctrl+e" = "scroll_down_line"      # Line down
+"Ctrl+y" = "scroll_up_line"        # Line up
+
+# Viewport centering (z commands)
+"zz" = "center_cursor"             # Center cursor line
+"zt" = "cursor_to_top"             # Move cursor line to top
+"zb" = "cursor_to_bottom"          # Move cursor line to bottom
 
 [insert_mode]
 "Escape" = "normal_mode"
@@ -377,6 +418,8 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - `command_timeout` - Timeout for key sequences (milliseconds)
 - `show_command` - Show partial commands
 - `scroll_off` - Lines to keep visible above/below cursor
+- `side_scroll_off` - Columns to keep visible left/right of cursor
+- `window_resize_amount` - Amount to resize windows by (rows/columns)
 
 ## Architecture
 
@@ -398,6 +441,8 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **Tree-sitter Syntax Highlighting**: AST-based syntax highlighting with Rust-inspired themes
 - **Multi-Buffer System**: Complete buffer management with Ex commands
 - **Window Management System**: Full window splitting and navigation with Vim-style keybindings
+- **Scroll Offset**: Configurable lines to keep visible around cursor (`:set scrolloff=3`)
+- **Window Resizing**: Complete window resizing system with `Ctrl+w` combinations
 - **Configuration Hot Reloading**: Live updates when TOML configuration files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 
@@ -421,6 +466,10 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - [x] **Word Movement**: `w` (next word), `b` (previous word), `e` (word end)
 - [x] **Delete Operations**: `x`, `X`, `dd` for character and line deletion
 - [x] **Line Navigation**: `0` (line start), `$` (line end), `gg` (buffer start), `G` (buffer end)
+- [x] **Scrolling Commands**: Page (`Ctrl+f/b`), half-page (`Ctrl+d/u`), and line (`Ctrl+e/y`) scrolling
+- [x] **Viewport Centering**: Z-commands (`zz`, `zt`, `zb`) for cursor positioning in viewport
+- [x] **Scroll Offset**: Configurable `scroll_off` setting to maintain cursor distance from edges
+- [x] **Window Resizing**: Complete window resizing with `Ctrl+w >/</+/-` keybindings
 - [ ] Text objects (`aw`, `iw`, `ap`, etc.)
 - [ ] Operators (`d`, `c`, `y`, `p`) with motions
 - [ ] Visual mode selection and operations
@@ -430,7 +479,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 - [ ] Macros and command repetition
 - [ ] Code folding and auto-indentation  
-- [x] Multiple windows and tabs (✅ Window splitting implemented)
+- [x] Multiple windows and splits with full navigation and resizing support
 - [ ] File explorer and buffer management
 
 ### Phase 3: IDE Features 📅
