@@ -61,8 +61,10 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`
 - **Window Management**:
-  - `Ctrl+w s` - Horizontal split
-  - `Ctrl+w v` - Vertical split
+  - `Ctrl+w s` - Horizontal split (below)
+  - `Ctrl+w S` - Horizontal split (above)
+  - `Ctrl+w v` - Vertical split (right)
+  - `Ctrl+w V` - Vertical split (left)
   - `Ctrl+w h/j/k/l` - Navigate between windows
   - `Ctrl+w c` - Close current window
 
@@ -172,10 +174,15 @@ The editor features a complete window management system similar to Vim:
 
 **Creating Splits:**
 
-- `:split` or `:sp` - Create horizontal split (window above/below)
-- `:vsplit` or `:vsp` - Create vertical split (window left/right)
-- `Ctrl+w s` - Horizontal split keybinding
-- `Ctrl+w v` - Vertical split keybinding
+- `:split` or `:sp` - Create horizontal split (window below)
+- `:vsplit` or `:vsp` - Create vertical split (window right)
+
+**Directional Split Keybindings:**
+
+- `Ctrl+w s` - Horizontal split below current window
+- `Ctrl+w S` - Horizontal split above current window  
+- `Ctrl+w v` - Vertical split right of current window
+- `Ctrl+w V` - Vertical split left of current window
 
 **Navigation:**
 

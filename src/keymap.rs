@@ -349,6 +349,10 @@ impl KeyHandler {
             // Window/Split actions
             "split_horizontal" => self.action_split_horizontal(editor)?,
             "split_vertical" => self.action_split_vertical(editor)?,
+            "split_horizontal_above" => self.action_split_horizontal_above(editor)?,
+            "split_horizontal_below" => self.action_split_horizontal_below(editor)?,
+            "split_vertical_left" => self.action_split_vertical_left(editor)?,
+            "split_vertical_right" => self.action_split_vertical_right(editor)?,
             "close_window" => self.action_close_window(editor)?,
             "window_left" => self.action_window_left(editor)?,
             "window_right" => self.action_window_right(editor)?,
@@ -994,6 +998,30 @@ impl KeyHandler {
 
     fn action_split_vertical(&self, editor: &mut Editor) -> Result<()> {
         let message = editor.split_vertical();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_split_horizontal_above(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.split_horizontal_above();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_split_horizontal_below(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.split_horizontal_below();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_split_vertical_left(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.split_vertical_left();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_split_vertical_right(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.split_vertical_right();
         editor.set_status_message(message);
         Ok(())
     }

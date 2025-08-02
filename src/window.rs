@@ -2,8 +2,12 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SplitDirection {
-    Horizontal,
-    Vertical,
+    Horizontal,      // Default horizontal split (below)
+    Vertical,        // Default vertical split (right)
+    HorizontalAbove, // Split above current window
+    HorizontalBelow, // Split below current window
+    VerticalLeft,    // Split to the left of current window
+    VerticalRight,   // Split to the right of current window
 }
 
 #[derive(Debug, Clone)]
@@ -121,8 +125,8 @@ impl WindowManager {
         self.next_window_id += 1;
 
         let (window1, window2) = match direction {
-            SplitDirection::Horizontal => {
-                // Split horizontally (top/bottom)
+            SplitDirection::Horizontal | SplitDirection::HorizontalBelow => {
+                // Split horizontally - new window below (default behavior)
                 let half_height = current_window.height / 2;
 
                 let top_window = Window::new(
@@ -143,8 +147,30 @@ impl WindowManager {
 
                 (top_window, bottom_window)
             }
-            SplitDirection::Vertical => {
-                // Split vertically (left/right)
+            SplitDirection::HorizontalAbove => {
+                // Split horizontally - new window above
+                let half_height = current_window.height / 2;
+
+                let top_window = Window::new(
+                    new_window_id,
+                    current_window.x,
+                    current_window.y,
+                    current_window.width,
+                    half_height,
+                );
+
+                let bottom_window = Window::new(
+                    current_id,
+                    current_window.x,
+                    current_window.y + half_height,
+                    current_window.width,
+                    current_window.height - half_height,
+                );
+
+                (bottom_window, top_window)
+            }
+            SplitDirection::Vertical | SplitDirection::VerticalRight => {
+                // Split vertically - new window to the right (default behavior)
                 let half_width = current_window.width / 2;
 
                 let left_window = Window::new(
@@ -164,6 +190,28 @@ impl WindowManager {
                 );
 
                 (left_window, right_window)
+            }
+            SplitDirection::VerticalLeft => {
+                // Split vertically - new window to the left
+                let half_width = current_window.width / 2;
+
+                let left_window = Window::new(
+                    new_window_id,
+                    current_window.x,
+                    current_window.y,
+                    half_width,
+                    current_window.height,
+                );
+
+                let right_window = Window::new(
+                    current_id,
+                    current_window.x + half_width,
+                    current_window.y,
+                    current_window.width - half_width,
+                    current_window.height,
+                );
+
+                (right_window, left_window)
             }
         };
 

@@ -96,8 +96,16 @@
 "Ctrl+w Down" = "window_down"      # Move to window down (arrow key)
 "Ctrl+w Up" = "window_up"          # Move to window up (arrow key)
 "Ctrl+w Right" = "window_right"    # Move to window right (arrow key)
-"Ctrl+w s" = "split_horizontal"    # Split horizontally
-"Ctrl+w v" = "split_vertical"      # Split vertically
+
+# Window splitting - basic
+"Ctrl+w s" = "split_horizontal"    # Split horizontally (below)
+"Ctrl+w v" = "split_vertical"      # Split vertically (right)
+
+# Window splitting - directional  
+"Ctrl+w S" = "split_horizontal_above"   # Split horizontally above current window
+"Ctrl+w V" = "split_vertical_left"      # Split vertically left of current window
+
+# Window management
 "Ctrl+w c" = "close_window"        # Close current window
 "Ctrl+w q" = "close_window"        # Close current window (alternative)
 

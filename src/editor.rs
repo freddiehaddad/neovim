@@ -1023,64 +1023,104 @@ impl Editor {
 
     // Split window methods
     pub fn split_horizontal(&mut self) -> String {
-        eprintln!(
-            "split_horizontal called, current window count: {}",
-            self.window_manager.window_count()
-        );
         if let Some(new_window_id) = self
             .window_manager
             .split_current_window(SplitDirection::Horizontal)
         {
-            eprintln!(
-                "Split created, new window count: {}, new_window_id: {}",
-                self.window_manager.window_count(),
-                new_window_id
-            );
             // If there's a current buffer, assign it to the new window
             if let Some(buffer_id) = self.current_buffer_id {
                 if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
                     new_window.set_buffer(buffer_id);
-                    eprintln!(
-                        "Assigned buffer {} to new window {}",
-                        buffer_id, new_window_id
-                    );
                 }
             }
             format!("Created horizontal split (window {})", new_window_id)
         } else {
-            eprintln!("Failed to create split");
             "Failed to create horizontal split".to_string()
         }
     }
 
     pub fn split_vertical(&mut self) -> String {
-        eprintln!(
-            "split_vertical called, current window count: {}",
-            self.window_manager.window_count()
-        );
         if let Some(new_window_id) = self
             .window_manager
             .split_current_window(SplitDirection::Vertical)
         {
-            eprintln!(
-                "Split created, new window count: {}, new_window_id: {}",
-                self.window_manager.window_count(),
-                new_window_id
-            );
             // If there's a current buffer, assign it to the new window
             if let Some(buffer_id) = self.current_buffer_id {
                 if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
                     new_window.set_buffer(buffer_id);
-                    eprintln!(
-                        "Assigned buffer {} to new window {}",
-                        buffer_id, new_window_id
-                    );
                 }
             }
             format!("Created vertical split (window {})", new_window_id)
         } else {
-            eprintln!("Failed to create split");
             "Failed to create vertical split".to_string()
+        }
+    }
+
+    pub fn split_horizontal_above(&mut self) -> String {
+        if let Some(new_window_id) = self
+            .window_manager
+            .split_current_window(SplitDirection::HorizontalAbove)
+        {
+            // If there's a current buffer, assign it to the new window
+            if let Some(buffer_id) = self.current_buffer_id {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                }
+            }
+            format!("Created horizontal split above (window {})", new_window_id)
+        } else {
+            "Failed to create horizontal split above".to_string()
+        }
+    }
+
+    pub fn split_horizontal_below(&mut self) -> String {
+        if let Some(new_window_id) = self
+            .window_manager
+            .split_current_window(SplitDirection::HorizontalBelow)
+        {
+            // If there's a current buffer, assign it to the new window
+            if let Some(buffer_id) = self.current_buffer_id {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                }
+            }
+            format!("Created horizontal split below (window {})", new_window_id)
+        } else {
+            "Failed to create horizontal split below".to_string()
+        }
+    }
+
+    pub fn split_vertical_left(&mut self) -> String {
+        if let Some(new_window_id) = self
+            .window_manager
+            .split_current_window(SplitDirection::VerticalLeft)
+        {
+            // If there's a current buffer, assign it to the new window
+            if let Some(buffer_id) = self.current_buffer_id {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                }
+            }
+            format!("Created vertical split left (window {})", new_window_id)
+        } else {
+            "Failed to create vertical split left".to_string()
+        }
+    }
+
+    pub fn split_vertical_right(&mut self) -> String {
+        if let Some(new_window_id) = self
+            .window_manager
+            .split_current_window(SplitDirection::VerticalRight)
+        {
+            // If there's a current buffer, assign it to the new window
+            if let Some(buffer_id) = self.current_buffer_id {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                }
+            }
+            format!("Created vertical split right (window {})", new_window_id)
+        } else {
+            "Failed to create vertical split right".to_string()
         }
     }
 
