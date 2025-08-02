@@ -14,28 +14,56 @@ The editor now includes comprehensive logging functionality to help with debuggi
 
 ## How to Enable Logging
 
-### Basic Info Logging
+### Windows (PowerShell)
 
-```bash
+#### Basic Info Logging
+
+```powershell
 $env:RUST_LOG="info"; .\target\debug\neovim.exe filename.txt
 ```
 
-### Debug Logging (shows key events, mode changes, etc.)
+#### Debug Logging (shows key events, mode changes, etc.)
 
-```bash
+```powershell
 $env:RUST_LOG="debug"; .\target\debug\neovim.exe filename.txt
 ```
 
-### Trace Logging (shows everything including individual key events)
+#### Trace Logging (shows everything including individual key events)
 
-```bash
+```powershell
 $env:RUST_LOG="trace"; .\target\debug\neovim.exe filename.txt
 ```
 
-### Module-Specific Logging
+#### Module-Specific Logging
+
+```powershell
+$env:RUST_LOG="neovim::editor=debug"; .\target\debug\neovim.exe filename.txt
+```
+
+### Linux/macOS (Bash)
+
+#### Basic Info Logging
 
 ```bash
-$env:RUST_LOG="neovim::editor=debug"; .\target\debug\neovim.exe filename.txt
+RUST_LOG=info ./target/debug/neovim filename.txt
+```
+
+#### Debug Logging (shows key events, mode changes, etc.)
+
+```bash
+RUST_LOG=debug ./target/debug/neovim filename.txt
+```
+
+#### Trace Logging (shows everything including individual key events)
+
+```bash
+RUST_LOG=trace ./target/debug/neovim filename.txt
+```
+
+#### Module-Specific Logging
+
+```bash
+RUST_LOG=neovim::editor=debug ./target/debug/neovim filename.txt
 ```
 
 ## What Gets Logged

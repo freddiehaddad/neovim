@@ -170,6 +170,32 @@ cargo run
 cargo run -- filename.txt
 ```
 
+### Platform-Specific Commands
+
+#### Windows (PowerShell)
+
+```powershell
+# Build and run
+cargo build
+cargo run
+
+# Open a file
+cargo run -- filename.txt
+```
+
+#### Linux/macOS (Bash)
+
+```bash
+# Build and run
+cargo build
+cargo run
+
+# Open a file
+cargo run filename.txt
+```
+
+*For logging and debugging, see [LOGGING_GUIDE.md](LOGGING_GUIDE.md)*
+
 ### Quick Start Guide
 
 1. **Start the editor**: `cargo run`
@@ -515,48 +541,62 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 ## Debugging and Development
 
-### Logging System
+The editor includes comprehensive logging for debugging and development. See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation on enabling logging, log levels, and debugging techniques.
 
-The editor includes comprehensive logging for debugging and development:
+**Quick Start:**
 
 ```bash
-# Enable info-level logging (startup, file operations, major events)
-$env:RUST_LOG="info"; cargo run filename.txt
-
-# Enable debug logging (detailed key events, mode changes, buffer operations)
-$env:RUST_LOG="debug"; cargo run filename.txt
-
-# Enable trace logging (very detailed event tracking)
-$env:RUST_LOG="trace"; cargo run filename.txt
-
-# Redirect logs to file for analysis
-$env:RUST_LOG="debug"; cargo run filename.txt 2> debug.log
+# Enable debug logging to see key events and operations
+RUST_LOG=debug cargo run filename.txt
 ```
-
-**What gets logged:**
-
-- Editor initialization and configuration loading
-- Key events and mode transitions (helpful for debugging input issues)
-- File operations (save, load, buffer creation)
-- Search operations and results
-- Window management and resizing
-- Error conditions and warnings
-
-**Log levels:**
-
-- `ERROR`: Critical errors that prevent operation
-- `WARN`: Warning conditions that don't stop execution
-- `INFO`: General information about major operations
-- `DEBUG`: Detailed information for debugging
-- `TRACE`: Very detailed trace information
-
-See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation.
 
 ## Contributing
 
 This is a learning project to understand how text editors work. Contributions welcome!
 
 ### Getting Started
+
+#### Prerequisites
+
+- **Rust 1.70+** - Install from [rustup.rs](https://rustup.rs/)
+
+#### Building and Running
+
+**Windows (PowerShell):**
+
+```powershell
+# Clone the repository
+git clone <repository-url>
+cd neovim
+
+# Build the project
+cargo build
+
+# Run the editor
+cargo run
+
+# Run with a specific file
+cargo run -- filename.txt
+```
+
+**Linux/macOS (Bash):**
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd neovim
+
+# Build the project
+cargo build
+
+# Run the editor
+cargo run
+
+# Run with a specific file
+cargo run filename.txt
+```
+
+#### Development Setup
 
 1. Clone the repository
 2. Install Rust (1.70+)
