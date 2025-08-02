@@ -26,6 +26,7 @@ pub struct EditorRenderState {
     pub current_buffer_id: Option<usize>,
     pub current_window_id: Option<usize>,
     pub window_manager: WindowManager,
+    pub syntax_highlights: HashMap<(usize, usize), Vec<HighlightRange>>, // (buffer_id, line_index) -> highlights
     pub syntax_highlights: HashMap<usize, Vec<HighlightRange>>, // line_index -> highlights
     pub command_suggestions: Vec<String>,
     pub selected_suggestion_index: usize,
@@ -37,6 +38,7 @@ impl EditorRenderState {
             .get(self.selected_suggestion_index)
             .cloned()
     }
+
 }
 
 pub struct Editor {
@@ -187,6 +189,10 @@ impl Editor {
         // Assign buffer to current window
         if let Some(current_window) = self.window_manager.current_window_mut() {
             current_window.set_buffer(id);
+            // Initialize window cursor position from buffer's cursor position
+            if let Some(buffer) = self.buffers.get(&id) {
+                current_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
+            }
         }
 
         Ok(id)
@@ -389,33 +395,49 @@ impl Editor {
             }
         }
 
-        // Generate syntax highlights for visible lines only
+        // Generate syntax highlights for all visible windows
         let mut syntax_highlights = HashMap::new();
-        if let Some(buffer) = &current_buffer {
-            // Get the visible range from current window
-            if let Some(current_window) = self.window_manager.current_window() {
-                let content_height = current_window.content_height();
-                let viewport_top = current_window.viewport_top;
 
-                // Only highlight visible lines + a small buffer for smooth scrolling
-                let highlight_start = viewport_top;
-                let highlight_end =
-                    std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
+        // First, collect all the lines that need highlighting from all windows
+        let mut lines_to_highlight = HashMap::new(); // (buffer_id, line_index) -> (line_content, file_path)
 
-                for line_index in highlight_start..highlight_end {
-                    if let Some(line) = buffer.get_line(line_index) {
-                        let file_path = buffer
-                            .file_path
-                            .as_ref()
-                            .map(|p| p.to_string_lossy().to_string());
-                        if let Some(path) = file_path {
-                            let highlights = self.get_syntax_highlights(line, Some(&path));
-                            if !highlights.is_empty() {
-                                syntax_highlights.insert(line_index, highlights);
+        for window in self.window_manager.all_windows().values() {
+            if let Some(buffer_id) = window.buffer_id {
+                if let Some(buffer) = self.buffers.get(&buffer_id) {
+                    let content_height = window.content_height();
+                    let viewport_top = window.viewport_top;
+
+                    // Only highlight visible lines + a small buffer for smooth scrolling
+                    let highlight_start = viewport_top;
+                    let highlight_end =
+                        std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
+
+                    for line_index in highlight_start..highlight_end {
+                        let key = (buffer_id, line_index);
+                        // Skip if we already have this line queued for highlighting
+                        if lines_to_highlight.contains_key(&key) {
+                            continue;
+                        }
+
+                        if let Some(line) = buffer.get_line(line_index) {
+                            let file_path = buffer
+                                .file_path
+                                .as_ref()
+                                .map(|p| p.to_string_lossy().to_string());
+                            if let Some(path) = file_path {
+                                lines_to_highlight.insert(key, (line.clone(), path));
                             }
                         }
                     }
                 }
+            }
+        }
+
+        // Now generate syntax highlights for all collected lines
+        for (key, (line_content, file_path)) in lines_to_highlight {
+            let highlights = self.get_syntax_highlights(&line_content, Some(&file_path));
+            if !highlights.is_empty() {
+                syntax_highlights.insert(key, highlights);
             }
         }
 
@@ -479,6 +501,10 @@ impl Editor {
                     let result = key_handler.handle_key(self, key_event);
                     self.key_handler = key_handler;
                     result?;
+
+                    // Sync the current buffer's cursor position to the current window
+                    self.sync_cursor_to_current_window();
+
                     input_processed = true;
                 }
             } else if let Event::Resize(width, height) = event::read()? {
@@ -956,118 +982,123 @@ impl Editor {
 
     // Scrolling methods
     pub fn scroll_down_line(&mut self) {
-        // Ctrl+e: Scroll down one line, cursor stays at same screen position
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_down_line();
-        let new_viewport_top = self.ui.viewport_top();
-
-        // Adjust cursor to maintain screen position
-        if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                buffer.cursor.row = buffer
-                    .cursor
-                    .row
-                    .saturating_add(new_viewport_top - old_viewport_top);
-                buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
-            }
+        // Ctrl+e: Scroll down one line using current window viewport
+        if let Some(current_window) = self.window_manager.current_window_mut() {
+            current_window.viewport_top = current_window.viewport_top.saturating_add(1);
         }
     }
 
     pub fn scroll_up_line(&mut self) {
-        // Ctrl+y: Scroll up one line, cursor stays at same screen position
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_up_line();
-        let new_viewport_top = self.ui.viewport_top();
-
-        // Adjust cursor to maintain screen position
-        if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                buffer.cursor.row = buffer
-                    .cursor
-                    .row
-                    .saturating_sub(old_viewport_top - new_viewport_top);
-            }
+        // Ctrl+y: Scroll up one line using current window viewport
+        if let Some(current_window) = self.window_manager.current_window_mut() {
+            current_window.viewport_top = current_window.viewport_top.saturating_sub(1);
         }
     }
 
     pub fn scroll_down_page(&mut self) {
-        // Ctrl+f: Scroll down one page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_down_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+f: Scroll down one page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let page_size = current_window.content_height().saturating_sub(1); // Leave 1 line for overlap
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top = current_window.viewport_top.saturating_add(page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor down by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = new_viewport_top - old_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
-                buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
+            let scroll_amount = new_viewport_top - old_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
+            buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
 
     pub fn scroll_up_page(&mut self) {
-        // Ctrl+b: Scroll up one page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_up_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+b: Scroll up one page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let page_size = current_window.content_height().saturating_sub(1); // Leave 1 line for overlap
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top = current_window.viewport_top.saturating_sub(page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor up by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = old_viewport_top - new_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
+            let scroll_amount = old_viewport_top - new_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
 
     pub fn scroll_down_half_page(&mut self) {
-        // Ctrl+d: Scroll down half page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_down_half_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+d: Scroll down half page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let half_page_size = (current_window.content_height() / 2).max(1);
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top =
+                    current_window.viewport_top.saturating_add(half_page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor down by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = new_viewport_top - old_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
-                buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
+            let scroll_amount = new_viewport_top - old_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
+            buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
 
     pub fn scroll_up_half_page(&mut self) {
-        // Ctrl+u: Scroll up half page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_up_half_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+u: Scroll up half page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let half_page_size = (current_window.content_height() / 2).max(1);
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top =
+                    current_window.viewport_top.saturating_sub(half_page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor up by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = old_viewport_top - new_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
+            let scroll_amount = old_viewport_top - new_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
@@ -1078,15 +1109,18 @@ impl Editor {
         if let Some(buffer) = self.current_buffer() {
             let cursor_row = buffer.cursor.row;
             let buffer_lines_len = buffer.lines.len();
-            let (_, height) = self.terminal.size();
 
-            self.ui.center_cursor(cursor_row, height);
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let content_height = current_window.content_height();
+                let half_height = content_height / 2;
 
-            // Ensure we don't scroll past the end of the buffer
-            let content_height = height.saturating_sub(2) as usize;
-            let max_viewport_top = buffer_lines_len.saturating_sub(content_height);
-            let current_viewport = self.ui.viewport_top().min(max_viewport_top);
-            self.ui.set_viewport_top(current_viewport);
+                // Set viewport so cursor line is in the middle
+                current_window.viewport_top = cursor_row.saturating_sub(half_height);
+
+                // Ensure we don't scroll past the end of the buffer
+                let max_viewport_top = buffer_lines_len.saturating_sub(content_height);
+                current_window.viewport_top = current_window.viewport_top.min(max_viewport_top);
+            }
         }
     }
 
@@ -1094,7 +1128,9 @@ impl Editor {
         // zt: Move current line to top of viewport
         if let Some(buffer) = self.current_buffer() {
             let cursor_row = buffer.cursor.row;
-            self.ui.cursor_to_top(cursor_row);
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                current_window.viewport_top = cursor_row;
+            }
         }
     }
 
@@ -1102,8 +1138,26 @@ impl Editor {
         // zb: Move current line to bottom of viewport
         if let Some(buffer) = self.current_buffer() {
             let cursor_row = buffer.cursor.row;
-            let (_, height) = self.terminal.size();
-            self.ui.cursor_to_bottom(cursor_row, height);
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let content_height = current_window.content_height();
+
+                // Set viewport so cursor line is at the bottom
+                current_window.viewport_top =
+                    cursor_row.saturating_sub(content_height.saturating_sub(1));
+            }
+        }
+    }
+
+    /// Helper method to set up a new window with buffer and cursor position
+    fn setup_new_window(&mut self, new_window_id: usize) {
+        if let Some(buffer_id) = self.current_buffer_id {
+            if let Some(buffer) = self.buffers.get(&buffer_id) {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                    // Copy current cursor position to the new window
+                    new_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
+                }
+            }
         }
     }
 
@@ -1113,12 +1167,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::Horizontal)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created horizontal split (window {})", new_window_id)
         } else {
             "Failed to create horizontal split".to_string()
@@ -1130,12 +1180,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::Vertical)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created vertical split (window {})", new_window_id)
         } else {
             "Failed to create vertical split".to_string()
@@ -1147,12 +1193,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::HorizontalAbove)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created horizontal split above (window {})", new_window_id)
         } else {
             "Failed to create horizontal split above".to_string()
@@ -1164,12 +1206,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::HorizontalBelow)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created horizontal split below (window {})", new_window_id)
         } else {
             "Failed to create horizontal split below".to_string()
@@ -1181,12 +1219,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::VerticalLeft)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created vertical split left (window {})", new_window_id)
         } else {
             "Failed to create vertical split left".to_string()
@@ -1198,12 +1232,8 @@ impl Editor {
             .window_manager
             .split_current_window(SplitDirection::VerticalRight)
         {
-            // If there's a current buffer, assign it to the new window
-            if let Some(buffer_id) = self.current_buffer_id {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                }
-            }
+            // Set up the new window with buffer and cursor position
+            self.setup_new_window(new_window_id);
             format!("Created vertical split right (window {})", new_window_id)
         } else {
             "Failed to create vertical split right".to_string()
@@ -1224,40 +1254,140 @@ impl Editor {
 
     // Window navigation methods
     pub fn move_to_window_left(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_left();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
     pub fn move_to_window_right(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_right();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
     pub fn move_to_window_up(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_up();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
     pub fn move_to_window_down(&mut self) -> bool {
+        // Save current cursor position before switching
+        self.save_current_cursor_to_window();
+
         let result = self.window_manager.move_to_window_down();
         if result {
-            self.update_current_buffer_from_window();
+            self.restore_cursor_from_current_window();
         }
         result
     }
 
-    fn update_current_buffer_from_window(&mut self) {
-        if let Some(current_window) = self.window_manager.current_window() {
-            self.current_buffer_id = current_window.buffer_id;
+    // Window resizing methods
+    pub fn resize_window_wider(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_wider(resize_amount)
+        {
+            format!("Window resized wider by {} columns", resize_amount)
+        } else {
+            "Cannot resize window wider".to_string()
+        }
+    }
+
+    pub fn resize_window_narrower(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_narrower(resize_amount)
+        {
+            format!("Window resized narrower by {} columns", resize_amount)
+        } else {
+            "Cannot resize window narrower".to_string()
+        }
+    }
+
+    pub fn resize_window_taller(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_taller(resize_amount)
+        {
+            format!("Window resized taller by {} rows", resize_amount)
+        } else {
+            "Cannot resize window taller".to_string()
+        }
+    }
+
+    pub fn resize_window_shorter(&mut self) -> String {
+        let resize_amount = self.config.interface.window_resize_amount;
+        if self
+            .window_manager
+            .resize_current_window_shorter(resize_amount)
+        {
+            format!("Window resized shorter by {} rows", resize_amount)
+        } else {
+            "Cannot resize window shorter".to_string()
+        }
+    }
+
+    fn sync_cursor_to_current_window(&mut self) {
+        if let (Some(current_buffer_id), Some(current_window_id)) = (
+            self.current_buffer_id,
+            self.window_manager.current_window_id(),
+        ) {
+            if let Some(current_buffer) = self.buffers.get(&current_buffer_id) {
+                if let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
+                {
+                    current_window
+                        .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
+                }
+            }
+        }
+    }
+
+    fn save_current_cursor_to_window(&mut self) {
+        if let (Some(current_buffer_id), Some(current_window_id)) = (
+            self.current_buffer_id,
+            self.window_manager.current_window_id(),
+        ) {
+            if let Some(current_buffer) = self.buffers.get(&current_buffer_id) {
+                if let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
+                {
+                    current_window
+                        .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
+                }
+            }
+        }
+    }
+
+    fn restore_cursor_from_current_window(&mut self) {
+        // Switch to the new window's buffer
+        if let Some(new_window) = self.window_manager.current_window() {
+            self.current_buffer_id = new_window.buffer_id;
+
+            // Restore cursor position from the new window
+            if let Some(buffer_id) = new_window.buffer_id {
+                let (cursor_row, cursor_col) = new_window.get_cursor_position();
+                if let Some(buffer) = self.buffers.get_mut(&buffer_id) {
+                    buffer.move_cursor(crate::mode::Position::new(cursor_row, cursor_col));
+                }
+            }
         }
     }
 }
