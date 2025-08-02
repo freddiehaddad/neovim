@@ -894,118 +894,123 @@ impl Editor {
 
     // Scrolling methods
     pub fn scroll_down_line(&mut self) {
-        // Ctrl+e: Scroll down one line, cursor stays at same screen position
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_down_line();
-        let new_viewport_top = self.ui.viewport_top();
-
-        // Adjust cursor to maintain screen position
-        if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                buffer.cursor.row = buffer
-                    .cursor
-                    .row
-                    .saturating_add(new_viewport_top - old_viewport_top);
-                buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
-            }
+        // Ctrl+e: Scroll down one line using current window viewport
+        if let Some(current_window) = self.window_manager.current_window_mut() {
+            current_window.viewport_top = current_window.viewport_top.saturating_add(1);
         }
     }
 
     pub fn scroll_up_line(&mut self) {
-        // Ctrl+y: Scroll up one line, cursor stays at same screen position
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_up_line();
-        let new_viewport_top = self.ui.viewport_top();
-
-        // Adjust cursor to maintain screen position
-        if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                buffer.cursor.row = buffer
-                    .cursor
-                    .row
-                    .saturating_sub(old_viewport_top - new_viewport_top);
-            }
+        // Ctrl+y: Scroll up one line using current window viewport
+        if let Some(current_window) = self.window_manager.current_window_mut() {
+            current_window.viewport_top = current_window.viewport_top.saturating_sub(1);
         }
     }
 
     pub fn scroll_down_page(&mut self) {
-        // Ctrl+f: Scroll down one page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_down_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+f: Scroll down one page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let page_size = current_window.content_height().saturating_sub(1); // Leave 1 line for overlap
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top = current_window.viewport_top.saturating_add(page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor down by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = new_viewport_top - old_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
-                buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
+            let scroll_amount = new_viewport_top - old_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
+            buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
 
     pub fn scroll_up_page(&mut self) {
-        // Ctrl+b: Scroll up one page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_up_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+b: Scroll up one page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let page_size = current_window.content_height().saturating_sub(1); // Leave 1 line for overlap
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top = current_window.viewport_top.saturating_sub(page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor up by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = old_viewport_top - new_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
+            let scroll_amount = old_viewport_top - new_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
 
     pub fn scroll_down_half_page(&mut self) {
-        // Ctrl+d: Scroll down half page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_down_half_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+d: Scroll down half page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let half_page_size = (current_window.content_height() / 2).max(1);
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top =
+                    current_window.viewport_top.saturating_add(half_page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor down by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = new_viewport_top - old_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
-                buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
+            let scroll_amount = new_viewport_top - old_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_add(scroll_amount);
+            buffer.cursor.row = buffer.cursor.row.min(buffer.lines.len().saturating_sub(1));
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
 
     pub fn scroll_up_half_page(&mut self) {
-        // Ctrl+u: Scroll up half page, cursor moves with viewport
-        let old_viewport_top = self.ui.viewport_top();
-        self.ui.scroll_up_half_page();
-        let new_viewport_top = self.ui.viewport_top();
+        // Ctrl+u: Scroll up half page using current window height
+        let (old_viewport_top, new_viewport_top) = {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let half_page_size = (current_window.content_height() / 2).max(1);
+                let old_viewport_top = current_window.viewport_top;
+                current_window.viewport_top =
+                    current_window.viewport_top.saturating_sub(half_page_size);
+                let new_viewport_top = current_window.viewport_top;
+                (old_viewport_top, new_viewport_top)
+            } else {
+                return;
+            }
+        };
 
         // Move cursor up by the same amount as viewport
         if let Some(buffer) = self.current_buffer_mut() {
-            if old_viewport_top != new_viewport_top {
-                let scroll_amount = old_viewport_top - new_viewport_top;
-                buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
+            let scroll_amount = old_viewport_top - new_viewport_top;
+            buffer.cursor.row = buffer.cursor.row.saturating_sub(scroll_amount);
 
-                // Ensure cursor column is valid for the new line
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
+            // Ensure cursor column is valid for the new line
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
     }
