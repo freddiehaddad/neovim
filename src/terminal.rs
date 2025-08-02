@@ -21,6 +21,9 @@ impl Terminal {
         stdout.execute(terminal::Clear(ClearType::All))?;
         stdout.execute(cursor::Hide)?;
 
+        // Flush stdout and give terminal time to settle
+        stdout.flush()?;
+
         let size = terminal::size()?;
 
         Ok(Self { stdout, size })

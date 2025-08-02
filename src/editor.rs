@@ -13,7 +13,7 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 // Struct to hold editor state for rendering without borrowing issues
 pub struct EditorRenderState {
@@ -62,14 +62,14 @@ pub struct Editor {
     status_message: String,
     /// Last render time for frame rate limiting
     last_render_time: Instant,
-    /// Minimum time between renders (60 FPS = ~16ms)
-    render_interval: Duration,
     /// Configuration file watcher for hot reloading
     config_watcher: Option<ConfigWatcher>,
     /// Theme manager for hot reloading themes
     theme_manager: ThemeManager,
     /// Syntax highlighter for code highlighting
     syntax_highlighter: Option<SyntaxHighlighter>,
+    /// Track if we've processed any key press events yet (for startup handling)
+    has_processed_any_press: bool,
 }
 
 impl Editor {
@@ -118,10 +118,10 @@ impl Editor {
             command_line: String::new(),
             status_message: String::new(),
             last_render_time: Instant::now(),
-            render_interval: Duration::from_millis(16), // ~60 FPS
             config_watcher,
             theme_manager,
             syntax_highlighter,
+            has_processed_any_press: false,
         })
     }
 
@@ -142,13 +142,10 @@ impl Editor {
             // Only handle input, render only when needed
             let input_handled = self.handle_input()?;
 
-            // Only re-render if we processed an input event and enough time has passed
+            // Always re-render if we processed an input event (removed frame rate limiting for responsiveness)
             if input_handled {
-                let now = Instant::now();
-                if now.duration_since(self.last_render_time) >= self.render_interval {
-                    self.render()?;
-                    self.last_render_time = now;
-                }
+                self.render()?;
+                self.last_render_time = Instant::now();
             }
         }
 
@@ -479,16 +476,42 @@ impl Editor {
             }
         }
 
-        // Handle keyboard input
-        if event::poll(std::time::Duration::from_millis(100))? {
+        // Handle keyboard input with minimal delay for responsiveness
+        if event::poll(std::time::Duration::from_millis(1))? {
             if let Event::Key(key_event) = event::read()? {
-                // Only process key press events, not release events
-                if key_event.kind == KeyEventKind::Press {
-                    // Temporarily take the KeyHandler to avoid borrowing conflicts
-                    let mut key_handler = std::mem::take(&mut self.key_handler);
-                    let result = key_handler.handle_key(self, key_event);
-                    self.key_handler = key_handler;
-                    result?;
+                let should_process = match key_event.kind {
+                    KeyEventKind::Press => {
+                        self.has_processed_any_press = true;
+                        true
+                    }
+                    KeyEventKind::Release => {
+                        // Special handling for important keys that might only generate release events
+                        // This can happen with certain keyboard configurations or terminal setups
+                        // Only apply this special handling in Normal mode to avoid double processing
+                        let is_important_key = matches!(
+                            key_event.code,
+                            crossterm::event::KeyCode::Char(':') | crossterm::event::KeyCode::Esc
+                        );
+
+                        let is_normal_mode = matches!(self.mode, Mode::Normal);
+
+                        if (!self.has_processed_any_press || is_important_key) && is_normal_mode {
+                            self.has_processed_any_press = true;
+                            true
+                        } else if !self.has_processed_any_press {
+                            // Still process first release event regardless of mode for startup
+                            self.has_processed_any_press = true;
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                };
+
+                if should_process {
+                    // Handle key input while preserving KeyHandler state
+                    self.handle_key_event(key_event)?;
 
                     // Sync the current buffer's cursor position to the current window
                     self.sync_cursor_to_current_window();
@@ -1372,6 +1395,22 @@ impl Editor {
                     buffer.move_cursor(crate::mode::Position::new(cursor_row, cursor_col));
                 }
             }
+        }
+    }
+
+    /// Handle a key event without borrowing conflicts that would reset KeyHandler state
+    fn handle_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> Result<()> {
+        // We need to work around the borrow checker here. The KeyHandler needs &mut self (KeyHandler)
+        // and &mut Editor, but KeyHandler is owned by Editor, creating a borrow conflict.
+        //
+        // Using unsafe to create a mutable reference to the KeyHandler while also having
+        // a mutable reference to the Editor. This is safe because we know the KeyHandler
+        // and Editor don't overlap in memory.
+
+        unsafe {
+            let key_handler_ptr = &mut self.key_handler as *mut KeyHandler;
+            let result = (*key_handler_ptr).handle_key(self, key_event);
+            result
         }
     }
 }

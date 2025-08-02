@@ -22,8 +22,8 @@ pub struct KeymapConfig {
 #[derive(Clone)]
 pub struct KeyHandler {
     keymap_config: KeymapConfig,
-    pending_sequence: String,
-    last_key_time: Option<std::time::Instant>,
+    pub pending_sequence: String,
+    pub last_key_time: Option<std::time::Instant>,
 }
 
 impl Default for KeyHandler {
@@ -84,9 +84,11 @@ impl KeyHandler {
         if matches!(editor.mode(), Mode::Normal) {
             // Check for timeout (reset sequence if too much time passed)
             let now = Instant::now();
-            if let Some(last_time) = self.last_key_time {
-                if now.duration_since(last_time).as_millis() > 1000 {
-                    self.pending_sequence.clear();
+            if !self.pending_sequence.is_empty() {
+                if let Some(last_time) = self.last_key_time {
+                    if now.duration_since(last_time).as_millis() > 1000 {
+                        self.pending_sequence.clear();
+                    }
                 }
             }
             self.last_key_time = Some(now);
@@ -117,25 +119,32 @@ impl KeyHandler {
 
             // Check if sequence matches any command
             if let Some(action) = self.keymap_config.normal_mode.get(&self.pending_sequence) {
-                let action_result = self.execute_action(editor, action, key);
-                self.pending_sequence.clear();
-                return action_result;
-            }
+                // Check if there's also a longer potential match.
+                // If so, we wait. If not, we execute immediately.
+                let has_potential_match =
+                    self.keymap_config.normal_mode.keys().any(|k| {
+                        k.starts_with(&self.pending_sequence) && k != &self.pending_sequence
+                    });
 
-            // Check if pending sequence could be part of a longer command
-            let has_potential_match = self
-                .keymap_config
-                .normal_mode
-                .keys()
-                .any(|k| k.starts_with(&self.pending_sequence) && k != &self.pending_sequence);
-
-            if !has_potential_match {
-                // No potential matches, try single key
-                if let Some(action) = self.keymap_config.normal_mode.get(&key_string) {
+                if !has_potential_match {
                     let action_result = self.execute_action(editor, action, key);
                     self.pending_sequence.clear();
                     return action_result;
                 }
+                // If there is a potential longer match, we don't do anything yet, just wait for the next key.
+                return Ok(());
+            }
+
+            // If we are here, the sequence did not match any command directly.
+            // Check if it's a prefix of any command.
+            let has_potential_match = self
+                .keymap_config
+                .normal_mode
+                .keys()
+                .any(|k| k.starts_with(&self.pending_sequence));
+
+            if !has_potential_match {
+                // No potential matches, clear the sequence.
                 self.pending_sequence.clear();
             }
 
@@ -442,6 +451,8 @@ impl KeyHandler {
     }
 
     fn action_command_mode(&self, editor: &mut Editor) -> Result<()> {
+        // Explicitly clear command line and set mode
+        editor.set_command_line(String::new());
         editor.set_mode(Mode::Command);
         editor.set_command_line(":".to_string());
         Ok(())
