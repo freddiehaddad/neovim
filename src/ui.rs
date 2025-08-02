@@ -152,17 +152,19 @@ impl UI {
 
             // Move cursor to the start of this line within the window
             terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
-            
+
             // Instead of clearing the entire line, clear only the window area
             // by overwriting with spaces
             let spaces = " ".repeat(window.width as usize);
             terminal.queue_print(&spaces)?;
-            
+
             // Move back to the start of the window for actual content rendering
             terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
 
-            // Check if this is the cursor line for highlighting
-            let is_cursor_line = self.show_cursor_line && buffer_row == buffer.cursor.row;
+            // Check if this is the cursor line for highlighting (only in the active window)
+            let is_active_window = editor_state.current_window_id == Some(window.id);
+            let is_cursor_line =
+                self.show_cursor_line && is_active_window && buffer_row == buffer.cursor.row;
 
             // Set cursor line background if enabled using theme
             if is_cursor_line {
@@ -178,6 +180,7 @@ impl UI {
                         buffer_row,
                         line_number_width,
                         is_cursor_line,
+                        is_active_window,
                     )?;
                 }
 
@@ -207,6 +210,7 @@ impl UI {
                         buffer_row,
                         line_number_width,
                         is_cursor_line,
+                        is_active_window,
                     )?;
                 }
 
@@ -364,6 +368,7 @@ impl UI {
         buffer_row: usize,
         width: usize,
         is_cursor_line: bool,
+        is_active_window: bool,
     ) -> io::Result<()> {
         // Set line number colors using theme - highlight current line number if on cursor line
         if is_cursor_line && self.show_cursor_line {
@@ -374,7 +379,8 @@ impl UI {
         }
 
         if buffer_row < buffer.lines.len() {
-            let line_num = if self.show_relative_numbers {
+            let line_num = if self.show_relative_numbers && is_active_window {
+                // Only show relative numbers in the active window
                 let current_line = buffer.cursor.row;
                 if buffer_row == current_line {
                     // Show absolute line number for current line
@@ -388,7 +394,7 @@ impl UI {
                     }
                 }
             } else {
-                // Show absolute line numbers
+                // Show absolute line numbers (for inactive windows or when relative numbers are disabled)
                 buffer_row + 1
             };
 
