@@ -68,6 +68,8 @@ pub struct Editor {
     should_quit: bool,
     /// Command line content (for command mode)
     command_line: String,
+    /// Status message
+        status_message: String,
     /// Last render time for frame rate limiting
     last_render_time: Instant,
     /// Minimum time between renders (60 FPS = ~16ms)
@@ -78,15 +80,12 @@ pub struct Editor {
     theme_manager: ThemeManager,
     /// Syntax highlighter for code highlighting
     syntax_highlighter: Option<SyntaxHighlighter>,
-    /// Status message
-    status_message: String,
     /// Autocomplete state for ex commands
     command_suggestions: Vec<String>,
     selected_suggestion_index: usize,
 }
 
 use crate::command_registry;
-
 impl Editor {
     pub fn new() -> Result<Self> {
         let terminal = Terminal::new()?;
@@ -521,9 +520,8 @@ impl Editor {
            self.update_command_suggestions();
         }
     }
-    // command_registry - update
+    /// command_registry - update
     pub fn update_command_suggestions(&mut self) {
-        // Drop the leading ':' and any leading whitespace after it.
         let without_colon = self.command_line.strip_prefix(':').unwrap_or(&self.command_line);
         let trimmed = without_colon.trim_start();
 
@@ -533,21 +531,19 @@ impl Editor {
             self.selected_suggestion_index = 0;
             return;
         }
-
-        // Otherwise, run the normal suggester.
         self.command_suggestions = command_registry::suggest(trimmed);
         self.selected_suggestion_index = 0;
     }
 
 
-        /// Get the currently selected suggestion, if any.
+        // Gets the current selected suggestion, if any.
     pub fn current_suggestion(&self) -> Option<String> {
             self.command_suggestions
                 .get(self.selected_suggestion_index)
                 .cloned()
         }
 
-        /// Cycle to the next suggestion (e.g., on Tab).
+        // Cycle to the next suggestion (e.g., on Tab).
     pub fn cycle_suggestion(&mut self) {
             if !self.command_suggestions.is_empty() {
                 self.selected_suggestion_index =

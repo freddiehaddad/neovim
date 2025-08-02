@@ -33,7 +33,7 @@ impl UI {
             show_relative_numbers: false, // Disabled by default
             show_cursor_line: true,       // Enable by default
             theme: current_theme.ui,      // Use theme from themes.toml
-            ghost_text_color: current_theme.syntax.comment, // Auto Complete Theme
+            ghost_text_color: current_theme.syntax.comment, // Tab Auto Complete Theme
         }
     }
 
@@ -90,6 +90,7 @@ impl UI {
             // Clear command line and any leftover suggestion line so stale completions disappear
             let command_row = height.saturating_sub(1);
             terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
+            // Clear the command line first and set theme colors
             terminal.queue_clear_line()?;
             let suggestion_row = command_row.saturating_add(1);
             if suggestion_row < height {
@@ -487,7 +488,7 @@ impl UI {
         let padding = width as usize - status_text.len().min(width as usize);
         status_text.push_str(&" ".repeat(padding));
 
-        // Truncate if too long
+        // Truncate if too long (keep prefix for suggestion logic)
         if status_text.len() > width as usize {
             status_text.truncate(width as usize);
         }
@@ -565,41 +566,8 @@ impl UI {
 
         terminal.queue_reset_color()?;
 
-        // Optional: render a small suggestion list below command line
-        // Suggestion list or clear it if empty
-        let suggestion_row = command_row + 1;
-        if !editor_state.command_suggestions.is_empty() {
-            if suggestion_row < height {
-                terminal.queue_move_cursor(Position::new(suggestion_row as usize, 0))?;
-                terminal.queue_clear_line()?;
-                for (i, suggestion) in editor_state
-                    .command_suggestions
-                    .iter()
-                    .take(5)
-                    .enumerate()
-                {
-                    if i == editor_state.selected_suggestion_index {
-                        terminal.queue_set_bg_color(self.theme.status_modified)?; // highlight
-                        terminal.queue_set_fg_color(self.theme.status_fg)?;
-                        terminal.queue_print(&format!(" {} ", suggestion))?;
-                        terminal.queue_reset_color()?;
-                    } else {
-                        terminal.queue_print(&format!(" {} ", suggestion))?;
-                    }
-                }
-            }
-        } else {
-            // No suggestions: explicitly wipe the old suggestion row
-            if suggestion_row < height {
-                terminal.queue_move_cursor(Position::new(suggestion_row as usize, 0))?;
-                terminal.queue_clear_line()?;
-            }
-        }
-
-
         Ok(())
     }
-
 
     /// Get the current viewport top position
     pub fn viewport_top(&self) -> usize {

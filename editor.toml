@@ -12,6 +12,7 @@ show_cursor_line = false     # :set cursorline / :set nocursorline
 color_scheme = "default"   # Color scheme to use
 syntax_highlighting = true # Enable syntax highlighting
 
+[behavior]
 # Tab and indentation
 tab_width = 4       # Width of tab characters
 expand_tabs = false # Use spaces instead of tabs (:set expandtab)
@@ -41,11 +42,9 @@ auto_save = false # Automatically save files
 # Status line
 show_status_line = true        # Show status line
 status_line_format = "default" # Status line format
-
 # Command line
 command_timeout = 1000 # Timeout for key sequences (ms)
 show_command = true    # Show partial commands
-
 # Scrolling
 scroll_off = 0      # Lines to keep above/below cursor
 side_scroll_off = 0 # Columns to keep left/right of cursor
