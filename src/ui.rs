@@ -90,6 +90,7 @@ impl UI {
             // Clear command line and any leftover suggestion line so stale completions disappear
             let command_row = height.saturating_sub(1);
             terminal.queue_move_cursor(Position::new(command_row as usize, 0))?;
+
             // Clear the command line first and set theme colors
             terminal.queue_clear_line()?;
             let suggestion_row = command_row.saturating_add(1);
@@ -522,7 +523,6 @@ impl UI {
             command_text
         };
 
-
         terminal.queue_print(display_text)?;
         // Inline completion if suggestion exists
         if let Some(sugg) = editor_state.current_suggestion() {
@@ -567,6 +567,7 @@ impl UI {
 
         Ok(())
     }
+
     /// Get the current viewport top position
     pub fn viewport_top(&self) -> usize {
         self.viewport_top
