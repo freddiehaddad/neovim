@@ -61,24 +61,6 @@ impl UI {
         }
     }
 
-    fn update_viewport(&mut self, buffer: &crate::buffer::Buffer, height: u16) -> (usize, usize) {
-        let content_height = height.saturating_sub(2) as usize; // Reserve space for status and command line
-
-        // Check if cursor is outside current viewport
-        let viewport_bottom = self.viewport_top + content_height;
-
-        if buffer.cursor.row < self.viewport_top {
-            // Cursor moved above viewport - scroll up
-            self.viewport_top = buffer.cursor.row;
-        } else if buffer.cursor.row >= viewport_bottom {
-            // Cursor moved below viewport - scroll down
-            self.viewport_top = buffer.cursor.row.saturating_sub(content_height - 1);
-        }
-        // If cursor is within viewport, don't change viewport_top
-
-        (self.viewport_top, content_height)
-    }
-
     pub fn render(
         &mut self,
         terminal: &mut Terminal,
@@ -89,15 +71,8 @@ impl UI {
         // Start double buffering - queue all operations without immediate display
         terminal.queue_hide_cursor()?;
 
-        // Update viewport based on cursor position first
-        if let Some(buffer) = &editor_state.current_buffer {
-            self.update_viewport(buffer, height);
-        }
-
-        // Render buffer content
-        if let Some(buffer) = &editor_state.current_buffer {
-            self.render_buffer(terminal, buffer, editor_state, width, height)?;
-        }
+        // Render all windows
+        self.render_windows(terminal, editor_state)?;
 
         // Render status line
         self.render_status_line(terminal, editor_state, width, height)?;
@@ -108,27 +83,7 @@ impl UI {
         }
 
         // Position cursor and show it
-        if let Some(buffer) = &editor_state.current_buffer {
-            let content_height = height.saturating_sub(2) as usize;
-
-            // Calculate line number column width
-            let line_number_width = if self.show_line_numbers || self.show_relative_numbers {
-                let max_line_num = buffer.lines.len();
-                let width = max_line_num.to_string().len();
-                (width + 1).max(4) // At least 4 chars wide, +1 for space
-            } else {
-                0
-            };
-
-            // Calculate screen cursor position relative to the current viewport
-            let screen_row = buffer.cursor.row.saturating_sub(self.viewport_top);
-            let screen_col = buffer.cursor.col + line_number_width;
-
-            // Ensure cursor is within visible bounds
-            if screen_row < content_height {
-                terminal.queue_move_cursor(Position::new(screen_row, screen_col))?;
-            }
-        }
+        self.position_cursor(terminal, editor_state)?;
 
         terminal.queue_show_cursor()?;
 
@@ -139,18 +94,46 @@ impl UI {
         Ok(())
     }
 
-    fn render_buffer(
+    fn render_windows(
         &self,
         terminal: &mut Terminal,
+        editor_state: &EditorRenderState,
+    ) -> io::Result<()> {
+        // Render each window
+        for window in editor_state.window_manager.all_windows().values() {
+            // Get the buffer for this window
+            let buffer = if let Some(buffer_id) = window.buffer_id {
+                editor_state.all_buffers.get(&buffer_id)
+            } else {
+                continue;
+            };
+
+            if let Some(buffer) = buffer {
+                self.render_window_buffer(terminal, window, buffer, editor_state)?;
+
+                // Draw window border if there are multiple windows
+                if editor_state.window_manager.window_count() > 1 {
+                    self.render_window_border(
+                        terminal,
+                        window,
+                        editor_state.current_window_id == Some(window.id),
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn render_window_buffer(
+        &self,
+        terminal: &mut Terminal,
+        window: &crate::window::Window,
         buffer: &crate::buffer::Buffer,
         editor_state: &EditorRenderState,
-        width: u16,
-        height: u16,
     ) -> io::Result<()> {
-        let content_height = height.saturating_sub(2) as usize;
-        let start_row = self.viewport_top;
+        let content_height = window.content_height();
 
-        // Calculate line number column width
+        // Calculate line number column width for this window
         let line_number_width = if self.show_line_numbers || self.show_relative_numbers {
             let max_line_num = buffer.lines.len();
             let width = max_line_num.to_string().len();
@@ -159,12 +142,24 @@ impl UI {
             0
         };
 
-        let text_start_col = line_number_width;
-        let text_width = width.saturating_sub(text_start_col as u16) as usize;
+        let text_start_col = window.x as usize + line_number_width;
+        let text_width = window.width.saturating_sub(line_number_width as u16) as usize;
 
-        for (screen_row, buffer_row) in (start_row..).take(content_height).enumerate() {
-            terminal.queue_move_cursor(Position::new(screen_row, 0))?;
-            terminal.queue_clear_line()?; // Clear only this line instead of whole screen
+        // Render lines within the window bounds
+        for row in 0..content_height {
+            let buffer_row = window.viewport_top + row;
+            let screen_row = window.y as usize + row;
+
+            // Move cursor to the start of this line within the window
+            terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
+            
+            // Instead of clearing the entire line, clear only the window area
+            // by overwriting with spaces
+            let spaces = " ".repeat(window.width as usize);
+            terminal.queue_print(&spaces)?;
+            
+            // Move back to the start of the window for actual content rendering
+            terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
 
             // Check if this is the cursor line for highlighting
             let is_cursor_line = self.show_cursor_line && buffer_row == buffer.cursor.row;
@@ -174,22 +169,24 @@ impl UI {
                 terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
             }
 
-            // Render line numbers
-            if self.show_line_numbers || self.show_relative_numbers {
-                self.render_line_number(
-                    terminal,
-                    buffer,
-                    buffer_row,
-                    line_number_width,
-                    is_cursor_line,
-                )?;
-            }
+            if buffer_row < buffer.lines.len() {
+                // Render line number if enabled
+                if self.show_line_numbers || self.show_relative_numbers {
+                    self.render_line_number(
+                        terminal,
+                        buffer,
+                        buffer_row,
+                        line_number_width,
+                        is_cursor_line,
+                    )?;
+                }
 
-            // Move to text area
-            terminal.queue_move_cursor(Position::new(screen_row, text_start_col))?;
+                // Move to text area within the window
+                terminal.queue_move_cursor(Position::new(screen_row, text_start_col))?;
 
-            if let Some(line) = buffer.get_line(buffer_row) {
-                // Check if we have syntax highlights for this line
+                let line = &buffer.lines[buffer_row];
+
+                // Check for syntax highlighting
                 if let Some(highlights) = editor_state.syntax_highlights.get(&buffer_row) {
                     self.render_highlighted_line(terminal, line, highlights, text_width)?;
                 } else {
@@ -202,7 +199,19 @@ impl UI {
                     terminal.queue_print(display_line)?;
                 }
             } else {
-                // Show tilde for empty lines (like Vim) using theme color
+                // Empty line - render line number if enabled
+                if self.show_line_numbers || self.show_relative_numbers {
+                    self.render_line_number(
+                        terminal,
+                        buffer,
+                        buffer_row,
+                        line_number_width,
+                        is_cursor_line,
+                    )?;
+                }
+
+                // Move to text area and show tilde for empty lines (like Vim)
+                terminal.queue_move_cursor(Position::new(screen_row, text_start_col))?;
                 if !is_cursor_line {
                     terminal.queue_set_fg_color(self.theme.empty_line)?;
                 }
@@ -213,6 +222,82 @@ impl UI {
             terminal.queue_reset_color()?;
         }
 
+        Ok(())
+    }
+
+    fn render_window_border(
+        &self,
+        terminal: &mut Terminal,
+        window: &crate::window::Window,
+        is_active: bool,
+    ) -> io::Result<()> {
+        // Draw border around the window (simple ASCII border)
+        let border_char = if is_active { '|' } else { '│' };
+
+        // Right border
+        if window.x + window.width < terminal.size().0 {
+            for y in window.y..window.y + window.height {
+                terminal.queue_move_cursor(Position::new(
+                    y as usize,
+                    (window.x + window.width) as usize,
+                ))?;
+                terminal.queue_print(&border_char.to_string())?;
+            }
+        }
+
+        // Bottom border
+        if window.y + window.height < terminal.size().1.saturating_sub(2) {
+            terminal.queue_move_cursor(Position::new(
+                (window.y + window.height) as usize,
+                window.x as usize,
+            ))?;
+            let border = "─".repeat(window.width as usize);
+            terminal.queue_print(&border)?;
+        }
+
+        Ok(())
+    }
+
+    fn position_cursor(
+        &self,
+        terminal: &mut Terminal,
+        editor_state: &EditorRenderState,
+    ) -> io::Result<()> {
+        if let Some(current_window) = editor_state.window_manager.current_window() {
+            // Get the buffer for the current window
+            let buffer = if let Some(buffer_id) = current_window.buffer_id {
+                editor_state.all_buffers.get(&buffer_id)
+            } else {
+                return Ok(());
+            };
+
+            if let Some(buffer) = buffer {
+                let content_height = current_window.content_height();
+
+                // Calculate line number column width
+                let line_number_width = if self.show_line_numbers || self.show_relative_numbers {
+                    let max_line_num = buffer.lines.len();
+                    let width = max_line_num.to_string().len();
+                    (width + 1).max(4) // At least 4 chars wide, +1 for space
+                } else {
+                    0
+                };
+
+                // Calculate screen cursor position relative to the current window
+                let screen_row = buffer
+                    .cursor
+                    .row
+                    .saturating_sub(current_window.viewport_top);
+                let screen_col = buffer.cursor.col + line_number_width;
+
+                // Ensure cursor is within window bounds
+                if screen_row < content_height {
+                    let final_row = current_window.y as usize + screen_row;
+                    let final_col = current_window.x as usize + screen_col;
+                    terminal.queue_move_cursor(Position::new(final_row, final_col))?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -476,7 +561,7 @@ impl UI {
         // zz: Center current line in viewport
         let content_height = terminal_height.saturating_sub(2) as usize; // Reserve space for status and command line
         let half_height = content_height / 2;
-        
+
         // Set viewport so cursor line is in the middle
         self.viewport_top = cursor_row.saturating_sub(half_height);
     }
@@ -489,7 +574,7 @@ impl UI {
     pub fn cursor_to_bottom(&mut self, cursor_row: usize, terminal_height: u16) {
         // zb: Move current line to bottom of viewport
         let content_height = terminal_height.saturating_sub(2) as usize; // Reserve space for status and command line
-        
+
         // Set viewport so cursor line is at the bottom
         self.viewport_top = cursor_row.saturating_sub(content_height.saturating_sub(1));
     }

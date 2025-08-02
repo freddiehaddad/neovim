@@ -93,6 +93,7 @@ impl KeyHandler {
 
             // Add current key to sequence
             if !self.pending_sequence.is_empty() {
+                self.pending_sequence.push(' ');
                 self.pending_sequence.push_str(&key_string);
             } else {
                 self.pending_sequence = key_string.clone();
@@ -209,7 +210,9 @@ impl KeyHandler {
                 } else if key.modifiers.contains(KeyModifiers::SHIFT) && c.is_ascii_uppercase() {
                     result.truncate(result.len() - 6); // Remove "Shift+"
                     result.push(c);
-                } else if key.modifiers.contains(KeyModifiers::SHIFT) && "!@#$%^&*()_+{}|:\"<>?~".contains(c) {
+                } else if key.modifiers.contains(KeyModifiers::SHIFT)
+                    && "!@#$%^&*()_+{}|:\"<>?~".contains(c)
+                {
                     // For shifted special characters, remove Shift+ as the character itself represents the shifted version
                     result.truncate(result.len() - 6); // Remove "Shift+"
                     result.push(c);
@@ -342,6 +345,15 @@ impl KeyHandler {
             "center_cursor" => self.action_center_cursor(editor)?,
             "cursor_to_top" => self.action_cursor_to_top(editor)?,
             "cursor_to_bottom" => self.action_cursor_to_bottom(editor)?,
+
+            // Window/Split actions
+            "split_horizontal" => self.action_split_horizontal(editor)?,
+            "split_vertical" => self.action_split_vertical(editor)?,
+            "close_window" => self.action_close_window(editor)?,
+            "window_left" => self.action_window_left(editor)?,
+            "window_right" => self.action_window_right(editor)?,
+            "window_up" => self.action_window_up(editor)?,
+            "window_down" => self.action_window_down(editor)?,
 
             _ => return Ok(()), // Unknown action, ignore
         }
@@ -519,6 +531,19 @@ impl KeyHandler {
             "ls" | "buffers" => {
                 let buffer_list = editor.list_buffers();
                 editor.set_status_message(buffer_list);
+            }
+            // Window/Split commands
+            "split" | "sp" => {
+                let message = editor.split_horizontal();
+                editor.set_status_message(message);
+            }
+            "vsplit" | "vsp" => {
+                let message = editor.split_vertical();
+                editor.set_status_message(message);
+            }
+            "close" => {
+                let message = editor.close_window();
+                editor.set_status_message(message);
             }
             _ => {
                 // Handle :e filename and :b commands
@@ -957,6 +982,53 @@ impl KeyHandler {
 
     fn action_cursor_to_bottom(&self, editor: &mut Editor) -> Result<()> {
         editor.cursor_to_bottom();
+        Ok(())
+    }
+
+    // Window/Split action implementations
+    fn action_split_horizontal(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.split_horizontal();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_split_vertical(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.split_vertical();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_close_window(&self, editor: &mut Editor) -> Result<()> {
+        let message = editor.close_window();
+        editor.set_status_message(message);
+        Ok(())
+    }
+
+    fn action_window_left(&self, editor: &mut Editor) -> Result<()> {
+        if !editor.move_to_window_left() {
+            editor.set_status_message("No window to the left".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_window_right(&self, editor: &mut Editor) -> Result<()> {
+        if !editor.move_to_window_right() {
+            editor.set_status_message("No window to the right".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_window_up(&self, editor: &mut Editor) -> Result<()> {
+        if !editor.move_to_window_up() {
+            editor.set_status_message("No window above".to_string());
+        }
+        Ok(())
+    }
+
+    fn action_window_down(&self, editor: &mut Editor) -> Result<()> {
+        if !editor.move_to_window_down() {
+            editor.set_status_message("No window below".to_string());
+        }
         Ok(())
     }
 

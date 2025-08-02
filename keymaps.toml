@@ -87,6 +87,20 @@
 "z-" = "cursor_to_bottom"          # Move current line to bottom (alternative)
 "zEnter" = "cursor_to_top"         # Move current line to top (alternative)
 
+# Window/Split navigation
+"Ctrl+w h" = "window_left"         # Move to window left
+"Ctrl+w j" = "window_down"         # Move to window down
+"Ctrl+w k" = "window_up"           # Move to window up
+"Ctrl+w l" = "window_right"        # Move to window right
+"Ctrl+w Left" = "window_left"      # Move to window left (arrow key)
+"Ctrl+w Down" = "window_down"      # Move to window down (arrow key)
+"Ctrl+w Up" = "window_up"          # Move to window up (arrow key)
+"Ctrl+w Right" = "window_right"    # Move to window right (arrow key)
+"Ctrl+w s" = "split_horizontal"    # Split horizontally
+"Ctrl+w v" = "split_vertical"      # Split vertically
+"Ctrl+w c" = "close_window"        # Close current window
+"Ctrl+w q" = "close_window"        # Close current window (alternative)
+
 # Additional navigation keys
 "Home" = "line_start"
 "End" = "line_end"

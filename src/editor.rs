@@ -8,6 +8,7 @@ use crate::syntax::{HighlightRange, SyntaxHighlighter};
 use crate::terminal::Terminal;
 use crate::theme_watcher::ThemeManager;
 use crate::ui::UI;
+use crate::window::{SplitDirection, WindowManager};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEventKind};
 use std::collections::HashMap;
@@ -18,10 +19,13 @@ use std::time::{Duration, Instant};
 pub struct EditorRenderState {
     pub mode: Mode,
     pub current_buffer: Option<Buffer>,
+    pub all_buffers: HashMap<usize, Buffer>,
     pub command_line: String,
     pub status_message: String,
     pub buffer_count: usize,
     pub current_buffer_id: Option<usize>,
+    pub current_window_id: Option<usize>,
+    pub window_manager: WindowManager,
     pub syntax_highlights: HashMap<usize, Vec<HighlightRange>>, // line_index -> highlights
 }
 
@@ -32,6 +36,8 @@ pub struct Editor {
     current_buffer_id: Option<usize>,
     /// Next buffer ID to assign
     next_buffer_id: usize,
+    /// Window management for splits
+    window_manager: WindowManager,
     /// Current editor mode
     mode: Mode,
     /// Terminal interface
@@ -71,6 +77,9 @@ impl Editor {
         let terminal = Terminal::new()?;
         let config = EditorConfig::load();
 
+        // Get terminal size for window manager
+        let (terminal_width, terminal_height) = terminal.size();
+
         // Initialize UI with config values
         let mut ui = UI::new();
         ui.show_line_numbers = config.display.show_line_numbers;
@@ -79,6 +88,9 @@ impl Editor {
         ui.set_theme(&config.display.color_scheme);
 
         let key_handler = KeyHandler::new();
+
+        // Initialize window manager
+        let window_manager = WindowManager::new(terminal_width, terminal_height);
 
         // Initialize config watcher for hot reloading
         let config_watcher = ConfigWatcher::new().ok(); // Don't fail if watcher can't be created
@@ -93,6 +105,7 @@ impl Editor {
             buffers: HashMap::new(),
             current_buffer_id: None,
             next_buffer_id: 1,
+            window_manager,
             mode: Mode::Normal,
             terminal,
             ui,
@@ -154,6 +167,12 @@ impl Editor {
 
         self.buffers.insert(id, buffer);
         self.current_buffer_id = Some(id);
+
+        // Assign buffer to current window
+        if let Some(current_window) = self.window_manager.current_window_mut() {
+            current_window.set_buffer(id);
+        }
+
         Ok(id)
     }
 
@@ -335,40 +354,49 @@ impl Editor {
         let command_line = self.command_line.clone();
         let status_message = self.status_message.clone();
 
+        // Update window viewport based on cursor position
+        if let Some(buffer) = &current_buffer {
+            if let Some(current_window) = self.window_manager.current_window_mut() {
+                let content_height = current_window.content_height();
+                let cursor_row = buffer.cursor.row;
+
+                // Check if cursor is outside current viewport
+                let viewport_bottom = current_window.viewport_top + content_height;
+
+                if cursor_row < current_window.viewport_top {
+                    // Cursor moved above viewport - scroll up
+                    current_window.viewport_top = cursor_row;
+                } else if cursor_row >= viewport_bottom {
+                    // Cursor moved below viewport - scroll down
+                    current_window.viewport_top = cursor_row.saturating_sub(content_height - 1);
+                }
+            }
+        }
+
         // Generate syntax highlights for visible lines only
         let mut syntax_highlights = HashMap::new();
         if let Some(buffer) = &current_buffer {
-            // Get the visible range from UI by temporarily calling update_viewport
-            let (_, height) = self.terminal.size();
-            let content_height = height.saturating_sub(2) as usize;
+            // Get the visible range from current window
+            if let Some(current_window) = self.window_manager.current_window() {
+                let content_height = current_window.content_height();
+                let viewport_top = current_window.viewport_top;
 
-            // Calculate viewport - this should match UI logic exactly
-            let viewport_bottom = self.ui.viewport_top() + content_height;
-            let cursor_row = buffer.cursor.row;
+                // Only highlight visible lines + a small buffer for smooth scrolling
+                let highlight_start = viewport_top;
+                let highlight_end =
+                    std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
 
-            let viewport_top = if cursor_row < self.ui.viewport_top() {
-                cursor_row
-            } else if cursor_row >= viewport_bottom {
-                cursor_row.saturating_sub(content_height - 1)
-            } else {
-                self.ui.viewport_top()
-            };
-
-            // Only highlight visible lines + a small buffer for smooth scrolling
-            let highlight_start = viewport_top;
-            let highlight_end =
-                std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
-
-            for line_index in highlight_start..highlight_end {
-                if let Some(line) = buffer.get_line(line_index) {
-                    let file_path = buffer
-                        .file_path
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().to_string());
-                    if let Some(path) = file_path {
-                        let highlights = self.get_syntax_highlights(line, Some(&path));
-                        if !highlights.is_empty() {
-                            syntax_highlights.insert(line_index, highlights);
+                for line_index in highlight_start..highlight_end {
+                    if let Some(line) = buffer.get_line(line_index) {
+                        let file_path = buffer
+                            .file_path
+                            .as_ref()
+                            .map(|p| p.to_string_lossy().to_string());
+                        if let Some(path) = file_path {
+                            let highlights = self.get_syntax_highlights(line, Some(&path));
+                            if !highlights.is_empty() {
+                                syntax_highlights.insert(line_index, highlights);
+                            }
                         }
                     }
                 }
@@ -379,10 +407,13 @@ impl Editor {
         let editor_state = EditorRenderState {
             mode,
             current_buffer,
+            all_buffers: self.buffers.clone(),
             command_line,
             status_message,
             buffer_count: self.buffers.len(),
             current_buffer_id: self.current_buffer_id,
+            current_window_id: self.window_manager.current_window_id(),
+            window_manager: self.window_manager.clone(),
             syntax_highlights,
         };
 
@@ -432,6 +463,10 @@ impl Editor {
                     result?;
                     input_processed = true;
                 }
+            } else if let Event::Resize(width, height) = event::read()? {
+                // Handle terminal resize
+                self.window_manager.resize_terminal(width, height);
+                input_processed = true;
             }
         }
 
@@ -983,6 +1018,120 @@ impl Editor {
             let cursor_row = buffer.cursor.row;
             let (_, height) = self.terminal.size();
             self.ui.cursor_to_bottom(cursor_row, height);
+        }
+    }
+
+    // Split window methods
+    pub fn split_horizontal(&mut self) -> String {
+        eprintln!(
+            "split_horizontal called, current window count: {}",
+            self.window_manager.window_count()
+        );
+        if let Some(new_window_id) = self
+            .window_manager
+            .split_current_window(SplitDirection::Horizontal)
+        {
+            eprintln!(
+                "Split created, new window count: {}, new_window_id: {}",
+                self.window_manager.window_count(),
+                new_window_id
+            );
+            // If there's a current buffer, assign it to the new window
+            if let Some(buffer_id) = self.current_buffer_id {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                    eprintln!(
+                        "Assigned buffer {} to new window {}",
+                        buffer_id, new_window_id
+                    );
+                }
+            }
+            format!("Created horizontal split (window {})", new_window_id)
+        } else {
+            eprintln!("Failed to create split");
+            "Failed to create horizontal split".to_string()
+        }
+    }
+
+    pub fn split_vertical(&mut self) -> String {
+        eprintln!(
+            "split_vertical called, current window count: {}",
+            self.window_manager.window_count()
+        );
+        if let Some(new_window_id) = self
+            .window_manager
+            .split_current_window(SplitDirection::Vertical)
+        {
+            eprintln!(
+                "Split created, new window count: {}, new_window_id: {}",
+                self.window_manager.window_count(),
+                new_window_id
+            );
+            // If there's a current buffer, assign it to the new window
+            if let Some(buffer_id) = self.current_buffer_id {
+                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
+                    new_window.set_buffer(buffer_id);
+                    eprintln!(
+                        "Assigned buffer {} to new window {}",
+                        buffer_id, new_window_id
+                    );
+                }
+            }
+            format!("Created vertical split (window {})", new_window_id)
+        } else {
+            eprintln!("Failed to create split");
+            "Failed to create vertical split".to_string()
+        }
+    }
+
+    pub fn close_window(&mut self) -> String {
+        if self.window_manager.close_current_window() {
+            // Update current buffer based on new current window
+            if let Some(current_window) = self.window_manager.current_window() {
+                self.current_buffer_id = current_window.buffer_id;
+            }
+            "Window closed".to_string()
+        } else {
+            "Cannot close the last window".to_string()
+        }
+    }
+
+    // Window navigation methods
+    pub fn move_to_window_left(&mut self) -> bool {
+        let result = self.window_manager.move_to_window_left();
+        if result {
+            self.update_current_buffer_from_window();
+        }
+        result
+    }
+
+    pub fn move_to_window_right(&mut self) -> bool {
+        let result = self.window_manager.move_to_window_right();
+        if result {
+            self.update_current_buffer_from_window();
+        }
+        result
+    }
+
+    pub fn move_to_window_up(&mut self) -> bool {
+        let result = self.window_manager.move_to_window_up();
+        if result {
+            self.update_current_buffer_from_window();
+        }
+        result
+    }
+
+    pub fn move_to_window_down(&mut self) -> bool {
+        let result = self.window_manager.move_to_window_down();
+        if result {
+            self.update_current_buffer_from_window();
+        }
+        result
+    }
+
+    fn update_current_buffer_from_window(&mut self) {
+        if let Some(current_window) = self.window_manager.current_window() {
+            self.current_buffer_id = current_window.buffer_id;
         }
     }
 }

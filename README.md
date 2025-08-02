@@ -37,6 +37,7 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **TOML-based Editor Settings**: Comprehensive configuration in `editor.toml`
 - **Tree-sitter Syntax Highlighting**: Professional AST-based syntax highlighting with built-in Rust support
 - **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
+- **Window Management**: Full window splitting and navigation system with Vim-style keybindings
 - **Rust-Inspired Color Schemes**: Beautiful themes reflecting Rust's safety and performance values
 - **Key Sequence Support**: Multi-character commands like `dd`, `gg`, `yy` with timeout
 - **Advanced Search Engine**: Regex-capable search with `/`, `n`, `N` navigation
@@ -59,6 +60,11 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`
+- **Window Management**:
+  - `Ctrl+w s` - Horizontal split
+  - `Ctrl+w v` - Vertical split
+  - `Ctrl+w h/j/k/l` - Navigate between windows
+  - `Ctrl+w c` - Close current window
 
 ### Ex Commands
 
@@ -70,6 +76,13 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - `:b <buffer>` - Switch to buffer by number or name
 - `:bd` - Delete current buffer
 - `:ls` - List all open buffers
+
+### Window Management Commands
+
+- `:split` / `:sp` - Create horizontal split
+- `:vsplit` / `:vsp` - Create vertical split
+- Window navigation with `Ctrl+w` + direction (`h`, `j`, `k`, `l`)
+- Each window maintains independent viewport and can display different buffers
 
 ### Search Commands
 
@@ -149,7 +162,34 @@ cargo run -- filename.txt
 4. **Navigate**: Use `hjkl` or arrow keys
 5. **Search**: Type `/pattern` to search, `n` for next result
 6. **Configure**: Use `:set number` to show line numbers
-7. **Save and quit**: Type `:wq`
+7. **Split windows**: Use `:vsplit` for vertical split, `:split` for horizontal split
+8. **Navigate windows**: Use `Ctrl+w` + `h/j/k/l` to move between windows
+9. **Save and quit**: Type `:wq`
+
+### Window Management Guide
+
+The editor features a complete window management system similar to Vim:
+
+**Creating Splits:**
+
+- `:split` or `:sp` - Create horizontal split (window above/below)
+- `:vsplit` or `:vsp` - Create vertical split (window left/right)
+- `Ctrl+w s` - Horizontal split keybinding
+- `Ctrl+w v` - Vertical split keybinding
+
+**Navigation:**
+
+- `Ctrl+w h` - Move to window on the left
+- `Ctrl+w j` - Move to window below
+- `Ctrl+w k` - Move to window above  
+- `Ctrl+w l` - Move to window on the right
+
+**Features:**
+
+- Each window maintains independent viewport and cursor position
+- Windows can display different buffers or the same buffer
+- Visual borders distinguish between windows
+- Active window is clearly indicated
 
 ### Configuration Examples
 
@@ -260,6 +300,15 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 "n" = "find_next"
 "N" = "find_previous"
 
+# Window management keybindings
+"Ctrl+w s" = "split_horizontal"
+"Ctrl+w v" = "split_vertical"
+"Ctrl+w h" = "move_to_window_left"
+"Ctrl+w j" = "move_to_window_down"
+"Ctrl+w k" = "move_to_window_up"
+"Ctrl+w l" = "move_to_window_right"
+"Ctrl+w c" = "close_window"
+
 [insert_mode]
 "Escape" = "normal_mode"
 "Char" = "insert_char"
@@ -329,9 +378,10 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **Editor**: Main editor state and coordination with TOML-based configuration
 - **Config**: TOML configuration management for keymaps, editor settings, and syntax themes
 - **Buffer**: Multi-buffer management with undo/redo support and clipboard operations
+- **Window**: Advanced window management system with splitting and navigation
 - **Terminal**: Raw terminal interface using crossterm with alternate screen support
 - **Keymap**: TOML-based configurable key handling with sequence support
-- **UI**: Advanced rendering engine for status line, line numbers, cursor line, and syntax-highlighted content
+- **UI**: Advanced rendering engine for status line, line numbers, cursor line, multi-window support, and syntax-highlighted content
 - **Mode**: Editor mode definitions and cursor positioning
 - **Search**: Regex-capable search engine with result navigation
 - **Syntax**: Tree-sitter integration for professional syntax highlighting with configurable themes
@@ -340,6 +390,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 - **Tree-sitter Syntax Highlighting**: AST-based syntax highlighting with Rust-inspired themes
 - **Multi-Buffer System**: Complete buffer management with Ex commands
+- **Window Management System**: Full window splitting and navigation with Vim-style keybindings
 - **Configuration Hot Reloading**: Live updates when TOML configuration files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 
@@ -351,6 +402,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - [x] **TOML-based Editor Configuration**: Comprehensive settings system with 30+ options
 - [x] **Tree-sitter Syntax Highlighting**: Professional AST-based highlighting with Rust-inspired themes
 - [x] **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
+- [x] **Window Management**: Full window splitting and navigation with Vim-style keybindings
 - [x] **Configuration Hot Reloading**: Live updates when TOML files change
 - [x] **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 - [x] **Persistent Configuration**: All `:set` commands save to `editor.toml` automatically
@@ -371,7 +423,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 - [ ] Macros and command repetition
 - [ ] Code folding and auto-indentation  
-- [ ] Multiple windows and tabs
+- [x] Multiple windows and tabs (✅ Window splitting implemented)
 - [ ] File explorer and buffer management
 
 ### Phase 3: IDE Features 📅

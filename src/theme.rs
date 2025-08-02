@@ -142,7 +142,8 @@ impl ThemeConfig {
             }
         } else {
             // Fallback to default theme
-            self.get_theme("default").unwrap_or_else(|| self.create_fallback_theme())
+            self.get_theme("default")
+                .unwrap_or_else(|| self.create_fallback_theme())
         }
     }
 
@@ -271,46 +272,49 @@ impl Default for ThemeConfig {
     fn default() -> Self {
         // Create basic fallback configuration
         let mut themes = HashMap::new();
-        
+
         // Add a minimal default theme
-        themes.insert("default".to_string(), Theme {
-            name: "Default".to_string(),
-            description: "Basic default theme".to_string(),
-            ui: UIColors {
-                status_bg: "#86b300".to_string(),
-                status_fg: "#dbd7ca".to_string(),
-                status_modified: "#ce422b".to_string(),
-                line_number: "#5c6773".to_string(),
-                line_number_current: "#f79718".to_string(),
-                cursor_line_bg: "#2d2d2d".to_string(),
-                empty_line: "#39adb5".to_string(),
-                command_line_bg: "#1c1c1c".to_string(),
-                command_line_fg: "#dbd7ca".to_string(),
-                selection_bg: "#59c2ff".to_string(),
-                warning: "#ff9940".to_string(),
-                error: "#ff3333".to_string(),
+        themes.insert(
+            "default".to_string(),
+            Theme {
+                name: "Default".to_string(),
+                description: "Basic default theme".to_string(),
+                ui: UIColors {
+                    status_bg: "#86b300".to_string(),
+                    status_fg: "#dbd7ca".to_string(),
+                    status_modified: "#ce422b".to_string(),
+                    line_number: "#5c6773".to_string(),
+                    line_number_current: "#f79718".to_string(),
+                    cursor_line_bg: "#2d2d2d".to_string(),
+                    empty_line: "#39adb5".to_string(),
+                    command_line_bg: "#1c1c1c".to_string(),
+                    command_line_fg: "#dbd7ca".to_string(),
+                    selection_bg: "#59c2ff".to_string(),
+                    warning: "#ff9940".to_string(),
+                    error: "#ff3333".to_string(),
+                },
+                syntax: SyntaxColors {
+                    text: "#dbd7ca".to_string(),
+                    comment: "#5c6773".to_string(),
+                    keyword: "#ff6b35".to_string(),
+                    operator: "#ff9940".to_string(),
+                    r#type: "#86b300".to_string(),
+                    r#struct: "#86b300".to_string(),
+                    r#enum: "#86b300".to_string(),
+                    string: "#a8cc8c".to_string(),
+                    number: "#d19a66".to_string(),
+                    boolean: "#56b6c2".to_string(),
+                    character: "#a8cc8c".to_string(),
+                    function: "#39adb5".to_string(),
+                    method: "#39adb5".to_string(),
+                    r#macro: "#c678dd".to_string(),
+                    variable: "#dbd7ca".to_string(),
+                    parameter: "#e06c75".to_string(),
+                    property: "#59c2ff".to_string(),
+                    constant: "#f79718".to_string(),
+                },
             },
-            syntax: SyntaxColors {
-                text: "#dbd7ca".to_string(),
-                comment: "#5c6773".to_string(),
-                keyword: "#ff6b35".to_string(),
-                operator: "#ff9940".to_string(),
-                r#type: "#86b300".to_string(),
-                r#struct: "#86b300".to_string(),
-                r#enum: "#86b300".to_string(),
-                string: "#a8cc8c".to_string(),
-                number: "#d19a66".to_string(),
-                boolean: "#56b6c2".to_string(),
-                character: "#a8cc8c".to_string(),
-                function: "#39adb5".to_string(),
-                method: "#39adb5".to_string(),
-                r#macro: "#c678dd".to_string(),
-                variable: "#dbd7ca".to_string(),
-                parameter: "#e06c75".to_string(),
-                property: "#59c2ff".to_string(),
-                constant: "#f79718".to_string(),
-            },
-        });
+        );
 
         Self {
             theme: ThemeSelection {
@@ -345,9 +349,18 @@ mod tests {
 
     #[test]
     fn test_parse_color() {
-        assert!(matches!(parse_color("#ff0000"), Color::Rgb { r: 255, g: 0, b: 0 }));
-        assert!(matches!(parse_color("#00ff00"), Color::Rgb { r: 0, g: 255, b: 0 }));
-        assert!(matches!(parse_color("#0000ff"), Color::Rgb { r: 0, g: 0, b: 255 }));
+        assert!(matches!(
+            parse_color("#ff0000"),
+            Color::Rgb { r: 255, g: 0, b: 0 }
+        ));
+        assert!(matches!(
+            parse_color("#00ff00"),
+            Color::Rgb { r: 0, g: 255, b: 0 }
+        ));
+        assert!(matches!(
+            parse_color("#0000ff"),
+            Color::Rgb { r: 0, g: 0, b: 255 }
+        ));
         assert!(matches!(parse_color("invalid"), Color::White));
     }
 

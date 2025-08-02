@@ -14,6 +14,7 @@ pub mod terminal;
 pub mod theme;
 pub mod theme_watcher;
 pub mod ui;
+pub mod window;
 
 pub use buffer::Buffer;
 pub use editor::Editor;

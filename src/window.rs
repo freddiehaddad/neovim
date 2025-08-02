@@ -1,0 +1,377 @@
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SplitDirection {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone)]
+pub struct Window {
+    pub id: usize,
+    pub buffer_id: Option<usize>,
+    pub x: u16,
+    pub y: u16,
+    pub width: u16,
+    pub height: u16,
+    pub viewport_top: usize,
+}
+
+impl Window {
+    pub fn new(id: usize, x: u16, y: u16, width: u16, height: u16) -> Self {
+        Self {
+            id,
+            buffer_id: None,
+            x,
+            y,
+            width,
+            height,
+            viewport_top: 0,
+        }
+    }
+
+    pub fn set_buffer(&mut self, buffer_id: usize) {
+        self.buffer_id = Some(buffer_id);
+    }
+
+    pub fn content_height(&self) -> usize {
+        // Reserve 1 line for status bar at bottom of each split
+        self.height.saturating_sub(1) as usize
+    }
+
+    pub fn is_point_inside(&self, x: u16, y: u16) -> bool {
+        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+}
+
+#[derive(Clone)]
+pub struct WindowManager {
+    windows: HashMap<usize, Window>,
+    next_window_id: usize,
+    current_window_id: Option<usize>,
+    terminal_width: u16,
+    terminal_height: u16,
+}
+
+impl WindowManager {
+    pub fn new(terminal_width: u16, terminal_height: u16) -> Self {
+        let mut manager = Self {
+            windows: HashMap::new(),
+            next_window_id: 1,
+            current_window_id: None,
+            terminal_width,
+            terminal_height,
+        };
+
+        // Create initial window that fills the entire screen (minus status line)
+        let initial_window = Window::new(
+            1,
+            0,
+            0,
+            terminal_width,
+            terminal_height.saturating_sub(2), // Reserve 2 lines for command/status
+        );
+
+        manager.windows.insert(1, initial_window);
+        manager.current_window_id = Some(1);
+        manager.next_window_id = 2;
+
+        manager
+    }
+
+    pub fn current_window(&self) -> Option<&Window> {
+        self.current_window_id.and_then(|id| self.windows.get(&id))
+    }
+
+    pub fn current_window_mut(&mut self) -> Option<&mut Window> {
+        self.current_window_id
+            .and_then(|id| self.windows.get_mut(&id))
+    }
+
+    pub fn current_window_id(&self) -> Option<usize> {
+        self.current_window_id
+    }
+
+    pub fn set_current_window(&mut self, window_id: usize) -> bool {
+        if self.windows.contains_key(&window_id) {
+            self.current_window_id = Some(window_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_window(&self, id: usize) -> Option<&Window> {
+        self.windows.get(&id)
+    }
+
+    pub fn get_window_mut(&mut self, id: usize) -> Option<&mut Window> {
+        self.windows.get_mut(&id)
+    }
+
+    pub fn all_windows(&self) -> &HashMap<usize, Window> {
+        &self.windows
+    }
+
+    pub fn split_current_window(&mut self, direction: SplitDirection) -> Option<usize> {
+        let current_id = self.current_window_id?;
+        let current_window = self.windows.get(&current_id)?.clone();
+
+        let new_window_id = self.next_window_id;
+        self.next_window_id += 1;
+
+        let (window1, window2) = match direction {
+            SplitDirection::Horizontal => {
+                // Split horizontally (top/bottom)
+                let half_height = current_window.height / 2;
+
+                let top_window = Window::new(
+                    current_id,
+                    current_window.x,
+                    current_window.y,
+                    current_window.width,
+                    half_height,
+                );
+
+                let bottom_window = Window::new(
+                    new_window_id,
+                    current_window.x,
+                    current_window.y + half_height,
+                    current_window.width,
+                    current_window.height - half_height,
+                );
+
+                (top_window, bottom_window)
+            }
+            SplitDirection::Vertical => {
+                // Split vertically (left/right)
+                let half_width = current_window.width / 2;
+
+                let left_window = Window::new(
+                    current_id,
+                    current_window.x,
+                    current_window.y,
+                    half_width,
+                    current_window.height,
+                );
+
+                let right_window = Window::new(
+                    new_window_id,
+                    current_window.x + half_width,
+                    current_window.y,
+                    current_window.width - half_width,
+                    current_window.height,
+                );
+
+                (left_window, right_window)
+            }
+        };
+
+        // Preserve buffer assignment and viewport
+        let mut modified_window1 = window1;
+        modified_window1.buffer_id = current_window.buffer_id;
+        modified_window1.viewport_top = current_window.viewport_top;
+
+        let mut new_window = window2;
+        new_window.buffer_id = current_window.buffer_id; // Same buffer initially
+
+        // Update windows
+        self.windows.insert(current_id, modified_window1);
+        self.windows.insert(new_window_id, new_window);
+
+        Some(new_window_id)
+    }
+
+    pub fn close_current_window(&mut self) -> bool {
+        let current_id = match self.current_window_id {
+            Some(id) => id,
+            None => return false,
+        };
+
+        // Don't close if it's the only window
+        if self.windows.len() <= 1 {
+            return false;
+        }
+
+        self.windows.remove(&current_id);
+
+        // Switch to another window
+        if let Some(&next_id) = self.windows.keys().next() {
+            self.current_window_id = Some(next_id);
+            // TODO: Implement smart window resizing to fill the gap
+            self.resize_windows_to_fill_space();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn move_to_window_left(&mut self) -> bool {
+        let current_window = match self.current_window() {
+            Some(window) => window.clone(),
+            None => return false,
+        };
+        let current_x = current_window.x;
+        let current_y = current_window.y + current_window.height / 2; // Middle of current window
+
+        // Find leftmost window to the left of current window
+        let mut best_window = None;
+        let mut best_distance = u16::MAX;
+
+        for window in self.windows.values() {
+            if window.id != current_window.id
+                && window.x < current_x
+                && window.y <= current_y
+                && window.y + window.height > current_y
+            {
+                let distance = current_x - (window.x + window.width);
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_window = Some(window.id);
+                }
+            }
+        }
+
+        if let Some(window_id) = best_window {
+            self.current_window_id = Some(window_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn move_to_window_right(&mut self) -> bool {
+        let current_window = match self.current_window() {
+            Some(window) => window.clone(),
+            None => return false,
+        };
+        let current_x = current_window.x + current_window.width;
+        let current_y = current_window.y + current_window.height / 2; // Middle of current window
+
+        // Find leftmost window to the right of current window
+        let mut best_window = None;
+        let mut best_distance = u16::MAX;
+
+        for window in self.windows.values() {
+            if window.id != current_window.id
+                && window.x >= current_x
+                && window.y <= current_y
+                && window.y + window.height > current_y
+            {
+                let distance = window.x - current_x;
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_window = Some(window.id);
+                }
+            }
+        }
+
+        if let Some(window_id) = best_window {
+            self.current_window_id = Some(window_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn move_to_window_up(&mut self) -> bool {
+        let current_window = match self.current_window() {
+            Some(window) => window.clone(),
+            None => return false,
+        };
+        let current_x = current_window.x + current_window.width / 2; // Middle of current window
+        let current_y = current_window.y;
+
+        // Find bottommost window above current window
+        let mut best_window = None;
+        let mut best_distance = u16::MAX;
+
+        for window in self.windows.values() {
+            if window.id != current_window.id
+                && window.y < current_y
+                && window.x <= current_x
+                && window.x + window.width > current_x
+            {
+                let distance = current_y - (window.y + window.height);
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_window = Some(window.id);
+                }
+            }
+        }
+
+        if let Some(window_id) = best_window {
+            self.current_window_id = Some(window_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn move_to_window_down(&mut self) -> bool {
+        let current_window = match self.current_window() {
+            Some(window) => window.clone(),
+            None => return false,
+        };
+        let current_x = current_window.x + current_window.width / 2; // Middle of current window
+        let current_y = current_window.y + current_window.height;
+
+        // Find topmost window below current window
+        let mut best_window = None;
+        let mut best_distance = u16::MAX;
+
+        for window in self.windows.values() {
+            if window.id != current_window.id
+                && window.y >= current_y
+                && window.x <= current_x
+                && window.x + window.width > current_x
+            {
+                let distance = window.y - current_y;
+                if distance < best_distance {
+                    best_distance = distance;
+                    best_window = Some(window.id);
+                }
+            }
+        }
+
+        if let Some(window_id) = best_window {
+            self.current_window_id = Some(window_id);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn resize_terminal(&mut self, width: u16, height: u16) {
+        self.terminal_width = width;
+        self.terminal_height = height;
+
+        // If only one window, resize it to fill the screen
+        if self.windows.len() == 1 {
+            if let Some(window) = self.windows.values_mut().next() {
+                window.width = width;
+                window.height = height.saturating_sub(2); // Reserve for status/command line
+            }
+        } else {
+            // TODO: Implement smart resizing for multiple windows
+            self.resize_windows_to_fill_space();
+        }
+    }
+
+    fn resize_windows_to_fill_space(&mut self) {
+        // Simple implementation: if only one window left, make it fill the screen
+        if self.windows.len() == 1 {
+            if let Some(window) = self.windows.values_mut().next() {
+                window.x = 0;
+                window.y = 0;
+                window.width = self.terminal_width;
+                window.height = self.terminal_height.saturating_sub(2);
+            }
+        }
+        // TODO: More sophisticated window management for multiple windows
+    }
+
+    pub fn window_count(&self) -> usize {
+        self.windows.len()
+    }
+}
