@@ -11,6 +11,9 @@ name = "Rust Default"
 description = "Balanced Rust-inspired theme with safety green accents"
 
 [themes.default.ui]
+# General
+background = "#1c1c1c"          # Main editor background
+
 # Status line
 status_bg = "#86b300"           # Safety green from types
 status_fg = "#dbd7ca"           # Light cream from variables  
@@ -68,6 +71,7 @@ name = "Rust Dark"
 description = "High contrast dark theme for late-night coding"
 
 [themes.dark.ui]
+background = "#0d1117"          # Very dark background
 status_bg = "#a3d977"           # Bright green
 status_fg = "#282828"           # Dark text for contrast
 status_modified = "#ff6b35"     # Bright rust orange
@@ -107,6 +111,7 @@ name = "Rust Light"
 description = "Clean light theme for daytime productivity"
 
 [themes.light.ui]
+background = "#ffffff"          # Pure white background
 status_bg = "#22863a"           # Forest green
 status_fg = "#ffffff"           # White text
 status_modified = "#b7410e"     # Dark rust red
@@ -146,6 +151,7 @@ name = "Ferris"
 description = "Playful theme inspired by Rust's beloved mascot"
 
 [themes.ferris.ui]
+background = "#1e1e1e"          # Dark charcoal background
 status_bg = "#ff6347"           # Tomato red (Ferris's shell)
 status_fg = "#ffffff"           # White text
 status_modified = "#ff4500"     # Orange red

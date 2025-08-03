@@ -71,6 +71,10 @@ impl UI {
         // Start double buffering - queue all operations without immediate display
         terminal.queue_hide_cursor()?;
 
+        // Set the background color for the entire screen
+        terminal.queue_set_bg_color(self.theme.background)?;
+        terminal.queue_clear_screen()?;
+
         // Render all windows
         self.render_windows(terminal, editor_state)?;
 
@@ -153,23 +157,24 @@ impl UI {
             // Move cursor to the start of this line within the window
             terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
 
-            // Instead of clearing the entire line, clear only the window area
-            // by overwriting with spaces
-            let spaces = " ".repeat(window.width as usize);
-            terminal.queue_print(&spaces)?;
-
-            // Move back to the start of the window for actual content rendering
-            terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
-
             // Check if this is the cursor line for highlighting (only in the active window)
             let is_active_window = editor_state.current_window_id == Some(window.id);
             let is_cursor_line =
                 self.show_cursor_line && is_active_window && buffer_row == buffer.cursor.row;
 
-            // Set cursor line background if enabled using theme
+            // Set background color for this line (cursor line background or normal background)
             if is_cursor_line {
                 terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
+            } else {
+                terminal.queue_set_bg_color(self.theme.background)?;
             }
+
+            // Clear the window area with the background color set
+            let spaces = " ".repeat(window.width as usize);
+            terminal.queue_print(&spaces)?;
+
+            // Move back to the start of the window for actual content rendering
+            terminal.queue_move_cursor(Position::new(screen_row, window.x as usize))?;
 
             if buffer_row < buffer.lines.len() {
                 // Render line number if enabled
@@ -212,8 +217,8 @@ impl UI {
                     display_line.len()
                 };
 
-                // Fill remaining width with cursor line background if this is the cursor line
-                if is_cursor_line && content_rendered < text_width {
+                // Fill remaining width with appropriate background
+                if content_rendered < text_width {
                     let remaining_width = text_width - content_rendered;
                     let filler = " ".repeat(remaining_width);
                     terminal.queue_print(&filler)?;
@@ -238,13 +243,11 @@ impl UI {
                 }
                 terminal.queue_print("~")?;
 
-                // Fill remaining width with cursor line background if this is the cursor line
-                if is_cursor_line {
-                    let remaining_width = text_width - 1; // -1 for the tilde character
-                    if remaining_width > 0 {
-                        let filler = " ".repeat(remaining_width);
-                        terminal.queue_print(&filler)?;
-                    }
+                // Fill remaining width with appropriate background
+                let remaining_width = text_width - 1; // -1 for the tilde character
+                if remaining_width > 0 {
+                    let filler = " ".repeat(remaining_width);
+                    terminal.queue_print(&filler)?;
                 }
             }
 
@@ -372,10 +375,12 @@ impl UI {
             let highlighted_text = std::str::from_utf8(&line_bytes[start..end]).unwrap_or("");
             terminal.queue_print(highlighted_text)?;
 
-            // Reset colors but restore cursor line background if needed
+            // Reset colors but restore proper background
             terminal.queue_reset_color()?;
             if is_cursor_line && self.show_cursor_line {
                 terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
+            } else {
+                terminal.queue_set_bg_color(self.theme.background)?;
             }
 
             current_pos = end;
@@ -406,6 +411,7 @@ impl UI {
             terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
         } else {
             terminal.queue_set_fg_color(self.theme.line_number)?;
+            terminal.queue_set_bg_color(self.theme.background)?;
         }
 
         if buffer_row < buffer.lines.len() {

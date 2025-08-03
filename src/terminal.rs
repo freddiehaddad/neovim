@@ -140,6 +140,11 @@ impl Terminal {
         Ok(())
     }
 
+    pub fn queue_clear_screen(&mut self) -> io::Result<()> {
+        self.stdout.queue(Clear(ClearType::All))?;
+        Ok(())
+    }
+
     pub fn queue_hide_cursor(&mut self) -> io::Result<()> {
         self.stdout.queue(cursor::Hide)?;
         Ok(())

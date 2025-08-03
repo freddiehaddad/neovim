@@ -25,6 +25,7 @@ pub struct Theme {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UIColors {
+    pub background: String,
     pub status_bg: String,
     pub status_fg: String,
     pub status_modified: String,
@@ -64,6 +65,7 @@ pub struct SyntaxColors {
 /// UI theme that uses colors from themes.toml
 #[derive(Debug, Clone)]
 pub struct UITheme {
+    pub background: Color,
     pub status_bg: Color,
     pub status_fg: Color,
     pub status_modified: Color,
@@ -184,6 +186,7 @@ impl UITheme {
     /// Create UITheme from color strings in themes.toml
     pub fn from_colors(colors: &UIColors) -> Self {
         Self {
+            background: parse_color(&colors.background),
             status_bg: parse_color(&colors.status_bg),
             status_fg: parse_color(&colors.status_fg),
             status_modified: parse_color(&colors.status_modified),
@@ -202,6 +205,7 @@ impl UITheme {
     /// Fallback UI theme with basic colors
     pub fn fallback() -> Self {
         Self {
+            background: Color::Black,
             status_bg: Color::DarkGreen,
             status_fg: Color::White,
             status_modified: Color::Red,
@@ -280,6 +284,7 @@ impl Default for ThemeConfig {
                 name: "Default".to_string(),
                 description: "Basic default theme".to_string(),
                 ui: UIColors {
+                    background: "#1c1c1c".to_string(),
                     status_bg: "#86b300".to_string(),
                     status_fg: "#dbd7ca".to_string(),
                     status_modified: "#ce422b".to_string(),
