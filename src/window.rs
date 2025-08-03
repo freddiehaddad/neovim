@@ -1,3 +1,4 @@
+use log::{debug, info};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,6 +27,10 @@ pub struct Window {
 
 impl Window {
     pub fn new(id: usize, x: u16, y: u16, width: u16, height: u16) -> Self {
+        debug!(
+            "Creating new window {} at position ({}x{}) with size {}x{}",
+            id, x, y, width, height
+        );
         Self {
             id,
             buffer_id: None,
@@ -134,6 +139,11 @@ impl WindowManager {
     pub fn split_current_window(&mut self, direction: SplitDirection) -> Option<usize> {
         let current_id = self.current_window_id?;
         let current_window = self.windows.get(&current_id)?.clone();
+
+        info!(
+            "Splitting window {} in direction: {:?}",
+            current_id, direction
+        );
 
         let new_window_id = self.next_window_id;
         self.next_window_id += 1;

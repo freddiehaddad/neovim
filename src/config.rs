@@ -1,6 +1,7 @@
 // Configuration management
 // This handles editor.toml parsing and settings management
 
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -98,29 +99,44 @@ impl Default for EditorConfig {
 
 impl EditorConfig {
     pub fn load() -> Self {
+        info!("Loading editor configuration");
         // Try to load from editor.toml file, fall back to defaults if not found
         if let Ok(config_content) = fs::read_to_string("editor.toml") {
+            debug!("Found editor.toml file, attempting to parse");
             if let Ok(config) = toml::from_str(&config_content) {
+                info!("Successfully loaded editor configuration from editor.toml");
                 return config;
+            } else {
+                warn!("Failed to parse editor.toml, falling back to default configuration");
             }
+        } else {
+            debug!("editor.toml not found, using default configuration");
         }
 
         // Fallback to default configuration
+        info!("Using default editor configuration");
         Self::default()
     }
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        debug!("Saving editor configuration to editor.toml");
         let toml_string = toml::to_string_pretty(self)?;
         fs::write("editor.toml", toml_string)?;
+        info!("Editor configuration saved successfully");
         Ok(())
     }
 
     /// Update a setting and return success status
     pub fn set_setting(&mut self, setting: &str, value: &str) -> Result<String, String> {
+        debug!("Setting configuration: '{}' = '{}'", setting, value);
         match setting {
             // Display settings
             "number" | "nu" => {
                 self.display.show_line_numbers = value.parse().unwrap_or(true);
+                info!(
+                    "Line numbers setting changed to: {}",
+                    self.display.show_line_numbers
+                );
                 Ok(format!(
                     "Line numbers: {}",
                     if self.display.show_line_numbers {

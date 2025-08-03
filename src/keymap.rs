@@ -2,6 +2,7 @@ use crate::editor::Editor;
 use crate::mode::Mode;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use log::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -42,11 +43,18 @@ impl KeyHandler {
     }
 
     fn load_default_keymaps() -> KeymapConfig {
+        info!("Loading keymap configuration");
         // Try to load from keymaps.toml file
         if let Ok(config_content) = fs::read_to_string("keymaps.toml") {
+            debug!("Found keymaps.toml file, attempting to parse");
             if let Ok(config) = toml::from_str(&config_content) {
+                info!("Successfully loaded keymap configuration from keymaps.toml");
                 return config;
+            } else {
+                warn!("Failed to parse keymaps.toml, falling back to default keymaps");
             }
+        } else {
+            debug!("keymaps.toml not found, using default keymaps");
         }
 
         // Fallback to empty keymaps - this should rarely happen
@@ -79,6 +87,11 @@ impl KeyHandler {
 
     pub fn handle_key(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
         let key_string = Self::key_event_to_string(key);
+        trace!(
+            "Handling key: '{}' in mode: {:?}",
+            key_string,
+            editor.mode()
+        );
 
         // Handle key sequences for normal mode
         if matches!(editor.mode(), Mode::Normal) {
@@ -87,6 +100,10 @@ impl KeyHandler {
             if !self.pending_sequence.is_empty() {
                 if let Some(last_time) = self.last_key_time {
                     if now.duration_since(last_time).as_millis() > 1000 {
+                        debug!(
+                            "Key sequence '{}' timed out, clearing",
+                            self.pending_sequence
+                        );
                         self.pending_sequence.clear();
                     }
                 }
@@ -117,6 +134,8 @@ impl KeyHandler {
                 self.pending_sequence = key_string.clone();
             }
 
+            debug!("Current key sequence: '{}'", self.pending_sequence);
+
             // Check if sequence matches any command
             if let Some(action) = self.keymap_config.normal_mode.get(&self.pending_sequence) {
                 // Check if there's also a longer potential match.
@@ -127,9 +146,18 @@ impl KeyHandler {
                     });
 
                 if !has_potential_match {
+                    debug!(
+                        "Executing action '{}' for key sequence '{}'",
+                        action, self.pending_sequence
+                    );
                     let action_result = self.execute_action(editor, action, key);
                     self.pending_sequence.clear();
                     return action_result;
+                } else {
+                    debug!(
+                        "Key sequence '{}' has potential longer matches, waiting for next key",
+                        self.pending_sequence
+                    );
                 }
                 // If there is a potential longer match, we don't do anything yet, just wait for the next key.
                 return Ok(());
@@ -145,6 +173,10 @@ impl KeyHandler {
 
             if !has_potential_match {
                 // No potential matches, clear the sequence.
+                debug!(
+                    "Key sequence '{}' has no potential matches, clearing sequence",
+                    self.pending_sequence
+                );
                 self.pending_sequence.clear();
             }
 

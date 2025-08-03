@@ -1,5 +1,6 @@
 use crate::mode::{Position, Selection};
 use anyhow::Result;
+use log::{debug, info, trace, warn};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
@@ -69,6 +70,7 @@ pub enum BufferType {
 
 impl Buffer {
     pub fn new(id: usize) -> Self {
+        debug!("Creating new empty buffer with ID: {}", id);
         Self {
             id,
             file_path: None,
@@ -84,10 +86,14 @@ impl Buffer {
     }
 
     pub fn from_file(id: usize, path: PathBuf) -> Result<Self> {
+        info!("Creating buffer {} from file: {:?}", id, path);
         let content = std::fs::read_to_string(&path)?;
         let lines: Vec<String> = if content.is_empty() {
+            debug!("File {:?} is empty, creating single empty line", path);
             vec![String::new()]
         } else {
+            let line_count = content.lines().count();
+            debug!("Loaded {} lines from file: {:?}", line_count, path);
             content.lines().map(String::from).collect()
         };
 
@@ -106,9 +112,14 @@ impl Buffer {
     }
 
     pub fn insert_char(&mut self, ch: char) {
+        trace!(
+            "Inserting character '{}' at position {}:{}",
+            ch, self.cursor.row, self.cursor.col
+        );
         self.save_state();
 
         if self.cursor.row >= self.lines.len() {
+            debug!("Extending lines to accommodate cursor position");
             self.lines.push(String::new());
         }
 
@@ -121,6 +132,10 @@ impl Buffer {
     }
 
     pub fn insert_line_break(&mut self) {
+        debug!(
+            "Inserting line break at position {}:{}",
+            self.cursor.row, self.cursor.col
+        );
         self.save_state();
 
         if self.cursor.row >= self.lines.len() {
@@ -193,6 +208,10 @@ impl Buffer {
     }
 
     pub fn undo(&mut self) -> bool {
+        debug!(
+            "Attempting undo operation (undo stack size: {})",
+            self.undo_stack.len()
+        );
         if let Some(state) = self.undo_stack.pop_back() {
             let current_state = BufferState {
                 lines: self.lines.clone(),
@@ -203,13 +222,22 @@ impl Buffer {
             self.lines = state.lines;
             self.cursor = state.cursor;
             self.modified = true;
+            debug!(
+                "Undo successful, cursor moved to {}:{}",
+                self.cursor.row, self.cursor.col
+            );
             true
         } else {
+            debug!("Undo failed: no states in undo stack");
             false
         }
     }
 
     pub fn redo(&mut self) -> bool {
+        debug!(
+            "Attempting redo operation (redo stack size: {})",
+            self.redo_stack.len()
+        );
         if let Some(state) = self.redo_stack.pop_back() {
             let current_state = BufferState {
                 lines: self.lines.clone(),
@@ -220,8 +248,13 @@ impl Buffer {
             self.lines = state.lines;
             self.cursor = state.cursor;
             self.modified = true;
+            debug!(
+                "Redo successful, cursor moved to {}:{}",
+                self.cursor.row, self.cursor.col
+            );
             true
         } else {
+            debug!("Redo failed: no states in redo stack");
             false
         }
     }
@@ -236,21 +269,33 @@ impl Buffer {
 
     pub fn save(&mut self) -> Result<()> {
         if let Some(path) = &self.file_path {
+            info!("Saving buffer {} to file: {:?}", self.id, path);
             let content = self.lines.join("\n");
             std::fs::write(path, content)?;
             self.modified = false;
+            info!("Buffer {} saved successfully", self.id);
+        } else {
+            warn!("Cannot save buffer {}: no file path set", self.id);
         }
         Ok(())
     }
 
     /// Delete character at cursor position (like 'x' in Vim)
     pub fn delete_char_at_cursor(&mut self) -> bool {
+        trace!(
+            "Attempting to delete character at cursor position {}:{}",
+            self.cursor.row, self.cursor.col
+        );
         if self.cursor.row < self.lines.len() {
             if self.cursor.col < self.lines[self.cursor.row].len() {
                 self.save_state();
                 let line = &mut self.lines[self.cursor.row];
-                line.remove(self.cursor.col);
+                let deleted_char = line.remove(self.cursor.col);
                 self.modified = true;
+                trace!(
+                    "Deleted character '{}' at position {}:{}",
+                    deleted_char, self.cursor.row, self.cursor.col
+                );
                 return true;
             }
         }
@@ -386,12 +431,19 @@ impl Buffer {
 
     /// Yank (copy) the current line
     pub fn yank_line(&mut self) {
+        debug!("Yanking line at row {}", self.cursor.row);
         if self.cursor.row < self.lines.len() {
             let line = &self.lines[self.cursor.row];
             self.clipboard = ClipboardContent {
                 text: line.clone(),
                 yank_type: YankType::Line,
             };
+            debug!("Yanked line: '{}'", line);
+        } else {
+            warn!(
+                "Cannot yank line: cursor row {} out of bounds",
+                self.cursor.row
+            );
         }
     }
 

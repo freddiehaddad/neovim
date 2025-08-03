@@ -4,6 +4,7 @@ use crossterm::{
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use log::{debug, info};
 use std::io::{self, Stdout, Write};
 
 pub struct Terminal {
@@ -13,18 +14,25 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new() -> io::Result<Self> {
+        info!("Initializing terminal with alternate screen and raw mode");
         let mut stdout = io::stdout();
 
         // Enter alternate screen before enabling raw mode
         stdout.execute(EnterAlternateScreen)?;
+        debug!("Entered alternate screen mode");
+
         terminal::enable_raw_mode()?;
+        debug!("Enabled raw terminal mode");
+
         stdout.execute(terminal::Clear(ClearType::All))?;
         stdout.execute(cursor::Hide)?;
+        debug!("Cleared screen and hid cursor");
 
         // Flush stdout and give terminal time to settle
         stdout.flush()?;
 
         let size = terminal::size()?;
+        info!("Terminal initialized with size: {}x{}", size.0, size.1);
 
         Ok(Self { stdout, size })
     }
@@ -34,7 +42,14 @@ impl Terminal {
     }
 
     pub fn update_size(&mut self) -> io::Result<()> {
+        let old_size = self.size;
         self.size = terminal::size()?;
+        if old_size != self.size {
+            debug!(
+                "Terminal size updated from {}x{} to {}x{}",
+                old_size.0, old_size.1, self.size.0, self.size.1
+            );
+        }
         Ok(())
     }
 
@@ -138,14 +153,18 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
+        debug!("Cleaning up terminal: restoring cursor and colors");
         // Restore cursor and colors first
         let _ = self.stdout.execute(cursor::Show);
         let _ = self.stdout.execute(ResetColor);
 
+        debug!("Disabling raw terminal mode");
         // Disable raw mode before leaving alternate screen
         let _ = terminal::disable_raw_mode();
 
+        debug!("Leaving alternate screen mode");
         // Leave alternate screen to restore original terminal content
         let _ = self.stdout.execute(LeaveAlternateScreen);
+        info!("Terminal cleanup completed");
     }
 }

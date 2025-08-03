@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use crossterm::style::Color;
+use log::{debug, info};
 use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::{Language, Parser};
@@ -97,9 +98,11 @@ pub struct SyntaxHighlighter {
 
 impl SyntaxHighlighter {
     pub fn new() -> Result<Self> {
+        info!("Initializing syntax highlighter");
         // Load the theme system
         let theme_config = ThemeConfig::load();
         let current_theme = theme_config.get_current_theme();
+        debug!("Loaded syntax theme: '{}'", current_theme.name);
 
         let mut highlighter = SyntaxHighlighter {
             parsers: HashMap::new(),
@@ -157,6 +160,11 @@ impl SyntaxHighlighter {
     }
 
     pub fn highlight_text(&mut self, text: &str, language: &str) -> Result<Vec<HighlightRange>> {
+        debug!(
+            "Highlighting {} characters of {} code",
+            text.len(),
+            language
+        );
         let parser = self
             .parsers
             .get_mut(language)
