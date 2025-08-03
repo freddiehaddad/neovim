@@ -1,8 +1,10 @@
 use anyhow::{Result, anyhow};
 use crossterm::style::Color;
-use log::{debug, info};
+use log::{debug, info, trace};
 use std::collections::HashMap;
 use std::path::Path;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use tree_sitter::{Language, Parser};
 
 use crate::theme::{SyntaxTheme, ThemeConfig};
@@ -90,10 +92,44 @@ impl HighlightStyle {
     }
 }
 
+/// Cache key for syntax highlighting results
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+struct HighlightCacheKey {
+    content_hash: u64,
+    language: String,
+    theme: String,
+}
+
+/// Cache entry for syntax highlighting
+#[derive(Debug, Clone)]
+struct HighlightCacheEntry {
+    highlights: Vec<HighlightRange>,
+    access_count: usize,
+    last_accessed: std::time::Instant,
+}
+
+impl HighlightCacheKey {
+    fn new(content: &str, language: &str, theme: &str) -> Self {
+        let mut hasher = DefaultHasher::new();
+        content.hash(&mut hasher);
+        let content_hash = hasher.finish();
+        
+        Self {
+            content_hash,
+            language: language.to_string(),
+            theme: theme.to_string(),
+        }
+    }
+}
+
 pub struct SyntaxHighlighter {
     parsers: HashMap<String, Parser>,
     theme_config: ThemeConfig,
     current_syntax_theme: SyntaxTheme,
+    /// LRU cache for syntax highlighting results
+    highlight_cache: HashMap<HighlightCacheKey, HighlightCacheEntry>,
+    /// Maximum cache size (number of entries)
+    max_cache_size: usize,
 }
 
 impl SyntaxHighlighter {
@@ -108,6 +144,8 @@ impl SyntaxHighlighter {
             parsers: HashMap::new(),
             theme_config,
             current_syntax_theme: current_theme.syntax,
+            highlight_cache: HashMap::new(),
+            max_cache_size: 1000, // Cache up to 1000 line highlights
         };
 
         highlighter.initialize_parsers()?;
@@ -156,15 +194,33 @@ impl SyntaxHighlighter {
             ));
         }
 
+        // Clear cache since theme changed (colors will be different)
+        self.clear_cache();
+
         Ok(())
     }
 
     pub fn highlight_text(&mut self, text: &str, language: &str) -> Result<Vec<HighlightRange>> {
-        debug!(
+        trace!(
             "Highlighting {} characters of {} code",
             text.len(),
             language
         );
+        
+        // Create cache key
+        let current_theme_name = &self.theme_config.get_current_theme().name;
+        let cache_key = HighlightCacheKey::new(text, language, current_theme_name);
+        
+        // Check cache first
+        if let Some(entry) = self.highlight_cache.get_mut(&cache_key) {
+            trace!("Cache hit for highlight request");
+            entry.access_count += 1;
+            entry.last_accessed = std::time::Instant::now();
+            return Ok(entry.highlights.clone());
+        }
+        
+        trace!("Cache miss, computing highlights");
+        
         let parser = self
             .parsers
             .get_mut(language)
@@ -346,7 +402,58 @@ impl SyntaxHighlighter {
 
         // Sort highlights by start position
         highlights.sort_by_key(|h| h.start);
+        
+        // Store in cache
+        let cache_entry = HighlightCacheEntry {
+            highlights: highlights.clone(),
+            access_count: 1,
+            last_accessed: std::time::Instant::now(),
+        };
+        
+        self.highlight_cache.insert(cache_key, cache_entry);
+        
+        // Evict old entries if cache is too large
+        self.evict_cache_if_needed();
+        
         Ok(highlights)
+    }
+
+    /// Evict least recently used cache entries if cache exceeds max size
+    fn evict_cache_if_needed(&mut self) {
+        if self.highlight_cache.len() <= self.max_cache_size {
+            return;
+        }
+        
+        trace!("Cache size ({}) exceeds limit ({}), evicting entries", 
+               self.highlight_cache.len(), self.max_cache_size);
+        
+        // Collect keys with their last access times for sorting
+        let mut entries: Vec<_> = self.highlight_cache.iter()
+            .map(|(key, entry)| (key.clone(), entry.last_accessed))
+            .collect();
+        
+        // Sort by last access time (oldest first)
+        entries.sort_by_key(|(_, last_accessed)| *last_accessed);
+        
+        // Remove oldest entries until we're under the limit
+        let target_size = (self.max_cache_size as f32 * 0.8) as usize; // Remove 20% buffer
+        while self.highlight_cache.len() > target_size && !entries.is_empty() {
+            let (key_to_remove, _) = entries.remove(0);
+            self.highlight_cache.remove(&key_to_remove);
+        }
+        
+        trace!("Cache eviction complete, new size: {}", self.highlight_cache.len());
+    }
+
+    /// Clear the syntax highlighting cache (useful when themes change)
+    pub fn clear_cache(&mut self) {
+        debug!("Clearing syntax highlighting cache");
+        self.highlight_cache.clear();
+    }
+
+    /// Get cache statistics for monitoring
+    pub fn cache_stats(&self) -> (usize, usize) {
+        (self.highlight_cache.len(), self.max_cache_size)
     }
 
     pub fn highlight_line(

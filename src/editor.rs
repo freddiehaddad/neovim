@@ -983,6 +983,19 @@ impl Editor {
         }
     }
 
+    /// Get syntax highlighting cache statistics
+    pub fn get_cache_stats(&self) -> Option<(usize, usize)> {
+        self.syntax_highlighter.as_ref().map(|h| h.cache_stats())
+    }
+
+    /// Clear syntax highlighting cache (useful for debugging or memory management)
+    pub fn clear_syntax_cache(&mut self) {
+        if let Some(ref mut highlighter) = self.syntax_highlighter {
+            highlighter.clear_cache();
+            self.status_message = "Syntax highlighting cache cleared".to_string();
+        }
+    }
+
     /// Reload editor configuration from editor.toml
     fn reload_editor_config(&mut self) {
         let new_config = EditorConfig::load();
