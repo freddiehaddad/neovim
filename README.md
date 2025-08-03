@@ -6,7 +6,7 @@ A revolutionary Vim/Neovim clone written in Rust that breaks from traditional Vi
 
 ### ⚡ TOML-Based Configuration System
 
-Unlike traditional Vim, this editor uses **human-readable TOML files** for all configuration:
+Unlike traditional Vim, this editor uses **human-readable TOML files** for all configuration:color_scheme = "dark"            # Current theme (only dark theme available)
 
 - **`keymaps.toml`** - Complete keymap customization
 - **`editor.toml`** - Comprehensive editor settings (30+ options)  
@@ -14,13 +14,16 @@ Unlike traditional Vim, this editor uses **human-readable TOML files** for all c
 - **No more scattered hardcoded defaults** - everything is configurable
 - **Persistent settings** - all `:set` commands automatically save to configuration
 
-### 🎨 Tree-sitter Syntax Highlighting
+### 🎨 Advanced Async Syntax Highlighting
 
 - **Professional-grade syntax highlighting** powered by Tree-sitter AST parsing
+- **Async background processing** for non-blocking syntax highlighting with priority queues
+- **Intelligent caching system** with content-aware cache keys and automatic invalidation
+- **Immediate highlighting** for visible lines during file opening and scrolling
 - **Rust-inspired color schemes** with semantic meaning and visual identity
 - **Multi-language support** with extensible language definitions
-- **Real-time highlighting** with accurate syntax recognition
-- **Customizable themes** including default, dark, light, and special "Ferris" theme
+- **Real-time highlighting** with accurate syntax recognition and smooth performance
+- **Dark theme optimized** for low-light coding environments
 
 ### 🎯 Familiar Vim Interface with Modern Backend
 
@@ -48,11 +51,16 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Significant scrolling performance** - 5-10x faster scrolling through previously viewed code
 - **Memory efficient** - Cache size configurable with smart eviction (default: 1000 entries)
 
-#### Tree-sitter Performance
+#### Async Syntax Highlighting System
 
-- **AST-based parsing** provides faster and more accurate syntax highlighting than regex-based systems
-- **Incremental parsing** updates only modified portions of the syntax tree
-- **Zero-cost abstractions** leverage Rust's performance guarantees
+- **Background worker architecture** - Syntax highlighting processed in async background tasks with priority queues
+- **Non-blocking operation** - Editor remains responsive during syntax highlighting of large files
+- **Priority-based processing** - Visible lines get Critical priority, scroll areas get High priority
+- **Intelligent request batching** - Efficiently processes multiple highlighting requests together
+- **Immediate fallback system** - Visible lines highlighted synchronously for instant feedback during file opening
+- **Shared cache integration** - Both async and immediate highlighting contribute to unified cache
+- **Automatic highlighting triggers** - File operations (`:e`) and scrolling automatically request highlighting
+- **Memory efficient** - Only stores essential highlighting data with configurable cache limits
 
 #### Rust Foundation
 
@@ -67,10 +75,10 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
 - **TOML-based Keymap System**: Configurable keybindings loaded from `keymaps.toml`
 - **TOML-based Editor Settings**: Comprehensive configuration in `editor.toml`
-- **Tree-sitter Syntax Highlighting**: Professional AST-based syntax highlighting with built-in Rust support
+- **Async Syntax Highlighting**: Non-blocking background syntax highlighting with immediate visible line processing
 - **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
 - **Window Management**: Full window splitting and navigation system with Vim-style keybindings
-- **Rust-Inspired Color Schemes**: Beautiful themes reflecting Rust's safety and performance values
+- **Optimized Dark Theme**: Single high-contrast theme optimized for low-light coding environments
 - **Key Sequence Support**: Multi-character commands like `dd`, `gg`, `yy` with timeout
 - **Advanced Search Engine**: Regex-capable search with `/`, `n`, `N` navigation
 - **Line Numbers**: Absolute, relative, and hybrid line number modes
@@ -307,31 +315,29 @@ The editor features a **revolutionary TOML-based configuration system** that com
 
 #### Syntax Highlighting
 
-Syntax highlighting is built-in and powered by Tree-sitter with automatic Rust language support. Colors are configured through the unified `themes.toml` file:
+Syntax highlighting is built-in and powered by Tree-sitter with automatic Rust language support and async background processing. The dark theme is configured through the streamlined `themes.toml` file:
 
 ```toml
-[themes.default.syntax]
-# Rust-inspired syntax colors with semantic meaning
-text = "#dbd7ca"              # Light cream - default text
-comment = "#5c6773"           # Muted gray - comments
-keyword = "#ce422b"           # Rust red/orange - core keywords
-operator = "#ff6a00"          # Bright rust orange - operators  
-type = "#86b300"              # Fresh green - types (safety)
-struct = "#86b300"            # Fresh green - struct definitions
-enum = "#86b300"              # Fresh green - enum definitions
-string = "#b4a72e"            # Golden yellow - string literals
-number = "#ff9940"            # Bright orange - numeric literals
-boolean = "#ce422b"           # Rust red - boolean values
-character = "#b4a72e"         # Golden yellow - character literals
-function = "#39adb5"          # Teal blue - functions (reliability)
-method = "#39adb5"            # Teal blue - method calls
-macro = "#f29718"             # Vibrant orange - macros
-variable = "#dbd7ca"          # Light cream - variables
-parameter = "#dbd7ca"         # Light cream - parameters
-property = "#59c2ff"          # Sky blue - properties/fields
-constant = "#f29718"          # Vibrant orange - constants
-
-# Alternative themes available: dark, light, ferris
+[themes.dark.syntax]
+# High-contrast dark theme optimized for low-light coding
+text = "#ffffff"              # Pure white text
+comment = "#7c7c7c"           # Medium gray - comments
+keyword = "#ff6b35"           # Bright rust orange - core keywords
+operator = "#ffd23f"          # Bright golden - operators  
+type = "#a3d977"              # Bright green - types (safety)
+struct = "#a3d977"            # Bright green - struct definitions
+enum = "#a3d977"              # Bright green - enum definitions
+string = "#98d982"            # Bright light green - string literals
+number = "#ffb347"            # Bright golden orange - numeric literals
+boolean = "#00d4aa"           # Bright teal - boolean values
+character = "#98d982"         # Bright light green - character literals
+function = "#00d4aa"          # Bright teal - functions (reliability)
+method = "#00d4aa"            # Bright teal - method calls
+macro = "#e879f9"             # Bright purple - macros
+variable = "#ffffff"          # Pure white - variables
+parameter = "#ff9999"         # Bright soft red - parameters
+property = "#87ceeb"          # Bright sky blue - properties/fields
+constant = "#ffd23f"          # Bright golden - constants
 ```
 
 #### Editor Configuration (`editor.toml`)
@@ -487,9 +493,8 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **Editor**: Main editor state and coordination with TOML-based configuration
 - **Config**: TOML configuration management for keymaps, editor settings, and syntax themes
 - **Buffer**: Multi-buffer management with undo/redo support and clipboard operations
-- **Window**: Advanced window management system with splitting and navigation
-- **Terminal**: Raw terminal interface using crossterm with alternate screen support
-- **Keymap**: TOML-based configurable key handling with sequence support
+- **Window Management**: Complete window management system with splitting and navigation
+- **AsyncSyntaxHighlighter**: Background async syntax highlighting with immediate visible line processing
 - **UI**: Advanced rendering engine for status line, line numbers, cursor line, multi-window support, and syntax-highlighted content
 - **Mode**: Editor mode definitions and cursor positioning
 - **Search**: Regex-capable search engine with result navigation
@@ -497,7 +502,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 ### Implemented Features ✅
 
-- **Tree-sitter Syntax Highlighting**: AST-based syntax highlighting with Rust-inspired themes
+- **Async Syntax Highlighting**: Background worker with priority-based processing and immediate visible line highlighting
 - **Multi-Buffer System**: Complete buffer management with Ex commands
 - **Window Management System**: Full window splitting and navigation with Vim-style keybindings
 - **Scroll Offset**: Configurable lines to keep visible around cursor (`:set scrolloff=3`)
@@ -512,7 +517,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 - [x] **TOML-based Keymap System**: Configurable keybindings (revolutionary departure from traditional Vim)
 - [x] **TOML-based Editor Configuration**: Comprehensive settings system with 30+ options
-- [x] **Tree-sitter Syntax Highlighting**: Professional AST-based highlighting with Rust-inspired themes
+- [x] **Async Syntax Highlighting**: Background worker with priority queues and immediate visible line processing
 - [x] **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
 - [x] **Window Management**: Full window splitting and navigation with Vim-style keybindings
 - [x] **Configuration Hot Reloading**: Live updates when TOML files change
@@ -546,7 +551,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 ### Phase 3: IDE Features 📅
 
 - [ ] LSP client with autocompletion
-- [x] Syntax highlighting with Tree-sitter (✅ Implemented)
+- [x] Syntax highlighting with Tree-sitter and async background processing (✅ Implemented)
 - [ ] Diagnostics and error handling
 - [ ] Go-to definition and hover info
 
@@ -568,7 +573,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **tree-sitter**: AST-based syntax parsing and highlighting (✅ Implemented)
 - **tree-sitter-rust**: Rust grammar for Tree-sitter (✅ Implemented)
 - **notify**: File system watching for configuration hot reloading (planned)
-- **tokio**: Async runtime for LSP and file operations (planned)
+- **tokio**: Async runtime for background syntax highlighting and LSP operations (✅ Implemented)
 - **log/env_logger**: Logging infrastructure for debugging and development (✅ Implemented)
 
 ## Debugging and Development
