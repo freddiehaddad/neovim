@@ -44,19 +44,37 @@ pub struct Buffer {
     /// Visual selection (if any)
     pub selection: Option<Selection>,
     /// Undo stack
-    pub undo_stack: VecDeque<BufferState>,
+    pub undo_stack: VecDeque<BufferDelta>,
     /// Redo stack
-    pub redo_stack: VecDeque<BufferState>,
+    pub redo_stack: VecDeque<BufferDelta>,
     /// Buffer type (normal, help, quickfix, etc.)
     pub buffer_type: BufferType,
     /// Clipboard for yank/put operations
     pub clipboard: ClipboardContent,
+    /// Maximum number of undo levels to keep
+    pub undo_levels: usize,
 }
 
+/// Represents a single edit operation for delta-based undo system
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EditOperation {
+    /// Insert text at a position
+    Insert { pos: Position, text: String },
+    /// Delete text at a position (stores deleted text for undo)
+    Delete { pos: Position, text: String },
+    /// Replace text at a position
+    Replace { pos: Position, old: String, new: String },
+}
+
+/// Delta representing changes made to buffer state
 #[derive(Debug, Clone)]
-pub struct BufferState {
-    pub lines: Vec<String>,
-    pub cursor: Position,
+pub struct BufferDelta {
+    /// The edit operations performed
+    pub operations: Vec<EditOperation>,
+    /// Cursor position before the edit
+    pub cursor_before: Position,
+    /// Cursor position after the edit
+    pub cursor_after: Position,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,8 +87,8 @@ pub enum BufferType {
 }
 
 impl Buffer {
-    pub fn new(id: usize) -> Self {
-        debug!("Creating new empty buffer with ID: {}", id);
+    pub fn new(id: usize, undo_levels: usize) -> Self {
+        debug!("Creating new empty buffer with ID: {} (undo levels: {})", id, undo_levels);
         Self {
             id,
             file_path: None,
@@ -82,11 +100,12 @@ impl Buffer {
             redo_stack: VecDeque::new(),
             buffer_type: BufferType::Normal,
             clipboard: ClipboardContent::default(),
+            undo_levels,
         }
     }
 
-    pub fn from_file(id: usize, path: PathBuf) -> Result<Self> {
-        info!("Creating buffer {} from file: {:?}", id, path);
+    pub fn from_file(id: usize, path: PathBuf, undo_levels: usize) -> Result<Self> {
+        info!("Creating buffer {} from file: {:?} (undo levels: {})", id, path, undo_levels);
         let content = std::fs::read_to_string(&path)?;
         let lines: Vec<String> = if content.is_empty() {
             debug!("File {:?} is empty, creating single empty line", path);
@@ -108,6 +127,7 @@ impl Buffer {
             redo_stack: VecDeque::new(),
             buffer_type: BufferType::Normal,
             clipboard: ClipboardContent::default(),
+            undo_levels,
         })
     }
 
@@ -116,19 +136,17 @@ impl Buffer {
             "Inserting character '{}' at position {}:{}",
             ch, self.cursor.row, self.cursor.col
         );
-        self.save_state();
+        
+        // Create operation for undo system
+        let operation = EditOperation::Insert {
+            pos: self.cursor,
+            text: ch.to_string(),
+        };
+        self.save_operation(operation);
 
-        if self.cursor.row >= self.lines.len() {
-            debug!("Extending lines to accommodate cursor position");
-            self.lines.push(String::new());
-        }
-
-        let line = &mut self.lines[self.cursor.row];
-        if self.cursor.col <= line.len() {
-            line.insert(self.cursor.col, ch);
-            self.cursor.col += 1;
-            self.modified = true;
-        }
+        // Perform the actual insertion
+        self.insert_char_raw(ch);
+        self.modified = true;
     }
 
     pub fn insert_line_break(&mut self) {
@@ -136,35 +154,43 @@ impl Buffer {
             "Inserting line break at position {}:{}",
             self.cursor.row, self.cursor.col
         );
-        self.save_state();
+        
+        // Create operation for undo system
+        let operation = EditOperation::Insert {
+            pos: self.cursor,
+            text: "\n".to_string(),
+        };
+        self.save_operation(operation);
 
-        if self.cursor.row >= self.lines.len() {
-            self.lines.push(String::new());
-            self.cursor.row = self.lines.len() - 1;
-            self.cursor.col = 0;
-        } else {
-            let line = &mut self.lines[self.cursor.row];
-            let new_line = line.split_off(self.cursor.col);
-            self.lines.insert(self.cursor.row + 1, new_line);
-            self.cursor.row += 1;
-            self.cursor.col = 0;
-        }
+        // Perform the actual insertion
+        self.insert_line_break_raw();
         self.modified = true;
     }
 
     pub fn delete_char(&mut self) -> bool {
         if self.cursor.col > 0 {
-            self.save_state();
-            let line = &mut self.lines[self.cursor.row];
+            // Get character to delete for undo
+            let line = &self.lines[self.cursor.row];
             if self.cursor.col <= line.len() {
-                line.remove(self.cursor.col - 1);
-                self.cursor.col -= 1;
+                let deleted_char = line.chars().nth(self.cursor.col - 1).unwrap_or(' ');
+                let operation = EditOperation::Delete {
+                    pos: Position { row: self.cursor.row, col: self.cursor.col - 1 },
+                    text: deleted_char.to_string(),
+                };
+                self.save_operation(operation);
+                
+                self.delete_char_raw();
                 self.modified = true;
                 return true;
             }
         } else if self.cursor.row > 0 {
-            // Join with previous line
-            self.save_state();
+            // Join with previous line - delete newline character
+            let operation = EditOperation::Delete {
+                pos: Position { row: self.cursor.row - 1, col: self.lines[self.cursor.row - 1].len() },
+                text: "\n".to_string(),
+            };
+            self.save_operation(operation);
+            
             let current_line = self.lines.remove(self.cursor.row);
             self.cursor.row -= 1;
             self.cursor.col = self.lines[self.cursor.row].len();
@@ -192,18 +218,144 @@ impl Buffer {
         self.cursor = Position::new(row, col);
     }
 
-    pub fn save_state(&mut self) {
-        let state = BufferState {
-            lines: self.lines.clone(),
-            cursor: self.cursor,
+    fn save_operation(&mut self, operation: EditOperation) {
+        debug!("Saving edit operation for undo: {:?}", operation);
+        
+        // Create the delta with the operation
+        let delta = BufferDelta {
+            operations: vec![operation],
+            cursor_before: self.cursor,
+            cursor_after: self.cursor, // Will be updated after the operation
         };
+        
+        self.undo_stack.push_back(delta);
 
-        self.undo_stack.push_back(state);
+        // Clear redo stack when new operation is saved
         self.redo_stack.clear();
 
-        // Limit undo stack size
-        if self.undo_stack.len() > 1000 {
+        // Limit undo stack size using configured undo_levels
+        if self.undo_stack.len() > self.undo_levels {
             self.undo_stack.pop_front();
+        }
+    }
+
+    fn apply_edit_operation(&mut self, operation: &EditOperation) {
+        match operation {
+            EditOperation::Insert { pos, text } => {
+                self.cursor = *pos;
+                for ch in text.chars() {
+                    if ch == '\n' {
+                        self.insert_line_break_raw();
+                    } else {
+                        self.insert_char_raw(ch);
+                    }
+                }
+            }
+            EditOperation::Delete { pos, text } => {
+                self.cursor = *pos;
+                // Move to end of text to delete from correct position
+                for _ in 0..text.len() {
+                    self.move_cursor_right();
+                }
+                // Delete characters in reverse to maintain positions
+                for _ in 0..text.len() {
+                    self.delete_char_raw();
+                }
+            }
+            EditOperation::Replace { pos, old, new } => {
+                self.cursor = *pos;
+                // Move to end of old text
+                for _ in 0..old.len() {
+                    self.move_cursor_right();
+                }
+                // Delete old text first
+                for _ in 0..old.len() {
+                    self.delete_char_raw();
+                }
+                // Insert new text
+                for ch in new.chars() {
+                    if ch == '\n' {
+                        self.insert_line_break_raw();
+                    } else {
+                        self.insert_char_raw(ch);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Internal method to insert character without saving undo state
+    fn insert_char_raw(&mut self, ch: char) {
+        if self.cursor.row >= self.lines.len() {
+            self.lines.push(String::new());
+        }
+
+        let line = &mut self.lines[self.cursor.row];
+        if self.cursor.col <= line.len() {
+            line.insert(self.cursor.col, ch);
+            self.cursor.col += 1;
+        }
+    }
+
+    /// Internal method to insert line break without saving undo state
+    fn insert_line_break_raw(&mut self) {
+        if self.cursor.row >= self.lines.len() {
+            self.lines.push(String::new());
+            self.cursor.row = self.lines.len() - 1;
+            self.cursor.col = 0;
+        } else {
+            let line = &mut self.lines[self.cursor.row];
+            let new_line = line.split_off(self.cursor.col);
+            self.lines.insert(self.cursor.row + 1, new_line);
+            self.cursor.row += 1;
+            self.cursor.col = 0;
+        }
+    }
+
+    /// Internal method to delete character without saving undo state
+    fn delete_char_raw(&mut self) -> bool {
+        if self.cursor.col > 0 {
+            let line = &mut self.lines[self.cursor.row];
+            if self.cursor.col <= line.len() {
+                line.remove(self.cursor.col - 1);
+                self.cursor.col -= 1;
+                return true;
+            }
+        } else if self.cursor.row > 0 {
+            // Join with previous line
+            let current_line = self.lines.remove(self.cursor.row);
+            self.cursor.row -= 1;
+            self.cursor.col = self.lines[self.cursor.row].len();
+            self.lines[self.cursor.row].push_str(&current_line);
+            return true;
+        }
+        false
+    }
+
+    /// Move cursor right for position calculation
+    fn move_cursor_right(&mut self) {
+        if self.cursor.row < self.lines.len() {
+            let line = &self.lines[self.cursor.row];
+            if self.cursor.col < line.len() {
+                self.cursor.col += 1;
+            } else if self.cursor.row + 1 < self.lines.len() {
+                self.cursor.row += 1;
+                self.cursor.col = 0;
+            }
+        }
+    }
+
+    fn create_inverse_operation(&self, operation: &EditOperation) -> EditOperation {
+        match operation {
+            EditOperation::Insert { pos, text } => {
+                EditOperation::Delete { pos: *pos, text: text.clone() }
+            }
+            EditOperation::Delete { pos, text } => {
+                EditOperation::Insert { pos: *pos, text: text.clone() }
+            }
+            EditOperation::Replace { pos, old, new: _ } => {
+                EditOperation::Replace { pos: *pos, old: old.clone(), new: old.clone() }
+            }
         }
     }
 
@@ -212,15 +364,26 @@ impl Buffer {
             "Attempting undo operation (undo stack size: {})",
             self.undo_stack.len()
         );
-        if let Some(state) = self.undo_stack.pop_back() {
-            let current_state = BufferState {
-                lines: self.lines.clone(),
-                cursor: self.cursor,
+        if let Some(delta) = self.undo_stack.pop_back() {
+            // Save current state to redo stack
+            let current_cursor = self.cursor;
+            
+            // Apply inverse operations in reverse order
+            for operation in delta.operations.iter().rev() {
+                let inverse = self.create_inverse_operation(operation);
+                self.apply_edit_operation(&inverse);
+            }
+            
+            // Create redo delta
+            let redo_delta = BufferDelta {
+                operations: delta.operations,
+                cursor_before: current_cursor,
+                cursor_after: delta.cursor_before,
             };
-            self.redo_stack.push_back(current_state);
+            self.redo_stack.push_back(redo_delta);
 
-            self.lines = state.lines;
-            self.cursor = state.cursor;
+            // Restore cursor position from before the original operation
+            self.cursor = delta.cursor_before;
             self.modified = true;
             debug!(
                 "Undo successful, cursor moved to {}:{}",
@@ -238,15 +401,25 @@ impl Buffer {
             "Attempting redo operation (redo stack size: {})",
             self.redo_stack.len()
         );
-        if let Some(state) = self.redo_stack.pop_back() {
-            let current_state = BufferState {
-                lines: self.lines.clone(),
-                cursor: self.cursor,
+        if let Some(delta) = self.redo_stack.pop_back() {
+            // Save current state to undo stack
+            let current_cursor = self.cursor;
+            
+            // Apply original operations
+            for operation in &delta.operations {
+                self.apply_edit_operation(operation);
+            }
+            
+            // Create undo delta
+            let undo_delta = BufferDelta {
+                operations: delta.operations,
+                cursor_before: current_cursor,
+                cursor_after: delta.cursor_after,
             };
-            self.undo_stack.push_back(current_state);
+            self.undo_stack.push_back(undo_delta);
 
-            self.lines = state.lines;
-            self.cursor = state.cursor;
+            // Set cursor position to after the operation
+            self.cursor = delta.cursor_after;
             self.modified = true;
             debug!(
                 "Redo successful, cursor moved to {}:{}",
@@ -288,9 +461,15 @@ impl Buffer {
         );
         if self.cursor.row < self.lines.len() {
             if self.cursor.col < self.lines[self.cursor.row].len() {
-                self.save_state();
+                let deleted_char = self.lines[self.cursor.row].chars().nth(self.cursor.col).unwrap_or(' ');
+                let operation = EditOperation::Delete {
+                    pos: self.cursor,
+                    text: deleted_char.to_string(),
+                };
+                self.save_operation(operation);
+                
                 let line = &mut self.lines[self.cursor.row];
-                let deleted_char = line.remove(self.cursor.col);
+                line.remove(self.cursor.col);
                 self.modified = true;
                 trace!(
                     "Deleted character '{}' at position {}:{}",
@@ -305,7 +484,13 @@ impl Buffer {
     /// Delete character before cursor (like 'X' in Vim)
     pub fn delete_char_before_cursor(&mut self) -> bool {
         if self.cursor.col > 0 {
-            self.save_state();
+            let deleted_char = self.lines[self.cursor.row].chars().nth(self.cursor.col - 1).unwrap_or(' ');
+            let operation = EditOperation::Delete {
+                pos: Position { row: self.cursor.row, col: self.cursor.col - 1 },
+                text: deleted_char.to_string(),
+            };
+            self.save_operation(operation);
+            
             let line = &mut self.lines[self.cursor.row];
             if self.cursor.col <= line.len() {
                 line.remove(self.cursor.col - 1);
@@ -320,7 +505,12 @@ impl Buffer {
     /// Delete entire line (like 'dd' in Vim)
     pub fn delete_line(&mut self) -> bool {
         if !self.lines.is_empty() && self.cursor.row < self.lines.len() {
-            self.save_state();
+            let deleted_line = self.lines[self.cursor.row].clone();
+            let operation = EditOperation::Delete {
+                pos: Position { row: self.cursor.row, col: 0 },
+                text: format!("{}\n", deleted_line),
+            };
+            self.save_operation(operation);
 
             // If this is the only line, just clear it
             if self.lines.len() == 1 {
@@ -496,7 +686,12 @@ impl Buffer {
     pub fn put_after(&mut self) {
         match self.clipboard.yank_type {
             YankType::Line => {
-                self.save_state();
+                let operation = EditOperation::Insert {
+                    pos: Position { row: self.cursor.row + 1, col: 0 },
+                    text: format!("{}\n", self.clipboard.text),
+                };
+                self.save_operation(operation);
+                
                 // Insert new line after current line
                 let new_line = self.clipboard.text.clone();
                 if self.cursor.row + 1 <= self.lines.len() {
@@ -507,15 +702,20 @@ impl Buffer {
                 }
             }
             YankType::Character => {
-                self.save_state();
+                let insert_pos = if self.cursor.col < self.lines[self.cursor.row].len() {
+                    self.cursor.col + 1
+                } else {
+                    self.lines[self.cursor.row].len()
+                };
+                let operation = EditOperation::Insert {
+                    pos: Position { row: self.cursor.row, col: insert_pos },
+                    text: self.clipboard.text.clone(),
+                };
+                self.save_operation(operation);
+                
                 // Insert text after cursor position
                 if self.cursor.row < self.lines.len() {
                     let line = &mut self.lines[self.cursor.row];
-                    let insert_pos = if self.cursor.col < line.len() {
-                        self.cursor.col + 1
-                    } else {
-                        line.len()
-                    };
                     line.insert_str(insert_pos, &self.clipboard.text);
                     self.cursor.col = insert_pos + self.clipboard.text.len() - 1;
                     self.modified = true;
@@ -532,7 +732,12 @@ impl Buffer {
     pub fn put_before(&mut self) {
         match self.clipboard.yank_type {
             YankType::Line => {
-                self.save_state();
+                let operation = EditOperation::Insert {
+                    pos: Position { row: self.cursor.row, col: 0 },
+                    text: format!("{}\n", self.clipboard.text),
+                };
+                self.save_operation(operation);
+                
                 // Insert new line before current line
                 let new_line = self.clipboard.text.clone();
                 self.lines.insert(self.cursor.row, new_line);
@@ -540,7 +745,12 @@ impl Buffer {
                 self.modified = true;
             }
             YankType::Character => {
-                self.save_state();
+                let operation = EditOperation::Insert {
+                    pos: self.cursor,
+                    text: self.clipboard.text.clone(),
+                };
+                self.save_operation(operation);
+                
                 // Insert text at cursor position
                 if self.cursor.row < self.lines.len() {
                     let line = &mut self.lines[self.cursor.row];
@@ -558,14 +768,19 @@ impl Buffer {
 
     /// Helper for character-wise paste after cursor
     fn put_after_character(&mut self) {
-        self.save_state();
+        let insert_pos = if self.cursor.col < self.lines[self.cursor.row].len() {
+            self.cursor.col + 1
+        } else {
+            self.lines[self.cursor.row].len()
+        };
+        let operation = EditOperation::Insert {
+            pos: Position { row: self.cursor.row, col: insert_pos },
+            text: self.clipboard.text.clone(),
+        };
+        self.save_operation(operation);
+        
         if self.cursor.row < self.lines.len() {
             let line = &mut self.lines[self.cursor.row];
-            let insert_pos = if self.cursor.col < line.len() {
-                self.cursor.col + 1
-            } else {
-                line.len()
-            };
             line.insert_str(insert_pos, &self.clipboard.text);
             self.cursor.col = insert_pos + self.clipboard.text.len().saturating_sub(1);
             self.modified = true;
@@ -574,7 +789,12 @@ impl Buffer {
 
     /// Helper for character-wise paste before cursor
     fn put_before_character(&mut self) {
-        self.save_state();
+        let operation = EditOperation::Insert {
+            pos: self.cursor,
+            text: self.clipboard.text.clone(),
+        };
+        self.save_operation(operation);
+        
         if self.cursor.row < self.lines.len() {
             let line = &mut self.lines[self.cursor.row];
             line.insert_str(self.cursor.col, &self.clipboard.text);

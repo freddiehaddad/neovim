@@ -191,10 +191,10 @@ impl Editor {
 
         let buffer = if let Some(path) = file_path {
             info!("Creating buffer {} from file: {:?}", id, path);
-            Buffer::from_file(id, path)?
+            Buffer::from_file(id, path, self.config.editing.undo_levels)?
         } else {
             debug!("Creating empty buffer {}", id);
-            Buffer::new(id)
+            Buffer::new(id, self.config.editing.undo_levels)
         };
 
         self.buffers.insert(id, buffer);
