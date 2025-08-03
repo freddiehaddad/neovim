@@ -94,7 +94,7 @@ impl HighlightStyle {
 
 /// Cache key for syntax highlighting results
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
-struct HighlightCacheKey {
+pub struct HighlightCacheKey {
     content_hash: u64,
     language: String,
     theme: String,
@@ -102,7 +102,7 @@ struct HighlightCacheKey {
 
 /// Cache entry for syntax highlighting
 #[derive(Debug, Clone)]
-struct HighlightCacheEntry {
+pub struct HighlightCacheEntry {
     highlights: Vec<HighlightRange>,
     access_count: usize,
     last_accessed: std::time::Instant,
@@ -119,6 +119,25 @@ impl HighlightCacheKey {
             language: language.to_string(),
             theme: theme.to_string(),
         }
+    }
+    
+    /// Create a new cache key with default theme
+    pub fn new_simple(content: &str, language: &str) -> Self {
+        Self::new(content, language, "default")
+    }
+}
+
+impl HighlightCacheEntry {
+    pub fn new(highlights: Vec<HighlightRange>) -> Self {
+        Self {
+            highlights,
+            access_count: 1,
+            last_accessed: std::time::Instant::now(),
+        }
+    }
+    
+    pub fn highlights(&self) -> &Vec<HighlightRange> {
+        &self.highlights
     }
 }
 
@@ -725,4 +744,69 @@ pub enum HighlightType {
     Type,
     Number,
     Operator,
+}
+
+impl From<HighlightType> for HighlightStyle {
+    fn from(highlight_type: HighlightType) -> Self {
+        // For now, create basic styles. In a full implementation,
+        // this would use the theme configuration
+        match highlight_type {
+            HighlightType::Keyword => HighlightStyle {
+                fg_color: Some("#569cd6".to_string()), // Blue
+                bg_color: None,
+                bold: true,
+                italic: false,
+                underline: false,
+            },
+            HighlightType::String => HighlightStyle {
+                fg_color: Some("#ce9178".to_string()), // Orange
+                bg_color: None,
+                bold: false,
+                italic: false,
+                underline: false,
+            },
+            HighlightType::Comment => HighlightStyle {
+                fg_color: Some("#6a9955".to_string()), // Green
+                bg_color: None,
+                bold: false,
+                italic: true,
+                underline: false,
+            },
+            HighlightType::Function => HighlightStyle {
+                fg_color: Some("#dcdcaa".to_string()), // Yellow
+                bg_color: None,
+                bold: false,
+                italic: false,
+                underline: false,
+            },
+            HighlightType::Variable => HighlightStyle {
+                fg_color: Some("#9cdcfe".to_string()), // Light blue
+                bg_color: None,
+                bold: false,
+                italic: false,
+                underline: false,
+            },
+            HighlightType::Type => HighlightStyle {
+                fg_color: Some("#4ec9b0".to_string()), // Teal
+                bg_color: None,
+                bold: false,
+                italic: false,
+                underline: false,
+            },
+            HighlightType::Number => HighlightStyle {
+                fg_color: Some("#b5cea8".to_string()), // Light green
+                bg_color: None,
+                bold: false,
+                italic: false,
+                underline: false,
+            },
+            HighlightType::Operator => HighlightStyle {
+                fg_color: Some("#d4d4d4".to_string()), // Light gray
+                bg_color: None,
+                bold: false,
+                italic: false,
+                underline: false,
+            },
+        }
+    }
 }

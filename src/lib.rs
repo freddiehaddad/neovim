@@ -10,6 +10,7 @@ pub mod mode;
 pub mod plugin;
 pub mod search;
 pub mod syntax;
+pub mod async_syntax;
 pub mod terminal;
 pub mod theme;
 pub mod theme_watcher;

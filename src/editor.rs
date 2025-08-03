@@ -1,10 +1,11 @@
+use crate::async_syntax::AsyncSyntaxHighlighter;
 use crate::buffer::Buffer;
 use crate::config::EditorConfig;
 use crate::config_watcher::{ConfigChangeEvent, ConfigWatcher};
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
-use crate::syntax::{HighlightRange, SyntaxHighlighter};
+use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
 use crate::theme_watcher::ThemeManager;
 use crate::ui::UI;
@@ -67,8 +68,8 @@ pub struct Editor {
     config_watcher: Option<ConfigWatcher>,
     /// Theme manager for hot reloading themes
     theme_manager: ThemeManager,
-    /// Syntax highlighter for code highlighting
-    syntax_highlighter: Option<SyntaxHighlighter>,
+    /// Async syntax highlighter for background code highlighting
+    async_syntax_highlighter: Option<AsyncSyntaxHighlighter>,
     /// Track if we've processed any key press events yet (for startup handling)
     has_processed_any_press: bool,
 }
@@ -115,14 +116,14 @@ impl Editor {
         // Initialize theme manager for hot reloading themes
         let theme_manager = ThemeManager::new();
 
-        // Initialize syntax highlighter
-        let syntax_highlighter = match SyntaxHighlighter::new() {
+        // Initialize async syntax highlighter
+        let async_syntax_highlighter = match AsyncSyntaxHighlighter::new() {
             Ok(highlighter) => {
-                info!("Syntax highlighter initialized");
+                info!("Async syntax highlighter initialized");
                 Some(highlighter)
             }
             Err(e) => {
-                warn!("Failed to initialize syntax highlighter: {}", e);
+                warn!("Failed to initialize async syntax highlighter: {}", e);
                 None
             }
         };
@@ -147,7 +148,7 @@ impl Editor {
             last_render_time: Instant::now(),
             config_watcher,
             theme_manager,
-            syntax_highlighter,
+            async_syntax_highlighter,
             has_processed_any_press: false,
         })
     }
@@ -855,12 +856,12 @@ impl Editor {
             "syntax" | "syn" => {
                 if self.config.display.syntax_highlighting {
                     // Re-enable syntax highlighting
-                    if self.syntax_highlighter.is_none() {
-                        self.syntax_highlighter = SyntaxHighlighter::new().ok();
+                    if self.async_syntax_highlighter.is_none() {
+                        self.async_syntax_highlighter = AsyncSyntaxHighlighter::new().ok();
                     }
                 } else {
                     // Disable syntax highlighting
-                    self.syntax_highlighter = None;
+                    self.async_syntax_highlighter = None;
                 }
             }
             "colorscheme" | "colo" => {
@@ -868,12 +869,8 @@ impl Editor {
                 let _ = self.theme_manager.set_current_theme(value);
                 self.ui.set_theme(value);
 
-                // Update syntax highlighter with new color scheme
-                if let Some(ref mut highlighter) = self.syntax_highlighter {
-                    if let Err(e) = highlighter.update_theme(&self.config.display.color_scheme) {
-                        self.set_status_message(format!("Failed to load color scheme: {}", e));
-                    }
-                }
+                // TODO: Update async syntax highlighter with new color scheme
+                // This will require a new method on AsyncSyntaxHighlighter
             }
             "ignorecase" | "ic" | "smartcase" | "scs" => {
                 self.apply_search_settings();
@@ -953,23 +950,15 @@ impl Editor {
         )
     }
 
-    /// Get syntax highlights for a line of text
+    /// Get syntax highlights for a line of text (async version)
     pub fn get_syntax_highlights(
         &mut self,
-        text: &str,
-        file_path: Option<&str>,
+        _text: &str,
+        _file_path: Option<&str>,
     ) -> Vec<crate::syntax::HighlightRange> {
-        if let (Some(highlighter), Some(path)) = (&mut self.syntax_highlighter, file_path) {
-            if let Some(language) = highlighter.detect_language_from_extension(path) {
-                highlighter
-                    .highlight_text(text, &language)
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        }
+        // For now, return empty highlights as we'll handle this asynchronously in render
+        // TODO: Implement immediate cache lookup for visible lines
+        Vec::new()
     }
 
     /// Get highlighted text for a specific line in the current buffer
@@ -997,13 +986,13 @@ impl Editor {
 
     /// Get syntax highlighting cache statistics
     pub fn get_cache_stats(&self) -> Option<(usize, usize)> {
-        self.syntax_highlighter.as_ref().map(|h| h.cache_stats())
+        self.async_syntax_highlighter.as_ref().map(|h| h.cache_stats())
     }
 
     /// Clear syntax highlighting cache (useful for debugging or memory management)
     pub fn clear_syntax_cache(&mut self) {
-        if let Some(ref mut highlighter) = self.syntax_highlighter {
-            highlighter.clear_cache();
+        if let Some(ref highlighter) = self.async_syntax_highlighter {
+            highlighter.invalidate_buffer_cache(0); // Clear all cache for now
             self.status_message = "Syntax highlighting cache cleared".to_string();
         }
     }
