@@ -477,7 +477,9 @@ impl Editor {
 
         // Now generate syntax highlights for all collected lines
         for (key, (line_content, file_path)) in lines_to_highlight {
-            let highlights = self.get_syntax_highlights(&line_content, Some(&file_path));
+            let (buffer_id, line_index) = key;
+            let highlights =
+                self.get_syntax_highlights(buffer_id, line_index, &line_content, Some(&file_path));
             if !highlights.is_empty() {
                 syntax_highlights.insert(key, highlights);
             }
@@ -953,32 +955,70 @@ impl Editor {
     /// Get syntax highlights for a line of text (async version)
     pub fn get_syntax_highlights(
         &mut self,
-        _text: &str,
-        _file_path: Option<&str>,
+        buffer_id: usize,
+        line_index: usize,
+        text: &str,
+        file_path: Option<&str>,
     ) -> Vec<crate::syntax::HighlightRange> {
-        // For now, return empty highlights as we'll handle this asynchronously in render
-        // TODO: Implement immediate cache lookup for visible lines
+        // First check if we have an async syntax highlighter
+        if let Some(ref highlighter) = self.async_syntax_highlighter {
+            // Get the language from file extension
+            let language = if let Some(path) = file_path {
+                if path.ends_with(".rs") {
+                    Some("rust".to_string())
+                } else {
+                    None
+                }
+            } else {
+                // For unnamed buffers, try to detect language from content
+                if text.contains("fn ") || text.contains("let ") || text.contains("use ") {
+                    Some("rust".to_string())
+                } else {
+                    None
+                }
+            };
+
+            if let Some(lang) = language {
+                // Try to get cached highlights first
+                if let Some(cached) =
+                    highlighter.get_cached_highlights(buffer_id, line_index, text, &lang)
+                {
+                    return cached;
+                }
+
+                // No cache hit - request async highlighting for future use
+                let _ = highlighter.request_highlighting(
+                    buffer_id,
+                    line_index,
+                    text.to_string(),
+                    lang,
+                    crate::async_syntax::Priority::High, // High priority for immediate rendering
+                );
+            }
+        }
+
+        // Fallback to empty highlights if no async highlighter or no language detected
         Vec::new()
     }
 
     /// Get highlighted text for a specific line in the current buffer
     pub fn get_line_highlights(&mut self, line_index: usize) -> Vec<crate::syntax::HighlightRange> {
         // Get the necessary data first to avoid borrow conflicts
-        let (line_text, file_path) = {
+        let (buffer_id, line_text, file_path) = {
             if let Some(buffer) = self.current_buffer() {
                 let line = buffer.get_line(line_index).map(|s| s.to_string());
                 let path = buffer
                     .file_path
                     .as_ref()
                     .map(|p| p.to_string_lossy().to_string());
-                (line, path)
+                (buffer.id, line, path)
             } else {
-                (None, None)
+                (0, None, None)
             }
         };
 
         if let (Some(line), Some(path)) = (line_text, file_path) {
-            self.get_syntax_highlights(&line, Some(&path))
+            self.get_syntax_highlights(buffer_id, line_index, &line, Some(&path))
         } else {
             Vec::new()
         }
@@ -986,7 +1026,9 @@ impl Editor {
 
     /// Get syntax highlighting cache statistics
     pub fn get_cache_stats(&self) -> Option<(usize, usize)> {
-        self.async_syntax_highlighter.as_ref().map(|h| h.cache_stats())
+        self.async_syntax_highlighter
+            .as_ref()
+            .map(|h| h.cache_stats())
     }
 
     /// Clear syntax highlighting cache (useful for debugging or memory management)

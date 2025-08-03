@@ -195,9 +195,8 @@ impl UI {
                 let line = &buffer.lines[buffer_row];
 
                 // Track how much content we've rendered for cursor line filling
-                let content_rendered = if let Some(highlights) = editor_state
-                    .syntax_highlights
-                    .get(&(window.buffer_id.unwrap_or(0), buffer_row))
+                let content_rendered = if let Some(highlights) =
+                    editor_state.syntax_highlights.get(&(buffer.id, buffer_row))
                 {
                     self.render_highlighted_line(
                         terminal,

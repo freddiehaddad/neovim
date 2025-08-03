@@ -3,7 +3,8 @@ use neovim::Editor;
 use std::env;
 use std::path::PathBuf;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Initialize logging - you can uncomment one of these options:
 
     // Option 1: Default stderr logging (current)
