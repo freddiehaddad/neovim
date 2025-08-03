@@ -482,18 +482,29 @@ impl Editor {
             }
         }
 
-        // Create an optimized render state that only clones the necessary data
-        // Instead of cloning entire buffers and window manager, we'll only clone the essential display data
+        // Create an optimized render state that only clones buffers currently displayed in windows
+        // This avoids cloning ALL buffers while still providing the data needed for rendering
+        let mut displayed_buffers = HashMap::new();
+
+        // Only clone buffers that are actually displayed in windows
+        for window in self.window_manager.all_windows().values() {
+            if let Some(buffer_id) = window.buffer_id {
+                if let Some(buffer) = self.buffers.get(&buffer_id) {
+                    displayed_buffers.insert(buffer_id, buffer.clone());
+                }
+            }
+        }
+
         let editor_state = EditorRenderState {
             mode,
             current_buffer,
-            all_buffers: HashMap::new(), // We'll pass current buffer only to avoid cloning all buffers
+            all_buffers: displayed_buffers, // Only clone buffers that are visible
             command_line,
             status_message,
             buffer_count: self.buffers.len(),
             current_buffer_id: self.current_buffer_id,
             current_window_id: self.window_manager.current_window_id(),
-            window_manager: WindowManager::new(0, 0), // Minimal placeholder - actual layout handled separately
+            window_manager: self.window_manager.clone(), // Need the real window manager for layout
             syntax_highlights,
         };
 
