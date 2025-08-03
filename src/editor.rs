@@ -215,6 +215,9 @@ impl Editor {
             }
         }
 
+        // Request syntax highlighting for newly opened buffer
+        self.request_visible_line_highlighting();
+
         Ok(id)
     }
 
@@ -1001,6 +1004,68 @@ impl Editor {
         Vec::new()
     }
 
+    /// Request syntax highlighting for all visible lines in current window
+    /// Uses immediate highlighting for currently visible lines and async for buffer lines
+    pub fn request_visible_line_highlighting(&mut self) {
+        if let Some(highlighter) = &mut self.async_syntax_highlighter {
+            if let Some(window) = self.window_manager.current_window() {
+                if let Some(buffer_id) = window.buffer_id {
+                    if let Some(buffer) = self.buffers.get(&buffer_id) {
+                        let content_height = window.content_height();
+                        let viewport_top = window.viewport_top;
+
+                        // Get highlighting for visible lines immediately
+                        let visible_start = viewport_top;
+                        let visible_end =
+                            std::cmp::min(viewport_top + content_height, buffer.lines.len());
+
+                        // Request immediate highlighting for visible lines + buffer for scrolling
+                        let highlight_start = viewport_top;
+                        let highlight_end = std::cmp::min(
+                            viewport_top + content_height + 10, // 10 line buffer for smooth scrolling
+                            buffer.lines.len(),
+                        );
+
+                        if let Some(file_path) = &buffer.file_path {
+                            let path_str = file_path.to_string_lossy().to_string();
+
+                            // Determine language from file extension
+                            let language = if path_str.ends_with(".rs") {
+                                "rust"
+                            } else {
+                                "rust" // Default to rust for now
+                            };
+
+                            // Use immediate highlighting for currently visible lines
+                            for line_index in visible_start..visible_end {
+                                if let Some(line) = buffer.get_line(line_index) {
+                                    let _ = highlighter.get_immediate_highlights(
+                                        buffer_id, line_index, line, language,
+                                    );
+                                }
+                            }
+
+                            // Use async highlighting for buffer lines beyond visible area
+                            for line_index in highlight_start..highlight_end {
+                                if line_index < visible_start || line_index >= visible_end {
+                                    if let Some(line) = buffer.get_line(line_index) {
+                                        let _ = highlighter.request_highlighting(
+                                            buffer_id,
+                                            line_index,
+                                            line.to_string(),
+                                            language.to_string(),
+                                            crate::async_syntax::Priority::Medium,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Get highlighted text for a specific line in the current buffer
     pub fn get_line_highlights(&mut self, line_index: usize) -> Vec<crate::syntax::HighlightRange> {
         // Get the necessary data first to avoid borrow conflicts
@@ -1075,6 +1140,8 @@ impl Editor {
         if let Some(current_window) = self.window_manager.current_window_mut() {
             current_window.viewport_top = current_window.viewport_top.saturating_add(1);
         }
+        // Request highlighting for newly visible lines
+        self.request_visible_line_highlighting();
     }
 
     pub fn scroll_up_line(&mut self) {
@@ -1082,6 +1149,8 @@ impl Editor {
         if let Some(current_window) = self.window_manager.current_window_mut() {
             current_window.viewport_top = current_window.viewport_top.saturating_sub(1);
         }
+        // Request highlighting for newly visible lines
+        self.request_visible_line_highlighting();
     }
 
     pub fn scroll_down_page(&mut self) {
@@ -1125,6 +1194,9 @@ impl Editor {
                 buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
+
+        // Request highlighting for newly visible lines after scrolling
+        self.request_visible_line_highlighting();
     }
 
     pub fn scroll_up_page(&mut self) {
@@ -1167,6 +1239,9 @@ impl Editor {
                 buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
+
+        // Request highlighting for newly visible lines after scrolling
+        self.request_visible_line_highlighting();
     }
 
     pub fn scroll_down_half_page(&mut self) {
@@ -1211,6 +1286,9 @@ impl Editor {
                 buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
+
+        // Request highlighting for newly visible lines after scrolling
+        self.request_visible_line_highlighting();
     }
 
     pub fn scroll_up_half_page(&mut self) {
@@ -1254,6 +1332,9 @@ impl Editor {
                 buffer.cursor.col = buffer.cursor.col.min(line.len());
             }
         }
+
+        // Request highlighting for newly visible lines after scrolling
+        self.request_visible_line_highlighting();
     }
 
     // Centering methods (z commands in Vim)

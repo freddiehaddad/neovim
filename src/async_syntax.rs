@@ -98,6 +98,38 @@ impl AsyncSyntaxHighlighter {
         None
     }
 
+    /// Get immediate synchronous highlighting for a line (for initial rendering)
+    /// This bypasses the async queue and highlights immediately
+    pub fn get_immediate_highlights(
+        &self,
+        buffer_id: usize,
+        line_index: usize,
+        content: &str,
+        language: &str,
+    ) -> Option<Vec<HighlightRange>> {
+        // First check cache
+        if let Some(cached) = self.get_cached_highlights(buffer_id, line_index, content, language) {
+            return Some(cached);
+        }
+
+        // If not cached, create a temporary synchronous highlighter for immediate use
+        if let Ok(mut sync_highlighter) = SyntaxHighlighter::new() {
+            if let Ok(highlights) = sync_highlighter.highlight_text(content, language) {
+                // Store in cache for future use
+                let cache_key = HighlightCacheKey::new_simple(content, language);
+                let cache_entry = HighlightCacheEntry::new(highlights.clone());
+
+                if let Ok(mut cache) = self.shared_cache.write() {
+                    cache.insert(cache_key, cache_entry);
+                }
+
+                return Some(highlights);
+            }
+        }
+
+        None
+    }
+
     /// Request syntax highlighting for a line (async)
     pub fn request_highlighting(
         &self,
