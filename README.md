@@ -4,7 +4,7 @@ A revolutionary Vim/Neovim clone written in Rust that breaks from traditional Vi
 
 ## 🦀 The Oxidized Editor
 
-**Oxidized** (`oxy`) is a modern, high-performance text editor that reimagines Vim for the Rust era. Built from the ground up in Rust, it combines Vim's legendary efficiency with modern software engineering principles.
+**Oxidized** (`oxy`) is a modern, high-performance text editor that reimagines Vim for the Rust era. Built from the ground up in Rust, it combines Vim's legendary efficiency with modern software engineering principles and features complete text objects and operators support with full undo integration.
 
 ## 🚀 Revolutionary Features
 
@@ -77,6 +77,7 @@ This editor is built with **performance as a core principle**, implementing cutt
 ### Core Editor Functionality
 
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
+- **Text Objects and Operators**: Complete Vim-compatible text object system with full undo integration
 - **TOML-based Keymap System**: Configurable keybindings loaded from `keymaps.toml`
 - **TOML-based Editor Settings**: Comprehensive configuration in `editor.toml`
 - **Intelligent Command Completion**: Tab-based completion with popup menu for all Ex commands and settings
@@ -94,7 +95,7 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Configuration Hot Reloading**: Live updates when TOML files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
 - **Comprehensive Logging**: Debug-friendly logging system with file-based output for development and troubleshooting
-- **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
+- **Copy/Paste System**: Vim-compatible yank/put operations with type awareness and text object support
 - **Basic Text Operations**: Insert, delete, line breaks, word movement
 - **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
 - **Terminal Interface**: Raw terminal input/output with crossterm
@@ -105,8 +106,8 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Insert Mode**: `i`, `I`, `a`, `A`, `o`, `O`
 - **Navigation**: `h/j/k/l`, arrow keys, `w/b/e` (word movement), `0/$` (line start/end), `gg/G` (buffer start/end)
 - **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`, `R` (replace mode)
-- **Delete Operations**: `x` (delete char), `X` (delete char before), `dd` (delete line)
-- **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), `p/P` (put after/before)
+- **Delete Operations**: `x` (delete char), `X` (delete char before), `dd` (delete line), plus text objects (`diw`, `dap`, etc.)
+- **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`
 - **Window Management**:
@@ -124,6 +125,91 @@ This editor is built with **performance as a core principle**, implementing cutt
   - `zz` - Center cursor line
   - `zt` - Move cursor line to top
   - `zb` - Move cursor line to bottom
+
+### Advanced Text Objects and Operators
+
+**Oxidized** features a complete implementation of Vim's powerful text objects and operators system, enabling sophisticated text manipulation with intuitive command combinations.
+
+#### Operators
+
+Operators perform actions on text objects or motions. Press an operator key to enter **Operator-Pending mode**, then specify a text object:
+
+- **`d`** - Delete text object (e.g., `diw` deletes inner word)
+- **`c`** - Change text object (delete and enter insert mode)  
+- **`y`** - Yank (copy) text object
+- **`>`** - Indent text object
+- **`<`** - Unindent text object
+- **`~`** - Toggle case of text object
+
+#### Text Objects
+
+Text objects define regions of text. Use them after operators for precise text manipulation:
+
+**Word Text Objects:**
+
+- `iw` - **inner word** (word without surrounding whitespace)
+- `aw` - **a word** (word with surrounding whitespace)
+- `iW` - **inner WORD** (WORD without surrounding whitespace)
+- `aW` - **a WORD** (WORD with surrounding whitespace)
+
+**Paragraph Text Objects:**
+
+- `ip` - **inner paragraph** (paragraph without surrounding blank lines)
+- `ap` - **a paragraph** (paragraph with surrounding blank lines)
+
+**Sentence Text Objects:**
+
+- `is` - **inner sentence** (sentence without surrounding whitespace)
+- `as` - **a sentence** (sentence with surrounding whitespace)
+
+**Quote Text Objects:**
+
+- `i"` - **inner double quotes** (content inside `"..."`)
+- `a"` - **around double quotes** (content including the quotes)
+- `i'` - **inner single quotes** (content inside `'...'`)
+- `a'` - **around single quotes** (content including the quotes)
+- `i\`` - **inner backticks** (content inside `` `...` ``)
+- `a\`` - **around backticks** (content including the backticks)
+
+**Bracket Text Objects:**
+
+- `i(`, `i)`, `ib` - **inner parentheses** (content inside `(...)`)
+- `a(`, `a)`, `ab` - **around parentheses** (content including the parentheses)
+- `i[`, `i]` - **inner square brackets** (content inside `[...]`)
+- `a[`, `a]` - **around square brackets** (content including the brackets)
+- `i{`, `i}`, `iB` - **inner curly braces** (content inside `{...}`)
+- `a{`, `a}`, `aB` - **around curly braces** (content including the braces)
+- `i<`, `i>` - **inner angle brackets** (content inside `<...>`)
+- `a<`, `a>` - **around angle brackets** (content including the brackets)
+
+**Tag Text Objects (HTML/XML):**
+
+- `it` - **inner tag** (content between HTML/XML tags)
+- `at` - **around tag** (content including the tags)
+
+#### Example Usage
+
+```vim
+diw     # Delete inner word (cursor on any part of word)
+ciw     # Change inner word (delete word and enter insert mode)
+yap     # Yank around paragraph (copy paragraph with blank lines)
+>ip     # Indent inner paragraph
+<i{     # Unindent content inside curly braces
+~iw     # Toggle case of inner word
+da"     # Delete around double quotes (delete quoted text and quotes)
+ci(     # Change inner parentheses (replace content inside parentheses)
+```
+
+#### Full Integration with Undo System
+
+All text object operations integrate seamlessly with the editor's advanced undo system:
+
+- **Press `u` to undo any text object operation**
+- **Press `Ctrl+r` to redo undone operations**
+- **Memory-efficient delta-based undo** stores only the changes, not full buffer copies
+- **Configurable undo levels** via `:set undolevels=<n>` (default: 1000)
+
+This powerful combination of operators and text objects enables precise, efficient text editing that scales from simple word edits to complex structural changes.
 
 ### Ex Commands
 
@@ -401,6 +487,8 @@ auto_save = false             # Automatically save files
 [interface]
 show_status_line = true       # Show status line
 command_timeout = 1000        # Timeout for key sequences (ms)
+text_object_timeout = 500     # Timeout for text object sequences (ms)
+operator_pending_timeout = 500 # Timeout for operator-pending mode (ms)
 show_command = true           # Show partial commands
 scroll_off = 3                # Lines to keep above/below cursor
 side_scroll_off = 0           # Columns to keep left/right of cursor
@@ -517,6 +605,8 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 - `show_status_line` - Display status line
 - `command_timeout` - Timeout for key sequences (milliseconds)
+- `text_object_timeout` - Timeout for text object sequences (milliseconds)
+- `operator_pending_timeout` - Timeout for operator-pending mode (milliseconds)
 - `show_command` - Show partial commands
 - `scroll_off` - Lines to keep visible above/below cursor
 - `side_scroll_off` - Columns to keep visible left/right of cursor

@@ -13,6 +13,7 @@ pub mod plugin;
 pub mod search;
 pub mod syntax;
 pub mod terminal;
+pub mod text_objects;
 pub mod theme;
 pub mod theme_watcher;
 pub mod ui;

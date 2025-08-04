@@ -43,6 +43,8 @@ pub struct EditingConfig {
     pub backup: bool,
     pub swap_file: bool,
     pub auto_save: bool,
+    pub text_object_timeout: u64,
+    pub operator_pending_timeout: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +87,8 @@ impl Default for EditorConfig {
                 backup: false,
                 swap_file: false,
                 auto_save: false,
+                text_object_timeout: 1000,
+                operator_pending_timeout: 1000,
             },
             interface: InterfaceConfig {
                 show_status_line: true,

@@ -846,4 +846,230 @@ impl Buffer {
             self.modified = true;
         }
     }
+
+    /// Delete a range of text with proper undo support
+    pub fn delete_range(&mut self, start: Position, end: Position) -> String {
+        // Get the text to be deleted
+        let deleted_text = self.get_text_in_range(start, end);
+
+        // Create undo operation
+        let operation = EditOperation::Delete {
+            pos: start,
+            text: deleted_text.clone(),
+        };
+        self.save_operation(operation);
+
+        // Perform the deletion
+        if start.row == end.row {
+            // Single line deletion
+            if let Some(line) = self.lines.get_mut(start.row) {
+                let start_col = start.col.min(line.len());
+                let end_col = end.col.min(line.len());
+                line.drain(start_col..end_col);
+            }
+        } else {
+            // Multi-line deletion
+            let start_row = start.row;
+            let end_row = end.row.min(self.lines.len().saturating_sub(1));
+
+            // Save the beginning of the first line and end of the last line
+            let first_part = if let Some(line) = self.lines.get(start_row) {
+                line[..start.col.min(line.len())].to_string()
+            } else {
+                String::new()
+            };
+
+            let last_part = if let Some(line) = self.lines.get(end_row) {
+                line[end.col.min(line.len())..].to_string()
+            } else {
+                String::new()
+            };
+
+            // Remove lines
+            if end_row >= start_row {
+                self.lines.drain(start_row..=end_row);
+            }
+
+            // Insert combined line
+            let combined = format!("{}{}", first_part, last_part);
+            self.lines.insert(start_row, combined);
+        }
+
+        // Move cursor to start of deleted range
+        self.cursor = start;
+        self.modified = true;
+
+        deleted_text
+    }
+
+    /// Get text content in a range
+    pub fn get_text_in_range(&self, start: Position, end: Position) -> String {
+        if start.row == end.row {
+            // Single line selection
+            if let Some(line) = self.lines.get(start.row) {
+                let start_col = start.col.min(line.len());
+                let end_col = end.col.min(line.len());
+                return line[start_col..end_col].to_string();
+            }
+        } else {
+            // Multi-line selection
+            let mut result = String::new();
+
+            // First line (from start_col to end)
+            if let Some(line) = self.lines.get(start.row) {
+                let start_col = start.col.min(line.len());
+                result.push_str(&line[start_col..]);
+                result.push('\n');
+            }
+
+            // Middle lines (complete lines)
+            for row in (start.row + 1)..end.row {
+                if let Some(line) = self.lines.get(row) {
+                    result.push_str(line);
+                    result.push('\n');
+                }
+            }
+
+            // Last line (from start to end_col)
+            if let Some(line) = self.lines.get(end.row) {
+                let end_col = end.col.min(line.len());
+                result.push_str(&line[..end_col]);
+            }
+
+            return result;
+        }
+
+        String::new()
+    }
+
+    /// Replace text in a range with new text (with undo support)
+    pub fn replace_range(&mut self, start: Position, end: Position, new_text: &str) {
+        let old_text = self.get_text_in_range(start, end);
+
+        // Create undo operation
+        let operation = EditOperation::Replace {
+            pos: start,
+            old: old_text,
+            new: new_text.to_string(),
+        };
+        self.save_operation(operation);
+
+        // Perform the replacement manually to avoid borrowing issues
+        if start.row == end.row {
+            // Single line replacement
+            if let Some(line) = self.lines.get_mut(start.row) {
+                let start_col = start.col.min(line.len());
+                let end_col = end.col.min(line.len());
+                line.replace_range(start_col..end_col, new_text);
+                // Update cursor position
+                self.cursor = Position {
+                    row: start.row,
+                    col: start_col + new_text.len(),
+                };
+            }
+        } else {
+            // Multi-line replacement - delete range then insert
+            self.delete_range_raw(start, end);
+            self.cursor = start;
+            for ch in new_text.chars() {
+                if ch == '\n' {
+                    self.insert_line_break_raw();
+                } else {
+                    self.insert_char_raw(ch);
+                }
+            }
+        }
+
+        self.modified = true;
+    }
+
+    /// Delete range without undo (for internal use)
+    fn delete_range_raw(&mut self, start: Position, end: Position) {
+        if start.row == end.row {
+            // Single line deletion
+            if let Some(line) = self.lines.get_mut(start.row) {
+                let start_col = start.col.min(line.len());
+                let end_col = end.col.min(line.len());
+                line.drain(start_col..end_col);
+            }
+        } else {
+            // Multi-line deletion
+            let start_row = start.row;
+            let end_row = end.row.min(self.lines.len().saturating_sub(1));
+
+            // Save the beginning of the first line and end of the last line
+            let first_part = if let Some(line) = self.lines.get(start_row) {
+                line[..start.col.min(line.len())].to_string()
+            } else {
+                String::new()
+            };
+
+            let last_part = if let Some(line) = self.lines.get(end_row) {
+                line[end.col.min(line.len())..].to_string()
+            } else {
+                String::new()
+            };
+
+            // Remove lines
+            if end_row >= start_row {
+                self.lines.drain(start_row..=end_row);
+            }
+
+            // Insert combined line
+            let combined = format!("{}{}", first_part, last_part);
+            self.lines.insert(start_row, combined);
+        }
+
+        // Move cursor to start of deleted range
+        self.cursor = start;
+    }
+
+    /// Add indentation to a line
+    pub fn indent_line(&mut self, line_num: usize) -> anyhow::Result<()> {
+        if line_num < self.lines.len() {
+            let operation = EditOperation::Insert {
+                pos: Position {
+                    row: line_num,
+                    col: 0,
+                },
+                text: "    ".to_string(), // 4 spaces for indentation
+            };
+            self.save_operation(operation);
+
+            self.lines[line_num].insert_str(0, "    ");
+            self.modified = true;
+        }
+        Ok(())
+    }
+
+    /// Remove indentation from a line
+    pub fn unindent_line(&mut self, line_num: usize) -> anyhow::Result<()> {
+        if line_num < self.lines.len() {
+            let line = &self.lines[line_num];
+            let chars_to_remove = if line.starts_with("    ") {
+                4
+            } else if line.starts_with("\t") {
+                1
+            } else {
+                // Count leading spaces up to 4
+                line.chars().take(4).take_while(|&c| c == ' ').count()
+            };
+
+            if chars_to_remove > 0 {
+                let removed_text = self.lines[line_num][..chars_to_remove].to_string();
+                let operation = EditOperation::Delete {
+                    pos: Position {
+                        row: line_num,
+                        col: 0,
+                    },
+                    text: removed_text,
+                };
+                self.save_operation(operation);
+
+                self.lines[line_num].drain(..chars_to_remove);
+                self.modified = true;
+            }
+        }
+        Ok(())
+    }
 }

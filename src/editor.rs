@@ -8,6 +8,7 @@ use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
 use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
+
 use crate::theme_watcher::ThemeManager;
 use crate::ui::UI;
 use crate::window::{SplitDirection, WindowManager};
@@ -17,6 +18,44 @@ use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
+
+/// Represents an operator waiting for a text object or motion
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PendingOperator {
+    Delete,     // d
+    Change,     // c
+    Yank,       // y
+    Indent,     // >
+    Unindent,   // <
+    ToggleCase, // ~
+}
+
+impl PendingOperator {
+    /// Get the character representation of this operator
+    pub fn to_char(&self) -> char {
+        match self {
+            PendingOperator::Delete => 'd',
+            PendingOperator::Change => 'c',
+            PendingOperator::Yank => 'y',
+            PendingOperator::Indent => '>',
+            PendingOperator::Unindent => '<',
+            PendingOperator::ToggleCase => '~',
+        }
+    }
+
+    /// Parse operator from character
+    pub fn from_char(ch: char) -> Option<Self> {
+        match ch {
+            'd' => Some(PendingOperator::Delete),
+            'c' => Some(PendingOperator::Change),
+            'y' => Some(PendingOperator::Yank),
+            '>' => Some(PendingOperator::Indent),
+            '<' => Some(PendingOperator::Unindent),
+            '~' => Some(PendingOperator::ToggleCase),
+            _ => None,
+        }
+    }
+}
 
 // Struct to hold editor state for rendering without borrowing issues
 pub struct EditorRenderState {
@@ -77,6 +116,10 @@ pub struct Editor {
     has_processed_any_press: bool,
     /// Command completion system
     command_completion: CommandCompletion,
+    /// Current pending operator (for operator + text object combinations)
+    pending_operator: Option<PendingOperator>,
+    /// Text object finder for parsing text objects
+    text_object_finder: crate::text_objects::TextObjectFinder,
 }
 
 impl Editor {
@@ -156,6 +199,8 @@ impl Editor {
             async_syntax_highlighter,
             has_processed_any_press: false,
             command_completion: CommandCompletion::new(),
+            pending_operator: None,
+            text_object_finder: crate::text_objects::TextObjectFinder::new(),
         })
     }
 
@@ -687,6 +732,203 @@ impl Editor {
 
     pub fn cancel_completion(&mut self) {
         self.command_completion.cancel();
+    }
+
+    // Operator and text object methods
+    pub fn set_pending_operator(&mut self, operator: PendingOperator) {
+        debug!("Set pending operator: {:?}", operator);
+        self.pending_operator = Some(operator);
+        self.set_mode(Mode::OperatorPending);
+    }
+
+    pub fn get_pending_operator(&self) -> Option<&PendingOperator> {
+        self.pending_operator.as_ref()
+    }
+
+    pub fn clear_pending_operator(&mut self) {
+        self.pending_operator = None;
+        if self.mode == Mode::OperatorPending {
+            self.set_mode(Mode::Normal);
+        }
+    }
+
+    pub fn execute_operator_with_text_object(&mut self, text_object_str: &str) -> Result<bool> {
+        let Some(operator) = self.pending_operator.clone() else {
+            return Ok(false);
+        };
+
+        let Some((mode, object_type)) = crate::text_objects::parse_text_object(text_object_str)
+        else {
+            debug!("Invalid text object: {}", text_object_str);
+            return Ok(false);
+        };
+
+        let Some(buffer) = self.current_buffer() else {
+            return Ok(false);
+        };
+
+        let cursor = buffer.cursor;
+
+        let text_object_range =
+            self.text_object_finder
+                .find_text_object(buffer, cursor, object_type, mode)?;
+
+        if let Some(range) = text_object_range {
+            debug!(
+                "Found text object range: {:?} for operator {:?}",
+                range, operator
+            );
+            self.execute_operator_on_range(operator, range)?;
+            self.clear_pending_operator();
+            return Ok(true);
+        } else {
+            debug!("No text object found for: {}", text_object_str);
+        }
+
+        Ok(false)
+    }
+
+    pub fn execute_operator_on_range(
+        &mut self,
+        operator: PendingOperator,
+        range: crate::text_objects::TextObjectRange,
+    ) -> Result<()> {
+        let object_type = range.object_type.clone(); // Clone for logging
+
+        match operator {
+            PendingOperator::Delete => {
+                self.delete_range(range)?;
+                info!("Deleted text object: {:?}", object_type);
+            }
+            PendingOperator::Yank => {
+                self.yank_range(range)?;
+                info!("Yanked text object: {:?}", object_type);
+            }
+            PendingOperator::Change => {
+                self.delete_range(range)?;
+                self.set_mode(Mode::Insert);
+                info!("Changed text object: {:?}", object_type);
+            }
+            PendingOperator::Indent => {
+                self.indent_range(range)?;
+                info!("Indented text object: {:?}", object_type);
+            }
+            PendingOperator::Unindent => {
+                self.unindent_range(range)?;
+                info!("Unindented text object: {:?}", object_type);
+            }
+            PendingOperator::ToggleCase => {
+                self.toggle_case_range(range)?;
+                info!("Toggled case for text object: {:?}", object_type);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn delete_range(&mut self, range: crate::text_objects::TextObjectRange) -> Result<()> {
+        debug!("delete_range called with range: {:?}", range);
+        let Some(buffer) = self.current_buffer_mut() else {
+            debug!("No current buffer found");
+            return Ok(());
+        };
+
+        debug!("Buffer has {} lines", buffer.lines.len());
+
+        // Use the buffer's undo-aware delete_range method
+        let deleted_text = buffer.delete_range(range.start, range.end);
+        debug!("Text deleted: '{}'", deleted_text);
+
+        // Store in clipboard
+        buffer.clipboard.text = deleted_text.clone();
+        buffer.clipboard.yank_type = if range.start.row != range.end.row {
+            crate::buffer::YankType::Line
+        } else {
+            crate::buffer::YankType::Character
+        };
+
+        debug!("Buffer modified flag set to true");
+        self.status_message = format!("Deleted text: '{}'", deleted_text);
+        Ok(())
+    }
+
+    fn yank_range(&mut self, range: crate::text_objects::TextObjectRange) -> Result<()> {
+        let Some(buffer) = self.current_buffer_mut() else {
+            return Ok(());
+        };
+
+        let yanked_text = range.get_text(buffer);
+        buffer.clipboard.text = yanked_text;
+        buffer.clipboard.yank_type = if range.start.row != range.end.row {
+            crate::buffer::YankType::Line
+        } else {
+            crate::buffer::YankType::Character
+        };
+
+        self.status_message = format!(
+            "Yanked {} text object",
+            match range.object_type {
+                crate::text_objects::TextObjectType::Word => "word",
+                crate::text_objects::TextObjectType::Word2 => "WORD",
+                crate::text_objects::TextObjectType::Paragraph => "paragraph",
+                crate::text_objects::TextObjectType::Sentence => "sentence",
+                _ => "text",
+            }
+        );
+
+        Ok(())
+    }
+
+    fn indent_range(&mut self, range: crate::text_objects::TextObjectRange) -> Result<()> {
+        let Some(buffer) = self.current_buffer_mut() else {
+            return Ok(());
+        };
+
+        for row in range.start.row..=range.end.row.min(buffer.lines.len().saturating_sub(1)) {
+            let _ = buffer.indent_line(row);
+        }
+
+        Ok(())
+    }
+
+    fn unindent_range(&mut self, range: crate::text_objects::TextObjectRange) -> Result<()> {
+        let Some(buffer) = self.current_buffer_mut() else {
+            return Ok(());
+        };
+
+        for row in range.start.row..=range.end.row.min(buffer.lines.len().saturating_sub(1)) {
+            let _ = buffer.unindent_line(row);
+        }
+
+        Ok(())
+    }
+
+    fn toggle_case_range(&mut self, range: crate::text_objects::TextObjectRange) -> Result<()> {
+        let Some(buffer) = self.current_buffer_mut() else {
+            return Ok(());
+        };
+
+        // Get the text in the range
+        let text = buffer.get_text_in_range(range.start, range.end);
+
+        // Toggle case of the text
+        let toggled_text: String = text
+            .chars()
+            .map(|c| {
+                if c.is_uppercase() {
+                    c.to_lowercase().next().unwrap_or(c)
+                } else if c.is_lowercase() {
+                    c.to_uppercase().next().unwrap_or(c)
+                } else {
+                    c
+                }
+            })
+            .collect();
+
+        // Replace the range with the toggled text
+        let _ = buffer.replace_range(range.start, range.end, &toggled_text);
+
+        Ok(())
     }
 
     pub fn quit(&mut self) {

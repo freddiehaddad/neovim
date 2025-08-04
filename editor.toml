@@ -22,6 +22,8 @@ persistent_undo = false
 backup = false
 swap_file = false
 auto_save = false
+text_object_timeout = 1000
+operator_pending_timeout = 1000
 
 [interface]
 show_status_line = true

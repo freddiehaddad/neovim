@@ -11,6 +11,7 @@ pub enum Mode {
     Command,
     Replace,
     Search,
+    OperatorPending, // For waiting for text object after operator
 }
 
 impl fmt::Display for Mode {
@@ -24,6 +25,7 @@ impl fmt::Display for Mode {
             Mode::Command => write!(f, "COMMAND"),
             Mode::Replace => write!(f, "REPLACE"),
             Mode::Search => write!(f, "SEARCH"),
+            Mode::OperatorPending => write!(f, "OP-PENDING"),
         }
     }
 }

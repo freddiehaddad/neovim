@@ -48,6 +48,14 @@
 "X" = "delete_char_before_cursor"
 "dd" = "delete_line"
 
+# Operators (enter operator-pending mode)
+"d" = "operator_delete"
+"c" = "operator_change"
+"y" = "operator_yank"
+">" = "operator_indent"
+"<" = "operator_unindent"
+"~" = "operator_toggle_case"
+
 # Yank (copy) operations
 "yy" = "yank_line"
 "yw" = "yank_word"
@@ -78,54 +86,54 @@
 "Ctrl+u" = "scroll_up_half_page"   # Scroll up half page
 
 # Centering operations (z commands)
-"zz" = "center_cursor"             # Center current line in viewport
-"zt" = "cursor_to_top"             # Move current line to top of viewport
-"zb" = "cursor_to_bottom"          # Move current line to bottom of viewport
+"zz" = "center_cursor"    # Center current line in viewport
+"zt" = "cursor_to_top"    # Move current line to top of viewport
+"zb" = "cursor_to_bottom" # Move current line to bottom of viewport
 
 # Alternative center commands
-"z." = "center_cursor"             # Center current line (alternative)
-"z-" = "cursor_to_bottom"          # Move current line to bottom (alternative)
-"zEnter" = "cursor_to_top"         # Move current line to top (alternative)
+"z." = "center_cursor"     # Center current line (alternative)
+"z-" = "cursor_to_bottom"  # Move current line to bottom (alternative)
+"zEnter" = "cursor_to_top" # Move current line to top (alternative)
 
 # Window/Split navigation
-"Ctrl+w h" = "window_left"         # Move to window left
-"Ctrl+w j" = "window_down"         # Move to window down
-"Ctrl+w k" = "window_up"           # Move to window up
-"Ctrl+w l" = "window_right"        # Move to window right
-"Ctrl+w Left" = "window_left"      # Move to window left (arrow key)
-"Ctrl+w Down" = "window_down"      # Move to window down (arrow key)
-"Ctrl+w Up" = "window_up"          # Move to window up (arrow key)
-"Ctrl+w Right" = "window_right"    # Move to window right (arrow key)
+"Ctrl+w h" = "window_left"      # Move to window left
+"Ctrl+w j" = "window_down"      # Move to window down
+"Ctrl+w k" = "window_up"        # Move to window up
+"Ctrl+w l" = "window_right"     # Move to window right
+"Ctrl+w Left" = "window_left"   # Move to window left (arrow key)
+"Ctrl+w Down" = "window_down"   # Move to window down (arrow key)
+"Ctrl+w Up" = "window_up"       # Move to window up (arrow key)
+"Ctrl+w Right" = "window_right" # Move to window right (arrow key)
 
 # Window splitting - basic
-"Ctrl+w s" = "split_horizontal"    # Split horizontally (below)
-"Ctrl+w v" = "split_vertical"      # Split vertically (right)
+"Ctrl+w s" = "split_horizontal" # Split horizontally (below)
+"Ctrl+w v" = "split_vertical"   # Split vertically (right)
 
 # Window splitting - directional  
-"Ctrl+w S" = "split_horizontal_above"   # Split horizontally above current window
-"Ctrl+w V" = "split_vertical_left"      # Split vertically left of current window
+"Ctrl+w S" = "split_horizontal_above" # Split horizontally above current window
+"Ctrl+w V" = "split_vertical_left"    # Split vertically left of current window
 
 # Window management
-"Ctrl+w c" = "close_window"        # Close current window
-"Ctrl+w q" = "close_window"        # Close current window (alternative)
+"Ctrl+w c" = "close_window" # Close current window
+"Ctrl+w q" = "close_window" # Close current window (alternative)
 
 # Window resizing
-"Ctrl+w >" = "resize_window_wider"     # Make window wider
-"Ctrl+w <" = "resize_window_narrower"  # Make window narrower
-"Ctrl+w +" = "resize_window_taller"    # Make window taller
-"Ctrl+w -" = "resize_window_shorter"   # Make window shorter
+"Ctrl+w >" = "resize_window_wider"    # Make window wider
+"Ctrl+w <" = "resize_window_narrower" # Make window narrower
+"Ctrl+w +" = "resize_window_taller"   # Make window taller
+"Ctrl+w -" = "resize_window_shorter"  # Make window shorter
 
 # Additional navigation keys
 "Home" = "line_start"
 "End" = "line_end"
-"PageUp" = "scroll_up_page"        # Map PageUp to scroll up page
-"PageDown" = "scroll_down_page"    # Map PageDown to scroll down page
+"PageUp" = "scroll_up_page"     # Map PageUp to scroll up page
+"PageDown" = "scroll_down_page" # Map PageDown to scroll down page
 
 # Function keys for common operations
-"F1" = "command_mode"  # Help/command mode
-"F2" = "save_file"     # Quick save
+"F1" = "command_mode"   # Help/command mode
+"F2" = "save_file"      # Quick save
 "F3" = "search_forward" # Find
-"F10" = "quit"         # Exit
+"F10" = "quit"          # Exit
 
 [insert_mode]
 # Basic editing
@@ -243,3 +251,58 @@
 "Escape" = "normal_mode"
 "Ctrl+c" = "normal_mode"
 "Backspace" = "delete_search_char"
+
+[operator_pending_mode]
+# Text objects for operators
+# Word text objects
+"iw" = "text_object_iw" # inner word
+"aw" = "text_object_aw" # a word
+"iW" = "text_object_iW" # inner WORD
+"aW" = "text_object_aW" # a WORD
+
+# Sentence and paragraph text objects
+"is" = "text_object_is" # inner sentence
+"as" = "text_object_as" # a sentence
+"ip" = "text_object_ip" # inner paragraph
+"ap" = "text_object_ap" # a paragraph
+
+# Quote text objects
+"i\"" = "text_object_i\"" # inner double quotes
+"a\"" = "text_object_a\"" # a double quotes
+"i'" = "text_object_i'"   # inner single quotes
+"a'" = "text_object_a'"   # a single quotes
+"i`" = "text_object_i`"   # inner backticks
+"a`" = "text_object_a`"   # a backticks
+
+# Bracket text objects
+"i(" = "text_object_i(" # inner parentheses
+"a(" = "text_object_a(" # a parentheses
+"i)" = "text_object_i)" # inner parentheses (alternative)
+"a)" = "text_object_a)" # a parentheses (alternative)
+"ib" = "text_object_ib" # inner parentheses (vim style)
+"ab" = "text_object_ab" # a parentheses (vim style)
+
+"i[" = "text_object_i[" # inner square brackets
+"a[" = "text_object_a[" # a square brackets
+"i]" = "text_object_i]" # inner square brackets (alternative)
+"a]" = "text_object_a]" # a square brackets (alternative)
+
+"i{" = "text_object_i{" # inner curly braces
+"a{" = "text_object_a{" # a curly braces
+"i}" = "text_object_i}" # inner curly braces (alternative)
+"a}" = "text_object_a}" # a curly braces (alternative)
+"iB" = "text_object_iB" # inner curly braces (vim style)
+"aB" = "text_object_aB" # a curly braces (vim style)
+
+"i<" = "text_object_i<" # inner angle brackets
+"a<" = "text_object_a<" # a angle brackets
+"i>" = "text_object_i>" # inner angle brackets (alternative)
+"a>" = "text_object_a>" # a angle brackets (alternative)
+
+# Tag text objects (HTML/XML)
+"it" = "text_object_it" # inner tag
+"at" = "text_object_at" # a tag
+
+# Escape to cancel operator
+"Escape" = "normal_mode"
+"Ctrl+c" = "normal_mode"

@@ -18,6 +18,7 @@ pub struct KeymapConfig {
     pub visual_block_mode: HashMap<String, String>,
     pub replace_mode: HashMap<String, String>,
     pub search_mode: HashMap<String, String>,
+    pub operator_pending_mode: HashMap<String, String>,
 }
 
 #[derive(Clone)]
@@ -82,6 +83,7 @@ impl KeyHandler {
             visual_block_mode: HashMap::new(),
             replace_mode: HashMap::new(),
             search_mode: HashMap::new(),
+            operator_pending_mode: HashMap::new(),
         }
     }
 
@@ -93,8 +95,8 @@ impl KeyHandler {
             editor.mode()
         );
 
-        // Handle key sequences for normal mode
-        if matches!(editor.mode(), Mode::Normal) {
+        // Handle key sequences for normal mode and operator pending mode
+        if matches!(editor.mode(), Mode::Normal | Mode::OperatorPending) {
             // Check for timeout (reset sequence if too much time passed)
             let now = Instant::now();
             if !self.pending_sequence.is_empty() {
@@ -136,14 +138,42 @@ impl KeyHandler {
 
             debug!("Current key sequence: '{}'", self.pending_sequence);
 
-            // Check if sequence matches any command
-            if let Some(action) = self.keymap_config.normal_mode.get(&self.pending_sequence) {
-                // Check if there's also a longer potential match.
+            // Check if sequence matches any command in the current mode
+            let current_keymap = match editor.mode() {
+                Mode::Normal => &self.keymap_config.normal_mode,
+                Mode::OperatorPending => &self.keymap_config.operator_pending_mode,
+                _ => unreachable!(), // We only enter this block for Normal and OperatorPending
+            };
+
+            if let Some(action) = current_keymap.get(&self.pending_sequence) {
+                // Special handling for operators in Normal mode: they should execute immediately
+                // even if there are longer potential matches (like 'd' vs 'dd')
+                let is_operator = matches!(editor.mode(), Mode::Normal)
+                    && matches!(
+                        action.as_str(),
+                        "operator_delete"
+                            | "operator_change"
+                            | "operator_yank"
+                            | "operator_indent"
+                            | "operator_unindent"
+                            | "operator_toggle_case"
+                    );
+
+                if is_operator {
+                    debug!(
+                        "Executing operator '{}' immediately for key sequence '{}'",
+                        action, self.pending_sequence
+                    );
+                    let action_result = self.execute_action(editor, action, key);
+                    self.pending_sequence.clear();
+                    return action_result;
+                }
+
+                // For non-operators, check if there's also a longer potential match.
                 // If so, we wait. If not, we execute immediately.
-                let has_potential_match =
-                    self.keymap_config.normal_mode.keys().any(|k| {
-                        k.starts_with(&self.pending_sequence) && k != &self.pending_sequence
-                    });
+                let has_potential_match = current_keymap
+                    .keys()
+                    .any(|k| k.starts_with(&self.pending_sequence) && k != &self.pending_sequence);
 
                 if !has_potential_match {
                     debug!(
@@ -165,9 +195,7 @@ impl KeyHandler {
 
             // If we are here, the sequence did not match any command directly.
             // Check if it's a prefix of any command.
-            let has_potential_match = self
-                .keymap_config
-                .normal_mode
+            let has_potential_match = current_keymap
                 .keys()
                 .any(|k| k.starts_with(&self.pending_sequence));
 
@@ -183,61 +211,64 @@ impl KeyHandler {
             return Ok(());
         }
 
-        let action = match editor.mode() {
-            Mode::Normal => self.keymap_config.normal_mode.get(&key_string),
-            Mode::Insert => {
-                if let KeyCode::Char(_) = key.code {
-                    if !key.modifiers.contains(KeyModifiers::CONTROL)
-                        && !key.modifiers.contains(KeyModifiers::ALT)
-                    {
-                        self.keymap_config.insert_mode.get("Char")
+        // For modes other than Normal and OperatorPending, handle simple key mapping
+        if !matches!(editor.mode(), Mode::Normal | Mode::OperatorPending) {
+            let action = match editor.mode() {
+                Mode::Insert => {
+                    if let KeyCode::Char(_) = key.code {
+                        if !key.modifiers.contains(KeyModifiers::CONTROL)
+                            && !key.modifiers.contains(KeyModifiers::ALT)
+                        {
+                            self.keymap_config.insert_mode.get("Char")
+                        } else {
+                            self.keymap_config.insert_mode.get(&key_string)
+                        }
                     } else {
                         self.keymap_config.insert_mode.get(&key_string)
                     }
-                } else {
-                    self.keymap_config.insert_mode.get(&key_string)
                 }
-            }
-            Mode::Command => {
-                if let KeyCode::Char(_) = key.code {
-                    if !key.modifiers.contains(KeyModifiers::CONTROL)
-                        && !key.modifiers.contains(KeyModifiers::ALT)
-                    {
-                        self.keymap_config.command_mode.get("Char")
+                Mode::Command => {
+                    if let KeyCode::Char(_) = key.code {
+                        if !key.modifiers.contains(KeyModifiers::CONTROL)
+                            && !key.modifiers.contains(KeyModifiers::ALT)
+                        {
+                            self.keymap_config.command_mode.get("Char")
+                        } else {
+                            self.keymap_config.command_mode.get(&key_string)
+                        }
                     } else {
                         self.keymap_config.command_mode.get(&key_string)
                     }
-                } else {
-                    self.keymap_config.command_mode.get(&key_string)
                 }
-            }
-            Mode::Visual => self.keymap_config.visual_mode.get(&key_string),
-            Mode::VisualLine => self.keymap_config.visual_line_mode.get(&key_string),
-            Mode::VisualBlock => self.keymap_config.visual_block_mode.get(&key_string),
-            Mode::Replace => {
-                if let KeyCode::Char(_) = key.code {
-                    self.keymap_config.replace_mode.get("Char")
-                } else {
-                    self.keymap_config.replace_mode.get(&key_string)
+                Mode::Visual => self.keymap_config.visual_mode.get(&key_string),
+                Mode::VisualLine => self.keymap_config.visual_line_mode.get(&key_string),
+                Mode::VisualBlock => self.keymap_config.visual_block_mode.get(&key_string),
+                Mode::Replace => {
+                    if let KeyCode::Char(_) = key.code {
+                        self.keymap_config.replace_mode.get("Char")
+                    } else {
+                        self.keymap_config.replace_mode.get(&key_string)
+                    }
                 }
-            }
-            Mode::Search => {
-                if let KeyCode::Char(_) = key.code {
-                    if !key.modifiers.contains(KeyModifiers::CONTROL)
-                        && !key.modifiers.contains(KeyModifiers::ALT)
-                    {
-                        self.keymap_config.search_mode.get("Char")
+                Mode::Search => {
+                    if let KeyCode::Char(_) = key.code {
+                        if !key.modifiers.contains(KeyModifiers::CONTROL)
+                            && !key.modifiers.contains(KeyModifiers::ALT)
+                        {
+                            self.keymap_config.search_mode.get("Char")
+                        } else {
+                            self.keymap_config.search_mode.get(&key_string)
+                        }
                     } else {
                         self.keymap_config.search_mode.get(&key_string)
                     }
-                } else {
-                    self.keymap_config.search_mode.get(&key_string)
                 }
-            }
-        };
+                _ => None, // Should not reach here
+            };
 
-        if let Some(action_name) = action {
-            self.execute_action(editor, action_name, key)?;
+            if let Some(action_name) = action {
+                self.execute_action(editor, action_name, key)?;
+            }
         }
 
         Ok(())
@@ -394,6 +425,20 @@ impl KeyHandler {
             // Replace mode actions
             "replace_char" => self.action_replace_char(editor, key)?,
 
+            // Operator actions
+            "operator_delete" => self.action_operator_delete(editor)?,
+            "operator_change" => self.action_operator_change(editor)?,
+            "operator_yank" => self.action_operator_yank(editor)?,
+            "operator_indent" => self.action_operator_indent(editor)?,
+            "operator_unindent" => self.action_operator_unindent(editor)?,
+            "operator_toggle_case" => self.action_operator_toggle_case(editor)?,
+
+            // Text object actions (for operator-pending mode)
+            action if action.starts_with("text_object_") => {
+                let text_object_str = action.strip_prefix("text_object_").unwrap_or("");
+                self.action_text_object(editor, text_object_str)?;
+            }
+
             // Scrolling actions
             "scroll_down_line" => self.action_scroll_down_line(editor)?,
             "scroll_up_line" => self.action_scroll_up_line(editor)?,
@@ -483,6 +528,8 @@ impl KeyHandler {
 
     fn action_normal_mode(&self, editor: &mut Editor) -> Result<()> {
         editor.set_mode(Mode::Normal);
+        // Clear any pending operator when returning to normal mode
+        editor.clear_pending_operator();
         Ok(())
     }
 
@@ -1477,5 +1524,63 @@ impl KeyHandler {
             }
             _ => editor.set_status_message(format!("Unknown option: {}", args)),
         }
+    }
+
+    // Operator action implementations
+    fn action_operator_delete(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_pending_operator(crate::editor::PendingOperator::Delete);
+        Ok(())
+    }
+
+    fn action_operator_change(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_pending_operator(crate::editor::PendingOperator::Change);
+        Ok(())
+    }
+
+    fn action_operator_yank(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_pending_operator(crate::editor::PendingOperator::Yank);
+        Ok(())
+    }
+
+    fn action_operator_indent(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_pending_operator(crate::editor::PendingOperator::Indent);
+        Ok(())
+    }
+
+    fn action_operator_unindent(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_pending_operator(crate::editor::PendingOperator::Unindent);
+        Ok(())
+    }
+
+    fn action_operator_toggle_case(&self, editor: &mut Editor) -> Result<()> {
+        editor.set_pending_operator(crate::editor::PendingOperator::ToggleCase);
+        Ok(())
+    }
+
+    fn action_text_object(&self, editor: &mut Editor, text_object_str: &str) -> Result<()> {
+        debug!("action_text_object called with: {}", text_object_str);
+        if editor.get_pending_operator().is_some() {
+            debug!(
+                "Found pending operator: {:?}",
+                editor.get_pending_operator()
+            );
+            // Execute the operator with the text object
+            if editor.execute_operator_with_text_object(text_object_str)? {
+                debug!(
+                    "Successfully executed operator with text object: {}",
+                    text_object_str
+                );
+            } else {
+                debug!(
+                    "Failed to execute operator with text object: {}",
+                    text_object_str
+                );
+                editor.clear_pending_operator();
+            }
+        } else {
+            debug!("No pending operator for text object: {}", text_object_str);
+        }
+
+        Ok(())
     }
 }
