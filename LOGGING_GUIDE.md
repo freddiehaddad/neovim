@@ -1,8 +1,8 @@
-# Neovim Editor - Logging Guide
+# Oxidized Editor - Logging Guide
 
 ## Overview
 
-The editor now includes comprehensive logging functionality to help with debugging and investigating issues.
+The Oxidized editor includes comprehensive logging functionality to help with debugging and investigating issues.
 
 ## Log Levels Available
 
@@ -19,25 +19,25 @@ The editor now includes comprehensive logging functionality to help with debuggi
 #### Basic Info Logging
 
 ```powershell
-$env:RUST_LOG="info"; .\target\debug\neovim.exe filename.txt
+$env:RUST_LOG="info"; .\target\debug\oxy.exe filename.txt
 ```
 
 #### Debug Logging (shows key events, mode changes, etc.)
 
 ```powershell
-$env:RUST_LOG="debug"; .\target\debug\neovim.exe filename.txt
+$env:RUST_LOG="debug"; .\target\debug\oxy.exe filename.txt
 ```
 
 #### Trace Logging (shows everything including individual key events)
 
 ```powershell
-$env:RUST_LOG="trace"; .\target\debug\neovim.exe filename.txt
+$env:RUST_LOG="trace"; .\target\debug\oxy.exe filename.txt
 ```
 
 #### Module-Specific Logging
 
 ```powershell
-$env:RUST_LOG="neovim::editor=debug"; .\target\debug\neovim.exe filename.txt
+$env:RUST_LOG="oxidized::editor=debug"; .\target\debug\oxy.exe filename.txt
 ```
 
 ### Linux/macOS (Bash)
@@ -45,25 +45,25 @@ $env:RUST_LOG="neovim::editor=debug"; .\target\debug\neovim.exe filename.txt
 #### Basic Info Logging
 
 ```bash
-RUST_LOG=info ./target/debug/neovim filename.txt
+RUST_LOG=info ./target/debug/oxy filename.txt
 ```
 
 #### Debug Logging (shows key events, mode changes, etc.)
 
 ```bash
-RUST_LOG=debug ./target/debug/neovim filename.txt
+RUST_LOG=debug ./target/debug/oxy filename.txt
 ```
 
 #### Trace Logging (shows everything including individual key events)
 
 ```bash
-RUST_LOG=trace ./target/debug/neovim filename.txt
+RUST_LOG=trace ./target/debug/oxy filename.txt
 ```
 
 #### Module-Specific Logging
 
 ```bash
-RUST_LOG=neovim::editor=debug ./target/debug/neovim filename.txt
+RUST_LOG=oxidized::editor=debug ./target/debug/oxy filename.txt
 ```
 
 ## What Gets Logged
@@ -106,12 +106,12 @@ RUST_LOG=neovim::editor=debug ./target/debug/neovim filename.txt
 When you start the editor and press : to enter command mode, you'll see:
 
 ```console
-[INFO  neovim::editor] Initializing Editor
-[INFO  neovim::editor] Terminal size: 193x22
-[INFO  neovim::editor] Editor initialization completed successfully
-[INFO  neovim::editor] Creating buffer 1 from file: "filename.txt"
-[INFO  neovim::editor] Starting editor main loop
-[DEBUG neovim::editor] Handling key event: KeyEvent { code: Char(':'), ... } in mode: Normal
+[INFO  oxidized::editor] Initializing Editor
+[INFO  oxidized::editor] Terminal size: 193x22
+[INFO  oxidized::editor] Editor initialization completed successfully
+[INFO  oxidized::editor] Creating buffer 1 from file: "filename.txt"
+[INFO  oxidized::editor] Starting editor main loop
+[DEBUG oxidized::editor] Handling key event: KeyEvent { code: Char(':'), ... } in mode: Normal
 ```
 
 ## Debugging Common Issues

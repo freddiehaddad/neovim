@@ -1,6 +1,10 @@
-# Neovim Clone
+# Oxidized
 
 A revolutionary Vim/Neovim clone written in Rust that breaks from traditional Vim with a **TOML-first configuration system** for both keymaps and editor settings.
+
+## 🦀 The Oxidized Editor
+
+**Oxidized** (`oxy`) is a modern, high-performance text editor that reimagines Vim for the Rust era. Built from the ground up in Rust, it combines Vim's legendary efficiency with modern software engineering principles.
 
 ## 🚀 Revolutionary Features
 
@@ -604,16 +608,20 @@ This is a learning project to understand how text editors work. Contributions we
 ```powershell
 # Clone the repository
 git clone <repository-url>
-cd neovim
+cd oxidized
 
 # Build the project
 cargo build
 
-# Run the editor
+# Run the oxidized editor
 cargo run
 
 # Run with a specific file
 cargo run -- filename.txt
+
+# Build and install the binary (creates 'oxy.exe')
+cargo build --release
+# Binary will be at target/release/oxy.exe
 ```
 
 **Linux/macOS (Bash):**
@@ -621,16 +629,20 @@ cargo run -- filename.txt
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd neovim
+cd oxidized
 
 # Build the project
 cargo build
 
-# Run the editor
+# Run the oxidized editor
 cargo run
 
 # Run with a specific file
 cargo run filename.txt
+
+# Build and install the binary (creates 'oxy')
+cargo build --release
+# Binary will be at target/release/oxy
 ```
 
 #### Development Setup

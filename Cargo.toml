@@ -1,16 +1,20 @@
 [package]
-name = "neovim"
-version = "0.2.0"
+name = "oxidized"
+version = "0.0.1"
 edition = "2024"
+
+[[bin]]
+name = "oxy"
+path = "src/main.rs"
 
 [dependencies]
 # Terminal handling
 crossterm = "0.29.0"
 # Async runtime
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.47.1", features = ["full"] }
 # JSON-RPC for LSP
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = "1.0.142"
 # Configuration parsing
 toml = "0.9.4"
 # Regex support
@@ -19,7 +23,7 @@ regex = "1.0"
 unicode-width = "0.2"
 unicode-segmentation = "1.10"
 # File watching
-notify = "8.1.0"
+notify = "8.2.0"
 # Tree-sitter for syntax highlighting
 tree-sitter = "0.25.8"
 tree-sitter-rust = "0.24.0"

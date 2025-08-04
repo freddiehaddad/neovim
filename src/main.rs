@@ -1,5 +1,5 @@
 use anyhow::Result;
-use neovim::Editor;
+use oxidized::Editor;
 use std::env;
 use std::path::PathBuf;
 
@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     // Option 2: Log to file (uncomment to use)
     // use env_logger::Target;
     // env_logger::Builder::from_default_env()
-    //     .target(Target::Pipe(Box::new(std::fs::File::create("neovim.log")?)))
+    //     .target(Target::Pipe(Box::new(std::fs::File::create("oxidized.log")?)))
     //     .init();
 
     // Create editor instance

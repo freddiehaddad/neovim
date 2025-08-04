@@ -1,6 +1,6 @@
-# Neovim Clone - Architecture Documentation
+# Oxidized - Architecture Documentation
 
-This document provides a comprehensive overview of the editor's architecture, including system design, data flow, module interactions, and implementation details.
+This document provides a comprehensive overview of the Oxidized editor's architecture, including system design, data flow, module interactions, and implementation details.
 
 ## Table of Contents
 
@@ -16,11 +16,11 @@ This document provides a comprehensive overview of the editor's architecture, in
 
 ## System Overview
 
-The Neovim clone is built on a modular Rust architecture designed for performance, extensibility, and maintainability. The core principle is **TOML-first configuration** combined with **async background processing** for non-blocking operations.
+**Oxidized** is built on a modular Rust architecture designed for performance, extensibility, and maintainability. The core principle is **TOML-first configuration** combined with **async background processing** for non-blocking operations.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│                        Neovim Clone Architecture                 │
+│                        Oxidized Architecture                     │
 ├──────────────────────────────────────────────────────────────────┤
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────────────┐  │
 │  │ Terminal│  │   UI    │  │ Editor  │  │  AsyncSyntax        │  │
@@ -965,7 +965,7 @@ Terminal Events
 
 ## Conclusion
 
-This architecture documentation provides a comprehensive overview of the Neovim clone's design and implementation. The system is built around the core principles of:
+This architecture documentation provides a comprehensive overview of the Oxidized editor's design and implementation. The system is built around the core principles of:
 
 1. **TOML-First Configuration** - Human-readable, persistent, hot-reloadable settings
 2. **Async Processing** - Non-blocking operations for responsive user experience  
