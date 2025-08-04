@@ -91,6 +91,11 @@ impl UI {
             self.render_command_line(terminal, editor_state, width, height)?;
         }
 
+        // Render command completion popup if active
+        if editor_state.mode == Mode::Command && editor_state.command_completion.should_show() {
+            self.render_completion_popup(terminal, editor_state, width, height)?;
+        }
+
         // Position cursor and show it
         self.position_cursor(terminal, editor_state)?;
 
@@ -560,6 +565,93 @@ impl UI {
         terminal.queue_print(display_text)?;
         terminal.queue_reset_color()?;
 
+        Ok(())
+    }
+
+    fn render_completion_popup(
+        &self,
+        terminal: &mut Terminal,
+        editor_state: &EditorRenderState,
+        width: u16,
+        height: u16,
+    ) -> io::Result<()> {
+        if !editor_state.command_completion.should_show() {
+            return Ok(());
+        }
+
+        // Get completion menu dimensions from config
+        let menu_width = editor_state
+            .config
+            .interface
+            .completion_menu_width
+            .min(width - 2);
+        let max_menu_height = editor_state.config.interface.completion_menu_height as usize;
+        let menu_height = editor_state
+            .command_completion
+            .matches
+            .len()
+            .min(max_menu_height)
+            .min((height - 3) as usize); // Reserve space for status and command line
+
+        if menu_height == 0 {
+            return Ok(());
+        }
+
+        // Position the popup above the command line
+        let popup_row = height.saturating_sub(2); // One line above command line
+        let popup_col = 0; // Start at left edge
+
+        // Get visible completion items
+        let visible_items = editor_state.command_completion.visible_items(menu_height);
+        let selected_index = editor_state
+            .command_completion
+            .visible_selected_index(menu_height);
+
+        // Render the popup background and border
+        for i in 0..menu_height {
+            let row = popup_row.saturating_sub(menu_height as u16) + i as u16;
+            terminal.queue_move_cursor(Position::new(row as usize, popup_col as usize))?;
+
+            if i < visible_items.len() {
+                let item = &visible_items[i];
+                let is_selected = i == selected_index;
+
+                // Set colors based on selection
+                if is_selected {
+                    terminal.queue_set_bg_color(self.theme.selection_bg)?;
+                    terminal.queue_set_fg_color(self.theme.command_line_fg)?;
+                } else {
+                    terminal.queue_set_bg_color(self.theme.command_line_bg)?;
+                    terminal.queue_set_fg_color(self.theme.command_line_fg)?;
+                }
+
+                // Format the completion item
+                let display_text = if item.text.len() + 2 <= menu_width as usize {
+                    format!(" {}", item.text)
+                } else {
+                    format!(" {}", &item.text[..menu_width.saturating_sub(2) as usize])
+                };
+
+                // Pad to exact width and print
+                let padded_text = format!("{:width$}", display_text, width = menu_width as usize);
+                terminal.queue_print(&padded_text)?;
+
+                // Reset colors immediately after printing each line
+                terminal.queue_reset_color()?;
+            } else {
+                // Empty row - set background color and fill with spaces
+                terminal.queue_set_bg_color(self.theme.command_line_bg)?;
+                terminal.queue_set_fg_color(self.theme.command_line_fg)?;
+                let empty_line = " ".repeat(menu_width as usize);
+                terminal.queue_print(&empty_line)?;
+
+                // Reset colors immediately after printing each line
+                terminal.queue_reset_color()?;
+            }
+        }
+
+        // Final color reset to ensure no artifacts
+        terminal.queue_reset_color()?;
         Ok(())
     }
 

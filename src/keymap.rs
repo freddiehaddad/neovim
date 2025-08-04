@@ -376,6 +376,10 @@ impl KeyHandler {
             "append_command" => self.action_append_command(editor, key)?,
             "delete_command_char" => self.action_delete_command_char(editor)?,
             "execute_command" => self.action_execute_command(editor)?,
+            "command_complete" => self.action_command_complete(editor)?,
+            "completion_next" => self.action_completion_next(editor)?,
+            "completion_previous" => self.action_completion_previous(editor)?,
+            "completion_accept" => self.action_completion_accept(editor)?,
 
             // Search mode actions
             "append_search" => self.action_append_search(editor, key)?,
@@ -524,6 +528,9 @@ impl KeyHandler {
             let mut command = editor.command_line().to_string();
             command.push(ch);
             editor.set_command_line(command);
+
+            // Cancel completion when user types to trigger new completion
+            editor.cancel_completion();
         }
         Ok(())
     }
@@ -533,6 +540,9 @@ impl KeyHandler {
         if command.len() > 1 {
             command.pop();
             editor.set_command_line(command);
+
+            // Cancel completion when user deletes to trigger new completion
+            editor.cancel_completion();
         }
         Ok(())
     }
@@ -650,6 +660,43 @@ impl KeyHandler {
 
         editor.set_mode(Mode::Normal);
         editor.set_command_line(String::new());
+        Ok(())
+    }
+
+    fn action_command_complete(&self, editor: &mut Editor) -> Result<()> {
+        // Extract the command part (without the ':' prefix)
+        let command_line = editor.command_line().to_string();
+        if command_line.starts_with(':') {
+            let command_part = command_line[1..].to_string();
+
+            // If completion is not active, start it
+            if !editor.is_completion_active() {
+                editor.start_command_completion(&command_part);
+            }
+
+            // If we have matches, move to the next one
+            if editor.completion_has_matches() {
+                editor.completion_next();
+            }
+        }
+        Ok(())
+    }
+
+    fn action_completion_next(&self, editor: &mut Editor) -> Result<()> {
+        editor.completion_next();
+        Ok(())
+    }
+
+    fn action_completion_previous(&self, editor: &mut Editor) -> Result<()> {
+        editor.completion_previous();
+        Ok(())
+    }
+
+    fn action_completion_accept(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(completed_text) = editor.completion_accept() {
+            // Set the command line to the completed command with ':' prefix
+            editor.set_command_line(format!(":{}", completed_text));
+        }
         Ok(())
     }
 

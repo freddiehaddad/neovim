@@ -162,6 +162,12 @@
 "Char" = "append_command"
 "Backspace" = "delete_command_char"
 
+# Command completion
+"Tab" = "command_complete"
+"Ctrl+n" = "completion_next"
+"Ctrl+p" = "completion_previous"
+"Ctrl+y" = "completion_accept"
+
 [visual_mode]
 # Movement (inherits from normal mode)
 "h" = "cursor_left"

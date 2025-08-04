@@ -1,6 +1,7 @@
 pub mod async_syntax;
 pub mod buffer;
 pub mod command;
+pub mod completion;
 pub mod config;
 pub mod config_watcher;
 pub mod editor;

@@ -79,6 +79,7 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Modal Editing**: Normal, Insert, Command, Visual, Replace, and Search modes
 - **TOML-based Keymap System**: Configurable keybindings loaded from `keymaps.toml`
 - **TOML-based Editor Settings**: Comprehensive configuration in `editor.toml`
+- **Intelligent Command Completion**: Tab-based completion with popup menu for all Ex commands and settings
 - **Async Syntax Highlighting**: Non-blocking background syntax highlighting with immediate visible line processing
 - **Multi-Buffer Support**: Complete buffer management with Ex commands (`:e`, `:b`, `:bd`, `:ls`)
 - **Window Management**: Full window splitting and navigation system with Vim-style keybindings
@@ -134,6 +135,30 @@ This editor is built with **performance as a core principle**, implementing cutt
 - `:b <buffer>` - Switch to buffer by number or name
 - `:bd` - Delete current buffer
 - `:ls` - List all open buffers
+
+### Command Completion System
+
+**Tab-based completion for all commands** - Just like Vim/Neovim!
+
+- **Tab** - Trigger command completion and cycle through matches
+- **Ctrl+N** - Navigate to next completion
+- **Ctrl+P** - Navigate to previous completion  
+- **Ctrl+Y** - Accept current completion
+- **Escape** - Cancel completion menu
+
+The completion system provides intelligent suggestions for:
+
+- All Ex commands (`:quit`, `:write`, `:edit`, etc.)
+- Buffer management commands (`:buffer`, `:bnext`, `:bprev`, etc.)
+- Window/split commands (`:split`, `:vsplit`, `:close`)
+- Complete `:set` command catalog with short and long forms
+- Commands are sorted by relevance (shorter matches first)
+
+**Example workflows:**
+
+- Type `:se` + Tab → Shows all `set` commands  
+- Type `:b` + Tab → Shows all buffer commands
+- Type `:q` + Tab → Shows quit variations (`:q`, `:q!`, `:quit`, `:quit!`)
 
 ### Window Management Commands
 
@@ -380,6 +405,8 @@ show_command = true           # Show partial commands
 scroll_off = 3                # Lines to keep above/below cursor
 side_scroll_off = 0           # Columns to keep left/right of cursor
 window_resize_amount = 1      # Amount to resize windows by (rows/columns)
+completion_menu_width = 30    # Width of command completion popup
+completion_menu_height = 8    # Height of command completion popup
 ```
 
 #### Keymap Configuration (`keymaps.toml`)
@@ -435,6 +462,11 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 "Enter" = "execute_command"
 "Escape" = "normal_mode"
 "Char" = "command_char"
+"Backspace" = "delete_command_char"
+"Tab" = "command_complete"
+"Ctrl+n" = "completion_next"
+"Ctrl+p" = "completion_previous"
+"Ctrl+y" = "completion_accept"
 ```
 
 #### Persistent Configuration
@@ -489,6 +521,8 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - `scroll_off` - Lines to keep visible above/below cursor
 - `side_scroll_off` - Columns to keep visible left/right of cursor
 - `window_resize_amount` - Amount to resize windows by (rows/columns)
+- `completion_menu_width` - Width of command completion popup menu
+- `completion_menu_height` - Height of command completion popup menu
 
 ## Architecture
 

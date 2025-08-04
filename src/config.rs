@@ -54,6 +54,8 @@ pub struct InterfaceConfig {
     pub scroll_off: usize,
     pub side_scroll_off: usize,
     pub window_resize_amount: u16,
+    pub completion_menu_width: u16,
+    pub completion_menu_height: u16,
 }
 
 impl Default for EditorConfig {
@@ -92,6 +94,8 @@ impl Default for EditorConfig {
                 scroll_off: 0,
                 side_scroll_off: 0,
                 window_resize_amount: 1,
+                completion_menu_width: 30,
+                completion_menu_height: 8,
             },
         }
     }

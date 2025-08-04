@@ -1,5 +1,6 @@
 use crate::async_syntax::AsyncSyntaxHighlighter;
 use crate::buffer::Buffer;
+use crate::completion::CommandCompletion;
 use crate::config::EditorConfig;
 use crate::config_watcher::{ConfigChangeEvent, ConfigWatcher};
 use crate::keymap::KeyHandler;
@@ -29,6 +30,8 @@ pub struct EditorRenderState {
     pub current_window_id: Option<usize>,
     pub window_manager: WindowManager,
     pub syntax_highlights: HashMap<(usize, usize), Vec<HighlightRange>>, // (buffer_id, line_index) -> highlights
+    pub command_completion: CommandCompletion,
+    pub config: EditorConfig,
 }
 
 pub struct Editor {
@@ -72,6 +75,8 @@ pub struct Editor {
     async_syntax_highlighter: Option<AsyncSyntaxHighlighter>,
     /// Track if we've processed any key press events yet (for startup handling)
     has_processed_any_press: bool,
+    /// Command completion system
+    command_completion: CommandCompletion,
 }
 
 impl Editor {
@@ -150,6 +155,7 @@ impl Editor {
             theme_manager,
             async_syntax_highlighter,
             has_processed_any_press: false,
+            command_completion: CommandCompletion::new(),
         })
     }
 
@@ -512,6 +518,8 @@ impl Editor {
             current_window_id: self.window_manager.current_window_id(),
             window_manager: self.window_manager.clone(), // Need the real window manager for layout
             syntax_highlights,
+            command_completion: self.command_completion.clone(),
+            config: self.config.clone(),
         };
 
         // Use the existing UI render method but with optimized state
@@ -622,6 +630,8 @@ impl Editor {
         self.mode = mode;
         if mode != Mode::Command {
             self.command_line.clear();
+            // Cancel completion when leaving command mode
+            self.command_completion.cancel();
         }
     }
 
@@ -640,6 +650,43 @@ impl Editor {
     pub fn set_status_message(&mut self, message: String) {
         debug!("Status message updated: '{}'", message);
         self.status_message = message;
+    }
+
+    // Command completion methods
+    pub fn start_command_completion(&mut self, input: &str) {
+        self.command_completion.start_completion(input);
+    }
+
+    pub fn is_completion_active(&self) -> bool {
+        self.command_completion.active
+    }
+
+    pub fn completion_next(&mut self) {
+        if self.command_completion.active {
+            self.command_completion.next();
+        }
+    }
+
+    pub fn completion_previous(&mut self) {
+        if self.command_completion.active {
+            self.command_completion.previous();
+        }
+    }
+
+    pub fn completion_accept(&mut self) -> Option<String> {
+        if self.command_completion.active {
+            self.command_completion.accept()
+        } else {
+            None
+        }
+    }
+
+    pub fn completion_has_matches(&self) -> bool {
+        !self.command_completion.matches.is_empty()
+    }
+
+    pub fn cancel_completion(&mut self) {
+        self.command_completion.cancel();
     }
 
     pub fn quit(&mut self) {

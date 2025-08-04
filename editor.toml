@@ -1,5 +1,5 @@
 [display]
-show_line_numbers = true
+show_line_numbers = false
 show_relative_numbers = true
 show_cursor_line = true
 color_scheme = "default"
@@ -31,3 +31,5 @@ show_command = true
 scroll_off = 3
 side_scroll_off = 0
 window_resize_amount = 1
+completion_menu_width = 30
+completion_menu_height = 8
