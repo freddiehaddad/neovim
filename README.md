@@ -92,7 +92,7 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Scroll Offset**: Configurable `scroll_off` to maintain cursor distance from viewport edges
 - **Configuration Hot Reloading**: Live updates when TOML files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
-- **Comprehensive Logging**: Debug-friendly logging system for development and troubleshooting
+- **Comprehensive Logging**: Debug-friendly logging system with file-based output for development and troubleshooting
 - **Copy/Paste System**: Vim-compatible yank/put operations with type awareness
 - **Basic Text Operations**: Insert, delete, line breaks, word movement
 - **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
@@ -513,7 +513,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **Window Resizing**: Complete window resizing system with `Ctrl+w` combinations
 - **Configuration Hot Reloading**: Live updates when TOML configuration files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
-- **Comprehensive Logging**: Debug-friendly logging system for troubleshooting and development
+- **Comprehensive Logging**: Debug-friendly logging system with file-based output for troubleshooting and development
 
 ## Development Roadmap
 
@@ -539,7 +539,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - [x] **Viewport Centering**: Z-commands (`zz`, `zt`, `zb`) for cursor positioning in viewport
 - [x] **Scroll Offset**: Configurable `scroll_off` setting to maintain cursor distance from edges
 - [x] **Window Resizing**: Complete window resizing with `Ctrl+w >/</+/-` keybindings
-- [x] **Comprehensive Logging**: Debug-friendly logging system for development and troubleshooting
+- [x] **Comprehensive Logging**: Debug-friendly logging system with file-based output for development and troubleshooting
 - [ ] Text objects (`aw`, `iw`, `ap`, etc.)
 - [ ] Operators (`d`, `c`, `y`, `p`) with motions
 - [ ] Visual mode selection and operations
@@ -582,13 +582,19 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 ## Debugging and Development
 
-The editor includes comprehensive logging for debugging and development. See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation on enabling logging, log levels, and debugging techniques.
+The editor includes comprehensive logging for debugging and development. **By default, all logs are written to `oxidized.log` in the current directory.** See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation on log levels, file locations, and debugging techniques.
 
 **Quick Start:**
 
 ```bash
-# Enable debug logging to see key events and operations
+# Enable debug logging (writes to oxidized.log)
 RUST_LOG=debug cargo run filename.txt
+
+# Monitor logs in real-time (Linux/macOS)
+tail -f oxidized.log
+
+# Monitor logs in real-time (Windows PowerShell)
+Get-Content oxidized.log -Wait
 ```
 
 ## Contributing

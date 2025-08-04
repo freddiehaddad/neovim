@@ -5,16 +5,16 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging - you can uncomment one of these options:
+    // Initialize logging - logging to file by default
+    use env_logger::Target;
+    env_logger::Builder::from_default_env()
+        .target(Target::Pipe(Box::new(std::fs::File::create(
+            "oxidized.log",
+        )?)))
+        .init();
 
-    // Option 1: Default stderr logging (current)
-    env_logger::init();
-
-    // Option 2: Log to file (uncomment to use)
-    // use env_logger::Target;
-    // env_logger::Builder::from_default_env()
-    //     .target(Target::Pipe(Box::new(std::fs::File::create("oxidized.log")?)))
-    //     .init();
+    // Option: Default stderr logging (uncomment to use instead)
+    // env_logger::init();
 
     // Create editor instance
     let mut editor = Editor::new()?;

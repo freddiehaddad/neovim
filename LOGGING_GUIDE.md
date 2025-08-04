@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Oxidized editor includes comprehensive logging functionality to help with debugging and investigating issues.
+The Oxidized editor includes comprehensive logging functionality to help with debugging and investigating issues. **By default, the editor logs to a file named `oxidized.log` in the current working directory.**
 
 ## Log Levels Available
 
@@ -12,11 +12,36 @@ The Oxidized editor includes comprehensive logging functionality to help with de
 - **DEBUG**: Detailed information useful for debugging
 - **TRACE**: Very detailed trace information for fine-grained debugging
 
-## How to Enable Logging
+## Default Logging Behavior
+
+**The editor logs to a file by default.** When you run the editor, it automatically creates a log file named `oxidized.log` in the current working directory. All log messages are written to this file.
+
+### Changing to Console Logging
+
+If you prefer to see logs in the console/terminal instead of a file, you can modify the logging configuration in `src/main.rs`:
+
+1. Comment out the file logging code:
+
+```rust
+// use env_logger::Target;
+// env_logger::Builder::from_default_env()
+//     .target(Target::Pipe(Box::new(std::fs::File::create("oxidized.log")?)))
+//     .init();
+```
+
+2. Uncomment the console logging:
+
+```rust
+env_logger::init();
+```
+
+## How to Control Log Levels
+
+You can control what level of detail is logged to the `oxidized.log` file using the `RUST_LOG` environment variable. By default, all log levels are written to the file.
 
 ### Windows (PowerShell)
 
-#### Basic Info Logging
+#### Info Level Logging (Default)
 
 ```powershell
 $env:RUST_LOG="info"; .\target\debug\oxy.exe filename.txt
@@ -42,7 +67,7 @@ $env:RUST_LOG="oxidized::editor=debug"; .\target\debug\oxy.exe filename.txt
 
 ### Linux/macOS (Bash)
 
-#### Basic Info Logging
+#### Info Level Logging (Default)
 
 ```bash
 RUST_LOG=info ./target/debug/oxy filename.txt
@@ -103,7 +128,7 @@ RUST_LOG=oxidized::editor=debug ./target/debug/oxy filename.txt
 
 ## Example Log Output
 
-When you start the editor and press : to enter command mode, you'll see:
+When you start the editor and press : to enter command mode, the following will be written to `oxidized.log`:
 
 ```console
 [INFO  oxidized::editor] Initializing Editor
@@ -114,28 +139,31 @@ When you start the editor and press : to enter command mode, you'll see:
 [DEBUG oxidized::editor] Handling key event: KeyEvent { code: Char(':'), ... } in mode: Normal
 ```
 
+**Note:** The log file `oxidized.log` is created in the directory where you run the editor.
+
 ## Debugging Common Issues
 
 ### Colon Key Not Working
 
-Enable debug logging and press : - you should see key event handling logs.
+Enable debug logging and press : - you should see key event handling logs in `oxidized.log`.
 
 ### File Save Issues
 
-Enable info logging and try saving - you'll see detailed save operation logs.
+Enable info logging and try saving - you'll see detailed save operation logs in `oxidized.log`.
 
 ### Search Problems
 
-Enable debug logging and perform a search - you'll see search initiation and results.
+Enable debug logging and perform a search - you'll see search initiation and results in `oxidized.log`.
 
 ### Buffer Management
 
-Enable info logging when switching/closing buffers to see buffer operations.
+Enable info logging when switching/closing buffers to see buffer operations in `oxidized.log`.
 
 ## Tips for Effective Debugging
 
 1. Start with INFO level for general overview
-2. Use DEBUG level for input and mode issues
+2. Use DEBUG level for input and mode issues  
 3. Use TRACE level only when you need to see every key event
 4. Use module-specific logging to focus on particular components
-5. Check both stdout and stderr as some logs may go to different streams
+5. Check the `oxidized.log` file in your current directory for all log output
+6. Use `tail -f oxidized.log` (Linux/macOS) or `Get-Content oxidized.log -Wait` (PowerShell) to monitor logs in real-time
