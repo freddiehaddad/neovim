@@ -2,7 +2,7 @@ use crate::editor::EditorRenderState;
 use crate::mode::{Mode, Position};
 use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
-use crate::theme::{ThemeConfig, UITheme};
+use crate::theme::{SyntaxTheme, ThemeConfig, UITheme};
 use std::io;
 
 pub struct UI {
@@ -16,6 +16,8 @@ pub struct UI {
     pub show_cursor_line: bool,
     /// Current UI theme from themes.toml
     theme: UITheme,
+    /// Current syntax theme from themes.toml
+    syntax_theme: SyntaxTheme,
 }
 
 impl UI {
@@ -26,10 +28,11 @@ impl UI {
 
         Self {
             viewport_top: 0,
-            show_line_numbers: true,      // Enable by default like Vim
-            show_relative_numbers: false, // Disabled by default
-            show_cursor_line: true,       // Enable by default
-            theme: current_theme.ui,      // Use theme from themes.toml
+            show_line_numbers: true,            // Enable by default like Vim
+            show_relative_numbers: false,       // Disabled by default
+            show_cursor_line: true,             // Enable by default
+            theme: current_theme.ui,            // Use theme from themes.toml
+            syntax_theme: current_theme.syntax, // Use syntax theme from themes.toml
         }
     }
 
@@ -38,10 +41,12 @@ impl UI {
         let theme_config = ThemeConfig::load();
         if let Some(complete_theme) = theme_config.get_theme(theme_name) {
             self.theme = complete_theme.ui;
+            self.syntax_theme = complete_theme.syntax;
         } else {
             // Fallback to default theme if theme not found
             let default_theme = theme_config.get_current_theme();
             self.theme = default_theme.ui;
+            self.syntax_theme = default_theme.syntax;
         }
     }
 
@@ -206,7 +211,8 @@ impl UI {
                         is_cursor_line,
                     )?
                 } else {
-                    // Render line without syntax highlighting
+                    // Render line without syntax highlighting - use theme's default text color
+                    terminal.queue_set_fg_color(self.syntax_theme.text)?;
                     let display_line = if line.len() > text_width {
                         &line[..text_width]
                     } else {
@@ -357,6 +363,8 @@ impl UI {
 
             // Print any text before this highlight
             if current_pos < start {
+                // Set default text color for unhighlighted text
+                terminal.queue_set_fg_color(self.syntax_theme.text)?;
                 let text_before =
                     std::str::from_utf8(&line_bytes[current_pos..start]).unwrap_or("");
                 terminal.queue_print(text_before)?;
@@ -387,6 +395,8 @@ impl UI {
 
         // Print any remaining text after the last highlight
         if current_pos < display_len {
+            // Set default text color for unhighlighted text
+            terminal.queue_set_fg_color(self.syntax_theme.text)?;
             let remaining_text =
                 std::str::from_utf8(&line_bytes[current_pos..display_len]).unwrap_or("");
             terminal.queue_print(remaining_text)?;
