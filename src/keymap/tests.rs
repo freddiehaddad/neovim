@@ -1339,4 +1339,294 @@ mod keymap_tests {
             assert_eq!(buffer.lines[0], "first second");
         }
     }
+
+    // Bracket Matching Tests
+    #[test]
+    fn test_bracket_match_parentheses() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with parentheses
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["function(arg1, arg2)".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 8; // Position on opening parenthesis
+        }
+
+        // Test bracket matching with % key
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to closing parenthesis
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 19); // Position of closing parenthesis
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_square_brackets() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with square brackets
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["array[index]".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5; // Position on opening bracket
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to closing bracket
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 11); // Position of closing bracket
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_curly_braces() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with curly braces
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "if condition {".to_string(),
+                "    code();".to_string(),
+                "}".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 13; // Position on opening brace
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to closing brace
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 2);
+            assert_eq!(buffer.cursor.col, 0); // Position of closing brace
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_angle_brackets() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with angle brackets
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["<tag>content</tag>".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0; // Position on opening angle bracket
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to closing angle bracket
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 4); // Position of closing angle bracket
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_closing_to_opening() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with nested parentheses
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["func(nested(inner))".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 18; // Position on outermost closing parenthesis
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to outermost opening parenthesis
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 4); // Position of outermost opening parenthesis
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_nested_brackets() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with nested brackets
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["outer(inner(deep))".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 11; // Position on inner opening parenthesis
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to inner closing parenthesis
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 16); // Position of inner closing parenthesis
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_no_match() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with unmatched bracket
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["unmatched(".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 9; // Position on unmatched opening parenthesis
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor didn't move (no match found)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 9); // Cursor should stay in same position
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_not_on_bracket() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["some text here".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5; // Position on 't' in "text"
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor didn't move (not on a bracket)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 5); // Cursor should stay in same position
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_multiline() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiline brackets
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "function() {".to_string(),
+                "    if (condition) {".to_string(),
+                "        code();".to_string(),
+                "    }".to_string(),
+                "}".to_string(),
+            ];
+            buffer.cursor.row = 1;
+            buffer.cursor.col = 7; // Position on opening parenthesis in if statement
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to closing parenthesis
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 1);
+            assert_eq!(buffer.cursor.col, 17); // Position of closing parenthesis
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_full_flow() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with brackets
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test(args)".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 4; // Position on opening parenthesis
+        }
+
+        // Test % key binding through full key handling
+        let percent_key = create_key_event(KeyCode::Char('%'));
+        let result = handler.handle_key(&mut editor, percent_key);
+        assert!(result.is_ok());
+
+        // Check that bracket matching worked
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 9); // Position of closing parenthesis
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_backward_edge_case() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer where the opening bracket is at position 0
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["(test)".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5; // Position on closing parenthesis
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to opening parenthesis at position 0
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0); // Position of opening parenthesis
+        }
+    }
+
+    #[test]
+    fn test_bracket_match_multiline_backward() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer where opening bracket is at start of line
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["{".to_string(), "    content".to_string(), "}".to_string()];
+            buffer.cursor.row = 2;
+            buffer.cursor.col = 0; // Position on closing brace
+        }
+
+        let result = handler.action_bracket_match(&mut editor);
+        assert!(result.is_ok());
+
+        // Check cursor moved to opening brace at position 0 of first line
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0); // Position of opening brace
+        }
+    }
 }

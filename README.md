@@ -128,6 +128,8 @@ This feature enables lightning-fast navigation within lines - essential for effi
   - `C` - Change to end of line: Delete from cursor to end of line and enter Insert mode
   - `S` - Change entire line: Clear the entire current line and enter Insert mode at beginning
   - `s` - Substitute character: Delete character under cursor and enter Insert mode
+- **Bracket Matching**:
+  - `%` - Jump to matching bracket: Works with `()`, `[]`, `{}`, and `<>` pairs, including nested brackets across multiple lines
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`

@@ -472,6 +472,9 @@ impl KeyHandler {
             "repeat_char_search" => self.action_repeat_char_search(editor)?,
             "repeat_char_search_reverse" => self.action_repeat_char_search_reverse(editor)?,
 
+            // Bracket matching
+            "bracket_match" => self.action_bracket_match(editor)?,
+
             // Delete operations
             "delete_char_at_cursor" => self.action_delete_char_at_cursor(editor)?,
             "delete_char_before_cursor" => self.action_delete_char_before_cursor(editor)?,
@@ -2116,5 +2119,155 @@ impl KeyHandler {
         // Enter insert mode
         self.action_insert_mode(editor)?;
         Ok(())
+    }
+
+    fn action_bracket_match(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Finding matching bracket (% command)");
+
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let current_pos = Position::new(buffer.cursor.row, buffer.cursor.col);
+
+            // Get the character at the cursor
+            if let Some(line) = buffer.get_line(current_pos.row) {
+                if current_pos.col < line.len() {
+                    let char_at_cursor = line.chars().nth(current_pos.col).unwrap_or(' ');
+
+                    // Check if it's a bracket we can match
+                    let target_char = match char_at_cursor {
+                        '(' => Some(')'),
+                        ')' => Some('('),
+                        '[' => Some(']'),
+                        ']' => Some('['),
+                        '{' => Some('}'),
+                        '}' => Some('{'),
+                        '<' => Some('>'),
+                        '>' => Some('<'),
+                        _ => None,
+                    };
+
+                    if let Some(target) = target_char {
+                        let is_opening = matches!(char_at_cursor, '(' | '[' | '{' | '<');
+
+                        if let Some(match_pos) = self.find_matching_bracket(
+                            &buffer.lines,
+                            current_pos,
+                            char_at_cursor,
+                            target,
+                            is_opening,
+                        ) {
+                            // Move cursor to the matching bracket
+                            buffer.cursor.row = match_pos.row;
+                            buffer.cursor.col = match_pos.col;
+
+                            info!(
+                                "Found matching bracket '{}' at {}:{}",
+                                target,
+                                match_pos.row + 1,
+                                match_pos.col + 1
+                            );
+                            editor.set_status_message(format!("Jumped to matching '{}'", target));
+                        } else {
+                            debug!("No matching bracket found for '{}'", char_at_cursor);
+                            editor.set_status_message("No matching bracket found".to_string());
+                        }
+                    } else {
+                        debug!("Character '{}' is not a bracket", char_at_cursor);
+                        editor.set_status_message("Not on a bracket".to_string());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn find_matching_bracket(
+        &self,
+        lines: &[String],
+        start_pos: Position,
+        start_char: char,
+        target_char: char,
+        is_opening: bool,
+    ) -> Option<Position> {
+        let mut stack_count = 1;
+
+        if is_opening {
+            // Search forward for closing bracket
+            let mut row = start_pos.row;
+            let mut col = start_pos.col + 1; // Start from next character
+
+            while row < lines.len() {
+                let line = &lines[row];
+
+                while col < line.len() {
+                    if let Some(ch) = line.chars().nth(col) {
+                        if ch == start_char {
+                            stack_count += 1;
+                        } else if ch == target_char {
+                            stack_count -= 1;
+                            if stack_count == 0 {
+                                return Some(Position::new(row, col));
+                            }
+                        }
+                    }
+                    col += 1;
+                }
+
+                row += 1;
+                col = 0; // Reset column for next line
+            }
+        } else {
+            // Search backward for opening bracket
+            let mut row = start_pos.row;
+            let mut col = if start_pos.col > 0 {
+                start_pos.col - 1
+            } else {
+                // If we're at position 0, we need to go to the previous line
+                if row > 0 {
+                    row -= 1;
+                    if lines[row].len() > 0 {
+                        lines[row].len() - 1
+                    } else {
+                        0
+                    }
+                } else {
+                    // We're at position 0 of line 0, nowhere to go backward
+                    return None;
+                }
+            };
+
+            loop {
+                let line = &lines[row];
+
+                loop {
+                    if let Some(ch) = line.chars().nth(col) {
+                        if ch == start_char {
+                            stack_count += 1;
+                        } else if ch == target_char {
+                            stack_count -= 1;
+                            if stack_count == 0 {
+                                return Some(Position::new(row, col));
+                            }
+                        }
+                    }
+
+                    if col == 0 {
+                        break;
+                    }
+                    col -= 1;
+                }
+
+                if row == 0 {
+                    break;
+                }
+                row -= 1;
+                col = if lines[row].len() > 0 {
+                    lines[row].len() - 1
+                } else {
+                    0
+                };
+            }
+        }
+
+        None
     }
 }

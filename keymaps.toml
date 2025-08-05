@@ -63,6 +63,9 @@
 "S" = "change_entire_line"
 "s" = "substitute_char"
 
+# Bracket matching
+"%" = "bracket_match"
+
 # Operators (enter operator-pending mode)
 "d" = "operator_delete"
 "c" = "operator_change"
