@@ -5,6 +5,9 @@ use crate::mode::Position;
 use anyhow::Result;
 use log::{debug, trace};
 
+#[cfg(test)]
+mod tests;
+
 /// Represents the type of text object
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextObjectType {

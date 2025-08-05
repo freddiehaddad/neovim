@@ -4,6 +4,9 @@ use log::{debug, info, trace, warn};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
+#[cfg(test)]
+mod tests;
+
 /// Types of content that can be yanked
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum YankType {
@@ -371,10 +374,10 @@ impl Buffer {
                 pos: *pos,
                 text: text.clone(),
             },
-            EditOperation::Replace { pos, old, new: _ } => EditOperation::Replace {
+            EditOperation::Replace { pos, old, new } => EditOperation::Replace {
                 pos: *pos,
-                old: old.clone(),
-                new: old.clone(),
+                old: new.clone(), // What's currently there (new text)
+                new: old.clone(), // What we want to restore (old text)
             },
         }
     }
@@ -656,8 +659,10 @@ impl Buffer {
         debug!("Yanking line at row {}", self.cursor.row);
         if self.cursor.row < self.lines.len() {
             let line = &self.lines[self.cursor.row];
+            // In vim, yanking a line includes the newline character
+            let line_with_newline = format!("{}\n", line);
             self.clipboard = ClipboardContent {
-                text: line.clone(),
+                text: line_with_newline,
                 yank_type: YankType::Line,
             };
             debug!("Yanked line: '{}'", line);

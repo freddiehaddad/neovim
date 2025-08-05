@@ -5,6 +5,9 @@ use crate::terminal::Terminal;
 use crate::theme::{SyntaxTheme, ThemeConfig, UITheme};
 use std::io;
 
+#[cfg(test)]
+mod tests;
+
 pub struct UI {
     /// Top row of the current viewport
     viewport_top: usize,

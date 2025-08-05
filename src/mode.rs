@@ -1,5 +1,8 @@
 use std::fmt;
 
+#[cfg(test)]
+mod tests;
+
 /// Represents different editor modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {

@@ -8,7 +8,6 @@ use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
 use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
-
 use crate::theme_watcher::ThemeManager;
 use crate::ui::UI;
 use crate::window::{SplitDirection, WindowManager};
@@ -18,6 +17,9 @@ use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
+
+#[cfg(test)]
+mod tests;
 
 /// Represents an operator waiting for a text object or motion
 #[derive(Debug, Clone, PartialEq, Eq)]

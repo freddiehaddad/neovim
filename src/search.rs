@@ -4,6 +4,9 @@
 use log::{debug, info};
 use regex::Regex;
 
+#[cfg(test)]
+mod tests;
+
 pub struct SearchEngine {
     last_search: Option<String>,
     case_sensitive: bool,
@@ -36,6 +39,11 @@ impl SearchEngine {
 
         let mut results = Vec::new();
 
+        // Handle empty pattern
+        if pattern.is_empty() {
+            return results;
+        }
+
         if self.use_regex {
             if let Ok(regex) = Regex::new(pattern) {
                 for (line_num, line) in text.iter().enumerate() {
@@ -50,30 +58,49 @@ impl SearchEngine {
                 }
             }
         } else {
-            // Simple string search
-            let search_pattern = if self.case_sensitive {
-                pattern.to_string()
-            } else {
-                pattern.to_lowercase()
-            };
-
+            // Simple string search with proper UTF-8 handling
             for (line_num, line) in text.iter().enumerate() {
-                let search_line = if self.case_sensitive {
-                    line.clone()
+                let line_chars: Vec<char> = line.chars().collect();
+                let pattern_chars: Vec<char> = pattern.chars().collect();
+
+                // Convert to lowercase if needed for comparison
+                let search_chars: Vec<char> = if self.case_sensitive {
+                    line_chars.clone()
                 } else {
-                    line.to_lowercase()
+                    line.to_lowercase().chars().collect()
                 };
 
-                let mut start = 0;
-                while let Some(pos) = search_line[start..].find(&search_pattern) {
-                    let actual_pos = start + pos;
-                    results.push(SearchResult {
-                        line: line_num,
-                        start_col: actual_pos,
-                        end_col: actual_pos + pattern.len(),
-                        matched_text: line[actual_pos..actual_pos + pattern.len()].to_string(),
-                    });
-                    start = actual_pos + 1;
+                let pattern_search_chars: Vec<char> = if self.case_sensitive {
+                    pattern_chars.clone()
+                } else {
+                    pattern.to_lowercase().chars().collect()
+                };
+
+                let mut char_start = 0;
+                while char_start + pattern_search_chars.len() <= search_chars.len() {
+                    // Check if we have a match at this position
+                    let mut matches = true;
+                    for (i, &pattern_char) in pattern_search_chars.iter().enumerate() {
+                        if search_chars[char_start + i] != pattern_char {
+                            matches = false;
+                            break;
+                        }
+                    }
+
+                    if matches {
+                        let char_end = char_start + pattern_chars.len();
+                        let matched_text: String =
+                            line_chars[char_start..char_end].iter().collect();
+
+                        results.push(SearchResult {
+                            line: line_num,
+                            start_col: char_start,
+                            end_col: char_end,
+                            matched_text,
+                        });
+                    }
+
+                    char_start += 1;
                 }
             }
         }

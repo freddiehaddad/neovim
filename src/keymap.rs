@@ -8,6 +8,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::time::Instant;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeymapConfig {
     pub normal_mode: HashMap<String, String>,

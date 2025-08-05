@@ -7,6 +7,9 @@ use tokio::task::JoinHandle;
 
 use crate::syntax::{HighlightCacheEntry, HighlightCacheKey, HighlightRange, SyntaxHighlighter};
 
+#[cfg(test)]
+mod tests;
+
 /// Priority levels for syntax highlighting requests
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Priority {
