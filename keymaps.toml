@@ -66,6 +66,10 @@
 # Bracket matching
 "%" = "bracket_match"
 
+# Paragraph movement
+"{" = "paragraph_backward"
+"}" = "paragraph_forward"
+
 # Operators (enter operator-pending mode)
 "d" = "operator_delete"
 "c" = "operator_change"

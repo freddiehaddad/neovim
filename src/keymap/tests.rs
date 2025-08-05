@@ -1629,4 +1629,315 @@ mod keymap_tests {
             assert_eq!(buffer.cursor.col, 0); // Position of opening brace
         }
     }
+
+    // Paragraph movement tests
+    #[test]
+    fn test_paragraph_forward_basic() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with two paragraphs separated by an empty line
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "line two".to_string(),
+                "".to_string(), // empty line separating paragraphs
+                "second paragraph".to_string(),
+                "another line".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of second paragraph
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_forward_multiple_empty_lines() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple empty lines between paragraphs
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "".to_string(),
+                "".to_string(), // multiple empty lines
+                "".to_string(),
+                "second paragraph".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5;
+        }
+
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of second paragraph
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 4);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_forward_from_end() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer and start from the last paragraph
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "".to_string(),
+                "second paragraph".to_string(),
+                "last line".to_string(),
+            ];
+            buffer.cursor.row = 2; // Start in second paragraph
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to last line (end of file)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_backward_basic() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with two paragraphs separated by an empty line
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "line two".to_string(),
+                "".to_string(), // empty line separating paragraphs
+                "second paragraph".to_string(),
+                "another line".to_string(),
+            ];
+            buffer.cursor.row = 4; // Start in second paragraph
+            buffer.cursor.col = 5;
+        }
+
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of first paragraph
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_backward_multiple_empty_lines() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple empty lines between paragraphs
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "".to_string(),
+                "".to_string(), // multiple empty lines
+                "".to_string(),
+                "second paragraph".to_string(),
+                "line two".to_string(),
+            ];
+            buffer.cursor.row = 5; // Start in second paragraph
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of first paragraph
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_backward_from_beginning() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer and start from the first paragraph
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "line two".to_string(),
+                "".to_string(),
+                "second paragraph".to_string(),
+            ];
+            buffer.cursor.row = 1; // Start in first paragraph
+            buffer.cursor.col = 3;
+        }
+
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should stay at start of first paragraph
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_movement_three_paragraphs() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with three paragraphs
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "first continued".to_string(),
+                "".to_string(),
+                "second paragraph".to_string(),
+                "second continued".to_string(),
+                "".to_string(),
+                "third paragraph".to_string(),
+                "third continued".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Move forward through paragraphs
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3); // second paragraph
+        }
+
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 6); // third paragraph
+        }
+
+        // Move backward through paragraphs
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3); // back to second paragraph
+        }
+
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0); // back to first paragraph
+        }
+    }
+
+    #[test]
+    fn test_paragraph_movement_whitespace_only_lines() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with whitespace-only lines (should be treated as empty)
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first paragraph".to_string(),
+                "   ".to_string(), // whitespace only
+                "\t".to_string(),  // tab only
+                "second paragraph".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to second paragraph (whitespace lines treated as empty)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_movement_single_line_buffer() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with only one line
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["single line".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5;
+        }
+
+        // Forward movement should stay at the same position
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Backward movement should also stay at the same position
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_paragraph_movement_all_empty_lines() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with only empty lines
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["".to_string(), "".to_string(), "".to_string()];
+            buffer.cursor.row = 1;
+            buffer.cursor.col = 0;
+        }
+
+        // Forward movement should go to last line
+        let result = handler.action_paragraph_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 2);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Backward movement should go to first line
+        let result = handler.action_paragraph_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
 }

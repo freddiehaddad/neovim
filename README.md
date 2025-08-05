@@ -130,6 +130,9 @@ This feature enables lightning-fast navigation within lines - essential for effi
   - `s` - Substitute character: Delete character under cursor and enter Insert mode
 - **Bracket Matching**:
   - `%` - Jump to matching bracket: Works with `()`, `[]`, `{}`, and `<>` pairs, including nested brackets across multiple lines
+- **Paragraph Movement**:
+  - `{` - Move backward to start of paragraph: Jump to the beginning of the current or previous paragraph (separated by empty lines)
+  - `}` - Move forward to start of paragraph: Jump to the beginning of the next paragraph (separated by empty lines)
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`

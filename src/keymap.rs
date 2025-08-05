@@ -475,6 +475,10 @@ impl KeyHandler {
             // Bracket matching
             "bracket_match" => self.action_bracket_match(editor)?,
 
+            // Paragraph movement
+            "paragraph_forward" => self.action_paragraph_forward(editor)?,
+            "paragraph_backward" => self.action_paragraph_backward(editor)?,
+
             // Delete operations
             "delete_char_at_cursor" => self.action_delete_char_at_cursor(editor)?,
             "delete_char_before_cursor" => self.action_delete_char_before_cursor(editor)?,
@@ -1166,6 +1170,82 @@ impl KeyHandler {
     fn action_word_end(&self, editor: &mut Editor) -> Result<()> {
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_word_end();
+        }
+        Ok(())
+    }
+
+    fn action_paragraph_forward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let mut current_row = buffer.cursor.row;
+            let total_lines = buffer.lines.len();
+
+            // Skip current paragraph (non-empty lines)
+            while current_row < total_lines {
+                if let Some(line) = buffer.get_line(current_row) {
+                    if line.trim().is_empty() {
+                        break;
+                    }
+                }
+                current_row += 1;
+            }
+
+            // Skip empty lines to find start of next paragraph
+            while current_row < total_lines {
+                if let Some(line) = buffer.get_line(current_row) {
+                    if !line.trim().is_empty() {
+                        break;
+                    }
+                }
+                current_row += 1;
+            }
+
+            // If we've reached the end, go to the last line
+            if current_row >= total_lines {
+                current_row = total_lines.saturating_sub(1);
+            }
+
+            buffer.cursor.row = current_row;
+            buffer.cursor.col = 0;
+        }
+        Ok(())
+    }
+
+    fn action_paragraph_backward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let mut current_row = buffer.cursor.row;
+
+            // Skip current paragraph (non-empty lines) going backward
+            while current_row > 0 {
+                current_row -= 1;
+                if let Some(line) = buffer.get_line(current_row) {
+                    if line.trim().is_empty() {
+                        break;
+                    }
+                }
+            }
+
+            // Skip empty lines to find start of previous paragraph
+            while current_row > 0 {
+                if let Some(line) = buffer.get_line(current_row) {
+                    if !line.trim().is_empty() {
+                        break;
+                    }
+                }
+                current_row -= 1;
+            }
+
+            // Find the start of this paragraph
+            while current_row > 0 {
+                if let Some(line) = buffer.get_line(current_row - 1) {
+                    if line.trim().is_empty() {
+                        break;
+                    }
+                }
+                current_row -= 1;
+            }
+
+            buffer.cursor.row = current_row;
+            buffer.cursor.col = 0;
         }
         Ok(())
     }
