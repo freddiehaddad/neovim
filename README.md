@@ -664,8 +664,8 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - [x] **Scroll Offset**: Configurable `scroll_off` setting to maintain cursor distance from edges
 - [x] **Window Resizing**: Complete window resizing with `Ctrl+w >/</+/-` keybindings
 - [x] **Comprehensive Logging**: Debug-friendly logging system with file-based output for development and troubleshooting
-- [ ] Text objects (`aw`, `iw`, `ap`, etc.)
-- [ ] Operators (`d`, `c`, `y`, `p`) with motions
+- [x] **Text Objects**: Complete text object system (`aw`, `iw`, `ap`, quotes, brackets, tags, etc.)
+- [x] **Operators**: All operators (`d`, `c`, `y`, `>`, `<`, `~`) with text object integration and full undo support
 - [ ] Visual mode selection and operations
 - [ ] Advanced search and replace with regex
 
@@ -700,7 +700,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **unicode-width/unicode-segmentation**: Proper Unicode text handling
 - **tree-sitter**: AST-based syntax parsing and highlighting (✅ Implemented)
 - **tree-sitter-rust**: Rust grammar for Tree-sitter (✅ Implemented)
-- **notify**: File system watching for configuration hot reloading (planned)
+- **notify**: File system watching for configuration hot reloading (✅ Implemented)
 - **tokio**: Async runtime for background syntax highlighting and LSP operations (✅ Implemented)
 - **log/env_logger**: Logging infrastructure for debugging and development (✅ Implemented)
 
