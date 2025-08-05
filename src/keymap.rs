@@ -1,5 +1,5 @@
 use crate::editor::Editor;
-use crate::mode::Mode;
+use crate::mode::{Mode, Position};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use log::{debug, info, trace, warn};
@@ -232,16 +232,54 @@ impl KeyHandler {
 
                 // For non-operators, check if there's also a longer potential match.
                 // If so, we wait. If not, we execute immediately.
-                // Special handling: single character keys (like "F") should not wait for function keys (like "F1")
+                // Special handling: single character keys should not wait for unrelated keys
                 let has_potential_match = if self.pending_sequence.len() == 1 {
-                    // For single character sequences, only consider potential matches that are actual compound sequences
-                    // not function keys. Function keys like F1, F2 are different keys entirely, not sequences.
+                    // For single character sequences, only consider potential matches that are legitimate extensions
                     current_keymap.keys().any(|k| {
                         if k.starts_with(&self.pending_sequence) && k != &self.pending_sequence {
-                            // Check if this is a function key pattern (like F1, F2, F10)
+                            // Check what kind of potential match this is
                             let potential_suffix = &k[self.pending_sequence.len()..];
-                            // If the suffix is just digits, it's probably a function key
-                            !potential_suffix.chars().all(|c| c.is_ascii_digit())
+
+                            // Don't wait for function keys (F1, F2, etc.) when user presses F
+                            if potential_suffix.chars().all(|c| c.is_ascii_digit()) {
+                                return false;
+                            }
+
+                            // For single character prefixes, only wait for legitimate compound sequences
+                            // Don't wait for completely different key types
+                            match self.pending_sequence.as_str() {
+                                "D" => {
+                                    // D should only wait for sequences like "dd", not "Down"
+                                    k.starts_with("d")
+                                        && k.len() > 1
+                                        && k.chars()
+                                            .nth(1)
+                                            .map_or(false, |c| c.is_ascii_lowercase())
+                                }
+                                "C" => {
+                                    // C should only wait for sequences starting with "c", not "Ctrl+..."
+                                    k.starts_with("c")
+                                        && k.len() > 1
+                                        && k.chars()
+                                            .nth(1)
+                                            .map_or(false, |c| c.is_ascii_lowercase())
+                                }
+                                _ => {
+                                    // For other single characters, only wait for same-case extensions
+                                    let first_char = self.pending_sequence.chars().next().unwrap();
+                                    if first_char.is_ascii_uppercase() {
+                                        // Uppercase letters should only wait for other uppercase sequences
+                                        k.chars()
+                                            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+                                    } else if first_char.is_ascii_lowercase() {
+                                        // Lowercase letters should wait for valid compound sequences
+                                        true
+                                    } else {
+                                        // Other characters use default logic
+                                        true
+                                    }
+                                }
+                            }
                         } else {
                             false
                         }
@@ -438,6 +476,13 @@ impl KeyHandler {
             "delete_char_at_cursor" => self.action_delete_char_at_cursor(editor)?,
             "delete_char_before_cursor" => self.action_delete_char_before_cursor(editor)?,
             "delete_line" => self.action_delete_line(editor)?,
+            "delete_to_end_of_line" => self.action_delete_to_end_of_line(editor)?,
+
+            // Line operations
+            "join_lines" => self.action_join_lines(editor)?,
+            "change_to_end_of_line" => self.action_change_to_end_of_line(editor)?,
+            "change_entire_line" => self.action_change_entire_line(editor)?,
+            "substitute_char" => self.action_substitute_char(editor)?,
 
             // Yank (copy) operations
             "yank_line" => self.action_yank_line(editor)?,
@@ -1989,6 +2034,87 @@ impl KeyHandler {
                 }
             }
         }
+        Ok(())
+    }
+
+    // Line operation actions
+    fn action_delete_to_end_of_line(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Deleting to end of line");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                if buffer.cursor.col < line.len() {
+                    // Use buffer's delete_range method for proper undo support
+                    let start = buffer.cursor;
+                    let end = Position::new(buffer.cursor.row, line.len());
+                    let deleted_text = buffer.delete_range(start, end);
+                    info!("Deleted text to end of line: '{}'", deleted_text);
+                } else {
+                    debug!("Already at end of line, nothing to delete");
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_join_lines(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Joining current line with next line");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if buffer.cursor.row + 1 < buffer.lines.len() {
+                let current_row = buffer.cursor.row;
+                let current_line = buffer.lines[current_row].clone();
+                let next_line = buffer.lines[current_row + 1].clone();
+
+                // Create the joined line
+                let joined_line = format!("{} {}", current_line.trim_end(), next_line.trim_start());
+
+                // Replace the current line with the joined line
+                let start = Position::new(current_row, 0);
+                let end = Position::new(current_row + 1, next_line.len());
+                buffer.replace_range(start, end, &joined_line);
+
+                info!("Joined lines: '{}' and '{}'", current_line, next_line);
+                editor.set_status_message("Lines joined".to_string());
+            } else {
+                debug!("Cannot join: already at last line");
+            }
+        }
+        Ok(())
+    }
+
+    fn action_change_to_end_of_line(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Changing to end of line (C command)");
+        // First delete to end of line
+        self.action_delete_to_end_of_line(editor)?;
+        // Then enter insert mode
+        self.action_insert_mode(editor)?;
+        Ok(())
+    }
+
+    fn action_change_entire_line(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Changing entire line (S command)");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let current_row = buffer.cursor.row;
+            if let Some(line) = buffer.get_line(current_row) {
+                if !line.is_empty() {
+                    // Replace entire line with empty string
+                    let start = Position::new(current_row, 0);
+                    let end = Position::new(current_row, line.len());
+                    buffer.replace_range(start, end, "");
+                }
+            }
+            // Move cursor to beginning of line and enter insert mode
+            buffer.cursor.col = 0;
+            self.action_insert_mode(editor)?;
+        }
+        Ok(())
+    }
+
+    fn action_substitute_char(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Substituting character (s command)");
+        // Delete character at cursor
+        self.action_delete_char_at_cursor(editor)?;
+        // Enter insert mode
+        self.action_insert_mode(editor)?;
         Ok(())
     }
 }

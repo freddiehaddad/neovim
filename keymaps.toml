@@ -55,6 +55,13 @@
 "x" = "delete_char_at_cursor"
 "X" = "delete_char_before_cursor"
 "dd" = "delete_line"
+"D" = "delete_to_end_of_line"
+
+# Line operations
+"J" = "join_lines"
+"C" = "change_to_end_of_line"
+"S" = "change_entire_line"
+"s" = "substitute_char"
 
 # Operators (enter operator-pending mode)
 "d" = "operator_delete"

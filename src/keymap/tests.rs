@@ -1100,4 +1100,243 @@ mod keymap_tests {
             assert_eq!(buffer.cursor.col, 1); // After 'o' in "[o]ne"
         }
     }
+
+    // Line operations tests
+    #[test]
+    fn test_delete_to_end_of_line() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world test".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 6; // Position at 'w' in "world"
+        }
+
+        // Test delete to end of line (D command)
+        let result = handler.action_delete_to_end_of_line(&mut editor);
+        assert!(result.is_ok());
+
+        // Check that text from cursor to end was deleted
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "hello ");
+            assert_eq!(buffer.cursor.col, 6); // Cursor should stay at same position
+        }
+    }
+
+    #[test]
+    fn test_delete_to_end_of_line_at_end() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with cursor at end of line
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5; // At end of line
+        }
+
+        let original_line = if let Some(buffer) = editor.current_buffer() {
+            buffer.lines[0].clone()
+        } else {
+            String::new()
+        };
+
+        // Test delete to end of line when already at end
+        let result = handler.action_delete_to_end_of_line(&mut editor);
+        assert!(result.is_ok());
+
+        // Line should remain unchanged
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], original_line);
+        }
+    }
+
+    #[test]
+    fn test_join_lines() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple lines
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first line".to_string(),
+                "second line".to_string(),
+                "third line".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Test join lines (J command)
+        let result = handler.action_join_lines(&mut editor);
+        assert!(result.is_ok());
+
+        // Check that lines were joined
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 2);
+            assert_eq!(buffer.lines[0], "first line second line");
+            assert_eq!(buffer.lines[1], "third line");
+        }
+    }
+
+    #[test]
+    fn test_join_lines_at_last_line() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with cursor at last line
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["only line".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let original_lines_count = if let Some(buffer) = editor.current_buffer() {
+            buffer.lines.len()
+        } else {
+            0
+        };
+
+        // Test join lines when at last line
+        let result = handler.action_join_lines(&mut editor);
+        assert!(result.is_ok());
+
+        // Lines should remain unchanged
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), original_lines_count);
+            assert_eq!(buffer.lines[0], "only line");
+        }
+    }
+
+    #[test]
+    fn test_join_lines_with_whitespace() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create lines with trailing/leading whitespace
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "line with spaces   ".to_string(),
+                "   indented line".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Test join lines with whitespace trimming
+        let result = handler.action_join_lines(&mut editor);
+        assert!(result.is_ok());
+
+        // Check that whitespace was properly handled
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 1);
+            assert_eq!(buffer.lines[0], "line with spaces indented line");
+        }
+    }
+
+    #[test]
+    fn test_change_to_end_of_line() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world test".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 6; // Position at 'w' in "world"
+        }
+
+        // Test change to end of line (C command)
+        let result = handler.action_change_to_end_of_line(&mut editor);
+        assert!(result.is_ok());
+
+        // Check that text was deleted and mode changed to insert
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "hello ");
+        }
+        assert_eq!(editor.mode(), Mode::Insert);
+    }
+
+    #[test]
+    fn test_change_entire_line() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world test".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 6; // Position somewhere in the line
+        }
+
+        // Test change entire line (S command)
+        let result = handler.action_change_entire_line(&mut editor);
+        assert!(result.is_ok());
+
+        // Check that entire line was cleared and cursor moved to beginning
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "");
+            assert_eq!(buffer.cursor.col, 0);
+        }
+        assert_eq!(editor.mode(), Mode::Insert);
+    }
+
+    #[test]
+    fn test_substitute_char() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 1; // Position at 'e'
+        }
+
+        // Test substitute character (s command)
+        let result = handler.action_substitute_char(&mut editor);
+        assert!(result.is_ok());
+
+        // Check that character was deleted and mode changed to insert
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "hllo"); // 'e' should be deleted
+            assert_eq!(buffer.cursor.col, 1); // Cursor should stay at same position
+        }
+        assert_eq!(editor.mode(), Mode::Insert);
+    }
+
+    #[test]
+    fn test_join_lines_full_flow() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple lines
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["first".to_string(), "second".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Test J key binding through full key handling
+        let j_key = create_key_event(KeyCode::Char('J'));
+        let result = handler.handle_key(&mut editor, j_key);
+        assert!(result.is_ok());
+
+        // Check that join lines worked
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 1);
+            assert_eq!(buffer.lines[0], "first second");
+        }
+    }
 }

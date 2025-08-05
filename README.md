@@ -122,6 +122,12 @@ This feature enables lightning-fast navigation within lines - essential for effi
 - **Character Navigation**: `f{char}` (find forward), `F{char}` (find backward), `t{char}` (till forward), `T{char}` (till backward), `;` (repeat search), `,` (repeat reverse)
 - **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`, `R` (replace mode)
 - **Delete Operations**: `x` (delete char), `X` (delete char before), `dd` (delete line), plus text objects (`diw`, `dap`, etc.)
+- **Line Operations**:
+  - `J` - Join lines: Join current line with the next line (removes line break and normalizes whitespace)
+  - `D` - Delete to end of line: Delete from cursor position to end of current line
+  - `C` - Change to end of line: Delete from cursor to end of line and enter Insert mode
+  - `S` - Change entire line: Clear the entire current line and enter Insert mode at beginning
+  - `s` - Substitute character: Delete character under cursor and enter Insert mode
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`
