@@ -278,6 +278,11 @@
 "Backspace" = "delete_search_char"
 
 [operator_pending_mode]
+# Compound operator sequences (when already in operator-pending mode)
+"d" = "delete_line"     # dd - delete current line (second d when already in OP mode)
+"c" = "change_entire_line" # cc - change current line  
+"y" = "yank_line"       # yy - yank current line
+
 # Text objects for operators
 # Word text objects
 "iw" = "text_object_iw" # inner word

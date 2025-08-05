@@ -1316,6 +1316,9 @@ impl KeyHandler {
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.delete_line();
         }
+        // Clear pending operator and return to Normal mode after deleting line
+        editor.clear_pending_operator();
+        editor.set_mode(Mode::Normal);
         Ok(())
     }
 

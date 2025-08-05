@@ -2256,4 +2256,75 @@ mod keymap_tests {
             assert_eq!(hello_count, 3); // Original + first put + repeat put
         }
     }
+
+    #[test]
+    fn test_dd_sequence_behavior() {
+        // Test to verify that 'dd' works correctly and doesn't get stuck in OP-PENDING
+        let mut editor = create_test_editor();
+        let mut handler = KeyHandler::new();
+
+        // Create a buffer and add multiple lines for testing
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "line 1".to_string(),
+                "line 2".to_string(),
+                "line 3".to_string(),
+            ];
+            buffer.cursor.row = 1; // Position on line 2
+            buffer.cursor.col = 0;
+        }
+
+        // Verify initial state
+        assert_eq!(editor.mode(), Mode::Normal);
+        assert_eq!(editor.current_buffer().unwrap().lines.len(), 3);
+        assert_eq!(editor.current_buffer().unwrap().lines[1], "line 2");
+
+        // Press first 'd' - this should immediately go to OperatorPending mode
+        let key1 = create_key_event(KeyCode::Char('d'));
+        handler.handle_key(&mut editor, key1).unwrap();
+
+        // After first 'd', should be in OperatorPending mode (waiting for motion or second d)
+        assert_eq!(editor.mode(), Mode::OperatorPending);
+
+        // Press second 'd' - this should execute delete_line and return to Normal
+        let key2 = create_key_event(KeyCode::Char('d'));
+        handler.handle_key(&mut editor, key2).unwrap();
+
+        // After 'dd', should be back in Normal mode and line should be deleted
+        assert_eq!(editor.mode(), Mode::Normal);
+        assert_eq!(editor.current_buffer().unwrap().lines.len(), 2);
+        assert_eq!(editor.current_buffer().unwrap().lines[0], "line 1");
+        assert_eq!(editor.current_buffer().unwrap().lines[1], "line 3");
+        // Line 2 should be deleted, cursor should be on line 1 (index 1, which is "line 3")
+    }
+
+    #[test]
+    fn test_d_with_text_object_vs_dd() {
+        // Test to verify that 'd' with text objects still works when 'dd' exists
+        let mut editor = create_test_editor();
+        let mut handler = KeyHandler::new();
+
+        // Create a buffer and add content with words for text object testing
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world test".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 6; // Position on "world"
+        }
+
+        // Test 'd' + 'i' + 'w' (delete inner word)
+        let key_d = create_key_event(KeyCode::Char('d'));
+        handler.handle_key(&mut editor, key_d).unwrap();
+
+        let key_i = create_key_event(KeyCode::Char('i'));
+        handler.handle_key(&mut editor, key_i).unwrap();
+
+        let key_w = create_key_event(KeyCode::Char('w'));
+        handler.handle_key(&mut editor, key_w).unwrap();
+
+        // Should have deleted "world" and returned to Normal mode
+        assert_eq!(editor.mode(), Mode::Normal);
+        assert_eq!(editor.current_buffer().unwrap().lines[0], "hello  test");
+    }
 }
