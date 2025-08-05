@@ -22,18 +22,18 @@ If you prefer to see logs in the console/terminal instead of a file, you can mod
 
 1. Comment out the file logging code:
 
-```rust
-// use env_logger::Target;
-// env_logger::Builder::from_default_env()
-//     .target(Target::Pipe(Box::new(std::fs::File::create("oxidized.log")?)))
-//     .init();
-```
+   ```rust
+   // use env_logger::Target;
+   // env_logger::Builder::from_default_env()
+   //     .target(Target::Pipe(Box::new(std::fs::File::create("oxidized.log")?)))
+   //     .init();
+   ```
 
-2. Uncomment the console logging:
+1. Uncomment the console logging:
 
-```rust
-env_logger::init();
-```
+   ```rust
+   env_logger::init();
+   ```
 
 ## How to Control Log Levels
 
@@ -41,25 +41,25 @@ You can control what level of detail is logged to the `oxidized.log` file using 
 
 ### Windows (PowerShell)
 
-#### Info Level Logging (Default)
+#### Info Level Logging (Windows Default)
 
 ```powershell
 $env:RUST_LOG="info"; .\target\debug\oxy.exe filename.txt
 ```
 
-#### Debug Logging (shows key events, mode changes, etc.)
+#### Debug Logging (Windows: shows key events, mode changes, etc.)
 
 ```powershell
 $env:RUST_LOG="debug"; .\target\debug\oxy.exe filename.txt
 ```
 
-#### Trace Logging (shows everything including individual key events)
+#### Trace Logging (shows everything including individual key events on Linux/macOS)
 
 ```powershell
 $env:RUST_LOG="trace"; .\target\debug\oxy.exe filename.txt
 ```
 
-#### Module-Specific Logging
+#### Module-Specific Logging (Windows)
 
 ```powershell
 $env:RUST_LOG="oxidized::editor=debug"; .\target\debug\oxy.exe filename.txt
