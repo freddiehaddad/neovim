@@ -70,6 +70,9 @@
 "{" = "paragraph_backward"
 "}" = "paragraph_forward"
 
+# Repeat operations
+"." = "repeat_last_change"
+
 # Operators (enter operator-pending mode)
 "d" = "operator_delete"
 "c" = "operator_change"

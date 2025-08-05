@@ -133,6 +133,8 @@ This feature enables lightning-fast navigation within lines - essential for effi
 - **Paragraph Movement**:
   - `{` - Move backward to start of paragraph: Jump to the beginning of the current or previous paragraph (separated by empty lines)
   - `}` - Move forward to start of paragraph: Jump to the beginning of the next paragraph (separated by empty lines)
+- **Repeat Operations**:
+  - `.` - Repeat last change: Repeats the last editing command (delete, change, insert, etc.)
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)
 - **Undo/Redo**: `u`, `Ctrl+r`
 - **File Operations**: `:w`, `:q`, `:q!`, `:wq`, `:e filename`

@@ -1940,4 +1940,320 @@ mod keymap_tests {
             assert_eq!(buffer.cursor.col, 0);
         }
     }
+
+    // Repeat command tests
+    #[test]
+    fn test_repeat_delete_char() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with some text
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Delete first character using the full execution path
+        let key = create_key_event(KeyCode::Char('x'));
+        let result = handler.execute_action(&mut editor, "delete_char_at_cursor", key);
+        assert!(result.is_ok());
+
+        // Verify character was deleted
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "ello world");
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Repeat the delete operation using the full execution path
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Verify another character was deleted
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "llo world");
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_repeat_substitute_char() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with some text
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test line".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Substitute first character using the full execution path
+        let key = create_key_event(KeyCode::Char('s'));
+        let result = handler.execute_action(&mut editor, "substitute_char", key);
+        assert!(result.is_ok());
+
+        // Verify we're in insert mode and character was deleted
+        assert_eq!(editor.mode(), Mode::Insert);
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "est line");
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Return to normal mode and move cursor
+        editor.set_mode(Mode::Normal);
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.col = 1; // Move to second character
+        }
+
+        // Repeat the substitute operation using the full execution path
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Verify substitute was repeated
+        assert_eq!(editor.mode(), Mode::Insert);
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "et line");
+            assert_eq!(buffer.cursor.col, 1);
+        }
+    }
+
+    #[test]
+    fn test_repeat_delete_line() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple lines
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "line 1".to_string(),
+                "line 2".to_string(),
+                "line 3".to_string(),
+                "line 4".to_string(),
+            ];
+            buffer.cursor.row = 1;
+            buffer.cursor.col = 0;
+        }
+
+        // Delete line 2 using the full execution path
+        let key = create_key_event(KeyCode::Char('d')); // This would be 'dd' in real usage
+        let result = handler.execute_action(&mut editor, "delete_line", key);
+        assert!(result.is_ok());
+
+        // Verify line was deleted
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 3);
+            assert_eq!(buffer.lines[1], "line 3");
+            assert_eq!(buffer.cursor.row, 1);
+        }
+
+        // Repeat the delete line operation using the full execution path
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Verify another line was deleted
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 2);
+            assert_eq!(buffer.lines[1], "line 4");
+            assert_eq!(buffer.cursor.row, 1);
+        }
+    }
+
+    #[test]
+    fn test_repeat_join_lines() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple lines
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "first".to_string(),
+                "second".to_string(),
+                "third".to_string(),
+                "fourth".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Join first and second lines using the full execution path
+        let key = create_key_event(KeyCode::Char('J'));
+        let result = handler.execute_action(&mut editor, "join_lines", key);
+        assert!(result.is_ok());
+
+        // Verify lines were joined
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 3);
+            assert_eq!(buffer.lines[0], "first second");
+            assert_eq!(buffer.cursor.row, 0);
+        }
+
+        // Repeat the join operation using the full execution path
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Verify another join occurred
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines.len(), 2);
+            assert_eq!(buffer.lines[0], "first second third");
+            assert_eq!(buffer.cursor.row, 0);
+        }
+    }
+
+    #[test]
+    fn test_repeat_without_previous_command() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Try to repeat without any previous command using the full execution path
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Buffer should remain unchanged
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "test");
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_repeat_non_repeatable_command() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 2;
+        }
+
+        // Execute a movement command (non-repeatable) using the full execution path
+        let key = create_key_event(KeyCode::Char('h'));
+        let result = handler.execute_action(&mut editor, "cursor_left", key);
+        assert!(result.is_ok());
+
+        // Verify cursor moved
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 1);
+        }
+
+        // Try to repeat - should have no effect since movement isn't repeatable
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Cursor should remain at current position
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 1);
+        }
+    }
+
+    #[test]
+    fn test_repeat_recording_and_replay() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["abcdef".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Execute a repeatable command via the full flow
+        let key = create_key_event(KeyCode::Char('x'));
+        let result = handler.execute_action(&mut editor, "delete_char_at_cursor", key);
+        assert!(result.is_ok());
+
+        // Verify the command was recorded
+        assert!(handler.last_command.is_some());
+        if let Some(ref cmd) = handler.last_command {
+            assert_eq!(cmd.action, "delete_char_at_cursor");
+        }
+
+        // Verify first deletion
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "bcdef");
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Execute repeat command
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Verify repeat worked
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.lines[0], "cdef");
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_repeat_put_operations() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer and yank some text first
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Yank a word first using the full execution path
+        let yank_key = create_key_event(KeyCode::Char('y'));
+        let result = handler.execute_action(&mut editor, "yank_word", yank_key);
+        assert!(result.is_ok());
+
+        // Move cursor to end of line and put the yanked text using the full execution path
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.cursor.col = 11; // Move to end: "hello world"
+        }
+
+        let put_key = create_key_event(KeyCode::Char('p'));
+        let result = handler.execute_action(&mut editor, "put_after", put_key);
+        assert!(result.is_ok());
+
+        // Verify put operation worked
+        if let Some(buffer) = editor.current_buffer() {
+            // Should be "hello worldhello" with cursor after the pasted text
+            assert!(buffer.lines[0].contains("hello world"));
+            assert!(buffer.lines[0].len() > 11); // Should be longer than original
+        }
+
+        // Repeat the put operation using the full execution path
+        let repeat_key = create_key_event(KeyCode::Char('.'));
+        let result = handler.execute_action(&mut editor, "repeat_last_change", repeat_key);
+        assert!(result.is_ok());
+
+        // Verify repeat worked - should have another "hello" added
+        if let Some(buffer) = editor.current_buffer() {
+            let line = &buffer.lines[0];
+            let hello_count = line.matches("hello").count();
+            assert_eq!(hello_count, 3); // Original + first put + repeat put
+        }
+    }
 }

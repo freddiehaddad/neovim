@@ -32,6 +32,15 @@ pub struct KeyHandler {
     // Character navigation state
     pub last_char_search: Option<CharSearchState>,
     pub pending_char_command: Option<PendingCharCommand>,
+    // Repeat command state
+    pub last_command: Option<RepeatableCommand>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RepeatableCommand {
+    pub action: String,
+    pub key: KeyEvent,
+    pub count: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -67,6 +76,7 @@ impl KeyHandler {
             last_key_time: None,
             last_char_search: None,
             pending_char_command: None,
+            last_command: None,
         }
     }
 
@@ -448,6 +458,29 @@ impl KeyHandler {
     }
 
     fn execute_action(&mut self, editor: &mut Editor, action: &str, key: KeyEvent) -> Result<()> {
+        // Record repeatable commands before executing
+        if self.is_repeatable_action(action) {
+            self.record_command(action, key);
+        }
+
+        self.execute_action_internal(editor, action, key)
+    }
+
+    fn execute_action_without_recording(
+        &mut self,
+        editor: &mut Editor,
+        action: &str,
+        key: KeyEvent,
+    ) -> Result<()> {
+        self.execute_action_internal(editor, action, key)
+    }
+
+    fn execute_action_internal(
+        &mut self,
+        editor: &mut Editor,
+        action: &str,
+        key: KeyEvent,
+    ) -> Result<()> {
         match action {
             // Movement actions
             "cursor_left" => self.action_cursor_left(editor)?,
@@ -478,6 +511,9 @@ impl KeyHandler {
             // Paragraph movement
             "paragraph_forward" => self.action_paragraph_forward(editor)?,
             "paragraph_backward" => self.action_paragraph_backward(editor)?,
+
+            // Repeat operations
+            "repeat_last_change" => self.action_repeat_last_change(editor)?,
 
             // Delete operations
             "delete_char_at_cursor" => self.action_delete_char_at_cursor(editor)?,
@@ -1246,6 +1282,18 @@ impl KeyHandler {
 
             buffer.cursor.row = current_row;
             buffer.cursor.col = 0;
+        }
+        Ok(())
+    }
+
+    fn action_repeat_last_change(&mut self, editor: &mut Editor) -> Result<()> {
+        if let Some(last_command) = &self.last_command.clone() {
+            info!("Repeating last command: {}", last_command.action);
+            // Execute the last command without recording it again to avoid infinite loops
+            self.execute_action_without_recording(editor, &last_command.action, last_command.key)?;
+            editor.set_status_message(format!("Repeated: {}", last_command.action));
+        } else {
+            editor.set_status_message("No command to repeat".to_string());
         }
         Ok(())
     }
@@ -2349,5 +2397,42 @@ impl KeyHandler {
         }
 
         None
+    }
+
+    fn is_repeatable_action(&self, action: &str) -> bool {
+        matches!(
+            action,
+            // Character operations
+            "delete_char_at_cursor" |
+            "delete_char_before_cursor" |
+            "substitute_char" |
+            // Line operations
+            "delete_line" |
+            "delete_to_end_of_line" |
+            "change_to_end_of_line" |
+            "change_entire_line" |
+            "join_lines" |
+            // Insert operations (when entering insert mode with text)
+            "insert_mode" |
+            "insert_after" |
+            "insert_line_start" |
+            "insert_line_end" |
+            "insert_line_below" |
+            "insert_line_above" |
+            // Put operations
+            "put_after" |
+            "put_before" |
+            // Text case operations (future implementation)
+            "toggle_case"
+        )
+    }
+
+    fn record_command(&mut self, action: &str, key: KeyEvent) {
+        self.last_command = Some(RepeatableCommand {
+            action: action.to_string(),
+            key,
+            count: None, // TODO: Add count support for commands like 3dd
+        });
+        debug!("Recorded command for repeat: {}", action);
     }
 }
