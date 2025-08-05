@@ -98,13 +98,28 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Copy/Paste System**: Vim-compatible yank/put operations with type awareness and text object support
 - **Basic Text Operations**: Insert, delete, line breaks, word movement
 - **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
+- **Character Navigation**: Vim-style character search with `f/F/t/T` and `;/,` repeat functionality
 - **Terminal Interface**: Raw terminal input/output with crossterm
 - **Status Line**: Shows current mode, file info, cursor position
+
+#### 🎯 Character Navigation
+
+Oxidized implements Vim's powerful character navigation system for precise cursor movement within lines:
+
+- **`f{char}`** - Find character forward: Jump to the next occurrence of `{char}` on the current line
+- **`F{char}`** - Find character backward: Jump to the previous occurrence of `{char}` on the current line  
+- **`t{char}`** - Till character forward: Jump to just before the next occurrence of `{char}`
+- **`T{char}`** - Till character backward: Jump to just after the previous occurrence of `{char}`
+- **`;`** - Repeat last character search in the same direction
+- **`,`** - Repeat last character search in the opposite direction
+
+This feature enables lightning-fast navigation within lines - essential for efficient Vim-style editing.
 
 ### Vim Keybindings
 
 - **Insert Mode**: `i`, `I`, `a`, `A`, `o`, `O`
 - **Navigation**: `h/j/k/l`, arrow keys, `w/b/e` (word movement), `0/$` (line start/end), `gg/G` (buffer start/end)
+- **Character Navigation**: `f{char}` (find forward), `F{char}` (find backward), `t{char}` (till forward), `T{char}` (till backward), `;` (repeat search), `,` (repeat reverse)
 - **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`, `R` (replace mode)
 - **Delete Operations**: `x` (delete char), `X` (delete char before), `dd` (delete line), plus text objects (`diw`, `dap`, etc.)
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)

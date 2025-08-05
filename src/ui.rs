@@ -3,6 +3,7 @@ use crate::mode::{Mode, Position};
 use crate::syntax::HighlightRange;
 use crate::terminal::Terminal;
 use crate::theme::{SyntaxTheme, ThemeConfig, UITheme};
+use log::{debug, warn};
 use std::io;
 
 #[cfg(test)]
@@ -41,11 +42,14 @@ impl UI {
 
     /// Set the UI theme by loading from themes.toml
     pub fn set_theme(&mut self, theme_name: &str) {
+        debug!("Setting UI theme to: '{}'", theme_name);
         let theme_config = ThemeConfig::load();
         if let Some(complete_theme) = theme_config.get_theme(theme_name) {
+            debug!("Successfully loaded theme: '{}'", theme_name);
             self.theme = complete_theme.ui;
             self.syntax_theme = complete_theme.syntax;
         } else {
+            warn!("Theme '{}' not found, using default theme", theme_name);
             // Fallback to default theme if theme not found
             let default_theme = theme_config.get_current_theme();
             self.theme = default_theme.ui;

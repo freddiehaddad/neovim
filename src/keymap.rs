@@ -29,6 +29,28 @@ pub struct KeyHandler {
     keymap_config: KeymapConfig,
     pub pending_sequence: String,
     pub last_key_time: Option<std::time::Instant>,
+    // Character navigation state
+    pub last_char_search: Option<CharSearchState>,
+    pub pending_char_command: Option<PendingCharCommand>,
+}
+
+#[derive(Clone, Debug)]
+pub struct CharSearchState {
+    pub search_type: CharSearchType,
+    pub character: char,
+    pub forward: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Copy)]
+pub struct PendingCharCommand {
+    pub search_type: CharSearchType,
+    pub forward: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Copy)]
+pub enum CharSearchType {
+    Find, // f/F - find character
+    Till, // t/T - till character (stop before)
 }
 
 impl Default for KeyHandler {
@@ -43,6 +65,8 @@ impl KeyHandler {
             keymap_config: Self::load_default_keymaps(),
             pending_sequence: String::new(),
             last_key_time: None,
+            last_char_search: None,
+            pending_char_command: None,
         }
     }
 
@@ -97,6 +121,39 @@ impl KeyHandler {
             key_string,
             editor.mode()
         );
+
+        // Handle pending character navigation commands
+        if let Some(pending_cmd) = self.pending_char_command {
+            if let KeyCode::Char(ch) = key.code {
+                debug!(
+                    "Executing pending character command: {:?} for char '{}'",
+                    pending_cmd, ch
+                );
+                self.pending_char_command = None; // Clear the pending command
+
+                // Create a key event for the character and execute the appropriate action
+                let char_key = KeyEvent::new(KeyCode::Char(ch), KeyModifiers::empty());
+                match (pending_cmd.search_type, pending_cmd.forward) {
+                    (CharSearchType::Find, true) => {
+                        self.action_find_char_forward(editor, char_key)?;
+                    }
+                    (CharSearchType::Find, false) => {
+                        self.action_find_char_backward(editor, char_key)?;
+                    }
+                    (CharSearchType::Till, true) => {
+                        self.action_till_char_forward(editor, char_key)?;
+                    }
+                    (CharSearchType::Till, false) => {
+                        self.action_till_char_backward(editor, char_key)?;
+                    }
+                }
+                return Ok(());
+            } else {
+                // Non-character key pressed, cancel the pending command
+                debug!("Non-character key pressed, canceling pending character command");
+                self.pending_char_command = None;
+            }
+        }
 
         // Handle key sequences for normal mode and operator pending mode
         if matches!(editor.mode(), Mode::Normal | Mode::OperatorPending) {
@@ -167,23 +224,42 @@ impl KeyHandler {
                         "Executing operator '{}' immediately for key sequence '{}'",
                         action, self.pending_sequence
                     );
-                    let action_result = self.execute_action(editor, action, key);
+                    let action_clone = action.clone();
+                    let action_result = self.execute_action(editor, &action_clone, key);
                     self.pending_sequence.clear();
                     return action_result;
                 }
 
                 // For non-operators, check if there's also a longer potential match.
                 // If so, we wait. If not, we execute immediately.
-                let has_potential_match = current_keymap
-                    .keys()
-                    .any(|k| k.starts_with(&self.pending_sequence) && k != &self.pending_sequence);
+                // Special handling: single character keys (like "F") should not wait for function keys (like "F1")
+                let has_potential_match = if self.pending_sequence.len() == 1 {
+                    // For single character sequences, only consider potential matches that are actual compound sequences
+                    // not function keys. Function keys like F1, F2 are different keys entirely, not sequences.
+                    current_keymap.keys().any(|k| {
+                        if k.starts_with(&self.pending_sequence) && k != &self.pending_sequence {
+                            // Check if this is a function key pattern (like F1, F2, F10)
+                            let potential_suffix = &k[self.pending_sequence.len()..];
+                            // If the suffix is just digits, it's probably a function key
+                            !potential_suffix.chars().all(|c| c.is_ascii_digit())
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    // For multi-character sequences, use the original logic
+                    current_keymap.keys().any(|k| {
+                        k.starts_with(&self.pending_sequence) && k != &self.pending_sequence
+                    })
+                };
 
                 if !has_potential_match {
                     debug!(
                         "Executing action '{}' for key sequence '{}'",
                         action, self.pending_sequence
                     );
-                    let action_result = self.execute_action(editor, action, key);
+                    let action_clone = action.clone();
+                    let action_result = self.execute_action(editor, &action_clone, key);
                     self.pending_sequence.clear();
                     return action_result;
                 } else {
@@ -270,7 +346,8 @@ impl KeyHandler {
             };
 
             if let Some(action_name) = action {
-                self.execute_action(editor, action_name, key)?;
+                let action_name = action_name.clone();
+                self.execute_action(editor, &action_name, key)?;
             }
         }
 
@@ -332,7 +409,7 @@ impl KeyHandler {
         result
     }
 
-    fn execute_action(&self, editor: &mut Editor, action: &str, key: KeyEvent) -> Result<()> {
+    fn execute_action(&mut self, editor: &mut Editor, action: &str, key: KeyEvent) -> Result<()> {
         match action {
             // Movement actions
             "cursor_left" => self.action_cursor_left(editor)?,
@@ -344,6 +421,18 @@ impl KeyHandler {
             "word_forward" => self.action_word_forward(editor)?,
             "word_backward" => self.action_word_backward(editor)?,
             "word_end" => self.action_word_end(editor)?,
+
+            // Character navigation
+            "start_find_char_forward" => self.action_start_find_char_forward(editor)?,
+            "start_find_char_backward" => self.action_start_find_char_backward(editor)?,
+            "start_till_char_forward" => self.action_start_till_char_forward(editor)?,
+            "start_till_char_backward" => self.action_start_till_char_backward(editor)?,
+            "find_char_forward" => self.action_find_char_forward(editor, key)?,
+            "find_char_backward" => self.action_find_char_backward(editor, key)?,
+            "till_char_forward" => self.action_till_char_forward(editor, key)?,
+            "till_char_backward" => self.action_till_char_backward(editor, key)?,
+            "repeat_char_search" => self.action_repeat_char_search(editor)?,
+            "repeat_char_search_reverse" => self.action_repeat_char_search_reverse(editor)?,
 
             // Delete operations
             "delete_char_at_cursor" => self.action_delete_char_at_cursor(editor)?,
@@ -1584,6 +1673,322 @@ impl KeyHandler {
             debug!("No pending operator for text object: {}", text_object_str);
         }
 
+        Ok(())
+    }
+
+    // Character navigation start actions
+    fn action_start_find_char_forward(&mut self, _editor: &mut Editor) -> Result<()> {
+        debug!("Starting find character forward command");
+        self.pending_char_command = Some(PendingCharCommand {
+            search_type: CharSearchType::Find,
+            forward: true,
+        });
+        Ok(())
+    }
+
+    fn action_start_find_char_backward(&mut self, _editor: &mut Editor) -> Result<()> {
+        debug!("Starting find character backward command");
+        self.pending_char_command = Some(PendingCharCommand {
+            search_type: CharSearchType::Find,
+            forward: false,
+        });
+        Ok(())
+    }
+
+    fn action_start_till_char_forward(&mut self, _editor: &mut Editor) -> Result<()> {
+        debug!("Starting till character forward command");
+        self.pending_char_command = Some(PendingCharCommand {
+            search_type: CharSearchType::Till,
+            forward: true,
+        });
+        Ok(())
+    }
+
+    fn action_start_till_char_backward(&mut self, _editor: &mut Editor) -> Result<()> {
+        debug!("Starting till character backward command");
+        self.pending_char_command = Some(PendingCharCommand {
+            search_type: CharSearchType::Till,
+            forward: false,
+        });
+        Ok(())
+    }
+
+    // Character navigation actions
+    fn action_find_char_forward(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            debug!("Finding character '{}' forward on current line", ch);
+            if let Some(buffer) = editor.current_buffer_mut() {
+                let cursor = buffer.cursor;
+                if let Some(line_text) = buffer.get_line(cursor.row) {
+                    // Search for character after current cursor position
+                    if let Some(pos) = line_text.chars().skip(cursor.col + 1).position(|c| c == ch)
+                    {
+                        let new_column = cursor.col + 1 + pos;
+                        buffer.cursor.col = new_column;
+
+                        // Store this search for repeat operations
+                        self.last_char_search = Some(CharSearchState {
+                            search_type: CharSearchType::Find,
+                            character: ch,
+                            forward: true,
+                        });
+
+                        info!("Found character '{}' at column {}", ch, new_column);
+                    } else {
+                        debug!("Character '{}' not found forward on current line", ch);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_find_char_backward(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            debug!("Finding character '{}' backward on current line", ch);
+            if let Some(buffer) = editor.current_buffer_mut() {
+                let cursor = buffer.cursor;
+                if let Some(line_text) = buffer.get_line(cursor.row) {
+                    // Search for character before current cursor position
+                    if let Some(pos) = line_text
+                        .chars()
+                        .take(cursor.col)
+                        .collect::<String>()
+                        .rfind(ch)
+                    {
+                        buffer.cursor.col = pos;
+
+                        // Store this search for repeat operations
+                        self.last_char_search = Some(CharSearchState {
+                            search_type: CharSearchType::Find,
+                            character: ch,
+                            forward: false,
+                        });
+
+                        info!("Found character '{}' at column {}", ch, pos);
+                    } else {
+                        debug!("Character '{}' not found backward on current line", ch);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_till_char_forward(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            debug!("Finding till character '{}' forward on current line", ch);
+            if let Some(buffer) = editor.current_buffer_mut() {
+                let cursor = buffer.cursor;
+                if let Some(line_text) = buffer.get_line(cursor.row) {
+                    // Search for character after current cursor position
+                    let search_start = cursor.col + 1;
+                    if let Some(pos) = line_text.chars().skip(search_start).position(|c| c == ch) {
+                        let target_char_position = search_start + pos;
+                        let new_column = target_char_position.saturating_sub(1); // Stop before the character
+                        buffer.cursor.col = new_column;
+
+                        // Store this search for repeat operations
+                        self.last_char_search = Some(CharSearchState {
+                            search_type: CharSearchType::Till,
+                            character: ch,
+                            forward: true,
+                        });
+
+                        info!("Till character '{}', stopped at column {}", ch, new_column);
+                    } else {
+                        debug!("Character '{}' not found forward on current line", ch);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_till_char_backward(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        if let KeyCode::Char(ch) = key.code {
+            debug!("Finding till character '{}' backward on current line", ch);
+            if let Some(buffer) = editor.current_buffer_mut() {
+                let cursor = buffer.cursor;
+                if let Some(line_text) = buffer.get_line(cursor.row) {
+                    // Search for character before current cursor position
+                    if let Some(pos) = line_text
+                        .chars()
+                        .take(cursor.col)
+                        .collect::<String>()
+                        .rfind(ch)
+                    {
+                        let new_column = pos + 1; // Stop after the character
+                        if new_column < line_text.chars().count() {
+                            buffer.cursor.col = new_column;
+
+                            // Store this search for repeat operations
+                            self.last_char_search = Some(CharSearchState {
+                                search_type: CharSearchType::Till,
+                                character: ch,
+                                forward: false,
+                            });
+
+                            info!("Till character '{}', stopped at column {}", ch, new_column);
+                        }
+                    } else {
+                        debug!("Character '{}' not found backward on current line", ch);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_repeat_char_search(&mut self, editor: &mut Editor) -> Result<()> {
+        if let Some(ref search_state) = self.last_char_search.clone() {
+            debug!(
+                "Repeating character search: {:?} '{}' forward: {}",
+                search_state.search_type, search_state.character, search_state.forward
+            );
+
+            // For repeat operations, we need special logic to avoid finding the same character again
+            match (search_state.search_type, search_state.forward) {
+                (CharSearchType::Find, true) => {
+                    self.action_find_char_forward_repeat(editor, search_state.character)?
+                }
+                (CharSearchType::Find, false) => {
+                    self.action_find_char_backward_repeat(editor, search_state.character)?
+                }
+                (CharSearchType::Till, true) => {
+                    self.action_till_char_forward_repeat(editor, search_state.character)?
+                }
+                (CharSearchType::Till, false) => {
+                    self.action_till_char_backward_repeat(editor, search_state.character)?
+                }
+            }
+        } else {
+            debug!("No previous character search to repeat");
+        }
+        Ok(())
+    }
+
+    fn action_repeat_char_search_reverse(&mut self, editor: &mut Editor) -> Result<()> {
+        if let Some(ref search_state) = self.last_char_search.clone() {
+            debug!(
+                "Repeating character search in reverse: {:?} '{}' forward: {}",
+                search_state.search_type, search_state.character, !search_state.forward
+            );
+
+            // For reverse repeat operations, we also need special logic
+            match (search_state.search_type, search_state.forward) {
+                (CharSearchType::Find, true) => {
+                    self.action_find_char_backward_repeat(editor, search_state.character)?
+                }
+                (CharSearchType::Find, false) => {
+                    self.action_find_char_forward_repeat(editor, search_state.character)?
+                }
+                (CharSearchType::Till, true) => {
+                    self.action_till_char_backward_repeat(editor, search_state.character)?
+                }
+                (CharSearchType::Till, false) => {
+                    self.action_till_char_forward_repeat(editor, search_state.character)?
+                }
+            }
+        } else {
+            debug!("No previous character search to repeat in reverse");
+        }
+        Ok(())
+    }
+
+    // Specialized repeat methods that handle cursor positioning correctly
+    fn action_find_char_forward_repeat(&mut self, editor: &mut Editor, ch: char) -> Result<()> {
+        debug!("Repeating find character '{}' forward", ch);
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let cursor = buffer.cursor;
+            if let Some(line_text) = buffer.get_line(cursor.row) {
+                // For repeat, start searching from next position
+                if let Some(pos) = line_text.chars().skip(cursor.col + 1).position(|c| c == ch) {
+                    let new_column = cursor.col + 1 + pos;
+                    buffer.cursor.col = new_column;
+                    info!("Found character '{}' at column {}", ch, new_column);
+                } else {
+                    debug!("Character '{}' not found forward on current line", ch);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_find_char_backward_repeat(&mut self, editor: &mut Editor, ch: char) -> Result<()> {
+        debug!("Repeating find character '{}' backward", ch);
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let cursor = buffer.cursor;
+            if let Some(line_text) = buffer.get_line(cursor.row) {
+                // For backward repeat, start searching from cursor.col - 1 to skip past current character
+                if cursor.col > 0 {
+                    let search_end = cursor.col; // Search up to but not including current position
+                    if let Some(pos) = line_text
+                        .chars()
+                        .take(search_end)
+                        .collect::<String>()
+                        .rfind(ch)
+                    {
+                        buffer.cursor.col = pos;
+                        info!("Found character '{}' at column {}", ch, pos);
+                    } else {
+                        debug!("Character '{}' not found backward on current line", ch);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_till_char_forward_repeat(&mut self, editor: &mut Editor, ch: char) -> Result<()> {
+        debug!("Repeating till character '{}' forward", ch);
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let cursor = buffer.cursor;
+            if let Some(line_text) = buffer.get_line(cursor.row) {
+                // For till repeat, we need to skip past the current target character
+                // Start searching from cursor + 2 to skip past the character we're currently "till"
+                let search_start = cursor.col + 2;
+                if let Some(pos) = line_text.chars().skip(search_start).position(|c| c == ch) {
+                    let target_char_position = search_start + pos;
+                    let new_column = target_char_position.saturating_sub(1);
+                    buffer.cursor.col = new_column;
+                    info!("Till character '{}', stopped at column {}", ch, new_column);
+                } else {
+                    debug!("Character '{}' not found forward on current line", ch);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn action_till_char_backward_repeat(&mut self, editor: &mut Editor, ch: char) -> Result<()> {
+        debug!("Repeating till character '{}' backward", ch);
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let cursor = buffer.cursor;
+            if let Some(line_text) = buffer.get_line(cursor.row) {
+                // For till backward repeat, we need to skip past the character we're currently "till"
+                // Since we're positioned after the target character, we need to search before cursor.col - 1
+                if cursor.col > 1 {
+                    let search_end = cursor.col - 1; // Skip past the current target character
+                    if let Some(pos) = line_text
+                        .chars()
+                        .take(search_end)
+                        .collect::<String>()
+                        .rfind(ch)
+                    {
+                        let new_column = pos + 1;
+                        if new_column < line_text.chars().count() {
+                            buffer.cursor.col = new_column;
+                            info!("Till character '{}', stopped at column {}", ch, new_column);
+                        }
+                    } else {
+                        debug!("Character '{}' not found backward on current line", ch);
+                    }
+                } else {
+                    debug!("At beginning of line, cannot search backward");
+                }
+            }
+        }
         Ok(())
     }
 }

@@ -389,4 +389,715 @@ mod keymap_tests {
         // Insert mode should be empty in minimal fallback
         assert!(fallback_config.insert_mode.is_empty());
     }
+
+    // Character navigation tests
+    #[test]
+    fn test_find_char_forward() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Test finding 'l' forward from position 0
+        let key = create_key_event(KeyCode::Char('l'));
+        let result = handler.action_find_char_forward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Should move to first 'l' at position 2
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 2);
+        }
+
+        // Test that search state is stored
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'l');
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert!(search_state.forward);
+    }
+
+    #[test]
+    fn test_find_char_backward() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 10;
+        }
+
+        // Test finding 'l' backward from end
+        let key = create_key_event(KeyCode::Char('l'));
+        let result = handler.action_find_char_backward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Should move to last 'l' at position 9
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 9);
+        }
+
+        // Test that search state is stored
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'l');
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert!(!search_state.forward);
+    }
+
+    #[test]
+    fn test_till_char_forward() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Test till 'o' forward from position 0
+        let key = create_key_event(KeyCode::Char('o'));
+        let result = handler.action_till_char_forward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Should move to position before 'o' at position 3 (till stops before character)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 3);
+        }
+
+        // Test that search state is stored
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'o');
+        assert_eq!(search_state.search_type, CharSearchType::Till);
+        assert!(search_state.forward);
+    }
+
+    #[test]
+    fn test_till_char_backward() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 10;
+        }
+
+        // Test till 'o' backward from end
+        let key = create_key_event(KeyCode::Char('o'));
+        let result = handler.action_till_char_backward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Should move to position after 'o' at position 8 (till stops after character)
+        // Note: "hello world" has 'o' at positions 4 and 7, rfind finds the last one at 7
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 8);
+        }
+
+        // Test that search state is stored
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'o');
+        assert_eq!(search_state.search_type, CharSearchType::Till);
+        assert!(!search_state.forward);
+    }
+
+    #[test]
+    fn test_repeat_char_search() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello hello".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // First, do a find forward for 'l'
+        let key = create_key_event(KeyCode::Char('l'));
+        let result = handler.action_find_char_forward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Should be at first 'l' (position 2)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 2);
+        }
+
+        // Now repeat the search
+        let result = handler.action_repeat_char_search(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to second 'l' (position 3)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 3);
+        }
+
+        // Repeat again
+        let result = handler.action_repeat_char_search(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to third 'l' (position 8)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 8);
+        }
+    }
+
+    #[test]
+    fn test_repeat_char_search_reverse() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello hello".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5;
+        }
+
+        // First, do a find forward for 'l'
+        let key = create_key_event(KeyCode::Char('l'));
+        let result = handler.action_find_char_forward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Should be at position 8 (first 'l' in second "hello")
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 8);
+        }
+
+        // Now repeat the search in reverse
+        let result = handler.action_repeat_char_search_reverse(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move backward to position 3 (second 'l' in first "hello")
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 3);
+        }
+    }
+
+    #[test]
+    fn test_character_not_found() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content directly
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let original_col = if let Some(buffer) = editor.current_buffer() {
+            buffer.cursor.col
+        } else {
+            0
+        };
+
+        // Test finding a character that doesn't exist
+        let key = create_key_event(KeyCode::Char('z'));
+        let result = handler.action_find_char_forward(&mut editor, key);
+        assert!(result.is_ok());
+
+        // Cursor should not move
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, original_col);
+        }
+    }
+
+    #[test]
+    fn test_repeat_without_previous_search() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Try to repeat without any previous search
+        let result = handler.action_repeat_char_search(&mut editor);
+        assert!(result.is_ok()); // Should not error, just do nothing
+
+        let result = handler.action_repeat_char_search_reverse(&mut editor);
+        assert!(result.is_ok()); // Should not error, just do nothing
+    }
+
+    #[test]
+    fn test_char_search_state_storage() {
+        let mut handler = KeyHandler::new();
+
+        // Initially no search state
+        assert!(handler.last_char_search.is_none());
+
+        // Create search state
+        handler.last_char_search = Some(CharSearchState {
+            search_type: CharSearchType::Find,
+            character: 'x',
+            forward: true,
+        });
+
+        // Verify state is stored correctly
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'x');
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert!(search_state.forward);
+    }
+
+    #[test]
+    fn test_character_navigation_full_flow() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Test full find character forward flow
+        // First press 'f' to start the command
+        let f_key = create_key_event(KeyCode::Char('f'));
+        let result = handler.handle_key(&mut editor, f_key);
+        assert!(result.is_ok());
+
+        // Should be in pending state
+        assert!(handler.pending_char_command.is_some());
+
+        // Then press 'l' to find the letter
+        let l_key = create_key_event(KeyCode::Char('l'));
+        let result = handler.handle_key(&mut editor, l_key);
+        assert!(result.is_ok());
+
+        // Should no longer be in pending state
+        assert!(handler.pending_char_command.is_none());
+
+        // Should move to first 'l' at position 2
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 2);
+        }
+
+        // Should have stored search state
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'l');
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert!(search_state.forward);
+    }
+
+    #[test]
+    fn test_character_navigation_cancel_on_non_char() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Start find character forward
+        let f_key = create_key_event(KeyCode::Char('f'));
+        let result = handler.handle_key(&mut editor, f_key);
+        assert!(result.is_ok());
+
+        // Should be in pending state
+        assert!(handler.pending_char_command.is_some());
+
+        // Press Escape (non-character key)
+        let esc_key = create_key_event(KeyCode::Esc);
+        let result = handler.handle_key(&mut editor, esc_key);
+        assert!(result.is_ok());
+
+        // Should no longer be in pending state (command canceled)
+        assert!(handler.pending_char_command.is_none());
+
+        // Cursor should not have moved
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_character_navigation_find_backward() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Ensure we have a buffer
+        editor.create_buffer(None).expect("Failed to create buffer");
+
+        // Set up test content and position cursor at end
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello world".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 10; // Position at end of line
+        }
+
+        // Test full find character backward flow (uppercase F)
+        // First press 'F' to start the command
+        let f_key = create_key_event_with_modifiers(KeyCode::Char('f'), KeyModifiers::SHIFT);
+        let result = handler.handle_key(&mut editor, f_key);
+        assert!(result.is_ok());
+
+        // Should be in pending state
+        assert!(handler.pending_char_command.is_some());
+        let pending = handler.pending_char_command.unwrap();
+        assert_eq!(pending.search_type, CharSearchType::Find);
+        assert!(!pending.forward); // Should be backward
+
+        // Then press 'l' to find the letter backward
+        let l_key = create_key_event(KeyCode::Char('l'));
+        let result = handler.handle_key(&mut editor, l_key);
+        assert!(result.is_ok());
+
+        // Should no longer be in pending state
+        assert!(handler.pending_char_command.is_none());
+
+        // Should move to last 'l' at position 9 (searching backward from position 10)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 9);
+        }
+
+        // Should have stored search state
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.character, 'l');
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert!(!search_state.forward); // Should be backward
+    }
+
+    #[test]
+    fn test_till_char_repeat_functionality() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["hello there everyone".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 3; // Start at second 'l' in "hello"
+        }
+
+        // Test 't' (till) command followed by ';' (repeat)
+        // First press 't' to start till command
+        let t_key = create_key_event(KeyCode::Char('t'));
+        let result = handler.handle_key(&mut editor, t_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_some());
+
+        // Then press 'e' to search till first 'e' (should stop at position 1, before 'e' at position 2)
+        let e_key = create_key_event(KeyCode::Char('e'));
+        let result = handler.handle_key(&mut editor, e_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_none());
+
+        // Should be at position 7 (just before the 'e' in "there" at position 8)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 7);
+        }
+
+        // Store search state for verification
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.search_type, CharSearchType::Till);
+        assert_eq!(search_state.character, 'e');
+        assert!(search_state.forward);
+
+        // Now press ';' to repeat the search - should go to next 'e'
+        let semicolon_key = create_key_event(KeyCode::Char(';'));
+        let result = handler.handle_key(&mut editor, semicolon_key);
+        assert!(result.is_ok());
+
+        // Should now be at position 9 (just before the 'e' in "there" at position 10)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 9); // Should move to position before next 'e'
+        }
+    }
+
+    #[test]
+    fn test_reverse_repeat_functionality() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content that has multiple 'e' characters
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test example text".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 16; // Start at end of line
+        }
+
+        // Debug: print the line content with positions
+        if let Some(buffer) = editor.current_buffer() {
+            let line = &buffer.lines[0];
+            println!("Line content: '{}'", line);
+            for (i, ch) in line.chars().enumerate() {
+                if ch == 'e' {
+                    println!("'e' found at position {}", i);
+                }
+            }
+        }
+
+        // First do a backward find for 'e' (F command)
+        let f_key = create_key_event(KeyCode::Char('F'));
+        let result = handler.handle_key(&mut editor, f_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_some());
+
+        // Then press 'e' to search backward for 'e'
+        let e_key = create_key_event(KeyCode::Char('e'));
+        let result = handler.handle_key(&mut editor, e_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_none());
+
+        // Check where we ended up after backward search
+        if let Some(buffer) = editor.current_buffer() {
+            println!(
+                "After backward search, cursor at position: {}",
+                buffer.cursor.col
+            );
+            let expected_pos = 14; // The 'e' in "t[e]xt" should be at position 14
+            assert_eq!(buffer.cursor.col, expected_pos);
+        }
+
+        // Verify search state
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert_eq!(search_state.character, 'e');
+        assert!(!search_state.forward); // backward search
+
+        // Now press ',' to reverse repeat (should go forward and find next 'e')
+        let comma_key = create_key_event(KeyCode::Char(','));
+        let result = handler.handle_key(&mut editor, comma_key);
+        assert!(result.is_ok());
+
+        // Check where we ended up after reverse repeat
+        if let Some(buffer) = editor.current_buffer() {
+            println!(
+                "After reverse repeat, cursor at position: {}",
+                buffer.cursor.col
+            );
+            // Since we started from position 14 and searched forward,
+            // there are no more 'e' characters after position 14 in "test example text"
+            // So it should stay at position 14
+            assert_eq!(buffer.cursor.col, 14);
+        }
+    }
+
+    #[test]
+    fn test_till_char_backward_repeat_functionality() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content that has multiple 'e' characters
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test example everyone".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 20; // Start at end of line
+        }
+
+        // Debug: print the line content with positions
+        if let Some(buffer) = editor.current_buffer() {
+            let line = &buffer.lines[0];
+            println!("Line content: '{}'", line);
+            println!("Line length: {}", line.len());
+            for (i, ch) in line.chars().enumerate() {
+                if ch == 'e' {
+                    println!("'e' found at position {}", i);
+                }
+            }
+        }
+
+        // First do a backward till for 'e' (T command)
+        let t_key = create_key_event(KeyCode::Char('T'));
+        let result = handler.handle_key(&mut editor, t_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_some());
+
+        // Then press 'e' to search till 'e' backward
+        let e_key = create_key_event(KeyCode::Char('e'));
+        let result = handler.handle_key(&mut editor, e_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_none());
+
+        // Check where we ended up after first till backward
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After first 'Te': cursor at {}", buffer.cursor.col);
+            // Starting from position 20, backward till 'e' should find the 'e' at position 15
+            // and place us at position 16 (after the 'e')
+            assert_eq!(buffer.cursor.col, 16);
+        }
+
+        // Verify search state
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.search_type, CharSearchType::Till);
+        assert_eq!(search_state.character, 'e');
+        assert!(!search_state.forward); // backward search
+
+        // Now press ';' to repeat the search - should go to next 'e' backward
+        let semicolon_key = create_key_event(KeyCode::Char(';'));
+        let result = handler.handle_key(&mut editor, semicolon_key);
+        assert!(result.is_ok());
+
+        // Should move to after the previous 'e'
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After repeat (';'): cursor at {}", buffer.cursor.col);
+            // The next 'e' backward should be at position 13, so till should place us at position 14
+            assert_eq!(buffer.cursor.col, 14);
+        }
+    }
+
+    #[test]
+    fn test_find_char_backward_repeat_functionality() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with test content that has multiple 'e' characters
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["test example everyone".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 20; // Start at end of line
+        }
+
+        // First do a backward find for 'e' (F command)
+        let f_key = create_key_event(KeyCode::Char('F'));
+        let result = handler.handle_key(&mut editor, f_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_some());
+
+        // Then press 'e' to search find 'e' backward
+        let e_key = create_key_event(KeyCode::Char('e'));
+        let result = handler.handle_key(&mut editor, e_key);
+        assert!(result.is_ok());
+        assert!(handler.pending_char_command.is_none());
+
+        // Check where we ended up after first find backward
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After first 'Fe': cursor at {}", buffer.cursor.col);
+            // Starting from position 20, backward find 'e' should find the nearest 'e' backward
+            // which is at position 15
+            assert_eq!(buffer.cursor.col, 15);
+        }
+
+        // Verify search state
+        assert!(handler.last_char_search.is_some());
+        let search_state = handler.last_char_search.as_ref().unwrap();
+        assert_eq!(search_state.search_type, CharSearchType::Find);
+        assert_eq!(search_state.character, 'e');
+        assert!(!search_state.forward); // backward search
+
+        // Now press ';' to repeat the search - should go to next 'e' backward
+        let semicolon_key = create_key_event(KeyCode::Char(';'));
+        let result = handler.handle_key(&mut editor, semicolon_key);
+        assert!(result.is_ok());
+
+        // Should move to the previous 'e'
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After repeat (';'): cursor at {}", buffer.cursor.col);
+            // The next 'e' backward should be at position 13
+            assert_eq!(buffer.cursor.col, 13);
+        }
+    }
+
+    #[test]
+    fn test_comprehensive_till_backward_repeat() {
+        // This test demonstrates the fix for the user's issue:
+        // "When I press T to search backward, pressing ; doesn't advance to the next match."
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["one two three four".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 17; // Start at end of line
+        }
+
+        // Debug: Show character positions
+        if let Some(buffer) = editor.current_buffer() {
+            let line = &buffer.lines[0];
+            println!("Line: '{}'", line);
+            println!("Length: {}", line.len());
+            for (i, ch) in line.chars().enumerate() {
+                if ch == 'o' {
+                    println!("'o' found at position {}", i);
+                }
+            }
+        }
+
+        // Press 'T' to start till backward search
+        let t_key = create_key_event(KeyCode::Char('T'));
+        handler.handle_key(&mut editor, t_key).unwrap();
+
+        // Press 'o' to find 'o' till backward
+        let o_key = create_key_event(KeyCode::Char('o'));
+        handler.handle_key(&mut editor, o_key).unwrap();
+
+        // Check first position
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After first 'To': cursor at {}", buffer.cursor.col);
+            // Based on "one two three four", 'o' positions: 0(one), 6(two), 15(four)
+            // Starting from 17, should find 'o' at 15 and place cursor at 16
+            assert_eq!(buffer.cursor.col, 16); // After 'o' in "f[o]ur"
+        }
+
+        // Press ';' to repeat - should advance to next 'o' backward
+        let semicolon_key = create_key_event(KeyCode::Char(';'));
+        handler.handle_key(&mut editor, semicolon_key).unwrap();
+
+        // Check second position
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After first repeat: cursor at {}", buffer.cursor.col);
+            // Should advance to position after 'o' in "two" (position 7)
+            assert_eq!(buffer.cursor.col, 7); // After 'o' in "tw[o]"
+        }
+
+        // Press ';' again - should advance to next 'o' backward
+        handler.handle_key(&mut editor, semicolon_key).unwrap();
+
+        // Check third position
+        if let Some(buffer) = editor.current_buffer() {
+            println!("After second repeat: cursor at {}", buffer.cursor.col);
+            // Should advance to position after 'o' in "one" (position 1)
+            assert_eq!(buffer.cursor.col, 1); // After 'o' in "[o]ne"
+        }
+    }
 }

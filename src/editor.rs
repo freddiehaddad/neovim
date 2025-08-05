@@ -674,6 +674,7 @@ impl Editor {
     }
 
     pub fn set_mode(&mut self, mode: Mode) {
+        debug!("Mode transition: {:?} -> {:?}", self.mode, mode);
         self.mode = mode;
         if mode != Mode::Command {
             self.command_line.clear();

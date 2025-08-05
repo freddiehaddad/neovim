@@ -40,6 +40,14 @@
 "n" = "search_next"
 "N" = "search_previous"
 
+# Character navigation (find/till)
+"f" = "start_find_char_forward"
+"F" = "start_find_char_backward"
+"t" = "start_till_char_forward"
+"T" = "start_till_char_backward"
+";" = "repeat_char_search"
+"," = "repeat_char_search_reverse"
+
 # Commands
 ":" = "command_mode"
 
