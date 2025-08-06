@@ -354,6 +354,82 @@ impl SyntaxHighlighter {
                     }
                     continue; // Skip the normal child processing for this node
                 }
+                // Rust-specific: Lifetimes
+                "lifetime" => {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.keyword.clone(), // Use keyword color for lifetimes
+                        ),
+                    });
+                }
+                // Rust-specific: Attributes like #[derive(...)]
+                "attribute_item" | "inner_attribute_item" => {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.type_color.clone(), // Use type color for attributes
+                        ),
+                    });
+                }
+                // Rust-specific: Reference and dereference operators
+                "reference_expression" | "dereference_expression" => {
+                    // Only highlight the operator part (&, *, &mut)
+                    if let Some(first_child) = node.child(0) {
+                        if first_child.kind() == "&" || first_child.kind() == "*" {
+                            highlights.push(HighlightRange {
+                                start: first_child.start_byte(),
+                                end: first_child.end_byte(),
+                                style: HighlightStyle::from_color(
+                                    self.current_syntax_theme.operator.clone(),
+                                ),
+                            });
+                        }
+                    }
+                    // Check for 'mut' keyword in mutable references
+                    for i in 0..node.child_count() {
+                        if let Some(child) = node.child(i) {
+                            if child.kind() == "mut" {
+                                highlights.push(HighlightRange {
+                                    start: child.start_byte(),
+                                    end: child.end_byte(),
+                                    style: HighlightStyle::from_color(
+                                        self.current_syntax_theme.keyword.clone(),
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                }
+                // Rust-specific: Range expressions (.. and ..=)
+                "range_expression" => {
+                    // Highlight the range operator
+                    for i in 0..node.child_count() {
+                        if let Some(child) = node.child(i) {
+                            if child.kind() == ".." || child.kind() == "..=" {
+                                highlights.push(HighlightRange {
+                                    start: child.start_byte(),
+                                    end: child.end_byte(),
+                                    style: HighlightStyle::from_color(
+                                        self.current_syntax_theme.operator.clone(),
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                }
+                // Rust-specific: Generic parameters in angle brackets
+                "type_arguments" | "type_parameters" => {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.type_color.clone(),
+                        ),
+                    });
+                }
                 "identifier" => {
                     // Skip identifiers that are part of macro invocations (already highlighted)
                     if let Some(parent) = node.parent() {
@@ -593,7 +669,9 @@ impl SyntaxHighlighter {
                 "use" | "fn" | "let" | "mut" | "if" | "else" | "for" | "while" | "loop"
                 | "match" | "return" | "break" | "continue" | "struct" | "enum" | "impl"
                 | "trait" | "type" | "mod" | "extern" | "pub" | "async" | "await" | "unsafe"
-                | "where" | "as" | "in" | "self" | "Self" | "super" | "crate" => {
+                | "where" | "as" | "in" | "self" | "Self" | "super" | "crate" | "ref" | "box"
+                | "move" | "yield" | "dyn" | "union" | "macro_rules" | "try" | "catch"
+                | "finally" | "throw" => {
                     highlights.push(HighlightRange {
                         start: node.start_byte(),
                         end: node.end_byte(),

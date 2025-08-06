@@ -2,45 +2,80 @@
 # This file supports hot reloading - changes take effect immediately
 
 [theme]
-# Current active theme: "dark"
-current = "dark"
+# Current active theme: "rust_dark"
+current = "rust_dark"
 
-# Dark theme for low-light environments
-[themes.dark]
-name = "Rust Dark"
-description = "High contrast dark theme for late-night coding"
+# Rust-inspired Dark theme for optimal Rust development
+[themes.rust_dark]
+name = "Rust Dark Pro"
+description = "Professional dark theme inspired by Rust's official branding and ergonomics"
 
-[themes.dark.ui]
-background = "#0d1117"          # Very dark background
-status_bg = "#a3d977"           # Bright green
-status_fg = "#282828"           # Dark text for contrast
-status_modified = "#ff6b35"     # Bright rust orange
-line_number = "#7c7c7c"         # Medium gray
-line_number_current = "#ffd23f" # Bright golden
-cursor_line_bg = "#373737"      # Darker background
-empty_line = "#00d4aa"          # Bright teal
-command_line_bg = "#191919"     # Very dark background
-command_line_fg = "#ffffff"     # White text
-selection_bg = "#a3d977"        # Match status bg
-warning = "#ffd23f"             # Bright golden
-error = "#ff6b35"               # Bright rust orange
+[themes.rust_dark.ui]
+background = "#0d1117"          # Very dark background (GitHub dark)
+status_bg = "#ce422b"           # Rust logo red
+status_fg = "#ffffff"           # White text for contrast
+status_modified = "#f74c00"     # Rust orange (modified indicator)
+line_number = "#6e7681"         # Subtle gray for line numbers
+line_number_current = "#f0883e" # Rust orange for current line
+cursor_line_bg = "#161b22"      # Slightly lighter than background
+empty_line = "#21262d"          # Subtle indicator for empty lines
+command_line_bg = "#0d1117"     # Match background
+command_line_fg = "#f0f6fc"     # Light gray for command text
+selection_bg = "#264f78"        # Blue selection
+warning = "#d29922"             # Amber warning
+error = "#f85149"               # Red error
 
-[themes.dark.syntax]
-text = "#cccccc"      # Neon silver
-comment = "#7c7c7c"   # Medium gray
-keyword = "#ff6b35"   # Bright rust orange
-operator = "#ffd23f"  # Bright golden
-type = "#a3d977"      # Bright green
-struct = "#a3d977"    # Bright green
-enum = "#a3d977"      # Bright green
-string = "#98d982"    # Bright light green
-number = "#ffb347"    # Bright golden orange
-boolean = "#00d4aa"   # Bright teal
-character = "#98d982" # Bright light green
-function = "#00d4aa"  # Bright teal
-method = "#00d4aa"    # Bright teal
-macro = "#e879f9"     # Bright purple
-variable = "#cccccc"  # Neon silver
-parameter = "#ff9999" # Bright soft red
-property = "#87ceeb"  # Bright sky blue
-constant = "#ffd23f"  # Bright golden
+[themes.rust_dark.syntax]
+# Core language elements
+text = "#e6edf3"     # Light gray for regular text
+comment = "#8b949e"  # Muted gray for comments
+keyword = "#ff7b72"  # Rust red for keywords (fn, let, if, etc.)
+operator = "#79c0ff" # Blue for operators (+, -, =, etc.)
+
+# Type system
+type = "#ffa657"   # Orange for built-in types (i32, String, etc.)
+struct = "#f0883e" # Rust orange for struct names
+enum = "#f0883e"   # Rust orange for enum names
+
+# Literals
+string = "#a5d6ff"    # Light blue for strings
+number = "#79c0ff"    # Blue for numeric literals
+boolean = "#79c0ff"   # Blue for true/false
+character = "#a5d6ff" # Light blue for char literals
+
+# Functions and methods
+function = "#d2a8ff" # Purple for function names
+method = "#d2a8ff"   # Purple for method names
+macro = "#ff7b72"    # Rust red for macros (distinctive)
+
+# Variables and identifiers
+variable = "#e6edf3"  # Light gray for regular variables
+parameter = "#ffa657" # Orange for function parameters
+property = "#7ee787"  # Green for struct fields/properties
+constant = "#79c0ff"  # Blue for constants (UPPER_CASE)
+
+# Rust-specific additions
+[themes.rust_dark.rust_specific]
+# These map to existing syntax colors but provide semantic meaning
+lifetime = "#ff7b72"       # Red for lifetimes ('a, 'static)
+attribute = "#ffa657"      # Orange for attributes (#[derive], #[cfg])
+module_path = "#d2a8ff"    # Purple for module paths (std::vec::Vec)
+self_keyword = "#ff7b72"   # Red for self/Self
+unsafe_keyword = "#f85149" # Bright red for unsafe blocks
+async_await = "#79c0ff"    # Blue for async/await keywords
+visibility = "#ff7b72"     # Red for pub keywords
+mutability = "#ff7b72"     # Red for mut keyword
+reference = "#79c0ff"      # Blue for & and &mut
+dereference = "#79c0ff"    # Blue for * operator
+range = "#79c0ff"          # Blue for .. and ..= operators
+question_mark = "#79c0ff"  # Blue for ? operator
+
+# Additional semantic highlighting
+[themes.rust_dark.semantic]
+deprecated = "#6e7681"          # Gray out deprecated items
+unused = "#6e7681"              # Gray out unused variables
+mutable_reference = "#ffa657"   # Orange for &mut
+immutable_reference = "#79c0ff" # Blue for &
+generic_parameter = "#d2a8ff"   # Purple for <T> parameters
+trait_name = "#7ee787"          # Green for trait names
+associated_type = "#ffa657"     # Orange for associated types
