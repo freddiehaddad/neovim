@@ -15,6 +15,8 @@ use crossterm::event::{self, Event, KeyEventKind};
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 #[cfg(test)]
@@ -115,6 +117,8 @@ pub struct Editor {
     async_syntax_highlighter: Option<AsyncSyntaxHighlighter>,
     /// Track if we've processed any key press events yet (for startup handling)
     has_processed_any_press: bool,
+    /// Flag to trigger re-render when async syntax highlighting completes
+    needs_syntax_refresh: Arc<AtomicBool>,
     /// Command completion system
     command_completion: CommandCompletion,
     /// Current pending operator (for operator + text object combinations)
@@ -199,6 +203,7 @@ impl Editor {
             theme_manager,
             async_syntax_highlighter,
             has_processed_any_press: false,
+            needs_syntax_refresh: Arc::new(AtomicBool::new(false)),
             command_completion: CommandCompletion::new(),
             pending_operator: None,
             text_object_finder: crate::text_objects::TextObjectFinder::new(),
@@ -226,11 +231,12 @@ impl Editor {
             // Only handle input, render only when needed
             let input_handled = self.handle_input()?;
 
-            // Always re-render if we processed an input event (removed frame rate limiting for responsiveness)
-            if input_handled {
-                trace!("Input handled, triggering render");
+            // Re-render if we processed input OR if syntax highlighting completed
+            if input_handled || self.needs_syntax_refresh.load(Ordering::Relaxed) {
+                trace!("Input handled or syntax refresh needed, triggering render");
                 self.render()?;
                 self.last_render_time = Instant::now();
+                self.needs_syntax_refresh.store(false, Ordering::Relaxed); // Reset the flag
             }
         }
 
@@ -1275,13 +1281,19 @@ impl Editor {
                     return cached;
                 }
 
-                // No cache hit - request async highlighting for future use
-                let _ = highlighter.request_highlighting(
+                // No cache hit - request async highlighting with UI refresh callback
+                let refresh_flag = Arc::clone(&self.needs_syntax_refresh);
+                let ui_callback = Box::new(move |_buffer_id: usize, _line_index: usize| {
+                    refresh_flag.store(true, Ordering::Relaxed);
+                });
+
+                let _ = highlighter.request_highlighting_with_callback(
                     buffer_id,
                     line_index,
                     text.to_string(),
                     lang,
                     Priority::High, // High priority for immediate rendering
+                    Some(ui_callback),
                 );
             }
         }

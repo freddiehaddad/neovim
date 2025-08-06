@@ -20,7 +20,7 @@ pub struct Theme {
     pub name: String,
     pub description: String,
     pub ui: UIColors,
-    pub syntax: SyntaxColors,
+    pub tree_sitter: HashMap<String, String>, // Direct node type -> color mappings (now required)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,27 +40,7 @@ pub struct UIColors {
     pub error: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SyntaxColors {
-    pub text: String,
-    pub comment: String,
-    pub keyword: String,
-    pub operator: String,
-    pub r#type: String,
-    pub r#struct: String,
-    pub r#enum: String,
-    pub string: String,
-    pub number: String,
-    pub boolean: String,
-    pub character: String,
-    pub function: String,
-    pub method: String,
-    pub r#macro: String,
-    pub variable: String,
-    pub parameter: String,
-    pub property: String,
-    pub constant: String,
-}
+// Removed SyntaxColors and RustSpecificColors - using only tree_sitter node mappings now
 
 /// UI theme that uses colors from themes.toml
 #[derive(Debug, Clone)]
@@ -80,27 +60,11 @@ pub struct UITheme {
     pub error: Color,
 }
 
-/// Syntax theme that uses colors from themes.toml
+/// Syntax theme that uses only tree-sitter node type mappings
 #[derive(Debug, Clone)]
 pub struct SyntaxTheme {
-    pub text: Color,
-    pub comment: Color,
-    pub keyword: Color,
-    pub operator: Color,
-    pub type_color: Color,
-    pub struct_color: Color,
-    pub enum_color: Color,
-    pub string: Color,
-    pub number: Color,
-    pub boolean: Color,
-    pub character: Color,
-    pub function: Color,
-    pub method: Color,
-    pub macro_color: Color,
-    pub variable: Color,
-    pub parameter: Color,
-    pub property: Color,
-    pub constant: Color,
+    // Tree-sitter node type mappings - the only source of syntax colors
+    pub tree_sitter_mappings: HashMap<String, Color>,
 }
 
 /// Combined theme with both UI and syntax colors
@@ -185,26 +149,14 @@ impl ThemeConfig {
                     warning: "#ffff00".to_string(),
                     error: "#ff0000".to_string(),
                 },
-                syntax: SyntaxColors {
-                    text: "#ffffff".to_string(),
-                    comment: "#666666".to_string(),
-                    keyword: "#00ffff".to_string(),
-                    operator: "#ffffff".to_string(),
-                    r#type: "#00ff00".to_string(),
-                    r#struct: "#00ff00".to_string(),
-                    r#enum: "#00ff00".to_string(),
-                    string: "#ffff00".to_string(),
-                    number: "#ff00ff".to_string(),
-                    boolean: "#ff00ff".to_string(),
-                    character: "#ffff00".to_string(),
-                    function: "#00ffff".to_string(),
-                    method: "#00ffff".to_string(),
-                    r#macro: "#ff00ff".to_string(),
-                    variable: "#ffffff".to_string(),
-                    parameter: "#ffffff".to_string(),
-                    property: "#ffffff".to_string(),
-                    constant: "#ffff00".to_string(),
-                },
+                tree_sitter: HashMap::from([
+                    ("_default".to_string(), "#ffffff".to_string()),
+                    ("line_comment".to_string(), "#666666".to_string()),
+                    ("visibility_modifier".to_string(), "#00ffff".to_string()),
+                    ("fn".to_string(), "#00ffff".to_string()),
+                    ("string_literal".to_string(), "#ffff00".to_string()),
+                    ("integer_literal".to_string(), "#ff00ff".to_string()),
+                ]),
             },
         );
 
@@ -231,7 +183,7 @@ impl ThemeConfig {
                 name: theme.name.clone(),
                 description: theme.description.clone(),
                 ui: UITheme::from_colors(&theme.ui),
-                syntax: SyntaxTheme::from_colors(&theme.syntax),
+                syntax: SyntaxTheme::from_tree_sitter(&theme.tree_sitter),
             }
         } else {
             // If current theme doesn't exist, use first available theme
@@ -245,7 +197,7 @@ impl ThemeConfig {
                     name: first_theme.name.clone(),
                     description: first_theme.description.clone(),
                     ui: UITheme::from_colors(&first_theme.ui),
-                    syntax: SyntaxTheme::from_colors(&first_theme.syntax),
+                    syntax: SyntaxTheme::from_tree_sitter(&first_theme.tree_sitter),
                 }
             } else {
                 // This should never happen as we ensure at least one theme exists
@@ -271,7 +223,7 @@ impl ThemeConfig {
             name: theme.name.clone(),
             description: theme.description.clone(),
             ui: UITheme::from_colors(&theme.ui),
-            syntax: SyntaxTheme::from_colors(&theme.syntax),
+            syntax: SyntaxTheme::from_tree_sitter(&theme.tree_sitter),
         })
     }
 
@@ -329,51 +281,43 @@ impl UITheme {
 }
 
 impl SyntaxTheme {
-    /// Create SyntaxTheme from color strings in themes.toml
-    pub fn from_colors(colors: &SyntaxColors) -> Self {
-        Self {
-            text: parse_color(&colors.text),
-            comment: parse_color(&colors.comment),
-            keyword: parse_color(&colors.keyword),
-            operator: parse_color(&colors.operator),
-            type_color: parse_color(&colors.r#type),
-            struct_color: parse_color(&colors.r#struct),
-            enum_color: parse_color(&colors.r#enum),
-            string: parse_color(&colors.string),
-            number: parse_color(&colors.number),
-            boolean: parse_color(&colors.boolean),
-            character: parse_color(&colors.character),
-            function: parse_color(&colors.function),
-            method: parse_color(&colors.method),
-            macro_color: parse_color(&colors.r#macro),
-            variable: parse_color(&colors.variable),
-            parameter: parse_color(&colors.parameter),
-            property: parse_color(&colors.property),
-            constant: parse_color(&colors.constant),
+    /// Create SyntaxTheme from tree-sitter mappings in themes.toml
+    pub fn from_tree_sitter(tree_sitter: &HashMap<String, String>) -> Self {
+        // Build tree-sitter mappings
+        let mut tree_sitter_mappings = HashMap::new();
+        for (node_type, color_str) in tree_sitter {
+            tree_sitter_mappings.insert(node_type.clone(), parse_color(color_str));
         }
+
+        Self {
+            tree_sitter_mappings,
+        }
+    }
+
+    /// Get default text color from tree-sitter mappings
+    pub fn get_default_text_color(&self) -> crossterm::style::Color {
+        self.tree_sitter_mappings
+            .get("_default")
+            .cloned()
+            .unwrap_or(crossterm::style::Color::White)
     }
 
     /// Emergency syntax theme with basic terminal colors (no hard-coded hex values)
     pub fn emergency() -> Self {
+        let mut tree_sitter_mappings = HashMap::new();
+
+        // Basic emergency colors
+        tree_sitter_mappings.insert("_default".to_string(), Color::White);
+        tree_sitter_mappings.insert("line_comment".to_string(), Color::DarkGrey);
+        tree_sitter_mappings.insert("visibility_modifier".to_string(), Color::Blue);
+        tree_sitter_mappings.insert("fn".to_string(), Color::Blue);
+        tree_sitter_mappings.insert("string_literal".to_string(), Color::Yellow);
+        tree_sitter_mappings.insert("integer_literal".to_string(), Color::Magenta);
+        tree_sitter_mappings.insert("type_identifier".to_string(), Color::Green);
+        tree_sitter_mappings.insert("identifier".to_string(), Color::White);
+
         Self {
-            text: Color::White,
-            comment: Color::DarkGrey,
-            keyword: Color::Blue,
-            operator: Color::Cyan,
-            type_color: Color::Green,
-            struct_color: Color::Green,
-            enum_color: Color::Green,
-            string: Color::Yellow,
-            number: Color::Magenta,
-            boolean: Color::Cyan,
-            character: Color::Yellow,
-            function: Color::Blue,
-            method: Color::Blue,
-            macro_color: Color::Magenta,
-            variable: Color::White,
-            parameter: Color::Red,
-            property: Color::Cyan,
-            constant: Color::Magenta,
+            tree_sitter_mappings,
         }
     }
 }

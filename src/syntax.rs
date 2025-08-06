@@ -11,36 +11,6 @@ use tree_sitter::{Language, Parser};
 
 use crate::theme::{SyntaxTheme, ThemeConfig};
 
-/// Check if a node is an implicit return value (last expression in a function block)
-fn is_implicit_return(node: &tree_sitter::Node, block_parent: &tree_sitter::Node) -> bool {
-    // Check if the block is part of a function
-    if let Some(function_parent) = block_parent.parent() {
-        if function_parent.kind() != "function_item" {
-            return false;
-        }
-    } else {
-        return false;
-    }
-
-    // Find the last meaningful child of the block (excluding closing brace)
-    let mut last_meaningful_child = None;
-    for i in 0..block_parent.child_count() {
-        if let Some(child) = block_parent.child(i) {
-            // Skip punctuation like opening/closing braces
-            if !matches!(child.kind(), "{" | "}") {
-                last_meaningful_child = Some(child);
-            }
-        }
-    }
-
-    // Check if this node is the last meaningful child
-    if let Some(last_child) = last_meaningful_child {
-        last_child.id() == node.id()
-    } else {
-        false
-    }
-}
-
 // Get the Rust language from the tree-sitter-rust crate
 fn get_rust_language() -> Language {
     tree_sitter_rust::LANGUAGE.into()
@@ -93,25 +63,21 @@ impl HighlightStyle {
         })
     }
 
-    /// Create HighlightStyle from HighlightType using theme colors
-    pub fn from_highlight_type_with_theme(
-        highlight_type: HighlightType,
-        syntax_theme: &crate::theme::SyntaxTheme,
-    ) -> Self {
-        let (color, bold, italic) = match highlight_type {
-            HighlightType::Keyword => (syntax_theme.keyword, true, false),
-            HighlightType::String => (syntax_theme.string, false, false),
-            HighlightType::Comment => (syntax_theme.comment, false, true),
-            HighlightType::Function => (syntax_theme.function, false, false),
-            HighlightType::Variable => (syntax_theme.variable, false, false),
-            HighlightType::Type => (syntax_theme.type_color, false, false),
-            HighlightType::Number => (syntax_theme.number, false, false),
-            HighlightType::Operator => (syntax_theme.operator, false, false),
+    /// Create HighlightStyle with a default color for tree-sitter highlighting
+    pub fn from_tree_sitter_color(color: crossterm::style::Color) -> Self {
+        // Convert Color to hex string for storage
+        let color_string = match color {
+            Color::Rgb { r, g, b } => format!("#{:02x}{:02x}{:02x}", r, g, b),
+            _ => "#ffffff".to_string(), // Default fallback for any non-RGB colors
         };
 
-        HighlightStyle::from_color(color)
-            .with_bold(bold)
-            .with_italic(italic)
+        HighlightStyle {
+            fg_color: Some(color_string),
+            bg_color: None,
+            bold: false,
+            italic: false,
+            underline: false,
+        }
     }
 
     /// Builder method to set bold
@@ -287,419 +253,50 @@ impl SyntaxHighlighter {
         while let Some(node) = stack.pop() {
             let node_kind = node.kind();
 
-            // Check for Tree-sitter node types and apply our new theme colors
-            match node_kind {
-                "string_literal" | "raw_string_literal" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(self.current_syntax_theme.string.clone()),
-                    });
-                }
-                "char_literal" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.character.clone(),
-                        ),
-                    });
-                }
-                "line_comment" | "block_comment" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.comment.clone(),
-                        ),
-                    });
-
-                    // Skip processing children for comments to avoid highlighting
-                    // individual comment markers (like the third '/' in doc comments)
-                    continue;
-                }
-                "integer_literal" | "float_literal" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(self.current_syntax_theme.number.clone()),
-                    });
-                }
-                "boolean_literal" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.boolean.clone(),
-                        ),
-                    });
-                }
-                "macro_invocation" => {
-                    // For macro invocations, highlight only the macro name (first child), not the entire call
-                    if let Some(macro_name_node) = node.child(0) {
-                        highlights.push(HighlightRange {
-                            start: macro_name_node.start_byte(),
-                            end: macro_name_node.end_byte(),
-                            style: HighlightStyle::from_color(
-                                self.current_syntax_theme.macro_color.clone(),
-                            ),
-                        });
-                    }
-
-                    // Add children to stack, but skip the first child (macro name) since we already highlighted it
-                    for i in 1..node.child_count() {
-                        if let Some(child) = node.child(i) {
-                            stack.push(child);
-                        }
-                    }
-                    continue; // Skip the normal child processing for this node
-                }
-                // Rust-specific: Lifetimes
-                "lifetime" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.keyword.clone(), // Use keyword color for lifetimes
-                        ),
-                    });
-                }
-                // Rust-specific: Attributes like #[derive(...)]
-                "attribute_item" | "inner_attribute_item" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.type_color.clone(), // Use type color for attributes
-                        ),
-                    });
-                }
-                // Rust-specific: Reference and dereference operators
-                "reference_expression" | "dereference_expression" => {
-                    // Only highlight the operator part (&, *, &mut)
-                    if let Some(first_child) = node.child(0) {
-                        if first_child.kind() == "&" || first_child.kind() == "*" {
-                            highlights.push(HighlightRange {
-                                start: first_child.start_byte(),
-                                end: first_child.end_byte(),
-                                style: HighlightStyle::from_color(
-                                    self.current_syntax_theme.operator.clone(),
-                                ),
-                            });
-                        }
-                    }
-                    // Check for 'mut' keyword in mutable references
-                    for i in 0..node.child_count() {
-                        if let Some(child) = node.child(i) {
-                            if child.kind() == "mut" {
-                                highlights.push(HighlightRange {
-                                    start: child.start_byte(),
-                                    end: child.end_byte(),
-                                    style: HighlightStyle::from_color(
-                                        self.current_syntax_theme.keyword.clone(),
-                                    ),
-                                });
-                            }
-                        }
-                    }
-                }
-                // Rust-specific: Range expressions (.. and ..=)
-                "range_expression" => {
-                    // Highlight the range operator
-                    for i in 0..node.child_count() {
-                        if let Some(child) = node.child(i) {
-                            if child.kind() == ".." || child.kind() == "..=" {
-                                highlights.push(HighlightRange {
-                                    start: child.start_byte(),
-                                    end: child.end_byte(),
-                                    style: HighlightStyle::from_color(
-                                        self.current_syntax_theme.operator.clone(),
-                                    ),
-                                });
-                            }
-                        }
-                    }
-                }
-                // Rust-specific: Generic parameters in angle brackets
-                "type_arguments" | "type_parameters" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.type_color.clone(),
-                        ),
-                    });
-                }
-                "identifier" => {
-                    // Skip identifiers that are part of macro invocations (already highlighted)
-                    if let Some(parent) = node.parent() {
-                        if parent.kind() == "macro_invocation"
-                            && parent.child(0).map(|c| c.id()) == Some(node.id())
-                        {
-                            // This is the macro name, already highlighted above
-                            continue;
-                        }
-
-                        // Check if this identifier is an implicit return value
-                        if parent.kind() == "block" && is_implicit_return(&node, &parent) {
-                            highlights.push(HighlightRange {
-                                start: node.start_byte(),
-                                end: node.end_byte(),
-                                style: HighlightStyle::from_color(
-                                    self.current_syntax_theme.function.clone(), // Use function color for return values
-                                ),
-                            });
-                            continue;
-                        }
-
-                        match parent.kind() {
-                            "type_identifier" | "primitive_type" => {
-                                highlights.push(HighlightRange {
-                                    start: node.start_byte(),
-                                    end: node.end_byte(),
-                                    style: HighlightStyle::from_color(
-                                        self.current_syntax_theme.type_color.clone(),
-                                    ),
-                                });
-                            }
-                            "function_item" | "function_signature_item" => {
-                                // Function name
-                                if node == parent.child_by_field_name("name").unwrap_or(node) {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.function.clone(),
-                                        ),
-                                    });
-                                } else {
-                                    // Parameter in function - check if we're in parameters context
-                                    let mut current_node = node;
-                                    let mut is_parameter = false;
-                                    while let Some(ancestor) = current_node.parent() {
-                                        if ancestor.kind() == "parameters" {
-                                            is_parameter = true;
-                                            break;
-                                        }
-                                        current_node = ancestor;
-                                    }
-
-                                    let color = if is_parameter {
-                                        self.current_syntax_theme.parameter.clone()
-                                    } else {
-                                        self.current_syntax_theme.variable.clone()
-                                    };
-
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(color),
-                                    });
-                                }
-                            }
-                            "call_expression" => {
-                                // Function or method call
-                                if node == parent.child_by_field_name("function").unwrap_or(node) {
-                                    // Check if this is a method call (has a receiver field)
-                                    let is_method_call =
-                                        parent.child_by_field_name("receiver").is_some();
-                                    let color = if is_method_call {
-                                        self.current_syntax_theme.method.clone()
-                                    } else {
-                                        self.current_syntax_theme.function.clone()
-                                    };
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(color),
-                                    });
-                                } else {
-                                    // Argument in function call
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.variable.clone(),
-                                        ),
-                                    });
-                                }
-                            }
-                            "scoped_identifier" => {
-                                // Module::function or similar
-                                highlights.push(HighlightRange {
-                                    start: node.start_byte(),
-                                    end: node.end_byte(),
-                                    style: HighlightStyle::from_color(
-                                        self.current_syntax_theme.function.clone(),
-                                    ),
-                                });
-                            }
-                            "mod_item" => {
-                                // Module name
-                                highlights.push(HighlightRange {
-                                    start: node.start_byte(),
-                                    end: node.end_byte(),
-                                    style: HighlightStyle::from_color(
-                                        self.current_syntax_theme.keyword.clone(),
-                                    ),
-                                });
-                            }
-                            "struct_item" => {
-                                // Struct definitions
-                                if node == parent.child_by_field_name("name").unwrap_or(node) {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.struct_color.clone(),
-                                        ),
-                                    });
-                                } else {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.variable.clone(),
-                                        ),
-                                    });
-                                }
-                            }
-                            "enum_item" => {
-                                // Enum definitions
-                                if node == parent.child_by_field_name("name").unwrap_or(node) {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.enum_color.clone(),
-                                        ),
-                                    });
-                                } else {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.variable.clone(),
-                                        ),
-                                    });
-                                }
-                            }
-                            "trait_item" | "impl_item" => {
-                                // Type definitions
-                                if node == parent.child_by_field_name("name").unwrap_or(node) {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.type_color.clone(),
-                                        ),
-                                    });
-                                } else {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.variable.clone(),
-                                        ),
-                                    });
-                                }
-                            }
-                            "const_item" | "static_item" => {
-                                // Constant and static variable names
-                                if node == parent.child_by_field_name("name").unwrap_or(node) {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.constant.clone(),
-                                        ),
-                                    });
-                                } else {
-                                    highlights.push(HighlightRange {
-                                        start: node.start_byte(),
-                                        end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.variable.clone(),
-                                        ),
-                                    });
-                                }
-                            }
-                            _ => {
-                                // True variables - let bindings, parameters, etc.
-                                highlights.push(HighlightRange {
-                                    start: node.start_byte(),
-                                    end: node.end_byte(),
-                                    style: HighlightStyle::from_color(
-                                        self.current_syntax_theme.variable.clone(),
-                                    ),
-                                });
-                            }
-                        }
-                    }
-                }
-                "type_identifier" | "primitive_type" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.type_color.clone(),
-                        ),
-                    });
-                }
-                "field_identifier" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.property.clone(),
-                        ),
-                    });
-                }
-                // Constants - const and static items use different coloring
-                "const" | "static" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.constant.clone(),
-                        ),
-                    });
-                }
-                // Keywords - Tree-sitter recognizes these as their literal text
-                "use" | "fn" | "let" | "mut" | "if" | "else" | "for" | "while" | "loop"
-                | "match" | "return" | "break" | "continue" | "struct" | "enum" | "impl"
-                | "trait" | "type" | "mod" | "extern" | "pub" | "async" | "await" | "unsafe"
-                | "where" | "as" | "in" | "self" | "Self" | "super" | "crate" | "ref" | "box"
-                | "move" | "yield" | "dyn" | "union" | "macro_rules" | "try" | "catch"
-                | "finally" | "throw" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.keyword.clone(),
-                        ),
-                    });
-                }
-                // Punctuation and operators
-                "{" | "}" | "(" | ")" | "[" | "]" | ";" | ":" | "," | "." | "=" | "+" | "-"
-                | "*" | "/" | "%" | "&" | "|" | "^" | "!" | "<" | ">" | "?" | "==" | "!="
-                | "<=" | ">=" | "&&" | "||" | "++" | "--" | "+=" | "-=" | "*=" | "/=" | "%="
-                | "&=" | "|=" | "^=" | "<<" | ">>" | "<<=" | ">>=" | "->" | "=>" | "::" | ".."
-                | "..=" => {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(
-                            self.current_syntax_theme.operator.clone(),
-                        ),
-                    });
-                }
-                _ => {
-                    // Only rely on Tree-sitter's node types
+            // Debug: Log all node kinds to understand what tree-sitter provides
+            if let Ok(node_text) = node.utf8_text(text.as_bytes()) {
+                if node_text.len() < 20 && !node_text.contains('\n') {
+                    log::debug!("Node type: '{}' -> text: '{}'", node_kind, node_text);
                 }
             }
 
-            // Add children to stack
+            // First try tree-sitter mappings from theme
+            if let Some(color) = self
+                .current_syntax_theme
+                .tree_sitter_mappings
+                .get(node_kind)
+            {
+                // Special handling for macro invocations - highlight the whole thing
+                if node_kind == "macro_invocation" {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(color.clone()),
+                    });
+                    // Don't process children to avoid conflicts
+                    continue;
+                }
+                
+                // For other nodes, only highlight leaf nodes (nodes with no children) to avoid overlap
+                if node.child_count() == 0 {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(color.clone()),
+                    });
+                }
+
+                // Always add children to stack
+                for i in 0..node.child_count() {
+                    if let Some(child) = node.child(i) {
+                        stack.push(child);
+                    }
+                }
+                continue;
+            }
+
+            // Tree-sitter only highlighting - no fallback text matching needed
+            // Add children to stack for processing
             for i in 0..node.child_count() {
                 if let Some(child) = node.child(i) {
                     stack.push(child);
@@ -711,46 +308,6 @@ impl SyntaxHighlighter {
         highlights.sort_by_key(|h| h.start);
 
         Ok(highlights)
-    }
-
-    pub fn highlight_line(
-        &mut self,
-        line: &str,
-        language: &str,
-    ) -> Vec<(usize, usize, HighlightType)> {
-        // Legacy method for backward compatibility
-        if let Ok(highlights) = self.highlight_text(line, language) {
-            highlights
-                .into_iter()
-                .map(|h| {
-                    // Try to map highlights to basic types by checking patterns
-                    let text_segment = &line[h.start..h.end];
-                    let highlight_type = if text_segment.contains("//")
-                        || text_segment.contains("/*")
-                    {
-                        HighlightType::Comment
-                    } else if text_segment.starts_with('"') || text_segment.starts_with('\'') {
-                        HighlightType::String
-                    } else if text_segment.chars().all(|c| c.is_numeric() || c == '.') {
-                        HighlightType::Number
-                    } else if text_segment == "fn" || text_segment == "let" || text_segment == "if"
-                    {
-                        HighlightType::Keyword
-                    } else if text_segment
-                        .chars()
-                        .next()
-                        .map_or(false, |c| c.is_uppercase())
-                    {
-                        HighlightType::Type
-                    } else {
-                        HighlightType::Variable
-                    };
-                    (h.start, h.end, highlight_type)
-                })
-                .collect()
-        } else {
-            Vec::new()
-        }
     }
 
     pub fn reload_config(&mut self) -> Result<()> {
@@ -964,17 +521,7 @@ fn simple_return() -> i32 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum HighlightType {
-    Keyword,
-    String,
-    Comment,
-    Function,
-    Variable,
-    Type,
-    Number,
-    Operator,
-}
+// ===== TREE-SITTER ONLY HIGHLIGHTING =====
 
 // ===== ASYNC SYNTAX HIGHLIGHTING =====
 
@@ -1299,22 +846,10 @@ impl AsyncSyntaxHighlighter {
             }
         }
 
-        // Not in cache, compute highlights
-        let highlights = highlighter.highlight_line(&request.content, &request.language);
-
-        // Load current theme for color conversion
-        let theme_config = ThemeConfig::load();
-        let syntax_theme = &theme_config.get_current_theme().syntax;
-
-        // Convert to HighlightRange format using theme colors
-        let highlight_ranges: Vec<HighlightRange> = highlights
-            .into_iter()
-            .map(|(start, end, highlight_type)| HighlightRange {
-                start,
-                end,
-                style: HighlightStyle::from_highlight_type_with_theme(highlight_type, syntax_theme),
-            })
-            .collect();
+        // Not in cache, compute highlights using tree-sitter
+        let highlight_ranges = highlighter
+            .highlight_text(&request.content, &request.language)
+            .unwrap_or_else(|_| Vec::new());
 
         debug!(
             "Worker computed highlights for buffer {} line {} ({} ranges)",

@@ -224,7 +224,7 @@ impl UI {
                     )?
                 } else {
                     // Render line without syntax highlighting - use theme's default text color
-                    terminal.queue_set_fg_color(self.syntax_theme.text)?;
+                    terminal.queue_set_fg_color(self.syntax_theme.get_default_text_color())?;
                     let display_line = if line.len() > text_width {
                         &line[..text_width]
                     } else {
@@ -376,7 +376,7 @@ impl UI {
             // Print any text before this highlight
             if current_pos < start {
                 // Set default text color for unhighlighted text
-                terminal.queue_set_fg_color(self.syntax_theme.text)?;
+                terminal.queue_set_fg_color(self.syntax_theme.get_default_text_color())?;
                 let text_before =
                     std::str::from_utf8(&line_bytes[current_pos..start]).unwrap_or("");
                 terminal.queue_print(text_before)?;
@@ -408,7 +408,7 @@ impl UI {
         // Print any remaining text after the last highlight
         if current_pos < display_len {
             // Set default text color for unhighlighted text
-            terminal.queue_set_fg_color(self.syntax_theme.text)?;
+            terminal.queue_set_fg_color(self.syntax_theme.get_default_text_color())?;
             let remaining_text =
                 std::str::from_utf8(&line_bytes[current_pos..display_len]).unwrap_or("");
             terminal.queue_print(remaining_text)?;
