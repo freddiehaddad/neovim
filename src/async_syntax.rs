@@ -93,8 +93,20 @@ impl AsyncSyntaxHighlighter {
 
         if let Ok(cache) = self.shared_cache.read() {
             if let Some(entry) = cache.get(&cache_key) {
-                debug!("Cache hit for buffer {} line {}", buffer_id, line_index);
+                debug!(
+                    "Cache hit for buffer {} line {} (content: {}...)",
+                    buffer_id,
+                    line_index,
+                    &content[..content.len().min(20)]
+                );
                 return Some(entry.highlights().clone());
+            } else {
+                debug!(
+                    "Cache miss for buffer {} line {} (content: {}...)",
+                    buffer_id,
+                    line_index,
+                    &content[..content.len().min(20)]
+                );
             }
         }
 
@@ -210,6 +222,49 @@ impl AsyncSyntaxHighlighter {
         } else {
             (0, 1000)
         }
+    }
+
+    /// Update theme by clearing cache - theme changes will be picked up on next highlight
+    pub fn update_theme(&self, theme_name: &str) -> Result<()> {
+        // Clear the cache so that new highlights will pick up the updated theme
+        // The worker thread's SyntaxHighlighter will reload the theme when it
+        // creates new highlights since ThemeConfig::load() reads from the file
+        if let Ok(mut cache) = self.shared_cache.write() {
+            let before_size = cache.len();
+            cache.clear();
+            log::info!(
+                "Theme updated to '{}', cleared {} cache entries",
+                theme_name,
+                before_size
+            );
+        }
+        Ok(())
+    }
+
+    /// Force re-highlighting of specific content (ignores cache)
+    pub fn force_immediate_highlights(
+        &self,
+        _buffer_id: usize,
+        _line_index: usize,
+        content: &str,
+        language: &str,
+    ) -> Option<Vec<HighlightRange>> {
+        // Always create new highlights, ignoring cache completely
+        if let Ok(mut sync_highlighter) = SyntaxHighlighter::new() {
+            if let Ok(highlights) = sync_highlighter.highlight_text(content, language) {
+                // Store in cache for future use
+                let cache_key = HighlightCacheKey::new_simple(content, language);
+                let cache_entry = HighlightCacheEntry::new(highlights.clone());
+
+                if let Ok(mut cache) = self.shared_cache.write() {
+                    cache.insert(cache_key, cache_entry);
+                }
+
+                return Some(highlights);
+            }
+        }
+
+        None
     }
 
     /// Background worker loop that processes highlighting requests

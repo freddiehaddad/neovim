@@ -2,7 +2,7 @@
 show_line_numbers = false
 show_relative_numbers = true
 show_cursor_line = true
-color_scheme = "default"
+color_scheme = "dark"
 syntax_highlighting = true
 
 [behavior]

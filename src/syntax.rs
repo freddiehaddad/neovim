@@ -121,7 +121,11 @@ impl HighlightCacheKey {
 
     /// Create a new cache key with default theme
     pub fn new_simple(content: &str, language: &str) -> Self {
-        Self::new(content, language, "default")
+        // Get the current theme from config
+        let theme_config = crate::theme::ThemeConfig::load();
+        let theme_name = &theme_config.theme.current;
+        log::debug!("Creating cache key with theme: {}", theme_name);
+        Self::new(content, language, theme_name)
     }
 }
 
@@ -321,8 +325,90 @@ impl SyntaxHighlighter {
                                     ),
                                 });
                             }
+                            "function_item" | "function_signature_item" => {
+                                // Function name
+                                if node == parent.child_by_field_name("name").unwrap_or(node) {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.function.clone(),
+                                        ),
+                                    });
+                                } else {
+                                    // Parameter or variable in function
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.variable.clone(),
+                                        ),
+                                    });
+                                }
+                            }
+                            "call_expression" => {
+                                // Function call
+                                if node == parent.child_by_field_name("function").unwrap_or(node) {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.function.clone(),
+                                        ),
+                                    });
+                                } else {
+                                    // Argument in function call
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.variable.clone(),
+                                        ),
+                                    });
+                                }
+                            }
+                            "scoped_identifier" => {
+                                // Module::function or similar
+                                highlights.push(HighlightRange {
+                                    start: node.start_byte(),
+                                    end: node.end_byte(),
+                                    style: HighlightStyle::from_color(
+                                        self.current_syntax_theme.function.clone(),
+                                    ),
+                                });
+                            }
+                            "mod_item" => {
+                                // Module name
+                                highlights.push(HighlightRange {
+                                    start: node.start_byte(),
+                                    end: node.end_byte(),
+                                    style: HighlightStyle::from_color(
+                                        self.current_syntax_theme.keyword.clone(),
+                                    ),
+                                });
+                            }
+                            "struct_item" | "enum_item" | "trait_item" | "impl_item" => {
+                                // Type definitions
+                                if node == parent.child_by_field_name("name").unwrap_or(node) {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.type_color.clone(),
+                                        ),
+                                    });
+                                } else {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.variable.clone(),
+                                        ),
+                                    });
+                                }
+                            }
                             _ => {
-                                // Regular identifier - could be variable, function name, etc.
+                                // True variables - let bindings, parameters, etc.
                                 highlights.push(HighlightRange {
                                     start: node.start_byte(),
                                     end: node.end_byte(),

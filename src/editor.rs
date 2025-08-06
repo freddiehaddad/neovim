@@ -604,6 +604,9 @@ impl Editor {
                 self.reload_ui_theme();
                 input_processed = true;
             }
+        } else {
+            // Only log errors occasionally to avoid spam
+            trace!("Error checking for theme changes");
         }
 
         // Handle keyboard input with minimal delay for responsiveness
@@ -1417,13 +1420,81 @@ impl Editor {
 
     /// Reload UI theme from themes.toml
     fn reload_ui_theme(&mut self) {
+        // Brief delay to ensure file write is complete
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
         // Get the current theme name from the theme manager
         let current_theme = self.theme_manager.current_theme_name();
+
+        log::info!("Reloading UI theme to: {}", current_theme);
 
         // Update the UI with the new theme
         self.ui.set_theme(current_theme);
 
+        // Update the syntax highlighter with the new theme and clear cache
+        if let Some(ref highlighter) = self.async_syntax_highlighter {
+            if let Err(e) = highlighter.update_theme(current_theme) {
+                log::warn!("Failed to update syntax highlighter theme: {}", e);
+            } else {
+                log::info!("Successfully updated syntax highlighter theme and cleared cache");
+            }
+        }
+
         self.status_message = format!("Theme '{}' reloaded", current_theme);
+
+        // Force immediate re-highlighting of visible content with new theme
+        self.refresh_visible_syntax_highlighting();
+    }
+
+    /// Force immediate re-highlighting of visible content (used after theme changes)
+    fn refresh_visible_syntax_highlighting(&mut self) {
+        if let Some(current_window) = self.window_manager.current_window() {
+            if let Some(buffer_id) = current_window.buffer_id {
+                if let Some(buffer) = self.buffers.get(&buffer_id) {
+                    if let Some(ref highlighter) = self.async_syntax_highlighter {
+                        // Calculate visible range
+                        let viewport_top = current_window.viewport_top;
+                        let viewport_height = current_window.height as usize;
+                        let visible_start = viewport_top;
+                        let visible_end = (viewport_top + viewport_height).min(buffer.line_count());
+
+                        // Determine language
+                        let language = if let Some(ref path) = buffer.file_path {
+                            if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
+                                match extension {
+                                    "rs" => "rust",
+                                    "py" => "python",
+                                    "js" => "javascript",
+                                    "ts" => "typescript",
+                                    "c" => "c",
+                                    "cpp" | "cc" | "cxx" => "cpp",
+                                    _ => "rust",
+                                }
+                            } else {
+                                "rust"
+                            }
+                        } else {
+                            "rust"
+                        };
+
+                        log::debug!(
+                            "Refreshing syntax highlighting for visible lines {}-{}",
+                            visible_start,
+                            visible_end
+                        );
+
+                        // Force immediate re-highlighting of all visible lines
+                        for line_index in visible_start..visible_end {
+                            if let Some(line) = buffer.get_line(line_index) {
+                                let _ = highlighter.get_immediate_highlights(
+                                    buffer_id, line_index, line, language,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Scrolling methods
