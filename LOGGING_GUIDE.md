@@ -1,15 +1,4 @@
-# Oxidized Editor Default Logging Behavior
-
-**The editor logs to a file by default.** When you run the editor, it automatically creates a log file named `oxidized.log` in the current working directory. All log messages are written to this file.
-
-## Debug vs Release Builds
-
-The logging behavior differs between debug and release builds:
-
-- **Debug builds** (built with `cargo build`): Enable **TRACE level logging by default** for maximum debugging information, even without setting `RUST_LOG`
-- **Release builds** (built with `cargo build --release`): Use standard env_logger behavior - no logging unless `RUST_LOG` environment variable is explicitly set
-
-This means when developing, you automatically get comprehensive logging without any configuration. - Logging Guide
+# Oxidized Editor - Logging Guide
 
 ## Overview
 
@@ -23,7 +12,14 @@ The Oxidized editor includes comprehensive logging functionality to help with de
 - **DEBUG**: Detailed information useful for debugging
 - **TRACE**: Very detailed trace information for fine-grained debugging
 
-## Default Logging Behavior
+## Logging Behavior by Build Type
+
+The logging behavior differs between debug and release builds:
+
+- **Debug builds** (built with `cargo build`): Enable **TRACE level logging by default** for maximum debugging information, even without setting `RUST_LOG`
+- **Release builds** (built with `cargo build --release`): Use standard env_logger behavior - no logging unless `RUST_LOG` environment variable is explicitly set
+
+This means when developing, you automatically get comprehensive logging without any configuration.
 
 **The editor logs to a file by default.** When you run the editor, it automatically creates a log file named `oxidized.log` in the current working directory. All log messages are written to this file.
 
@@ -58,7 +54,7 @@ Release builds use the standard env_logger behavior. You can control what level 
 
 ### Windows (PowerShell)
 
-#### Debug Builds (Default: TRACE level)
+#### Windows Debug Builds (Default: TRACE level)
 
 Debug builds automatically provide full logging without any setup:
 
@@ -74,7 +70,7 @@ To override the default behavior in debug builds:
 $env:RUST_LOG="info"; .\target\debug\oxy.exe filename.txt
 ```
 
-#### Release Builds (Requires RUST_LOG)
+#### Windows Release Builds (Requires RUST_LOG)
 
 ```powershell
 # No logging without RUST_LOG
@@ -98,7 +94,7 @@ $env:RUST_LOG="oxidized::editor=debug"; .\target\debug\oxy.exe filename.txt
 
 ### Linux/macOS (Bash)
 
-#### Debug Builds (Default: TRACE level)
+#### Linux/macOS Debug Builds (Default: TRACE level)
 
 Debug builds automatically provide full logging without any setup:
 
@@ -114,7 +110,7 @@ To override the default behavior in debug builds:
 RUST_LOG=info ./target/debug/oxy filename.txt
 ```
 
-#### Release Builds (Requires RUST_LOG)
+#### Linux/macOS Release Builds (Requires RUST_LOG)
 
 ```bash
 # No logging without RUST_LOG
