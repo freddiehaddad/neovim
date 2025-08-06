@@ -1331,16 +1331,22 @@ impl Editor {
                                 "rust" // Default to rust for now
                             };
 
-                            // Use immediate highlighting for currently visible lines
+                            // Use async highlighting for all lines with appropriate priorities
+
+                            // Request high priority highlighting for currently visible lines
                             for line_index in visible_start..visible_end {
                                 if let Some(line) = buffer.get_line(line_index) {
-                                    let _ = highlighter.get_immediate_highlights(
-                                        buffer_id, line_index, line, language,
+                                    let _ = highlighter.request_highlighting(
+                                        buffer_id,
+                                        line_index,
+                                        line.to_string(),
+                                        language.to_string(),
+                                        crate::async_syntax::Priority::High,
                                     );
                                 }
                             }
 
-                            // Use async highlighting for buffer lines beyond visible area
+                            // Use medium priority async highlighting for buffer lines beyond visible area
                             for line_index in highlight_start..highlight_end {
                                 if line_index < visible_start || line_index >= visible_end {
                                     if let Some(line) = buffer.get_line(line_index) {
@@ -1483,11 +1489,15 @@ impl Editor {
                             visible_end
                         );
 
-                        // Force immediate re-highlighting of all visible lines
+                        // Force high-priority re-highlighting of all visible lines
                         for line_index in visible_start..visible_end {
                             if let Some(line) = buffer.get_line(line_index) {
-                                let _ = highlighter.get_immediate_highlights(
-                                    buffer_id, line_index, line, language,
+                                let _ = highlighter.request_highlighting(
+                                    buffer_id,
+                                    line_index,
+                                    line.to_string(),
+                                    language.to_string(),
+                                    crate::async_syntax::Priority::Critical,
                                 );
                             }
                         }

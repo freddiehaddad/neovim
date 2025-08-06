@@ -7,6 +7,9 @@ use tokio::task::JoinHandle;
 
 use crate::syntax::{HighlightCacheEntry, HighlightCacheKey, HighlightRange, SyntaxHighlighter};
 
+/// Callback function type for UI refresh notifications
+pub type UiRefreshCallback = Box<dyn Fn(usize, usize) + Send + Sync>;
+
 #[cfg(test)]
 mod tests;
 
@@ -20,7 +23,6 @@ pub enum Priority {
 }
 
 /// Request for syntax highlighting
-#[derive(Debug)]
 pub struct HighlightRequest {
     pub buffer_id: usize,
     pub line_index: usize,
@@ -28,6 +30,20 @@ pub struct HighlightRequest {
     pub language: String,
     pub priority: Priority,
     pub response_tx: oneshot::Sender<Vec<HighlightRange>>,
+    pub ui_refresh_callback: Option<UiRefreshCallback>,
+}
+
+impl std::fmt::Debug for HighlightRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HighlightRequest")
+            .field("buffer_id", &self.buffer_id)
+            .field("line_index", &self.line_index)
+            .field("content", &self.content)
+            .field("language", &self.language)
+            .field("priority", &self.priority)
+            .field("has_ui_callback", &self.ui_refresh_callback.is_some())
+            .finish()
+    }
 }
 
 /// Async syntax highlighter that processes requests in background
@@ -113,38 +129,6 @@ impl AsyncSyntaxHighlighter {
         None
     }
 
-    /// Get immediate synchronous highlighting for a line (for initial rendering)
-    /// This bypasses the async queue and highlights immediately
-    pub fn get_immediate_highlights(
-        &self,
-        buffer_id: usize,
-        line_index: usize,
-        content: &str,
-        language: &str,
-    ) -> Option<Vec<HighlightRange>> {
-        // First check cache
-        if let Some(cached) = self.get_cached_highlights(buffer_id, line_index, content, language) {
-            return Some(cached);
-        }
-
-        // If not cached, create a temporary synchronous highlighter for immediate use
-        if let Ok(mut sync_highlighter) = SyntaxHighlighter::new() {
-            if let Ok(highlights) = sync_highlighter.highlight_text(content, language) {
-                // Store in cache for future use
-                let cache_key = HighlightCacheKey::new_simple(content, language);
-                let cache_entry = HighlightCacheEntry::new(highlights.clone());
-
-                if let Ok(mut cache) = self.shared_cache.write() {
-                    cache.insert(cache_key, cache_entry);
-                }
-
-                return Some(highlights);
-            }
-        }
-
-        None
-    }
-
     /// Request syntax highlighting for a line (async)
     pub fn request_highlighting(
         &self,
@@ -153,6 +137,21 @@ impl AsyncSyntaxHighlighter {
         content: String,
         language: String,
         priority: Priority,
+    ) -> Result<oneshot::Receiver<Vec<HighlightRange>>> {
+        self.request_highlighting_with_callback(
+            buffer_id, line_index, content, language, priority, None,
+        )
+    }
+
+    /// Request syntax highlighting for a line with optional UI refresh callback
+    pub fn request_highlighting_with_callback(
+        &self,
+        buffer_id: usize,
+        line_index: usize,
+        content: String,
+        language: String,
+        priority: Priority,
+        ui_callback: Option<UiRefreshCallback>,
     ) -> Result<oneshot::Receiver<Vec<HighlightRange>>> {
         let (response_tx, response_rx) = oneshot::channel();
 
@@ -163,6 +162,7 @@ impl AsyncSyntaxHighlighter {
             language,
             priority,
             response_tx,
+            ui_refresh_callback: ui_callback,
         };
 
         self.request_tx.send(request).map_err(|_| {
@@ -368,6 +368,13 @@ impl AsyncSyntaxHighlighter {
 
         // Send result
         let _ = request.response_tx.send(highlight_ranges);
+
+        // If this is a high priority request with a UI callback, trigger refresh
+        if request.priority >= Priority::High {
+            if let Some(callback) = request.ui_refresh_callback {
+                callback(request.buffer_id, request.line_index);
+            }
+        }
     }
 }
 
