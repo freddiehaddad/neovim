@@ -1,4 +1,3 @@
-use crate::async_syntax::AsyncSyntaxHighlighter;
 use crate::buffer::Buffer;
 use crate::completion::CommandCompletion;
 use crate::config::EditorConfig;
@@ -6,7 +5,7 @@ use crate::config_watcher::{ConfigChangeEvent, ConfigWatcher};
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
-use crate::syntax::HighlightRange;
+use crate::syntax::{AsyncSyntaxHighlighter, HighlightRange, Priority};
 use crate::terminal::Terminal;
 use crate::theme_watcher::ThemeManager;
 use crate::ui::UI;
@@ -1282,7 +1281,7 @@ impl Editor {
                     line_index,
                     text.to_string(),
                     lang,
-                    crate::async_syntax::Priority::High, // High priority for immediate rendering
+                    Priority::High, // High priority for immediate rendering
                 );
             }
         }
@@ -1334,7 +1333,7 @@ impl Editor {
                                         line_index,
                                         line.to_string(),
                                         language.to_string(),
-                                        crate::async_syntax::Priority::High,
+                                        Priority::High,
                                     );
                                 }
                             }
@@ -1348,7 +1347,7 @@ impl Editor {
                                             line_index,
                                             line.to_string(),
                                             language.to_string(),
-                                            crate::async_syntax::Priority::Medium,
+                                            Priority::Medium,
                                         );
                                     }
                                 }
@@ -1490,7 +1489,7 @@ impl Editor {
                                     line_index,
                                     line.to_string(),
                                     language.to_string(),
-                                    crate::async_syntax::Priority::Critical,
+                                    Priority::Critical,
                                 );
                             }
                         }

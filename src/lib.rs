@@ -1,4 +1,3 @@
-pub mod async_syntax;
 pub mod buffer;
 pub mod command;
 pub mod completion;
