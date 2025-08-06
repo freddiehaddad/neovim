@@ -1,6 +1,6 @@
 [package]
 name = "oxidized"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 
 [[bin]]
@@ -36,6 +36,6 @@ thiserror = "2.0.12"
 # Collections
 indexmap = "2.0"
 # Command line parsing
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.5.43", features = ["derive"] }
 # Fuzzy finding
 fuzzy-matcher = "0.3"
