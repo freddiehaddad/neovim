@@ -1260,20 +1260,12 @@ impl Editor {
     ) -> Vec<crate::syntax::HighlightRange> {
         // First check if we have an async syntax highlighter
         if let Some(ref highlighter) = self.async_syntax_highlighter {
-            // Get the language from file extension
+            // Get the language from file extension using configuration
             let language = if let Some(path) = file_path {
-                if path.ends_with(".rs") {
-                    Some("rust".to_string())
-                } else {
-                    None
-                }
+                self.config.languages.detect_language_from_extension(path)
             } else {
                 // For unnamed buffers, try to detect language from content
-                if text.contains("fn ") || text.contains("let ") || text.contains("use ") {
-                    Some("rust".to_string())
-                } else {
-                    None
-                }
+                self.config.languages.detect_language_from_content(text)
             };
 
             if let Some(lang) = language {
@@ -1324,12 +1316,13 @@ impl Editor {
                         if let Some(file_path) = &buffer.file_path {
                             let path_str = file_path.to_string_lossy().to_string();
 
-                            // Determine language from file extension
-                            let language = if path_str.ends_with(".rs") {
-                                "rust"
-                            } else {
-                                "rust" // Default to rust for now
-                            };
+                            // Determine language from file extension using configuration
+                            let language = self
+                                .config
+                                .languages
+                                .detect_language_from_extension(&path_str)
+                                .or_else(|| self.config.languages.get_fallback_language())
+                                .unwrap_or_else(|| "text".to_string()); // Ultimate fallback
 
                             // Use async highlighting for all lines with appropriate priorities
 

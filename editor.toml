@@ -35,3 +35,25 @@ side_scroll_off = 0
 window_resize_amount = 1
 completion_menu_width = 30
 completion_menu_height = 8
+
+[languages]
+# Default language to use when no specific language can be detected
+default_language = "text"
+
+# File extension to language mapping
+# Each entry maps file extensions to their corresponding language identifier
+[languages.extensions]
+"rs" = "rust"
+"toml" = "toml"
+"md" = "markdown"
+"txt" = "text"
+"json" = "json"
+"yaml" = "yaml"
+"yml" = "yaml"
+
+# Content-based language detection patterns for unnamed files
+[languages.content_patterns]
+rust = ["fn ", "let ", "use ", "impl ", "struct ", "enum "]
+toml = ["[", "="]
+markdown = ["# ", "## ", "```"]
+json = ["{", "\""]

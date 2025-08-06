@@ -12,6 +12,7 @@ pub struct EditorConfig {
     pub behavior: BehaviorConfig,
     pub editing: EditingConfig,
     pub interface: InterfaceConfig,
+    pub languages: LanguageConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +61,77 @@ pub struct InterfaceConfig {
     pub completion_menu_height: u16,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanguageConfig {
+    pub extensions: HashMap<String, String>,
+    pub content_patterns: HashMap<String, Vec<String>>,
+    pub default_language: Option<String>,
+}
+
+impl Default for LanguageConfig {
+    fn default() -> Self {
+        // Return empty collections - all language configuration should come from editor.toml
+        Self {
+            extensions: HashMap::new(),
+            content_patterns: HashMap::new(),
+            default_language: None,
+        }
+    }
+}
+
+impl LanguageConfig {
+    /// Detect language from file extension
+    pub fn detect_language_from_extension(&self, file_path: &str) -> Option<String> {
+        use std::path::Path;
+
+        let extension = Path::new(file_path).extension()?.to_str()?;
+        self.extensions.get(extension).cloned()
+    }
+
+    /// Detect language from file content patterns for unnamed files
+    pub fn detect_language_from_content(&self, content: &str) -> Option<String> {
+        for (language, patterns) in &self.content_patterns {
+            let match_count = patterns
+                .iter()
+                .filter(|pattern| content.contains(*pattern))
+                .count();
+
+            // If we find at least 2 patterns for a language, consider it a match
+            if match_count >= 2 {
+                return Some(language.clone());
+            }
+        }
+        None
+    }
+
+    /// Get all supported file extensions
+    pub fn get_supported_extensions(&self) -> Vec<&String> {
+        self.extensions.keys().collect()
+    }
+
+    /// Get all supported languages
+    pub fn get_supported_languages(&self) -> Vec<&String> {
+        self.extensions
+            .values()
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    /// Check if any languages are configured
+    pub fn has_language_support(&self) -> bool {
+        !self.extensions.is_empty()
+    }
+
+    /// Get a fallback language when no specific language is detected
+    pub fn get_fallback_language(&self) -> Option<String> {
+        // Use explicit default_language if configured, otherwise fall back to first extension
+        self.default_language
+            .clone()
+            .or_else(|| self.extensions.values().next().cloned())
+    }
+}
+
 impl Default for EditorConfig {
     fn default() -> Self {
         Self {
@@ -101,6 +173,7 @@ impl Default for EditorConfig {
                 completion_menu_width: 30,
                 completion_menu_height: 8,
             },
+            languages: LanguageConfig::default(),
         }
     }
 }
@@ -394,6 +467,17 @@ impl EditorConfig {
                 ))
             }
 
+            // Language settings (informational only - no modification via :set)
+            "languages" | "lang" => {
+                let extensions: Vec<String> = self
+                    .languages
+                    .extensions
+                    .iter()
+                    .map(|(ext, lang)| format!(".{} -> {}", ext, lang))
+                    .collect();
+                Ok(format!("Supported languages: {}", extensions.join(", ")))
+            }
+
             _ => Err(format!("Unknown setting: {}", setting)),
         }
     }
@@ -413,4 +497,98 @@ pub enum ConfigValue {
     Int(i64),
     String(String),
     List(Vec<String>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_config_default() {
+        let lang_config = LanguageConfig::default();
+
+        // Default should be empty - all config comes from editor.toml
+        assert!(lang_config.extensions.is_empty());
+        assert!(lang_config.content_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_language_config_from_file() {
+        // Test that we can load language config from the actual editor.toml file
+        let config = EditorConfig::load();
+
+        // Should have extensions from editor.toml
+        assert_eq!(
+            config.languages.detect_language_from_extension("test.rs"),
+            Some("rust".to_string())
+        );
+        assert_eq!(
+            config
+                .languages
+                .detect_language_from_extension("config.toml"),
+            Some("toml".to_string())
+        );
+        assert_eq!(
+            config.languages.detect_language_from_extension("readme.md"),
+            Some("markdown".to_string())
+        );
+        assert_eq!(
+            config
+                .languages
+                .detect_language_from_extension("unknown.xyz"),
+            None
+        );
+
+        // Should have content patterns from editor.toml
+        assert_eq!(
+            config
+                .languages
+                .detect_language_from_content("fn main() { let x = 5; }"),
+            Some("rust".to_string())
+        );
+        assert_eq!(
+            config
+                .languages
+                .detect_language_from_content("[package]\nname = \"test\""),
+            Some("toml".to_string())
+        );
+        assert_eq!(
+            config
+                .languages
+                .detect_language_from_content("# Heading\n## Subheading"),
+            Some("markdown".to_string())
+        );
+        assert_eq!(
+            config.languages.detect_language_from_content("plain text"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_editor_config_has_languages() {
+        let config = EditorConfig::load(); // Load from actual file
+        assert!(!config.languages.extensions.is_empty());
+        assert!(!config.languages.content_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_language_config_fallbacks() {
+        let config = EditorConfig::load();
+
+        // Should have language support
+        assert!(config.languages.has_language_support());
+
+        // Should have a fallback language (first configured language)
+        assert!(config.languages.get_fallback_language().is_some());
+
+        // Fallback should be one of the configured languages
+        let fallback = config.languages.get_fallback_language().unwrap();
+        assert!(
+            config
+                .languages
+                .extensions
+                .values()
+                .any(|lang| lang == &fallback)
+        );
+    }
 }

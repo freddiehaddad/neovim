@@ -4,7 +4,6 @@ use log::{debug, info, trace};
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::path::Path;
 use tree_sitter::{Language, Parser};
 
 use crate::theme::{SyntaxTheme, ThemeConfig};
@@ -211,14 +210,31 @@ impl SyntaxHighlighter {
     }
 
     pub fn detect_language_from_extension(&self, file_path: &str) -> Option<String> {
-        let extension = Path::new(file_path).extension()?.to_str()?;
+        // Use the language configuration from editor.toml instead of hard-coded values
+        let config = crate::config::EditorConfig::load();
+        config.languages.detect_language_from_extension(file_path)
+    }
 
-        // Hardcoded language detection for Rust
-        if extension == "rs" {
-            Some("rust".to_string())
-        } else {
-            None
+    /// Detect language from content patterns for unnamed files
+    pub fn detect_language_from_content(&self, content: &str) -> Option<String> {
+        let config = crate::config::EditorConfig::load();
+        config.languages.detect_language_from_content(content)
+    }
+
+    /// Detect language using both file path and content fallback
+    pub fn detect_language(&self, file_path: Option<&str>, content: &str) -> String {
+        let config = crate::config::EditorConfig::load();
+        
+        if let Some(path) = file_path {
+            if let Some(language) = self.detect_language_from_extension(path) {
+                return language;
+            }
         }
+
+        // Fall back to content-based detection
+        self.detect_language_from_content(content)
+            .or_else(|| config.languages.get_fallback_language())
+            .unwrap_or_else(|| "text".to_string()) // Ultimate fallback
     }
 
     pub fn update_theme(&mut self, theme_name: &str) -> Result<()> {
