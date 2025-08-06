@@ -145,7 +145,12 @@ pub struct ThemeManager {
 impl ThemeManager {
     /// Create a new theme manager with optional file watching
     pub fn new() -> Self {
-        let config = ThemeConfig::load();
+        Self::new_with_default_theme("dark")
+    }
+
+    /// Create a new theme manager with a specific default theme
+    pub fn new_with_default_theme(default_theme: &str) -> Self {
+        let config = ThemeConfig::load_with_default_theme(default_theme);
         let watcher = match ThemeWatcher::new() {
             Ok(w) => {
                 log::info!("Theme watcher created successfully");
@@ -167,7 +172,9 @@ impl ThemeManager {
 
     /// Reload themes from themes.toml
     pub fn reload(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
-        let new_config = ThemeConfig::load();
+        // Get the current theme name to preserve as default if possible
+        let current_theme = self.config.theme.current.clone();
+        let new_config = ThemeConfig::load_with_default_theme(&current_theme);
 
         // Check if anything has changed - theme name, theme count, or theme content
         let theme_changed = self.config.theme.current != new_config.theme.current;

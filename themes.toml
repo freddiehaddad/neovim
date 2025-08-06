@@ -26,7 +26,7 @@ warning = "#ffd23f"             # Bright golden
 error = "#ff6b35"               # Bright rust orange
 
 [themes.dark.syntax]
-text = "#cccccc"      # Pure white text
+text = "#cccccc"      # Neon silver
 comment = "#7c7c7c"   # Medium gray
 keyword = "#ff6b35"   # Bright rust orange
 operator = "#ffd23f"  # Bright golden
@@ -40,7 +40,7 @@ character = "#98d982" # Bright light green
 function = "#00d4aa"  # Bright teal
 method = "#00d4aa"    # Bright teal
 macro = "#e879f9"     # Bright purple
-variable = "#ff69b4"  # Hot Pink - very visible change 
+variable = "#cccccc"  # Neon silver
 parameter = "#ff9999" # Bright soft red
 property = "#87ceeb"  # Bright sky blue
 constant = "#ffd23f"  # Bright golden

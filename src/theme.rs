@@ -114,15 +114,106 @@ pub struct CompleteTheme {
 
 impl ThemeConfig {
     /// Load theme configuration from themes.toml
+    /// Load theme configuration from themes.toml with fallback to editor.toml default
     pub fn load() -> Self {
+        Self::load_with_default_theme("dark") // Default fallback if editor.toml is not available
+    }
+
+    /// Load theme configuration with a specific default theme name
+    pub fn load_with_default_theme(default_theme: &str) -> Self {
         if let Ok(config_content) = fs::read_to_string("themes.toml") {
-            if let Ok(config) = toml::from_str(&config_content) {
+            if let Ok(mut config) = toml::from_str::<ThemeConfig>(&config_content) {
+                // Ensure the current theme exists, if not use the default from editor.toml
+                if !config.themes.contains_key(&config.theme.current) {
+                    log::warn!(
+                        "Current theme '{}' not found in themes.toml",
+                        config.theme.current
+                    );
+
+                    // Try to use the default theme from editor.toml
+                    if config.themes.contains_key(default_theme) {
+                        log::info!("Switching to default theme '{}'", default_theme);
+                        config.theme.current = default_theme.to_string();
+                    } else if let Some(first_theme_name) = config.themes.keys().next().cloned() {
+                        log::warn!(
+                            "Default theme '{}' not found, using first available theme '{}'",
+                            default_theme,
+                            first_theme_name
+                        );
+                        config.theme.current = first_theme_name;
+                    } else {
+                        log::error!("No themes found in themes.toml!");
+                        return Self::create_emergency_config();
+                    }
+                }
                 return config;
+            } else {
+                log::error!("Failed to parse themes.toml - invalid TOML format");
             }
+        } else {
+            log::error!("Failed to read themes.toml file");
         }
 
-        // Fallback to default configuration if loading fails
-        Self::default()
+        // If we can't load themes.toml, create an emergency minimal config
+        log::error!("Creating emergency theme configuration - please check themes.toml");
+        Self::create_emergency_config()
+    }
+
+    /// Create minimal emergency configuration when themes.toml is missing or invalid
+    fn create_emergency_config() -> Self {
+        log::warn!("Using emergency theme configuration - please restore themes.toml");
+        let mut themes = HashMap::new();
+
+        // Create a single emergency theme using neutral colors
+        themes.insert(
+            "emergency".to_string(),
+            Theme {
+                name: "Emergency".to_string(),
+                description: "Minimal emergency theme - restore themes.toml".to_string(),
+                ui: UIColors {
+                    background: "#000000".to_string(),
+                    status_bg: "#333333".to_string(),
+                    status_fg: "#ffffff".to_string(),
+                    status_modified: "#ff0000".to_string(),
+                    line_number: "#666666".to_string(),
+                    line_number_current: "#ffffff".to_string(),
+                    cursor_line_bg: "#222222".to_string(),
+                    empty_line: "#444444".to_string(),
+                    command_line_bg: "#000000".to_string(),
+                    command_line_fg: "#ffffff".to_string(),
+                    selection_bg: "#444444".to_string(),
+                    warning: "#ffff00".to_string(),
+                    error: "#ff0000".to_string(),
+                },
+                syntax: SyntaxColors {
+                    text: "#ffffff".to_string(),
+                    comment: "#666666".to_string(),
+                    keyword: "#00ffff".to_string(),
+                    operator: "#ffffff".to_string(),
+                    r#type: "#00ff00".to_string(),
+                    r#struct: "#00ff00".to_string(),
+                    r#enum: "#00ff00".to_string(),
+                    string: "#ffff00".to_string(),
+                    number: "#ff00ff".to_string(),
+                    boolean: "#ff00ff".to_string(),
+                    character: "#ffff00".to_string(),
+                    function: "#00ffff".to_string(),
+                    method: "#00ffff".to_string(),
+                    r#macro: "#ff00ff".to_string(),
+                    variable: "#ffffff".to_string(),
+                    parameter: "#ffffff".to_string(),
+                    property: "#ffffff".to_string(),
+                    constant: "#ffff00".to_string(),
+                },
+            },
+        );
+
+        Self {
+            theme: ThemeSelection {
+                current: "emergency".to_string(),
+            },
+            themes,
+        }
     }
 
     /// Save theme configuration to themes.toml
@@ -143,9 +234,34 @@ impl ThemeConfig {
                 syntax: SyntaxTheme::from_colors(&theme.syntax),
             }
         } else {
-            // Fallback to default theme
-            self.get_theme("default")
-                .unwrap_or_else(|| self.create_fallback_theme())
+            // If current theme doesn't exist, use first available theme
+            if let Some((first_name, first_theme)) = self.themes.iter().next() {
+                log::warn!(
+                    "Current theme '{}' not found, using '{}'",
+                    theme_name,
+                    first_name
+                );
+                CompleteTheme {
+                    name: first_theme.name.clone(),
+                    description: first_theme.description.clone(),
+                    ui: UITheme::from_colors(&first_theme.ui),
+                    syntax: SyntaxTheme::from_colors(&first_theme.syntax),
+                }
+            } else {
+                // This should never happen as we ensure at least one theme exists
+                log::error!("No themes available! This should not happen.");
+                self.create_emergency_theme()
+            }
+        }
+    }
+
+    /// Create emergency theme if no themes are available (should rarely happen)
+    fn create_emergency_theme(&self) -> CompleteTheme {
+        CompleteTheme {
+            name: "Emergency".to_string(),
+            description: "Emergency fallback theme".to_string(),
+            ui: UITheme::emergency(),
+            syntax: SyntaxTheme::emergency(),
         }
     }
 
@@ -170,16 +286,6 @@ impl ThemeConfig {
     pub fn list_themes(&self) -> Vec<&String> {
         self.themes.keys().collect()
     }
-
-    /// Create a fallback theme if themes.toml is corrupted
-    fn create_fallback_theme(&self) -> CompleteTheme {
-        CompleteTheme {
-            name: "Fallback".to_string(),
-            description: "Emergency fallback theme".to_string(),
-            ui: UITheme::fallback(),
-            syntax: SyntaxTheme::fallback(),
-        }
-    }
 }
 
 impl UITheme {
@@ -202,8 +308,8 @@ impl UITheme {
         }
     }
 
-    /// Fallback UI theme with basic colors
-    pub fn fallback() -> Self {
+    /// Emergency UI theme with basic terminal colors (no hard-coded hex values)
+    pub fn emergency() -> Self {
         Self {
             background: Color::Black,
             status_bg: Color::DarkGreen,
@@ -247,8 +353,8 @@ impl SyntaxTheme {
         }
     }
 
-    /// Fallback syntax theme with basic colors
-    pub fn fallback() -> Self {
+    /// Emergency syntax theme with basic terminal colors (no hard-coded hex values)
+    pub fn emergency() -> Self {
         Self {
             text: Color::White,
             comment: Color::DarkGrey,
@@ -272,64 +378,6 @@ impl SyntaxTheme {
     }
 }
 
-impl Default for ThemeConfig {
-    fn default() -> Self {
-        // Create basic fallback configuration
-        let mut themes = HashMap::new();
-
-        // Add a minimal default theme
-        themes.insert(
-            "default".to_string(),
-            Theme {
-                name: "Default".to_string(),
-                description: "Basic default theme".to_string(),
-                ui: UIColors {
-                    background: "#1c1c1c".to_string(),
-                    status_bg: "#86b300".to_string(),
-                    status_fg: "#dbd7ca".to_string(),
-                    status_modified: "#ce422b".to_string(),
-                    line_number: "#5c6773".to_string(),
-                    line_number_current: "#f79718".to_string(),
-                    cursor_line_bg: "#2d2d2d".to_string(),
-                    empty_line: "#39adb5".to_string(),
-                    command_line_bg: "#1c1c1c".to_string(),
-                    command_line_fg: "#dbd7ca".to_string(),
-                    selection_bg: "#59c2ff".to_string(),
-                    warning: "#ff9940".to_string(),
-                    error: "#ff3333".to_string(),
-                },
-                syntax: SyntaxColors {
-                    text: "#dbd7ca".to_string(),
-                    comment: "#5c6773".to_string(),
-                    keyword: "#ff6b35".to_string(),
-                    operator: "#ff9940".to_string(),
-                    r#type: "#86b300".to_string(),
-                    r#struct: "#86b300".to_string(),
-                    r#enum: "#86b300".to_string(),
-                    string: "#a8cc8c".to_string(),
-                    number: "#d19a66".to_string(),
-                    boolean: "#56b6c2".to_string(),
-                    character: "#a8cc8c".to_string(),
-                    function: "#39adb5".to_string(),
-                    method: "#39adb5".to_string(),
-                    r#macro: "#c678dd".to_string(),
-                    variable: "#dbd7ca".to_string(),
-                    parameter: "#e06c75".to_string(),
-                    property: "#59c2ff".to_string(),
-                    constant: "#f79718".to_string(),
-                },
-            },
-        );
-
-        Self {
-            theme: ThemeSelection {
-                current: "default".to_string(),
-            },
-            themes,
-        }
-    }
-}
-
 /// Parse a hex color string to crossterm Color
 fn parse_color(color_str: &str) -> Color {
     if let Some(stripped) = color_str.strip_prefix('#') {
@@ -344,7 +392,12 @@ fn parse_color(color_str: &str) -> Color {
         }
     }
 
-    // Fallback to white if parsing fails
+    // Fallback to white if parsing fails - this should rarely happen
+    // since we now ensure themes.toml always exists
+    log::warn!(
+        "Failed to parse color '{}', using white fallback",
+        color_str
+    );
     Color::White
 }
 
@@ -370,9 +423,9 @@ mod tests {
     }
 
     #[test]
-    fn test_theme_config_load() {
-        let config = ThemeConfig::default();
-        assert_eq!(config.theme.current, "default");
-        assert!(config.themes.contains_key("default"));
+    fn test_emergency_theme_config() {
+        let config = ThemeConfig::create_emergency_config();
+        assert_eq!(config.theme.current, "emergency");
+        assert!(config.themes.contains_key("emergency"));
     }
 }

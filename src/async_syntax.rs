@@ -334,15 +334,20 @@ impl AsyncSyntaxHighlighter {
         // Not in cache, compute highlights
         let highlights = highlighter.highlight_line(&request.content, &request.language);
 
-        // Convert to HighlightRange format
+        // Load current theme for color conversion
+        let theme_config = crate::theme::ThemeConfig::load();
+        let syntax_theme = &theme_config.get_current_theme().syntax;
+
+        // Convert to HighlightRange format using theme colors
         let highlight_ranges: Vec<HighlightRange> = highlights
             .into_iter()
-            .map(|(start, end, highlight_type)| {
-                HighlightRange {
-                    start,
-                    end,
-                    style: highlight_type.into(), // Convert to HighlightStyle
-                }
+            .map(|(start, end, highlight_type)| HighlightRange {
+                start,
+                end,
+                style: crate::syntax::HighlightStyle::from_highlight_type_with_theme(
+                    highlight_type,
+                    syntax_theme,
+                ),
             })
             .collect();
 

@@ -163,8 +163,8 @@ impl Editor {
             }
         };
 
-        // Initialize theme manager for hot reloading themes
-        let theme_manager = ThemeManager::new();
+        // Initialize theme manager for hot reloading themes using editor's color scheme
+        let theme_manager = ThemeManager::new_with_default_theme(&config.display.color_scheme);
 
         // Initialize async syntax highlighter
         let async_syntax_highlighter = match AsyncSyntaxHighlighter::new() {

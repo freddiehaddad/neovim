@@ -90,6 +90,39 @@ impl HighlightStyle {
             }
         })
     }
+
+    /// Create HighlightStyle from HighlightType using theme colors
+    pub fn from_highlight_type_with_theme(
+        highlight_type: HighlightType,
+        syntax_theme: &crate::theme::SyntaxTheme,
+    ) -> Self {
+        let (color, bold, italic) = match highlight_type {
+            HighlightType::Keyword => (syntax_theme.keyword, true, false),
+            HighlightType::String => (syntax_theme.string, false, false),
+            HighlightType::Comment => (syntax_theme.comment, false, true),
+            HighlightType::Function => (syntax_theme.function, false, false),
+            HighlightType::Variable => (syntax_theme.variable, false, false),
+            HighlightType::Type => (syntax_theme.type_color, false, false),
+            HighlightType::Number => (syntax_theme.number, false, false),
+            HighlightType::Operator => (syntax_theme.operator, false, false),
+        };
+
+        HighlightStyle::from_color(color)
+            .with_bold(bold)
+            .with_italic(italic)
+    }
+
+    /// Builder method to set bold
+    pub fn with_bold(mut self, bold: bool) -> Self {
+        self.bold = bold;
+        self
+    }
+
+    /// Builder method to set italic
+    pub fn with_italic(mut self, italic: bool) -> Self {
+        self.italic = italic;
+        self
+    }
 }
 
 /// Cache key for syntax highlighting results
@@ -237,11 +270,20 @@ impl SyntaxHighlighter {
 
             // Check for Tree-sitter node types and apply our new theme colors
             match node_kind {
-                "string_literal" | "raw_string_literal" | "char_literal" => {
+                "string_literal" | "raw_string_literal" => {
                     highlights.push(HighlightRange {
                         start: node.start_byte(),
                         end: node.end_byte(),
                         style: HighlightStyle::from_color(self.current_syntax_theme.string.clone()),
+                    });
+                }
+                "char_literal" => {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.character.clone(),
+                        ),
                     });
                 }
                 "line_comment" | "block_comment" => {
@@ -336,25 +378,45 @@ impl SyntaxHighlighter {
                                         ),
                                     });
                                 } else {
-                                    // Parameter or variable in function
+                                    // Parameter in function - check if we're in parameters context
+                                    let mut current_node = node;
+                                    let mut is_parameter = false;
+                                    while let Some(ancestor) = current_node.parent() {
+                                        if ancestor.kind() == "parameters" {
+                                            is_parameter = true;
+                                            break;
+                                        }
+                                        current_node = ancestor;
+                                    }
+
+                                    let color = if is_parameter {
+                                        self.current_syntax_theme.parameter.clone()
+                                    } else {
+                                        self.current_syntax_theme.variable.clone()
+                                    };
+
                                     highlights.push(HighlightRange {
                                         start: node.start_byte(),
                                         end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.variable.clone(),
-                                        ),
+                                        style: HighlightStyle::from_color(color),
                                     });
                                 }
                             }
                             "call_expression" => {
-                                // Function call
+                                // Function or method call
                                 if node == parent.child_by_field_name("function").unwrap_or(node) {
+                                    // Check if this is a method call (has a receiver field)
+                                    let is_method_call =
+                                        parent.child_by_field_name("receiver").is_some();
+                                    let color = if is_method_call {
+                                        self.current_syntax_theme.method.clone()
+                                    } else {
+                                        self.current_syntax_theme.function.clone()
+                                    };
                                     highlights.push(HighlightRange {
                                         start: node.start_byte(),
                                         end: node.end_byte(),
-                                        style: HighlightStyle::from_color(
-                                            self.current_syntax_theme.function.clone(),
-                                        ),
+                                        style: HighlightStyle::from_color(color),
                                     });
                                 } else {
                                     // Argument in function call
@@ -387,7 +449,47 @@ impl SyntaxHighlighter {
                                     ),
                                 });
                             }
-                            "struct_item" | "enum_item" | "trait_item" | "impl_item" => {
+                            "struct_item" => {
+                                // Struct definitions
+                                if node == parent.child_by_field_name("name").unwrap_or(node) {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.struct_color.clone(),
+                                        ),
+                                    });
+                                } else {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.variable.clone(),
+                                        ),
+                                    });
+                                }
+                            }
+                            "enum_item" => {
+                                // Enum definitions
+                                if node == parent.child_by_field_name("name").unwrap_or(node) {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.enum_color.clone(),
+                                        ),
+                                    });
+                                } else {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.variable.clone(),
+                                        ),
+                                    });
+                                }
+                            }
+                            "trait_item" | "impl_item" => {
                                 // Type definitions
                                 if node == parent.child_by_field_name("name").unwrap_or(node) {
                                     highlights.push(HighlightRange {
@@ -395,6 +497,26 @@ impl SyntaxHighlighter {
                                         end: node.end_byte(),
                                         style: HighlightStyle::from_color(
                                             self.current_syntax_theme.type_color.clone(),
+                                        ),
+                                    });
+                                } else {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.variable.clone(),
+                                        ),
+                                    });
+                                }
+                            }
+                            "const_item" | "static_item" => {
+                                // Constant and static variable names
+                                if node == parent.child_by_field_name("name").unwrap_or(node) {
+                                    highlights.push(HighlightRange {
+                                        start: node.start_byte(),
+                                        end: node.end_byte(),
+                                        style: HighlightStyle::from_color(
+                                            self.current_syntax_theme.constant.clone(),
                                         ),
                                     });
                                 } else {
@@ -438,12 +560,21 @@ impl SyntaxHighlighter {
                         ),
                     });
                 }
+                // Constants - const and static items use different coloring
+                "const" | "static" => {
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(
+                            self.current_syntax_theme.constant.clone(),
+                        ),
+                    });
+                }
                 // Keywords - Tree-sitter recognizes these as their literal text
                 "use" | "fn" | "let" | "mut" | "if" | "else" | "for" | "while" | "loop"
                 | "match" | "return" | "break" | "continue" | "struct" | "enum" | "impl"
-                | "trait" | "type" | "const" | "static" | "mod" | "extern" | "pub" | "async"
-                | "await" | "unsafe" | "where" | "as" | "in" | "self" | "Self" | "super"
-                | "crate" => {
+                | "trait" | "type" | "mod" | "extern" | "pub" | "async" | "await" | "unsafe"
+                | "where" | "as" | "in" | "self" | "Self" | "super" | "crate" => {
                     highlights.push(HighlightRange {
                         start: node.start_byte(),
                         end: node.end_byte(),
@@ -746,69 +877,4 @@ pub enum HighlightType {
     Type,
     Number,
     Operator,
-}
-
-impl From<HighlightType> for HighlightStyle {
-    fn from(highlight_type: HighlightType) -> Self {
-        // For now, create basic styles. In a full implementation,
-        // this would use the theme configuration
-        match highlight_type {
-            HighlightType::Keyword => HighlightStyle {
-                fg_color: Some("#569cd6".to_string()), // Blue
-                bg_color: None,
-                bold: true,
-                italic: false,
-                underline: false,
-            },
-            HighlightType::String => HighlightStyle {
-                fg_color: Some("#ce9178".to_string()), // Orange
-                bg_color: None,
-                bold: false,
-                italic: false,
-                underline: false,
-            },
-            HighlightType::Comment => HighlightStyle {
-                fg_color: Some("#6a9955".to_string()), // Green
-                bg_color: None,
-                bold: false,
-                italic: true,
-                underline: false,
-            },
-            HighlightType::Function => HighlightStyle {
-                fg_color: Some("#dcdcaa".to_string()), // Yellow
-                bg_color: None,
-                bold: false,
-                italic: false,
-                underline: false,
-            },
-            HighlightType::Variable => HighlightStyle {
-                fg_color: Some("#9cdcfe".to_string()), // Light blue
-                bg_color: None,
-                bold: false,
-                italic: false,
-                underline: false,
-            },
-            HighlightType::Type => HighlightStyle {
-                fg_color: Some("#4ec9b0".to_string()), // Teal
-                bg_color: None,
-                bold: false,
-                italic: false,
-                underline: false,
-            },
-            HighlightType::Number => HighlightStyle {
-                fg_color: Some("#b5cea8".to_string()), // Light green
-                bg_color: None,
-                bold: false,
-                italic: false,
-                underline: false,
-            },
-            HighlightType::Operator => HighlightStyle {
-                fg_color: Some("#d4d4d4".to_string()), // Light gray
-                bg_color: None,
-                bold: false,
-                italic: false,
-                underline: false,
-            },
-        }
-    }
 }
