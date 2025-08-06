@@ -52,51 +52,49 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - Forward/backward search (`/`, `?`)
 - Next/previous match (`n`, `N`)
 
+#### Advanced Character Navigation
+
+- **`f{char}`**: Find character forward on current line
+- **`F{char}`**: Find character backward on current line
+- **`t{char}`**: Till character forward (stop before character)
+- **`T{char}`**: Till character backward (stop before character)
+- **`;`**: Repeat last `f/F/t/T` motion
+- **`,`**: Repeat last `f/F/t/T` motion in opposite direction
+
+#### Advanced Line Operations
+
+- **`J`**: Join lines (current line with next)
+- **`D`**: Delete to end of line
+- **`C`**: Change to end of line
+- **`S`**: Change entire line (synonym for `cc`)
+- **`s`**: Substitute character (delete char and enter insert mode)
+
+#### Advanced Movement
+
+- **`{`**: Move to previous paragraph/block
+- **`}`**: Move to next paragraph/block
+- **`%`**: Jump to matching bracket/parenthesis
+
 ---
 
 ## ❌ Missing Critical Vim Features
 
 ### High Priority (Essential for Vim compatibility)
 
-#### 1. ✅ Character Navigation (IMPLEMENTED)
+#### 1. Advanced Movement (REMAINING)
 
-- **`f{char}`**: Find character forward on current line ✅
-- **`F{char}`**: Find character backward on current line ✅
-- **`t{char}`**: Till character forward (stop before character) ✅
-- **`T{char}`**: Till character backward (stop before character) ✅
-- **`;`**: Repeat last `f/F/t/T` motion ✅
-- **`,`**: Repeat last `f/F/t/T` motion in opposite direction ✅
-
-#### 2. ✅ Line Operations (IMPLEMENTED)
-
-- **`J`**: Join lines (current line with next) ✅
-- **`D`**: Delete to end of line ✅
-- **`C`**: Change to end of line ✅
-- **`S`**: Change entire line (synonym for `cc`) ✅
-- **`s`**: Substitute character (delete char and enter insert mode) ✅
-
-#### 3. ✅ Repeat Operations (IMPLEMENTED)
-
-- **`.`**: Repeat last change (one of the most important Vim features) ✅
-- This requires tracking the last editing operation ✅
-
-#### 4. ✅ Advanced Movement (PARTIALLY IMPLEMENTED)
-
-- **`{`**: Move to previous paragraph/block ✅
-- **`}`**: Move to next paragraph/block ✅
 - **`(`**: Move to previous sentence
 - **`)`**: Move to next sentence
-- **`%`**: Jump to matching bracket/parenthesis ✅
 - **`[[`**: Move to previous section
 - **`]]`**: Move to next section
 
-#### 5. Line Numbers and Jumps
+#### 2. Line Numbers and Jumps
 
 - **`{number}G`**: Go to specific line number
 - **`{number}gg`**: Go to specific line number (alternative)
 - **Relative line movements**: `{number}j`, `{number}k`
 
-#### 6. Marks and Jumps
+#### 3. Marks and Jumps
 
 - **`m{a-z}`**: Set local mark
 - **`m{A-Z}`**: Set global mark
@@ -105,7 +103,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`Ctrl+o`**: Jump to previous location in jump list
 - **`Ctrl+i`**: Jump to next location in jump list
 
-#### 7. Advanced Text Objects
+#### 4. Advanced Text Objects
 
 - **Line text objects**: `_` (entire line)
 - **Function text objects**: `if`, `af` (inner/around function)
@@ -113,7 +111,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 
 ### Medium Priority (Important for productivity)
 
-#### 8. Register System
+#### 5. Register System
 
 - **`"{register}y`**: Yank to specific register
 - **`"{register}p`**: Paste from specific register
@@ -123,7 +121,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`"+`**: System clipboard register
 - **`"*`**: Primary selection register
 
-#### 9. Multiple Character Operations
+#### 6. Multiple Character Operations
 
 - **`r{char}`**: Replace single character
 - **`R`**: Enter replace mode (already implemented)
@@ -132,7 +130,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`gu{motion}`**: Lowercase over motion
 - **`gU{motion}`**: Uppercase over motion
 
-#### 10. Insert Mode Enhancements
+#### 7. Insert Mode Enhancements
 
 - **`Ctrl+h`**: Delete character backward (like Backspace)
 - **`Ctrl+w`**: Delete word backward (already implemented)
@@ -141,7 +139,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`Ctrl+d`**: Unindent current line
 - **`Ctrl+o`**: Execute one normal mode command and return to insert
 
-#### 11. Command Mode Enhancements
+#### 8. Command Mode Enhancements
 
 - **`:w`**: Save file (already has save_file action)
 - **`:q`**: Quit (already has quit action)
@@ -152,7 +150,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`:vs {file}`**: Split vertically and edit file
 - **`:{number}`**: Go to line number
 
-#### 12. Indentation
+#### 9. Indentation
 
 - **`>>{motion}`**: Indent lines
 - **`<<{motion}`**: Unindent lines
@@ -161,14 +159,14 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 
 ### Low Priority (Nice to have)
 
-#### 13. Advanced Search
+#### 10. Advanced Search
 
 - **`*`**: Search for word under cursor forward
 - **`#`**: Search for word under cursor backward
 - **`g*`**: Search for partial word under cursor forward
 - **`g#`**: Search for partial word under cursor backward
 
-#### 14. Folding
+#### 11. Folding
 
 - **`zf{motion}`**: Create fold
 - **`zo`**: Open fold
@@ -177,14 +175,14 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`zR`**: Open all folds
 - **`zM`**: Close all folds
 
-#### 15. Macros
+#### 12. Macros
 
 - **`q{register}`**: Start recording macro
 - **`q`**: Stop recording macro
 - **`@{register}`**: Execute macro
 - **`@@`**: Repeat last macro
 
-#### 16. Tab Operations
+#### 13. Tab Operations
 
 - **`:tabnew`**: Create new tab
 - **`:tabn`**: Next tab
@@ -196,7 +194,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 
 ## Implementation Recommendations
 
-### Phase 1: Essential Movement (High Impact, Low Complexity)
+### Phase 1: Essential Movement ✅ COMPLETED
 
 1. ✅ ~~Implement `f/F/t/T` character navigation with `;` and `,` repeat~~ **COMPLETED**
 2. ✅ ~~Add `D`, `C`, `S`, `s` line operations~~ **COMPLETED**
@@ -209,6 +207,8 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 2. ✅ ~~Add paragraph/block movement (`{`, `}`)~~ **COMPLETED**
 3. Implement basic mark system (`m`, `'`, `` ` ``)
 4. Add line number jumps (`{number}G`)
+5. Add sentence movement (`(`, `)`)
+6. Add section movement (`[[`, `]]`)
 
 ### Phase 3: Advanced Features (Medium Impact, High Complexity)
 
