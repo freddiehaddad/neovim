@@ -2327,4 +2327,804 @@ mod keymap_tests {
         assert_eq!(editor.mode(), Mode::Normal);
         assert_eq!(editor.current_buffer().unwrap().lines[0], "hello  test");
     }
+
+    // Sentence movement tests
+    #[test]
+    fn test_sentence_forward_basic() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple sentences
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "First sentence. Second sentence! Third sentence?".to_string(),
+                "Fourth sentence. Fifth sentence.".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of second sentence
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 16); // After "First sentence. "
+        }
+    }
+
+    #[test]
+    fn test_sentence_forward_multiline() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with sentences across lines
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "First sentence.".to_string(),
+                "Second sentence on new line.".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 5; // Inside first sentence
+        }
+
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of second sentence on next line
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 1);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_basic() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple sentences
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["First sentence. Second sentence! Third sentence?".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 30; // Inside third sentence
+        }
+
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of second sentence (after first sentence period + space)
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 16); // Start of "Second sentence!"
+        }
+    }
+
+    #[test]
+    fn test_sentence_forward_at_end() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer and position at end
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["Only sentence.".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 10; // Near end
+        }
+
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to end of buffer
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 14); // End of line
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_at_beginning() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer and position at beginning
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["Only sentence.".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should stay at beginning
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    // Section movement tests
+    #[test]
+    fn test_section_forward_basic() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with Rust functions (section markers)
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "// Some comment".to_string(),
+                "let x = 5;".to_string(),
+                "".to_string(),
+                "fn first_function() {".to_string(),
+                "    println!(\"Hello\");".to_string(),
+                "}".to_string(),
+                "".to_string(),
+                "fn second_function() {".to_string(),
+                "    println!(\"World\");".to_string(),
+                "}".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to first function
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_section_forward_multiple() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with markdown headers
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "# Main Title".to_string(),
+                "Some content here".to_string(),
+                "".to_string(),
+                "## Subsection".to_string(),
+                "More content".to_string(),
+                "".to_string(),
+                "### Another Section".to_string(),
+                "Final content".to_string(),
+            ];
+            buffer.cursor.row = 1; // Start in content
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to first subsection
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 3);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_section_backward_basic() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with Rust structs and functions
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "struct MyStruct {".to_string(),
+                "    field: i32,".to_string(),
+                "}".to_string(),
+                "".to_string(),
+                "impl MyStruct {".to_string(),
+                "    fn new() -> Self {".to_string(),
+                "        Self { field: 0 }".to_string(),
+                "    }".to_string(),
+                "}".to_string(),
+            ];
+            buffer.cursor.row = 6; // Inside impl block
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_section_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to impl block start
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 4);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_section_forward_no_sections() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer without section markers
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "Just some text".to_string(),
+                "No functions here".to_string(),
+                "Only regular content".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to end of buffer
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 2); // Last line
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_section_backward_no_sections() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer without section markers
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "Just some text".to_string(),
+                "No functions here".to_string(),
+                "Only regular content".to_string(),
+            ];
+            buffer.cursor.row = 2; // Last line
+            buffer.cursor.col = 5;
+        }
+
+        let result = handler.action_section_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of buffer
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_section_movement_mixed_languages() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with different language constructs
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "// Rust code".to_string(),
+                "pub fn rust_function() {".to_string(),
+                "    println!(\"Rust\");".to_string(),
+                "}".to_string(),
+                "".to_string(),
+                "/* JavaScript comment */".to_string(),
+                "function jsFunction() {".to_string(),
+                "    console.log(\"JS\");".to_string(),
+                "}".to_string(),
+                "".to_string(),
+                "class MyClass {".to_string(),
+                "    constructor() {}".to_string(),
+                "}".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to first function
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 1);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Move forward again
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to JavaScript function
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 6);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_from_second_sentence() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with paragraph containing two sentences
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "First sentence of paragraph. Second sentence of paragraph.".to_string(),
+                "".to_string(),
+                "Another paragraph here. Another sentence here.".to_string(),
+            ];
+            // Position cursor in middle of "Second sentence"
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 35; // In the middle of "sentence"
+        }
+
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to beginning of "Second sentence"
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 29); // Start of "Second"
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_from_second_sentence_to_first() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with paragraph containing two sentences
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "First sentence of paragraph. Second sentence of paragraph.".to_string(),
+                "".to_string(),
+                "Another paragraph here. Another sentence here.".to_string(),
+            ];
+            // Position cursor at start of "Second sentence"
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 29; // At the "S" in "Second"
+        }
+
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to beginning of "First sentence"
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_complete_flow() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with paragraph containing two sentences
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "First sentence of paragraph. Second sentence of paragraph.".to_string(),
+                "".to_string(),
+                "Another paragraph here. Another sentence here.".to_string(),
+            ];
+            // Position cursor in middle of second sentence
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 35; // In the middle of "sentence"
+        }
+
+        // First call should move to start of current sentence ("Second")
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 29); // Start of "Second"
+        }
+
+        // Second call should move to start of previous sentence ("First")
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 0);
+            assert_eq!(buffer.cursor.col, 0); // Start of "First"
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_license_file_scenario() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer similar to LICENSE file structure
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "MIT License".to_string(),
+                "".to_string(),
+                "Copyright (c) 2025 Freddie Haddad".to_string(),
+                "".to_string(),
+                "Permission is hereby granted, free of charge, to any person obtaining a copy"
+                    .to_string(),
+                "of this software and associated documentation files (the \"Software\"), to deal"
+                    .to_string(),
+                "in the Software without restriction, including without limitation the rights"
+                    .to_string(),
+                "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
+                    .to_string(),
+                "copies of the Software, and to permit persons to whom the Software is".to_string(),
+                "furnished to do so, subject to the following conditions:".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "The above copyright notice and this permission notice shall be included in all"
+                    .to_string(),
+                "copies or substantial portions of the Software.".to_string(),
+            ];
+            // Position cursor on line 13 (index 12) - "The above copyright notice..."
+            buffer.cursor.row = 12;
+            buffer.cursor.col = 10; // In the middle of "above"
+        }
+
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+
+        // Should move to start of current sentence, not jump to line 1
+        if let Some(buffer) = editor.current_buffer() {
+            // Should stay on line 12 and move to beginning of the sentence
+            assert_eq!(buffer.cursor.row, 12);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_sentence_backward_license_file_multiple_calls() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer similar to LICENSE file structure
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "MIT License".to_string(),
+                "".to_string(),
+                "Copyright (c) 2025 Freddie Haddad".to_string(),
+                "".to_string(),
+                "Permission is hereby granted, free of charge, to any person obtaining a copy"
+                    .to_string(),
+                "of this software and associated documentation files (the \"Software\"), to deal"
+                    .to_string(),
+                "in the Software without restriction, including without limitation the rights"
+                    .to_string(),
+                "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
+                    .to_string(),
+                "copies of the Software, and to permit persons to whom the Software is".to_string(),
+                "furnished to do so, subject to the following conditions:".to_string(),
+                "".to_string(),
+                "".to_string(),
+                "The above copyright notice and this permission notice shall be included in all"
+                    .to_string(),
+                "copies or substantial portions of the Software.".to_string(),
+            ];
+            // Position cursor on line 13 (index 12) - "The above copyright notice..."
+            buffer.cursor.row = 12;
+            buffer.cursor.col = 10; // In the middle of "above"
+        }
+
+        // First call: should move to start of current sentence
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 12);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Second call: should move to previous text block (line with "Permission...")
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 4); // Start of "Permission is hereby granted..."
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Third call: should move to even earlier text block (Copyright line)
+        let result = handler.action_sentence_backward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 2); // Start of "Copyright (c) 2025..."
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_sentence_forward_license_file_scenario() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with LICENSE-like content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "MIT License".to_string(),
+                "".to_string(),
+                "Copyright (c) 2025 Author".to_string(),
+                "".to_string(),
+                "Permission is hereby granted, free of charge, to any person obtaining a copy"
+                    .to_string(),
+                "of this software and associated documentation files".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Move from line 1 to line 3 (skipping empty line)
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 2);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Move from line 3 to line 5 (skipping empty line)
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 4);
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_sentence_forward_multiple_calls_license() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with simplified LICENSE content
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "Line 1".to_string(),
+                "".to_string(),
+                "Line 3".to_string(),
+                "".to_string(),
+                "Line 5".to_string(),
+                "".to_string(),
+                "Line 7".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // First call: 1 -> 3
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 2);
+        }
+
+        // Second call: 3 -> 5
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 4);
+        }
+
+        // Third call: 5 -> 7
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.row, 6);
+        }
+    }
+
+    #[test]
+    fn test_sentence_forward_double_space() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with double-space separated sentences
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec!["First sentence.  Second sentence.  Third sentence.".to_string()];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Move to second sentence
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 17); // Start of "Second"
+        }
+
+        // Move to third sentence
+        let result = handler.action_sentence_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            assert_eq!(buffer.cursor.col, 35); // Start of "Third"
+        }
+    }
+
+    #[test]
+    fn test_section_forward_readme_style() {
+        let handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer that mimics the README.md structure
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "# Oxidized".to_string(),
+                "".to_string(),
+                "A revolutionary Vim/Neovim clone written in Rust that breaks from traditional Vim with a **TOML-first configuration system** for both keymaps and editor settings.".to_string(),
+                "".to_string(),
+                "## 🦀 The Oxidized Editor".to_string(),
+                "".to_string(),
+                "**Oxidized** (`oxy`) is a modern, high-performance text editor that reimagines Vim for the Rust era. Built from the ground up in Rust, it combines Vim's legendary efficiency with modern software engineering principles and features complete text objects and operators support with full undo integration.".to_string(),
+                "".to_string(),
+                "## 🚀 Revolutionary Features".to_string(),
+                "".to_string(),
+                "### ⚡ TOML-Based Configuration System".to_string(),
+            ];
+            buffer.cursor.row = 0; // Start at "# Oxidized"
+            buffer.cursor.col = 0;
+        }
+
+        // Move to next section - should go to "## 🦀 The Oxidized Editor"
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            println!(
+                "After first section forward: row {}, line: '{}'",
+                buffer.cursor.row, buffer.lines[buffer.cursor.row]
+            );
+            assert_eq!(buffer.cursor.row, 4); // "## 🦀 The Oxidized Editor"
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Move to next section - should go to "## 🚀 Revolutionary Features"
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            println!(
+                "After second section forward: row {}, line: '{}'",
+                buffer.cursor.row, buffer.lines[buffer.cursor.row]
+            );
+            assert_eq!(buffer.cursor.row, 8); // "## 🚀 Revolutionary Features"
+            assert_eq!(buffer.cursor.col, 0);
+        }
+
+        // Move to next section - should go to "### ⚡ TOML-Based Configuration System"
+        let result = handler.action_section_forward(&mut editor);
+        assert!(result.is_ok());
+        if let Some(buffer) = editor.current_buffer() {
+            println!(
+                "After third section forward: row {}, line: '{}'",
+                buffer.cursor.row, buffer.lines[buffer.cursor.row]
+            );
+            assert_eq!(buffer.cursor.row, 10); // "### ⚡ TOML-Based Configuration System"
+            assert_eq!(buffer.cursor.col, 0);
+        }
+    }
+
+    #[test]
+    fn test_section_forward_key_sequence_debug() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a minimal buffer for testing
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "# Header 1".to_string(),
+                "content".to_string(),
+                "## Header 2".to_string(),
+            ];
+            buffer.cursor.row = 0;
+            buffer.cursor.col = 0;
+        }
+
+        // Check keymap configuration
+        let normal_mode_map = &handler.keymap_config.normal_mode;
+        println!(
+            "Keymap contains ']]': {:?}",
+            normal_mode_map.contains_key("]]")
+        );
+        println!("]] maps to: {:?}", normal_mode_map.get("]]"));
+
+        // Check for potential matches manually
+        let keys_starting_with_bracket: Vec<_> = normal_mode_map
+            .keys()
+            .filter(|k| k.starts_with("]"))
+            .collect();
+        println!("Keys starting with ']': {:?}", keys_starting_with_bracket);
+
+        // Now test the sequence step by step
+        println!("\n=== Step 1: First ']' ===");
+        let first_key = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::empty());
+        handler.handle_key(&mut editor, first_key).unwrap();
+        println!("Pending sequence: '{}'", handler.pending_sequence);
+
+        // Check cursor position (should be unchanged)
+        if let Some(buffer) = editor.current_buffer() {
+            println!("Cursor at row: {}", buffer.cursor.row);
+            assert_eq!(buffer.cursor.row, 0);
+        }
+
+        println!("\n=== Step 2: Second ']' ===");
+        let second_key = KeyEvent::new(KeyCode::Char(']'), KeyModifiers::empty());
+        handler.handle_key(&mut editor, second_key).unwrap();
+        println!("Pending sequence: '{}'", handler.pending_sequence);
+
+        // Check cursor position (should have moved)
+        if let Some(buffer) = editor.current_buffer() {
+            println!("Cursor at row: {}", buffer.cursor.row);
+            println!("Expected row: 2 (## Header 2)");
+            if buffer.cursor.row < buffer.lines.len() {
+                println!("Line content: '{}'", buffer.lines[buffer.cursor.row]);
+            }
+            assert_eq!(buffer.cursor.row, 2);
+        }
+    }
+
+    #[test]
+    fn test_section_backward_key_sequence() {
+        let mut handler = KeyHandler::new();
+        let mut editor = create_test_editor();
+
+        // Create a buffer with multiple sections
+        editor.create_buffer(None).expect("Failed to create buffer");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.lines = vec![
+                "# Header 1".to_string(),
+                "content".to_string(),
+                "## Header 2".to_string(),
+                "more content".to_string(),
+                "### Header 3".to_string(),
+                "final content".to_string(),
+            ];
+            buffer.cursor.row = 4; // Start at "### Header 3"
+            buffer.cursor.col = 0;
+        }
+
+        // Test [[ key sequence
+        let first_key = KeyEvent::new(KeyCode::Char('['), KeyModifiers::empty());
+        let second_key = KeyEvent::new(KeyCode::Char('['), KeyModifiers::empty());
+
+        println!("=== Testing [[ sequence ===");
+        println!("Starting at row 4 (### Header 3)");
+
+        // First key
+        handler.handle_key(&mut editor, first_key).unwrap();
+        println!(
+            "After first '[': pending sequence = '{}'",
+            handler.pending_sequence
+        );
+
+        // Second key - should move to previous section
+        handler.handle_key(&mut editor, second_key).unwrap();
+        println!(
+            "After second '[': pending sequence = '{}'",
+            handler.pending_sequence
+        );
+
+        if let Some(buffer) = editor.current_buffer() {
+            println!("Cursor moved to row: {}", buffer.cursor.row);
+            if buffer.cursor.row < buffer.lines.len() {
+                println!("Line content: '{}'", buffer.lines[buffer.cursor.row]);
+            }
+            // Should move to "## Header 2" at row 2
+            assert_eq!(buffer.cursor.row, 2);
+        }
+    }
 }

@@ -70,6 +70,14 @@
 "{" = "paragraph_backward"
 "}" = "paragraph_forward"
 
+# Sentence movement
+"(" = "sentence_backward"
+")" = "sentence_forward"
+
+# Section movement
+"[[" = "section_backward"
+"]]" = "section_forward"
+
 # Repeat operations
 "." = "repeat_last_change"
 

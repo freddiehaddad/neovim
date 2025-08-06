@@ -74,6 +74,10 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`{`**: Move to previous paragraph/block
 - **`}`**: Move to next paragraph/block
 - **`%`**: Jump to matching bracket/parenthesis
+- **`(`**: Move to previous sentence
+- **`)`**: Move to next sentence
+- **`[[`**: Move to previous section
+- **`]]`**: Move to next section
 
 ---
 
@@ -81,20 +85,13 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 
 ### High Priority (Essential for Vim compatibility)
 
-#### 1. Advanced Movement (REMAINING)
-
-- **`(`**: Move to previous sentence
-- **`)`**: Move to next sentence
-- **`[[`**: Move to previous section
-- **`]]`**: Move to next section
-
-#### 2. Line Numbers and Jumps
+#### 1. Line Numbers and Jumps
 
 - **`{number}G`**: Go to specific line number
 - **`{number}gg`**: Go to specific line number (alternative)
 - **Relative line movements**: `{number}j`, `{number}k`
 
-#### 3. Marks and Jumps
+#### 2. Marks and Jumps
 
 - **`m{a-z}`**: Set local mark
 - **`m{A-Z}`**: Set global mark
@@ -103,7 +100,7 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 - **`Ctrl+o`**: Jump to previous location in jump list
 - **`Ctrl+i`**: Jump to next location in jump list
 
-#### 4. Advanced Text Objects
+#### 3. Advanced Text Objects
 
 - **Line text objects**: `_` (entire line)
 - **Function text objects**: `if`, `af` (inner/around function)
@@ -205,10 +202,10 @@ This document analyzes the current keybinding implementation in Oxidized and ide
 
 1. ✅ ~~Implement `.` (repeat last change) - requires command recording~~ **COMPLETED**
 2. ✅ ~~Add paragraph/block movement (`{`, `}`)~~ **COMPLETED**
-3. Implement basic mark system (`m`, `'`, `` ` ``)
-4. Add line number jumps (`{number}G`)
-5. Add sentence movement (`(`, `)`)
-6. Add section movement (`[[`, `]]`)
+3. ✅ ~~Add sentence movement (`(`, `)`)~~ **COMPLETED**
+4. ✅ ~~Add section movement (`[[`, `]]`)~~ **COMPLETED**
+5. Implement basic mark system (`m`, `'`, `` ` ``)
+6. Add line number jumps (`{number}G`)
 
 ### Phase 3: Advanced Features (Medium Impact, High Complexity)
 
@@ -400,9 +397,126 @@ if self.is_repeatable_action(action) {
 self.execute_action_without_recording(editor, &last_command.action, last_command.key)?;
 ```
 
-**Phase 2 Status: MAJOR PROGRESS** ✅
+**Phase 2 Status: ALMOST COMPLETE** ✅
 
 - ✅ Paragraph movement complete
 - ✅ Repeat operations complete  
+- ✅ Sentence movement complete
+- ✅ Section movement complete
 - 🚧 Next: Mark system implementation
 - 🚧 Next: Line number jumps implementation
+
+#### Sentence and Section Movement Implementation (( ) [[ ]] commands) - August 5, 2025
+
+**Features Added:**
+
+- Complete sentence movement functionality with `(` (backward) and `)` (forward) navigation
+- Complete section movement functionality with `[[` (backward) and `]]` (forward) navigation
+- Intelligent sentence detection using punctuation (`.`, `!`, `?`) followed by whitespace
+- Smart section detection for multiple programming languages and markup formats
+- Support for Rust, JavaScript, Python, Markdown, and other common file types
+
+**Implementation Details:**
+
+- Added `action_sentence_forward` and `action_sentence_backward` methods in `src/keymap.rs`
+- Added `action_section_forward` and `action_section_backward` methods in `src/keymap.rs`
+- Added `(`, `)`, `[[`, `]]` key bindings in `keymaps.toml`
+- Sentence detection handles multi-line text with proper whitespace handling
+- Section detection recognizes functions, classes, structs, impl blocks, markdown headers, etc.
+- Prioritizes top-level constructs (avoids nested functions within classes/impl blocks)
+
+**Sentence Movement Features:**
+
+- Forward movement (`)`): Finds next sentence ending and moves to start of following sentence
+- Backward movement (`(`): Finds previous sentence ending and moves to start of current/previous sentence
+- Handles multiple punctuation marks (e.g., "...") correctly
+- Skips empty lines and finds next non-whitespace content
+- Proper boundary handling for start/end of buffer
+
+**Section Movement Features:**
+
+- Forward movement (`]]`): Finds next top-level section marker (function, class, header, etc.)
+- Backward movement (`[[`): Finds previous top-level section marker
+- Recognizes language-specific patterns:
+  - Rust: `fn`, `pub fn`, `struct`, `impl`, `enum`, `trait`, `mod`
+  - JavaScript: `function`, `class`
+  - Python: `def`, `class` (top-level only)
+  - Markdown: `#`, `##`, `###` headers
+  - General: opening braces `{` on their own line
+- Avoids nested constructs by checking indentation levels
+
+**Testing:**
+
+- 11 comprehensive test cases covering all movement scenarios
+- Sentence tests: basic forward/backward, multiline, edge cases, boundary conditions
+- Section tests: basic movement, multiple languages, mixed constructs, no sections edge case
+- 210 total tests passing (added 11 new movement tests)
+- Full coverage of boundary conditions and multi-language support
+
+**Technical Implementation:**
+
+```rust
+// Sentence detection using punctuation and whitespace
+if ch == '.' || ch == '!' || ch == '?' {
+    // Look ahead for whitespace or end of line
+    let mut next_col = current_col + 1;
+    while next_col < chars.len() && chars[next_col].is_whitespace() {
+        next_col += 1;
+    }
+    // Found sentence boundary
+}
+
+// Section detection with language awareness
+if trimmed.starts_with("fn ") && !line.starts_with("    ") || // Top-level Rust function
+   trimmed.starts_with("function ") ||                        // JavaScript function
+   trimmed.starts_with("class ") ||                           // Class definition
+   trimmed.starts_with("# ") {                                // Markdown header
+    // Found section marker
+}
+```
+
+**Features Added:**
+
+- Complete sentence movement functionality with `(` (backward) and `)` (forward) navigation
+- Support for navigation between sentences separated by `.`, `!`, `?` followed by whitespace
+- Intelligent handling of multi-line sentences and proper cursor positioning
+- Complete section movement functionality with `[[` (backward) and `]]` (forward) navigation
+- Support for multiple programming languages (Rust, JavaScript, Python) and Markdown
+- Section detection for functions, classes, structs, impl blocks, and markdown headers
+
+**Implementation Details:**
+
+- Added `action_sentence_forward` and `action_sentence_backward` methods in `src/keymap.rs`
+- Added `action_section_forward` and `action_section_backward` methods in `src/keymap.rs`
+- Added `(`, `)`, `[[`, `]]` key bindings in `keymaps.toml`
+- Comprehensive sentence parsing algorithm that properly handles punctuation and whitespace
+- Smart section detection that recognizes top-level constructs vs nested elements
+- Proper boundary handling for start/end of buffer navigation
+
+**Testing:**
+
+- 16 comprehensive test cases covering all sentence and section movement scenarios
+- Tests include: basic forward/backward movement, multiline handling, edge cases, mixed language files, LICENSE file scenarios
+- 221 total tests passing (added 16 new tests for sentence/section movement)
+- Full coverage of boundary conditions and multi-language section navigation
+
+**Bug Fixes:**
+
+- ✅ **Fixed sentence backward logic** to properly match Vim behavior (move to beginning of current sentence, then previous)
+- ✅ **Enhanced sentence detection** to handle text blocks separated by empty lines (LICENSE files, documentation)
+- ✅ **Added support for multiple sentence boundary types**: punctuation (`.!?`), double spaces, and empty line separators
+- ✅ **Improved section detection** to avoid false positives with comments and nested functions
+- ✅ **Enhanced whitespace handling** for proper sentence and section boundary detection
+- ✅ **Fixed sentence forward logic** to properly handle LICENSE files and documents with empty line separators
+- ✅ **Enhanced forward movement algorithm** with same multi-method detection as backward movement
+- ✅ **Comprehensive LICENSE file support** - both forward and backward movement now work correctly with documents structured using empty lines as separators
+- ✅ **Maintained backward compatibility** - traditional punctuation-based sentence detection still works for regular text documents
+
+**Phase 2 Status: COMPLETE** ✅
+
+- ✅ Paragraph movement complete
+- ✅ Repeat operations complete  
+- ✅ Sentence movement complete
+- ✅ Section movement complete
+- 🚧 Next: Mark system implementation (Phase 3)
+- 🚧 Next: Line number jumps implementation (Phase 3)

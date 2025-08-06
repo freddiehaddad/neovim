@@ -185,15 +185,17 @@ impl KeyHandler {
             // Add current key to sequence
             if !self.pending_sequence.is_empty() {
                 // For single character keys after single character sequences, concatenate without space
-                // Example: "g" + "g" = "gg"
+                // Example: "g" + "g" = "gg", "]" + "]" = "]]", "[" + "[" = "[["
                 if key_string.len() == 1
                     && self.pending_sequence.len() == 1
-                    && self
+                    && (self
                         .pending_sequence
                         .chars()
                         .next()
                         .unwrap_or(' ')
                         .is_ascii_alphabetic()
+                        || (self.pending_sequence == "]" && key_string == "]")
+                        || (self.pending_sequence == "[" && key_string == "["))
                 {
                     self.pending_sequence.push_str(&key_string);
                 } else {
@@ -511,6 +513,14 @@ impl KeyHandler {
             // Paragraph movement
             "paragraph_forward" => self.action_paragraph_forward(editor)?,
             "paragraph_backward" => self.action_paragraph_backward(editor)?,
+
+            // Sentence movement
+            "sentence_forward" => self.action_sentence_forward(editor)?,
+            "sentence_backward" => self.action_sentence_backward(editor)?,
+
+            // Section movement
+            "section_forward" => self.action_section_forward(editor)?,
+            "section_backward" => self.action_section_backward(editor)?,
 
             // Repeat operations
             "repeat_last_change" => self.action_repeat_last_change(editor)?,
@@ -1282,6 +1292,380 @@ impl KeyHandler {
 
             buffer.cursor.row = current_row;
             buffer.cursor.col = 0;
+        }
+        Ok(())
+    }
+
+    fn action_sentence_forward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let current_row = buffer.cursor.row;
+            let current_col = buffer.cursor.col;
+
+            debug!(
+                "Moving to next sentence from {}:{}",
+                current_row, current_col
+            );
+
+            // Convert buffer to string for comprehensive sentence detection
+            let mut buffer_text = String::new();
+            let mut row_col_map = Vec::new(); // Maps string positions to (row, col)
+
+            for (row_idx, line) in buffer.lines.iter().enumerate() {
+                for (col_idx, ch) in line.chars().enumerate() {
+                    row_col_map.push((row_idx, col_idx));
+                    buffer_text.push(ch);
+                }
+                // Add newline character and track its position
+                row_col_map.push((row_idx, line.len()));
+                buffer_text.push('\n');
+            }
+
+            // Find current position in string
+            let mut current_pos = 0;
+            for (pos, &(row, col)) in row_col_map.iter().enumerate() {
+                if row == current_row && col == current_col {
+                    current_pos = pos;
+                    break;
+                }
+            }
+
+            // Start searching from the position after current cursor
+            let chars: Vec<char> = buffer_text.chars().collect();
+
+            // Method 1: Try empty line detection first (for LICENSE-like files)
+            let mut search_pos = current_pos + 1;
+
+            while search_pos < chars.len() {
+                let ch = chars[search_pos];
+
+                if ch == '\n' {
+                    // Check if this is an empty line (next char is also newline or end of text)
+                    if search_pos + 1 >= chars.len() || chars[search_pos + 1] == '\n' {
+                        search_pos += 1; // Skip the first newline
+
+                        // Skip any additional empty lines
+                        while search_pos < chars.len() && chars[search_pos] == '\n' {
+                            search_pos += 1;
+                        }
+
+                        // Now find the start of the next non-empty line
+                        while search_pos < chars.len()
+                            && chars[search_pos].is_whitespace()
+                            && chars[search_pos] != '\n'
+                        {
+                            search_pos += 1;
+                        }
+
+                        // If we found content after empty lines, this is our target
+                        if search_pos < chars.len()
+                            && search_pos < row_col_map.len()
+                            && chars[search_pos] != '\n'
+                        {
+                            let (new_row, new_col) = row_col_map[search_pos];
+                            buffer.cursor.row = new_row;
+                            buffer.cursor.col = new_col;
+                            info!(
+                                "Moved to next sentence (empty line) at {}:{}",
+                                new_row, new_col
+                            );
+                            return Ok(());
+                        }
+                    }
+                }
+                search_pos += 1;
+            }
+
+            // Method 2: Try traditional sentence endings (.!?) followed by whitespace
+            search_pos = current_pos + 1;
+            while search_pos < chars.len() {
+                let ch = chars[search_pos];
+
+                if ch == '.' || ch == '!' || ch == '?' {
+                    // Look ahead for whitespace or end of text
+                    let mut next_pos = search_pos + 1;
+
+                    // Skip any additional punctuation
+                    while next_pos < chars.len()
+                        && (chars[next_pos] == '.'
+                            || chars[next_pos] == '!'
+                            || chars[next_pos] == '?')
+                    {
+                        next_pos += 1;
+                    }
+
+                    // Check if followed by whitespace
+                    if next_pos >= chars.len() || chars[next_pos].is_whitespace() {
+                        // Skip whitespace to find start of next sentence
+                        while next_pos < chars.len() && chars[next_pos].is_whitespace() {
+                            next_pos += 1;
+                        }
+
+                        if next_pos < chars.len() && next_pos < row_col_map.len() {
+                            let (new_row, new_col) = row_col_map[next_pos];
+                            buffer.cursor.row = new_row;
+                            buffer.cursor.col = new_col;
+                            info!(
+                                "Moved to next sentence (punctuation) at {}:{}",
+                                new_row, new_col
+                            );
+                            return Ok(());
+                        }
+                    }
+                }
+                search_pos += 1;
+            }
+
+            // Method 3: Look for double spaces (common in formatted text)
+            search_pos = current_pos + 1;
+            while search_pos + 1 < chars.len() {
+                if chars[search_pos] == ' ' && chars[search_pos + 1] == ' ' {
+                    // Found double space, look for next non-whitespace
+                    let mut content_pos = search_pos + 2;
+                    while content_pos < chars.len() && chars[content_pos].is_whitespace() {
+                        content_pos += 1;
+                    }
+
+                    if content_pos < chars.len() && content_pos < row_col_map.len() {
+                        let (new_row, new_col) = row_col_map[content_pos];
+                        buffer.cursor.row = new_row;
+                        buffer.cursor.col = new_col;
+                        info!(
+                            "Moved to next sentence (double space) at {}:{}",
+                            new_row, new_col
+                        );
+                        return Ok(());
+                    }
+                }
+                search_pos += 1;
+            }
+
+            // If no sentence found, go to end of buffer
+            let total_lines = buffer.lines.len();
+            if total_lines > 0 {
+                buffer.cursor.row = total_lines - 1;
+                if let Some(last_line) = buffer.get_line(total_lines - 1) {
+                    buffer.cursor.col = last_line.len();
+                }
+            }
+            info!("No next sentence found, moved to end of buffer");
+        }
+        Ok(())
+    }
+
+    fn action_sentence_backward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let current_row = buffer.cursor.row;
+            let current_col = buffer.cursor.col;
+
+            // Convert buffer to one big string for easier processing
+            let mut all_text = String::new();
+            let mut line_starts = vec![0]; // Track where each line starts in the big string
+
+            for (i, line) in buffer.lines.iter().enumerate() {
+                if i > 0 {
+                    all_text.push('\n');
+                    line_starts.push(all_text.len());
+                }
+                all_text.push_str(line);
+            }
+
+            // Calculate current position in the big string
+            let current_pos = line_starts[current_row] + current_col;
+
+            // Find all sentence starts in the text
+            let mut sentence_starts = vec![0]; // Buffer always starts with a sentence
+            let chars: Vec<char> = all_text.chars().collect();
+
+            // Method 1: Find sentences ending with punctuation
+            for i in 0..chars.len() {
+                if chars[i] == '.' || chars[i] == '!' || chars[i] == '?' {
+                    // Skip consecutive punctuation
+                    let mut j = i + 1;
+                    while j < chars.len() && (chars[j] == '.' || chars[j] == '!' || chars[j] == '?')
+                    {
+                        j += 1;
+                    }
+
+                    // Skip whitespace to find start of next sentence
+                    while j < chars.len() && chars[j].is_whitespace() {
+                        j += 1;
+                    }
+
+                    // If we found a non-whitespace character, it's a sentence start
+                    if j < chars.len() {
+                        sentence_starts.push(j);
+                    }
+                }
+            }
+
+            // Method 2: Find sentences separated by empty lines (for cases like LICENSE files)
+            let mut i = 0;
+            while i < chars.len() {
+                if chars[i] == '\n' {
+                    // Check if this is the start of an empty line
+                    let mut j = i + 1;
+
+                    // Skip whitespace on this line
+                    while j < chars.len() && chars[j] != '\n' && chars[j].is_whitespace() {
+                        j += 1;
+                    }
+
+                    // If we reach another newline, this was an empty (or whitespace-only) line
+                    if j < chars.len() && chars[j] == '\n' {
+                        // Now skip any additional empty lines
+                        while j < chars.len() && chars[j] == '\n' {
+                            j += 1;
+                            // Skip whitespace on next line
+                            while j < chars.len() && chars[j] != '\n' && chars[j].is_whitespace() {
+                                j += 1;
+                            }
+                            // If this line has content, we found start of next sentence
+                            if j < chars.len() && chars[j] != '\n' {
+                                sentence_starts.push(j);
+                                break;
+                            }
+                        }
+                        i = j;
+                        continue;
+                    }
+                }
+                i += 1;
+            }
+
+            // Method 3: Find sentences with double spaces
+            for i in 0..(chars.len().saturating_sub(2)) {
+                if chars[i] == ' ' && chars[i + 1] == ' ' && !chars[i + 2].is_whitespace() {
+                    sentence_starts.push(i + 2);
+                }
+            }
+
+            // Remove duplicates and sort
+            sentence_starts.sort();
+            sentence_starts.dedup();
+
+            // Find the sentence start to move to
+            let mut target_pos = 0;
+            for &start in sentence_starts.iter().rev() {
+                if start < current_pos {
+                    target_pos = start;
+                    break;
+                }
+            }
+
+            // Convert back to row/col coordinates
+            let mut target_row = 0;
+            let mut target_col = target_pos;
+
+            for (i, &line_start) in line_starts.iter().enumerate() {
+                if target_pos >= line_start {
+                    target_row = i;
+                    target_col = target_pos - line_start;
+                } else {
+                    break;
+                }
+            }
+
+            buffer.cursor.row = target_row;
+            buffer.cursor.col = target_col;
+        }
+        Ok(())
+    }
+
+    fn action_section_forward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let total_lines = buffer.lines.len();
+            let mut current_row = buffer.cursor.row + 1; // Start from next line
+
+            debug!("Moving to next section from line {}", buffer.cursor.row);
+
+            // Look for section markers (lines starting with specific patterns)
+            while current_row < total_lines {
+                if let Some(line) = buffer.get_line(current_row) {
+                    let trimmed = line.trim_start();
+
+                    // Check for top-level section markers (prioritize broader structures)
+                    if trimmed.starts_with("# ") ||        // Markdown header
+                       trimmed.starts_with("## ") ||       // Markdown subheader
+                       trimmed.starts_with("### ") ||      // Markdown subsubheader
+                       trimmed.starts_with("class ") ||    // Class definition
+                       trimmed.starts_with("impl ") ||     // Rust impl block
+                       trimmed.starts_with("mod ") ||      // Rust module
+                       trimmed.starts_with("pub struct ") || // Rust public struct
+                       trimmed.starts_with("struct ") ||   // Struct definition
+                       trimmed.starts_with("enum ") ||     // Enum definition
+                       trimmed.starts_with("trait ") ||    // Rust trait
+                       trimmed.starts_with("function ") || // JavaScript/TypeScript function
+                       (trimmed.starts_with("fn ") && !line.starts_with("    ")) || // Top-level Rust function (not indented)
+                       (trimmed.starts_with("pub fn ") && !line.starts_with("    ")) || // Top-level public function
+                       (trimmed.starts_with("def ") && !line.starts_with("    ")) || // Top-level Python function
+                       (line.starts_with('{') && line.trim().len() == 1)
+                    // Opening brace alone
+                    {
+                        buffer.cursor.row = current_row;
+                        buffer.cursor.col = 0;
+                        info!("Moved to next section at line {}", current_row);
+                        return Ok(());
+                    }
+                }
+                current_row += 1;
+            }
+
+            // If no section found, go to end of buffer
+            if total_lines > 0 {
+                buffer.cursor.row = total_lines - 1;
+                buffer.cursor.col = 0;
+            }
+            info!("No next section found, moved to end of buffer");
+        }
+        Ok(())
+    }
+
+    fn action_section_backward(&self, editor: &mut Editor) -> Result<()> {
+        if let Some(buffer) = editor.current_buffer_mut() {
+            let mut current_row = buffer.cursor.row;
+
+            debug!("Moving to previous section from line {}", current_row);
+
+            // Start from current line and go backwards
+            loop {
+                if current_row == 0 {
+                    // Already at start, can't go further back
+                    buffer.cursor.row = 0;
+                    buffer.cursor.col = 0;
+                    info!("Already at start of buffer");
+                    return Ok(());
+                }
+
+                current_row -= 1;
+
+                if let Some(line) = buffer.get_line(current_row) {
+                    let trimmed = line.trim_start();
+
+                    // Check for top-level section markers (prioritize broader structures)
+                    if trimmed.starts_with("# ") ||        // Markdown header
+                       trimmed.starts_with("## ") ||       // Markdown subheader
+                       trimmed.starts_with("### ") ||      // Markdown subsubheader
+                       trimmed.starts_with("class ") ||    // Class definition
+                       trimmed.starts_with("impl ") ||     // Rust impl block
+                       trimmed.starts_with("mod ") ||      // Rust module
+                       trimmed.starts_with("pub struct ") || // Rust public struct
+                       trimmed.starts_with("struct ") ||   // Struct definition
+                       trimmed.starts_with("enum ") ||     // Enum definition
+                       trimmed.starts_with("trait ") ||    // Rust trait
+                       trimmed.starts_with("function ") || // JavaScript/TypeScript function
+                       (trimmed.starts_with("fn ") && !line.starts_with("    ")) || // Top-level Rust function (not indented)
+                       (trimmed.starts_with("pub fn ") && !line.starts_with("    ")) || // Top-level public function
+                       (trimmed.starts_with("def ") && !line.starts_with("    ")) || // Top-level Python function
+                       (line.starts_with('{') && line.trim().len() == 1)
+                    // Opening brace alone
+                    {
+                        buffer.cursor.row = current_row;
+                        buffer.cursor.col = 0;
+                        info!("Moved to previous section at line {}", current_row);
+                        return Ok(());
+                    }
+                }
+            }
         }
         Ok(())
     }

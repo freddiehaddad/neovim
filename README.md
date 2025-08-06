@@ -119,6 +119,11 @@ This feature enables lightning-fast navigation within lines - essential for effi
 
 - **Insert Mode**: `i`, `I`, `a`, `A`, `o`, `O`
 - **Navigation**: `h/j/k/l`, arrow keys, `w/b/e` (word movement), `0/$` (line start/end), `gg/G` (buffer start/end)
+- **Advanced Movement**:
+  - `{`/`}` - Paragraph movement (backward/forward between empty line-separated blocks)
+  - `(`/`)` - Sentence movement (backward/forward between sentence endings: `.`, `!`, `?`)
+  - `[[`/`]]` - Section movement (backward/forward between functions, classes, headers, etc.)
+  - `%` - Bracket matching (jump between paired `()`, `[]`, `{}`, `<>`)
 - **Character Navigation**: `f{char}` (find forward), `F{char}` (find backward), `t{char}` (till forward), `T{char}` (till backward), `;` (repeat search), `,` (repeat reverse)
 - **Mode Switching**: `Esc`, `:`, `/`, `v`, `V`, `R` (replace mode)
 - **Delete Operations**: `x` (delete char), `X` (delete char before), `dd` (delete line), plus text objects (`diw`, `dap`, etc.)
@@ -133,6 +138,13 @@ This feature enables lightning-fast navigation within lines - essential for effi
 - **Paragraph Movement**:
   - `{` - Move backward to start of paragraph: Jump to the beginning of the current or previous paragraph (separated by empty lines)
   - `}` - Move forward to start of paragraph: Jump to the beginning of the next paragraph (separated by empty lines)
+- **Sentence Movement**:
+  - `(` - Move backward to previous sentence: Jump to the beginning of the current or previous sentence (separated by `.`, `!`, `?`)
+  - `)` - Move forward to next sentence: Jump to the beginning of the next sentence
+- **Section Movement**:
+  - `[[` - Move backward to previous section: Jump to previous function, class, header, or other major code structure
+  - `]]` - Move forward to next section: Jump to next function, class, header, or other major code structure
+  - Recognizes: Rust functions (`fn`), JavaScript functions (`function`), classes (`class`), structs, impl blocks, Markdown headers (`#`), and more
 - **Repeat Operations**:
   - `.` - Repeat last change: Repeats the last editing command (delete, change, insert, etc.)
 - **Copy/Paste**: `yy` (yank line), `yw` (yank word), `y$` (yank to end), plus text objects (`yiw`, `yap`, etc.), `p/P` (put after/before)
