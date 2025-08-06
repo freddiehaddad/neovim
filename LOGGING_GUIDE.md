@@ -1,4 +1,15 @@
-# Oxidized Editor - Logging Guide
+# Oxidized Editor Default Logging Behavior
+
+**The editor logs to a file by default.** When you run the editor, it automatically creates a log file named `oxidized.log` in the current working directory. All log messages are written to this file.
+
+## Debug vs Release Builds
+
+The logging behavior differs between debug and release builds:
+
+- **Debug builds** (built with `cargo build`): Enable **TRACE level logging by default** for maximum debugging information, even without setting `RUST_LOG`
+- **Release builds** (built with `cargo build --release`): Use standard env_logger behavior - no logging unless `RUST_LOG` environment variable is explicitly set
+
+This means when developing, you automatically get comprehensive logging without any configuration. - Logging Guide
 
 ## Overview
 
@@ -37,26 +48,46 @@ If you prefer to see logs in the console/terminal instead of a file, you can mod
 
 ## How to Control Log Levels
 
-You can control what level of detail is logged to the `oxidized.log` file using the `RUST_LOG` environment variable. By default, all log levels are written to the file.
+### Debug Builds
+
+Debug builds automatically enable **TRACE level logging** by default, providing comprehensive debugging information without any configuration needed. You can still override this behavior using the `RUST_LOG` environment variable if desired.
+
+### Release Builds
+
+Release builds use the standard env_logger behavior. You can control what level of detail is logged to the `oxidized.log` file using the `RUST_LOG` environment variable. Without setting `RUST_LOG`, release builds produce no log output.
 
 ### Windows (PowerShell)
 
-#### Info Level Logging (Windows Default)
+#### Debug Builds (Default: TRACE level)
+
+Debug builds automatically provide full logging without any setup:
 
 ```powershell
+# Automatically gets TRACE level logging
+.\target\debug\oxy.exe filename.txt
+```
+
+To override the default behavior in debug builds:
+
+```powershell
+# Override to info level only
 $env:RUST_LOG="info"; .\target\debug\oxy.exe filename.txt
 ```
 
-#### Debug Logging (Windows: shows key events, mode changes, etc.)
+#### Release Builds (Requires RUST_LOG)
 
 ```powershell
-$env:RUST_LOG="debug"; .\target\debug\oxy.exe filename.txt
-```
+# No logging without RUST_LOG
+.\target\release\oxy.exe filename.txt
 
-#### Trace Logging (shows everything including individual key events on Linux/macOS)
+# Info level logging  
+$env:RUST_LOG="info"; .\target\release\oxy.exe filename.txt
 
-```powershell
-$env:RUST_LOG="trace"; .\target\debug\oxy.exe filename.txt
+# Debug logging (shows key events, mode changes, etc.)
+$env:RUST_LOG="debug"; .\target\release\oxy.exe filename.txt
+
+# Trace logging (shows everything including individual key events)
+$env:RUST_LOG="trace"; .\target\release\oxy.exe filename.txt
 ```
 
 #### Module-Specific Logging (Windows)
@@ -67,22 +98,36 @@ $env:RUST_LOG="oxidized::editor=debug"; .\target\debug\oxy.exe filename.txt
 
 ### Linux/macOS (Bash)
 
-#### Info Level Logging (Default)
+#### Debug Builds (Default: TRACE level)
+
+Debug builds automatically provide full logging without any setup:
 
 ```bash
+# Automatically gets TRACE level logging
+./target/debug/oxy filename.txt
+```
+
+To override the default behavior in debug builds:
+
+```bash
+# Override to info level only
 RUST_LOG=info ./target/debug/oxy filename.txt
 ```
 
-#### Debug Logging (shows key events, mode changes, etc.)
+#### Release Builds (Requires RUST_LOG)
 
 ```bash
-RUST_LOG=debug ./target/debug/oxy filename.txt
-```
+# No logging without RUST_LOG
+./target/release/oxy filename.txt
 
-#### Trace Logging (shows everything including individual key events)
+# Info level logging
+RUST_LOG=info ./target/release/oxy filename.txt
 
-```bash
-RUST_LOG=trace ./target/debug/oxy filename.txt
+# Debug logging (shows key events, mode changes, etc.)
+RUST_LOG=debug ./target/release/oxy filename.txt
+
+# Trace logging (shows everything including individual key events)
+RUST_LOG=trace ./target/release/oxy filename.txt
 ```
 
 #### Module-Specific Logging
@@ -161,9 +206,11 @@ Enable info logging when switching/closing buffers to see buffer operations in `
 
 ## Tips for Effective Debugging
 
-1. Start with INFO level for general overview
-2. Use DEBUG level for input and mode issues  
-3. Use TRACE level only when you need to see every key event
-4. Use module-specific logging to focus on particular components
-5. Check the `oxidized.log` file in your current directory for all log output
-6. Use `tail -f oxidized.log` (Linux/macOS) or `Get-Content oxidized.log -Wait` (PowerShell) to monitor logs in real-time
+1. **For development**: Use debug builds (`cargo build`) for automatic comprehensive logging
+2. **For production**: Use release builds (`cargo build --release`) with selective `RUST_LOG` settings
+3. Start with INFO level for general overview when using release builds
+4. Use DEBUG level for input and mode issues  
+5. Use TRACE level only when you need to see every key event (automatic in debug builds)
+6. Use module-specific logging to focus on particular components (`RUST_LOG=oxidized::editor=debug`)
+7. Check the `oxidized.log` file in your current directory for all log output
+8. Use `tail -f oxidized.log` (Linux/macOS) or `Get-Content oxidized.log -Wait` (PowerShell) to monitor logs in real-time

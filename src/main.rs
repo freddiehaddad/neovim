@@ -7,7 +7,17 @@ use std::path::PathBuf;
 async fn main() -> Result<()> {
     // Initialize logging - logging to file by default
     use env_logger::Target;
-    env_logger::Builder::from_default_env()
+
+    // Configure logging based on build type
+    let mut builder = if cfg!(debug_assertions) {
+        // Debug builds: Enable trace logging by default
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
+    } else {
+        // Release builds: Use default behavior (respects RUST_LOG environment variable)
+        env_logger::Builder::from_default_env()
+    };
+
+    builder
         .target(Target::Pipe(Box::new(std::fs::File::create(
             "oxidized.log",
         )?)))

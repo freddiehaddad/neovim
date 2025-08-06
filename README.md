@@ -94,7 +94,7 @@ This editor is built with **performance as a core principle**, implementing cutt
 - **Scroll Offset**: Configurable `scroll_off` to maintain cursor distance from viewport edges
 - **Configuration Hot Reloading**: Live updates when TOML files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
-- **Comprehensive Logging**: Debug-friendly logging system with file-based output for development and troubleshooting
+- **Comprehensive Logging**: Debug-friendly logging system with automatic trace logging in debug builds and configurable levels in release builds
 - **Copy/Paste System**: Vim-compatible yank/put operations with type awareness and text object support
 - **Basic Text Operations**: Insert, delete, line breaks, word movement
 - **Cursor Movement**: hjkl movement, arrow keys, word navigation, line/buffer navigation
@@ -665,7 +665,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - **Window Resizing**: Complete window resizing system with `Ctrl+w` combinations
 - **Configuration Hot Reloading**: Live updates when TOML configuration files change
 - **Professional Terminal Behavior**: Alternate screen support for clean entry/exit
-- **Comprehensive Logging**: Debug-friendly logging system with file-based output for troubleshooting and development
+- **Comprehensive Logging**: Debug-friendly logging system with automatic trace logging in debug builds and configurable levels in release builds
 
 ## Development Roadmap
 
@@ -691,7 +691,7 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 - [x] **Viewport Centering**: Z-commands (`zz`, `zt`, `zb`) for cursor positioning in viewport
 - [x] **Scroll Offset**: Configurable `scroll_off` setting to maintain cursor distance from edges
 - [x] **Window Resizing**: Complete window resizing with `Ctrl+w >/</+/-` keybindings
-- [x] **Comprehensive Logging**: Debug-friendly logging system with file-based output for development and troubleshooting
+- [x] **Comprehensive Logging**: Debug-friendly logging system with automatic trace logging in debug builds and configurable levels in release builds
 - [x] **Text Objects**: Complete text object system (`aw`, `iw`, `ap`, quotes, brackets, tags, etc.)
 - [x] **Operators**: All operators (`d`, `c`, `y`, `>`, `<`, `~`) with text object integration and full undo support
 - [ ] Visual mode selection and operations
@@ -734,13 +734,16 @@ The `keymaps.toml` file defines mode-specific keybindings with complete customiz
 
 ## Debugging and Development
 
-The editor includes comprehensive logging for debugging and development. **By default, all logs are written to `oxidized.log` in the current directory.** See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation on log levels, file locations, and debugging techniques.
+The editor includes comprehensive logging for debugging and development. **Debug builds automatically enable full trace logging** to `oxidized.log` in the current directory, while release builds require explicit `RUST_LOG` configuration. See [LOGGING_GUIDE.md](LOGGING_GUIDE.md) for complete documentation on log levels, file locations, and debugging techniques.
 
 **Quick Start:**
 
 ```bash
-# Enable debug logging (writes to oxidized.log)
-RUST_LOG=debug cargo run filename.txt
+# Debug builds: Automatic comprehensive logging
+cargo run filename.txt  # Auto-generates detailed logs
+
+# Release builds: Requires RUST_LOG
+RUST_LOG=debug cargo run --release filename.txt
 
 # Monitor logs in real-time (Linux/macOS)
 tail -f oxidized.log
