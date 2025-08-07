@@ -291,23 +291,38 @@ impl EventDrivenEditor {
             ConfigEvent::EditorConfigChanged => {
                 if let Ok(mut editor) = self.editor.lock() {
                     editor.reload_editor_config();
-                    let _ = self
-                        .event_sender
-                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
                 }
+                // Force a full redraw for config changes by setting the flag
+                if let Ok(mut render_state) = self.last_render_state.try_lock() {
+                    render_state.needs_full_redraw = true;
+                }
+                let _ = self
+                    .event_sender
+                    .send(EditorEvent::UI(UIEvent::RedrawRequest));
             }
             ConfigEvent::KeymapConfigChanged => {
                 if let Ok(mut editor) = self.editor.lock() {
                     editor.reload_keymap_config();
                 }
+                // Force a full redraw for keymap changes
+                if let Ok(mut render_state) = self.last_render_state.try_lock() {
+                    render_state.needs_full_redraw = true;
+                }
+                let _ = self
+                    .event_sender
+                    .send(EditorEvent::UI(UIEvent::RedrawRequest));
             }
             ConfigEvent::ThemeConfigChanged => {
                 if let Ok(mut editor) = self.editor.lock() {
                     editor.reload_ui_theme();
-                    let _ = self
-                        .event_sender
-                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
                 }
+                // Force a full redraw for theme changes
+                if let Ok(mut render_state) = self.last_render_state.try_lock() {
+                    render_state.needs_full_redraw = true;
+                }
+                let _ = self
+                    .event_sender
+                    .send(EditorEvent::UI(UIEvent::RedrawRequest));
             }
             _ => {}
         }
