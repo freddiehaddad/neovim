@@ -1,5 +1,5 @@
 use anyhow::Result;
-use oxidized::Editor;
+use oxidized::{Editor, EventDrivenEditor};
 use std::env;
 use std::path::PathBuf;
 
@@ -38,8 +38,12 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Run the editor
-    editor.run()?;
+    // Create event-driven editor and run it
+    let mut event_driven_editor = EventDrivenEditor::new(editor);
+    if let Err(e) = event_driven_editor.run() {
+        eprintln!("Editor error: {}", e);
+        std::process::exit(1);
+    }
 
     Ok(())
 }

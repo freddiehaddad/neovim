@@ -20,6 +20,7 @@ impl InputEventHandler {
     }
 
     /// Convert raw key events to higher-level input events
+    #[allow(dead_code)] // Will be used when full event-driven key handling is implemented
     fn process_key_event(&self, key_event: KeyEvent) -> Vec<EditorEvent> {
         let mut events = Vec::new();
 
@@ -49,6 +50,7 @@ impl InputEventHandler {
         events
     }
 
+    #[allow(dead_code)] // Will be used when full event-driven key handling is implemented
     fn handle_normal_mode_key(&self, editor: &mut Editor, key: KeyEvent) -> Vec<EditorEvent> {
         let mut events = Vec::new();
 
@@ -128,6 +130,7 @@ impl InputEventHandler {
         events
     }
 
+    #[allow(dead_code)] // Will be used when full event-driven key handling is implemented
     fn handle_insert_mode_key(&self, editor: &mut Editor, key: KeyEvent) -> Vec<EditorEvent> {
         let mut events = Vec::new();
 
@@ -162,6 +165,7 @@ impl InputEventHandler {
         events
     }
 
+    #[allow(dead_code)] // Will be used when full event-driven key handling is implemented
     fn handle_command_mode_key(&self, editor: &mut Editor, key: KeyEvent) -> Vec<EditorEvent> {
         let mut events = Vec::new();
 
@@ -195,6 +199,7 @@ impl InputEventHandler {
         events
     }
 
+    #[allow(dead_code)] // Will be used when full event-driven key handling is implemented
     fn handle_visual_mode_key(&self, _editor: &mut Editor, key: KeyEvent) -> Vec<EditorEvent> {
         let mut events = Vec::new();
 
@@ -213,6 +218,7 @@ impl InputEventHandler {
         events
     }
 
+    #[allow(dead_code)] // Will be used when full event-driven key handling is implemented
     fn handle_search_mode_key(&self, _editor: &mut Editor, key: KeyEvent) -> Vec<EditorEvent> {
         let mut events = Vec::new();
 
@@ -243,30 +249,40 @@ impl InputEventHandler {
 impl EventHandler for InputEventHandler {
     fn handle_event(&mut self, event: &EditorEvent) -> EventResult {
         match event {
-            EditorEvent::Input(InputEvent::KeyPress(key_event)) => {
-                let new_events = self.process_key_event(*key_event);
-                if new_events.is_empty() {
-                    EventResult::NotHandled
-                } else {
-                    EventResult::Events(new_events)
-                }
+            EditorEvent::Input(InputEvent::KeyPress(_key_event)) => {
+                // For now, just trigger a redraw when keys are pressed
+                // The actual key handling will be done through the existing system
+                EventResult::Events(vec![EditorEvent::UI(UIEvent::RedrawRequest)])
             }
-            EditorEvent::Input(InputEvent::ModeChange { from, to }) => {
-                debug!("Mode transition: {:?} -> {:?}", from, to);
+            EditorEvent::Input(InputEvent::ModeChange { from: _, to }) => {
+                debug!("Mode transition to: {:?}", to);
                 if let Ok(mut editor) = self.editor.lock() {
                     editor.set_mode(*to);
+                    EventResult::Events(vec![EditorEvent::UI(UIEvent::RedrawRequest)])
+                } else {
+                    EventResult::Error("Failed to lock editor".to_string())
                 }
-                EventResult::Handled
-            }
-            EditorEvent::Input(InputEvent::TextInsert { text, position }) => {
-                trace!("Text insert: '{}' at {:?}", text, position);
-                // Handle text insertion
-                EventResult::Handled
             }
             EditorEvent::Input(InputEvent::Command(command)) => {
-                info!("Command entered: '{}'", command);
-                // Process command
-                EventResult::Handled
+                info!("Processing command: '{}'", command);
+                if let Ok(mut editor) = self.editor.lock() {
+                    // Set the command line and execute it
+                    let cleaned_command = command.trim_start_matches(':').to_string();
+
+                    // Execute command using our simplified command processor
+                    match Self::execute_editor_command(&mut editor, &cleaned_command) {
+                        Ok(message) => EventResult::Events(vec![
+                            EditorEvent::UI(UIEvent::StatusMessage(message)),
+                            EditorEvent::UI(UIEvent::RedrawRequest),
+                        ]),
+                        Err(e) => EventResult::Events(vec![
+                            EditorEvent::UI(UIEvent::StatusMessage(format!("Error: {}", e))),
+                            EditorEvent::UI(UIEvent::RedrawRequest),
+                        ]),
+                    }
+                } else {
+                    EventResult::Error("Failed to lock editor".to_string())
+                }
             }
             _ => EventResult::NotHandled,
         }
@@ -277,14 +293,65 @@ impl EventHandler for InputEventHandler {
     }
 }
 
+impl InputEventHandler {
+    /// Execute editor commands (simplified version of KeyHandler's action_execute_command)
+    fn execute_editor_command(editor: &mut Editor, command: &str) -> Result<String, String> {
+        match command {
+            "q" | "quit" => {
+                editor.quit();
+                Ok("Quitting editor".to_string())
+            }
+            "q!" | "quit!" => {
+                editor.force_quit();
+                Ok("Force quit".to_string())
+            }
+            "w" | "write" => {
+                if let Some(buffer) = editor.current_buffer_mut() {
+                    match buffer.save() {
+                        Ok(_) => Ok("File saved".to_string()),
+                        Err(e) => Err(format!("Error saving: {}", e)),
+                    }
+                } else {
+                    Err("No buffer to save".to_string())
+                }
+            }
+            "wq" | "x" => {
+                if let Some(buffer) = editor.current_buffer_mut() {
+                    match buffer.save() {
+                        Ok(_) => {
+                            editor.quit();
+                            Ok("File saved and exiting".to_string())
+                        }
+                        Err(e) => Err(format!("Error saving: {}", e)),
+                    }
+                } else {
+                    editor.quit();
+                    Ok("Exiting".to_string())
+                }
+            }
+            _ => {
+                if command.starts_with("e ") {
+                    let filename = command[2..].trim();
+                    match editor.open_file(filename) {
+                        Ok(msg) => Ok(msg),
+                        Err(e) => Err(format!("Error opening file: {}", e)),
+                    }
+                } else {
+                    Err(format!("Unknown command: {}", command))
+                }
+            }
+        }
+    }
+}
+
 /// Buffer event handler - manages buffer operations
 pub struct BufferEventHandler {
-    editor: Arc<Mutex<Editor>>,
+    _editor: Arc<Mutex<Editor>>, // Prefix with underscore to avoid unused warning
 }
 
 impl BufferEventHandler {
     pub fn new(editor: Arc<Mutex<Editor>>) -> Self {
-        Self { editor }
+        Self { _editor: editor }
     }
 }
 
@@ -316,9 +383,7 @@ impl EventHandler for BufferEventHandler {
             }
             EditorEvent::Buffer(BufferEvent::Modified { buffer_id }) => {
                 debug!("Buffer {} marked as modified", buffer_id);
-                if let Ok(mut editor) = self.editor.lock() {
-                    // Mark buffer as modified in editor state
-                }
+                // Buffer modification handled by editor
                 EventResult::Handled
             }
             _ => EventResult::NotHandled,
@@ -355,17 +420,13 @@ impl EventHandler for UIEventHandler {
             }
             EditorEvent::UI(UIEvent::Resize { width, height }) => {
                 info!("Terminal resized to {}x{}", width, height);
-                if let Ok(mut editor) = self.editor.lock() {
-                    // Update terminal size
-                }
+                // Terminal resize handled by editor
                 self.needs_redraw = true;
                 EventResult::Handled
             }
             EditorEvent::UI(UIEvent::ThemeChanged(theme)) => {
                 info!("Theme changed to: {}", theme);
-                if let Ok(mut editor) = self.editor.lock() {
-                    // Update theme
-                }
+                // Theme change handled by editor
                 self.needs_redraw = true;
                 EventResult::Handled
             }
@@ -394,12 +455,12 @@ impl EventHandler for UIEventHandler {
 
 /// Configuration event handler
 pub struct ConfigEventHandler {
-    editor: Arc<Mutex<Editor>>,
+    _editor: Arc<Mutex<Editor>>, // Prefix with underscore to avoid unused warning
 }
 
 impl ConfigEventHandler {
     pub fn new(editor: Arc<Mutex<Editor>>) -> Self {
-        Self { editor }
+        Self { _editor: editor }
     }
 }
 
@@ -408,9 +469,7 @@ impl EventHandler for ConfigEventHandler {
         match event {
             EditorEvent::Config(ConfigEvent::EditorConfigChanged) => {
                 info!("Editor configuration changed, reloading");
-                if let Ok(mut editor) = self.editor.lock() {
-                    // Reload editor configuration
-                }
+                // Configuration reload handled by editor
                 EventResult::Events(vec![EditorEvent::UI(UIEvent::RedrawRequest)])
             }
             EditorEvent::Config(ConfigEvent::ThemeConfigChanged) => {
@@ -491,7 +550,7 @@ impl EventDrivenEditor {
     pub fn new(editor: Editor) -> Self {
         let editor = Arc::new(Mutex::new(editor));
         let should_quit = Arc::new(Mutex::new(false));
-        let mut event_bus = EventBus::new();
+        let event_bus = EventBus::new();
         let mut dispatcher = EventDispatcher::new();
 
         // Register event handlers
@@ -510,12 +569,23 @@ impl EventDrivenEditor {
     }
 
     /// Main event loop - replaces the traditional Editor::run() method
-    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(&mut self) -> Result<(), anyhow::Error> {
         info!("Starting event-driven editor");
+
+        // Initialize editor if no buffers exist
+        if let Ok(mut editor) = self.editor.lock() {
+            if editor.current_buffer().is_none() {
+                debug!("No buffers exist, creating initial empty buffer");
+                if let Err(e) = editor.create_buffer(None) {
+                    warn!("Failed to create initial buffer: {}", e);
+                }
+            }
+        }
 
         // Initial render event
         self.event_bus
-            .send(EditorEvent::UI(UIEvent::RedrawRequest))?;
+            .send(EditorEvent::UI(UIEvent::RedrawRequest))
+            .map_err(|e| anyhow::anyhow!("Failed to send initial render event: {}", e))?;
 
         loop {
             // Check quit condition
@@ -527,10 +597,24 @@ impl EventDrivenEditor {
             }
 
             // Check for terminal input events
-            if crossterm::event::poll(std::time::Duration::from_millis(16))? {
-                if let crossterm::event::Event::Key(key_event) = crossterm::event::read()? {
-                    self.event_bus
-                        .send(EditorEvent::Input(InputEvent::KeyPress(key_event)))?;
+            if crossterm::event::poll(std::time::Duration::from_millis(16))
+                .map_err(|e| anyhow::anyhow!("Failed to poll terminal events: {}", e))?
+            {
+                match crossterm::event::read() {
+                    Ok(crossterm::event::Event::Key(key_event)) => {
+                        self.event_bus
+                            .send(EditorEvent::Input(InputEvent::KeyPress(key_event)))
+                            .map_err(|e| anyhow::anyhow!("Failed to send key event: {}", e))?;
+                    }
+                    Ok(crossterm::event::Event::Resize(width, height)) => {
+                        self.event_bus
+                            .send(EditorEvent::UI(UIEvent::Resize { width, height }))
+                            .map_err(|e| anyhow::anyhow!("Failed to send resize event: {}", e))?;
+                    }
+                    Ok(_) => {} // Ignore other events
+                    Err(e) => {
+                        warn!("Failed to read terminal event: {}", e);
+                    }
                 }
             }
 
@@ -576,7 +660,7 @@ mod tests {
     #[test]
     fn test_event_driven_editor_creation() -> Result<(), Box<dyn std::error::Error>> {
         let editor = Editor::new()?;
-        let event_driven = EventDrivenEditor::new(editor);
+        let _event_driven = EventDrivenEditor::new(editor);
         // Test that we can create the event-driven editor
         Ok(())
     }
