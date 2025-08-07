@@ -139,7 +139,7 @@ impl Default for EditorConfig {
                 show_line_numbers: true,
                 show_relative_numbers: false,
                 show_cursor_line: false,
-                color_scheme: "dark".to_string(), // Match the theme in themes.toml
+                color_scheme: "default".to_string(), // Match the theme in themes.toml
                 syntax_highlighting: true,
             },
             behavior: BehaviorConfig {

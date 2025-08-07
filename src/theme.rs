@@ -81,7 +81,7 @@ impl ThemeConfig {
     /// Load theme configuration from themes.toml
     /// Load theme configuration from themes.toml with fallback to editor.toml default
     pub fn load() -> Self {
-        Self::load_with_default_theme("dark") // Default fallback if editor.toml is not available
+        Self::load_with_default_theme("default") // Default fallback if editor.toml is not available
     }
 
     /// Load theme configuration with a specific default theme name

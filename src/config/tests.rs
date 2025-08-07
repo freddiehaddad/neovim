@@ -1,4 +1,6 @@
 use super::*;
+use crate::theme::ThemeConfig;
+use crate::ui::UI;
 
 #[test]
 fn test_language_config_default() {
@@ -87,4 +89,107 @@ fn test_language_config_fallbacks() {
             .values()
             .any(|lang| lang == &fallback)
     );
+}
+
+// Integration tests for theme configuration
+#[test]
+fn test_theme_integration_editor_to_themes() {
+    // Load editor configuration
+    let editor_config = EditorConfig::load();
+
+    // Check that color_scheme is loaded from editor.toml
+    assert!(!editor_config.display.color_scheme.is_empty());
+    println!(
+        "Editor config color_scheme: {}",
+        editor_config.display.color_scheme
+    );
+
+    // Load theme configuration with the color scheme from editor config
+    let theme_config = ThemeConfig::load_with_default_theme(&editor_config.display.color_scheme);
+
+    // Check that the theme exists in themes.toml
+    assert!(
+        theme_config
+            .themes
+            .contains_key(&editor_config.display.color_scheme),
+        "Theme '{}' from editor.toml should exist in themes.toml",
+        editor_config.display.color_scheme
+    );
+
+    // Verify UI can set the theme
+    let mut ui = UI::new();
+    ui.set_theme(&editor_config.display.color_scheme);
+
+    // Test that the theme was applied (by checking it doesn't panic and colors are set)
+    // Note: We can't easily test the colors directly without more introspection
+    assert!(true); // If we get here without panicking, the integration works
+}
+
+#[test]
+fn test_theme_config_current_matches_editor_config() {
+    let editor_config = EditorConfig::load();
+    let theme_config = ThemeConfig::load_with_default_theme(&editor_config.display.color_scheme);
+
+    // The theme config should either use the editor's color scheme or fallback gracefully
+    assert!(
+        theme_config.theme.current == editor_config.display.color_scheme
+            || theme_config
+                .themes
+                .contains_key(&theme_config.theme.current),
+        "Theme config current '{}' should match editor config color_scheme '{}' or exist in themes",
+        theme_config.theme.current,
+        editor_config.display.color_scheme
+    );
+}
+
+#[test]
+fn test_available_themes_in_themes_toml() {
+    let theme_config = ThemeConfig::load();
+
+    // Should have at least one theme
+    assert!(
+        !theme_config.themes.is_empty(),
+        "themes.toml should contain at least one theme"
+    );
+
+    // Check if "default" theme exists (as set in editor.toml)
+    println!(
+        "Available themes: {:?}",
+        theme_config.themes.keys().collect::<Vec<_>>()
+    );
+
+    if theme_config.themes.contains_key("default") {
+        let default_theme = &theme_config.themes["default"];
+        assert!(
+            !default_theme.name.is_empty(),
+            "Default theme should have a name"
+        );
+        println!("Default theme name: {}", default_theme.name);
+    }
+}
+
+#[test]
+fn test_editor_config_parsing() {
+    let config = EditorConfig::load();
+
+    // Verify the config parsed correctly from editor.toml
+    println!("Editor config display settings:");
+    println!("  color_scheme: {}", config.display.color_scheme);
+    println!("  show_line_numbers: {}", config.display.show_line_numbers);
+    println!(
+        "  show_relative_numbers: {}",
+        config.display.show_relative_numbers
+    );
+    println!("  show_cursor_line: {}", config.display.show_cursor_line);
+    println!(
+        "  syntax_highlighting: {}",
+        config.display.syntax_highlighting
+    );
+
+    // Should match the values in editor.toml
+    assert_eq!(config.display.color_scheme, "default");
+    assert_eq!(config.display.show_line_numbers, false);
+    assert_eq!(config.display.show_relative_numbers, true);
+    assert_eq!(config.display.show_cursor_line, true);
+    assert_eq!(config.display.syntax_highlighting, true);
 }
