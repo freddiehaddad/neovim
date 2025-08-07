@@ -1312,7 +1312,7 @@ impl Editor {
             if let Some(lang) = language {
                 log::debug!("Using language: '{}'", lang);
 
-                // Try to get cached highlights first
+                // Try to get cached highlights first - only for single line
                 if let Some(cached) =
                     highlighter.get_cached_highlights(buffer_id, line_index, text, &lang)
                 {
@@ -1320,23 +1320,15 @@ impl Editor {
                     return cached;
                 }
 
-                log::debug!("No cached highlights, getting immediate highlights");
+                log::debug!("No cached highlights, getting immediate highlights for single line");
 
-                // Get the full buffer content for proper context-aware parsing
-                let full_content = if let Some(buffer) = self.buffers.get(&buffer_id) {
-                    buffer.lines.join("\n")
-                } else {
-                    text.to_string() // Fallback to single line if buffer not found
-                };
-
-                // No cache hit - get immediate highlights for current render
+                // Only highlight the current line, not the entire file
+                // This prevents blocking the UI thread with expensive full-file parsing
                 if let Some(immediate_highlights) = highlighter
                     .force_immediate_highlights_with_context(
-                        buffer_id,
-                        line_index,
-                        &full_content,
-                        text,
-                        &lang,
+                        buffer_id, line_index,
+                        text, // Only pass the single line, not full_content
+                        text, &lang,
                     )
                 {
                     log::debug!(
@@ -1344,16 +1336,10 @@ impl Editor {
                         immediate_highlights.len()
                     );
 
-                    // Note: We don't need to request additional async highlighting here because
-                    // force_immediate_highlights_with_context already stores the result in cache
-                    // This prevents the race condition where async line-by-line highlighting
-                    // overwrites the correct full-context results
-
                     return immediate_highlights;
                 } else {
-                    log::warn!(
-                        "force_immediate_highlights returned None for language '{}'",
-                        lang
+                    log::debug!(
+                        "No immediate highlights available for line, using basic highlighting"
                     );
                 }
             } else {
