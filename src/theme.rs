@@ -1,8 +1,8 @@
+use crate::config_watcher::ConfigWatcher;
 use crossterm::style::Color;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use crate::config_watcher::ConfigWatcher;
 
 /// Complete theme configuration with UI and syntax colors
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -284,7 +284,10 @@ impl ThemeConfig {
     }
 
     /// Check for theme file changes using the provided watcher and reload if necessary
-    pub fn check_and_reload(&mut self, watcher: &ConfigWatcher) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn check_and_reload(
+        &mut self,
+        watcher: &ConfigWatcher,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         log::trace!("Checking for theme file changes...");
         if watcher.check_for_theme_changes() {
             log::debug!("Theme changes detected, reloading...");

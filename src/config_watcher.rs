@@ -15,7 +15,7 @@ impl ConfigChangeEvent {
     pub fn filename(&self) -> &'static str {
         match self {
             ConfigChangeEvent::EditorConfigChanged => "editor.toml",
-            ConfigChangeEvent::KeymapConfigChanged => "keymaps.toml", 
+            ConfigChangeEvent::KeymapConfigChanged => "keymaps.toml",
             ConfigChangeEvent::ThemeConfigChanged => "themes.toml",
         }
     }
@@ -62,7 +62,10 @@ impl ConfigWatcher {
                                         let _ = tx.send(ConfigChangeEvent::ThemeConfigChanged);
                                     }
                                     _ => {
-                                        log::trace!("Ignoring modification of file: {:?}", file_name);
+                                        log::trace!(
+                                            "Ignoring modification of file: {:?}",
+                                            file_name
+                                        );
                                     }
                                 }
                             }
@@ -80,9 +83,9 @@ impl ConfigWatcher {
         let editor_config_path = Path::new("editor.toml");
         let keymap_config_path = Path::new("keymaps.toml");
         let themes_config_path = Path::new("themes.toml");
-        
+
         let mut watched_files = 0;
-        
+
         // Only watch files that exist to avoid errors
         if editor_config_path.exists() {
             watcher.watch(editor_config_path, RecursiveMode::NonRecursive)?;
@@ -99,8 +102,11 @@ impl ConfigWatcher {
             log::info!("Watching themes config at: {:?}", themes_config_path);
             watched_files += 1;
         }
-        
-        log::info!("Config watcher initialized, watching {} config files", watched_files);
+
+        log::info!(
+            "Config watcher initialized, watching {} config files",
+            watched_files
+        );
 
         Ok(watcher)
     }
@@ -145,7 +151,7 @@ impl ConfigWatcher {
             Ok(event) => {
                 log::debug!("Config change detected: {:?}", event);
                 Some(event)
-            },
+            }
             Err(_) => None,
         }
     }
