@@ -101,6 +101,7 @@ error = "#f85149"               # Red error
 ";" = "#79c0ff"  # Semicolon
 "," = "#6e7681"  # Comma (muted)
 "." = "#ffa657"  # Dot (orange for field access)
+":" = "#f0883e"  # Colon (orange for type annotations)
 "::" = "#d2a8ff" # Path separator (purple)
 "(" = "#c9d1d9"  # Parentheses (light gray)
 ")" = "#c9d1d9"

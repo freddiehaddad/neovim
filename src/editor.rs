@@ -213,6 +213,9 @@ impl Editor {
     pub fn run(&mut self) -> Result<()> {
         info!("Starting editor main loop");
 
+        // Clear syntax highlighting cache to ensure fresh highlighting
+        self.clear_syntax_cache();
+
         // Create an initial buffer if none exists
         if self.buffers.is_empty() {
             debug!("No buffers exist, creating initial empty buffer");
@@ -232,7 +235,11 @@ impl Editor {
             let input_handled = self.handle_input()?;
 
             // Re-render if we processed input OR if syntax highlighting completed
-            if input_handled || self.needs_syntax_refresh.load(Ordering::Relaxed) {
+            let needs_refresh = self.needs_syntax_refresh.load(Ordering::Relaxed);
+            if input_handled || needs_refresh {
+                if needs_refresh {
+                    debug!("Syntax refresh needed, triggering render");
+                }
                 trace!("Input handled or syntax refresh needed, triggering render");
                 self.render()?;
                 self.last_render_time = Instant::now();
@@ -274,6 +281,7 @@ impl Editor {
         }
 
         // Request syntax highlighting for newly opened buffer
+        self.clear_syntax_cache(); // Force fresh highlighting
         self.request_visible_line_highlighting();
 
         Ok(id)
@@ -1300,29 +1308,32 @@ impl Editor {
 
                 log::debug!("No cached highlights, getting immediate highlights");
 
-                // No cache hit - get immediate highlights for current render, then request async for future
-                if let Some(immediate_highlights) =
-                    highlighter.force_immediate_highlights(buffer_id, line_index, text, &lang)
+                // Get the full buffer content for proper context-aware parsing
+                let full_content = if let Some(buffer) = self.buffers.get(&buffer_id) {
+                    buffer.lines.join("\n")
+                } else {
+                    text.to_string() // Fallback to single line if buffer not found
+                };
+
+                // No cache hit - get immediate highlights for current render
+                if let Some(immediate_highlights) = highlighter
+                    .force_immediate_highlights_with_context(
+                        buffer_id,
+                        line_index,
+                        &full_content,
+                        text,
+                        &lang,
+                    )
                 {
                     log::debug!(
                         "Got immediate highlights: {} items",
                         immediate_highlights.len()
                     );
 
-                    // Also request async highlighting with UI refresh callback for future renders
-                    let refresh_flag = Arc::clone(&self.needs_syntax_refresh);
-                    let ui_callback = Box::new(move |_buffer_id: usize, _line_index: usize| {
-                        refresh_flag.store(true, Ordering::Relaxed);
-                    });
-
-                    let _ = highlighter.request_highlighting_with_callback(
-                        buffer_id,
-                        line_index,
-                        text.to_string(),
-                        lang,
-                        Priority::Medium, // Lower priority since we have immediate results
-                        Some(ui_callback),
-                    );
+                    // Note: We don't need to request additional async highlighting here because
+                    // force_immediate_highlights_with_context already stores the result in cache
+                    // This prevents the race condition where async line-by-line highlighting
+                    // overwrites the correct full-context results
 
                     return immediate_highlights;
                 } else {
@@ -1344,7 +1355,7 @@ impl Editor {
     }
 
     /// Request syntax highlighting for all visible lines in current window
-    /// Uses immediate highlighting for currently visible lines and async for buffer lines
+    /// Uses full-file context for proper tree-sitter parsing
     pub fn request_visible_line_highlighting(&mut self) {
         if let Some(highlighter) = &mut self.async_syntax_highlighter {
             if let Some(window) = self.window_manager.current_window() {
@@ -1376,32 +1387,45 @@ impl Editor {
                                 .or_else(|| self.config.languages.get_fallback_language())
                                 .unwrap_or_else(|| "text".to_string()); // Ultimate fallback
 
-                            // Use async highlighting for all lines with appropriate priorities
+                            // Get full buffer content for proper context-aware parsing
+                            let full_content = buffer.lines.join("\n");
 
-                            // Request high priority highlighting for currently visible lines
+                            // Use full-file context highlighting for all visible lines
                             for line_index in visible_start..visible_end {
                                 if let Some(line) = buffer.get_line(line_index) {
-                                    let _ = highlighter.request_highlighting(
-                                        buffer_id,
-                                        line_index,
-                                        line.to_string(),
-                                        language.to_string(),
-                                        Priority::High,
-                                    );
+                                    // Use force_immediate_highlights_with_context to get proper full-file parsing
+                                    if let Some(_highlights) = highlighter
+                                        .force_immediate_highlights_with_context(
+                                            buffer_id,
+                                            line_index,
+                                            &full_content,
+                                            line,
+                                            &language,
+                                        )
+                                    {
+                                        // Results are automatically cached, no additional async request needed
+                                        log::trace!(
+                                            "Cached full-context highlights for buffer {} line {}",
+                                            buffer_id,
+                                            line_index
+                                        );
+                                    }
                                 }
                             }
 
-                            // Use medium priority async highlighting for buffer lines beyond visible area
+                            // Also cache highlights for buffer lines beyond visible area for smooth scrolling
                             for line_index in highlight_start..highlight_end {
                                 if line_index < visible_start || line_index >= visible_end {
                                     if let Some(line) = buffer.get_line(line_index) {
-                                        let _ = highlighter.request_highlighting(
-                                            buffer_id,
-                                            line_index,
-                                            line.to_string(),
-                                            language.to_string(),
-                                            Priority::Medium,
-                                        );
+                                        // Use full-file context for buffer lines too
+                                        let _ = highlighter
+                                            .force_immediate_highlights_with_context(
+                                                buffer_id,
+                                                line_index,
+                                                &full_content,
+                                                line,
+                                                &language,
+                                            );
                                     }
                                 }
                             }

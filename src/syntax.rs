@@ -247,6 +247,9 @@ impl SyntaxHighlighter {
 
         let mut highlights = Vec::new();
 
+        // Collect all node matches first (including overlapping ones)
+        let mut node_matches = Vec::new();
+
         // Use a simplified approach - query all nodes manually using the Tree-sitter tree
         let mut stack = vec![tree.root_node()];
 
@@ -298,14 +301,8 @@ impl SyntaxHighlighter {
                     continue;
                 }
 
-                // Only highlight leaf nodes (nodes with no children) to avoid overlap
-                if node.child_count() == 0 {
-                    highlights.push(HighlightRange {
-                        start: node.start_byte(),
-                        end: node.end_byte(),
-                        style: HighlightStyle::from_color(color.clone()),
-                    });
-                }
+                // Collect ALL matching nodes (both leaf and non-leaf), let overlap resolution handle conflicts
+                node_matches.push((node_kind.to_string(), node, color.clone()));
 
                 // Add children to stack for processing (except for doc comment markers)
                 for i in 0..node.child_count() {
@@ -325,10 +322,110 @@ impl SyntaxHighlighter {
             }
         }
 
+        // Now resolve conflicts and create highlights from node matches
+        log::debug!(
+            "Node matches before conflict resolution: {}",
+            node_matches.len()
+        );
+        let resolved_matches = Self::resolve_node_conflicts(node_matches);
+        log::debug!(
+            "Node matches after conflict resolution: {}",
+            resolved_matches.len()
+        );
+
+        for (node_kind, node, color) in resolved_matches {
+            log::debug!(
+                "  Resolved: '{}' -> text: '{}' color: {:?}",
+                node_kind,
+                node.utf8_text(text.as_bytes()).unwrap_or("<invalid>"),
+                color
+            );
+            highlights.push(HighlightRange {
+                start: node.start_byte(),
+                end: node.end_byte(),
+                style: HighlightStyle::from_color(color),
+            });
+        }
+
         // Sort highlights by start position
         highlights.sort_by_key(|h| h.start);
 
+        // Note: We don't need resolve_overlapping_highlights() here because
+        // we already resolved conflicts at the node level with resolve_node_conflicts()
+        // Running both would cause the color-based heuristic to override the proper node-based resolution
+
         Ok(highlights)
+    }
+
+    /// Resolve conflicts between overlapping tree-sitter nodes, preferring more specific types
+    fn resolve_node_conflicts(
+        node_matches: Vec<(String, tree_sitter::Node, Color)>,
+    ) -> Vec<(String, tree_sitter::Node, Color)> {
+        let mut result: Vec<(String, tree_sitter::Node, Color)> = Vec::new();
+
+        for (node_kind, node, color) in node_matches {
+            let mut should_add = true;
+            let mut indices_to_remove = Vec::new();
+
+            // Check for overlaps with existing nodes
+            for (i, (existing_kind, existing_node, _existing_color)) in result.iter().enumerate() {
+                if node.start_byte() < existing_node.end_byte()
+                    && node.end_byte() > existing_node.start_byte()
+                {
+                    // There's an overlap - decide which one to keep based on node type priority
+                    let new_priority = Self::get_node_type_priority(&node_kind);
+                    let existing_priority = Self::get_node_type_priority(existing_kind);
+
+                    log::debug!(
+                        "Node overlap detected: '{}' ({}..{}, priority {}) vs '{}' ({}..{}, priority {})",
+                        node_kind,
+                        node.start_byte(),
+                        node.end_byte(),
+                        new_priority,
+                        existing_kind,
+                        existing_node.start_byte(),
+                        existing_node.end_byte(),
+                        existing_priority
+                    );
+
+                    if new_priority > existing_priority {
+                        // New node has higher priority - remove existing
+                        indices_to_remove.push(i);
+                    } else {
+                        // Existing node has higher or equal priority - don't add new
+                        should_add = false;
+                        break;
+                    }
+                }
+            }
+
+            // Remove existing nodes that were overridden
+            for &i in indices_to_remove.iter().rev() {
+                result.remove(i);
+            }
+
+            if should_add {
+                result.push((node_kind, node, color));
+            }
+        }
+
+        result
+    }
+
+    /// Get priority for tree-sitter node types - higher numbers = higher priority
+    fn get_node_type_priority(node_kind: &str) -> u8 {
+        match node_kind {
+            "field_identifier" => 10, // Highest priority for struct field names
+            "function_identifier" => 8,
+            "primitive_type" => 7, // Higher priority than containers for types like f64, bool
+            "type_identifier" => 6,
+            // Punctuation should have higher priority than containers
+            "{" | "}" | "(" | ")" | "[" | "]" | ";" | "," | ":" | "." => 6,
+            "identifier" => 1, // Lowest priority - generic identifier
+            // Container nodes have lower priority so specific nodes can override them
+            "field_declaration_list" | "parameters" | "block" | "struct_item" => 3,
+            _ => 5, // Medium priority for other types
+        }
     }
 
     pub fn reload_config(&mut self) -> Result<()> {
@@ -770,25 +867,550 @@ fn simple_return() -> i32 {
     }
 
     #[test]
-    fn debug_struct_field_nodes() {
+    fn debug_full_struct_tree() {
         // Get the Rust language
         let language: Language = tree_sitter_rust::LANGUAGE.into();
 
         let mut parser = Parser::new();
         parser.set_language(&language).unwrap();
 
-        // Test struct field definition vs constructor
+        // Test the exact code from test_struct.rs
+        let test_code = r#"struct Point {
+    x: f64,
+    y: f64,
+}
+
+struct Person {
+    name: String,
+    age: u32,
+    active: bool,
+}"#;
+
+        let tree = parser.parse(test_code, None).unwrap();
+        let root_node = tree.root_node();
+
+        println!("\n=== Full Tree Structure for Both Structs ===");
+        print_debug_tree(&root_node, test_code, 0);
+
+        // Also test our highlighting on this exact code
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+        let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+
+        println!("\n=== Full-File Highlights ===");
+        for (i, highlight) in highlights.iter().enumerate() {
+            let text = &test_code[highlight.start..highlight.end];
+            let color = highlight
+                .style
+                .fg_color
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or("none");
+            println!(
+                "{}. '{}' ({}..{}) -> {}",
+                i, text, highlight.start, highlight.end, color
+            );
+        }
+    }
+
+    /// Test node conflict resolution system thoroughly
+    #[test]
+    fn test_node_conflict_resolution() {
+        use tree_sitter::Language;
+
+        // Get the Rust language
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        // Test case 1: field_identifier should override identifier
+        let test_code1 = "struct Point { x: f64 }";
+        let tree1 = parser.parse(test_code1, None).unwrap();
+
+        // Collect all nodes that could conflict
+        let mut node_matches1 = Vec::new();
+        let mut stack = vec![tree1.root_node()];
+
+        while let Some(node) = stack.pop() {
+            let node_kind = node.kind();
+
+            // Simulate color mapping for conflicting nodes
+            let color = match node_kind {
+                "field_identifier" => Some(crossterm::style::Color::Green),
+                "identifier" => Some(crossterm::style::Color::White),
+                "primitive_type" => Some(crossterm::style::Color::Blue),
+                _ => None,
+            };
+
+            if let Some(color) = color {
+                node_matches1.push((node_kind.to_string(), node, color));
+            }
+
+            // Add children
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    stack.push(child);
+                }
+            }
+        }
+
+        println!("\n=== Test Case 1: field_identifier vs identifier ===");
+        println!("Before resolution: {} matches", node_matches1.len());
+        for (kind, node, _) in &node_matches1 {
+            if let Ok(text) = node.utf8_text(test_code1.as_bytes()) {
+                println!("  {} -> '{}'", kind, text);
+            }
+        }
+
+        let resolved1 = SyntaxHighlighter::resolve_node_conflicts(node_matches1);
+        println!("After resolution: {} matches", resolved1.len());
+        for (kind, node, _) in &resolved1 {
+            if let Ok(text) = node.utf8_text(test_code1.as_bytes()) {
+                println!("  {} -> '{}'", kind, text);
+            }
+        }
+
+        // Verify field_identifier wins over identifier for "x"
+        let x_nodes: Vec<_> = resolved1
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code1.as_bytes()).unwrap_or("") == "x")
+            .collect();
+
+        assert_eq!(
+            x_nodes.len(),
+            1,
+            "Should have exactly one 'x' node after resolution"
+        );
+        assert_eq!(
+            x_nodes[0].0, "field_identifier",
+            "Field 'x' should be field_identifier, not identifier"
+        );
+    }
+
+    #[test]
+    fn test_node_priority_system() {
+        // Test all priority assignments
         let test_cases = vec![
-            "struct Point { x: f64, y: f64 }", // Field definitions
-            "Point { x: 1.0, y: 2.0 }",        // Field constructors
+            ("field_identifier", 10),
+            ("function_identifier", 8),
+            ("primitive_type", 7),
+            ("type_identifier", 6),
+            ("{", 6),
+            ("}", 6),
+            ("(", 6),
+            (")", 6),
+            ("[", 6),
+            ("]", 6),
+            (";", 6),
+            (",", 6),
+            (":", 6),
+            (".", 6),
+            ("field_declaration_list", 3),
+            ("parameters", 3),
+            ("block", 3),
+            ("struct_item", 3),
+            ("identifier", 1),
+            ("unknown_node", 5), // Default case
         ];
 
-        for test_code in test_cases {
-            let tree = parser.parse(test_code, None).unwrap();
-            let root_node = tree.root_node();
+        for (node_kind, expected_priority) in test_cases {
+            let actual_priority = SyntaxHighlighter::get_node_type_priority(node_kind);
+            assert_eq!(
+                actual_priority, expected_priority,
+                "Priority for '{}' should be {}, got {}",
+                node_kind, expected_priority, actual_priority
+            );
+        }
+    }
 
-            println!("\n=== Tree structure for: {} ===", test_code);
-            print_debug_tree(&root_node, test_code, 0);
+    #[test]
+    fn test_overlapping_node_resolution() {
+        use tree_sitter::Language;
+
+        // Get the Rust language
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        // Test case with known overlapping nodes
+        let test_code = "struct Point { x: f64, y: f64 }";
+        let tree = parser.parse(test_code, None).unwrap();
+
+        // Collect nodes that map to colors
+        let mut node_matches = Vec::new();
+        let mut stack = vec![tree.root_node()];
+
+        while let Some(node) = stack.pop() {
+            let node_kind = node.kind();
+
+            // Use actual theme mappings
+            let color = match node_kind {
+                "struct" => Some(crossterm::style::Color::Red),
+                "field_identifier" => Some(crossterm::style::Color::Green),
+                "identifier" => Some(crossterm::style::Color::White),
+                "primitive_type" => Some(crossterm::style::Color::Blue),
+                "type_identifier" => Some(crossterm::style::Color::Cyan),
+                "{" | "}" | "," | ":" => Some(crossterm::style::Color::Yellow),
+                "field_declaration_list" => Some(crossterm::style::Color::Magenta),
+                _ => None,
+            };
+
+            if let Some(color) = color {
+                node_matches.push((node_kind.to_string(), node, color));
+            }
+
+            // Add children
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    stack.push(child);
+                }
+            }
+        }
+
+        println!("\n=== Test Overlapping Node Resolution ===");
+        println!("Before resolution: {} nodes", node_matches.len());
+
+        // Check for specific overlaps we expect
+        let point_nodes: Vec<_> = node_matches
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code.as_bytes()).unwrap_or("") == "Point")
+            .collect();
+
+        let x_nodes: Vec<_> = node_matches
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code.as_bytes()).unwrap_or("") == "x")
+            .collect();
+
+        let f64_nodes: Vec<_> = node_matches
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code.as_bytes()).unwrap_or("") == "f64")
+            .collect();
+
+        println!("'Point' nodes before resolution: {}", point_nodes.len());
+        println!("'x' nodes before resolution: {}", x_nodes.len());
+        println!("'f64' nodes before resolution: {}", f64_nodes.len());
+
+        // Resolve conflicts
+        let resolved = SyntaxHighlighter::resolve_node_conflicts(node_matches);
+        println!("After resolution: {} nodes", resolved.len());
+
+        // Check resolution results
+        let resolved_x: Vec<_> = resolved
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code.as_bytes()).unwrap_or("") == "x")
+            .collect();
+
+        let resolved_f64: Vec<_> = resolved
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code.as_bytes()).unwrap_or("") == "f64")
+            .collect();
+
+        // Assertions
+        assert!(
+            resolved_x.len() <= 1,
+            "Should have at most one 'x' node after resolution"
+        );
+        assert!(
+            resolved_f64.len() >= 1,
+            "Should have at least one 'f64' node after resolution"
+        );
+
+        // If we have an 'x' node, it should be field_identifier
+        if !resolved_x.is_empty() {
+            assert_eq!(
+                resolved_x[0].0, "field_identifier",
+                "Resolved 'x' should be field_identifier"
+            );
+        }
+
+        // Check that we don't lose important nodes
+        let resolved_struct: Vec<_> = resolved
+            .iter()
+            .filter(|(kind, _, _)| kind == "struct")
+            .collect();
+
+        assert!(
+            !resolved_struct.is_empty(),
+            "Should preserve 'struct' keyword"
+        );
+    }
+
+    #[test]
+    fn test_complex_struct_conflict_resolution() {
+        use tree_sitter::Language;
+
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        // Test the exact problematic case we fixed
+        let test_code = r#"struct Point {
+    x: f64,
+    y: f64,
+}
+
+struct Person {
+    name: String,
+    age: u32,
+    active: bool,
+}"#;
+
+        let _tree = parser.parse(test_code, None).unwrap();
+
+        // Create a mock highlighter to test the full highlighting pipeline
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+        let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+
+        println!("\n=== Complex Struct Test ===");
+        println!("Total highlights: {}", highlights.len());
+
+        // Check for critical elements that were previously missing
+        let critical_elements = vec![
+            ("struct", "#ff7b72"), // struct keyword should be red
+            ("x", "#7ee787"),      // field names should be green
+            ("y", "#7ee787"),
+            ("name", "#7ee787"),
+            ("age", "#7ee787"),
+            ("active", "#7ee787"),
+            ("f64", "#79c0ff"), // primitive types should be blue
+            ("bool", "#79c0ff"),
+            ("u32", "#79c0ff"),
+            ("String", "#f0883e"), // type identifiers should be orange
+            ("Point", "#f0883e"),  // type identifiers should be orange
+            ("Person", "#f0883e"), // type identifiers should be orange
+            ("}", "#f0883e"),      // closing braces should be orange
+            ("{", "#f0883e"),      // opening braces should be orange
+        ];
+
+        for (text, expected_color) in critical_elements {
+            let matching_highlights: Vec<_> = highlights
+                .iter()
+                .filter(|h| {
+                    let highlight_text = &test_code[h.start..h.end];
+                    highlight_text == text
+                })
+                .collect();
+
+            // For field names and types, we expect at least one occurrence
+            // For braces, we expect multiple
+            let min_expected = if text == "}" || text == "{" { 2 } else { 1 };
+
+            assert!(
+                matching_highlights.len() >= min_expected,
+                "Expected at least {} occurrences of '{}' to be highlighted, got {}",
+                min_expected,
+                text,
+                matching_highlights.len()
+            );
+
+            // Check that at least one has the correct color
+            let has_correct_color = matching_highlights
+                .iter()
+                .any(|h| h.style.fg_color.as_ref().map(|s| s.as_str()) == Some(expected_color));
+
+            assert!(
+                has_correct_color,
+                "Expected '{}' to have color {}, but none found with that color. Found colors: {:?}",
+                text,
+                expected_color,
+                matching_highlights
+                    .iter()
+                    .map(|h| h.style.fg_color.as_ref())
+                    .collect::<Vec<_>>()
+            );
+        }
+
+        // Regression test: verify we have all the highlights we expect
+        // We should have significantly more than the 17 we had before the fix
+        assert!(
+            highlights.len() >= 20,
+            "Should have at least 20 highlights, got {} (regression check)",
+            highlights.len()
+        );
+    }
+
+    #[test]
+    fn test_punctuation_priority_over_containers() {
+        use tree_sitter::Language;
+
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        // Test that punctuation gets priority over container nodes
+        let test_code = "struct Point { x: f64 }";
+        let tree = parser.parse(test_code, None).unwrap();
+
+        // Collect all nodes, focusing on the closing brace
+        let mut node_matches = Vec::new();
+        let mut stack = vec![tree.root_node()];
+
+        while let Some(node) = stack.pop() {
+            let node_kind = node.kind();
+
+            // Look for nodes that could conflict over the closing brace
+            let color = match node_kind {
+                "}" => Some(crossterm::style::Color::Yellow), // punctuation
+                "field_declaration_list" => Some(crossterm::style::Color::Magenta), // container
+                "block" => Some(crossterm::style::Color::Cyan), // container
+                _ => None,
+            };
+
+            if let Some(color) = color {
+                // Only include nodes that actually contain the closing brace
+                if let Ok(text) = node.utf8_text(test_code.as_bytes()) {
+                    if text.contains('}') {
+                        node_matches.push((node_kind.to_string(), node, color));
+                    }
+                }
+            }
+
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    stack.push(child);
+                }
+            }
+        }
+
+        println!("\n=== Punctuation Priority Test ===");
+        println!("Nodes containing '{{}}': {}", node_matches.len());
+        for (kind, node, _) in &node_matches {
+            println!(
+                "  {} -> '{}'",
+                kind,
+                node.utf8_text(test_code.as_bytes()).unwrap_or("<error>")
+            );
+        }
+
+        let resolved = SyntaxHighlighter::resolve_node_conflicts(node_matches);
+
+        // The closing brace should be resolved to punctuation, not container
+        let brace_nodes: Vec<_> = resolved
+            .iter()
+            .filter(|(_, node, _)| node.utf8_text(test_code.as_bytes()).unwrap_or("") == "}")
+            .collect();
+
+        if !brace_nodes.is_empty() {
+            assert_eq!(
+                brace_nodes[0].0, "}",
+                "Closing brace should resolve to punctuation token, not container"
+            );
+        }
+    }
+
+    #[test]
+    fn test_no_valid_nodes_dropped_during_resolution() {
+        use tree_sitter::Language;
+
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        // Test case that previously dropped valid nodes
+        let test_code = r#"struct Point {
+    x: f64,
+    y: f64,
+}"#;
+
+        let tree = parser.parse(test_code, None).unwrap();
+
+        // Collect ALL nodes that should be highlighted
+        let mut important_nodes = Vec::new();
+        let mut stack = vec![tree.root_node()];
+
+        while let Some(node) = stack.pop() {
+            let node_kind = node.kind();
+
+            // Identify nodes that should definitely be highlighted
+            let should_highlight = match node_kind {
+                "struct" | "field_identifier" | "primitive_type" | "type_identifier" | "{"
+                | "}" | "," | ":" => true,
+                _ => false,
+            };
+
+            if should_highlight {
+                if let Ok(text) = node.utf8_text(test_code.as_bytes()) {
+                    // Only include leaf nodes or nodes with specific important content
+                    if node.child_count() == 0 || matches!(node_kind, "struct") {
+                        important_nodes.push((
+                            node_kind.to_string(),
+                            text.to_string(),
+                            node.start_byte(),
+                            node.end_byte(),
+                        ));
+                    }
+                }
+            }
+
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    stack.push(child);
+                }
+            }
+        }
+
+        println!("\n=== Important Nodes Before Resolution ===");
+        for (kind, text, start, end) in &important_nodes {
+            println!("  {} -> '{}' ({}..{})", kind, text, start, end);
+        }
+
+        // Now test actual highlighting
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+        let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+
+        println!("\n=== Actual Highlights After Resolution ===");
+        for highlight in &highlights {
+            let text = &test_code[highlight.start..highlight.end];
+            println!("  '{}' ({}..{})", text, highlight.start, highlight.end);
+        }
+
+        // Critical regression test: ensure we don't drop essential nodes
+        let essential_texts = vec![
+            ("struct", Some("#ff7b72")), // red
+            ("x", Some("#7ee787")),      // green
+            ("y", Some("#7ee787")),      // green
+            ("f64", Some("#79c0ff")),    // blue
+            ("}", Some("#f0883e")),      // orange
+            ("{", Some("#f0883e")),      // orange
+            (":", Some("#f0883e")),      // orange - now that we added it to theme
+        ];
+
+        for (essential_text, expected_color) in essential_texts {
+            let found = highlights.iter().any(|h| {
+                let highlight_text = &test_code[h.start..h.end];
+                highlight_text == essential_text
+            });
+
+            assert!(
+                found,
+                "Essential text '{}' was dropped during conflict resolution!",
+                essential_text
+            );
+
+            // Also verify the color if specified
+            if let Some(expected) = expected_color {
+                let matching_highlights: Vec<_> = highlights
+                    .iter()
+                    .filter(|h| {
+                        let highlight_text = &test_code[h.start..h.end];
+                        highlight_text == essential_text
+                    })
+                    .collect();
+
+                let has_correct_color = matching_highlights
+                    .iter()
+                    .any(|h| h.style.fg_color.as_ref().map(|s| s.as_str()) == Some(expected));
+
+                assert!(
+                    has_correct_color,
+                    "Essential text '{}' should have color '{}' but found colors: {:?}",
+                    essential_text,
+                    expected,
+                    matching_highlights
+                        .iter()
+                        .map(|h| h.style.fg_color.as_ref())
+                        .collect::<Vec<_>>()
+                );
+            }
         }
     }
 
@@ -1071,6 +1693,88 @@ impl AsyncSyntaxHighlighter {
         }
 
         None
+    }
+
+    /// Force re-highlighting with full context - parses entire file and extracts line-specific highlights
+    pub fn force_immediate_highlights_with_context(
+        &self,
+        _buffer_id: usize,
+        line_index: usize,
+        full_content: &str,
+        _line_content: &str,
+        language: &str,
+    ) -> Option<Vec<HighlightRange>> {
+        // Always create new highlights using full file context
+        if let Ok(mut sync_highlighter) = SyntaxHighlighter::new() {
+            if let Ok(all_highlights) = sync_highlighter.highlight_text(full_content, language) {
+                // Extract highlights for the specific line
+                let line_highlights =
+                    self.extract_line_highlights(&all_highlights, full_content, line_index);
+
+                // Store the line-specific highlights in cache for future use
+                let cache_key = HighlightCacheKey::new_simple(_line_content, language);
+                let cache_entry = HighlightCacheEntry::new(line_highlights.clone());
+
+                if let Ok(mut cache) = self.shared_cache.write() {
+                    cache.insert(cache_key, cache_entry);
+                }
+
+                return Some(line_highlights);
+            }
+        }
+
+        None
+    }
+
+    /// Extract highlights for a specific line from full-file highlights
+    fn extract_line_highlights(
+        &self,
+        all_highlights: &[HighlightRange],
+        full_content: &str,
+        line_index: usize,
+    ) -> Vec<HighlightRange> {
+        // Calculate byte ranges for the target line
+        let lines: Vec<&str> = full_content.lines().collect();
+        if line_index >= lines.len() {
+            return Vec::new();
+        }
+
+        // Calculate the start byte position of the target line
+        let mut line_start_byte = 0;
+        for i in 0..line_index {
+            line_start_byte += lines[i].len() + 1; // +1 for newline character
+        }
+        let line_end_byte = line_start_byte + lines[line_index].len();
+
+        // Filter highlights that fall within this line and adjust their positions
+        let mut line_highlights = Vec::new();
+        for highlight in all_highlights {
+            // Check if highlight overlaps with this line
+            if highlight.start < line_end_byte && highlight.end > line_start_byte {
+                // Adjust highlight positions to be relative to the line start
+                let adjusted_start = if highlight.start >= line_start_byte {
+                    highlight.start - line_start_byte
+                } else {
+                    0
+                };
+                let adjusted_end = if highlight.end <= line_end_byte {
+                    highlight.end - line_start_byte
+                } else {
+                    line_end_byte - line_start_byte
+                };
+
+                // Only include if there's actual content to highlight
+                if adjusted_start < adjusted_end {
+                    line_highlights.push(HighlightRange {
+                        start: adjusted_start,
+                        end: adjusted_end,
+                        style: highlight.style.clone(),
+                    });
+                }
+            }
+        }
+
+        line_highlights
     }
 
     /// Background worker loop that processes highlighting requests

@@ -215,12 +215,29 @@ impl UI {
                 let content_rendered = if let Some(highlights) =
                     editor_state.syntax_highlights.get(&(buffer.id, buffer_row))
                 {
-                    debug!(
-                        "Rendering highlighted line {}: {} highlights for '{}'",
-                        buffer_row,
-                        highlights.len(),
-                        line.chars().take(50).collect::<String>()
-                    );
+                    // Debug: Show we have highlights
+                    if log::log_enabled!(log::Level::Debug) && highlights.len() > 0 {
+                        debug!(
+                            "UI: Rendering line {} with {} highlights: '{}'",
+                            buffer_row,
+                            highlights.len(),
+                            line.chars().take(30).collect::<String>()
+                        );
+
+                        // Show what's actually being highlighted
+                        for (i, highlight) in highlights.iter().enumerate() {
+                            let highlighted_text = &line
+                                [highlight.start.min(line.len())..highlight.end.min(line.len())];
+                            debug!(
+                                "  Highlight {}: '{}' ({}-{}) color: {:?}",
+                                i,
+                                highlighted_text,
+                                highlight.start,
+                                highlight.end,
+                                highlight.style.fg_color
+                            );
+                        }
+                    }
                     self.render_highlighted_line(
                         terminal,
                         line,
@@ -229,11 +246,15 @@ impl UI {
                         is_cursor_line,
                     )?
                 } else {
-                    debug!(
-                        "No syntax highlights for line {} ('{}')",
-                        buffer_row,
-                        line.chars().take(50).collect::<String>()
-                    );
+                    // Debug: Show we're missing highlights
+                    if log::log_enabled!(log::Level::Debug) {
+                        debug!(
+                            "UI: No highlights for line {} (buffer {}): '{}'",
+                            buffer_row,
+                            buffer.id,
+                            line.chars().take(30).collect::<String>()
+                        );
+                    }
                     // Render line without syntax highlighting - use theme's default text color
                     terminal.queue_set_fg_color(self.syntax_theme.get_default_text_color())?;
                     let display_line = if line.len() > text_width {
