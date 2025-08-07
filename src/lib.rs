@@ -4,6 +4,8 @@ pub mod completion;
 pub mod config;
 pub mod config_watcher;
 pub mod editor;
+pub mod event;
+pub mod event_driven;
 pub mod file;
 pub mod keymap;
 pub mod lsp;
@@ -19,5 +21,7 @@ pub mod window;
 
 pub use buffer::Buffer;
 pub use editor::Editor;
+pub use event::*;
+pub use event_driven::EventDrivenEditor;
 pub use keymap::KeyHandler;
 pub use terminal::Terminal;
