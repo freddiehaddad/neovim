@@ -260,6 +260,24 @@ impl SyntaxHighlighter {
                 }
             }
 
+            // Special handling for comment nodes - apply unified coloring to entire comment
+            if node_kind == "line_comment" || node_kind == "block_comment" {
+                if let Some(color) = self
+                    .current_syntax_theme
+                    .tree_sitter_mappings
+                    .get(node_kind)
+                {
+                    // Highlight the entire comment (including // or /* markers) with comment color
+                    highlights.push(HighlightRange {
+                        start: node.start_byte(),
+                        end: node.end_byte(),
+                        style: HighlightStyle::from_color(color.clone()),
+                    });
+                    // Don't process children - we want unified coloring for the entire comment
+                    continue;
+                }
+            }
+
             // Check if this node type has a mapping
             if let Some(color) = self
                 .current_syntax_theme
@@ -385,43 +403,25 @@ fn test() {
             );
         }
 
-        // Check that doc comment markers and content are properly highlighted
-        let doc_comment_marker_highlights: Vec<_> = highlights
+        // Check that entire doc comments are highlighted as unified blocks
+        let doc_comment_highlights: Vec<_> = highlights
             .iter()
             .filter(|h| {
                 let text = &test_code[h.start..h.end];
-                // Look for the third slash in /// or the ! in //!
-                (text == "/" && h.start == 2) || (text == "!" && h.start == 28)
+                text.starts_with("/// This is a doc comment")
+                    || text.starts_with("//! This is an inner doc comment")
             })
             .collect();
 
-        // Should have exactly 2 marker highlights: one for third / and one for !
+        // Should have exactly 2 complete doc comment highlights
         assert_eq!(
-            doc_comment_marker_highlights.len(),
+            doc_comment_highlights.len(),
             2,
-            "Should have exactly 2 doc comment marker highlights (/ and !)"
+            "Should have exactly 2 unified doc comment highlights"
         );
 
-        // Check that doc comment content is highlighted
-        let doc_comment_content_highlights: Vec<_> = highlights
-            .iter()
-            .filter(|h| {
-                let text = &test_code[h.start..h.end];
-                text.contains("This is a doc comment")
-                    || text.contains("This is an inner doc comment")
-            })
-            .collect();
-
-        assert_eq!(
-            doc_comment_content_highlights.len(),
-            2,
-            "Should have exactly 2 doc comment content highlights"
-        );
-
-        // Check that regular comments work too
-        // Note: Comments inside function bodies may not be highlighted
-        // depending on tree-sitter parsing - let's just check that we don't crash
-        let _regular_comment_highlights: Vec<_> = highlights
+        // Check that regular comments are also handled consistently
+        let regular_comment_highlights: Vec<_> = highlights
             .iter()
             .filter(|h| {
                 let text = &test_code[h.start..h.end];
@@ -429,39 +429,40 @@ fn test() {
             })
             .collect();
 
-        // The main goal is to ensure doc comment markers are properly colored
-        // We now intentionally highlight doc comment markers (/// third slash, //! exclamation)
+        // Should have regular comments highlighted as unified blocks too
+        assert_eq!(
+            regular_comment_highlights.len(),
+            2,
+            "Should have 2 regular comment highlights"
+        );
 
-        // Verify that doc comment marker highlights have the correct color (comment color)
+        // Verify that all comment highlights have the correct color (comment color)
         let comment_color = "#8b949e";
-        let doc_marker_highlights: Vec<_> = highlights
+        let all_comment_highlights: Vec<_> = highlights
             .iter()
             .filter(|h| {
                 let text = &test_code[h.start..h.end];
-                // The third slash in /// or the ! in //!
-                (text == "/" && h.start == 2) || (text == "!" && h.start == 28)
+                text.starts_with("///")
+                    || text.starts_with("//!")
+                    || text.starts_with("// Regular")
+                    || text.starts_with("/* Block")
             })
             .collect();
 
-        // Should have 2 doc comment markers
-        assert_eq!(
-            doc_marker_highlights.len(),
-            2,
-            "Should have 2 doc comment markers"
-        );
-
-        // Both should have comment color, not operator colors
-        for marker in &doc_marker_highlights {
-            let color = marker
+        // All comment highlights should have consistent comment color
+        for comment_highlight in &all_comment_highlights {
+            let color = comment_highlight
                 .style
                 .fg_color
                 .as_ref()
-                .expect("Marker should have color");
+                .expect("Comment should have color");
             assert_eq!(
                 color, comment_color,
-                "Doc comment markers should have comment color, not operator color"
+                "All comment parts should have unified comment color"
             );
         }
+
+        println!("✓ All comments now have consistent unified coloring");
     }
 
     #[test]
@@ -472,14 +473,14 @@ fn test() {
         let test_code1 = "/// This is a doc comment";
         let highlights1 = highlighter.highlight_text(test_code1, "rust").unwrap();
 
-        // Should have exactly 2 highlights: marker and content
+        // Should have exactly 1 highlight: the entire comment with unified coloring
         assert_eq!(
             highlights1.len(),
-            2,
-            "Outer doc comment should have 2 highlights"
+            1,
+            "Outer doc comment should have 1 unified highlight"
         );
 
-        // Both should have the same comment color
+        // Should have comment color
         let comment_color = "#8b949e";
         for highlight in &highlights1 {
             let color = highlight
@@ -497,11 +498,11 @@ fn test() {
         let test_code2 = "//! This is an inner doc comment";
         let highlights2 = highlighter.highlight_text(test_code2, "rust").unwrap();
 
-        // Should have exactly 2 highlights: marker and content
+        // Should have exactly 1 highlight: the entire comment with unified coloring
         assert_eq!(
             highlights2.len(),
-            2,
-            "Inner doc comment should have 2 highlights"
+            1,
+            "Inner doc comment should have 1 unified highlight"
         );
 
         // Both should have the same comment color
