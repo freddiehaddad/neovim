@@ -472,7 +472,7 @@ impl Editor {
         buffer_list.trim_end().to_string()
     }
 
-    fn render(&mut self) -> Result<()> {
+    pub fn render(&mut self) -> Result<()> {
         // Collect all needed data first
         let mode = self.mode;
         let current_buffer = self.current_buffer().cloned();
@@ -587,7 +587,7 @@ impl Editor {
     }
 
     /// Optimized render method that works directly with references to avoid clones
-    fn handle_input(&mut self) -> Result<bool> {
+    pub fn handle_input(&mut self) -> Result<bool> {
         let mut input_processed = false;
 
         // Check for config file changes first
@@ -973,6 +973,10 @@ impl Editor {
 
     pub fn force_quit(&mut self) {
         self.should_quit = true;
+    }
+
+    pub fn should_quit(&self) -> bool {
+        self.should_quit
     }
 
     pub fn save_current_buffer(&mut self) -> Result<()> {

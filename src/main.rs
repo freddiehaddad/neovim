@@ -3,8 +3,7 @@ use oxidized::{Editor, EventDrivenEditor};
 use std::env;
 use std::path::PathBuf;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // Initialize logging - logging to file by default
     use env_logger::Target;
 
