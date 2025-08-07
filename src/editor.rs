@@ -1,7 +1,7 @@
 use crate::buffer::Buffer;
 use crate::completion::CommandCompletion;
 use crate::config::EditorConfig;
-use crate::config_watcher::{ConfigChangeEvent, ConfigWatcher};
+use crate::config_watcher::ConfigWatcher;
 use crate::keymap::KeyHandler;
 use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
@@ -11,13 +11,11 @@ use crate::theme::ThemeConfig;
 use crate::ui::UI;
 use crate::window::{SplitDirection, WindowManager};
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyEventKind};
 use log::{debug, error, info, trace, warn};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use std::sync::atomic::AtomicBool;
 
 #[cfg(test)]
 mod tests;
@@ -107,16 +105,12 @@ pub struct Editor {
     command_line: String,
     /// Status message
     status_message: String,
-    /// Last render time for frame rate limiting
-    last_render_time: Instant,
     /// Configuration file watcher for hot reloading
     pub config_watcher: Option<ConfigWatcher>,
     /// Theme configuration for hot reloading themes
     theme_config: ThemeConfig,
     /// Async syntax highlighter for background code highlighting
     async_syntax_highlighter: Option<AsyncSyntaxHighlighter>,
-    /// Track if we've processed any key press events yet (for startup handling)
-    has_processed_any_press: bool,
     /// Flag to trigger re-render when async syntax highlighting completes
     pub needs_syntax_refresh: Arc<AtomicBool>,
     /// Command completion system
@@ -198,57 +192,14 @@ impl Editor {
             should_quit: false,
             command_line: String::new(),
             status_message: String::new(),
-            last_render_time: Instant::now(),
             config_watcher,
             theme_config,
             async_syntax_highlighter,
-            has_processed_any_press: false,
             needs_syntax_refresh: Arc::new(AtomicBool::new(false)),
             command_completion: CommandCompletion::new(),
             pending_operator: None,
             text_object_finder: crate::text_objects::TextObjectFinder::new(),
         })
-    }
-
-    pub fn run(&mut self) -> Result<()> {
-        info!("Starting editor main loop");
-
-        // Clear syntax highlighting cache to ensure fresh highlighting
-        self.clear_syntax_cache();
-
-        // Create an initial buffer if none exists
-        if self.buffers.is_empty() {
-            debug!("No buffers exist, creating initial empty buffer");
-            self.create_buffer(None)?;
-        }
-
-        // Initial render
-        self.render()?;
-
-        loop {
-            if self.should_quit {
-                info!("Editor quit requested, exiting main loop");
-                break;
-            }
-
-            // Only handle input, render only when needed
-            let input_handled = self.handle_input()?;
-
-            // Re-render if we processed input OR if syntax highlighting completed
-            let needs_refresh = self.needs_syntax_refresh.load(Ordering::Relaxed);
-            if input_handled || needs_refresh {
-                if needs_refresh {
-                    debug!("Syntax refresh needed, triggering render");
-                }
-                trace!("Input handled or syntax refresh needed, triggering render");
-                self.render()?;
-                self.last_render_time = Instant::now();
-                self.needs_syntax_refresh.store(false, Ordering::Relaxed); // Reset the flag
-            }
-        }
-
-        info!("Editor main loop completed");
-        Ok(())
     }
 
     pub fn create_buffer(&mut self, file_path: Option<PathBuf>) -> Result<usize> {
@@ -584,114 +535,6 @@ impl Editor {
         // Use the existing UI render method but with optimized state
         self.ui.render(&mut self.terminal, &editor_state)?;
         Ok(())
-    }
-
-    /// Optimized render method that works directly with references to avoid clones
-    pub fn handle_input(&mut self) -> Result<bool> {
-        let mut input_processed = false;
-
-        // Check for config file changes first
-        if let Some(ref watcher) = self.config_watcher {
-            let changes = watcher.check_for_changes();
-            for change in changes {
-                match change {
-                    ConfigChangeEvent::EditorConfigChanged => {
-                        info!("Editor configuration file changed, reloading");
-                        self.reload_editor_config();
-                        input_processed = true;
-                    }
-                    ConfigChangeEvent::KeymapConfigChanged => {
-                        info!("Keymap configuration file changed, reloading");
-                        self.reload_keymap_config();
-                        input_processed = true;
-                    }
-                    ConfigChangeEvent::ThemeConfigChanged => {
-                        info!("Theme configuration file changed, reloading");
-                        if let Some(ref watcher) = self.config_watcher {
-                            if let Err(e) = self.theme_config.check_and_reload(watcher) {
-                                warn!("Failed to reload theme configuration: {}", e);
-                            }
-                        }
-                        input_processed = true;
-                    }
-                }
-            }
-        }
-
-        // Check for theme file changes
-        if let Some(ref watcher) = self.config_watcher {
-            if let Ok(theme_changed) = self.theme_config.check_and_reload(watcher) {
-                if theme_changed {
-                    info!("Theme files changed, reloading UI theme");
-                    self.reload_ui_theme();
-                    input_processed = true;
-                }
-            }
-        } else {
-            // Only log errors occasionally to avoid spam
-            trace!("Error checking for theme changes");
-        }
-
-        // Handle keyboard input with minimal delay for responsiveness
-        if event::poll(std::time::Duration::from_millis(1))? {
-            if let Event::Key(key_event) = event::read()? {
-                trace!("Key event received: {:?}", key_event);
-
-                let should_process = match key_event.kind {
-                    KeyEventKind::Press => {
-                        trace!("Processing key press event");
-                        self.has_processed_any_press = true;
-                        true
-                    }
-                    KeyEventKind::Release => {
-                        // Special handling for important keys that might only generate release events
-                        // This can happen with certain keyboard configurations or terminal setups
-                        // Only apply this special handling in Normal mode to avoid double processing
-                        let is_important_key = matches!(
-                            key_event.code,
-                            crossterm::event::KeyCode::Char(':') | crossterm::event::KeyCode::Esc
-                        );
-
-                        let is_normal_mode = matches!(self.mode, Mode::Normal);
-
-                        if (!self.has_processed_any_press || is_important_key) && is_normal_mode {
-                            trace!("Processing key release event for important key in normal mode");
-                            self.has_processed_any_press = true;
-                            true
-                        } else if !self.has_processed_any_press {
-                            // Still process first release event regardless of mode for startup
-                            trace!("Processing first key release event at startup");
-                            self.has_processed_any_press = true;
-                            true
-                        } else {
-                            trace!("Ignoring key release event");
-                            false
-                        }
-                    }
-                    _ => {
-                        trace!("Ignoring non-press/release key event");
-                        false
-                    }
-                };
-
-                if should_process {
-                    // Handle key input while preserving KeyHandler state
-                    self.handle_key_event(key_event)?;
-
-                    // Sync the current buffer's cursor position to the current window
-                    self.sync_cursor_to_current_window();
-
-                    input_processed = true;
-                }
-            } else if let Event::Resize(width, height) = event::read()? {
-                // Handle terminal resize
-                info!("Terminal resize event: {}x{}", width, height);
-                self.window_manager.resize_terminal(width, height);
-                input_processed = true;
-            }
-        }
-
-        Ok(input_processed)
     }
 
     // Getters for UI and other components
@@ -2023,21 +1866,6 @@ impl Editor {
             format!("Window resized shorter by {} rows", resize_amount)
         } else {
             "Cannot resize window shorter".to_string()
-        }
-    }
-
-    fn sync_cursor_to_current_window(&mut self) {
-        if let (Some(current_buffer_id), Some(current_window_id)) = (
-            self.current_buffer_id,
-            self.window_manager.current_window_id(),
-        ) {
-            if let Some(current_buffer) = self.buffers.get(&current_buffer_id) {
-                if let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
-                {
-                    current_window
-                        .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
-                }
-            }
         }
     }
 
