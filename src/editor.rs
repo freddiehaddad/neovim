@@ -80,7 +80,7 @@ pub struct Editor {
     /// All open buffers
     buffers: HashMap<usize, Buffer>,
     /// Currently active buffer ID
-    current_buffer_id: Option<usize>,
+    pub current_buffer_id: Option<usize>,
     /// Next buffer ID to assign
     next_buffer_id: usize,
     /// Window management for splits

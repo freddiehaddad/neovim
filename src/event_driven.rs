@@ -18,6 +18,18 @@ pub struct EventDrivenEditor {
     shutdown_sender: mpsc::Sender<()>,
     /// Thread handles for cleanup
     thread_handles: Vec<thread::JoinHandle<()>>,
+    /// Track last render state to minimize unnecessary redraws
+    last_render_state: Arc<Mutex<RenderState>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RenderState {
+    mode: crate::mode::Mode,
+    cursor_position: Option<(usize, usize)>,
+    buffer_id: Option<usize>,
+    command_line: String,
+    status_message: String,
+    needs_full_redraw: bool,
 }
 
 impl EventDrivenEditor {
@@ -52,6 +64,14 @@ impl EventDrivenEditor {
             event_receiver,
             shutdown_sender,
             thread_handles,
+            last_render_state: Arc::new(Mutex::new(RenderState {
+                mode: crate::mode::Mode::Normal,
+                cursor_position: None,
+                buffer_id: None,
+                command_line: String::new(),
+                status_message: String::new(),
+                needs_full_redraw: true, // Force initial full redraw
+            })),
         }
     }
 
@@ -128,12 +148,35 @@ impl EventDrivenEditor {
         match event {
             InputEvent::KeyPress(key_event) => {
                 if let Ok(mut editor) = self.editor.lock() {
+                    // Store the editor state before processing input
+                    let mode_before = editor.mode();
+                    let cursor_before = editor.current_buffer().map(|b| b.cursor);
+                    let buffer_id_before = editor.current_buffer_id;
+                    let command_line_before = editor.command_line().to_string();
+
+                    // Process the key event
                     editor.handle_key_event(key_event)?;
 
-                    // Request render after input
-                    let _ = self
-                        .event_sender
-                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                    // Check what actually changed to decide if we need a redraw
+                    let mode_after = editor.mode();
+                    let cursor_after = editor.current_buffer().map(|b| b.cursor);
+                    let buffer_id_after = editor.current_buffer_id;
+                    let command_line_after = editor.command_line();
+
+                    let needs_redraw = mode_before != mode_after
+                        || cursor_before != cursor_after
+                        || buffer_id_before != buffer_id_after
+                        || command_line_before != command_line_after
+                        || editor
+                            .needs_syntax_refresh
+                            .load(std::sync::atomic::Ordering::Relaxed);
+
+                    // Only request render if something actually changed
+                    if needs_redraw {
+                        let _ = self
+                            .event_sender
+                            .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                    }
 
                     Ok(editor.should_quit())
                 } else {
@@ -168,9 +211,45 @@ impl EventDrivenEditor {
     fn handle_ui_event(&self, event: UIEvent) -> Result<bool> {
         match event {
             UIEvent::RedrawRequest => {
-                if let Ok(mut editor) = self.editor.lock() {
-                    if let Err(e) = editor.render() {
-                        error!("Render failed: {}", e);
+                if let (Ok(mut editor), Ok(mut last_state)) =
+                    (self.editor.try_lock(), self.last_render_state.try_lock())
+                {
+                    // Check what actually needs to be redrawn
+                    let current_mode = editor.mode();
+                    let current_cursor = editor
+                        .current_buffer()
+                        .map(|b| (b.cursor.row, b.cursor.col));
+                    let current_buffer_id = editor.current_buffer_id;
+                    let current_command_line = editor.command_line().to_string();
+                    let current_status = editor.status_message().to_string();
+
+                    let needs_redraw = last_state.mode != current_mode
+                        || last_state.cursor_position != current_cursor
+                        || last_state.buffer_id != current_buffer_id
+                        || last_state.command_line != current_command_line
+                        || last_state.status_message != current_status
+                        || last_state.needs_full_redraw
+                        || editor
+                            .needs_syntax_refresh
+                            .load(std::sync::atomic::Ordering::Relaxed);
+
+                    if needs_redraw {
+                        if let Err(e) = editor.render() {
+                            error!("Render failed: {}", e);
+                        } else {
+                            // Update our cached state
+                            last_state.mode = current_mode;
+                            last_state.cursor_position = current_cursor;
+                            last_state.buffer_id = current_buffer_id;
+                            last_state.command_line = current_command_line;
+                            last_state.status_message = current_status;
+                            last_state.needs_full_redraw = false;
+
+                            // Reset syntax refresh flag
+                            editor
+                                .needs_syntax_refresh
+                                .store(false, std::sync::atomic::Ordering::Relaxed);
+                        }
                     }
                 }
                 Ok(false)
@@ -178,6 +257,12 @@ impl EventDrivenEditor {
             UIEvent::Resize { width, height } => {
                 if let Ok(mut editor) = self.editor.lock() {
                     editor.window_manager.resize_terminal(width, height);
+
+                    // Force a full redraw after resize
+                    if let Ok(mut last_state) = self.last_render_state.try_lock() {
+                        last_state.needs_full_redraw = true;
+                    }
+
                     let _ = self
                         .event_sender
                         .send(EditorEvent::UI(UIEvent::RedrawRequest));
