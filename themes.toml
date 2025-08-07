@@ -62,19 +62,10 @@ error = "#f85149"               # Red error
 # Visibility
 "visibility_modifier" = "#ff7b72" # pub keyword
 
-# Types and identifiers  
+# Types and identifiers
 "type_identifier" = "#f0883e"   # Type names (structs, enums)
-"identifier" = "#e6edf3"        # Variable names (default)
+"identifier" = "#e6edf3"        # Variable names
 "scoped_identifier" = "#d2a8ff" # Module::item paths
-
-# Special case: identifiers that are actually macro names
-# (when tree-sitter doesn't classify them as macro_invocation)
-"call_expression" = "#ff7b72"   # Might catch macro calls
-"path" = "#d2a8ff"             # Path expressions like log::debug
-
-# Macro-specific overrides to catch cases where macro names are misclassified
-"token_tree" = "#ff7b72"       # Macro token trees (arguments)
-"meta_item" = "#ff7b72"        # Meta items in macros
 
 # Enum variants - distinct from type names
 "enum_variant" = "#7ee787" # Enum variant names (Some, None, Ok, Err)
@@ -82,10 +73,6 @@ error = "#f85149"               # Red error
 # Function and method identifiers
 "function_identifier" = "#d2a8ff" # Function names
 "method_identifier" = "#b392f0"   # Method names (slightly different purple)
-
-# Macro identifiers - handle different ways tree-sitter might classify macro names
-"macro_identifier" = "#ff7b72"    # Macro identifier names
-"macro_name" = "#ff7b72"          # Macro name part (debug in debug!)
 
 # Variable types with more distinction
 "parameter" = "#ffa657"           # Function parameters
@@ -103,6 +90,11 @@ error = "#f85149"               # Red error
 # Comments
 "line_comment" = "#8b949e"  # // comments
 "block_comment" = "#8b949e" # /* */ comments
+
+# Doc comment specific nodes
+"doc_comment" = "#8b949e"              # Doc comment content
+"outer_doc_comment_marker" = "#8b949e" # /// third slash
+"inner_doc_comment_marker" = "#8b949e" # //! exclamation mark
 
 # Punctuation and operators with more distinction
 ";" = "#79c0ff"  # Semicolon
@@ -136,9 +128,6 @@ error = "#f85149"               # Red error
 
 # Macro and attribute highlighting
 "macro_invocation" = "#ff7b72" # Macro calls (println!, vec!)
-"macro_definition" = "#ff7b72"  # Macro definitions (macro_rules!)
-"macro_rule" = "#ff7b72"        # Individual macro rules
-"macro_rule_item" = "#ff7b72"   # Macro rule items
 "attribute" = "#ffa657"        # Attributes (#[derive])
 "attribute_item" = "#d2a8ff"   # Attribute contents
 
