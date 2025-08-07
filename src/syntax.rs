@@ -228,14 +228,14 @@ fn get_tree_sitter_language(language_name: &str) -> Option<Language> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HighlightRange {
     pub start: usize,
     pub end: usize,
     pub style: HighlightStyle,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HighlightStyle {
     pub fg_color: Option<String>,
     pub bg_color: Option<String>,
@@ -703,3 +703,6 @@ impl Clone for SyntaxHighlighter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;
