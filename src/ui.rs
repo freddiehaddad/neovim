@@ -215,6 +215,12 @@ impl UI {
                 let content_rendered = if let Some(highlights) =
                     editor_state.syntax_highlights.get(&(buffer.id, buffer_row))
                 {
+                    debug!(
+                        "Rendering highlighted line {}: {} highlights for '{}'",
+                        buffer_row,
+                        highlights.len(),
+                        line.chars().take(50).collect::<String>()
+                    );
                     self.render_highlighted_line(
                         terminal,
                         line,
@@ -223,6 +229,11 @@ impl UI {
                         is_cursor_line,
                     )?
                 } else {
+                    debug!(
+                        "No syntax highlights for line {} ('{}')",
+                        buffer_row,
+                        line.chars().take(50).collect::<String>()
+                    );
                     // Render line without syntax highlighting - use theme's default text color
                     terminal.queue_set_fg_color(self.syntax_theme.get_default_text_color())?;
                     let display_line = if line.len() > text_width {
@@ -394,8 +405,8 @@ impl UI {
             let highlighted_text = std::str::from_utf8(&line_bytes[start..end]).unwrap_or("");
             terminal.queue_print(highlighted_text)?;
 
-            // Reset colors but restore proper background
-            terminal.queue_reset_color()?;
+            // Don't reset colors - just ensure background is set correctly for cursor line
+            // The foreground color will be managed for each text segment
             if is_cursor_line && self.show_cursor_line {
                 terminal.queue_set_bg_color(self.theme.cursor_line_bg)?;
             } else {

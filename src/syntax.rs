@@ -337,6 +337,11 @@ impl SyntaxHighlighter {
         self.initialize_parsers()?;
         Ok(())
     }
+
+    /// Get the current theme mappings for testing
+    pub fn get_theme_mappings(&self) -> &HashMap<String, Color> {
+        &self.current_syntax_theme.tree_sitter_mappings
+    }
 }
 
 #[cfg(test)]
@@ -699,6 +704,109 @@ fn simple_return() -> i32 {
         for i in 0..node.child_count() {
             if let Some(child) = node.child(i) {
                 print_return_tree(&child, source, depth + 1);
+            }
+        }
+    }
+
+    /// Test that struct field names are highlighted with the correct color
+    #[test]
+    fn test_struct_field_highlighting() {
+        let mut highlighter = SyntaxHighlighter::new().unwrap();
+
+        // First, let's debug what theme mappings are actually loaded
+        println!("\n=== Theme Mappings Debug ===");
+        {
+            let theme_mappings = highlighter.get_theme_mappings();
+            for (key, color) in theme_mappings.iter() {
+                println!("'{}' -> {:?}", key, color);
+            }
+
+            // Check that critical mappings exist
+            assert!(
+                theme_mappings.contains_key("field_identifier"),
+                "Missing field_identifier mapping"
+            );
+            assert!(
+                theme_mappings.contains_key("primitive_type"),
+                "Missing primitive_type mapping"
+            );
+            assert!(
+                theme_mappings.contains_key("type_identifier"),
+                "Missing type_identifier mapping"
+            );
+        }
+
+        let test_cases = vec![
+            "struct Point { x: f64, y: f64 }",
+            "struct Person { name: String, age: u32 }",
+        ];
+
+        for test_code in test_cases {
+            println!("\n=== Testing: {} ===", test_code);
+            let highlights = highlighter.highlight_text(test_code, "rust").unwrap();
+
+            // Print all highlights for debugging
+            for (i, highlight) in highlights.iter().enumerate() {
+                let text = &test_code[highlight.start..highlight.end];
+                let color = highlight
+                    .style
+                    .fg_color
+                    .as_ref()
+                    .map(|s| s.as_str())
+                    .unwrap_or("none");
+                println!("{}. '{}' -> {}", i, text, color);
+            }
+        }
+
+        // Just test the basic case works
+        let basic_test = "struct Point { x: f64 }";
+        let highlights = highlighter.highlight_text(basic_test, "rust").unwrap();
+        let field_highlights: Vec<_> = highlights
+            .iter()
+            .filter(|h| &basic_test[h.start..h.end] == "x")
+            .collect();
+
+        assert!(!field_highlights.is_empty(), "Should highlight field names");
+    }
+
+    #[test]
+    fn debug_struct_field_nodes() {
+        // Get the Rust language
+        let language: Language = tree_sitter_rust::LANGUAGE.into();
+
+        let mut parser = Parser::new();
+        parser.set_language(&language).unwrap();
+
+        // Test struct field definition vs constructor
+        let test_cases = vec![
+            "struct Point { x: f64, y: f64 }", // Field definitions
+            "Point { x: 1.0, y: 2.0 }",        // Field constructors
+        ];
+
+        for test_code in test_cases {
+            let tree = parser.parse(test_code, None).unwrap();
+            let root_node = tree.root_node();
+
+            println!("\n=== Tree structure for: {} ===", test_code);
+            print_debug_tree(&root_node, test_code, 0);
+        }
+    }
+
+    fn print_debug_tree(node: &tree_sitter::Node, source: &str, depth: usize) {
+        let indent = "  ".repeat(depth);
+        let node_text = &source[node.start_byte()..node.end_byte()];
+        println!(
+            "{}kind: '{}', text: '{}' ({}..{})",
+            indent,
+            node.kind(),
+            node_text.replace('\n', "\\n"),
+            node.start_byte(),
+            node.end_byte()
+        );
+
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i) {
+                print_debug_tree(&child, source, depth + 1);
             }
         }
     }

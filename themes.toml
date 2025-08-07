@@ -64,6 +64,7 @@ error = "#f85149"               # Red error
 
 # Types and identifiers
 "type_identifier" = "#f0883e"   # Type names (structs, enums)
+"primitive_type" = "#79c0ff"    # Primitive types (i32, f64, bool, etc.)
 "identifier" = "#e6edf3"        # Variable names
 "scoped_identifier" = "#d2a8ff" # Module::item paths
 

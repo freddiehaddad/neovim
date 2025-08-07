@@ -541,9 +541,8 @@ impl Editor {
             let (buffer_id, line_index) = key;
             let highlights =
                 self.get_syntax_highlights(buffer_id, line_index, &line_content, Some(&file_path));
-            if !highlights.is_empty() {
-                syntax_highlights.insert(key, highlights);
-            }
+            // Store ALL highlights, even empty ones, so UI knows syntax highlighting was attempted
+            syntax_highlights.insert(key, highlights);
         }
 
         // Create an optimized render state that only clones buffers currently displayed in windows
@@ -1263,42 +1262,84 @@ impl Editor {
         text: &str,
         file_path: Option<&str>,
     ) -> Vec<crate::syntax::HighlightRange> {
+        // Debug: Log what we're trying to highlight
+        log::debug!(
+            "get_syntax_highlights: buffer={}, line={}, text='{}', path={:?}",
+            buffer_id,
+            line_index,
+            text,
+            file_path
+        );
+
         // First check if we have an async syntax highlighter
         if let Some(ref highlighter) = self.async_syntax_highlighter {
+            log::debug!("Async syntax highlighter is available");
+
             // Get the language from file extension using configuration
             let language = if let Some(path) = file_path {
-                self.config.languages.detect_language_from_extension(path)
+                let detected = self.config.languages.detect_language_from_extension(path);
+                log::debug!("Language detected from path '{}': {:?}", path, detected);
+                detected
             } else {
                 // For unnamed buffers, try to detect language from content
-                self.config.languages.detect_language_from_content(text)
+                let detected = self.config.languages.detect_language_from_content(text);
+                log::debug!("Language detected from content: {:?}", detected);
+                detected
             };
 
             if let Some(lang) = language {
+                log::debug!("Using language: '{}'", lang);
+
                 // Try to get cached highlights first
                 if let Some(cached) =
                     highlighter.get_cached_highlights(buffer_id, line_index, text, &lang)
                 {
+                    log::debug!("Found cached highlights: {} items", cached.len());
                     return cached;
                 }
 
-                // No cache hit - request async highlighting with UI refresh callback
-                let refresh_flag = Arc::clone(&self.needs_syntax_refresh);
-                let ui_callback = Box::new(move |_buffer_id: usize, _line_index: usize| {
-                    refresh_flag.store(true, Ordering::Relaxed);
-                });
+                log::debug!("No cached highlights, getting immediate highlights");
 
-                let _ = highlighter.request_highlighting_with_callback(
-                    buffer_id,
-                    line_index,
-                    text.to_string(),
-                    lang,
-                    Priority::High, // High priority for immediate rendering
-                    Some(ui_callback),
-                );
+                // No cache hit - get immediate highlights for current render, then request async for future
+                if let Some(immediate_highlights) =
+                    highlighter.force_immediate_highlights(buffer_id, line_index, text, &lang)
+                {
+                    log::debug!(
+                        "Got immediate highlights: {} items",
+                        immediate_highlights.len()
+                    );
+
+                    // Also request async highlighting with UI refresh callback for future renders
+                    let refresh_flag = Arc::clone(&self.needs_syntax_refresh);
+                    let ui_callback = Box::new(move |_buffer_id: usize, _line_index: usize| {
+                        refresh_flag.store(true, Ordering::Relaxed);
+                    });
+
+                    let _ = highlighter.request_highlighting_with_callback(
+                        buffer_id,
+                        line_index,
+                        text.to_string(),
+                        lang,
+                        Priority::Medium, // Lower priority since we have immediate results
+                        Some(ui_callback),
+                    );
+
+                    return immediate_highlights;
+                } else {
+                    log::warn!(
+                        "force_immediate_highlights returned None for language '{}'",
+                        lang
+                    );
+                }
+            } else {
+                log::warn!("No language detected for path: {:?}", file_path);
             }
+        } else {
+            log::warn!("No async syntax highlighter available");
         }
 
         // Fallback to empty highlights if no async highlighter or no language detected
+        log::debug!("Returning empty highlights as fallback");
         Vec::new()
     }
 
