@@ -1,90 +1,433 @@
 use crate::editor::Editor;
+use crate::event::*;
 use anyhow::Result;
-use log::{debug, info, warn};
-use std::sync::{Arc, Mutex};
+use crossterm::event::{self, Event, KeyEventKind};
+use log::{error, info, warn};
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
+use std::time::Duration;
 
-/// Event-driven editor that replaces the traditional main loop
+/// Event-driven editor with true async architecture
 pub struct EventDrivenEditor {
+    /// Shared editor state
     editor: Arc<Mutex<Editor>>,
-    should_quit: Arc<Mutex<bool>>,
+    /// Event bus for communication between threads
+    event_sender: mpsc::Sender<EditorEvent>,
+    event_receiver: mpsc::Receiver<EditorEvent>,
+    /// Control channels for thread management
+    shutdown_sender: mpsc::Sender<()>,
+    /// Thread handles for cleanup
+    thread_handles: Vec<thread::JoinHandle<()>>,
 }
 
 impl EventDrivenEditor {
-    /// Create a new event-driven editor
+    /// Create a new event-driven editor with background threads
     pub fn new(editor: Editor) -> Self {
+        let editor = Arc::new(Mutex::new(editor));
+        let (event_sender, event_receiver) = mpsc::channel();
+        let (shutdown_sender, shutdown_receiver) = mpsc::channel();
+
+        let mut thread_handles = Vec::new();
+
+        // Start input event thread
+        let input_thread =
+            Self::spawn_input_thread(editor.clone(), event_sender.clone(), shutdown_receiver);
+        thread_handles.push(input_thread);
+
+        // Start config watcher thread
+        let config_thread = Self::spawn_config_watcher_thread(editor.clone(), event_sender.clone());
+        thread_handles.push(config_thread);
+
+        // Start syntax highlighting thread
+        let syntax_thread = Self::spawn_syntax_thread(editor.clone(), event_sender.clone());
+        thread_handles.push(syntax_thread);
+
+        // Start rendering thread
+        let render_thread = Self::spawn_render_thread(editor.clone(), event_sender.clone());
+        thread_handles.push(render_thread);
+
         Self {
-            editor: Arc::new(Mutex::new(editor)),
-            should_quit: Arc::new(Mutex::new(false)),
+            editor,
+            event_sender,
+            event_receiver,
+            shutdown_sender,
+            thread_handles,
         }
     }
 
-    /// Main event loop - replaces the traditional Editor::run() method
-    pub fn run(&mut self) -> Result<(), anyhow::Error> {
-        info!("Starting event-driven editor");
+    /// Main event loop - processes events from all background threads
+    pub fn run(&mut self) -> Result<()> {
+        info!("Starting truly event-driven editor");
 
-        // Initialize editor if no buffers exist and do initial render
+        // Send initial events
+        self.send_initial_events()?;
+
+        // Main event processing loop
+        loop {
+            match self.event_receiver.recv_timeout(Duration::from_millis(16)) {
+                Ok(event) => {
+                    let should_quit = self.process_event(event)?;
+                    if should_quit {
+                        break;
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    // Check if editor wants to quit
+                    if let Ok(editor) = self.editor.try_lock() {
+                        if editor.should_quit() {
+                            break;
+                        }
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    warn!("Event channel disconnected");
+                    break;
+                }
+            }
+        }
+
+        self.shutdown()?;
+        Ok(())
+    }
+
+    /// Send initial setup events
+    fn send_initial_events(&self) -> Result<()> {
+        // Create initial buffer if needed
         if let Ok(mut editor) = self.editor.lock() {
             if editor.current_buffer().is_none() {
-                debug!("No buffers exist, creating initial empty buffer");
                 if let Err(e) = editor.create_buffer(None) {
                     warn!("Failed to create initial buffer: {}", e);
                 }
             }
-
-            // Initial render (similar to original Editor::run())
-            if let Err(e) = editor.render() {
-                warn!("Initial render failed: {}", e);
-            }
         }
 
-        loop {
-            // Check quit condition
-            if let Ok(quit) = self.should_quit.lock() {
-                if *quit {
-                    info!("Quit requested, exiting event loop");
-                    break;
-                }
-            }
+        // Request initial render
+        self.event_sender
+            .send(EditorEvent::UI(UIEvent::RedrawRequest))?;
 
-            // Use the editor's existing handle_input method directly
-            // This preserves all the existing functionality
-            if let Ok(mut editor) = self.editor.lock() {
-                match editor.handle_input() {
-                    Ok(input_processed) => {
-                        if input_processed {
-                            // Re-render if input was processed (same as original Editor::run())
-                            if let Err(e) = editor.render() {
-                                warn!("Render failed: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Input handling failed: {}", e);
-                    }
-                }
-
-                // Check if editor wants to quit
-                if editor.should_quit() {
-                    info!("Editor requested quit, exiting event loop");
-                    break;
-                }
-            } else {
-                warn!("Failed to lock editor");
-                break;
-            }
-
-            // Small delay to prevent busy waiting (like original Editor::run())
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-
-        info!("Event-driven editor loop completed");
         Ok(())
     }
 
-    /// Signal that the editor should quit
-    pub fn quit(&self) {
-        if let Ok(mut quit) = self.should_quit.lock() {
-            *quit = true;
+    /// Process a single event and return whether to quit
+    fn process_event(&self, event: EditorEvent) -> Result<bool> {
+        match event {
+            EditorEvent::Input(input_event) => self.handle_input_event(input_event),
+            EditorEvent::UI(ui_event) => self.handle_ui_event(ui_event),
+            EditorEvent::Buffer(buffer_event) => self.handle_buffer_event(buffer_event),
+            EditorEvent::Window(window_event) => self.handle_window_event(window_event),
+            EditorEvent::Config(config_event) => self.handle_config_event(config_event),
+            EditorEvent::Search(search_event) => self.handle_search_event(search_event),
+            EditorEvent::System(system_event) => self.handle_system_event(system_event),
+            EditorEvent::Plugin(_) => Ok(false), // Future implementation
+            EditorEvent::LSP(_) => Ok(false),    // Future implementation
         }
+    }
+
+    /// Handle input events
+    fn handle_input_event(&self, event: InputEvent) -> Result<bool> {
+        match event {
+            InputEvent::KeyPress(key_event) => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    editor.handle_key_event(key_event)?;
+
+                    // Request render after input
+                    let _ = self
+                        .event_sender
+                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+
+                    Ok(editor.should_quit())
+                } else {
+                    Ok(false)
+                }
+            }
+            InputEvent::Command(cmd) => {
+                // Process command
+                if let Ok(mut editor) = self.editor.lock() {
+                    // Handle command through existing command system
+                    editor.set_command_line(cmd);
+                    let _ = self
+                        .event_sender
+                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                }
+                Ok(false)
+            }
+            InputEvent::ModeChange { from: _, to } => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    editor.set_mode(to);
+                    let _ = self
+                        .event_sender
+                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Handle UI events
+    fn handle_ui_event(&self, event: UIEvent) -> Result<bool> {
+        match event {
+            UIEvent::RedrawRequest => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    if let Err(e) = editor.render() {
+                        error!("Render failed: {}", e);
+                    }
+                }
+                Ok(false)
+            }
+            UIEvent::Resize { width, height } => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    editor.window_manager.resize_terminal(width, height);
+                    let _ = self
+                        .event_sender
+                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Handle buffer events
+    fn handle_buffer_event(&self, _event: BufferEvent) -> Result<bool> {
+        // TODO: Implement buffer event handling
+        Ok(false)
+    }
+
+    /// Handle window events
+    fn handle_window_event(&self, _event: WindowEvent) -> Result<bool> {
+        // TODO: Implement window event handling
+        Ok(false)
+    }
+
+    /// Handle config events
+    fn handle_config_event(&self, event: ConfigEvent) -> Result<bool> {
+        match event {
+            ConfigEvent::EditorConfigChanged => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    editor.reload_editor_config();
+                    let _ = self
+                        .event_sender
+                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                }
+            }
+            ConfigEvent::KeymapConfigChanged => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    editor.reload_keymap_config();
+                }
+            }
+            ConfigEvent::ThemeConfigChanged => {
+                if let Ok(mut editor) = self.editor.lock() {
+                    editor.reload_ui_theme();
+                    let _ = self
+                        .event_sender
+                        .send(EditorEvent::UI(UIEvent::RedrawRequest));
+                }
+            }
+            _ => {}
+        }
+        Ok(false)
+    }
+
+    /// Handle search events
+    fn handle_search_event(&self, _event: SearchEvent) -> Result<bool> {
+        // TODO: Implement search event handling
+        Ok(false)
+    }
+
+    /// Handle system events
+    fn handle_system_event(&self, event: SystemEvent) -> Result<bool> {
+        match event {
+            SystemEvent::Quit => Ok(true),
+            SystemEvent::ForceQuit => Ok(true),
+            _ => Ok(false),
+        }
+    }
+
+    /// Spawn input handling thread
+    fn spawn_input_thread(
+        _editor: Arc<Mutex<Editor>>,
+        sender: mpsc::Sender<EditorEvent>,
+        shutdown_receiver: mpsc::Receiver<()>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            info!("Input thread started");
+
+            loop {
+                // Check for shutdown signal (non-blocking)
+                if let Ok(()) = shutdown_receiver.try_recv() {
+                    info!("Input thread shutting down");
+                    break;
+                }
+
+                // Poll for terminal events
+                match event::poll(Duration::from_millis(16)) {
+                    Ok(true) => {
+                        match event::read() {
+                            Ok(Event::Key(key_event)) => {
+                                // Only process key press events to avoid duplicates
+                                if key_event.kind == KeyEventKind::Press {
+                                    if let Err(e) = sender
+                                        .send(EditorEvent::Input(InputEvent::KeyPress(key_event)))
+                                    {
+                                        error!("Failed to send key event: {}", e);
+                                        break;
+                                    }
+                                }
+                            }
+                            Ok(Event::Resize(width, height)) => {
+                                if let Err(e) =
+                                    sender.send(EditorEvent::UI(UIEvent::Resize { width, height }))
+                                {
+                                    error!("Failed to send resize event: {}", e);
+                                    break;
+                                }
+                            }
+                            Ok(_) => {} // Ignore other events
+                            Err(e) => error!("Failed to read terminal event: {}", e),
+                        }
+                    }
+                    Ok(false) => {} // No events available
+                    Err(e) => error!("Failed to poll for events: {}", e),
+                }
+            }
+
+            info!("Input thread finished");
+        })
+    }
+
+    /// Spawn config watcher thread
+    fn spawn_config_watcher_thread(
+        editor: Arc<Mutex<Editor>>,
+        sender: mpsc::Sender<EditorEvent>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            info!("Config watcher thread started");
+
+            loop {
+                thread::sleep(Duration::from_millis(500)); // Check every 500ms
+
+                if let Ok(editor) = editor.try_lock() {
+                    if editor.should_quit() {
+                        break;
+                    }
+
+                    // Check for config changes
+                    if let Some(ref watcher) = editor.config_watcher {
+                        let changes = watcher.check_for_changes();
+                        for change in changes {
+                            let event = match change {
+                                crate::config_watcher::ConfigChangeEvent::EditorConfigChanged => {
+                                    EditorEvent::Config(ConfigEvent::EditorConfigChanged)
+                                }
+                                crate::config_watcher::ConfigChangeEvent::KeymapConfigChanged => {
+                                    EditorEvent::Config(ConfigEvent::KeymapConfigChanged)
+                                }
+                                crate::config_watcher::ConfigChangeEvent::ThemeConfigChanged => {
+                                    EditorEvent::Config(ConfigEvent::ThemeConfigChanged)
+                                }
+                            };
+
+                            if let Err(e) = sender.send(event) {
+                                error!("Failed to send config event: {}", e);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(100));
+            }
+
+            info!("Config watcher thread finished");
+        })
+    }
+
+    /// Spawn syntax highlighting thread
+    fn spawn_syntax_thread(
+        editor: Arc<Mutex<Editor>>,
+        sender: mpsc::Sender<EditorEvent>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            info!("Syntax highlighting thread started");
+
+            loop {
+                thread::sleep(Duration::from_millis(100)); // Check every 100ms
+
+                if let Ok(editor) = editor.try_lock() {
+                    if editor.should_quit() {
+                        break;
+                    }
+
+                    // Check if syntax refresh is needed
+                    if editor
+                        .needs_syntax_refresh
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
+                        drop(editor); // Release lock before sending event
+
+                        if let Err(e) = sender.send(EditorEvent::UI(UIEvent::RedrawRequest)) {
+                            error!("Failed to send syntax refresh event: {}", e);
+                            break;
+                        }
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(50));
+            }
+
+            info!("Syntax highlighting thread finished");
+        })
+    }
+
+    /// Spawn rendering thread
+    fn spawn_render_thread(
+        _editor: Arc<Mutex<Editor>>,
+        _sender: mpsc::Sender<EditorEvent>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            info!("Render thread started");
+
+            // For now, rendering is handled synchronously in the main thread
+            // In the future, this could handle background rendering optimizations
+
+            loop {
+                thread::sleep(Duration::from_secs(1));
+                // TODO: Implement background rendering optimizations
+                break; // Exit for now
+            }
+
+            info!("Render thread finished");
+        })
+    }
+
+    /// Shutdown all background threads
+    fn shutdown(&mut self) -> Result<()> {
+        info!("Shutting down event-driven editor");
+
+        // Signal all threads to shutdown
+        let _ = self.shutdown_sender.send(());
+
+        // Wait for all threads to finish
+        for handle in self.thread_handles.drain(..) {
+            if let Err(e) = handle.join() {
+                error!("Failed to join thread: {:?}", e);
+            }
+        }
+
+        info!("All background threads shut down");
+        Ok(())
+    }
+
+    /// Send an event to the event bus
+    pub fn send_event(&self, event: EditorEvent) -> Result<()> {
+        self.event_sender.send(event)?;
+        Ok(())
+    }
+}
+
+impl Drop for EventDrivenEditor {
+    fn drop(&mut self) {
+        let _ = self.shutdown();
     }
 }

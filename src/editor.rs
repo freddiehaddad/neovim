@@ -84,7 +84,7 @@ pub struct Editor {
     /// Next buffer ID to assign
     next_buffer_id: usize,
     /// Window management for splits
-    window_manager: WindowManager,
+    pub window_manager: WindowManager,
     /// Current editor mode
     mode: Mode,
     /// Terminal interface
@@ -110,7 +110,7 @@ pub struct Editor {
     /// Last render time for frame rate limiting
     last_render_time: Instant,
     /// Configuration file watcher for hot reloading
-    config_watcher: Option<ConfigWatcher>,
+    pub config_watcher: Option<ConfigWatcher>,
     /// Theme configuration for hot reloading themes
     theme_config: ThemeConfig,
     /// Async syntax highlighter for background code highlighting
@@ -118,7 +118,7 @@ pub struct Editor {
     /// Track if we've processed any key press events yet (for startup handling)
     has_processed_any_press: bool,
     /// Flag to trigger re-render when async syntax highlighting completes
-    needs_syntax_refresh: Arc<AtomicBool>,
+    pub needs_syntax_refresh: Arc<AtomicBool>,
     /// Command completion system
     command_completion: CommandCompletion,
     /// Current pending operator (for operator + text object combinations)
@@ -1479,7 +1479,7 @@ impl Editor {
     }
 
     /// Reload editor configuration from editor.toml
-    fn reload_editor_config(&mut self) {
+    pub fn reload_editor_config(&mut self) {
         let new_config = EditorConfig::load();
 
         // Update UI to reflect new config values
@@ -1492,13 +1492,13 @@ impl Editor {
     }
 
     /// Reload keymap configuration from keymaps.toml
-    fn reload_keymap_config(&mut self) {
+    pub fn reload_keymap_config(&mut self) {
         self.key_handler = KeyHandler::new(); // This will reload the keymaps.toml
         self.status_message = "Keymap configuration reloaded".to_string();
     }
 
     /// Reload UI theme from themes.toml
-    fn reload_ui_theme(&mut self) {
+    pub fn reload_ui_theme(&mut self) {
         // Brief delay to ensure file write is complete
         std::thread::sleep(std::time::Duration::from_millis(50));
 
@@ -2072,7 +2072,7 @@ impl Editor {
     }
 
     /// Handle a key event without borrowing conflicts that would reset KeyHandler state
-    fn handle_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> Result<()> {
+    pub fn handle_key_event(&mut self, key_event: crossterm::event::KeyEvent) -> Result<()> {
         // We need to work around the borrow checker here. The KeyHandler needs &mut self (KeyHandler)
         // and &mut Editor, but KeyHandler is owned by Editor, creating a borrow conflict.
         //

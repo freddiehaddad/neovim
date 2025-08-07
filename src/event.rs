@@ -178,6 +178,8 @@ pub enum SearchDirection {
 pub enum SystemEvent {
     /// Request to quit the editor
     Quit,
+    /// Force quit without saving
+    ForceQuit,
     /// File system event (file changed externally)
     FileChanged(PathBuf),
     /// Timer event (for periodic tasks)
