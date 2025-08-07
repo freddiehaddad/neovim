@@ -2,6 +2,7 @@ use crossterm::style::Color;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use crate::config_watcher::ConfigWatcher;
 
 /// Complete theme configuration with UI and syntax colors
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,6 +238,59 @@ impl ThemeConfig {
     /// List all available theme names
     pub fn list_themes(&self) -> Vec<&String> {
         self.themes.keys().collect()
+    }
+
+    /// Get the current active theme name
+    pub fn current_theme_name(&self) -> &str {
+        &self.theme.current
+    }
+
+    /// Reload themes from themes.toml and return true if anything changed
+    pub fn reload(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
+        // Get the current theme name to preserve as default if possible
+        let current_theme = self.theme.current.clone();
+        let new_config = Self::load_with_default_theme(&current_theme);
+
+        // Check if anything has changed - theme name, theme count, or theme content
+        let theme_changed = self.theme.current != new_config.theme.current;
+        let theme_count_changed = self.themes.len() != new_config.themes.len();
+
+        // Check if the content of any theme has changed by comparing the serialized data
+        let content_changed = {
+            // Convert both configs to strings and compare
+            if let (Ok(old_toml), Ok(new_toml)) =
+                (toml::to_string(self), toml::to_string(&new_config))
+            {
+                old_toml != new_toml
+            } else {
+                // If we can't serialize, assume it changed to be safe
+                true
+            }
+        };
+
+        let any_change = theme_changed || theme_count_changed || content_changed;
+
+        if any_change {
+            log::info!(
+                "Theme configuration changed (theme: {}, count: {}, content: {})",
+                theme_changed,
+                theme_count_changed,
+                content_changed
+            );
+        }
+
+        *self = new_config;
+        Ok(any_change)
+    }
+
+    /// Check for theme file changes using the provided watcher and reload if necessary
+    pub fn check_and_reload(&mut self, watcher: &ConfigWatcher) -> Result<bool, Box<dyn std::error::Error>> {
+        log::trace!("Checking for theme file changes...");
+        if watcher.check_for_theme_changes() {
+            log::debug!("Theme changes detected, reloading...");
+            return self.reload();
+        }
+        Ok(false)
     }
 }
 

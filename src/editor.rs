@@ -7,7 +7,7 @@ use crate::mode::Mode;
 use crate::search::{SearchEngine, SearchResult};
 use crate::syntax::{AsyncSyntaxHighlighter, HighlightRange, Priority};
 use crate::terminal::Terminal;
-use crate::theme_watcher::ThemeManager;
+use crate::theme::ThemeConfig;
 use crate::ui::UI;
 use crate::window::{SplitDirection, WindowManager};
 use anyhow::Result;
@@ -111,8 +111,8 @@ pub struct Editor {
     last_render_time: Instant,
     /// Configuration file watcher for hot reloading
     config_watcher: Option<ConfigWatcher>,
-    /// Theme manager for hot reloading themes
-    theme_manager: ThemeManager,
+    /// Theme configuration for hot reloading themes
+    theme_config: ThemeConfig,
     /// Async syntax highlighter for background code highlighting
     async_syntax_highlighter: Option<AsyncSyntaxHighlighter>,
     /// Track if we've processed any key press events yet (for startup handling)
@@ -166,8 +166,8 @@ impl Editor {
             }
         };
 
-        // Initialize theme manager for hot reloading themes using editor's color scheme
-        let theme_manager = ThemeManager::new_with_default_theme(&config.display.color_scheme);
+        // Initialize theme configuration for hot reloading themes using editor's color scheme
+        let theme_config = ThemeConfig::load_with_default_theme(&config.display.color_scheme);
 
         // Initialize async syntax highlighter
         let async_syntax_highlighter = match AsyncSyntaxHighlighter::new() {
@@ -200,7 +200,7 @@ impl Editor {
             status_message: String::new(),
             last_render_time: Instant::now(),
             config_watcher,
-            theme_manager,
+            theme_config,
             async_syntax_highlighter,
             has_processed_any_press: false,
             needs_syntax_refresh: Arc::new(AtomicBool::new(false)),
@@ -605,16 +605,27 @@ impl Editor {
                         self.reload_keymap_config();
                         input_processed = true;
                     }
+                    ConfigChangeEvent::ThemeConfigChanged => {
+                        info!("Theme configuration file changed, reloading");
+                        if let Some(ref watcher) = self.config_watcher {
+                            if let Err(e) = self.theme_config.check_and_reload(watcher) {
+                                warn!("Failed to reload theme configuration: {}", e);
+                            }
+                        }
+                        input_processed = true;
+                    }
                 }
             }
         }
 
         // Check for theme file changes
-        if let Ok(theme_changed) = self.theme_manager.check_and_reload() {
-            if theme_changed {
-                info!("Theme files changed, reloading UI theme");
-                self.reload_ui_theme();
-                input_processed = true;
+        if let Some(ref watcher) = self.config_watcher {
+            if let Ok(theme_changed) = self.theme_config.check_and_reload(watcher) {
+                if theme_changed {
+                    info!("Theme files changed, reloading UI theme");
+                    self.reload_ui_theme();
+                    input_processed = true;
+                }
             }
         } else {
             // Only log errors occasionally to avoid spam
@@ -1177,8 +1188,11 @@ impl Editor {
                 }
             }
             "colorscheme" | "colo" => {
-                // Update theme manager to match the new colorscheme
-                let _ = self.theme_manager.set_current_theme(value);
+                // Update theme configuration to match the new colorscheme
+                self.theme_config.set_current_theme(value);
+                if let Err(e) = self.theme_config.save() {
+                    warn!("Failed to save theme configuration: {}", e);
+                }
                 self.ui.set_theme(value);
 
                 // TODO: Update async syntax highlighter with new color scheme
@@ -1498,8 +1512,8 @@ impl Editor {
         // Brief delay to ensure file write is complete
         std::thread::sleep(std::time::Duration::from_millis(50));
 
-        // Get the current theme name from the theme manager
-        let current_theme = self.theme_manager.current_theme_name();
+        // Get the current theme name from the theme configuration
+        let current_theme = self.theme_config.current_theme_name();
 
         log::info!("Reloading UI theme to: {}", current_theme);
 
