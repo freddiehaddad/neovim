@@ -122,7 +122,13 @@ impl Editor {
     pub fn new() -> Result<Self> {
         info!("Initializing Editor");
 
-        let terminal = Terminal::new()?;
+        let mut terminal = Terminal::new()?;
+
+        // Set initial cursor shape for normal mode
+        if let Err(e) = terminal.set_cursor_block() {
+            warn!("Failed to set initial cursor shape: {}", e);
+        }
+
         let config = EditorConfig::load();
         debug!(
             "Editor configuration loaded: color_scheme={}, line_numbers={}",
@@ -547,6 +553,36 @@ impl Editor {
             // Cancel completion when leaving command mode
             self.command_completion.cancel();
         }
+
+        // Update cursor shape based on the new mode
+        if let Err(e) = self.update_cursor_shape(mode) {
+            warn!("Failed to update cursor shape: {}", e);
+        }
+    }
+
+    /// Update cursor shape based on editor mode
+    fn update_cursor_shape(&mut self, mode: Mode) -> Result<()> {
+        match mode {
+            Mode::Insert => {
+                debug!("Setting cursor to line shape for insert mode");
+                self.terminal.set_cursor_line()?;
+            }
+            Mode::Replace => {
+                debug!("Setting cursor to underline shape for replace mode");
+                self.terminal.set_cursor_underline()?;
+            }
+            Mode::Normal
+            | Mode::Visual
+            | Mode::VisualLine
+            | Mode::VisualBlock
+            | Mode::Command
+            | Mode::Search
+            | Mode::OperatorPending => {
+                debug!("Setting cursor to block shape for {:?} mode", mode);
+                self.terminal.set_cursor_block()?;
+            }
+        }
+        Ok(())
     }
 
     pub fn command_line(&self) -> &str {

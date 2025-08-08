@@ -342,6 +342,25 @@ impl UI {
         terminal: &mut Terminal,
         editor_state: &EditorRenderState,
     ) -> io::Result<()> {
+        // Set cursor shape based on current mode
+        match editor_state.mode {
+            Mode::Insert => {
+                terminal.queue_cursor_line()?;
+            }
+            Mode::Replace => {
+                terminal.queue_cursor_underline()?;
+            }
+            Mode::Normal
+            | Mode::Visual
+            | Mode::VisualLine
+            | Mode::VisualBlock
+            | Mode::Command
+            | Mode::Search
+            | Mode::OperatorPending => {
+                terminal.queue_cursor_block()?;
+            }
+        }
+
         if let Some(current_window) = editor_state.window_manager.current_window() {
             // Get the buffer for the current window
             let buffer = if let Some(buffer_id) = current_window.buffer_id {

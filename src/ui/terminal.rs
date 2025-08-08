@@ -1,6 +1,7 @@
 use crate::core::mode::Position;
 use crossterm::{
-    ExecutableCommand, QueueableCommand, cursor,
+    ExecutableCommand, QueueableCommand,
+    cursor::{self, SetCursorStyle},
     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -79,6 +80,27 @@ impl Terminal {
         Ok(())
     }
 
+    /// Set cursor to block shape (normal mode)
+    pub fn set_cursor_block(&mut self) -> io::Result<()> {
+        debug!("Setting cursor to block shape (normal mode)");
+        self.stdout.execute(SetCursorStyle::SteadyBlock)?;
+        Ok(())
+    }
+
+    /// Set cursor to vertical line shape (insert mode)
+    pub fn set_cursor_line(&mut self) -> io::Result<()> {
+        debug!("Setting cursor to line shape (insert mode)");
+        self.stdout.execute(SetCursorStyle::SteadyBar)?;
+        Ok(())
+    }
+
+    /// Set cursor to underline shape (replace mode)
+    pub fn set_cursor_underline(&mut self) -> io::Result<()> {
+        debug!("Setting cursor to underline shape (replace mode)");
+        self.stdout.execute(SetCursorStyle::SteadyUnderScore)?;
+        Ok(())
+    }
+
     pub fn set_foreground_color(&mut self, color: Color) -> io::Result<()> {
         self.stdout.execute(SetForegroundColor(color))?;
         Ok(())
@@ -152,6 +174,24 @@ impl Terminal {
 
     pub fn queue_show_cursor(&mut self) -> io::Result<()> {
         self.stdout.queue(cursor::Show)?;
+        Ok(())
+    }
+
+    /// Queue cursor to block shape (normal mode)
+    pub fn queue_cursor_block(&mut self) -> io::Result<()> {
+        self.stdout.queue(SetCursorStyle::SteadyBlock)?;
+        Ok(())
+    }
+
+    /// Queue cursor to vertical line shape (insert mode)
+    pub fn queue_cursor_line(&mut self) -> io::Result<()> {
+        self.stdout.queue(SetCursorStyle::SteadyBar)?;
+        Ok(())
+    }
+
+    /// Queue cursor to underline shape (replace mode)
+    pub fn queue_cursor_underline(&mut self) -> io::Result<()> {
+        self.stdout.queue(SetCursorStyle::SteadyUnderScore)?;
         Ok(())
     }
 }
