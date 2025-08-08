@@ -1,6 +1,7 @@
 // Language Server Protocol client
 // This will provide IDE features like completion, diagnostics, etc.
 
+use log::{debug, info};
 use std::collections::HashMap;
 
 pub struct LspClient {
@@ -16,21 +17,29 @@ pub struct LspServer {
 
 impl LspClient {
     pub fn new() -> Self {
+        info!("Initializing LSP client");
         Self {
             servers: HashMap::new(),
         }
     }
 
     pub fn register_server(&mut self, language: String, server: LspServer) {
+        info!(
+            "Registering LSP server for language '{}': {}",
+            language, server.name
+        );
+        debug!("LSP server command: {} {:?}", server.command, server.args);
         self.servers.insert(language, server);
     }
 
-    pub fn get_completions(&self, _file_path: &str, _position: (usize, usize)) -> Vec<Completion> {
+    pub fn get_completions(&self, file_path: &str, position: (usize, usize)) -> Vec<Completion> {
+        debug!("Getting completions for {}:{:?}", file_path, position);
         // TODO: Implement LSP completion
         Vec::new()
     }
 
-    pub fn get_diagnostics(&self, _file_path: &str) -> Vec<Diagnostic> {
+    pub fn get_diagnostics(&self, file_path: &str) -> Vec<Diagnostic> {
+        debug!("Getting diagnostics for {}", file_path);
         // TODO: Implement LSP diagnostics
         Vec::new()
     }

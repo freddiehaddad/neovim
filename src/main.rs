@@ -4,23 +4,55 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
-    // Initialize logging - logging to file by default
-    use env_logger::Target;
+    // Initialize comprehensive logging
+    use env_logger::{Builder, Target};
+    use std::io::Write;
 
-    // Configure logging based on build type
+    // Configure logging based on build type with timestamps and better formatting
     let mut builder = if cfg!(debug_assertions) {
-        // Debug builds: Enable trace logging by default
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
+        // Debug builds: Enable trace logging by default with detailed formatting
+        Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
     } else {
         // Release builds: Use default behavior (respects RUST_LOG environment variable)
-        env_logger::Builder::from_default_env()
+        Builder::from_default_env()
     };
 
+    // Enhanced log formatting with timestamps and module names
     builder
+        .format(|buf, record| {
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            writeln!(
+                buf,
+                "{} [{}] [{}:{}] {}",
+                timestamp,
+                record.level(),
+                record.module_path().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                record.args()
+            )
+        })
         .target(Target::Pipe(Box::new(std::fs::File::create(
             "oxidized.log",
         )?)))
         .init();
+
+    log::info!("=== Oxidized Text Editor Starting ===");
+    log::info!(
+        "Build type: {}",
+        if cfg!(debug_assertions) {
+            "DEBUG"
+        } else {
+            "RELEASE"
+        }
+    );
+    log::info!("Version: {}", env!("CARGO_PKG_VERSION"));
+    log::debug!(
+        "Working directory: {:?}",
+        std::env::current_dir().unwrap_or_default()
+    );
 
     // Option: Default stderr logging (uncomment to use instead)
     // env_logger::init();

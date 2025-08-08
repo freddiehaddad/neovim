@@ -1,6 +1,8 @@
 // Plugin system for extensibility
 // This will provide a Lua scripting interface and plugin management
 
+use log::{debug, info, warn};
+
 pub struct PluginManager {
     loaded_plugins: Vec<Plugin>,
 }
@@ -14,18 +16,23 @@ pub struct Plugin {
 
 impl PluginManager {
     pub fn new() -> Self {
+        info!("Initializing plugin manager");
         Self {
             loaded_plugins: Vec::new(),
         }
     }
 
-    pub fn load_plugin(&mut self, _path: &std::path::Path) -> anyhow::Result<()> {
+    pub fn load_plugin(&mut self, path: &std::path::Path) -> anyhow::Result<()> {
+        info!("Loading plugin from: {:?}", path);
         // TODO: Implement plugin loading with Lua
+        warn!("Plugin loading not yet implemented");
         Ok(())
     }
 
-    pub fn execute_lua(&self, _script: &str) -> anyhow::Result<()> {
+    pub fn execute_lua(&self, script: &str) -> anyhow::Result<()> {
+        debug!("Executing Lua script ({} chars)", script.len());
         // TODO: Implement Lua execution
+        warn!("Lua execution not yet implemented");
         Ok(())
     }
 

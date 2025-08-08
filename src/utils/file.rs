@@ -2,6 +2,7 @@
 // This will handle file I/O, directory browsing, etc.
 
 use anyhow::Result;
+use log::{debug, info};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,15 +13,27 @@ pub struct FileManager {
 impl FileManager {
     pub fn new() -> Result<Self> {
         let current_dir = std::env::current_dir()?;
+        info!("Initialized FileManager with directory: {:?}", current_dir);
         Ok(Self { current_dir })
     }
 
     pub fn read_file<P: AsRef<Path>>(path: P) -> Result<String> {
-        Ok(fs::read_to_string(path)?)
+        let path = path.as_ref();
+        debug!("Reading file: {:?}", path);
+        let content = fs::read_to_string(path)?;
+        info!(
+            "Successfully read {} bytes from file: {:?}",
+            content.len(),
+            path
+        );
+        Ok(content)
     }
 
     pub fn write_file<P: AsRef<Path>>(path: P, content: &str) -> Result<()> {
+        let path = path.as_ref();
+        debug!("Writing {} bytes to file: {:?}", content.len(), path);
         fs::write(path, content)?;
+        info!("Successfully wrote file: {:?}", path);
         Ok(())
     }
 

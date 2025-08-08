@@ -1,4 +1,6 @@
 /// Command completion system for Vim-style commands
+use log::{debug, info};
+
 #[derive(Debug, Clone)]
 pub struct CommandCompletion {
     /// Available commands for completion
@@ -25,8 +27,13 @@ pub struct CompletionItem {
 
 impl CommandCompletion {
     pub fn new() -> Self {
+        let commands = Self::build_command_list();
+        info!(
+            "Initialized command completion with {} commands",
+            commands.len()
+        );
         Self {
-            commands: Self::build_command_list(),
+            commands,
             active: false,
             matches: Vec::new(),
             selected_index: 0,
@@ -387,10 +394,12 @@ impl CommandCompletion {
 
     /// Start completion for the given input
     pub fn start_completion(&mut self, input: &str) {
+        debug!("Starting command completion for input: '{}'", input);
         self.active = true;
         self.completion_prefix = input.to_string();
         self.update_matches(input);
         self.selected_index = 0;
+        debug!("Found {} completion matches", self.matches.len());
     }
 
     /// Update matches based on input
