@@ -116,6 +116,8 @@ pub struct Editor {
     pending_operator: Option<PendingOperator>,
     /// Text object finder for parsing text objects
     text_object_finder: crate::features::text_objects::TextObjectFinder,
+    /// Macro recording and playback system
+    macro_recorder: crate::features::macros::MacroRecorder,
 }
 
 impl Editor {
@@ -202,6 +204,7 @@ impl Editor {
             command_completion: CommandCompletion::new(),
             pending_operator: None,
             text_object_finder: crate::features::text_objects::TextObjectFinder::new(),
+            macro_recorder: crate::features::macros::MacroRecorder::new(),
         })
     }
 
@@ -1972,5 +1975,42 @@ impl Editor {
 
             result
         }
+    }
+
+    // Macro system public methods
+    pub fn is_macro_recording(&self) -> bool {
+        self.macro_recorder.is_recording()
+    }
+
+    pub fn start_macro_recording(
+        &mut self,
+        register: char,
+    ) -> Result<(), crate::features::macros::MacroError> {
+        self.macro_recorder.start_recording(register)
+    }
+
+    pub fn stop_macro_recording(&mut self) -> Result<char, crate::features::macros::MacroError> {
+        self.macro_recorder.stop_recording()
+    }
+
+    pub fn play_macro(
+        &mut self,
+        register: char,
+    ) -> Result<Vec<crossterm::event::KeyEvent>, crate::features::macros::MacroError> {
+        self.macro_recorder.play_macro(register)
+    }
+
+    pub fn play_last_macro(
+        &mut self,
+    ) -> Result<Vec<crossterm::event::KeyEvent>, crate::features::macros::MacroError> {
+        self.macro_recorder.play_last_macro()
+    }
+
+    pub fn get_last_played_macro_register(&self) -> Option<char> {
+        self.macro_recorder.get_last_played_register()
+    }
+
+    pub fn record_macro_event(&mut self, event: crossterm::event::KeyEvent) {
+        self.macro_recorder.record_event(event);
     }
 }

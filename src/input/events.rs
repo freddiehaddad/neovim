@@ -22,12 +22,27 @@ pub enum EditorEvent {
     Config(ConfigEvent),
     /// Search events
     Search(SearchEvent),
+    /// Macro events
+    Macro(MacroEvent),
     /// System events
     System(SystemEvent),
     /// Plugin events (future extensibility)
     Plugin(PluginEvent),
     /// LSP events (future LSP integration)
     LSP(LSPEvent),
+}
+
+/// Macro-related events
+#[derive(Debug, Clone)]
+pub enum MacroEvent {
+    /// Start recording a macro to the specified register
+    StartRecording(char),
+    /// Stop recording the current macro
+    StopRecording,
+    /// Execute a macro from the specified register
+    Execute { register: char, count: usize },
+    /// Repeat the last executed macro
+    RepeatLast { count: usize },
 }
 
 /// Input-related events

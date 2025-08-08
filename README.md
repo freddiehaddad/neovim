@@ -16,6 +16,7 @@
 - **Professional Text Objects**: Full support for words, paragraphs, quotes, brackets, tags, and custom objects
 - **Operator Integration**: All operators (`d`, `c`, `y`, `>`, `<`, `~`) work seamlessly with text objects
 - **Sophisticated Undo System**: Multi-level undo/redo with full operation tracking
+- **Macro Recording System**: Full Vim-compatible macro recording and playback with registers a-z, A-Z, 0-9
 
 ### Modern Performance Architecture
 
@@ -113,6 +114,14 @@ cargo install --path .
 - `/pattern` - Search forward
 - `?pattern` - Search backward
 - `n/N` - Next/previous search result
+
+**Macro Recording & Playback:**
+
+- `qa` - Start recording macro to register 'a' (use any a-z, A-Z, 0-9)
+- `q` - Stop macro recording
+- `@a` - Execute macro from register 'a'
+- `@@` - Repeat last executed macro
+- `3@a` - Execute macro 'a' three times
 
 ### Advanced Window Management
 
@@ -329,6 +338,7 @@ punctuation = "#839496"  # Gray for punctuation
 - Full operator support (`d`, `c`, `y`, `>`, `<`, `~`) with text object integration
 - Multi-level undo/redo system with operation tracking
 - Sophisticated clipboard operations with line/character modes
+- **Macro recording and playback system** with support for 62 registers (a-z, A-Z, 0-9)
 
 **Navigation & Movement:**
 
@@ -381,7 +391,13 @@ punctuation = "#839496"  # Gray for punctuation
 - Visual mode selection and operations
 - Advanced search and replace with regex substitution
 - Code folding and automatic indentation
-- Macro recording and playback
+- **Macro recording and playback** ✅ **IMPLEMENTED**
+  - `q{register}` - Start/stop macro recording to registers a-z, A-Z, 0-9
+  - `@{register}` - Playback recorded macro from any register
+  - `@@` - Repeat last executed macro
+  - `{count}@{register}` - Execute macro multiple times
+  - Automatic loop prevention and error handling
+  - Full Vim-compatible behavior with all standard registers
 
 **File Management:**
 
@@ -592,24 +608,7 @@ This section outlines our plan to achieve complete feature parity with Vim/Neovi
 
 ### 🚧 **Phase 1: Essential Vim Features (High Priority)**
 
-#### 1. **Macro System**
-
-```rust
-// Priority: CRITICAL - Core Vim feature
-// Implementation: src/features/macros.rs
-pub struct MacroRecorder {
-    recording_register: Option<char>,
-    current_macro: Vec<KeyEvent>,
-    stored_macros: HashMap<char, Vec<KeyEvent>>,
-}
-```
-
-- **q{register}**: Start/stop macro recording
-- **@{register}**: Playback macro
-- **@@**: Repeat last macro
-- **{count}@{register}**: Repeat macro count times
-
-#### 2. **Named Registers System**
+#### 1. **Named Registers System**
 
 ```rust
 // Priority: HIGH - Essential for advanced editing
@@ -713,9 +712,9 @@ pub struct MarkSystem {
 
 ### 📈 **Implementation Strategy**
 
-**Phase 1 Timeline** (16-20 weeks):
+**Phase 1 Timeline** (12-14 weeks):
 
-1. **Macro System**: 4-6 weeks
+1. **~~Macro System~~**: ✅ **COMPLETED** (4-6 weeks)
 2. **Named Registers**: 2-3 weeks  
 3. **Visual Mode Completion**: 3-4 weeks
 4. **Search & Replace**: 3-4 weeks

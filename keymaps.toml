@@ -102,6 +102,10 @@
 "Ctrl+s" = "save_file"
 "Ctrl+q" = "quit"
 
+# Macro operations
+"q" = "start_macro_recording"  # q{register} - start/stop recording
+"@" = "execute_macro"          # @{register} - execute macro
+
 # Undo/Redo
 "u" = "undo"
 "Ctrl+r" = "redo"

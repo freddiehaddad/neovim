@@ -140,6 +140,7 @@ impl EventDrivenEditor {
             EditorEvent::System(system_event) => self.handle_system_event(system_event),
             EditorEvent::Plugin(_) => Ok(false), // Future implementation
             EditorEvent::LSP(_) => Ok(false),    // Future implementation
+            EditorEvent::Macro(macro_event) => self.handle_macro_event(macro_event),
         }
     }
 
@@ -517,6 +518,45 @@ impl EventDrivenEditor {
 
         info!("All background threads shut down");
         Ok(())
+    }
+
+    /// Handle macro events
+    fn handle_macro_event(&self, event: crate::input::events::MacroEvent) -> Result<bool> {
+        if let Ok(mut editor) = self.editor.lock() {
+            match event {
+                crate::input::events::MacroEvent::StartRecording(register) => {
+                    if let Err(e) = editor.start_macro_recording(register) {
+                        log::warn!("Failed to start macro recording: {}", e);
+                    } else {
+                        log::info!("Started macro recording for register '{}'", register);
+                    }
+                }
+                crate::input::events::MacroEvent::StopRecording => {
+                    if editor.is_macro_recording() {
+                        if let Err(e) = editor.stop_macro_recording() {
+                            log::warn!("Failed to stop macro recording: {}", e);
+                        } else {
+                            log::info!("Stopped macro recording");
+                        }
+                    }
+                }
+                crate::input::events::MacroEvent::Execute { register, count: _ } => {
+                    if let Err(e) = editor.play_macro(register) {
+                        log::warn!("Failed to execute macro '{}': {}", register, e);
+                    } else {
+                        log::info!("Executed macro '{}'", register);
+                    }
+                }
+                crate::input::events::MacroEvent::RepeatLast { count: _ } => {
+                    if let Err(e) = editor.play_last_macro() {
+                        log::warn!("Failed to repeat last macro: {}", e);
+                    } else {
+                        log::info!("Repeated last macro");
+                    }
+                }
+            }
+        }
+        Ok(false)
     }
 
     /// Send an event to the event bus

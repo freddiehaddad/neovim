@@ -480,6 +480,13 @@ impl KeyHandler {
         action: &str,
         key: KeyEvent,
     ) -> Result<()> {
+        // Record key event if macro recording is active (but not if we're executing macro actions)
+        if editor.is_macro_recording()
+            && !matches!(action, "start_macro_recording" | "execute_macro")
+        {
+            editor.record_macro_event(key);
+        }
+
         match action {
             // Movement actions
             "cursor_left" => self.action_cursor_left(editor)?,
@@ -573,6 +580,10 @@ impl KeyHandler {
             // File operations
             "save_file" => self.action_save_file(editor)?,
             "quit" => self.action_quit(editor)?,
+
+            // Macro operations
+            "start_macro_recording" => self.action_start_macro_recording(editor, key)?,
+            "execute_macro" => self.action_execute_macro(editor, key)?,
 
             // Undo/Redo
             "undo" => self.action_undo(editor)?,
@@ -2781,6 +2792,105 @@ impl KeyHandler {
         }
 
         None
+    }
+
+    // Macro action methods
+    fn action_start_macro_recording(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Char(register) => {
+                if editor.is_macro_recording() {
+                    // Stop recording if already recording
+                    if let Ok(stopped_register) = editor.stop_macro_recording() {
+                        info!(
+                            "Stopped macro recording for register '{}'",
+                            stopped_register
+                        );
+                    }
+                } else {
+                    // Start recording
+                    if let Ok(_) = editor.start_macro_recording(register) {
+                        info!("Started macro recording for register '{}'", register);
+                    }
+                }
+            }
+            _ => {
+                warn!("Invalid register for macro recording: expected a character");
+            }
+        }
+        Ok(())
+    }
+
+    fn action_execute_macro(&mut self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
+        match key.code {
+            KeyCode::Char('@') => {
+                // Repeat last executed macro (@@)
+                match editor.play_last_macro() {
+                    Ok(events) => {
+                        if let Some(last_register) = editor.get_last_played_macro_register() {
+                            info!(
+                                "Repeating last macro from register '{}' with {} events",
+                                last_register,
+                                events.len()
+                            );
+                        }
+                        for key_event in events {
+                            if let Some(action) = self.get_action_for_key(editor, &key_event) {
+                                self.execute_action_without_recording(editor, &action, key_event)?;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to repeat last macro: {}", e);
+                    }
+                }
+            }
+            KeyCode::Char(register) => {
+                match editor.play_macro(register) {
+                    Ok(events) => {
+                        info!(
+                            "Executing macro from register '{}' with {} events",
+                            register,
+                            events.len()
+                        );
+                        // Execute the recorded macro events
+                        for key_event in events {
+                            // Get the action for this key in the current mode
+                            if let Some(action) = self.get_action_for_key(editor, &key_event) {
+                                self.execute_action_without_recording(editor, &action, key_event)?;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Failed to execute macro from register '{}': {}",
+                            register, e
+                        );
+                    }
+                }
+            }
+            _ => {
+                warn!("Invalid register for macro execution: expected a character or @");
+            }
+        }
+        Ok(())
+    }
+
+    // Helper method to get action for a key in the current mode
+    fn get_action_for_key(&self, editor: &Editor, key_event: &KeyEvent) -> Option<String> {
+        let keymap = match editor.mode() {
+            Mode::Normal => &self.keymap_config.normal_mode,
+            Mode::Insert => &self.keymap_config.insert_mode,
+            Mode::Command => &self.keymap_config.command_mode,
+            Mode::Visual => &self.keymap_config.visual_mode,
+            Mode::VisualLine => &self.keymap_config.visual_line_mode,
+            Mode::VisualBlock => &self.keymap_config.visual_block_mode,
+            Mode::Replace => &self.keymap_config.replace_mode,
+            Mode::Search => &self.keymap_config.search_mode,
+            Mode::OperatorPending => &self.keymap_config.operator_pending_mode,
+        };
+
+        let key_str = KeyHandler::key_event_to_string(*key_event);
+        keymap.get(&key_str).cloned()
     }
 
     fn is_repeatable_action(&self, action: &str) -> bool {
