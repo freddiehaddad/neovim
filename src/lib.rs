@@ -1,27 +1,22 @@
-pub mod buffer;
-pub mod command;
-pub mod completion;
-pub mod config;
-pub mod config_watcher;
-pub mod editor;
-pub mod event;
-pub mod event_driven;
-pub mod file;
-pub mod keymap;
-pub mod lsp;
-pub mod mode;
-pub mod plugin;
-pub mod search;
-pub mod syntax;
-pub mod terminal;
-pub mod text_objects;
-pub mod theme;
-pub mod ui;
-pub mod window;
+// Core functionality
+pub mod core;
 
-pub use buffer::Buffer;
-pub use editor::Editor;
-pub use event::*;
-pub use event_driven::EventDrivenEditor;
-pub use keymap::KeyHandler;
-pub use terminal::Terminal;
+// User interface
+pub mod ui;
+
+// Input handling
+pub mod input;
+
+// Configuration management
+pub mod config;
+
+// Features
+pub mod features;
+
+// Utilities
+pub mod utils;
+
+// Re-exports
+pub use core::{buffer::Buffer, editor::Editor};
+pub use input::{event_driven::EventDrivenEditor, events::*, keymap::KeyHandler};
+pub use ui::terminal::Terminal;
