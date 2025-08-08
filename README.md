@@ -567,6 +567,168 @@ Oxidized is an open-source learning project focused on understanding text editor
 - **Documentation**: Improve user guides and developer documentation
 - **Testing**: Add more comprehensive test coverage
 
+---
+
+## 🎯 Vim/Neovim Feature Parity Roadmap
+
+This section outlines our plan to achieve complete feature parity with Vim/Neovim while maintaining oxidized's performance advantages.
+
+### ✅ **Currently Implemented**
+
+- **Modal Editing**: Complete with Normal, Insert, Visual, Command, Replace, Search modes
+- **Basic Movement**: hjkl, word movement (w/b/e), line navigation (0/$, gg/G)
+- **Text Objects**: Comprehensive implementation with words, paragraphs, quotes, brackets
+- **Operators**: Full operator system (d/c/y/>/</~) with text object integration
+- **Window Management**: Splits, navigation, resizing with Ctrl+w commands  
+- **Buffer Management**: Multi-buffer support with switching and management
+- **Search**: Forward/backward search with n/N navigation
+- **Undo/Redo**: Multi-level undo system with operation tracking
+- **Configuration**: TOML-based config with live reloading
+- **Syntax Highlighting**: Tree-sitter integration with async processing
+- **Clipboard Operations**: Basic yank/put with character and line modes
+- **Scrolling**: Complete scrolling system (Ctrl+f/b/d/u, zz/zt/zb)
+- **Command System**: Ex-commands with completion (:w, :q, :set, etc.)
+- **Cursor Shape**: Mode-aware cursor changes (block/line/underline)
+
+### 🚧 **Phase 1: Essential Vim Features (High Priority)**
+
+#### 1. **Macro System**
+
+```rust
+// Priority: CRITICAL - Core Vim feature
+// Implementation: src/features/macros.rs
+pub struct MacroRecorder {
+    recording_register: Option<char>,
+    current_macro: Vec<KeyEvent>,
+    stored_macros: HashMap<char, Vec<KeyEvent>>,
+}
+```
+
+- **q{register}**: Start/stop macro recording
+- **@{register}**: Playback macro
+- **@@**: Repeat last macro
+- **{count}@{register}**: Repeat macro count times
+
+#### 2. **Named Registers System**
+
+```rust
+// Priority: HIGH - Essential for advanced editing
+// Implementation: src/features/registers.rs
+pub struct RegisterSystem {
+    named_registers: HashMap<char, ClipboardContent>,    // a-z
+    numbered_registers: VecDeque<ClipboardContent>,      // 0-9
+    special_registers: HashMap<char, ClipboardContent>,  // "/%, etc.
+}
+```
+
+- **"{register}**: Access named registers (a-z, A-Z)
+- **Numbered registers**: 0-9 for deleted text
+- **Special registers**: "/, "%, ":, "., etc.
+
+#### 3. **Complete Visual Mode Operations**
+
+- **Visual selection**: Proper character selection with highlighting
+- **Visual line selection**: Complete line selection (V)
+- **Visual block selection**: Rectangular selection (Ctrl+V)
+- **Selection operations**: d, c, y, >, <, ~ with visual selections
+
+#### 4. **Enhanced Search & Replace**
+
+- **Search history**: Up/Down arrows in search mode
+- **Search options**: \c, \C for case sensitivity
+- **Substitute command**: :s/pattern/replacement/flags
+- **Global replace**: :%s/pattern/replacement/g
+- **Interactive replace**: Confirmation prompts
+
+#### 5. **Marks and Jumps**
+
+```rust
+// Priority: MEDIUM-HIGH - Navigation enhancement
+// Implementation: src/features/marks.rs
+pub struct MarkSystem {
+    local_marks: HashMap<char, Position>,     // a-z
+    global_marks: HashMap<char, (PathBuf, Position)>, // A-Z
+    jump_list: VecDeque<Position>,
+}
+```
+
+- **m{mark}**: Set local marks (a-z) and global marks (A-Z)
+- **'{mark}**: Jump to mark
+- **Ctrl+O/Ctrl+I**: Navigate jump list
+
+### 🔧 **Phase 2: Advanced Vim Features (Medium Priority)**
+
+#### 6. **Tabs Support**
+
+- **:tabnew**: Create new tab
+- **gt/gT**: Navigate tabs
+- **:tabclose**: Close current tab
+
+#### 7. **Complete Character Navigation**
+
+- **f/F/t/T**: Enhanced character finding with repeat
+- **;/,**: Repeat character search forward/backward
+- **Bracket matching**: % for bracket/quote/tag matching
+
+#### 8. **Improved Undo System**
+
+- **Undo branches**: g+/g- for undo tree navigation
+- **:undolist**: Show undo history
+- **Earlier/later**: :earlier 5m, :later 10s
+
+#### 9. **Ex Command System Enhancement**
+
+- **More ex-commands**: :copy, :move, :delete, :join
+- **Command ranges**: :1,5d, :.,+3y, :%s//
+- **Command history**: Up/Down arrows in command mode
+
+#### 10. **Folding System**
+
+- **zf**: Create fold
+- **zo/zc**: Open/close fold
+- **zM/zR**: Close/open all folds
+- **Fold methods**: Manual, indent-based, syntax-based
+
+### 🌟 **Phase 3: Modern Features (Medium-Low Priority)**
+
+#### 11. **Complete LSP Integration**
+
+- **Go to definition**: gd
+- **Find references**: gr
+- **Hover information**: K
+- **Diagnostics**: Real-time error highlighting
+- **Code actions**: Refactoring suggestions
+
+#### 12. **Plugin System**
+
+- **Lua scripting**: Full mlua integration
+- **Plugin manager**: Install/update plugins
+- **API bindings**: Expose editor functionality to Lua
+
+#### 13. **Git Integration**
+
+- **Git status**: Show modified lines in gutter
+- **Git blame**: :Gblame command
+- **Git diff**: :Gdiff command
+
+### 📈 **Implementation Strategy**
+
+**Phase 1 Timeline** (16-20 weeks):
+
+1. **Macro System**: 4-6 weeks
+2. **Named Registers**: 2-3 weeks  
+3. **Visual Mode Completion**: 3-4 weeks
+4. **Search & Replace**: 3-4 weeks
+5. **Marks & Jumps**: 2-3 weeks
+
+**Success Metrics**:
+
+- **90% Vim compatibility**: Most common Vim workflows work identically
+- **Performance**: Sub-100ms response time for all operations
+- **Stability**: No crashes during normal editing sessions
+
+**Contributing**: Pick any feature from Phase 1 to start contributing! Each feature is designed to be implemented independently.
+
 ## 💡 Inspiration
 
 Oxidized draws inspiration from exceptional editors that have shaped the text editing landscape:
