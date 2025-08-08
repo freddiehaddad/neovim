@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     // Configure logging based on build type with timestamps and better formatting
     let mut builder = if cfg!(debug_assertions) {
         // Debug builds: Enable trace logging by default with detailed formatting
-        Builder::from_env(env_logger::Env::default().default_filter_or("trace"))
+        Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
     } else {
         // Release builds: Use default behavior (respects RUST_LOG environment variable)
         Builder::from_default_env()
