@@ -101,6 +101,13 @@ impl Terminal {
         Ok(())
     }
 
+    /// Restore cursor to default system shape
+    pub fn restore_cursor_shape(&mut self) -> io::Result<()> {
+        debug!("Restoring cursor to default system shape");
+        self.stdout.execute(SetCursorStyle::DefaultUserShape)?;
+        Ok(())
+    }
+
     pub fn set_foreground_color(&mut self, color: Color) -> io::Result<()> {
         self.stdout.execute(SetForegroundColor(color))?;
         Ok(())
@@ -199,8 +206,9 @@ impl Terminal {
 impl Drop for Terminal {
     fn drop(&mut self) {
         debug!("Cleaning up terminal: restoring cursor and colors");
-        // Restore cursor and colors first
+        // Restore cursor visibility, shape, and colors
         let _ = self.stdout.execute(cursor::Show);
+        let _ = self.stdout.execute(SetCursorStyle::DefaultUserShape);
         let _ = self.stdout.execute(ResetColor);
 
         debug!("Disabling raw terminal mode");
