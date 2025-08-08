@@ -31,3 +31,5 @@ anyhow = "1.0"
 [dev-dependencies]
 # Async runtime for tests only
 tokio = { version = "1.47.1", features = ["full"] }
+# Temporary directory creation for tests
+tempfile = "3.0"
