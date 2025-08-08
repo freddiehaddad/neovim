@@ -10,8 +10,6 @@ path = "src/main.rs"
 [dependencies]
 # Terminal handling
 crossterm = "0.29.0"
-# Async runtime
-tokio = { version = "1.47.1", features = ["full"] }
 # JSON-RPC for LSP
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.142"
@@ -19,9 +17,6 @@ serde_json = "1.0.142"
 toml = "0.9.5"
 # Regex support
 regex = "1.0"
-# Unicode handling
-unicode-width = "0.2"
-unicode-segmentation = "1.10"
 # File watching
 notify = "8.2.0"
 # Tree-sitter for syntax highlighting
@@ -32,10 +27,7 @@ log = "0.4"
 env_logger = "0.11.8"
 # Error handling
 anyhow = "1.0"
-thiserror = "2.0.12"
-# Collections
-indexmap = "2.0"
-# Command line parsing
-clap = { version = "4.5.43", features = ["derive"] }
-# Fuzzy finding
-fuzzy-matcher = "0.3"
+
+[dev-dependencies]
+# Async runtime for tests only
+tokio = { version = "1.47.1", features = ["full"] }
