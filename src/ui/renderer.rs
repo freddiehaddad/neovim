@@ -11,7 +11,7 @@ struct LineRenderContext {
     line_number: usize,
     is_cursor_line: bool,
     max_width: usize,
-    selection: Option<(Position, Position)>,
+    selection: Option<crate::core::mode::Selection>,
     editor_mode: crate::core::mode::Mode,
 }
 
@@ -93,6 +93,67 @@ impl UI {
             Mode::VisualLine => self.theme.visual_line_bg,
             Mode::VisualBlock => self.theme.visual_block_bg,
             _ => self.theme.selection_bg, // Fallback for other cases
+        }
+    }
+
+    /// Calculate line selection range for visual selection
+    fn calculate_line_selection_range(
+        &self,
+        line: &str,
+        line_number: usize,
+        selection: Option<crate::core::mode::Selection>,
+    ) -> Option<(usize, usize)> {
+        if let Some(sel) = selection {
+            use crate::core::mode::SelectionType;
+
+            let (start, end) = if sel.start.row <= sel.end.row {
+                (sel.start, sel.end)
+            } else {
+                (sel.end, sel.start)
+            };
+
+            match sel.selection_type {
+                SelectionType::Character => {
+                    if line_number >= start.row && line_number <= end.row {
+                        if start.row == end.row {
+                            Some((start.col, end.col))
+                        } else if line_number == start.row {
+                            Some((start.col, line.len()))
+                        } else if line_number == end.row {
+                            Some((0, end.col))
+                        } else {
+                            Some((0, line.len()))
+                        }
+                    } else {
+                        None
+                    }
+                }
+                SelectionType::Line => {
+                    if line_number >= start.row && line_number <= end.row {
+                        Some((0, line.len()))
+                    } else {
+                        None
+                    }
+                }
+                SelectionType::Block => {
+                    if line_number >= start.row && line_number <= end.row {
+                        let left_col = start.col.min(end.col);
+                        let right_col = start.col.max(end.col);
+                        let line_length = line.chars().count();
+                        let actual_right = right_col.min(line_length);
+
+                        if left_col <= line_length {
+                            Some((left_col, actual_right.max(left_col + 1)))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
+            }
+        } else {
+            None
         }
     }
 
@@ -265,7 +326,7 @@ impl UI {
                         line_number: buffer_row,
                         is_cursor_line,
                         max_width: text_width,
-                        selection: buffer.get_selection_range(),
+                        selection: buffer.get_selection(),
                         editor_mode: editor_state.mode,
                     };
                     self.render_highlighted_line(terminal, line, highlights, &context)?
@@ -290,7 +351,7 @@ impl UI {
                         display_line,
                         buffer_row,
                         is_cursor_line,
-                        buffer.get_selection_range(),
+                        buffer.get_selection(),
                         editor_state.mode,
                     )?;
                     display_line.len()
@@ -446,34 +507,8 @@ impl UI {
         let display_len = std::cmp::min(line.len(), context.max_width);
 
         // Determine if this line has visual selection and what range
-        let line_selection_range = if let Some((start, end)) = context.selection {
-            let (sel_start, sel_end) = if start.row <= end.row {
-                (start, end)
-            } else {
-                (end, start)
-            };
-
-            if context.line_number >= sel_start.row && context.line_number <= sel_end.row {
-                // This line is part of the selection
-                if sel_start.row == sel_end.row {
-                    // Single line selection
-                    Some((sel_start.col, sel_end.col))
-                } else if context.line_number == sel_start.row {
-                    // First line of multi-line selection
-                    Some((sel_start.col, line.len()))
-                } else if context.line_number == sel_end.row {
-                    // Last line of multi-line selection
-                    Some((0, sel_end.col))
-                } else {
-                    // Middle line of multi-line selection
-                    Some((0, line.len()))
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let line_selection_range =
+            self.calculate_line_selection_range(line, context.line_number, context.selection);
 
         for highlight in highlights {
             let start = std::cmp::min(highlight.start, display_len);
@@ -651,38 +686,12 @@ impl UI {
         line: &str,
         line_number: usize,
         is_cursor_line: bool,
-        selection: Option<(Position, Position)>,
+        selection: Option<crate::core::mode::Selection>,
         editor_mode: crate::core::mode::Mode,
     ) -> io::Result<()> {
         // Determine if this line has visual selection and what range
-        let line_selection_range = if let Some((start, end)) = selection {
-            let (sel_start, sel_end) = if start.row <= end.row {
-                (start, end)
-            } else {
-                (end, start)
-            };
-
-            if line_number >= sel_start.row && line_number <= sel_end.row {
-                // This line is part of the selection
-                if sel_start.row == sel_end.row {
-                    // Single line selection
-                    Some((sel_start.col, sel_end.col))
-                } else if line_number == sel_start.row {
-                    // First line of multi-line selection
-                    Some((sel_start.col, line.len()))
-                } else if line_number == sel_end.row {
-                    // Last line of multi-line selection
-                    Some((0, sel_end.col))
-                } else {
-                    // Middle line of multi-line selection
-                    Some((0, line.len()))
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let line_selection_range =
+            self.calculate_line_selection_range(line, line_number, selection);
 
         // Render the entire line with selection highlighting
         self.render_text_segment(

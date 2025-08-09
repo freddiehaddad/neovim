@@ -815,8 +815,7 @@ impl Buffer {
                 }
             }
             YankType::Block => {
-                // TODO: Implement block paste
-                self.put_after_character();
+                self.put_after_block();
             }
         }
     }
@@ -903,49 +902,8 @@ impl Buffer {
                 }
             }
             YankType::Block => {
-                // TODO: Implement block paste
-                self.put_before_character();
+                self.put_before_block();
             }
-        }
-    }
-
-    /// Helper for character-wise paste after cursor
-    fn put_after_character(&mut self) {
-        let insert_pos = if self.cursor.col < self.lines[self.cursor.row].len() {
-            self.cursor.col + 1
-        } else {
-            self.lines[self.cursor.row].len()
-        };
-        let operation = EditOperation::Insert {
-            pos: Position {
-                row: self.cursor.row,
-                col: insert_pos,
-            },
-            text: self.clipboard.text.clone(),
-        };
-        self.save_operation(operation);
-
-        if self.cursor.row < self.lines.len() {
-            let line = &mut self.lines[self.cursor.row];
-            line.insert_str(insert_pos, &self.clipboard.text);
-            self.cursor.col = insert_pos + self.clipboard.text.len().saturating_sub(1);
-            self.modified = true;
-        }
-    }
-
-    /// Helper for character-wise paste before cursor
-    fn put_before_character(&mut self) {
-        let operation = EditOperation::Insert {
-            pos: self.cursor,
-            text: self.clipboard.text.clone(),
-        };
-        self.save_operation(operation);
-
-        if self.cursor.row < self.lines.len() {
-            let line = &mut self.lines[self.cursor.row];
-            line.insert_str(self.cursor.col, &self.clipboard.text);
-            self.cursor.col += self.clipboard.text.len().saturating_sub(1);
-            self.modified = true;
         }
     }
 
@@ -1223,6 +1181,20 @@ impl Buffer {
         self.selection = Some(Selection::new_line(start_pos, end_pos));
     }
 
+    /// Start visual block selection at current cursor position
+    pub fn start_visual_block_selection(&mut self) {
+        debug!(
+            "Starting block-wise visual selection at position {:?}",
+            self.cursor
+        );
+        // For block-wise selection, start with a 1x1 block at cursor position
+        self.selection = Some(Selection::new_with_type(
+            self.cursor,
+            self.cursor,
+            SelectionType::Block,
+        ));
+    }
+
     /// Update visual selection end position as cursor moves
     pub fn update_visual_selection(&mut self, end_pos: Position) {
         if let Some(selection) = &mut self.selection {
@@ -1256,8 +1228,11 @@ impl Buffer {
                     );
                 }
                 SelectionType::Block => {
-                    // TODO: Implement block-wise selection
-                    warn!("Block-wise selection not yet implemented");
+                    // Block-wise: create rectangular selection
+                    debug!(
+                        "Updating block-wise selection from {:?} to {:?}",
+                        selection.start, end_pos
+                    );
                     selection.end = end_pos;
                 }
             }
@@ -1288,12 +1263,93 @@ impl Buffer {
         })
     }
 
+    /// Get the current visual selection with type information
+    /// Returns the Selection struct which includes the selection type
+    pub fn get_selection(&self) -> Option<Selection> {
+        self.selection
+    }
+
     /// Get text content of current visual selection
     pub fn get_selected_text(&self) -> Option<String> {
-        if let Some((start, end)) = self.get_selection_range() {
-            Some(self.get_text_in_range(start, end))
+        if let Some(selection) = self.selection {
+            use crate::core::mode::SelectionType;
+
+            match selection.selection_type {
+                SelectionType::Character | SelectionType::Line => {
+                    // For character and line selections, use the existing logic
+                    if let Some((start, end)) = self.get_selection_range() {
+                        Some(self.get_text_in_range(start, end))
+                    } else {
+                        None
+                    }
+                }
+                SelectionType::Block => {
+                    // For block selection, extract rectangular text region
+                    self.get_block_selected_text(selection)
+                }
+            }
         } else {
             None
+        }
+    }
+
+    /// Get text content for block selection (rectangular region)
+    fn get_block_selected_text(&self, selection: Selection) -> Option<String> {
+        let (start, end) = if selection.start.row <= selection.end.row {
+            (selection.start, selection.end)
+        } else {
+            (selection.end, selection.start)
+        };
+
+        let left_col = start.col.min(end.col);
+        let right_col = start.col.max(end.col) + 1; // +1 to make it inclusive
+
+        let mut result = Vec::new();
+
+        for row in start.row..=end.row {
+            if row < self.lines.len() {
+                let line = &self.lines[row];
+                let line_chars: Vec<char> = line.chars().collect();
+
+                // Extract the rectangular region from this line
+                let start_col = left_col.min(line_chars.len());
+                let end_col = right_col.min(line_chars.len()).max(start_col);
+
+                let line_segment: String = if start_col < line_chars.len() {
+                    // Extract characters from line, pad with spaces if selection extends beyond line
+                    let extracted: String = line_chars[start_col..end_col].iter().collect();
+                    let width = right_col.saturating_sub(left_col);
+                    if extracted.len() < width {
+                        format!("{}{}", extracted, " ".repeat(width - extracted.len()))
+                    } else {
+                        extracted
+                    }
+                } else {
+                    // Line is shorter than selection start, add spaces to maintain block structure
+                    " ".repeat(right_col.saturating_sub(left_col))
+                };
+
+                result.push(line_segment);
+
+                debug!(
+                    "Block selection row {}: cols {}..{} -> '{}'",
+                    row,
+                    left_col,
+                    right_col,
+                    result.last().unwrap_or(&String::new())
+                );
+            } else {
+                // Beyond file end, add empty line with appropriate spacing
+                result.push(" ".repeat(right_col.saturating_sub(left_col)));
+            }
+        }
+
+        if result.is_empty() {
+            None
+        } else {
+            let block_text = result.join("\n");
+            debug!("Block selection result: {} lines", result.len());
+            Some(block_text)
         }
     }
 
@@ -1312,13 +1368,27 @@ impl Buffer {
     /// Yank (copy) the currently selected text
     pub fn yank_selection(&mut self) -> Option<String> {
         if let Some(selected_text) = self.get_selected_text() {
+            let yank_type = if let Some(selection) = self.selection {
+                match selection.selection_type {
+                    SelectionType::Character => YankType::Character,
+                    SelectionType::Line => YankType::Line,
+                    SelectionType::Block => YankType::Block,
+                }
+            } else {
+                YankType::Character
+            };
+
             self.clipboard = ClipboardContent {
                 text: selected_text.clone(),
-                yank_type: YankType::Character,
+                yank_type,
             };
             // Clear the selection after yanking (matches Vim behavior)
             self.selection = None;
-            debug!("Yanked visual selection: {} chars", selected_text.len());
+            debug!(
+                "Yanked visual selection: {} chars, type: {:?}",
+                selected_text.len(),
+                self.clipboard.yank_type
+            );
             Some(selected_text)
         } else {
             None
@@ -1328,5 +1398,109 @@ impl Buffer {
     /// Check if there is an active visual selection
     pub fn has_selection(&self) -> bool {
         self.selection.is_some()
+    }
+
+    /// Helper for block-wise paste after cursor
+    fn put_after_block(&mut self) {
+        let text = self.clipboard.text.clone();
+        if text.is_empty() {
+            return;
+        }
+
+        let lines: Vec<&str> = text.split('\n').collect();
+
+        // Special handling for buffer extension: if cursor is on the last line,
+        // paste starting from the next row at column 0
+        let (paste_row, paste_col) = if self.cursor.row == self.lines.len() - 1 {
+            // Cursor is on the last line - extend buffer with new lines
+            (self.cursor.row + 1, 0)
+        } else {
+            // Cursor is not on the last line - paste within existing lines
+            (self.cursor.row, self.cursor.col + 1)
+        };
+
+        debug!(
+            "Block paste after cursor: {} lines at row {}, col {} (cursor was at {}, {})",
+            lines.len(),
+            paste_row,
+            paste_col,
+            self.cursor.row,
+            self.cursor.col
+        );
+
+        self.insert_block_text(&lines, paste_row, paste_col);
+    }
+
+    /// Helper for block-wise paste before cursor
+    fn put_before_block(&mut self) {
+        let text = self.clipboard.text.clone();
+        if text.is_empty() {
+            return;
+        }
+
+        let lines: Vec<&str> = text.split('\n').collect();
+        let paste_row = self.cursor.row;
+        let paste_col = self.cursor.col; // Before cursor
+
+        debug!(
+            "Block paste before cursor: {} lines at row {}, col {}",
+            lines.len(),
+            paste_row,
+            paste_col
+        );
+
+        self.insert_block_text(&lines, paste_row, paste_col);
+    }
+
+    /// Insert block text at specified position
+    fn insert_block_text(&mut self, lines: &[&str], start_row: usize, start_col: usize) {
+        // Ensure we have enough lines in the buffer
+        while self.lines.len() < start_row + lines.len() {
+            self.lines.push(String::new());
+        }
+
+        for (i, line_text) in lines.iter().enumerate() {
+            let target_row = start_row + i;
+            if target_row < self.lines.len() {
+                let target_line = &mut self.lines[target_row];
+                let mut chars: Vec<char> = target_line.chars().collect();
+
+                // Only extend line with spaces if start_col is beyond the line length
+                if start_col > chars.len() {
+                    let spaces_needed = start_col - chars.len();
+                    chars.extend(std::iter::repeat_n(' ', spaces_needed));
+                }
+
+                // Insert block text at the specified column
+                let insert_text = line_text.to_string();
+
+                // Insert the text at the specified column position
+                if start_col <= chars.len() {
+                    // Split the line and insert the block text
+                    let before: String = chars[..start_col].iter().collect();
+                    let after: String = chars[start_col..].iter().collect();
+                    *target_line = format!("{}{}{}", before, insert_text, after);
+                } else {
+                    // This case should not happen since we extend the line above
+                    let spaces_needed = start_col - chars.len();
+                    let spaces = " ".repeat(spaces_needed);
+                    *target_line = format!("{}{}{}", target_line, spaces, insert_text);
+                }
+                debug!(
+                    "Block paste row {}: inserted '{}' at col {}",
+                    target_row, line_text, start_col
+                );
+            }
+        }
+
+        // Update cursor position to the top-left of pasted block
+        self.cursor.row = start_row;
+        self.cursor.col = start_col
+            + if !lines.is_empty() && !lines[0].is_empty() {
+                lines[0].len().saturating_sub(1)
+            } else {
+                0
+            };
+        self.modified = true;
     }
 }

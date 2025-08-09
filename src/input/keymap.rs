@@ -1151,6 +1151,10 @@ impl KeyHandler {
     }
 
     fn action_visual_block_mode(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Entering visual block mode");
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.start_visual_block_selection();
+        }
         editor.set_mode(Mode::VisualBlock);
         Ok(())
     }

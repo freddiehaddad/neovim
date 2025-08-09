@@ -28,9 +28,9 @@
 
 ### Advanced Text Editing Engine  
 
-- **Complete Modal System**: Normal, Insert, Command, Visual, Replace, and Search modes
+- **Complete Modal System**: Normal, Insert, Command, Visual (character/line/block), Replace, and Search modes
 - **Professional Text Objects**: Full support for words, paragraphs, quotes, brackets, tags, and custom objects
-- **Operator Integration**: All operators (`d`, `c`, `y`, `>`, `<`, `~`) work seamlessly with text objects
+- **Operator Integration**: All operators (`d`, `c`, `y`, `>`, `<`, `~`) work seamlessly with text objects and visual selections
 - **Sophisticated Undo System**: Multi-level undo/redo with full operation tracking
 - **Macro Recording System**: Full Vim-compatible macro recording and playback with registers a-z, A-Z, 0-9
 
@@ -354,7 +354,17 @@ punctuation = "#839496"  # Gray for punctuation
 - Full operator support (`d`, `c`, `y`, `>`, `<`, `~`) with text object integration
 - Multi-level undo/redo system with operation tracking
 - Sophisticated clipboard operations with line/character modes
+- **Complete visual mode operations** with character, line, and block selection
 - **Macro recording and playback system** with support for 62 registers (a-z, A-Z, 0-9)
+
+**Visual Mode Operations:**
+
+- **Character-wise visual selection** (`v`) with precise cursor positioning
+- **Line-wise visual selection** (`V`) for complete line operations  
+- **Block-wise visual selection** (`Ctrl+v`) for rectangular text regions
+- **All visual operators**: `d` (delete), `c` (change), `y` (yank), `>` (indent), `<` (unindent), `~` (case toggle)
+- **Visual highlighting** with configurable selection colors
+- **Mode transitions** between visual modes and seamless operator integration
 
 **Navigation & Movement:**
 
@@ -404,7 +414,6 @@ punctuation = "#839496"  # Gray for punctuation
 
 **Advanced Editing:**
 
-- Visual mode selection and operations
 - Advanced search and replace with regex substitution
 - Code folding and automatic indentation
 - **Macro recording and playback** ✅ **IMPLEMENTED**
@@ -998,12 +1007,12 @@ pub struct RegisterSystem {
 - **Numbered registers**: 0-9 for deleted text
 - **Special registers**: "/, "%, ":, "., etc.
 
-#### 3. **Complete Visual Mode Operations**
+#### 3. **Complete Visual Mode Operations** ✅ **IMPLEMENTED**
 
-- **Visual selection**: Proper character selection with highlighting
-- **Visual line selection**: Complete line selection (V)
-- **Visual block selection**: Rectangular selection (Ctrl+V)
-- **Selection operations**: d, c, y, >, <, ~ with visual selections
+- **Visual selection**: Proper character selection with highlighting ✅
+- **Visual line selection**: Complete line selection (V) ✅  
+- **Visual block selection**: Rectangular selection (Ctrl+V) ✅
+- **Selection operations**: d, c, y, >, <, ~ with visual selections ✅
 
 #### 4. **Enhanced Search & Replace**
 
