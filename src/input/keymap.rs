@@ -676,19 +676,29 @@ impl KeyHandler {
 
     // Action implementations
     fn action_cursor_left(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             if buffer.cursor.col > 0 {
                 buffer.cursor.col -= 1;
+                // Update visual selection if in visual mode
+                if is_visual_mode {
+                    buffer.update_visual_selection(buffer.cursor);
+                }
             }
         }
         Ok(())
     }
 
     fn action_cursor_right(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
                 if buffer.cursor.col < line.len() {
                     buffer.cursor.col += 1;
+                    // Update visual selection if in visual mode
+                    if is_visual_mode {
+                        buffer.update_visual_selection(buffer.cursor);
+                    }
                 }
             }
         }
@@ -696,11 +706,16 @@ impl KeyHandler {
     }
 
     fn action_cursor_up(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             if buffer.cursor.row > 0 {
                 buffer.cursor.row -= 1;
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
+                }
+                // Update visual selection if in visual mode
+                if is_visual_mode {
+                    buffer.update_visual_selection(buffer.cursor);
                 }
             }
         }
@@ -708,11 +723,16 @@ impl KeyHandler {
     }
 
     fn action_cursor_down(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             if buffer.cursor.row < buffer.lines.len() - 1 {
                 buffer.cursor.row += 1;
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
+                }
+                // Update visual selection if in visual mode
+                if is_visual_mode {
+                    buffer.update_visual_selection(buffer.cursor);
                 }
             }
         }
@@ -1062,7 +1082,21 @@ impl KeyHandler {
     }
 
     fn action_visual_mode(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_mode(Mode::Visual);
+        // If we're already in visual mode, exit to normal mode
+        if editor.mode() == Mode::Visual {
+            if let Some(buffer) = editor.current_buffer_mut() {
+                buffer.clear_visual_selection();
+            }
+            editor.set_mode(Mode::Normal);
+            debug!("Visual mode: toggled off, returning to normal mode");
+        } else {
+            // Start visual selection at current cursor position
+            if let Some(buffer) = editor.current_buffer_mut() {
+                buffer.start_visual_selection();
+            }
+            editor.set_mode(Mode::Visual);
+            debug!("Visual mode: started selection at cursor position");
+        }
         Ok(())
     }
 
@@ -1193,37 +1227,83 @@ impl KeyHandler {
     }
 
     fn action_delete_selection(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Delete selection not implemented".to_string());
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(deleted_text) = buffer.delete_selection() {
+                info!("Visual mode: deleted {} characters", deleted_text.len());
+                editor.set_status_message(format!("Deleted {} characters", deleted_text.len()));
+            } else {
+                warn!("Visual mode: no selection to delete");
+                editor.set_status_message("No selection".to_string());
+            }
+        }
+        // Return to normal mode after delete operation
+        editor.set_mode(crate::core::mode::Mode::Normal);
         Ok(())
     }
 
     fn action_yank_selection(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Yank selection not implemented".to_string());
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(yanked_text) = buffer.yank_selection() {
+                info!("Visual mode: yanked {} characters", yanked_text.len());
+                editor.set_status_message(format!("Yanked {} characters", yanked_text.len()));
+            } else {
+                warn!("Visual mode: no selection to yank");
+                editor.set_status_message("No selection".to_string());
+            }
+        }
+        // Return to normal mode after yank operation
+        editor.set_mode(crate::core::mode::Mode::Normal);
         Ok(())
     }
 
     fn action_change_selection(&self, editor: &mut Editor) -> Result<()> {
-        editor.set_status_message("Change selection not implemented".to_string());
+        if let Some(buffer) = editor.current_buffer_mut() {
+            if let Some(deleted_text) = buffer.delete_selection() {
+                info!("Visual mode: changed {} characters", deleted_text.len());
+                editor.set_status_message(format!("Changed {} characters", deleted_text.len()));
+                // Enter insert mode after deleting selection
+                editor.set_mode(crate::core::mode::Mode::Insert);
+            } else {
+                warn!("Visual mode: no selection to change");
+                editor.set_status_message("No selection".to_string());
+                // Still return to normal mode
+                editor.set_mode(crate::core::mode::Mode::Normal);
+            }
+        } else {
+            editor.set_mode(crate::core::mode::Mode::Normal);
+        }
         Ok(())
     }
 
     fn action_word_forward(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_next_word();
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
+            }
         }
         Ok(())
     }
 
     fn action_word_backward(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_previous_word();
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
+            }
         }
         Ok(())
     }
 
     fn action_word_end(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = editor.mode() == Mode::Visual;
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_word_end();
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
+            }
         }
         Ok(())
     }

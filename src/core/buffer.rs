@@ -682,18 +682,19 @@ impl Buffer {
             return;
         }
 
+        let chars: Vec<char> = line.chars().collect();
         let start_pos = self.cursor.col;
         let mut end_pos = start_pos;
 
         // Find end of current word
-        while end_pos < line.len() && !line.chars().nth(end_pos).unwrap_or(' ').is_whitespace() {
+        while end_pos < chars.len() && !chars[end_pos].is_whitespace() {
             end_pos += 1;
         }
 
         if end_pos > start_pos {
-            let word = &line[start_pos..end_pos];
+            let word: String = chars[start_pos..end_pos].iter().collect();
             self.clipboard = ClipboardContent {
-                text: word.to_string(),
+                text: word,
                 yank_type: YankType::Character,
             };
         }
@@ -703,14 +704,15 @@ impl Buffer {
     pub fn yank_to_end_of_line(&mut self) {
         if self.cursor.row < self.lines.len() {
             let line = &self.lines[self.cursor.row];
-            let text = if self.cursor.col < line.len() {
-                &line[self.cursor.col..]
+            let chars: Vec<char> = line.chars().collect();
+            let text = if self.cursor.col < chars.len() {
+                chars[self.cursor.col..].iter().collect()
             } else {
-                ""
+                String::new()
             };
 
             self.clipboard = ClipboardContent {
-                text: text.to_string(),
+                text,
                 yank_type: YankType::Character,
             };
         }
@@ -865,9 +867,14 @@ impl Buffer {
         if start.row == end.row {
             // Single line deletion
             if let Some(line) = self.lines.get_mut(start.row) {
-                let start_col = start.col.min(line.len());
-                let end_col = end.col.min(line.len());
-                line.drain(start_col..end_col);
+                let chars: Vec<char> = line.chars().collect();
+                let start_col = start.col.min(chars.len());
+                let end_col = end.col.min(chars.len());
+
+                // Rebuild the line without the deleted characters
+                let before: String = chars[..start_col].iter().collect();
+                let after: String = chars[end_col..].iter().collect();
+                *line = format!("{}{}", before, after);
             }
         } else {
             // Multi-line deletion
@@ -876,13 +883,17 @@ impl Buffer {
 
             // Save the beginning of the first line and end of the last line
             let first_part = if let Some(line) = self.lines.get(start_row) {
-                line[..start.col.min(line.len())].to_string()
+                let chars: Vec<char> = line.chars().collect();
+                let start_col = start.col.min(chars.len());
+                chars[..start_col].iter().collect()
             } else {
                 String::new()
             };
 
             let last_part = if let Some(line) = self.lines.get(end_row) {
-                line[end.col.min(line.len())..].to_string()
+                let chars: Vec<char> = line.chars().collect();
+                let end_col = end.col.min(chars.len());
+                chars[end_col..].iter().collect()
             } else {
                 String::new()
             };
@@ -909,9 +920,10 @@ impl Buffer {
         if start.row == end.row {
             // Single line selection
             if let Some(line) = self.lines.get(start.row) {
-                let start_col = start.col.min(line.len());
-                let end_col = end.col.min(line.len());
-                return line[start_col..end_col].to_string();
+                let chars: Vec<char> = line.chars().collect();
+                let start_col = start.col.min(chars.len());
+                let end_col = end.col.min(chars.len());
+                return chars[start_col..end_col].iter().collect();
             }
         } else {
             // Multi-line selection
@@ -919,8 +931,10 @@ impl Buffer {
 
             // First line (from start_col to end)
             if let Some(line) = self.lines.get(start.row) {
-                let start_col = start.col.min(line.len());
-                result.push_str(&line[start_col..]);
+                let chars: Vec<char> = line.chars().collect();
+                let start_col = start.col.min(chars.len());
+                let selected: String = chars[start_col..].iter().collect();
+                result.push_str(&selected);
                 result.push('\n');
             }
 
@@ -934,8 +948,10 @@ impl Buffer {
 
             // Last line (from start to end_col)
             if let Some(line) = self.lines.get(end.row) {
-                let end_col = end.col.min(line.len());
-                result.push_str(&line[..end_col]);
+                let chars: Vec<char> = line.chars().collect();
+                let end_col = end.col.min(chars.len());
+                let selected: String = chars[..end_col].iter().collect();
+                result.push_str(&selected);
             }
 
             return result;
@@ -990,9 +1006,14 @@ impl Buffer {
         if start.row == end.row {
             // Single line deletion
             if let Some(line) = self.lines.get_mut(start.row) {
-                let start_col = start.col.min(line.len());
-                let end_col = end.col.min(line.len());
-                line.drain(start_col..end_col);
+                let chars: Vec<char> = line.chars().collect();
+                let start_col = start.col.min(chars.len());
+                let end_col = end.col.min(chars.len());
+
+                // Rebuild the line without the deleted characters
+                let before: String = chars[..start_col].iter().collect();
+                let after: String = chars[end_col..].iter().collect();
+                *line = format!("{}{}", before, after);
             }
         } else {
             // Multi-line deletion
@@ -1001,13 +1022,17 @@ impl Buffer {
 
             // Save the beginning of the first line and end of the last line
             let first_part = if let Some(line) = self.lines.get(start_row) {
-                line[..start.col.min(line.len())].to_string()
+                let chars: Vec<char> = line.chars().collect();
+                let start_col = start.col.min(chars.len());
+                chars[..start_col].iter().collect()
             } else {
                 String::new()
             };
 
             let last_part = if let Some(line) = self.lines.get(end_row) {
-                line[end.col.min(line.len())..].to_string()
+                let chars: Vec<char> = line.chars().collect();
+                let end_col = end.col.min(chars.len());
+                chars[end_col..].iter().collect()
             } else {
                 String::new()
             };
@@ -1058,7 +1083,8 @@ impl Buffer {
             };
 
             if chars_to_remove > 0 {
-                let removed_text = self.lines[line_num][..chars_to_remove].to_string();
+                let chars: Vec<char> = line.chars().collect();
+                let removed_text: String = chars[..chars_to_remove].iter().collect();
                 let operation = EditOperation::Delete {
                     pos: Position {
                         row: line_num,
@@ -1068,10 +1094,91 @@ impl Buffer {
                 };
                 self.save_operation(operation);
 
-                self.lines[line_num].drain(..chars_to_remove);
+                let remaining: String = chars[chars_to_remove..].iter().collect();
+                self.lines[line_num] = remaining;
                 self.modified = true;
             }
         }
         Ok(())
+    }
+
+    // ===== Visual Selection Methods =====
+
+    /// Start visual selection at current cursor position
+    pub fn start_visual_selection(&mut self) {
+        debug!("Starting visual selection at position {:?}", self.cursor);
+        self.selection = Some(Selection::new(self.cursor, self.cursor));
+    }
+
+    /// Update visual selection end position as cursor moves
+    pub fn update_visual_selection(&mut self, end_pos: Position) {
+        if let Some(selection) = &mut self.selection {
+            trace!("Updating visual selection end to {:?}", end_pos);
+            selection.end = end_pos;
+        }
+    }
+
+    /// Clear visual selection
+    pub fn clear_visual_selection(&mut self) {
+        if self.selection.is_some() {
+            debug!("Clearing visual selection");
+            self.selection = None;
+        }
+    }
+
+    /// Get the current visual selection range (normalized)
+    /// Returns (start, end) where start is always before end in document order
+    pub fn get_selection_range(&self) -> Option<(Position, Position)> {
+        self.selection.map(|sel| {
+            let start = sel.start;
+            let end = sel.end;
+
+            // Normalize the selection so start is before end
+            if start.row < end.row || (start.row == end.row && start.col <= end.col) {
+                (start, end)
+            } else {
+                (end, start)
+            }
+        })
+    }
+
+    /// Get text content of current visual selection
+    pub fn get_selected_text(&self) -> Option<String> {
+        if let Some((start, end)) = self.get_selection_range() {
+            Some(self.get_text_in_range(start, end))
+        } else {
+            None
+        }
+    }
+
+    /// Delete the currently selected text (visual mode delete)
+    pub fn delete_selection(&mut self) -> Option<String> {
+        if let Some((start, end)) = self.get_selection_range() {
+            let deleted_text = self.delete_range(start, end);
+            self.selection = None;
+            debug!("Deleted visual selection: {} chars", deleted_text.len());
+            Some(deleted_text)
+        } else {
+            None
+        }
+    }
+
+    /// Yank (copy) the currently selected text
+    pub fn yank_selection(&mut self) -> Option<String> {
+        if let Some(selected_text) = self.get_selected_text() {
+            self.clipboard = ClipboardContent {
+                text: selected_text.clone(),
+                yank_type: YankType::Character,
+            };
+            debug!("Yanked visual selection: {} chars", selected_text.len());
+            Some(selected_text)
+        } else {
+            None
+        }
+    }
+
+    /// Check if there is an active visual selection
+    pub fn has_selection(&self) -> bool {
+        self.selection.is_some()
     }
 }
