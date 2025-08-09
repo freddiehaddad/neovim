@@ -741,25 +741,56 @@ impl Buffer {
                 }
             }
             YankType::Character => {
-                let insert_pos = if self.cursor.col < self.lines[self.cursor.row].len() {
-                    self.cursor.col + 1
+                // Handle multi-line character-wise paste properly
+                let clipboard_text = self.clipboard.text.clone();
+                let text_lines: Vec<&str> = clipboard_text.split('\n').collect();
+                let cursor_row = self.cursor.row;
+                let cursor_col = self.cursor.col;
+                
+                let insert_pos = if cursor_col < self.lines[cursor_row].len() {
+                    cursor_col + 1
                 } else {
-                    self.lines[self.cursor.row].len()
+                    self.lines[cursor_row].len()
                 };
+                
                 let operation = EditOperation::Insert {
                     pos: Position {
-                        row: self.cursor.row,
+                        row: cursor_row,
                         col: insert_pos,
                     },
-                    text: self.clipboard.text.clone(),
+                    text: clipboard_text.clone(),
                 };
                 self.save_operation(operation);
 
-                // Insert text after cursor position
-                if self.cursor.row < self.lines.len() {
-                    let line = &mut self.lines[self.cursor.row];
-                    line.insert_str(insert_pos, &self.clipboard.text);
-                    self.cursor.col = insert_pos + self.clipboard.text.len() - 1;
+                if cursor_row < self.lines.len() && !text_lines.is_empty() {
+                    if text_lines.len() == 1 {
+                        // Single line - simple case
+                        let line = &mut self.lines[cursor_row];
+                        line.insert_str(insert_pos, &clipboard_text);
+                        self.cursor.col = insert_pos + clipboard_text.len() - 1;
+                    } else {
+                        // Multi-line - split current line and insert lines between
+                        let current_line = self.lines[cursor_row].clone();
+                        let (left_part, right_part) = current_line.split_at(insert_pos);
+                        
+                        // First line: left_part + first_text_line
+                        let first_line = format!("{}{}", left_part, text_lines[0]);
+                        self.lines[cursor_row] = first_line;
+                        
+                        // Insert middle lines (if any)
+                        for (i, &line_text) in text_lines.iter().enumerate().skip(1).take(text_lines.len() - 2) {
+                            self.lines.insert(cursor_row + i, line_text.to_string());
+                        }
+                        
+                        // Last line: last_text_line + right_part  
+                        let last_line = format!("{}{}", text_lines.last().unwrap(), right_part);
+                        let insert_row = cursor_row + text_lines.len() - 1;
+                        self.lines.insert(insert_row, last_line);
+                        
+                        // Update cursor to end of pasted text
+                        self.cursor.row = insert_row;
+                        self.cursor.col = text_lines.last().unwrap().len() - 1;
+                    }
                     self.modified = true;
                 }
             }
@@ -790,17 +821,50 @@ impl Buffer {
                 self.modified = true;
             }
             YankType::Character => {
+                // Handle multi-line character-wise paste properly
+                let clipboard_text = self.clipboard.text.clone();
+                let text_lines: Vec<&str> = clipboard_text.split('\n').collect();
+                let cursor_row = self.cursor.row;
+                let cursor_col = self.cursor.col;
+                
                 let operation = EditOperation::Insert {
-                    pos: self.cursor,
-                    text: self.clipboard.text.clone(),
+                    pos: Position {
+                        row: cursor_row,
+                        col: cursor_col,
+                    },
+                    text: clipboard_text.clone(),
                 };
                 self.save_operation(operation);
 
-                // Insert text at cursor position
-                if self.cursor.row < self.lines.len() {
-                    let line = &mut self.lines[self.cursor.row];
-                    line.insert_str(self.cursor.col, &self.clipboard.text);
-                    self.cursor.col += self.clipboard.text.len() - 1;
+                if cursor_row < self.lines.len() && !text_lines.is_empty() {
+                    if text_lines.len() == 1 {
+                        // Single line - simple case
+                        let line = &mut self.lines[cursor_row];
+                        line.insert_str(cursor_col, &clipboard_text);
+                        self.cursor.col += clipboard_text.len() - 1;
+                    } else {
+                        // Multi-line - split current line and insert lines between
+                        let current_line = self.lines[cursor_row].clone();
+                        let (left_part, right_part) = current_line.split_at(cursor_col);
+                        
+                        // First line: left_part + first_text_line
+                        let first_line = format!("{}{}", left_part, text_lines[0]);
+                        self.lines[cursor_row] = first_line;
+                        
+                        // Insert middle lines (if any)
+                        for (i, &line_text) in text_lines.iter().enumerate().skip(1).take(text_lines.len() - 2) {
+                            self.lines.insert(cursor_row + i, line_text.to_string());
+                        }
+                        
+                        // Last line: last_text_line + right_part  
+                        let last_line = format!("{}{}", text_lines.last().unwrap(), right_part);
+                        let insert_row = cursor_row + text_lines.len() - 1;
+                        self.lines.insert(insert_row, last_line);
+                        
+                        // Update cursor to end of pasted text
+                        self.cursor.row = insert_row;
+                        self.cursor.col = text_lines.last().unwrap().len() - 1;
+                    }
                     self.modified = true;
                 }
             }
