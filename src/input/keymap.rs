@@ -676,11 +676,14 @@ impl KeyHandler {
 
     // Action implementations
     fn action_cursor_left(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             if buffer.cursor.col > 0 {
                 buffer.cursor.col -= 1;
-                // Update visual selection if in visual mode
+                // Update visual selection if in any visual mode
                 if is_visual_mode {
                     buffer.update_visual_selection(buffer.cursor);
                 }
@@ -690,12 +693,15 @@ impl KeyHandler {
     }
 
     fn action_cursor_right(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
                 if buffer.cursor.col < line.len() {
                     buffer.cursor.col += 1;
-                    // Update visual selection if in visual mode
+                    // Update visual selection if in any visual mode
                     if is_visual_mode {
                         buffer.update_visual_selection(buffer.cursor);
                     }
@@ -706,14 +712,17 @@ impl KeyHandler {
     }
 
     fn action_cursor_up(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             if buffer.cursor.row > 0 {
                 buffer.cursor.row -= 1;
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
                 }
-                // Update visual selection if in visual mode
+                // Update visual selection if in any visual mode
                 if is_visual_mode {
                     buffer.update_visual_selection(buffer.cursor);
                 }
@@ -723,14 +732,17 @@ impl KeyHandler {
     }
 
     fn action_cursor_down(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             if buffer.cursor.row < buffer.lines.len() - 1 {
                 buffer.cursor.row += 1;
                 if let Some(line) = buffer.get_line(buffer.cursor.row) {
                     buffer.cursor.col = buffer.cursor.col.min(line.len());
                 }
-                // Update visual selection if in visual mode
+                // Update visual selection if in any visual mode
                 if is_visual_mode {
                     buffer.update_visual_selection(buffer.cursor);
                 }
@@ -999,34 +1011,62 @@ impl KeyHandler {
 
     // Additional action implementations
     fn action_line_start(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.cursor.col = 0;
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
+            }
         }
         Ok(())
     }
 
     fn action_line_end(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
                 buffer.cursor.col = line.len();
+            }
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
             }
         }
         Ok(())
     }
 
     fn action_buffer_start(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.cursor.row = 0;
             buffer.cursor.col = 0;
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
+            }
         }
         Ok(())
     }
 
     fn action_buffer_end(&self, editor: &mut Editor) -> Result<()> {
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.cursor.row = buffer.lines.len().saturating_sub(1);
             if let Some(line) = buffer.get_line(buffer.cursor.row) {
                 buffer.cursor.col = line.len();
+            }
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
             }
         }
         Ok(())
@@ -1105,7 +1145,15 @@ impl KeyHandler {
     }
 
     fn action_visual_line_mode(&self, editor: &mut Editor) -> Result<()> {
+        debug!("Entering visual line mode");
         editor.set_mode(Mode::VisualLine);
+
+        // Start line-wise visual selection on the current buffer
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.start_visual_line_selection();
+            debug!("Started line-wise visual selection");
+        }
+
         Ok(())
     }
 
@@ -1280,7 +1328,10 @@ impl KeyHandler {
     }
 
     fn action_word_forward(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_next_word();
             if is_visual_mode {
@@ -1291,7 +1342,10 @@ impl KeyHandler {
     }
 
     fn action_word_backward(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_previous_word();
             if is_visual_mode {
@@ -1302,7 +1356,10 @@ impl KeyHandler {
     }
 
     fn action_word_end(&self, editor: &mut Editor) -> Result<()> {
-        let is_visual_mode = editor.mode() == Mode::Visual;
+        let is_visual_mode = matches!(
+            editor.mode(),
+            Mode::Visual | Mode::VisualLine | Mode::VisualBlock
+        );
         if let Some(buffer) = editor.current_buffer_mut() {
             buffer.move_to_word_end();
             if is_visual_mode {

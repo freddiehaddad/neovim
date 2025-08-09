@@ -47,15 +47,45 @@ impl Position {
     }
 }
 
+/// Type of visual selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionType {
+    Character, // Character-wise selection (default visual mode)
+    Line,      // Line-wise selection (visual line mode)
+    Block,     // Block-wise selection (visual block mode)
+}
+
 /// Selection range for visual mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Selection {
     pub start: Position,
     pub end: Position,
+    pub selection_type: SelectionType,
 }
 
 impl Selection {
     pub fn new(start: Position, end: Position) -> Self {
-        Self { start, end }
+        Self {
+            start,
+            end,
+            selection_type: SelectionType::Character,
+        }
+    }
+
+    pub fn new_with_type(start: Position, end: Position, selection_type: SelectionType) -> Self {
+        Self {
+            start,
+            end,
+            selection_type,
+        }
+    }
+
+    /// Create a line-wise selection
+    pub fn new_line(start: Position, end: Position) -> Self {
+        Self {
+            start,
+            end,
+            selection_type: SelectionType::Line,
+        }
     }
 }

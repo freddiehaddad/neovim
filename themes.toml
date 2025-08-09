@@ -18,27 +18,30 @@ empty_line = "#4a3728"
 command_line_bg = "#1f1611"
 command_line_fg = "#deb887"
 selection_bg = "#8c4a2b"
+visual_line_bg = "#8c4a2b"      # Line-wise visual selection background
+visual_char_bg = "#7a3f28"      # Character-wise visual selection background  
+visual_block_bg = "#9a5235"     # Block-wise visual selection background (future)
 warning = "#ff8c00"
 error = "#dc322f"
 
 [themes.default.tree_sitter]
 # Rust-inspired color scheme with warm earth tones
-keyword = "#ce422b"      # Rust orange for keywords (fn, let, pub, etc.)
-function = "#b58900"     # Golden brown for function names
-type = "#268bd2"         # Steel blue for types (keeps contrast)
-string = "#859900"       # Olive green for strings
-number = "#d33682"       # Magenta for numbers (good contrast)
-comment = "#93a1a1"      # Light gray for comments
+keyword = "#ce422b"  # Rust orange for keywords (fn, let, pub, etc.)
+function = "#b58900" # Golden brown for function names
+type = "#268bd2"     # Steel blue for types (keeps contrast)
+string = "#859900"   # Olive green for strings
+number = "#d33682"   # Magenta for numbers (good contrast)
+comment = "#93a1a1"  # Light gray for comments
 # Everything else uses warm foreground color
-identifier = "#deb887"   # Burlywood for identifiers
-variable = "#deb887"     # Burlywood for variables
-operator = "#cb4b16"     # Orange-red for operators
-punctuation = "#839496"  # Gray for punctuation
-delimiter = "#839496"    # Gray for delimiters
-character = "#859900"    # Same as strings
+identifier = "#deb887"    # Burlywood for identifiers
+variable = "#deb887"      # Burlywood for variables
+operator = "#cb4b16"      # Orange-red for operators
+punctuation = "#839496"   # Gray for punctuation
+delimiter = "#839496"     # Gray for delimiters
+character = "#859900"     # Same as strings
 documentation = "#586e75" # Darker gray for docs
-preprocessor = "#6c71c4" # Purple for preprocessor
-macro = "#dc322f"        # Red for macros
-attribute = "#2aa198"    # Cyan for attributes
-label = "#cb4b16"        # Orange for labels
-constant = "#d33682"     # Same as numbers
+preprocessor = "#6c71c4"  # Purple for preprocessor
+macro = "#dc322f"         # Red for macros
+attribute = "#2aa198"     # Cyan for attributes
+label = "#cb4b16"         # Orange for labels
+constant = "#d33682"      # Same as numbers

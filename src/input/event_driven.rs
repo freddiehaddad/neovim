@@ -492,11 +492,9 @@ impl EventDrivenEditor {
             // For now, rendering is handled synchronously in the main thread
             // In the future, this could handle background rendering optimizations
 
-            loop {
-                thread::sleep(Duration::from_secs(1));
-                // TODO: Implement background rendering optimizations
-                break; // Exit for now
-            }
+            // TODO: Implement background rendering optimizations
+            // Remove temporary loop structure
+            thread::sleep(Duration::from_secs(1));
 
             info!("Render thread finished");
         })

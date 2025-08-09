@@ -1,4 +1,4 @@
-use crate::core::mode::{Position, Selection};
+use crate::core::mode::{Position, Selection, SelectionType};
 use anyhow::Result;
 use log::{debug, info, trace, warn};
 use std::collections::VecDeque;
@@ -458,6 +458,15 @@ impl Buffer {
 
     pub fn line_count(&self) -> usize {
         self.lines.len()
+    }
+
+    /// Get the length of a line, returns 0 if the line doesn't exist
+    pub fn get_line_length(&self, row: usize) -> usize {
+        if row < self.lines.len() {
+            self.lines[row].chars().count() // Use UTF-8 safe character count
+        } else {
+            0
+        }
     }
 
     pub fn save(&mut self) -> Result<()> {
@@ -1198,15 +1207,63 @@ impl Buffer {
 
     /// Start visual selection at current cursor position
     pub fn start_visual_selection(&mut self) {
-        debug!("Starting visual selection at position {:?}", self.cursor);
+        debug!(
+            "Starting character-wise visual selection at position {:?}",
+            self.cursor
+        );
         self.selection = Some(Selection::new(self.cursor, self.cursor));
+    }
+
+    /// Start visual line selection at current cursor position  
+    pub fn start_visual_line_selection(&mut self) {
+        debug!(
+            "Starting line-wise visual selection at row {}",
+            self.cursor.row
+        );
+        // For line-wise selection, we select entire lines
+        let start_pos = Position::new(self.cursor.row, 0);
+        let end_pos = Position::new(self.cursor.row, self.get_line_length(self.cursor.row));
+        self.selection = Some(Selection::new_line(start_pos, end_pos));
     }
 
     /// Update visual selection end position as cursor moves
     pub fn update_visual_selection(&mut self, end_pos: Position) {
         if let Some(selection) = &mut self.selection {
-            trace!("Updating visual selection end to {:?}", end_pos);
-            selection.end = end_pos;
+            debug!(
+                "Updating visual selection end to {:?}, selection_type: {:?}",
+                end_pos, selection.selection_type
+            );
+            match selection.selection_type {
+                SelectionType::Character => {
+                    // Character-wise: update end position directly
+                    selection.end = end_pos;
+                }
+                SelectionType::Line => {
+                    // Line-wise: extend selection to include entire lines
+                    let start_row = selection.start.row.min(end_pos.row);
+                    let end_row = selection.start.row.max(end_pos.row);
+
+                    // Get line length before borrowing mutably
+                    let end_line_length = if end_row < self.lines.len() {
+                        self.lines[end_row].chars().count()
+                    } else {
+                        0
+                    };
+
+                    selection.start = Position::new(start_row, 0);
+                    selection.end = Position::new(end_row, end_line_length);
+
+                    debug!(
+                        "Updated line-wise selection: rows {} to {}",
+                        start_row, end_row
+                    );
+                }
+                SelectionType::Block => {
+                    // TODO: Implement block-wise selection
+                    warn!("Block-wise selection not yet implemented");
+                    selection.end = end_pos;
+                }
+            }
         }
     }
 
