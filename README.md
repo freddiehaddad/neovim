@@ -2,6 +2,22 @@
 
 **Oxidized** is a modern terminal-based text editor that brings Vim's powerful modal editing to the 21st century. Built from the ground up in Rust, it combines Vim's time-tested editing philosophy with cutting-edge architecture, delivering exceptional performance, memory safety, and extensibility.
 
+## 📋 Table of Contents
+
+- [🚀 Key Features](#-key-features)
+- [🔧 Installation & Setup](#-installation--setup)  
+- [📖 Quick Start Guide](#-quick-start-guide)
+- [⚙️ Configuration System](#️-configuration-system)
+- [🏗️ Architecture Overview](#️-architecture-overview)
+- [📋 Feature Status](#-feature-status)
+- [🛠️ Development & Debugging](#️-development--debugging)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [🧰 Dependencies](#-dependencies)
+- [🤝 Contributing](#-contributing)
+- [🎯 Roadmap](#-vimneovim-feature-parity-roadmap)
+- [💡 Inspiration](#-inspiration)
+- [📜 License](#-license)
+
 ## 🚀 Key Features
 
 ### Revolutionary Configuration System
@@ -434,104 +450,462 @@ punctuation = "#839496"  # Gray for punctuation
 
 **Development Build:**
 
-```bash
-# Clone repository
+```powershell
+# Windows (PowerShell)
 git clone https://github.com/freddiehaddad/oxidized.git
 cd oxidized
 
-# Build in debug mode (includes comprehensive logging)
+# Build in debug mode with comprehensive logging
 cargo build
 
-# Run with automatic trace logging
+# Run with automatic debug logging
 cargo run filename.txt
-# Logs automatically written to oxidized.log
+# Debug logs automatically written to oxidized.log
+```
+
+```bash
+# Linux/macOS (Bash)
+git clone https://github.com/freddiehaddad/oxidized.git
+cd oxidized
+
+# Build in debug mode with comprehensive logging
+cargo build
+
+# Run with automatic debug logging
+cargo run filename.txt
+# Debug logs automatically written to oxidized.log
 ```
 
 **Release Build:**
 
+```powershell
+# Windows - Optimized release build
+cargo build --release
+
+# Run with custom log level
+$env:RUST_LOG="debug"; .\target\release\oxy.exe filename.txt
+```
+
 ```bash
-# Optimized release build
+# Linux/macOS - Optimized release build
 cargo build --release
 
 # Run with custom log level
 RUST_LOG=debug ./target/release/oxy filename.txt
 ```
 
-### Cross-Platform Commands
+### 📊 Comprehensive Logging System
 
-**Windows (PowerShell):**
+Oxidized provides extensive logging capabilities for development, debugging, and performance monitoring:
+
+#### **Log Levels and Usage**
+
+**Available Log Levels** (in order of verbosity):
+
+- `error` - Critical errors only
+- `warn` - Warnings and errors
+- `info` - General information, warnings, and errors
+- `debug` - Detailed debugging information (**default for debug builds**)
+- `trace` - Ultra-verbose tracing (development only)
+
+> **Note**: Debug builds automatically enable `debug` level logging without requiring `RUST_LOG` to be set. Release builds respect the `RUST_LOG` environment variable and default to `info` level.
+
+#### **Environment Variables**
 
 ```powershell
-# Build and run
-cargo build
+# Windows PowerShell - Set logging level
+$env:RUST_LOG="debug"                    # Debug level for all modules
+$env:RUST_LOG="oxidized=trace"           # Trace level for oxidized only
+$env:RUST_LOG="oxidized::editor=debug"   # Debug level for editor module only
+
+# Multiple modules with different levels
+$env:RUST_LOG="oxidized::buffer=trace,oxidized::syntax=debug,warn"
+
+# Run with custom logging
 cargo run filename.txt
-
-# Monitor logs in real-time
-Get-Content oxidized.log -Wait
-
-# Run tests
-cargo test
-
-# Install system-wide
-cargo install --path .
 ```
-
-**Linux/macOS (Bash):**
 
 ```bash
-# Build and run
-cargo build
+# Linux/macOS - Set logging level
+export RUST_LOG=debug                    # Debug level for all modules
+export RUST_LOG=oxidized=trace           # Trace level for oxidized only
+export RUST_LOG=oxidized::editor=debug   # Debug level for editor module only
+
+# Multiple modules with different levels
+export RUST_LOG="oxidized::buffer=trace,oxidized::syntax=debug,warn"
+
+# Run with custom logging
 cargo run filename.txt
-
-# Monitor logs in real-time  
-tail -f oxidized.log
-
-# Run tests
-cargo test
-
-# Install system-wide
-cargo install --path .
 ```
 
-### Debugging and Logging
+#### **Log File Management**
 
-Oxidized includes comprehensive logging for development and debugging:
+**Automatic Logging:**
 
-**Debug Builds:**
+- Debug builds: Automatic `debug` level logging to `oxidized.log` (enabled by default)
+- Release builds: `info` level logging (configurable via `RUST_LOG`)
+- Log rotation: Logs are appended, manual cleanup recommended
 
-- Automatic trace-level logging to `oxidized.log`
-- Detailed operation tracking and performance metrics
-- Real-time log monitoring for development
+**Real-time Log Monitoring:**
 
-**Release Builds:**
+```powershell
+# Windows PowerShell - Monitor logs in real-time
+Get-Content oxidized.log -Wait -Tail 50
 
-- Configurable logging via `RUST_LOG` environment variable
-- Production-ready error handling and reporting
-- Optional debug logging for troubleshooting
+# Filter specific log levels
+Get-Content oxidized.log -Wait | Select-String "ERROR|WARN"
+
+# Watch specific modules
+Get-Content oxidized.log -Wait | Select-String "editor|buffer"
+```
+
+```bash
+# Linux/macOS - Monitor logs in real-time  
+tail -f oxidized.log
+
+# Filter specific log levels
+tail -f oxidized.log | grep -E "(ERROR|WARN)"
+
+# Watch specific modules
+tail -f oxidized.log | grep -E "(editor|buffer)"
+```
+
+#### **Module-Specific Logging**
+
+Key modules you can monitor individually:
+
+```bash
+# Core editing functionality
+RUST_LOG=oxidized::editor=trace
+
+# Buffer operations and text manipulation
+RUST_LOG=oxidized::buffer=debug
+
+# Syntax highlighting and Tree-sitter
+RUST_LOG=oxidized::syntax=debug
+
+# Configuration system and file watching
+RUST_LOG=oxidized::config=info
+
+# Search engine and regex operations
+RUST_LOG=oxidized::search=debug
+
+# Theme system and color management
+RUST_LOG=oxidized::theme=info
+
+# Macro recording and playback
+RUST_LOG=oxidized::features::macros=trace
+```
+
+#### **Performance Debugging**
+
+```bash
+# Monitor performance with timing logs
+RUST_LOG="oxidized::ui=debug,oxidized::buffer=debug" cargo run large_file.txt
+
+# Trace syntax highlighting performance
+RUST_LOG=oxidized::syntax=trace cargo run code_file.rs
+
+# Debug memory usage and allocations
+RUST_LOG=trace cargo run --features debug-allocations
+```
+
+#### **Common Debugging Scenarios**
+
+**Troubleshooting Startup Issues:**
+
+```powershell
+# Windows
+$env:RUST_LOG="error"; cargo run filename.txt 2>&1 | Tee-Object -FilePath startup_debug.log
+```
+
+```bash
+# Linux/macOS
+RUST_LOG=error cargo run filename.txt 2>&1 | tee startup_debug.log
+```
+
+**Investigating Performance Problems:**
+
+```bash
+# Comprehensive performance logging
+RUST_LOG="oxidized::ui=debug,oxidized::buffer=trace" cargo run large_file.txt
+```
+
+**Debugging Configuration Issues:**
+
+```bash
+# Watch configuration loading and validation
+RUST_LOG="oxidized::config=trace" cargo run
+```
+
+**Macro System Debugging:**
+
+```bash
+# Trace macro recording and playback
+RUST_LOG="oxidized::features::macros=trace" cargo run
+```
 
 ### Testing
 
-```bash
-# Run all tests (108+ tests across all components)
+**Run Test Suite:**
+
+```powershell
+# Windows - Run all tests (108+ comprehensive tests)
 cargo test
 
-# Run specific test suite
-cargo test buffer_integration
-cargo test search_integration
-cargo test syntax_integration
+# Run specific test modules
+cargo test buffer_tests
+cargo test search_tests  
+cargo test syntax_tests
+cargo test macro_tests
 
-# Run with verbose output
-cargo test -- --nocapture
+# Run with detailed output
+cargo test -- --nocapture --test-threads=1
 ```
 
-The test suite includes comprehensive integration tests covering:
+```bash
+# Linux/macOS - Run all tests (108+ comprehensive tests)
+cargo test
 
-- Buffer operations and text manipulation
-- Search engine functionality with regex support
-- Syntax highlighting with Tree-sitter integration
-- Editor modes and state transitions
-- Text objects and operator combinations
-- Theme system and configuration management
+# Run specific test modules
+cargo test buffer_tests
+cargo test search_tests
+cargo test syntax_tests  
+cargo test macro_tests
+
+# Run with detailed output
+cargo test -- --nocapture --test-threads=1
+```
+
+**Test Categories:**
+
+The comprehensive test suite covers:
+
+- **Buffer Operations**: Text manipulation, cursor movement, undo/redo
+- **Search Engine**: Regex functionality, incremental search, case sensitivity
+- **Syntax Highlighting**: Tree-sitter integration, async processing
+- **Editor Modes**: Modal transitions, command execution, state management
+- **Text Objects**: Word/paragraph/bracket selection, operator combinations
+- **Configuration**: TOML parsing, validation, live reloading
+- **Macro System**: Recording, playback, error handling, register management
+- **Window Management**: Splitting, navigation, resizing, viewport handling
+
+### Installation & Distribution
+
+```powershell
+# Windows - Install system-wide
+cargo install --path .
+
+# Create distributable binary
+cargo build --release
+# Binary located at: .\target\release\oxy.exe
+```
+
+```bash
+# Linux/macOS - Install system-wide
+cargo install --path .
+
+# Create distributable binary
+cargo build --release  
+# Binary located at: ./target/release/oxy
+```
+
+## 🔧 Troubleshooting
+
+### Common Issues and Solutions
+
+#### **Application Won't Start**
+
+**Issue**: `oxy` command not found or permission denied
+
+**Solutions:**
+
+```powershell
+# Windows - Check PATH and permissions
+where oxy                                    # Verify installation location
+$env:PATH += ";C:\path\to\oxidized\target\release"  # Add to PATH if needed
+
+# If building from source
+cargo build --release
+.\target\release\oxy.exe filename.txt       # Run directly
+```
+
+```bash
+# Linux/macOS - Check PATH and permissions
+which oxy                                    # Verify installation location
+export PATH="$PATH:/path/to/oxidized/target/release"  # Add to PATH if needed
+
+# Fix permissions if needed
+chmod +x ./target/release/oxy
+./target/release/oxy filename.txt           # Run directly
+```
+
+#### **Configuration Not Loading**
+
+**Issue**: Custom settings in TOML files are ignored
+
+**Debugging Steps:**
+
+1. **Verify file locations:**
+
+   ```bash
+   # Configuration files should be in current directory or ~/.config/oxidized/
+   ls -la *.toml                            # Linux/macOS
+   Get-ChildItem *.toml                     # Windows
+   ```
+
+2. **Check TOML syntax:**
+
+   ```powershell
+   # Windows - Enable detailed config logging
+   $env:RUST_LOG="oxidized::config=trace"
+   cargo run filename.txt
+   Get-Content oxidized.log | Select-String "config"
+   ```
+
+3. **Reset to defaults:**
+
+   ```bash
+   # Backup and reset configuration
+   mv editor.toml editor.toml.backup
+   mv keymaps.toml keymaps.toml.backup  
+   mv themes.toml themes.toml.backup
+   cargo run                               # Will recreate defaults
+   ```
+
+#### **Performance Issues**
+
+**Issue**: Slow response times or high memory usage
+
+**Diagnostic Commands:**
+
+```bash
+# Monitor performance with detailed logging
+RUST_LOG="oxidized::ui=debug,oxidized::buffer=debug" cargo run large_file.txt
+
+# Check for syntax highlighting bottlenecks
+RUST_LOG=oxidized::syntax=trace cargo run source_code.rs
+```
+
+**Performance Solutions:**
+
+1. **Disable syntax highlighting temporarily:**
+
+   ```toml
+   # In editor.toml
+   [syntax]
+   enabled = false
+   ```
+
+2. **Reduce background processing:**
+
+   ```toml
+   # In editor.toml
+   [performance]
+   async_processing = false
+   max_syntax_workers = 1
+   ```
+
+3. **Monitor system resources:**
+
+   ```powershell
+   # Windows - Monitor while running
+   Get-Process -Name "oxy" | Format-Table CPU,PM,VM -AutoSize
+   ```
+
+#### **Terminal Display Issues**
+
+**Issue**: Corrupted display, missing characters, or color problems
+
+**Solutions:**
+
+1. **Terminal Compatibility:**
+
+   ```powershell
+   # Windows - Use Windows Terminal for best results
+   winget install Microsoft.WindowsTerminal
+   
+   # Set proper terminal environment
+   $env:TERM="xterm-256color"
+   ```
+
+2. **Unicode Issues:**
+
+   ```bash
+   # Ensure proper locale settings
+   export LC_ALL=en_US.UTF-8
+   export LANG=en_US.UTF-8
+   ```
+
+3. **Color Support:**
+
+   ```bash
+   # Test terminal color support
+   curl -s https://gist.githubusercontent.com/HaleTom/89ffe32783f89f403bba96bd7bcd1263/raw/ | bash
+   ```
+
+#### **File Access Problems**
+
+**Issue**: Cannot read/write files, permission errors
+
+**Solutions:**
+
+```powershell
+# Windows - Check file permissions and ownership
+Get-Acl filename.txt
+icacls filename.txt                          # View detailed permissions
+
+# Run with elevated permissions if needed
+Start-Process "cargo run filename.txt" -Verb RunAs
+```
+
+```bash
+# Linux/macOS - Check and fix permissions
+ls -la filename.txt                          # Check current permissions
+chmod 644 filename.txt                       # Fix read/write permissions
+sudo chown $USER:$USER filename.txt         # Fix ownership if needed
+```
+
+#### **Macro Recording Issues**
+
+**Issue**: Macros not recording or playing back correctly
+
+**Debugging:**
+
+```bash
+# Enable detailed macro logging
+RUST_LOG="oxidized::features::macros=trace" cargo run
+
+# Common issues and solutions:
+# 1. Recording already in progress - press 'q' to stop current recording
+# 2. Invalid register name - use a-z, A-Z, or 0-9
+# 3. Empty macro - ensure you performed actions during recording
+```
+
+### Getting Help
+
+**Enable Debug Logging:**
+
+```bash
+# Comprehensive debugging
+RUST_LOG=trace cargo run filename.txt 2>&1 | tee debug_output.log
+```
+
+**Report Issues:**
+
+When reporting bugs, please include:
+
+1. **System Information**: OS, terminal emulator, Rust version
+2. **Oxidized Version**: `cargo --version` and commit hash
+3. **Configuration Files**: Your `editor.toml`, `keymaps.toml`, `themes.toml`
+4. **Debug Logs**: Output with `RUST_LOG=debug`
+5. **Reproduction Steps**: Minimal steps to reproduce the issue
+
+**Community Support:**
+
+- **GitHub Issues**: [github.com/freddiehaddad/oxidized/issues](https://github.com/freddiehaddad/oxidized/issues)
+- **Documentation**: Check the comprehensive guides in this README
+- **Contributing**: See the [Contributing](#-contributing) section below
 
 ## 🧰 Dependencies
 
