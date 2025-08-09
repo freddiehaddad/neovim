@@ -37,6 +37,9 @@ pub struct UIColors {
     pub command_line_bg: String,
     pub command_line_fg: String,
     pub selection_bg: String,
+    pub visual_line_bg: String,  // Line-wise visual selection background
+    pub visual_char_bg: String,  // Character-wise visual selection background
+    pub visual_block_bg: String, // Block-wise visual selection background (future)
     pub warning: String,
     pub error: String,
 }
@@ -57,6 +60,9 @@ pub struct UITheme {
     pub command_line_bg: Color,
     pub command_line_fg: Color,
     pub selection_bg: Color,
+    pub visual_line_bg: Color,  // Line-wise visual selection background
+    pub visual_char_bg: Color,  // Character-wise visual selection background
+    pub visual_block_bg: Color, // Block-wise visual selection background (future)
     pub warning: Color,
     pub error: Color,
 }
@@ -147,6 +153,9 @@ impl ThemeConfig {
                     command_line_bg: "#000000".to_string(),
                     command_line_fg: "#ffffff".to_string(),
                     selection_bg: "#444444".to_string(),
+                    visual_line_bg: "#444444".to_string(),
+                    visual_char_bg: "#444444".to_string(),
+                    visual_block_bg: "#444444".to_string(),
                     warning: "#ffff00".to_string(),
                     error: "#ff0000".to_string(),
                 },
@@ -312,6 +321,9 @@ impl UITheme {
             command_line_bg: parse_color(&colors.command_line_bg),
             command_line_fg: parse_color(&colors.command_line_fg),
             selection_bg: parse_color(&colors.selection_bg),
+            visual_line_bg: parse_color(&colors.visual_line_bg),
+            visual_char_bg: parse_color(&colors.visual_char_bg),
+            visual_block_bg: parse_color(&colors.visual_block_bg),
             warning: parse_color(&colors.warning),
             error: parse_color(&colors.error),
         }
@@ -331,6 +343,9 @@ impl UITheme {
             command_line_bg: Color::Black,
             command_line_fg: Color::White,
             selection_bg: Color::Blue,
+            visual_line_bg: Color::Blue,
+            visual_char_bg: Color::Blue,
+            visual_block_bg: Color::Blue,
             warning: Color::Yellow,
             error: Color::Red,
         }

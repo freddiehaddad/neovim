@@ -70,6 +70,17 @@ impl UI {
         }
     }
 
+    /// Get the appropriate visual selection background color based on the editor mode
+    fn get_visual_selection_bg(&self, mode: crate::core::mode::Mode) -> crossterm::style::Color {
+        use crate::core::mode::Mode;
+        match mode {
+            Mode::Visual => self.theme.visual_char_bg,
+            Mode::VisualLine => self.theme.visual_line_bg,
+            Mode::VisualBlock => self.theme.visual_block_bg,
+            _ => self.theme.selection_bg, // Fallback for other cases
+        }
+    }
+
     pub fn render(
         &mut self,
         terminal: &mut Terminal,
@@ -243,6 +254,7 @@ impl UI {
                         is_cursor_line,
                         buffer_row,
                         buffer.get_selection_range(),
+                        editor_state.mode,
                     )?
                 } else {
                     // Debug: Show we're missing highlights
@@ -266,6 +278,7 @@ impl UI {
                         buffer_row,
                         is_cursor_line,
                         buffer.get_selection_range(),
+                        editor_state.mode,
                     )?;
                     display_line.len()
                 };
@@ -415,6 +428,7 @@ impl UI {
         is_cursor_line: bool,
         line_number: usize,
         selection: Option<(Position, Position)>,
+        editor_mode: crate::core::mode::Mode,
     ) -> io::Result<usize> {
         let line_bytes = line.as_bytes();
         let mut current_pos = 0;
@@ -468,6 +482,7 @@ impl UI {
                     current_pos,
                     is_cursor_line,
                     line_selection_range,
+                    editor_mode,
                 )?;
             }
 
@@ -492,6 +507,7 @@ impl UI {
                 current_pos,
                 is_cursor_line,
                 line_selection_range,
+                editor_mode,
             )?;
         }
 
@@ -506,6 +522,7 @@ impl UI {
         start_col: usize,
         is_cursor_line: bool,
         selection_range: Option<(usize, usize)>,
+        editor_mode: crate::core::mode::Mode,
     ) -> io::Result<()> {
         let text = std::str::from_utf8(text_bytes).unwrap_or("");
         let char_count = text.chars().count();
@@ -532,7 +549,7 @@ impl UI {
 
                 // Render selected text
                 terminal.queue_set_fg_color(self.syntax_theme.get_default_text_color())?;
-                terminal.queue_set_bg_color(self.theme.selection_bg)?;
+                terminal.queue_set_bg_color(self.get_visual_selection_bg(editor_mode))?;
                 let selected_start = overlap_start - start_col;
                 let selected_end = overlap_end - start_col;
                 let selected_text: String =
@@ -626,6 +643,7 @@ impl UI {
         line_number: usize,
         is_cursor_line: bool,
         selection: Option<(Position, Position)>,
+        editor_mode: crate::core::mode::Mode,
     ) -> io::Result<()> {
         // Determine if this line has visual selection and what range
         let line_selection_range = if let Some((start, end)) = selection {
@@ -664,6 +682,7 @@ impl UI {
             0,
             is_cursor_line,
             line_selection_range,
+            editor_mode,
         )?;
 
         Ok(())
