@@ -66,11 +66,11 @@ impl Macro {
 
     pub fn add_event(&mut self, event: KeyEvent) {
         // Don't record the macro stop command (q) to prevent infinite loops
-        if let KeyCode::Char('q') = event.code {
-            if event.modifiers.is_empty() {
-                debug!("Skipping macro stop command in recording");
-                return;
-            }
+        if let KeyCode::Char('q') = event.code
+            && event.modifiers.is_empty()
+        {
+            debug!("Skipping macro stop command in recording");
+            return;
         }
 
         self.events.push(event.into());

@@ -452,11 +452,11 @@ impl WindowManager {
                 // Check if we can shrink the right windows by the requested amount
                 let mut can_shrink = true;
                 for &window_id in &windows_to_shrink {
-                    if let Some(window) = self.windows.get(&window_id) {
-                        if window.width <= amount {
-                            can_shrink = false;
-                            break;
-                        }
+                    if let Some(window) = self.windows.get(&window_id)
+                        && window.width <= amount
+                    {
+                        can_shrink = false;
+                        break;
                     }
                 }
 
@@ -541,11 +541,11 @@ impl WindowManager {
                 // Check if we can shrink the bottom windows by the requested amount
                 let mut can_shrink = true;
                 for &window_id in &windows_to_shrink {
-                    if let Some(window) = self.windows.get(&window_id) {
-                        if window.height <= amount {
-                            can_shrink = false;
-                            break;
-                        }
+                    if let Some(window) = self.windows.get(&window_id)
+                        && window.height <= amount
+                    {
+                        can_shrink = false;
+                        break;
                     }
                 }
 
@@ -611,13 +611,13 @@ impl WindowManager {
 
     fn resize_windows_to_fill_space(&mut self) {
         // Simple implementation: if only one window left, make it fill the screen
-        if self.windows.len() == 1 {
-            if let Some(window) = self.windows.values_mut().next() {
-                window.x = 0;
-                window.y = 0;
-                window.width = self.terminal_width;
-                window.height = self.terminal_height.saturating_sub(2);
-            }
+        if self.windows.len() == 1
+            && let Some(window) = self.windows.values_mut().next()
+        {
+            window.x = 0;
+            window.y = 0;
+            window.width = self.terminal_width;
+            window.height = self.terminal_height.saturating_sub(2);
         }
         // TODO: More sophisticated window management for multiple windows
     }

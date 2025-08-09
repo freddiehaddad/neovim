@@ -15,6 +15,12 @@ pub struct LspServer {
     // TODO: Add JSON-RPC communication
 }
 
+impl Default for LspClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LspClient {
     pub fn new() -> Self {
         info!("Initializing LSP client");

@@ -11,7 +11,7 @@ pub struct Command {
 impl Command {
     pub fn parse(input: &str) -> Option<Self> {
         debug!("Parsing command: '{}'", input);
-        let parts: Vec<&str> = input.trim().split_whitespace().collect();
+        let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
             warn!("Empty command input received");
             return None;

@@ -267,13 +267,13 @@ impl Editor {
     pub fn close_buffer(&mut self, id: usize) -> Result<()> {
         info!("Closing buffer ID: {}", id);
 
-        if let Some(buffer) = self.buffers.get(&id) {
-            if buffer.modified {
-                warn!("Buffer {} has unsaved changes, cannot close", id);
-                // TODO: Handle unsaved changes
-                self.status_message = "Buffer has unsaved changes!".to_string();
-                return Ok(());
-            }
+        if let Some(buffer) = self.buffers.get(&id)
+            && buffer.modified
+        {
+            warn!("Buffer {} has unsaved changes, cannot close", id);
+            // TODO: Handle unsaved changes
+            self.status_message = "Buffer has unsaved changes!".to_string();
+            return Ok(());
         }
 
         self.buffers.remove(&id);
@@ -343,10 +343,10 @@ impl Editor {
     /// Close the current buffer
     pub fn close_current_buffer(&mut self) -> Result<String> {
         if let Some(current_id) = self.current_buffer_id {
-            if let Some(buffer) = self.buffers.get(&current_id) {
-                if buffer.modified {
-                    return Ok("Buffer has unsaved changes! Use :bd! to force close".to_string());
-                }
+            if let Some(buffer) = self.buffers.get(&current_id)
+                && buffer.modified
+            {
+                return Ok("Buffer has unsaved changes! Use :bd! to force close".to_string());
             }
 
             self.buffers.remove(&current_id);
@@ -385,13 +385,12 @@ impl Editor {
     /// Switch to buffer by name (partial matching)
     pub fn switch_to_buffer_by_name(&mut self, name: &str) -> bool {
         for (id, buffer) in &self.buffers {
-            if let Some(file_path) = &buffer.file_path {
-                if let Some(filename) = file_path.file_name() {
-                    if filename.to_string_lossy().contains(name) {
-                        self.current_buffer_id = Some(*id);
-                        return true;
-                    }
-                }
+            if let Some(file_path) = &buffer.file_path
+                && let Some(filename) = file_path.file_name()
+                && filename.to_string_lossy().contains(name)
+            {
+                self.current_buffer_id = Some(*id);
+                return true;
             }
         }
         false
@@ -437,30 +436,30 @@ impl Editor {
         let status_message = self.status_message.clone();
 
         // Update window viewport based on cursor position and scroll_off setting
-        if let Some(buffer) = &current_buffer {
-            if let Some(current_window) = self.window_manager.current_window_mut() {
-                let content_height = current_window.content_height();
-                let cursor_row = buffer.cursor.row;
-                let scroll_off = self.config.interface.scroll_off;
+        if let Some(buffer) = &current_buffer
+            && let Some(current_window) = self.window_manager.current_window_mut()
+        {
+            let content_height = current_window.content_height();
+            let cursor_row = buffer.cursor.row;
+            let scroll_off = self.config.interface.scroll_off;
 
-                // Calculate effective scroll boundaries considering scroll_off
-                let scroll_off_top = current_window.viewport_top + scroll_off;
-                let scroll_off_bottom =
-                    current_window.viewport_top + content_height.saturating_sub(scroll_off + 1);
+            // Calculate effective scroll boundaries considering scroll_off
+            let scroll_off_top = current_window.viewport_top + scroll_off;
+            let scroll_off_bottom =
+                current_window.viewport_top + content_height.saturating_sub(scroll_off + 1);
 
-                if cursor_row < scroll_off_top {
-                    // Cursor is too close to top of viewport - scroll up
-                    current_window.viewport_top = cursor_row.saturating_sub(scroll_off);
-                } else if cursor_row > scroll_off_bottom {
-                    // Cursor is too close to bottom of viewport - scroll down
-                    current_window.viewport_top =
-                        cursor_row.saturating_sub(content_height.saturating_sub(scroll_off + 1));
-                }
-
-                // Ensure viewport doesn't go below zero or beyond buffer end
-                let max_viewport_top = buffer.lines.len().saturating_sub(content_height);
-                current_window.viewport_top = current_window.viewport_top.min(max_viewport_top);
+            if cursor_row < scroll_off_top {
+                // Cursor is too close to top of viewport - scroll up
+                current_window.viewport_top = cursor_row.saturating_sub(scroll_off);
+            } else if cursor_row > scroll_off_bottom {
+                // Cursor is too close to bottom of viewport - scroll down
+                current_window.viewport_top =
+                    cursor_row.saturating_sub(content_height.saturating_sub(scroll_off + 1));
             }
+
+            // Ensure viewport doesn't go below zero or beyond buffer end
+            let max_viewport_top = buffer.lines.len().saturating_sub(content_height);
+            current_window.viewport_top = current_window.viewport_top.min(max_viewport_top);
         }
 
         // Generate syntax highlights for all visible windows
@@ -470,31 +469,31 @@ impl Editor {
         let mut lines_to_highlight = HashMap::new(); // (buffer_id, line_index) -> (line_content, file_path)
 
         for window in self.window_manager.all_windows().values() {
-            if let Some(buffer_id) = window.buffer_id {
-                if let Some(buffer) = self.buffers.get(&buffer_id) {
-                    let content_height = window.content_height();
-                    let viewport_top = window.viewport_top;
+            if let Some(buffer_id) = window.buffer_id
+                && let Some(buffer) = self.buffers.get(&buffer_id)
+            {
+                let content_height = window.content_height();
+                let viewport_top = window.viewport_top;
 
-                    // Only highlight visible lines + a small buffer for smooth scrolling
-                    let highlight_start = viewport_top;
-                    let highlight_end =
-                        std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
+                // Only highlight visible lines + a small buffer for smooth scrolling
+                let highlight_start = viewport_top;
+                let highlight_end =
+                    std::cmp::min(viewport_top + content_height + 10, buffer.lines.len()); // 10 line buffer
 
-                    for line_index in highlight_start..highlight_end {
-                        let key = (buffer_id, line_index);
-                        // Skip if we already have this line queued for highlighting
-                        if lines_to_highlight.contains_key(&key) {
-                            continue;
-                        }
+                for line_index in highlight_start..highlight_end {
+                    let key = (buffer_id, line_index);
+                    // Skip if we already have this line queued for highlighting
+                    if lines_to_highlight.contains_key(&key) {
+                        continue;
+                    }
 
-                        if let Some(line) = buffer.get_line(line_index) {
-                            let file_path = buffer
-                                .file_path
-                                .as_ref()
-                                .map(|p| p.to_string_lossy().to_string());
-                            if let Some(path) = file_path {
-                                lines_to_highlight.insert(key, (line.clone(), path));
-                            }
+                    if let Some(line) = buffer.get_line(line_index) {
+                        let file_path = buffer
+                            .file_path
+                            .as_ref()
+                            .map(|p| p.to_string_lossy().to_string());
+                        if let Some(path) = file_path {
+                            lines_to_highlight.insert(key, (line.clone(), path));
                         }
                     }
                 }
@@ -516,10 +515,10 @@ impl Editor {
 
         // Only clone buffers that are actually displayed in windows
         for window in self.window_manager.all_windows().values() {
-            if let Some(buffer_id) = window.buffer_id {
-                if let Some(buffer) = self.buffers.get(&buffer_id) {
-                    displayed_buffers.insert(buffer_id, buffer.clone());
-                }
+            if let Some(buffer_id) = window.buffer_id
+                && let Some(buffer) = self.buffers.get(&buffer_id)
+            {
+                displayed_buffers.insert(buffer_id, buffer.clone());
             }
         }
 
@@ -702,7 +701,7 @@ impl Editor {
         operator: PendingOperator,
         range: crate::features::text_objects::TextObjectRange,
     ) -> Result<()> {
-        let object_type = range.object_type.clone(); // Clone for logging
+        let object_type = range.object_type; // Clone for logging
 
         match operator {
             PendingOperator::Delete => {
@@ -847,7 +846,7 @@ impl Editor {
             .collect();
 
         // Replace the range with the toggled text
-        let _ = buffer.replace_range(range.start, range.end, &toggled_text);
+        buffer.replace_range(range.start, range.end, &toggled_text);
 
         Ok(())
     }
@@ -972,11 +971,11 @@ impl Editor {
 
     /// Move cursor to a specific search result
     fn move_to_search_result(&mut self, index: usize) {
-        if let Some(result) = self.search_results.get(index).cloned() {
-            if let Some(buffer) = self.current_buffer_mut() {
-                buffer.cursor.row = result.line;
-                buffer.cursor.col = result.start_col;
-            }
+        if let Some(result) = self.search_results.get(index).cloned()
+            && let Some(buffer) = self.current_buffer_mut()
+        {
+            buffer.cursor.row = result.line;
+            buffer.cursor.col = result.start_col;
         }
     }
 
@@ -1124,12 +1123,12 @@ impl Editor {
 
     /// Check if auto save is enabled and save if needed
     pub fn check_auto_save(&mut self) {
-        if self.config.editing.auto_save {
-            if let Some(buffer) = self.current_buffer_mut() {
-                if buffer.modified && buffer.file_path.is_some() {
-                    let _ = buffer.save();
-                }
-            }
+        if self.config.editing.auto_save
+            && let Some(buffer) = self.current_buffer_mut()
+            && buffer.modified
+            && buffer.file_path.is_some()
+        {
+            let _ = buffer.save();
         }
     }
 
@@ -1253,79 +1252,75 @@ impl Editor {
     /// Request syntax highlighting for all visible lines in current window
     /// Uses full-file context for proper tree-sitter parsing
     pub fn request_visible_line_highlighting(&mut self) {
-        if let Some(highlighter) = &mut self.async_syntax_highlighter {
-            if let Some(window) = self.window_manager.current_window() {
-                if let Some(buffer_id) = window.buffer_id {
-                    if let Some(buffer) = self.buffers.get(&buffer_id) {
-                        let content_height = window.content_height();
-                        let viewport_top = window.viewport_top;
+        if let Some(highlighter) = &mut self.async_syntax_highlighter
+            && let Some(window) = self.window_manager.current_window()
+            && let Some(buffer_id) = window.buffer_id
+            && let Some(buffer) = self.buffers.get(&buffer_id)
+        {
+            let content_height = window.content_height();
+            let viewport_top = window.viewport_top;
 
-                        // Get highlighting for visible lines immediately
-                        let visible_start = viewport_top;
-                        let visible_end =
-                            std::cmp::min(viewport_top + content_height, buffer.lines.len());
+            // Get highlighting for visible lines immediately
+            let visible_start = viewport_top;
+            let visible_end = std::cmp::min(viewport_top + content_height, buffer.lines.len());
 
-                        // Request immediate highlighting for visible lines + buffer for scrolling
-                        let highlight_start = viewport_top;
-                        let highlight_end = std::cmp::min(
-                            viewport_top + content_height + 10, // 10 line buffer for smooth scrolling
-                            buffer.lines.len(),
-                        );
+            // Request immediate highlighting for visible lines + buffer for scrolling
+            let highlight_start = viewport_top;
+            let highlight_end = std::cmp::min(
+                viewport_top + content_height + 10, // 10 line buffer for smooth scrolling
+                buffer.lines.len(),
+            );
 
-                        if let Some(file_path) = &buffer.file_path {
-                            let path_str = file_path.to_string_lossy().to_string();
+            if let Some(file_path) = &buffer.file_path {
+                let path_str = file_path.to_string_lossy().to_string();
 
-                            // Determine language from file extension using configuration
-                            let language = self
-                                .config
-                                .languages
-                                .detect_language_from_extension(&path_str)
-                                .or_else(|| self.config.languages.get_fallback_language())
-                                .unwrap_or_else(|| "text".to_string()); // Ultimate fallback
+                // Determine language from file extension using configuration
+                let language = self
+                    .config
+                    .languages
+                    .detect_language_from_extension(&path_str)
+                    .or_else(|| self.config.languages.get_fallback_language())
+                    .unwrap_or_else(|| "text".to_string()); // Ultimate fallback
 
-                            // Get full buffer content for proper context-aware parsing
-                            let full_content = buffer.lines.join("\n");
+                // Get full buffer content for proper context-aware parsing
+                let full_content = buffer.lines.join("\n");
 
-                            // Use full-file context highlighting for all visible lines
-                            for line_index in visible_start..visible_end {
-                                if let Some(line) = buffer.get_line(line_index) {
-                                    // Use force_immediate_highlights_with_context to get proper full-file parsing
-                                    if let Some(_highlights) = highlighter
-                                        .force_immediate_highlights_with_context(
-                                            buffer_id,
-                                            line_index,
-                                            &full_content,
-                                            line,
-                                            &language,
-                                        )
-                                    {
-                                        // Results are automatically cached, no additional async request needed
-                                        log::trace!(
-                                            "Cached full-context highlights for buffer {} line {}",
-                                            buffer_id,
-                                            line_index
-                                        );
-                                    }
-                                }
-                            }
-
-                            // Also cache highlights for buffer lines beyond visible area for smooth scrolling
-                            for line_index in highlight_start..highlight_end {
-                                if line_index < visible_start || line_index >= visible_end {
-                                    if let Some(line) = buffer.get_line(line_index) {
-                                        // Use full-file context for buffer lines too
-                                        let _ = highlighter
-                                            .force_immediate_highlights_with_context(
-                                                buffer_id,
-                                                line_index,
-                                                &full_content,
-                                                line,
-                                                &language,
-                                            );
-                                    }
-                                }
-                            }
+                // Use full-file context highlighting for all visible lines
+                for line_index in visible_start..visible_end {
+                    if let Some(line) = buffer.get_line(line_index) {
+                        // Use force_immediate_highlights_with_context to get proper full-file parsing
+                        if let Some(_highlights) = highlighter
+                            .force_immediate_highlights_with_context(
+                                buffer_id,
+                                line_index,
+                                &full_content,
+                                line,
+                                &language,
+                            )
+                        {
+                            // Results are automatically cached, no additional async request needed
+                            log::trace!(
+                                "Cached full-context highlights for buffer {} line {}",
+                                buffer_id,
+                                line_index
+                            );
                         }
+                    }
+                }
+
+                // Also cache highlights for buffer lines beyond visible area for smooth scrolling
+                for line_index in highlight_start..highlight_end {
+                    if (line_index < visible_start || line_index >= visible_end)
+                        && let Some(line) = buffer.get_line(line_index)
+                    {
+                        // Use full-file context for buffer lines too
+                        let _ = highlighter.force_immediate_highlights_with_context(
+                            buffer_id,
+                            line_index,
+                            &full_content,
+                            line,
+                            &language,
+                        );
                     }
                 }
             }
@@ -1422,54 +1417,52 @@ impl Editor {
 
     /// Force immediate re-highlighting of visible content (used after theme changes)
     fn refresh_visible_syntax_highlighting(&mut self) {
-        if let Some(current_window) = self.window_manager.current_window() {
-            if let Some(buffer_id) = current_window.buffer_id {
-                if let Some(buffer) = self.buffers.get(&buffer_id) {
-                    if let Some(ref highlighter) = self.async_syntax_highlighter {
-                        // Calculate visible range
-                        let viewport_top = current_window.viewport_top;
-                        let viewport_height = current_window.height as usize;
-                        let visible_start = viewport_top;
-                        let visible_end = (viewport_top + viewport_height).min(buffer.line_count());
+        if let Some(current_window) = self.window_manager.current_window()
+            && let Some(buffer_id) = current_window.buffer_id
+            && let Some(buffer) = self.buffers.get(&buffer_id)
+            && let Some(ref highlighter) = self.async_syntax_highlighter
+        {
+            // Calculate visible range
+            let viewport_top = current_window.viewport_top;
+            let viewport_height = current_window.height as usize;
+            let visible_start = viewport_top;
+            let visible_end = (viewport_top + viewport_height).min(buffer.line_count());
 
-                        // Determine language
-                        let language = if let Some(ref path) = buffer.file_path {
-                            if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-                                match extension {
-                                    "rs" => "rust",
-                                    "py" => "python",
-                                    "js" => "javascript",
-                                    "ts" => "typescript",
-                                    "c" => "c",
-                                    "cpp" | "cc" | "cxx" => "cpp",
-                                    _ => "rust",
-                                }
-                            } else {
-                                "rust"
-                            }
-                        } else {
-                            "rust"
-                        };
-
-                        log::debug!(
-                            "Refreshing syntax highlighting for visible lines {}-{}",
-                            visible_start,
-                            visible_end
-                        );
-
-                        // Force high-priority re-highlighting of all visible lines
-                        for line_index in visible_start..visible_end {
-                            if let Some(line) = buffer.get_line(line_index) {
-                                let _ = highlighter.request_highlighting(
-                                    buffer_id,
-                                    line_index,
-                                    line.to_string(),
-                                    language.to_string(),
-                                    Priority::Critical,
-                                );
-                            }
-                        }
+            // Determine language
+            let language = if let Some(ref path) = buffer.file_path {
+                if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
+                    match extension {
+                        "rs" => "rust",
+                        "py" => "python",
+                        "js" => "javascript",
+                        "ts" => "typescript",
+                        "c" => "c",
+                        "cpp" | "cc" | "cxx" => "cpp",
+                        _ => "rust",
                     }
+                } else {
+                    "rust"
+                }
+            } else {
+                "rust"
+            };
+
+            log::debug!(
+                "Refreshing syntax highlighting for visible lines {}-{}",
+                visible_start,
+                visible_end
+            );
+
+            // Force high-priority re-highlighting of all visible lines
+            for line_index in visible_start..visible_end {
+                if let Some(line) = buffer.get_line(line_index) {
+                    highlighter.request_highlighting(
+                        buffer_id,
+                        line_index,
+                        line.to_string(),
+                        language.to_string(),
+                        Priority::Critical,
+                    );
                 }
             }
         }
@@ -1725,14 +1718,13 @@ impl Editor {
 
     /// Helper method to set up a new window with buffer and cursor position
     fn setup_new_window(&mut self, new_window_id: usize) {
-        if let Some(buffer_id) = self.current_buffer_id {
-            if let Some(buffer) = self.buffers.get(&buffer_id) {
-                if let Some(new_window) = self.window_manager.get_window_mut(new_window_id) {
-                    new_window.set_buffer(buffer_id);
-                    // Copy current cursor position to the new window
-                    new_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
-                }
-            }
+        if let Some(buffer_id) = self.current_buffer_id
+            && let Some(buffer) = self.buffers.get(&buffer_id)
+            && let Some(new_window) = self.window_manager.get_window_mut(new_window_id)
+        {
+            new_window.set_buffer(buffer_id);
+            // Copy current cursor position to the new window
+            new_window.save_cursor_position(buffer.cursor.row, buffer.cursor.col);
         }
     }
 
@@ -1925,14 +1917,11 @@ impl Editor {
         if let (Some(current_buffer_id), Some(current_window_id)) = (
             self.current_buffer_id,
             self.window_manager.current_window_id(),
-        ) {
-            if let Some(current_buffer) = self.buffers.get(&current_buffer_id) {
-                if let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
-                {
-                    current_window
-                        .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
-                }
-            }
+        ) && let Some(current_buffer) = self.buffers.get(&current_buffer_id)
+            && let Some(current_window) = self.window_manager.get_window_mut(current_window_id)
+        {
+            current_window
+                .save_cursor_position(current_buffer.cursor.row, current_buffer.cursor.col);
         }
     }
 

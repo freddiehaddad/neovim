@@ -502,10 +502,10 @@ impl CommandCompletion {
 
         // Find the selected item in the visible window
         for (i, item) in visible_items.iter().enumerate() {
-            if let Some(selected) = self.selected() {
-                if item.text == selected.text {
-                    return i;
-                }
+            if let Some(selected) = self.selected()
+                && item.text == selected.text
+            {
+                return i;
             }
         }
         0

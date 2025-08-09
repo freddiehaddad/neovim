@@ -10,6 +10,12 @@ pub struct SearchEngine {
     use_regex: bool,
 }
 
+impl Default for SearchEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SearchEngine {
     pub fn new() -> Self {
         Self {

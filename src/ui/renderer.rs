@@ -6,6 +6,15 @@ use crate::ui::terminal::Terminal;
 use log::{debug, warn};
 use std::io;
 
+/// Context for rendering a line of text
+struct LineRenderContext {
+    line_number: usize,
+    is_cursor_line: bool,
+    max_width: usize,
+    selection: Option<(Position, Position)>,
+    editor_mode: crate::core::mode::Mode,
+}
+
 pub struct UI {
     /// Top row of the current viewport
     viewport_top: usize,
@@ -19,6 +28,12 @@ pub struct UI {
     theme: UITheme,
     /// Current syntax theme from themes.toml
     syntax_theme: SyntaxTheme,
+}
+
+impl Default for UI {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl UI {
@@ -224,7 +239,7 @@ impl UI {
                     editor_state.syntax_highlights.get(&(buffer.id, buffer_row))
                 {
                     // Debug: Show we have highlights
-                    if log::log_enabled!(log::Level::Debug) && highlights.len() > 0 {
+                    if log::log_enabled!(log::Level::Debug) && !highlights.is_empty() {
                         debug!(
                             "UI: Rendering line {} with {} highlights: '{}'",
                             buffer_row,
@@ -246,16 +261,14 @@ impl UI {
                             );
                         }
                     }
-                    self.render_highlighted_line(
-                        terminal,
-                        line,
-                        highlights,
-                        text_width,
+                    let context = LineRenderContext {
+                        line_number: buffer_row,
                         is_cursor_line,
-                        buffer_row,
-                        buffer.get_selection_range(),
-                        editor_state.mode,
-                    )?
+                        max_width: text_width,
+                        selection: buffer.get_selection_range(),
+                        editor_mode: editor_state.mode,
+                    };
+                    self.render_highlighted_line(terminal, line, highlights, &context)?
                 } else {
                     // Debug: Show we're missing highlights
                     if log::log_enabled!(log::Level::Debug) {
@@ -424,35 +437,31 @@ impl UI {
         terminal: &mut Terminal,
         line: &str,
         highlights: &[HighlightRange],
-        max_width: usize,
-        is_cursor_line: bool,
-        line_number: usize,
-        selection: Option<(Position, Position)>,
-        editor_mode: crate::core::mode::Mode,
+        context: &LineRenderContext,
     ) -> io::Result<usize> {
         let line_bytes = line.as_bytes();
         let mut current_pos = 0;
 
         // Truncate highlights to fit within max_width
-        let display_len = std::cmp::min(line.len(), max_width);
+        let display_len = std::cmp::min(line.len(), context.max_width);
 
         // Determine if this line has visual selection and what range
-        let line_selection_range = if let Some((start, end)) = selection {
+        let line_selection_range = if let Some((start, end)) = context.selection {
             let (sel_start, sel_end) = if start.row <= end.row {
                 (start, end)
             } else {
                 (end, start)
             };
 
-            if line_number >= sel_start.row && line_number <= sel_end.row {
+            if context.line_number >= sel_start.row && context.line_number <= sel_end.row {
                 // This line is part of the selection
                 if sel_start.row == sel_end.row {
                     // Single line selection
                     Some((sel_start.col, sel_end.col))
-                } else if line_number == sel_start.row {
+                } else if context.line_number == sel_start.row {
                     // First line of multi-line selection
                     Some((sel_start.col, line.len()))
-                } else if line_number == sel_end.row {
+                } else if context.line_number == sel_end.row {
                     // Last line of multi-line selection
                     Some((0, sel_end.col))
                 } else {
@@ -480,9 +489,9 @@ impl UI {
                     terminal,
                     &line_bytes[current_pos..start],
                     current_pos,
-                    is_cursor_line,
+                    context.is_cursor_line,
                     line_selection_range,
-                    editor_mode,
+                    context.editor_mode,
                 )?;
             }
 
@@ -492,7 +501,7 @@ impl UI {
                 &line_bytes[start..end],
                 start,
                 highlight,
-                is_cursor_line,
+                context.is_cursor_line,
                 line_selection_range,
             )?;
 
@@ -505,9 +514,9 @@ impl UI {
                 terminal,
                 &line_bytes[current_pos..display_len],
                 current_pos,
-                is_cursor_line,
+                context.is_cursor_line,
                 line_selection_range,
-                editor_mode,
+                context.editor_mode,
             )?;
         }
 
@@ -715,11 +724,7 @@ impl UI {
                     buffer_row + 1
                 } else {
                     // Show relative distance
-                    if buffer_row > current_line {
-                        buffer_row - current_line
-                    } else {
-                        current_line - buffer_row
-                    }
+                    buffer_row.abs_diff(current_line)
                 }
             } else {
                 // Show absolute line numbers (for inactive windows or when relative numbers are disabled)
@@ -755,7 +760,7 @@ impl UI {
         let status_color = if editor_state
             .current_buffer
             .as_ref()
-            .map_or(false, |b| b.modified)
+            .is_some_and(|b| b.modified)
         {
             self.theme.status_modified
         } else {
@@ -770,10 +775,10 @@ impl UI {
         status_text.push_str(&format!(" {} ", editor_state.mode));
 
         // Buffer information
-        if editor_state.buffer_count > 1 {
-            if let Some(buffer_id) = editor_state.current_buffer_id {
-                status_text.push_str(&format!(" [{}] ", buffer_id));
-            }
+        if editor_state.buffer_count > 1
+            && let Some(buffer_id) = editor_state.current_buffer_id
+        {
+            status_text.push_str(&format!(" [{}] ", buffer_id));
         }
 
         // File information

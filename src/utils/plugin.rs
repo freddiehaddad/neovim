@@ -14,6 +14,12 @@ pub struct Plugin {
     // TODO: Add Lua execution context
 }
 
+impl Default for PluginManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PluginManager {
     pub fn new() -> Self {
         info!("Initializing plugin manager");

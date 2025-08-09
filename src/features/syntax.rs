@@ -436,10 +436,10 @@ impl SyntaxHighlighter {
 
     /// Detect language using both file path and content fallback
     pub fn detect_language(&self, file_path: Option<&str>, content: &str) -> String {
-        if let Some(path) = file_path {
-            if let Some(language) = self.detect_language_from_extension(path) {
-                return language;
-            }
+        if let Some(path) = file_path
+            && let Some(language) = self.detect_language_from_extension(path)
+        {
+            return language;
         }
 
         // Fall back to content-based detection
@@ -497,12 +497,12 @@ impl SyntaxHighlighter {
             let node_kind = node.kind();
 
             // Debug: Log node kinds for development
-            if log::log_enabled!(log::Level::Trace) {
-                if let Ok(node_text) = node.utf8_text(text.as_bytes()) {
-                    if node_text.len() < 20 && !node_text.contains('\n') {
-                        trace!("Node type: '{}' -> text: '{}'", node_kind, node_text);
-                    }
-                }
+            if log::log_enabled!(log::Level::Trace)
+                && let Ok(node_text) = node.utf8_text(text.as_bytes())
+                && node_text.len() < 20
+                && !node_text.contains('\n')
+            {
+                trace!("Node type: '{}' -> text: '{}'", node_kind, node_text);
             }
 
             // Check if this node type maps to a semantic category

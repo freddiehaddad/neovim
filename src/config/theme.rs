@@ -396,16 +396,15 @@ impl SyntaxTheme {
 
 /// Parse a hex color string to crossterm Color
 pub fn parse_color(color_str: &str) -> Color {
-    if let Some(stripped) = color_str.strip_prefix('#') {
-        if stripped.len() == 6 {
-            if let (Ok(r), Ok(g), Ok(b)) = (
-                u8::from_str_radix(&stripped[0..2], 16),
-                u8::from_str_radix(&stripped[2..4], 16),
-                u8::from_str_radix(&stripped[4..6], 16),
-            ) {
-                return Color::Rgb { r, g, b };
-            }
-        }
+    if let Some(stripped) = color_str.strip_prefix('#')
+        && stripped.len() == 6
+        && let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&stripped[0..2], 16),
+            u8::from_str_radix(&stripped[2..4], 16),
+            u8::from_str_radix(&stripped[4..6], 16),
+        )
+    {
+        return Color::Rgb { r, g, b };
     }
 
     // Fallback to white if parsing fails - this should rarely happen

@@ -93,10 +93,10 @@ impl EventDrivenEditor {
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     // Check if editor wants to quit
-                    if let Ok(editor) = self.editor.try_lock() {
-                        if editor.should_quit() {
-                            break;
-                        }
+                    if let Ok(editor) = self.editor.try_lock()
+                        && editor.should_quit()
+                    {
+                        break;
                     }
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -113,12 +113,11 @@ impl EventDrivenEditor {
     /// Send initial setup events
     fn send_initial_events(&self) -> Result<()> {
         // Create initial buffer if needed
-        if let Ok(mut editor) = self.editor.lock() {
-            if editor.current_buffer().is_none() {
-                if let Err(e) = editor.create_buffer(None) {
-                    warn!("Failed to create initial buffer: {}", e);
-                }
-            }
+        if let Ok(mut editor) = self.editor.lock()
+            && editor.current_buffer().is_none()
+            && let Err(e) = editor.create_buffer(None)
+        {
+            warn!("Failed to create initial buffer: {}", e);
         }
 
         // Request initial render
@@ -367,13 +366,12 @@ impl EventDrivenEditor {
                         match event::read() {
                             Ok(Event::Key(key_event)) => {
                                 // Only process key press events to avoid duplicates
-                                if key_event.kind == KeyEventKind::Press {
-                                    if let Err(e) = sender
+                                if key_event.kind == KeyEventKind::Press
+                                    && let Err(e) = sender
                                         .send(EditorEvent::Input(InputEvent::KeyPress(key_event)))
-                                    {
-                                        error!("Failed to send key event: {}", e);
-                                        break;
-                                    }
+                                {
+                                    error!("Failed to send key event: {}", e);
+                                    break;
                                 }
                             }
                             Ok(Event::Resize(width, height)) => {

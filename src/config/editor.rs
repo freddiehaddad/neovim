@@ -61,22 +61,11 @@ pub struct InterfaceConfig {
     pub completion_menu_height: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LanguageConfig {
     pub extensions: HashMap<String, String>,
     pub content_patterns: HashMap<String, Vec<String>>,
     pub default_language: Option<String>,
-}
-
-impl Default for LanguageConfig {
-    fn default() -> Self {
-        // Return empty collections - all language configuration should come from editor.toml
-        Self {
-            extensions: HashMap::new(),
-            content_patterns: HashMap::new(),
-            default_language: None,
-        }
-    }
 }
 
 impl LanguageConfig {

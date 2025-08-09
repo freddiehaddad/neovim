@@ -166,16 +166,15 @@ impl KeyHandler {
         if matches!(editor.mode(), Mode::Normal | Mode::OperatorPending) {
             // Check for timeout (reset sequence if too much time passed)
             let now = Instant::now();
-            if !self.pending_sequence.is_empty() {
-                if let Some(last_time) = self.last_key_time {
-                    if now.duration_since(last_time).as_millis() > 1000 {
-                        debug!(
-                            "Key sequence '{}' timed out, clearing",
-                            self.pending_sequence
-                        );
-                        self.pending_sequence.clear();
-                    }
-                }
+            if !self.pending_sequence.is_empty()
+                && let Some(last_time) = self.last_key_time
+                && now.duration_since(last_time).as_millis() > 1000
+            {
+                debug!(
+                    "Key sequence '{}' timed out, clearing",
+                    self.pending_sequence
+                );
+                self.pending_sequence.clear();
             }
             self.last_key_time = Some(now);
 
@@ -261,17 +260,13 @@ impl KeyHandler {
                                     // D should only wait for sequences like "dd", not "Down"
                                     k.starts_with("d")
                                         && k.len() > 1
-                                        && k.chars()
-                                            .nth(1)
-                                            .map_or(false, |c| c.is_ascii_lowercase())
+                                        && k.chars().nth(1).is_some_and(|c| c.is_ascii_lowercase())
                                 }
                                 "C" => {
                                     // C should only wait for sequences starting with "c", not "Ctrl+..."
                                     k.starts_with("c")
                                         && k.len() > 1
-                                        && k.chars()
-                                            .nth(1)
-                                            .map_or(false, |c| c.is_ascii_lowercase())
+                                        && k.chars().nth(1).is_some_and(|c| c.is_ascii_lowercase())
                                 }
                                 _ => {
                                     // For other single characters, only wait for same-case extensions
@@ -680,13 +675,13 @@ impl KeyHandler {
             editor.mode(),
             Mode::Visual | Mode::VisualLine | Mode::VisualBlock
         );
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if buffer.cursor.col > 0 {
-                buffer.cursor.col -= 1;
-                // Update visual selection if in any visual mode
-                if is_visual_mode {
-                    buffer.update_visual_selection(buffer.cursor);
-                }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && buffer.cursor.col > 0
+        {
+            buffer.cursor.col -= 1;
+            // Update visual selection if in any visual mode
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
             }
         }
         Ok(())
@@ -697,15 +692,14 @@ impl KeyHandler {
             editor.mode(),
             Mode::Visual | Mode::VisualLine | Mode::VisualBlock
         );
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                if buffer.cursor.col < line.len() {
-                    buffer.cursor.col += 1;
-                    // Update visual selection if in any visual mode
-                    if is_visual_mode {
-                        buffer.update_visual_selection(buffer.cursor);
-                    }
-                }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.get_line(buffer.cursor.row)
+            && buffer.cursor.col < line.len()
+        {
+            buffer.cursor.col += 1;
+            // Update visual selection if in any visual mode
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
             }
         }
         Ok(())
@@ -716,16 +710,16 @@ impl KeyHandler {
             editor.mode(),
             Mode::Visual | Mode::VisualLine | Mode::VisualBlock
         );
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if buffer.cursor.row > 0 {
-                buffer.cursor.row -= 1;
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
-                // Update visual selection if in any visual mode
-                if is_visual_mode {
-                    buffer.update_visual_selection(buffer.cursor);
-                }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && buffer.cursor.row > 0
+        {
+            buffer.cursor.row -= 1;
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
+            }
+            // Update visual selection if in any visual mode
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
             }
         }
         Ok(())
@@ -736,16 +730,16 @@ impl KeyHandler {
             editor.mode(),
             Mode::Visual | Mode::VisualLine | Mode::VisualBlock
         );
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if buffer.cursor.row < buffer.lines.len() - 1 {
-                buffer.cursor.row += 1;
-                if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                    buffer.cursor.col = buffer.cursor.col.min(line.len());
-                }
-                // Update visual selection if in any visual mode
-                if is_visual_mode {
-                    buffer.update_visual_selection(buffer.cursor);
-                }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && buffer.cursor.row < buffer.lines.len() - 1
+        {
+            buffer.cursor.row += 1;
+            if let Some(line) = buffer.get_line(buffer.cursor.row) {
+                buffer.cursor.col = buffer.cursor.col.min(line.len());
+            }
+            // Update visual selection if in any visual mode
+            if is_visual_mode {
+                buffer.update_visual_selection(buffer.cursor);
             }
         }
         Ok(())
@@ -782,10 +776,10 @@ impl KeyHandler {
     }
 
     fn action_insert_char(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        if let KeyCode::Char(ch) = key.code {
-            if let Some(buffer) = editor.current_buffer_mut() {
-                buffer.insert_char(ch);
-            }
+        if let KeyCode::Char(ch) = key.code
+            && let Some(buffer) = editor.current_buffer_mut()
+        {
+            buffer.insert_char(ch);
         }
         Ok(())
     }
@@ -907,14 +901,14 @@ impl KeyHandler {
             }
             _ => {
                 // Handle :e filename and :b commands
-                if command.starts_with("e ") {
-                    let filename = command[2..].trim();
+                if let Some(filename) = command.strip_prefix("e ") {
+                    let filename = filename.trim();
                     match editor.open_file(filename) {
                         Ok(msg) => editor.set_status_message(msg),
                         Err(e) => editor.set_status_message(format!("Error opening file: {}", e)),
                     }
-                } else if command.starts_with("b ") {
-                    let buffer_ref = command[2..].trim();
+                } else if let Some(buffer_ref) = command.strip_prefix("b ") {
+                    let buffer_ref = buffer_ref.trim();
                     if let Ok(buffer_id) = buffer_ref.parse::<usize>() {
                         if editor.switch_to_buffer(buffer_id) {
                             editor.set_status_message(format!("Switched to buffer {}", buffer_id));
@@ -931,8 +925,8 @@ impl KeyHandler {
                                 .set_status_message(format!("No buffer matching '{}'", buffer_ref));
                         }
                     }
-                } else if command.starts_with("set ") {
-                    self.handle_set_command(editor, &command[4..]);
+                } else if let Some(set_args) = command.strip_prefix("set ") {
+                    self.handle_set_command(editor, set_args);
                 } else {
                     editor.set_status_message(format!("Unknown command: {}", command));
                 }
@@ -947,8 +941,8 @@ impl KeyHandler {
     fn action_command_complete(&self, editor: &mut Editor) -> Result<()> {
         // Extract the command part (without the ':' prefix)
         let command_line = editor.command_line().to_string();
-        if command_line.starts_with(':') {
-            let command_part = command_line[1..].to_string();
+        if let Some(command_part) = command_line.strip_prefix(':') {
+            let command_part = command_part.to_string();
 
             // If completion is not active, start it
             if !editor.is_completion_active() {
@@ -1081,22 +1075,21 @@ impl KeyHandler {
     }
 
     fn action_insert_after(&self, editor: &mut Editor) -> Result<()> {
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                if buffer.cursor.col < line.len() {
-                    buffer.cursor.col += 1;
-                }
-            }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.get_line(buffer.cursor.row)
+            && buffer.cursor.col < line.len()
+        {
+            buffer.cursor.col += 1;
         }
         editor.set_mode(Mode::Insert);
         Ok(())
     }
 
     fn action_insert_line_end(&self, editor: &mut Editor) -> Result<()> {
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                buffer.cursor.col = line.len();
-            }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.get_line(buffer.cursor.row)
+        {
+            buffer.cursor.col = line.len();
         }
         editor.set_mode(Mode::Insert);
         Ok(())
@@ -1213,40 +1206,38 @@ impl KeyHandler {
     }
 
     fn action_delete_char_forward(&self, editor: &mut Editor) -> Result<()> {
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if let Some(line) = buffer.lines.get_mut(buffer.cursor.row) {
-                if buffer.cursor.col < line.len() {
-                    line.remove(buffer.cursor.col);
-                    buffer.modified = true;
-                }
-            }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.lines.get_mut(buffer.cursor.row)
+            && buffer.cursor.col < line.len()
+        {
+            line.remove(buffer.cursor.col);
+            buffer.modified = true;
         }
         Ok(())
     }
 
     fn action_delete_word_backward(&self, editor: &mut Editor) -> Result<()> {
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if let Some(line) = buffer.lines.get_mut(buffer.cursor.row) {
-                if buffer.cursor.col > 0 {
-                    // Find the start of the current word or previous word
-                    let mut pos = buffer.cursor.col;
+        if let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.lines.get_mut(buffer.cursor.row)
+            && buffer.cursor.col > 0
+        {
+            // Find the start of the current word or previous word
+            let mut pos = buffer.cursor.col;
 
-                    // Skip any whitespace before the cursor
-                    while pos > 0 && line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
-                        pos -= 1;
-                    }
-
-                    // Delete the word characters
-                    while pos > 0 && !line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
-                        pos -= 1;
-                    }
-
-                    // Remove the characters from pos to cursor
-                    line.drain(pos..buffer.cursor.col);
-                    buffer.cursor.col = pos;
-                    buffer.modified = true;
-                }
+            // Skip any whitespace before the cursor
+            while pos > 0 && line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
+                pos -= 1;
             }
+
+            // Delete the word characters
+            while pos > 0 && !line.chars().nth(pos - 1).unwrap_or(' ').is_whitespace() {
+                pos -= 1;
+            }
+
+            // Remove the characters from pos to cursor
+            line.drain(pos..buffer.cursor.col);
+            buffer.cursor.col = pos;
+            buffer.modified = true;
         }
         Ok(())
     }
@@ -1259,21 +1250,16 @@ impl KeyHandler {
     }
 
     fn action_replace_char(&self, editor: &mut Editor, key: KeyEvent) -> Result<()> {
-        if let KeyCode::Char(ch) = key.code {
-            if let Some(buffer) = editor.current_buffer_mut() {
-                if let Some(line) = buffer.lines.get_mut(buffer.cursor.row) {
-                    if buffer.cursor.col < line.len() {
-                        line.replace_range(
-                            buffer.cursor.col..buffer.cursor.col + 1,
-                            &ch.to_string(),
-                        );
-                        if buffer.cursor.col < line.len() {
-                            buffer.cursor.col += 1;
-                        }
-                        buffer.modified = true;
-                    }
-                }
+        if let KeyCode::Char(ch) = key.code
+            && let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.lines.get_mut(buffer.cursor.row)
+            && buffer.cursor.col < line.len()
+        {
+            line.replace_range(buffer.cursor.col..buffer.cursor.col + 1, &ch.to_string());
+            if buffer.cursor.col < line.len() {
+                buffer.cursor.col += 1;
             }
+            buffer.modified = true;
         }
         Ok(())
     }
@@ -1376,20 +1362,20 @@ impl KeyHandler {
 
             // Skip current paragraph (non-empty lines)
             while current_row < total_lines {
-                if let Some(line) = buffer.get_line(current_row) {
-                    if line.trim().is_empty() {
-                        break;
-                    }
+                if let Some(line) = buffer.get_line(current_row)
+                    && line.trim().is_empty()
+                {
+                    break;
                 }
                 current_row += 1;
             }
 
             // Skip empty lines to find start of next paragraph
             while current_row < total_lines {
-                if let Some(line) = buffer.get_line(current_row) {
-                    if !line.trim().is_empty() {
-                        break;
-                    }
+                if let Some(line) = buffer.get_line(current_row)
+                    && !line.trim().is_empty()
+                {
+                    break;
                 }
                 current_row += 1;
             }
@@ -1412,29 +1398,29 @@ impl KeyHandler {
             // Skip current paragraph (non-empty lines) going backward
             while current_row > 0 {
                 current_row -= 1;
-                if let Some(line) = buffer.get_line(current_row) {
-                    if line.trim().is_empty() {
-                        break;
-                    }
+                if let Some(line) = buffer.get_line(current_row)
+                    && line.trim().is_empty()
+                {
+                    break;
                 }
             }
 
             // Skip empty lines to find start of previous paragraph
             while current_row > 0 {
-                if let Some(line) = buffer.get_line(current_row) {
-                    if !line.trim().is_empty() {
-                        break;
-                    }
+                if let Some(line) = buffer.get_line(current_row)
+                    && !line.trim().is_empty()
+                {
+                    break;
                 }
                 current_row -= 1;
             }
 
             // Find the start of this paragraph
             while current_row > 0 {
-                if let Some(line) = buffer.get_line(current_row - 1) {
-                    if line.trim().is_empty() {
-                        break;
-                    }
+                if let Some(line) = buffer.get_line(current_row - 1)
+                    && line.trim().is_empty()
+                {
+                    break;
                 }
                 current_row -= 1;
             }
@@ -2707,17 +2693,17 @@ impl KeyHandler {
     // Line operation actions
     fn action_delete_to_end_of_line(&self, editor: &mut Editor) -> Result<()> {
         debug!("Deleting to end of line");
-        if let Some(buffer) = editor.current_buffer_mut() {
-            if let Some(line) = buffer.get_line(buffer.cursor.row) {
-                if buffer.cursor.col < line.len() {
-                    // Use buffer's delete_range method for proper undo support
-                    let start = buffer.cursor;
-                    let end = Position::new(buffer.cursor.row, line.len());
-                    let deleted_text = buffer.delete_range(start, end);
-                    info!("Deleted text to end of line: '{}'", deleted_text);
-                } else {
-                    debug!("Already at end of line, nothing to delete");
-                }
+        if let Some(buffer) = editor.current_buffer_mut()
+            && let Some(line) = buffer.get_line(buffer.cursor.row)
+        {
+            if buffer.cursor.col < line.len() {
+                // Use buffer's delete_range method for proper undo support
+                let start = buffer.cursor;
+                let end = Position::new(buffer.cursor.row, line.len());
+                let deleted_text = buffer.delete_range(start, end);
+                info!("Deleted text to end of line: '{}'", deleted_text);
+            } else {
+                debug!("Already at end of line, nothing to delete");
             }
         }
         Ok(())
@@ -2761,13 +2747,13 @@ impl KeyHandler {
         debug!("Changing entire line (S command)");
         if let Some(buffer) = editor.current_buffer_mut() {
             let current_row = buffer.cursor.row;
-            if let Some(line) = buffer.get_line(current_row) {
-                if !line.is_empty() {
-                    // Replace entire line with empty string
-                    let start = Position::new(current_row, 0);
-                    let end = Position::new(current_row, line.len());
-                    buffer.replace_range(start, end, "");
-                }
+            if let Some(line) = buffer.get_line(current_row)
+                && !line.is_empty()
+            {
+                // Replace entire line with empty string
+                let start = Position::new(current_row, 0);
+                let end = Position::new(current_row, line.len());
+                buffer.replace_range(start, end, "");
             }
             // Move cursor to beginning of line and enter insert mode
             buffer.cursor.col = 0;
@@ -2792,52 +2778,52 @@ impl KeyHandler {
             let current_pos = Position::new(buffer.cursor.row, buffer.cursor.col);
 
             // Get the character at the cursor
-            if let Some(line) = buffer.get_line(current_pos.row) {
-                if current_pos.col < line.len() {
-                    let char_at_cursor = line.chars().nth(current_pos.col).unwrap_or(' ');
+            if let Some(line) = buffer.get_line(current_pos.row)
+                && current_pos.col < line.len()
+            {
+                let char_at_cursor = line.chars().nth(current_pos.col).unwrap_or(' ');
 
-                    // Check if it's a bracket we can match
-                    let target_char = match char_at_cursor {
-                        '(' => Some(')'),
-                        ')' => Some('('),
-                        '[' => Some(']'),
-                        ']' => Some('['),
-                        '{' => Some('}'),
-                        '}' => Some('{'),
-                        '<' => Some('>'),
-                        '>' => Some('<'),
-                        _ => None,
-                    };
+                // Check if it's a bracket we can match
+                let target_char = match char_at_cursor {
+                    '(' => Some(')'),
+                    ')' => Some('('),
+                    '[' => Some(']'),
+                    ']' => Some('['),
+                    '{' => Some('}'),
+                    '}' => Some('{'),
+                    '<' => Some('>'),
+                    '>' => Some('<'),
+                    _ => None,
+                };
 
-                    if let Some(target) = target_char {
-                        let is_opening = matches!(char_at_cursor, '(' | '[' | '{' | '<');
+                if let Some(target) = target_char {
+                    let is_opening = matches!(char_at_cursor, '(' | '[' | '{' | '<');
 
-                        if let Some(match_pos) = self.find_matching_bracket(
-                            &buffer.lines,
-                            current_pos,
-                            char_at_cursor,
+                    if let Some(match_pos) = self.find_matching_bracket(
+                        &buffer.lines,
+                        current_pos,
+                        char_at_cursor,
+                        target,
+                        is_opening,
+                    ) {
+                        // Move cursor to the matching bracket
+                        buffer.cursor.row = match_pos.row;
+                        buffer.cursor.col = match_pos.col;
+
+                        info!(
+                            "Found matching bracket '{}' at {}:{}",
                             target,
-                            is_opening,
-                        ) {
-                            // Move cursor to the matching bracket
-                            buffer.cursor.row = match_pos.row;
-                            buffer.cursor.col = match_pos.col;
-
-                            info!(
-                                "Found matching bracket '{}' at {}:{}",
-                                target,
-                                match_pos.row + 1,
-                                match_pos.col + 1
-                            );
-                            editor.set_status_message(format!("Jumped to matching '{}'", target));
-                        } else {
-                            debug!("No matching bracket found for '{}'", char_at_cursor);
-                            editor.set_status_message("No matching bracket found".to_string());
-                        }
+                            match_pos.row + 1,
+                            match_pos.col + 1
+                        );
+                        editor.set_status_message(format!("Jumped to matching '{}'", target));
                     } else {
-                        debug!("Character '{}' is not a bracket", char_at_cursor);
-                        editor.set_status_message("Not on a bracket".to_string());
+                        debug!("No matching bracket found for '{}'", char_at_cursor);
+                        editor.set_status_message("No matching bracket found".to_string());
                     }
+                } else {
+                    debug!("Character '{}' is not a bracket", char_at_cursor);
+                    editor.set_status_message("Not on a bracket".to_string());
                 }
             }
         }
@@ -2888,7 +2874,7 @@ impl KeyHandler {
                 // If we're at position 0, we need to go to the previous line
                 if row > 0 {
                     row -= 1;
-                    if lines[row].len() > 0 {
+                    if !lines[row].is_empty() {
                         lines[row].len() - 1
                     } else {
                         0
@@ -2924,7 +2910,7 @@ impl KeyHandler {
                     break;
                 }
                 row -= 1;
-                col = if lines[row].len() > 0 {
+                col = if !lines[row].is_empty() {
                     lines[row].len() - 1
                 } else {
                     0
@@ -2949,7 +2935,7 @@ impl KeyHandler {
                     }
                 } else {
                     // Start recording
-                    if let Ok(_) = editor.start_macro_recording(register) {
+                    if editor.start_macro_recording(register).is_ok() {
                         info!("Started macro recording for register '{}'", register);
                     }
                 }

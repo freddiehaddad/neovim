@@ -488,27 +488,26 @@ impl Buffer {
             "Attempting to delete character at cursor position {}:{}",
             self.cursor.row, self.cursor.col
         );
-        if self.cursor.row < self.lines.len() {
-            if self.cursor.col < self.lines[self.cursor.row].len() {
-                let deleted_char = self.lines[self.cursor.row]
-                    .chars()
-                    .nth(self.cursor.col)
-                    .unwrap_or(' ');
-                let operation = EditOperation::Delete {
-                    pos: self.cursor,
-                    text: deleted_char.to_string(),
-                };
-                self.save_operation(operation);
+        if self.cursor.row < self.lines.len() && self.cursor.col < self.lines[self.cursor.row].len()
+        {
+            let deleted_char = self.lines[self.cursor.row]
+                .chars()
+                .nth(self.cursor.col)
+                .unwrap_or(' ');
+            let operation = EditOperation::Delete {
+                pos: self.cursor,
+                text: deleted_char.to_string(),
+            };
+            self.save_operation(operation);
 
-                let line = &mut self.lines[self.cursor.row];
-                line.remove(self.cursor.col);
-                self.modified = true;
-                trace!(
-                    "Deleted character '{}' at position {}:{}",
-                    deleted_char, self.cursor.row, self.cursor.col
-                );
-                return true;
-            }
+            let line = &mut self.lines[self.cursor.row];
+            line.remove(self.cursor.col);
+            self.modified = true;
+            trace!(
+                "Deleted character '{}' at position {}:{}",
+                deleted_char, self.cursor.row, self.cursor.col
+            );
+            return true;
         }
         false
     }
@@ -653,9 +652,7 @@ impl Buffer {
             pos += 1;
         }
 
-        if pos > 0 {
-            pos -= 1; // Back up to last character of word
-        }
+        pos = pos.saturating_sub(1);
 
         self.cursor.col = pos.min(line.len().saturating_sub(1));
     }
@@ -742,7 +739,7 @@ impl Buffer {
 
                 // Insert new line after current line
                 let new_line = self.clipboard.text.clone();
-                if self.cursor.row + 1 <= self.lines.len() {
+                if self.cursor.row < self.lines.len() {
                     self.lines.insert(self.cursor.row + 1, new_line);
                     self.cursor.row += 1;
                     self.cursor.col = 0;

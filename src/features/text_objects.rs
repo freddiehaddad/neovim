@@ -374,11 +374,7 @@ impl TextObjectFinder {
             Position::new(end_row, 0)
         } else {
             // End of buffer
-            let last_line = buffer
-                .lines
-                .get(buffer.lines.len() - 1)
-                .map(|line| line.len())
-                .unwrap_or(0);
+            let last_line = buffer.lines.last().map(|line| line.len()).unwrap_or(0);
             Position::new(buffer.lines.len() - 1, last_line)
         };
 
@@ -658,10 +654,10 @@ impl TextObjectFinder {
         for (i, &ch) in chars.iter().enumerate() {
             if ch == open_char {
                 stack.push(i);
-            } else if ch == close_char {
-                if let Some(start) = stack.pop() {
-                    pairs.push((start, i));
-                }
+            } else if ch == close_char
+                && let Some(start) = stack.pop()
+            {
+                pairs.push((start, i));
             }
         }
 
