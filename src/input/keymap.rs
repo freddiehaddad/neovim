@@ -745,6 +745,10 @@ impl KeyHandler {
     }
 
     fn action_normal_mode(&self, editor: &mut Editor) -> Result<()> {
+        // Clear visual selection when returning to normal mode
+        if let Some(buffer) = editor.current_buffer_mut() {
+            buffer.clear_visual_selection();
+        }
         editor.set_mode(Mode::Normal);
         // Clear any pending operator when returning to normal mode
         editor.clear_pending_operator();

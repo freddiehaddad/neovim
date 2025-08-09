@@ -1170,6 +1170,8 @@ impl Buffer {
                 text: selected_text.clone(),
                 yank_type: YankType::Character,
             };
+            // Clear the selection after yanking (matches Vim behavior)
+            self.selection = None;
             debug!("Yanked visual selection: {} chars", selected_text.len());
             Some(selected_text)
         } else {
