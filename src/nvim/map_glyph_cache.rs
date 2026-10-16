@@ -3,6 +3,7 @@
 
 use std::ffi::{CStr, c_char, c_void};
 
+use crate::map::mh_realloc;
 use crate::memory::xrealloc;
 
 pub const MH_TOMBSTONE: u32 = u32::MAX;
@@ -24,7 +25,7 @@ pub enum MHPutStatus {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct MapHash {
     pub n_buckets: u32,
     pub size: u32,
@@ -41,26 +42,6 @@ pub struct MapHash {
 pub struct Set_glyph {
     pub h: MapHash,
     pub keys: *mut c_char,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn mh_realloc(h: *mut MapHash, n_min_buckets: u32);
-}
-
-#[cfg(test)]
-unsafe fn mh_realloc(h: *mut MapHash, n_min_buckets: u32) {
-    use crate::memory::{xcalloc, xfree};
-    let h = unsafe { &mut *h };
-    unsafe {
-        xfree(h.hash.cast::<c_void>());
-    }
-    let n_buckets = n_min_buckets.max(16).next_power_of_two();
-    h.hash = unsafe { xcalloc(n_buckets as usize, std::mem::size_of::<u32>()).cast::<u32>() };
-    h.n_occupied = 0;
-    h.size = 0;
-    h.n_buckets = n_buckets;
-    h.upper_bound = (f64::from(n_buckets) * 0.77 + 0.5) as u32;
 }
 
 #[inline]
