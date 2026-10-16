@@ -1,0 +1,217 @@
+//! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
+
+use std::ffi::{c_char, c_int, c_void};
+
+use crate::kvec::KVecWithInit;
+use crate::memory::xfree;
+
+pub const CONV_NONE: c_int = 0;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+#[allow(non_camel_case_types)]
+pub struct vimconv_T {
+    pub vc_type: c_int,
+    pub vc_factor: c_int,
+    pub vc_fd: *mut c_void,
+    pub vc_fail: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ParserLine {
+    pub data: *const c_char,
+    pub size: usize,
+    pub allocated: bool,
+}
+
+pub type ParserLineGetter =
+    Option<unsafe extern "C" fn(cookie: *mut c_void, ret_pline: *mut ParserLine)>;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ParserPosition {
+    pub line: usize,
+    pub col: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ParserStateItem {
+    pub item_type: c_int,
+    pub expr_type: c_int,
+}
+
+#[repr(C)]
+pub struct ParserInputReader {
+    pub get_line: ParserLineGetter,
+    pub cookie: *mut c_void,
+    pub lines: KVecWithInit<ParserLine, 4>,
+    pub conv: vimconv_T,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct ParserHighlightChunk {
+    pub start: ParserPosition,
+    pub end_col: usize,
+    pub group: *const c_char,
+}
+
+pub type ParserHighlight = KVecWithInit<ParserHighlightChunk, 16>;
+
+#[repr(C)]
+pub struct ParserState {
+    pub reader: ParserInputReader,
+    pub pos: ParserPosition,
+    pub stack: KVecWithInit<ParserStateItem, 16>,
+    pub colors: *mut ParserHighlight,
+    pub can_continuate: bool,
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn string_convert(vcp: *const vimconv_T, ptr: *mut c_char, lenp: *mut usize) -> *mut c_char;
+}
+
+#[cfg(test)]
+unsafe fn string_convert(
+    _vcp: *const vimconv_T,
+    _ptr: *mut c_char,
+    _lenp: *mut usize,
+) -> *mut c_char {
+    std::ptr::null_mut()
+}
+
+/// Simple line getter reading from an array of `ParserLine` (`parser_simple_get_line`).
+///
+/// # Safety
+/// `cookie` must point to a `*const ParserLine` cursor, and `ret_pline` must be writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn parser_simple_get_line(cookie: *mut c_void, ret_pline: *mut ParserLine) {
+    unsafe {
+        let plines_p = cookie.cast::<*const ParserLine>();
+        *ret_pline = **plines_p;
+        *plines_p = (*plines_p).add(1);
+    }
+}
+
+unsafe fn viml_preader_get_line(preader: &mut ParserInputReader, ret_pline: &mut ParserLine) {
+    let mut pline = ParserLine {
+        data: std::ptr::null(),
+        size: 0,
+        allocated: false,
+    };
+    if let Some(get_line) = preader.get_line {
+        unsafe {
+            get_line(preader.cookie, &mut pline);
+        }
+    }
+    if preader.conv.vc_type != CONV_NONE && pline.size != 0 {
+        let mut cpline = ParserLine {
+            data: std::ptr::null(),
+            size: pline.size,
+            allocated: true,
+        };
+        cpline.data =
+            unsafe { string_convert(&preader.conv, pline.data.cast_mut(), &mut cpline.size) };
+        if pline.allocated {
+            unsafe {
+                xfree(pline.data.cast_mut().cast::<c_void>());
+            }
+        }
+        pline = cpline;
+    }
+    unsafe {
+        preader.lines.push(pline);
+    }
+    *ret_pline = pline;
+}
+
+/// Get the currently parsed line shifted to `pstate->pos.col` (`viml_parser_get_remaining_line`).
+///
+/// # Safety
+/// `pstate` and `ret_pline` must be valid writable pointers.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn viml_parser_get_remaining_line(
+    pstate: *mut ParserState,
+    ret_pline: *mut ParserLine,
+) -> bool {
+    let pstate = unsafe { &mut *pstate };
+    let ret_pline = unsafe { &mut *ret_pline };
+
+    let num_lines = pstate.reader.lines.size;
+    if pstate.pos.line == num_lines {
+        unsafe {
+            viml_preader_get_line(&mut pstate.reader, ret_pline);
+        }
+    } else {
+        *ret_pline = unsafe { pstate.reader.lines.last() };
+    }
+    assert_eq!(pstate.pos.line, pstate.reader.lines.size - 1);
+    if !ret_pline.data.is_null() {
+        ret_pline.data = unsafe { ret_pline.data.add(pstate.pos.col) };
+        ret_pline.size -= pstate.pos.col;
+    }
+    !ret_pline.data.is_null()
+}
+
+/// Free all heap memory allocated by `pstate` (`viml_parser_destroy`).
+///
+/// # Safety
+/// `pstate` must be a valid writable pointer to an initialized `ParserState`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn viml_parser_destroy(pstate: *mut ParserState) {
+    let pstate = unsafe { &mut *pstate };
+    for i in 0..pstate.reader.lines.size {
+        let pline = unsafe { pstate.reader.lines.get(i) };
+        if pline.allocated {
+            unsafe {
+                xfree(pline.data.cast_mut().cast::<c_void>());
+            }
+        }
+    }
+    unsafe {
+        pstate.reader.lines.destroy();
+        pstate.stack.destroy();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple_get_line_advances_cursor() {
+        let lines = [
+            ParserLine {
+                data: c"let x = 1".as_ptr(),
+                size: 9,
+                allocated: false,
+            },
+            ParserLine {
+                data: std::ptr::null(),
+                size: 0,
+                allocated: false,
+            },
+        ];
+        let mut cursor = lines.as_ptr();
+        let mut out = ParserLine {
+            data: std::ptr::null(),
+            size: 0,
+            allocated: false,
+        };
+        unsafe {
+            parser_simple_get_line(
+                (&mut cursor as *mut *const ParserLine).cast::<c_void>(),
+                &mut out,
+            );
+            assert_eq!(out.size, 9);
+            parser_simple_get_line(
+                (&mut cursor as *mut *const ParserLine).cast::<c_void>(),
+                &mut out,
+            );
+            assert!(out.data.is_null());
+        }
+    }
+}
