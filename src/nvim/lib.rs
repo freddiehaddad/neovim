@@ -1,3 +1,4 @@
+pub mod api;
 pub mod arabic;
 pub mod base64;
 pub mod eval;
@@ -11,6 +12,7 @@ pub mod map;
 pub mod map_glyph_cache;
 pub mod math;
 pub mod memory;
+pub mod msgpack_rpc;
 pub mod os;
 pub mod sha256;
 pub mod tui;
