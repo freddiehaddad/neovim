@@ -76,4 +76,18 @@ static inline size_t mpack_remaining(PackerBuffer *packer)
   return (size_t)(packer->endptr - packer->ptr);
 }
 
-#include "msgpack_rpc/packer.h.generated.h"
+void mpack_check_buffer(PackerBuffer *packer);
+void mpack_uint64(char **ptr, uint64_t i);
+void mpack_integer(char **ptr, Integer i);
+void mpack_float8(char **ptr, double i);
+void mpack_str(String str, PackerBuffer *packer);
+void mpack_bin(String str, PackerBuffer *packer);
+void mpack_raw(const char *data, size_t len, PackerBuffer *packer);
+void mpack_ext(char *buf, size_t len, int8_t type, PackerBuffer *packer);
+void mpack_handle(ObjectType type, handle_T handle, PackerBuffer *packer);
+void mpack_object(Object *obj, PackerBuffer *packer);
+void mpack_object_array(Array arr, PackerBuffer *packer);
+void mpack_object_inner(Object *current, Object *container, size_t container_idx,
+                        PackerBuffer *packer);
+PackerBuffer packer_string_buffer(void);
+String packer_take_string(PackerBuffer *buffer);
