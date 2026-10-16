@@ -33,4 +33,19 @@ extern char hash_removed;
     } \
   } while (0)
 
-#include "hashtab.h.generated.h"
+void hash_init(hashtab_T *ht);
+void hash_clear(hashtab_T *ht);
+void hash_clear_all(hashtab_T *ht, unsigned off);
+hashitem_T *hash_find(const hashtab_T *const ht, const char *const key);
+hashitem_T *hash_find_len(const hashtab_T *const ht, const char *const key, const size_t len);
+hashitem_T *hash_lookup(const hashtab_T *const ht, const char *const key, const size_t key_len,
+                        const hash_T hash);
+void hash_debug_results(void);
+int hash_add(hashtab_T *ht, char *key);
+void hash_add_item(hashtab_T *ht, hashitem_T *hi, char *key, hash_T hash);
+void hash_remove(hashtab_T *ht, hashitem_T *hi);
+void hash_lock(hashtab_T *ht);
+void hash_unlock(hashtab_T *ht);
+hash_T hash_hash(const char *key);
+hash_T hash_hash_len(const char *key, const size_t len);
+const char *_hash_key_removed(void);
