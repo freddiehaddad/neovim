@@ -1,3 +1,4 @@
+pub mod arabic;
 pub mod base64;
 pub mod math;
 pub mod memory;
