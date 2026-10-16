@@ -16,6 +16,9 @@ unsafe extern "C" {
     #[link_name = "xmallocz"]
     fn c_xmallocz(size: usize) -> *mut c_void;
 
+    #[link_name = "xstrdup"]
+    fn c_xstrdup(str_ptr: *const std::ffi::c_char) -> *mut std::ffi::c_char;
+
     #[link_name = "xfree"]
     fn c_xfree(ptr: *mut c_void);
 }
@@ -105,6 +108,25 @@ pub unsafe fn xmallocz(size: usize) -> *mut c_void {
         let ptr = xmalloc(total).cast::<u8>();
         *ptr.add(size) = 0;
         ptr.cast::<c_void>()
+    }
+}
+
+/// Duplicate a NUL-terminated C string using Neovim's `xstrdup`.
+///
+/// # Safety
+/// `str_ptr` must be a valid NUL-terminated C string; returned pointer must be freed with [`xfree`].
+#[inline]
+pub unsafe fn xstrdup(str_ptr: *const std::ffi::c_char) -> *mut std::ffi::c_char {
+    #[cfg(not(test))]
+    unsafe {
+        c_xstrdup(str_ptr)
+    }
+    #[cfg(test)]
+    unsafe {
+        let bytes = std::ffi::CStr::from_ptr(str_ptr).to_bytes_with_nul();
+        let out = xmalloc(bytes.len()).cast::<u8>();
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
+        out.cast::<std::ffi::c_char>()
     }
 }
 
