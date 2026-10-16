@@ -1,10 +1,12 @@
 pub mod arabic;
 pub mod base64;
+pub mod eval;
 pub mod event;
 pub mod garray;
 pub mod hashtab;
 pub mod kvec;
 pub mod linematch;
+pub mod lua;
 pub mod map_glyph_cache;
 pub mod math;
 pub mod memory;
