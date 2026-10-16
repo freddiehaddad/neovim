@@ -2,4 +2,4 @@
 
 #include <lua.h>  // IWYU pragma: keep
 
-#include "lua/base64.h.generated.h"
+int luaopen_base64(lua_State *L);

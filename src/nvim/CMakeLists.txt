@@ -14,6 +14,9 @@ set_target_properties(nvim_bin
 # Dependencies
 #-------------------------------------------------------------------------------
 
+add_library(nvim_rs STATIC IMPORTED GLOBAL)
+target_link_libraries(main_lib INTERFACE nvim_rs)
+
 add_library(nlua0 MODULE)
 if(WIN32)
   target_compile_definitions(nlua0 PUBLIC LUA_BUILD_AS_DLL LUA_LIB)
@@ -796,10 +799,8 @@ add_custom_command(
 
 add_custom_target(nvim_rs_build DEPENDS "${NVIM_RUST_LIB}")
 
-add_library(nvim_rs STATIC IMPORTED GLOBAL)
 set_target_properties(nvim_rs PROPERTIES IMPORTED_LOCATION "${NVIM_RUST_LIB}")
 add_dependencies(nvim_rs nvim_rs_build)
-target_link_libraries(main_lib INTERFACE nvim_rs)
 if(WIN32)
   target_link_libraries(main_lib INTERFACE ws2_32 userenv bcrypt ntdll)
 elseif(UNIX AND NOT APPLE)
