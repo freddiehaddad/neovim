@@ -19,11 +19,19 @@ extern char *default_lib_dir;
 
 // IWYU pragma: begin_exports
 #include "os/env.h.generated.h"
-#include "os/stdpaths.h.generated.h"
 #include "os/users.h.generated.h"
 // IWYU pragma: end_exports
 
 uint64_t os_get_total_mem_kib(void);
+const char *get_appname(bool namelike);
+bool appname_is_valid(void);
+char *stdpaths_get_xdg_var(const XDGVarType idx);
+char *get_xdg_home(const XDGVarType idx);
+char *stdpaths_user_cache_subpath(const char *fname);
+char *stdpaths_user_conf_subpath(const char *fname);
+char *stdpaths_user_data_subpath(const char *fname);
+char *stdpaths_user_state_subpath(const char *fname, const size_t trailing_pathseps,
+                                  const bool escape_commas);
 
 #define ENV_LOGFILE "NVIM_LOG_FILE"
 #define ENV_LOGFILE_WANT "__NVIM_LOG_FILE_WANT"
