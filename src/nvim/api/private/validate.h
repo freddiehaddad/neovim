@@ -105,4 +105,9 @@
     } \
   } while (0)
 
-#include "api/private/validate.h.generated.h"
+void api_err_invalid(Error *err, const char *name, const char *val_s, int64_t val_n,
+                     bool quote_val);
+void api_err_exp(Error *err, const char *name, const char *expected, const char *actual);
+void api_err_required(Error *err, const char *name);
+void api_err_conflict(Error *err, const char *name, const char *name2);
+bool check_string_array(Array arr, char *name, bool disallow_nl, Error *err);

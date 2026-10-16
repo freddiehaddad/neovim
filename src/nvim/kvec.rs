@@ -12,6 +12,14 @@ pub struct KVec<T> {
     pub items: *mut T,
 }
 
+impl<T> Clone for KVec<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for KVec<T> {}
+
 impl<T: Copy> KVec<T> {
     #[inline]
     pub fn init(&mut self) {
