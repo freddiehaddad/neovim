@@ -762,6 +762,58 @@ target_sources(main_lib INTERFACE
   ${EXTERNAL_SOURCES}
   ${EXTERNAL_HEADERS})
 
+find_program(CARGO_PRG cargo
+  HINTS "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin"
+  REQUIRED)
+
+set(NVIM_RUST_TARGET_DIR "${PROJECT_BINARY_DIR}/cargo")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR NOT CMAKE_BUILD_TYPE)
+  set(NVIM_RUST_PROFILE_DIR "debug")
+  set(NVIM_RUST_CARGO_FLAGS "")
+else()
+  set(NVIM_RUST_PROFILE_DIR "release")
+  set(NVIM_RUST_CARGO_FLAGS "--release")
+endif()
+
+set(NVIM_RUST_LIB
+  "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}nvim_rs${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_LIST_DIR}/*.rs")
+
+add_custom_command(
+  OUTPUT "${NVIM_RUST_LIB}"
+  COMMAND ${CMAKE_COMMAND} -E env
+    "CARGO_TARGET_DIR=${NVIM_RUST_TARGET_DIR}"
+    "${CARGO_PRG}" build
+    --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
+    ${NVIM_RUST_CARGO_FLAGS}
+  DEPENDS
+    "${PROJECT_SOURCE_DIR}/Cargo.toml"
+    ${NVIM_RUST_SOURCES}
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  USES_TERMINAL)
+
+add_custom_target(nvim_rs_build DEPENDS "${NVIM_RUST_LIB}")
+
+add_library(nvim_rs STATIC IMPORTED GLOBAL)
+set_target_properties(nvim_rs PROPERTIES IMPORTED_LOCATION "${NVIM_RUST_LIB}")
+add_dependencies(nvim_rs nvim_rs_build)
+target_link_libraries(main_lib INTERFACE nvim_rs)
+if(WIN32)
+  target_link_libraries(main_lib INTERFACE ws2_32 userenv bcrypt ntdll)
+elseif(UNIX AND NOT APPLE)
+  target_link_libraries(main_lib INTERFACE ${CMAKE_DL_LIBS} pthread)
+endif()
+
+add_custom_target(testrust
+  COMMAND ${CMAKE_COMMAND} -E env
+    "CARGO_TARGET_DIR=${NVIM_RUST_TARGET_DIR}"
+    "${CARGO_PRG}" test
+    --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  USES_TERMINAL)
+
 if(WIN32)
   # add windows resource file pointing to the neovim icon
   # this makes the icon appear for the neovim exe and associated filetypes

@@ -13,6 +13,7 @@ compile_commands.json
 .nvim.lua
 
 # Build/deps dir
+/target/
 /.zig-cache/
 /zig-out/
 /zig-pkg/
