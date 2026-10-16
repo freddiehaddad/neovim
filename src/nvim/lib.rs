@@ -2,6 +2,7 @@ pub mod arabic;
 pub mod base64;
 pub mod event;
 pub mod garray;
+pub mod hashtab;
 pub mod math;
 pub mod memory;
 pub mod os;
