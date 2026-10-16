@@ -19,7 +19,6 @@ extern char *default_lib_dir;
 
 // IWYU pragma: begin_exports
 #include "os/env.h.generated.h"
-#include "os/users.h.generated.h"
 // IWYU pragma: end_exports
 
 uint64_t os_get_total_mem_kib(void);
@@ -32,6 +31,13 @@ char *stdpaths_user_conf_subpath(const char *fname);
 char *stdpaths_user_data_subpath(const char *fname);
 char *stdpaths_user_state_subpath(const char *fname, const size_t trailing_pathseps,
                                   const bool escape_commas);
+int os_get_usernames(garray_T *users);
+int os_get_username(char *s, size_t len);
+int os_get_uname(uv_uid_t uid, char *s, size_t len);
+char *os_get_userdir(const char *name);
+void free_users(void);
+char *get_users(expand_T *xp, int idx);
+int match_user(char *name);
 
 #define ENV_LOGFILE "NVIM_LOG_FILE"
 #define ENV_LOGFILE_WANT "__NVIM_LOG_FILE_WANT"
