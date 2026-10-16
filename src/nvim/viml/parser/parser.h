@@ -8,8 +8,11 @@
 #include "nvim/mbyte_defs.h"
 #include "nvim/viml/parser/parser_defs.h"  // IWYU pragma: keep
 
-#include "viml/parser/parser.h.generated.h"
 #include "viml/parser/parser.h.inline.generated.h"
+
+void parser_simple_get_line(void *cookie, ParserLine *ret_pline);
+bool viml_parser_get_remaining_line(ParserState *const pstate, ParserLine *const ret_pline);
+void viml_parser_destroy(ParserState *const pstate);
 
 /// Initialize a new parser state instance
 ///
