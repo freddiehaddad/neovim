@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "nvim/garray_defs.h"  // IWYU pragma: keep
 #include "nvim/macros_defs.h"  // IWYU pragma: keep
@@ -19,7 +20,17 @@
 #define GA_APPEND_VIA_PTR(item_type, gap) \
   ga_append_via_ptr(gap, sizeof(item_type))
 
-#include "garray.h.generated.h"
+void ga_clear(garray_T *gap);
+void ga_clear_strings(garray_T *gap);
+void ga_init(garray_T *gap, int itemsize, int growsize);
+void ga_set_growsize(garray_T *gap, int growsize);
+void ga_grow(garray_T *gap, int n);
+void ga_remove_duplicate_strings(garray_T *gap);
+char *ga_concat_strings(const garray_T *gap, const char *sep);
+void ga_concat(garray_T *gap, const char *restrict s);
+void ga_concat_len(garray_T *const gap, const char *restrict s, const size_t len);
+void ga_append(garray_T *gap, uint8_t c);
+void *ga_append_via_ptr(garray_T *gap, size_t item_size);
 
 /// Deep free a garray of specific type using a custom free function.
 /// Items in the array as well as the array itself are freed.

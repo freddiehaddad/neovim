@@ -1,5 +1,6 @@
 pub mod arabic;
 pub mod base64;
+pub mod garray;
 pub mod math;
 pub mod memory;
 pub mod os;
