@@ -1,11 +1,23 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>  // IWYU pragma: keep
 
 #include "nvim/event/defs.h"  // IWYU pragma: keep
 #include "nvim/os/time.h"  // IWYU pragma: keep
 
-#include "event/multiqueue.h.generated.h"
+MultiQueue *multiqueue_new(PutCallback on_put, void *data);
+MultiQueue *multiqueue_new_child(MultiQueue *parent);
+void multiqueue_free(MultiQueue *self);
+Event multiqueue_get(MultiQueue *self);
+void multiqueue_put_event(MultiQueue *self, Event event);
+void multiqueue_move_events(MultiQueue *dest, MultiQueue *src);
+void multiqueue_process_events(MultiQueue *self);
+void multiqueue_purge_events(MultiQueue *self);
+bool multiqueue_empty(MultiQueue *self);
+void multiqueue_replace_parent(MultiQueue *self, MultiQueue *new_parent);
+size_t multiqueue_size(MultiQueue *self);
+Event event_create_oneshot(Event ev, int num);
 
 #define multiqueue_put(q, h, ...) \
   do { \
