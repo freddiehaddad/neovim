@@ -19,10 +19,11 @@ extern char *default_lib_dir;
 
 // IWYU pragma: begin_exports
 #include "os/env.h.generated.h"
-#include "os/mem.h.generated.h"
 #include "os/stdpaths.h.generated.h"
 #include "os/users.h.generated.h"
 // IWYU pragma: end_exports
+
+uint64_t os_get_total_mem_kib(void);
 
 #define ENV_LOGFILE "NVIM_LOG_FILE"
 #define ENV_LOGFILE_WANT "__NVIM_LOG_FILE_WANT"

@@ -3,3 +3,4 @@ pub mod math;
 pub mod memory;
 pub mod os;
 pub mod sha256;
+pub mod tui;
