@@ -24,6 +24,7 @@ pub mod grid;
 pub mod hashtab;
 pub mod help;
 pub mod highlight;
+pub mod indent;
 pub mod keycodes;
 pub mod kvec;
 pub mod linematch;
