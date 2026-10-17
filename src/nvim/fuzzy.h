@@ -20,4 +20,15 @@ typedef struct {
   int score;
 } fuzmatch_str_T;
 
-#include "fuzzy.h.generated.h"
+bool fuzzy_match(char *const str, const char *const pat_arg, const bool matchseq,
+                 int *const outScore, uint32_t *const matches, const int maxMatches);
+void f_matchfuzzy(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+void f_matchfuzzypos(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+int fuzzy_match_str(char *const str, const char *const pat);
+garray_T *fuzzy_match_str_with_pos(char *const str, const char *const pat);
+bool fuzzy_match_str_in_line(char **ptr, char *pat, int *len, pos_T *current_pos, int *score);
+bool search_for_fuzzy_match(buf_T *buf, pos_T *pos, char *pattern, int dir, pos_T *start_pos,
+                            int *len, char **ptr, int *score);
+void fuzmatch_str_free(fuzmatch_str_T *const fuzmatch, int count);
+void fuzzymatches_to_strmatches(fuzmatch_str_T *const fuzmatch, char ***const matches,
+                                const int count, const bool funcsort);
