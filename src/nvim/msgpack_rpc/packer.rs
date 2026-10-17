@@ -102,21 +102,21 @@ unsafe fn mpack_uint(buf: *mut *mut c_char, val: u32) {
 }
 
 #[inline]
-unsafe fn mpack_nil(buf: *mut *mut c_char) {
+pub(crate) unsafe fn mpack_nil(buf: *mut *mut c_char) {
     unsafe {
         mpack_w(buf, 0xc0);
     }
 }
 
 #[inline]
-unsafe fn mpack_bool(buf: *mut *mut c_char, val: bool) {
+pub(crate) unsafe fn mpack_bool(buf: *mut *mut c_char, val: bool) {
     unsafe {
         mpack_w(buf, 0xc2 | u8::from(val));
     }
 }
 
 #[inline]
-unsafe fn mpack_array(buf: *mut *mut c_char, len: u32) {
+pub(crate) unsafe fn mpack_array(buf: *mut *mut c_char, len: u32) {
     unsafe {
         if len < 0x10 {
             mpack_w(buf, 0x90 | (len as u8));
@@ -131,7 +131,7 @@ unsafe fn mpack_array(buf: *mut *mut c_char, len: u32) {
 }
 
 #[inline]
-unsafe fn mpack_map(buf: *mut *mut c_char, len: u32) {
+pub(crate) unsafe fn mpack_map(buf: *mut *mut c_char, len: u32) {
     unsafe {
         if len < 0x10 {
             mpack_w(buf, 0x80 | (len as u8));

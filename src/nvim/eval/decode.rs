@@ -11,6 +11,7 @@
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+use crate::eval::encode::encode_list_write;
 use crate::eval::executor::blob_T;
 use crate::garray::ga_concat_len;
 use crate::hashtab::{hashitem_empty, hashtab_T};
@@ -193,7 +194,6 @@ unsafe extern "C" {
         overflow: *mut bool,
     );
     fn string2float(text: *const c_char, ret_value: *mut f64) -> usize;
-    fn encode_list_write(data: *mut c_void, buf: *const c_char, len: usize) -> c_int;
 
     fn mpack_parser_init(p: *mut mpack_parser_t, c: u32);
     fn mpack_parse(

@@ -51,4 +51,13 @@ extern const char *const encode_special_var_names[];
 /// First character that needs to be encoded as surrogate pair
 #define SURROGATE_FIRST_CHAR 0x10000
 
-#include "eval/encode.h.generated.h"
+int encode_blob_write(void *const data, const char *const buf, const size_t len);
+void encode_list_write(void *const data, const char *const buf, const size_t len);
+bool encode_vim_list_to_buf(const list_T *const list, size_t *const ret_len, char **const ret_buf);
+int encode_read_from_list(ListReaderState *const state, char *const buf, const size_t nbuf,
+                          size_t *const read_bytes);
+bool encode_check_json_key(const typval_T *const tv);
+char *encode_tv2string(typval_T *tv, size_t *len);
+char *encode_tv2echo(typval_T *tv, size_t *len);
+char *encode_tv2json(typval_T *tv, size_t *len);
+ListReaderState encode_init_lrstate(const list_T *const list);
