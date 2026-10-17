@@ -3,4 +3,5 @@ pub mod converter;
 pub mod secure;
 pub mod spell;
 pub mod stdlib;
+pub mod treesitter;
 pub mod xdiff;
