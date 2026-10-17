@@ -12,6 +12,7 @@ pub mod decoration_provider;
 pub mod dialog;
 pub mod eval;
 pub mod event;
+pub mod ex_cmds2;
 pub mod extmark;
 pub mod fuzzy;
 pub mod garray;
