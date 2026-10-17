@@ -20,6 +20,7 @@
 #endif
 
 #include "auto/config.h"  // IWYU pragma: keep
+#include "auto/pathdef.h"
 #include "klib/kvec.h"
 #include "nvim/api/extmark.h"
 #include "nvim/api/private/defs.h"

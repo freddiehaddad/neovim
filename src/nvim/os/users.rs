@@ -107,7 +107,7 @@ unsafe extern "system" {
 
 #[cfg(all(target_os = "windows", not(test)))]
 unsafe extern "C" {
-    fn utf16_to_utf8(str_utf16: *const u16, str_len: isize, out: *mut *mut c_char) -> c_int;
+    fn utf16_to_utf8(str_utf16: *const u16, str_len: c_int, out: *mut *mut c_char) -> c_int;
     fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
