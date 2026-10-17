@@ -36,6 +36,7 @@ pub mod marktree;
 pub mod r#match;
 pub mod math;
 pub mod memory;
+pub mod menu;
 pub mod msgpack_rpc;
 pub mod os;
 pub mod plines;
