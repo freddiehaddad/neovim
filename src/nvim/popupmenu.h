@@ -30,4 +30,30 @@ EXTERN struct {
   bool finish;
 } pum_want;
 
-#include "popupmenu.h.generated.h"
+#include "nvim/func_attr.h"
+
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT void pum_display(pumitem_T *array, int size, int selected, bool array_changed,
+                           int cmd_startcol);
+DLLEXPORT void pum_redraw(void);
+DLLEXPORT win_T *pum_set_info(int selected, char *info);
+DLLEXPORT void pum_undisplay(bool immediate);
+DLLEXPORT void pum_check_clear(void);
+DLLEXPORT void pum_clear(void);
+DLLEXPORT bool pum_visible(void);
+DLLEXPORT bool pum_drawn(void);
+DLLEXPORT void pum_invalidate(void);
+DLLEXPORT void pum_recompose(void);
+DLLEXPORT void pum_ext_select_item(int item, bool insert, bool finish);
+DLLEXPORT int pum_get_height(void);
+DLLEXPORT void pum_set_event_info(dict_T *dict);
+DLLEXPORT void pum_show_popupmenu(vimmenu_T *menu);
+DLLEXPORT void pum_make_popup(const char *path_name, int use_mouse_pos);
+DLLEXPORT void pum_pos_ui_flush(bool force);
