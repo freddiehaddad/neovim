@@ -75,11 +75,6 @@ struct TermKey {
     TermKeyResult (*peekkey_simple)(TermKey *tk, TermKeyKey *key, int force, size_t *nbytes);
     TermKeyResult (*peekkey_mouse)(TermKey *tk, TermKeyKey *key, size_t *nbytes);
   } method;
-
-#ifdef HAVE_TERMIOS
-  struct termios restore_termios;
-  char restore_termios_valid;
-#endif
 };
 
 static inline void termkey_key_get_linecol(const TermKeyKey *key, int *line, int *col)
