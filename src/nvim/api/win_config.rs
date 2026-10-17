@@ -15,6 +15,7 @@ use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::deprecated::{VirtText, VirtTextChunk};
+use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::options::CtxSwitch;
 use crate::api::private::validate::{
     Array, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
@@ -277,17 +278,10 @@ unsafe extern "C" {
     fn ui_comp_remove_grid(grid: *mut ScreenGrid) -> bool;
     fn set_must_redraw(type_: c_int);
     fn win_config_float(wp: *mut win_T, fconfig: WinConfig);
-    fn virt_text_to_array(vt: VirtText, hl_name: bool, arena: *mut Arena) -> Array;
     fn syn_id2name(id: c_int) -> *mut c_char;
     fn transstr(s: *const c_char, replace_spaces: bool) -> *mut c_char;
     fn mb_string2cells(p: *const c_char) -> c_int;
     fn mb_string2cells_len(p: *const c_char, size: usize) -> c_int;
-    fn parse_virt_text(
-        chunks: Array,
-        err: *mut Error,
-        width: *mut c_int,
-        allow_hl_id: bool,
-    ) -> VirtText;
     fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error) -> c_int;
     fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
     fn ui_has(ext: UIExtension) -> bool;

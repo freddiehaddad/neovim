@@ -15,6 +15,7 @@ use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
+use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::options::{OptIndex, OptScope};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
@@ -94,6 +95,7 @@ pub union DecorVirtTextData {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct DecorVirtText {
     pub flags: u8,
     pub hl_mode: u8,
@@ -132,14 +134,6 @@ unsafe extern "C" {
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
     fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T;
-    fn nvim_create_namespace(name: NvimString) -> Integer;
-    fn nvim_buf_clear_namespace(
-        buffer: Buffer,
-        ns_id: Integer,
-        line_start: Integer,
-        line_end: Integer,
-        err: *mut Error,
-    );
     fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
     fn extmark_set(
         buf: *mut buf_T,
@@ -157,12 +151,6 @@ unsafe extern "C" {
         invalidate: bool,
         err: *mut Error,
     );
-    fn parse_virt_text(
-        chunks: Array,
-        err: *mut Error,
-        width: *mut c_int,
-        allow_hl_id: bool,
-    ) -> VirtText;
     fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u32) -> *mut DecorVirtText;
     fn clear_virttext(text: *mut VirtText);
     fn syn_get_final_id(hl_id: c_int) -> c_int;
