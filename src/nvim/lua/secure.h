@@ -2,4 +2,5 @@
 
 #include "nvim/ex_cmds_defs.h"  // IWYU pragma: keep
 
-#include "lua/secure.h.generated.h"
+char *nlua_read_secure(const char *path);
+void ex_trust(exarg_T *eap);
