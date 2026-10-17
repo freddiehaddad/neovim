@@ -1,3 +1,4 @@
+pub mod libuv_proc;
 pub mod r#loop;
 pub mod multiqueue;
 pub mod proc;
