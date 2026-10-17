@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
 use crate::api::private::converter::{sctx_T, ufunc_T};
 use crate::clipboard::{list_T, listitem_T, typval_T};
+use crate::debugger::{ex_breakadd, exarg_Full};
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::hashtab::{hashitem_empty, hashtab_T};
@@ -155,7 +156,6 @@ unsafe extern "C" {
     fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char;
     fn expand_env_save_opt(src: *mut c_char, one: bool, esc_chars: *mut c_char) -> *mut c_char;
     fn set_vim_var_nr(idx: c_int, val: i64);
-    fn ex_breakadd(eap: *mut exarg_T);
     fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn uv_err_name(err: c_int) -> *const c_char;
@@ -472,7 +472,7 @@ pub unsafe extern "C" fn ex_profile(eap: *mut exarg_T) {
         } else if arg_bytes == b"dump" {
             profile_dump();
         } else {
-            ex_breakadd(eap);
+            ex_breakadd(eap.cast::<exarg_Full>());
         }
     }
 }

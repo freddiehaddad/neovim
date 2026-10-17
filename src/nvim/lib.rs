@@ -4,6 +4,7 @@ pub mod base64;
 pub mod clipboard;
 pub mod cmdhist;
 pub mod cursor_shape;
+pub mod debugger;
 pub mod dialog;
 pub mod eval;
 pub mod event;
