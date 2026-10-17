@@ -49,4 +49,47 @@ struct CmdFrame {
                         ///< Note: search payloads ("/pat<CR>") travel on `cmdarg.searchbuf`.
 };
 
-#include "input_cmdatom.h.generated.h"
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT void atom_free(CmdAtom *atom);
+DLLEXPORT void atoms_free(CmdAtomVec *v);
+DLLEXPORT void atom_free_all(void);
+DLLEXPORT CmdSpec atom_cmd_spec(const cmdarg_T *cap);
+DLLEXPORT pos_T atom_origin_pos(buf_T *buf);
+DLLEXPORT void atom_push_raw(bool cascade, CmdAtom *atom);
+DLLEXPORT void atom_lhs_replay_queue(void);
+DLLEXPORT bool atom_composite_queued(void);
+DLLEXPORT bool atom_composite_active(void);
+DLLEXPORT void atom_composite_abort(void);
+DLLEXPORT void atom_term_enter(void);
+DLLEXPORT bool atom_is_user_cmd(void);
+DLLEXPORT void atom_suppress(bool suppress);
+DLLEXPORT unsigned atom_key_class(int cmd, int arg, int arg2);
+DLLEXPORT void atom_cmdline_set(int firstc, const char *line, size_t len);
+DLLEXPORT void atom_payload_start(void);
+DLLEXPORT void atom_payload_end(void);
+DLLEXPORT void atom_typed_add(const uint8_t *chars, size_t len);
+DLLEXPORT void atom_typed_del(size_t len);
+DLLEXPORT void atom_did_global_op(void);
+DLLEXPORT void atom_follow_changed(void);
+DLLEXPORT void atom_redo_prepped(void);
+DLLEXPORT void atom_redo_cancel(void);
+DLLEXPORT void atom_macro_start(int regname);
+DLLEXPORT void atom_stuff_start(const cmdarg_T *cap);
+DLLEXPORT void atom_map_start(const char *lhs, size_t len, bool peeked);
+DLLEXPORT void atom_visual_reset(void);
+DLLEXPORT bool atom_visual_replayable(void);
+DLLEXPORT bool atom_visual_redoable(void);
+DLLEXPORT String atom_visual_span(void);
+DLLEXPORT bool atom_visual_end(CmdSpec spec, bool redoable);
+DLLEXPORT void atom_capture_op(oparg_T *oap, cmdarg_T *cap, bool redo_yank);
+DLLEXPORT InsSession atom_ins_start(int cmd, long count, VisualIns vis, bool vblock);
+DLLEXPORT void atom_ins_end(InsSession *session, bool busy);
+DLLEXPORT void atom_cmd_start(CmdFrame *old, int cmdchar);
+DLLEXPORT void atom_cmd_end(cmdarg_T *ca, CmdFrame *old);

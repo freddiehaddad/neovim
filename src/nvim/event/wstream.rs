@@ -8,7 +8,9 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
+#[cfg(windows)]
+use std::ffi::c_ulong;
+use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::event::stream::{
