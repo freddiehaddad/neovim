@@ -44,6 +44,7 @@ pub mod mcursor;
 pub mod memory;
 pub mod menu;
 pub mod mouse;
+pub mod r#move;
 pub mod msgpack_rpc;
 pub mod os;
 pub mod plines;
