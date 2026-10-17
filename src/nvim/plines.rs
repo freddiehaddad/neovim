@@ -286,7 +286,7 @@ pub(crate) unsafe fn win_charsize(
 }
 
 #[inline]
-unsafe fn win_linetabsize(
+pub unsafe fn win_linetabsize(
     wp: *mut win_T,
     lnum: linenr_T,
     line: *mut c_char,

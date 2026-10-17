@@ -41,6 +41,7 @@ pub mod menu;
 pub mod msgpack_rpc;
 pub mod os;
 pub mod plines;
+pub mod popupmenu;
 pub mod profile;
 pub mod sha256;
 pub mod sign;
