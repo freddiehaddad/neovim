@@ -38,7 +38,7 @@ unsafe extern "C" {
     fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
     fn uv_now(loop_ptr: *const c_void) -> u64;
     fn uv_sleep(msec: c_uint);
-    fn loop_poll_events(loop_ptr: *mut c_void, ms: c_int);
+    fn loop_poll_events(loop_ptr: *mut c_void, ms: i64) -> bool;
     fn os_input_ready(events: *mut c_void) -> bool;
 
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
@@ -130,7 +130,7 @@ pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
             if cond {
                 break;
             }
-            loop_poll_events(&raw mut main_loop, remaining as c_int);
+            loop_poll_events(&raw mut main_loop, remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {
