@@ -9,7 +9,7 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -19,6 +19,7 @@ use crate::api::private::validate::{
     api_err_exp, api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
+use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::buf_T;
 use crate::lua::base64::lua_State;
@@ -77,14 +78,6 @@ unsafe extern "C" {
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
     fn check_cursor_col(win: *mut win_T);
-    fn ctx_switch(
-        cs: *mut CtxSwitch,
-        win: *mut win_T,
-        tabpage: *mut tabpage_T,
-        buf: *mut c_void,
-        flags: c_int,
-    ) -> bool;
-    fn ctx_restore(cs: *mut CtxSwitch);
     fn update_topline(wp: *mut win_T);
     fn validate_cursor(wp: *mut win_T);
     fn redraw_later(wp: *mut win_T, type_: c_int);
@@ -109,7 +102,6 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn try_enter(tstate: *mut TryState);
     fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn is_ctx_win(win: *mut win_T) -> bool;
     fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;

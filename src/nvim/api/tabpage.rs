@@ -17,6 +17,7 @@ use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::clipboard::typval_T;
 use crate::eval::decode::dict_T;
+pub use crate::eval::deprecated::pos_T;
 use crate::eval::deprecated::{Callback, buf_T, fmark_T};
 use crate::garray::garray_T;
 use crate::lua::converter::Boolean;
@@ -31,14 +32,6 @@ pub type Tabpage = handle_T;
 
 const KEYSET_OPTIDX_tabpage_config__after: u64 = 1;
 const K_WIN_OPT_COUNT: usize = 53;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct pos_T {
-    pub lnum: i32,
-    pub col: i32,
-    pub coladd: i32,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy)]

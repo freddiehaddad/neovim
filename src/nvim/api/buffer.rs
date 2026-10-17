@@ -22,6 +22,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{Buffer, pos_T, tabpage_T, win_T};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
+use crate::context::{ctx_restore, ctx_switch};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T, fmark_T};
 use crate::kvec::KVec;
@@ -280,14 +281,6 @@ unsafe extern "C" {
         opts: *mut KeyDict_keymap,
         err: *mut Error,
     );
-    fn ctx_switch(
-        cs: *mut CtxSwitch,
-        win: *mut win_T,
-        tabpage: *mut tabpage_T,
-        buf: *mut buf_T,
-        flags: c_int,
-    ) -> bool;
-    fn ctx_restore(cs: *mut CtxSwitch);
     fn rename_buffer(new_fname: *mut c_char) -> c_int;
     fn do_buffer(
         action: c_int,
