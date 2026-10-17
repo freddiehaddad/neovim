@@ -58,6 +58,7 @@ pub union TypvalVval {
     pub v_float: f64,
     pub v_string: *mut c_char,
     pub v_list: *mut list_T,
+    pub v_dict: *mut crate::eval::decode::dict_T,
     pub v_ptr: *mut c_void,
 }
 
