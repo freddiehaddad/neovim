@@ -44,4 +44,15 @@ typedef struct {
   size_t key_buffer_len;
 } TermInput;
 
-#include "tui/input.h.generated.h"
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT void tinput_init(TermInput *input, Loop *loop, TerminfoEntry *ti);
+DLLEXPORT void tinput_destroy(TermInput *input);
+DLLEXPORT void tinput_start(TermInput *input);
+DLLEXPORT void tinput_stop(TermInput *input);
