@@ -35,6 +35,7 @@ pub mod plines;
 pub mod profile;
 pub mod sha256;
 pub mod testing;
+pub mod textformat;
 pub mod tui;
 pub mod ui_compositor;
 pub mod viml;
