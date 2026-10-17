@@ -32,3 +32,4 @@ pub mod testing;
 pub mod tui;
 pub mod viml;
 pub mod vterm;
+pub mod winfloat;
