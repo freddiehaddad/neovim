@@ -89,6 +89,47 @@ impl VTermStringFragment {
             }
         }
     }
+
+    #[inline]
+    pub const fn len(&self) -> usize {
+        #[cfg(not(windows))]
+        {
+            (self.packed & 0x3fff_ffff) as usize
+        }
+        #[cfg(windows)]
+        {
+            self.len_bits & 0x3fff_ffff
+        }
+    }
+
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    #[inline]
+    pub const fn initial(&self) -> bool {
+        #[cfg(not(windows))]
+        {
+            ((self.packed >> 30) & 0x01) != 0
+        }
+        #[cfg(windows)]
+        {
+            (self.flags_bits & 0x01) != 0
+        }
+    }
+
+    #[inline]
+    pub const fn final_(&self) -> bool {
+        #[cfg(not(windows))]
+        {
+            ((self.packed >> 31) & 0x01) != 0
+        }
+        #[cfg(windows)]
+        {
+            ((self.flags_bits >> 1) & 0x01) != 0
+        }
+    }
 }
 
 #[repr(C)]

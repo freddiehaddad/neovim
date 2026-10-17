@@ -18,10 +18,13 @@ use crate::vterm::pen::{
     VTermAttr, VTermProp, VTermRect, VTermStateCallbacks, VTermValue,
     vterm_state_convert_color_to_rgb,
 };
+use crate::vterm::state::{
+    VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo, vterm_state_reset,
+    vterm_state_set_callbacks, vterm_state_set_unrecognised_fallbacks,
+};
 
 pub type schar_T = u32;
 pub type VTermDamageSize = c_int;
-pub type VTermStateFallbacks = c_void;
 
 const BUFIDX_PRIMARY: usize = 0;
 const BUFIDX_ALTSCREEN: usize = 1;
@@ -356,8 +359,16 @@ impl VTermLineInfo {
         self.flags & 0x01
     }
     #[inline]
+    pub const fn set_doublewidth(&mut self, val: u32) {
+        self.flags = (self.flags & !0x01) | (val & 0x01);
+    }
+    #[inline]
     pub const fn doubleheight(&self) -> u32 {
         (self.flags >> 1) & 0x03
+    }
+    #[inline]
+    pub const fn set_doubleheight(&mut self, val: u32) {
+        self.flags = (self.flags & !(0x03 << 1)) | ((val & 0x03) << 1);
     }
     #[inline]
     pub const fn continuation(&self) -> bool {
@@ -463,20 +474,6 @@ unsafe extern "C" {
         >,
         user: *mut c_void,
     );
-
-    fn vterm_obtain_state(vt: *mut VTerm) -> *mut VTermStateFull;
-    fn vterm_state_reset(state: *mut VTermStateFull, hard: c_int);
-    fn vterm_state_set_callbacks(
-        state: *mut VTermStateFull,
-        callbacks: *const VTermStateCallbacks,
-        user: *mut c_void,
-    );
-    fn vterm_state_set_unrecognised_fallbacks(
-        state: *mut VTermStateFull,
-        fallbacks: *const VTermStateFallbacks,
-        user: *mut c_void,
-    );
-    fn vterm_state_get_lineinfo(state: *const VTermStateFull, row: c_int) -> *const VTermLineInfo;
 }
 
 #[cfg(test)]
@@ -500,33 +497,6 @@ unsafe fn vterm_scroll_rect(
     >,
     _user: *mut c_void,
 ) {
-}
-#[cfg(test)]
-unsafe fn vterm_obtain_state(_vt: *mut VTerm) -> *mut VTermStateFull {
-    ptr::null_mut()
-}
-#[cfg(test)]
-unsafe fn vterm_state_reset(_state: *mut VTermStateFull, _hard: c_int) {}
-#[cfg(test)]
-unsafe fn vterm_state_set_callbacks(
-    _state: *mut VTermStateFull,
-    _callbacks: *const VTermStateCallbacks,
-    _user: *mut c_void,
-) {
-}
-#[cfg(test)]
-unsafe fn vterm_state_set_unrecognised_fallbacks(
-    _state: *mut VTermStateFull,
-    _fallbacks: *const VTermStateFallbacks,
-    _user: *mut c_void,
-) {
-}
-#[cfg(test)]
-unsafe fn vterm_state_get_lineinfo(
-    _state: *const VTermStateFull,
-    _row: c_int,
-) -> *const VTermLineInfo {
-    ptr::null()
 }
 
 #[inline]
