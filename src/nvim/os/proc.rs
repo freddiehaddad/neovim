@@ -4,7 +4,7 @@
 
 use std::ffi::{CStr, c_char, c_int, c_void};
 
-use crate::memory::xrealloc;
+use crate::memory::{Arena, xrealloc};
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
@@ -86,8 +86,8 @@ unsafe extern "system" {
 
 #[cfg(all(target_os = "windows", not(test)))]
 unsafe extern "C" {
-    fn arena_dict(arena: *mut c_void, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut c_void, str_val: NvimString) -> NvimString;
+    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
+    fn arena_string(arena: *mut Arena, str_val: NvimString) -> NvimString;
 }
 
 #[cfg(all(target_os = "windows", not(test)))]
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn os_proc_children(
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn os_proc_info(pid: c_int, arena: *mut c_void) -> Dict {
+pub unsafe extern "C" fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
     let mut pinfo = Dict {
         size: 0,
         capacity: 0,
