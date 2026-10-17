@@ -17,6 +17,7 @@ pub mod ex_cmds2;
 pub mod extmark;
 pub mod fuzzy;
 pub mod garray;
+pub mod grid;
 pub mod hashtab;
 pub mod help;
 pub mod keycodes;
