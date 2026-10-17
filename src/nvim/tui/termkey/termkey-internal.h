@@ -52,11 +52,6 @@ struct TermKey {
   size_t hightide;   // Position beyond buffstart at which peekkey() should next start
                      // normally 0, but see also termkey_interpret_csi
 
-#ifdef HAVE_TERMIOS
-  struct termios restore_termios;
-  char restore_termios_valid;
-#endif
-
   TermKey_Terminfo_Getstr_Hook *ti_getstr_hook;
   void *ti_getstr_hook_data;
 
@@ -80,6 +75,11 @@ struct TermKey {
     TermKeyResult (*peekkey_simple)(TermKey *tk, TermKeyKey *key, int force, size_t *nbytes);
     TermKeyResult (*peekkey_mouse)(TermKey *tk, TermKeyKey *key, size_t *nbytes);
   } method;
+
+#ifdef HAVE_TERMIOS
+  struct termios restore_termios;
+  char restore_termios_valid;
+#endif
 };
 
 static inline void termkey_key_get_linecol(const TermKeyKey *key, int *line, int *col)
