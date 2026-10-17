@@ -230,7 +230,7 @@ unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
 }
 
 #[inline]
-unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
+pub(crate) unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
     unsafe {
         StrCharInfo {
             ptr,
@@ -240,7 +240,7 @@ unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
 }
 
 #[inline]
-unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
+pub(crate) unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
     unsafe {
         if *cur.ptr == NUL {
             return ClusterInfo {
@@ -268,7 +268,7 @@ unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
 }
 
 #[inline]
-unsafe fn win_charsize(
+pub(crate) unsafe fn win_charsize(
     cstype: CSType,
     vcol: colnr_T,
     ptr_val: *const c_char,
