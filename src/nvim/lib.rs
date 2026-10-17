@@ -51,6 +51,7 @@ pub mod profile;
 pub mod sha256;
 pub mod sign;
 pub mod state;
+pub mod statusline;
 pub mod testing;
 pub mod textformat;
 pub mod textobject;
