@@ -12,11 +12,12 @@
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::deprecated::VirtText;
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::clipboard::typval_T;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T};
+use crate::eval::deprecated::{Callback, buf_T, fmark_T};
 use crate::garray::garray_T;
 use crate::lua::converter::Boolean;
 use crate::map::Set;
@@ -170,6 +171,113 @@ pub struct winopt_T {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+pub struct lpos_T {
+    pub lnum: i32,
+    pub col: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct xfmark_T {
+    pub fmark: fmark_T,
+    pub fname: *mut c_char,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct taggy_T {
+    pub tagname: *mut c_char,
+    pub fmark: fmark_T,
+    pub cur_match: c_int,
+    pub cur_fnum: c_int,
+    pub user_data: *mut c_char,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ScreenGrid {
+    pub handle: handle_T,
+    pub chars: *mut u32,
+    pub attrs: *mut i32,
+    pub vcols: *mut i32,
+    pub line_offset: *mut usize,
+    pub dirty_col: *mut c_int,
+    pub rows: c_int,
+    pub cols: c_int,
+    pub valid: bool,
+    pub throttled: bool,
+    pub blending: bool,
+    pub mouse_enabled: bool,
+    pub zindex: c_int,
+    pub comp_row: c_int,
+    pub comp_col: c_int,
+    pub comp_width: c_int,
+    pub comp_height: c_int,
+    pub comp_index: usize,
+    pub comp_disabled: bool,
+    pub pending_comp_index_update: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct GridView {
+    pub target: *mut ScreenGrid,
+    pub row_offset: c_int,
+    pub col_offset: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WinConfig {
+    pub window: Window,
+    pub bufpos: lpos_T,
+    pub height: c_int,
+    pub width: c_int,
+    pub row: f64,
+    pub col: f64,
+    pub anchor: c_int,
+    pub relative: c_int,
+    pub external: bool,
+    pub focusable: bool,
+    pub mouse: bool,
+    pub split: c_int,
+    pub zindex: c_int,
+    pub style: c_int,
+    pub border: bool,
+    pub shadow: bool,
+    pub border_chars: [[c_char; 32]; 8],
+    pub border_hl_ids: [c_int; 8],
+    pub border_attr: [c_int; 8],
+    pub title: bool,
+    pub title_pos: c_int,
+    pub title_chunks: VirtText,
+    pub title_width: c_int,
+    pub footer: bool,
+    pub footer_pos: c_int,
+    pub footer_chunks: VirtText,
+    pub footer_width: c_int,
+    pub noautocmd: bool,
+    pub fixed: bool,
+    pub hide: bool,
+    pub _cmdline_offset: c_int,
+}
+
+#[repr(C)]
+pub struct frame_T {
+    pub fr_layout: c_char,
+    pub fr_width: c_int,
+    pub fr_newwidth: c_int,
+    pub fr_height: c_int,
+    pub fr_newheight: c_int,
+    pub fr_parent: *mut frame_T,
+    pub fr_next: *mut frame_T,
+    pub fr_prev: *mut frame_T,
+    pub fr_child: *mut frame_T,
+    pub fr_win: *mut win_T,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub struct ScopeDictDictItem {
     pub di_tv: typval_T,
     pub di_flags: u8,
@@ -193,7 +301,7 @@ pub struct win_T {
     pub w_prev: *mut win_T,
     pub w_next: *mut win_T,
     pub w_locked: c_int,
-    pub w_frame: *mut c_void,
+    pub w_frame: *mut frame_T,
     pub w_cursor: pos_T,
     pub w_curswant: i32,
     pub w_set_curswant: bool,
@@ -311,6 +419,23 @@ pub struct win_T {
     pub w_scbind_pos: c_int,
     pub w_winvar: ScopeDictDictItem,
     pub w_vars: *mut dict_T,
+    pub w_pcmark: pos_T,
+    pub w_prev_pcmark: pos_T,
+    pub w_jumplist: [xfmark_T; 100],
+    pub w_jumplistlen: c_int,
+    pub w_jumplistidx: c_int,
+    pub w_changelistidx: c_int,
+    pub w_match_head: *mut c_void,
+    pub w_next_match_id: c_int,
+    pub w_tagstack: [taggy_T; 20],
+    pub w_tagstackidx: c_int,
+    pub w_tagstacklen: c_int,
+    pub w_grid: GridView,
+    pub w_grid_alloc: ScreenGrid,
+    pub w_pos_changed: bool,
+    pub w_floating: bool,
+    pub w_kind: c_int,
+    pub w_config: WinConfig,
 }
 
 #[repr(C)]
