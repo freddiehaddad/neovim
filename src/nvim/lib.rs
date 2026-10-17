@@ -42,6 +42,7 @@ pub mod sha256;
 pub mod sign;
 pub mod testing;
 pub mod textformat;
+pub mod textobject;
 pub mod tui;
 pub mod ui_compositor;
 pub mod viml;
