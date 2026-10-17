@@ -2,6 +2,7 @@ pub mod dl;
 pub mod env;
 pub mod fileio;
 pub mod input;
+pub mod lang;
 pub mod mem;
 pub mod os_win_console;
 pub mod proc;
