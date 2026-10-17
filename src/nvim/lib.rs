@@ -38,6 +38,7 @@ pub mod os;
 pub mod plines;
 pub mod profile;
 pub mod sha256;
+pub mod sign;
 pub mod testing;
 pub mod textformat;
 pub mod tui;
