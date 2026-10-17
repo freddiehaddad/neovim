@@ -2,6 +2,7 @@ pub mod api;
 pub mod arabic;
 pub mod base64;
 pub mod clipboard;
+pub mod cmdhist;
 pub mod cursor_shape;
 pub mod dialog;
 pub mod eval;
