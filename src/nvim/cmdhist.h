@@ -30,4 +30,22 @@ typedef struct {
   AdditionalData *additional_data;  ///< Additional entries from ShaDa file.
 } histentry_T;
 
-#include "cmdhist.h.generated.h"
+int get_hislen(void);
+histentry_T *get_histentry(int hist_type);
+void set_histentry(int hist_type, histentry_T *entry);
+int *get_hisidx(int hist_type);
+int *get_hisnum(int hist_type);
+HistoryType hist_char2type(const int c);
+char *get_history_arg(expand_T *xp, int idx);
+void init_history(void);
+void add_to_history(int histype, const char *new_entry, size_t new_entrylen, bool in_map, int sep);
+int clr_history(const int histype);
+void f_histadd(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+void f_histdel(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+void f_histget(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+void f_histnr(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+void ex_history(exarg_T *eap);
+const void *hist_iter(const void *const iter, const uint8_t history_type, const bool zero,
+                      histentry_T *const hist);
+histentry_T *hist_get_array(const uint8_t history_type, int **const new_hisidx,
+                            int **const new_hisnum);
