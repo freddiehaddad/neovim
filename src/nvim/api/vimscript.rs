@@ -1,0 +1,992 @@
+//! Vimscript execution, evaluation, and expression parsing API (`src/nvim/api/vimscript.c`).
+
+#![allow(
+    dead_code,
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    unused_imports,
+    clippy::missing_safety_doc
+)]
+
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+
+use crate::api::autocmd::TryState;
+use crate::api::private::converter::{object_to_vim, sctx_T, vim_to_object};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
+};
+use crate::api::tabpage::win_T;
+use crate::clipboard::{VarType, typval_T};
+use crate::eval::decode::{dict_T, dictitem_T};
+use crate::garray::{ga_clear, ga_init, garray_T};
+use crate::kvec::KVecWithInit;
+use crate::lua::converter::Boolean;
+use crate::map_glyph_cache::NvimString;
+use crate::memory::{Arena, xfree, xmemdupz};
+use crate::msgpack_rpc::packer::Integer;
+use crate::viml::parser::expressions::{
+    ExprASTNode, ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab,
+    kExprAsgnPlain, kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet,
+    kExprNodeAssignment, kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment,
+    kExprNodeFloat, kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
+    kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_free_ast, viml_pexpr_parse,
+};
+use crate::viml::parser::parser::{
+    ParserHighlight, ParserLine, ParserPosition, ParserState, parser_simple_get_line,
+    viml_parser_destroy,
+};
+
+const FAIL: c_int = 0;
+const OK: c_int = 1;
+const MAX_FUNC_ARGS: usize = 20;
+const API_INTEGER_MAX: u64 = i64::MAX as u64;
+
+#[repr(C)]
+pub struct KeyDict_exec_opts {
+    pub output: Boolean,
+}
+
+#[repr(C)]
+pub struct evalarg_T {
+    pub eval_flags: c_int,
+    pub eval_getline: *mut c_void,
+    pub eval_cookie: *mut c_void,
+    pub eval_tofree: *mut c_char,
+}
+
+#[repr(C)]
+pub struct funcexe_T {
+    pub fe_argv_func: *mut c_void,
+    pub fe_firstline: i32,
+    pub fe_lastline: i32,
+    pub fe_doesrange: *mut bool,
+    pub fe_evaluate: bool,
+    pub fe_partial: *mut c_void,
+    pub fe_selfdict: *mut dict_T,
+    pub fe_basetv: *mut typval_T,
+    pub fe_found_var: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct ExprASTConvStackItem {
+    node_p: *mut *mut ExprASTNode,
+    ret_node_p: *mut Object,
+}
+
+type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
+
+static mut EVAL_RECURSIVE: c_int = 0;
+static mut CALL_FUNC_RECURSIVE: c_int = 0;
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    static mut msg_silent: c_int;
+    static mut redir_off: bool;
+    static mut capture_ga: *mut garray_T;
+    static mut msg_col: c_int;
+    static mut current_sctx: sctx_T;
+    static mut force_abort: bool;
+    static mut suppress_errthrow: bool;
+    static mut did_throw: bool;
+    static mut did_emsg: c_int;
+    static mut EVALARG_EVALUATE: evalarg_T;
+    static mut curwin: *mut win_T;
+
+    fn do_source_str(cmd: *const c_char, traceback_name: *const c_char) -> c_int;
+    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
+    fn eval0(
+        arg: *mut c_char,
+        rettv: *mut typval_T,
+        eap: *mut c_void,
+        evalarg: *mut evalarg_T,
+    ) -> c_int;
+    fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut c_void);
+    fn tv_clear(varp: *mut typval_T);
+    fn tv_dict_find(d: *const dict_T, key: *const c_char, key_len: isize) -> *mut dictitem_T;
+    fn call_func(
+        funcname: *const c_char,
+        len: c_int,
+        rettv: *mut typval_T,
+        argcount_in: c_int,
+        argv_in: *mut typval_T,
+        funcexe: *mut funcexe_T,
+    ) -> c_int;
+
+    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
+    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
+    fn arena_string(arena: *mut Arena, str: NvimString) -> NvimString;
+    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
+    fn api_set_sctx(channel_id: u64) -> sctx_T;
+    fn try_enter(tstate: *mut TryState);
+    fn try_leave(tstate: *const TryState, err: *mut Error);
+}
+
+#[inline]
+const fn nil_obj() -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeNil,
+        data: ObjectData { integer: 0 },
+    }
+}
+
+#[inline]
+const fn integer_obj(i: Integer) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeInteger,
+        data: ObjectData { integer: i },
+    }
+}
+
+#[inline]
+const fn float_obj(f: f64) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeFloat,
+        data: ObjectData { floating: f },
+    }
+}
+
+#[inline]
+const fn boolean_obj(b: bool) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBoolean,
+        data: ObjectData { boolean: b },
+    }
+}
+
+#[inline]
+const fn string_obj(s: NvimString) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeString,
+        data: ObjectData { string: s },
+    }
+}
+
+#[inline]
+const fn array_obj(a: Array) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeArray,
+        data: ObjectData { array: a },
+    }
+}
+
+#[inline]
+const fn dict_obj(d: Dict) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeDict,
+        data: ObjectData { dict: d },
+    }
+}
+
+#[inline]
+fn error_set(err: *const Error) -> bool {
+    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
+}
+
+#[inline]
+unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
+    if s.is_null() {
+        NvimString {
+            data: std::ptr::null_mut(),
+            size: 0,
+        }
+    } else {
+        NvimString {
+            data: s.cast_mut(),
+            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
+        }
+    }
+}
+
+#[inline]
+unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
+    let bytes = s.to_bytes();
+    unsafe {
+        let data = xmemdupz(bytes.as_ptr().cast(), bytes.len()).cast::<c_char>();
+        NvimString {
+            data,
+            size: bytes.len(),
+        }
+    }
+}
+
+#[inline]
+unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
+    unsafe {
+        *dict.items.add(dict.size) = KeyValuePair {
+            key: NvimString {
+                data: key.as_ptr().cast_mut(),
+                size: key.to_bytes().len(),
+            },
+            value,
+        };
+        dict.size += 1;
+    }
+}
+
+#[inline]
+unsafe fn add_c(arr: &mut Array, item: Object) {
+    unsafe {
+        *arr.items.add(arr.size) = item;
+        arr.size += 1;
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object {
+    unsafe {
+        string_obj(arena_string(
+            arena,
+            NvimString {
+                data: s.cast_mut(),
+                size: len,
+            },
+        ))
+    }
+}
+
+/// Executes Vimscript (`nvim_exec2`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_exec2(
+    channel_id: u64,
+    src: NvimString,
+    opts: *mut KeyDict_exec_opts,
+    err: *mut Error,
+) -> Dict {
+    #[cfg(test)]
+    {
+        let _ = (channel_id, src, opts, err);
+        Dict::new()
+    }
+
+    #[cfg(not(test))]
+    unsafe {
+        let mut result = Dict::new();
+        let output = exec_impl(channel_id, src, opts, err);
+        if error_set(err) {
+            return result;
+        }
+        if (*opts).output {
+            result.push(KeyValuePair {
+                key: cstr_to_string(c"output"),
+                value: string_obj(output),
+            });
+        }
+        result
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn exec_impl(
+    channel_id: u64,
+    src: NvimString,
+    opts: *mut KeyDict_exec_opts,
+    err: *mut Error,
+) -> NvimString {
+    #[cfg(test)]
+    {
+        let _ = (channel_id, src, opts, err);
+        NvimString {
+            data: std::ptr::null_mut(),
+            size: 0,
+        }
+    }
+
+    #[cfg(not(test))]
+    unsafe {
+        let save_msg_silent = msg_silent;
+        let save_redir_off = redir_off;
+        let save_capture_ga = capture_ga;
+        let save_msg_col = msg_col;
+        let mut capture_local = garray_T {
+            ga_len: 0,
+            ga_maxlen: 0,
+            ga_itemsize: 0,
+            ga_growsize: 0,
+            ga_data: std::ptr::null_mut(),
+        };
+        if (*opts).output {
+            ga_init(&mut capture_local, 1, 80);
+            capture_ga = &mut capture_local;
+        }
+
+        let mut tstate: TryState = std::mem::zeroed();
+        try_enter(&mut tstate);
+        if (*opts).output {
+            msg_silent += 1;
+            redir_off = false;
+            msg_col = 0;
+        }
+
+        let save_current_sctx = api_set_sctx(channel_id);
+        do_source_str(src.data, c"nvim_exec2()".as_ptr());
+        if (*opts).output {
+            capture_ga = save_capture_ga;
+            msg_silent = save_msg_silent;
+            redir_off = save_redir_off;
+            msg_col = save_msg_col;
+        }
+        current_sctx = save_current_sctx;
+        try_leave(&tstate, err);
+
+        if !error_set(err) && (*opts).output && capture_local.ga_len > 1 {
+            let mut s = NvimString {
+                data: capture_local.ga_data.cast::<c_char>(),
+                size: capture_local.ga_len as usize,
+            };
+            if *s.data == b'\n' as c_char {
+                std::ptr::copy(s.data.add(1), s.data, s.size - 1);
+                *s.data.add(s.size - 1) = 0;
+                s.size -= 1;
+            }
+            return s;
+        }
+
+        if (*opts).output {
+            ga_clear(&mut capture_local);
+        }
+        NvimString {
+            data: std::ptr::null_mut(),
+            size: 0,
+        }
+    }
+}
+
+/// Executes an Ex command (`nvim_command`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: *mut Error) {
+    #[cfg(test)]
+    let _ = (cmd, err);
+
+    #[cfg(not(test))]
+    unsafe {
+        let mut tstate: TryState = std::mem::zeroed();
+        try_enter(&mut tstate);
+        do_cmdline_cmd(cmd.data);
+        try_leave(&tstate, err);
+    }
+}
+
+/// Evaluates a Vimscript expression (`nvim_eval`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mut Error) -> Object {
+    #[cfg(test)]
+    {
+        let _ = (expr, arena, err);
+        nil_obj()
+    }
+
+    #[cfg(not(test))]
+    unsafe {
+        let mut rv = nil_obj();
+
+        if EVAL_RECURSIVE == 0 {
+            force_abort = false;
+            suppress_errthrow = false;
+            did_throw = false;
+            did_emsg = 0;
+        }
+        EVAL_RECURSIVE += 1;
+
+        let mut rettv: typval_T = std::mem::zeroed();
+        let mut tstate: TryState = std::mem::zeroed();
+        try_enter(&mut tstate);
+        let ok = eval0(
+            expr.data,
+            &mut rettv,
+            std::ptr::null_mut(),
+            std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+        );
+        clear_evalarg(
+            std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+            std::ptr::null_mut(),
+        );
+        try_leave(&tstate, err);
+
+        if !error_set(err) {
+            if ok == FAIL {
+                api_set_error(
+                    err,
+                    ErrorType::kErrorTypeException,
+                    c"Failed to evaluate expression: '%.*s'".as_ptr(),
+                    256 as c_int,
+                    expr.data,
+                );
+            } else {
+                rv = vim_to_object(&mut rettv, arena, false);
+            }
+        }
+
+        tv_clear(&mut rettv);
+        EVAL_RECURSIVE -= 1;
+
+        rv
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn call_function_impl(
+    channel_id: u64,
+    fn_name: NvimString,
+    args: Array,
+    self_dict: *mut dict_T,
+    arena: *mut Arena,
+    err: *mut Error,
+) -> Object {
+    unsafe {
+        let mut rv = nil_obj();
+
+        if args.size > MAX_FUNC_ARGS {
+            api_set_error(
+                err,
+                ErrorType::kErrorTypeValidation,
+                c"Function called with too many arguments".as_ptr(),
+            );
+            return rv;
+        }
+
+        let mut vim_args: [typval_T; MAX_FUNC_ARGS + 1] = std::mem::zeroed();
+        let mut i = 0usize;
+        while i < args.size {
+            object_to_vim(*args.items.add(i), &mut vim_args[i], err);
+            i += 1;
+        }
+
+        if CALL_FUNC_RECURSIVE == 0 {
+            force_abort = false;
+            suppress_errthrow = false;
+            did_throw = false;
+            did_emsg = 0;
+        }
+        CALL_FUNC_RECURSIVE += 1;
+
+        let mut rettv: typval_T = std::mem::zeroed();
+        let lnum = (*curwin).w_cursor.lnum;
+        let mut funcexe = funcexe_T {
+            fe_argv_func: std::ptr::null_mut(),
+            fe_firstline: lnum,
+            fe_lastline: lnum,
+            fe_doesrange: std::ptr::null_mut(),
+            fe_evaluate: true,
+            fe_partial: std::ptr::null_mut(),
+            fe_selfdict: self_dict,
+            fe_basetv: std::ptr::null_mut(),
+            fe_found_var: false,
+        };
+
+        let mut tstate: TryState = std::mem::zeroed();
+        try_enter(&mut tstate);
+        let save_current_sctx = api_set_sctx(channel_id);
+        let _ = call_func(
+            fn_name.data,
+            fn_name.size as c_int,
+            &mut rettv,
+            args.size as c_int,
+            vim_args.as_mut_ptr(),
+            &mut funcexe,
+        );
+        current_sctx = save_current_sctx;
+        try_leave(&tstate, err);
+
+        if !error_set(err) {
+            rv = vim_to_object(&mut rettv, arena, false);
+        }
+
+        tv_clear(&mut rettv);
+        CALL_FUNC_RECURSIVE -= 1;
+
+        while i > 0 {
+            i -= 1;
+            tv_clear(&mut vim_args[i]);
+        }
+
+        rv
+    }
+}
+
+/// Calls a Vimscript function with the given arguments (`nvim_call_function`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_call_function(
+    channel_id: u64,
+    fn_name: NvimString,
+    args: Array,
+    arena: *mut Arena,
+    err: *mut Error,
+) -> Object {
+    #[cfg(test)]
+    {
+        let _ = (channel_id, fn_name, args, arena, err);
+        nil_obj()
+    }
+
+    #[cfg(not(test))]
+    unsafe {
+        call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err)
+    }
+}
+
+/// Calls a Vimscript Dictionary-function with the given arguments (`nvim_call_dict_function`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_call_dict_function(
+    channel_id: u64,
+    dict: Object,
+    mut fn_name: NvimString,
+    args: Array,
+    arena: *mut Arena,
+    err: *mut Error,
+) -> Object {
+    #[cfg(test)]
+    {
+        let _ = (channel_id, dict, &mut fn_name, args, arena, err);
+        nil_obj()
+    }
+
+    #[cfg(not(test))]
+    unsafe {
+        let mut rv = nil_obj();
+        let mut rettv: typval_T = std::mem::zeroed();
+        let mut mustfree = false;
+
+        match dict.obj_type {
+            ObjectType::kObjectTypeString => {
+                let mut tstate: TryState = std::mem::zeroed();
+                try_enter(&mut tstate);
+                let eval_ret = eval0(
+                    dict.data.string.data,
+                    &mut rettv,
+                    std::ptr::null_mut(),
+                    std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+                );
+                clear_evalarg(
+                    std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+                    std::ptr::null_mut(),
+                );
+                try_leave(&tstate, err);
+                if error_set(err) {
+                    return rv;
+                }
+                if eval_ret != OK {
+                    std::process::abort();
+                }
+                mustfree = true;
+            }
+            ObjectType::kObjectTypeDict => {
+                object_to_vim(dict, &mut rettv, err);
+            }
+            _ => {
+                api_err_exp(
+                    err,
+                    c"dict argument".as_ptr(),
+                    c"String or Dict".as_ptr(),
+                    std::ptr::null(),
+                );
+                return rv;
+            }
+        }
+
+        'body: {
+            let self_dict = rettv.vval.v_ptr.cast::<dict_T>();
+            if rettv.v_type != VarType::VAR_DICT || self_dict.is_null() {
+                api_set_error(
+                    err,
+                    ErrorType::kErrorTypeValidation,
+                    c"dict not found".as_ptr(),
+                );
+                break 'body;
+            }
+
+            if !fn_name.data.is_null()
+                && fn_name.size > 0
+                && dict.obj_type != ObjectType::kObjectTypeDict
+            {
+                let di = tv_dict_find(self_dict, fn_name.data, fn_name.size as isize);
+                if di.is_null() {
+                    api_set_error(
+                        err,
+                        ErrorType::kErrorTypeValidation,
+                        c"Not found: %s".as_ptr(),
+                        fn_name.data,
+                    );
+                    break 'body;
+                }
+                if (*di).di_tv.v_type == VarType::VAR_PARTIAL {
+                    api_set_error(
+                        err,
+                        ErrorType::kErrorTypeValidation,
+                        c"partial function not supported".as_ptr(),
+                    );
+                    break 'body;
+                }
+                if (*di).di_tv.v_type != VarType::VAR_FUNC {
+                    api_set_error(
+                        err,
+                        ErrorType::kErrorTypeValidation,
+                        c"Not a function: %s".as_ptr(),
+                        fn_name.data,
+                    );
+                    break 'body;
+                }
+                let s = (*di).di_tv.vval.v_string;
+                fn_name = NvimString {
+                    data: s,
+                    size: CStr::from_ptr(s).to_bytes().len(),
+                };
+            }
+
+            if fn_name.data.is_null() || fn_name.size == 0 {
+                api_set_error(
+                    err,
+                    ErrorType::kErrorTypeValidation,
+                    c"Invalid function name: %s".as_ptr(),
+                    c"(empty)".as_ptr(),
+                );
+                break 'body;
+            }
+
+            rv = call_function_impl(channel_id, fn_name, args, self_dict, arena, err);
+        }
+
+        if mustfree {
+            tv_clear(&mut rettv);
+        }
+
+        rv
+    }
+}
+
+/// Parse a Vimscript expression (`nvim_parse_expression`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_parse_expression(
+    expr: NvimString,
+    flags: NvimString,
+    hl: Boolean,
+    arena: *mut Arena,
+    err: *mut Error,
+) -> Dict {
+    #[cfg(test)]
+    {
+        let _ = (expr, flags, hl, arena, err);
+        Dict::new()
+    }
+
+    #[cfg(not(test))]
+    unsafe {
+        let mut pflags: c_int = 0;
+        for i in 0..flags.size {
+            let b = *flags.data.add(i) as u8;
+            match b {
+                b'm' => pflags |= kExprFlagsMulti,
+                b'E' => pflags |= kExprFlagsDisallowEOC,
+                b'l' => pflags |= kExprFlagsParseLet,
+                0 => {
+                    api_set_error(
+                        err,
+                        ErrorType::kErrorTypeValidation,
+                        c"Invalid flag: '\\0' (%u)".as_ptr(),
+                        c_uint::from(b),
+                    );
+                    return Dict::new();
+                }
+                _ => {
+                    api_set_error(
+                        err,
+                        ErrorType::kErrorTypeValidation,
+                        c"Invalid flag: '%c' (%u)".as_ptr(),
+                        c_int::from(b as c_char),
+                        c_uint::from(b),
+                    );
+                    return Dict::new();
+                }
+            }
+        }
+
+        let parser_lines = [
+            ParserLine {
+                data: expr.data,
+                size: expr.size,
+                allocated: false,
+            },
+            ParserLine {
+                data: std::ptr::null(),
+                size: 0,
+                allocated: false,
+            },
+        ];
+        let mut plines_p = parser_lines.as_ptr();
+        let mut colors: ParserHighlight = std::mem::zeroed();
+        colors.init();
+        let colors_p = if hl {
+            &mut colors
+        } else {
+            std::ptr::null_mut()
+        };
+
+        let mut pstate: ParserState = std::mem::zeroed();
+        pstate.reader.get_line = Some(parser_simple_get_line);
+        pstate.reader.cookie = (&mut plines_p as *mut *const ParserLine).cast::<c_void>();
+        pstate.reader.conv.vc_factor = 1;
+        pstate.pos = ParserPosition { line: 0, col: 0 };
+        pstate.colors = colors_p;
+        pstate.can_continuate = false;
+        pstate.reader.lines.init();
+        pstate.stack.init();
+
+        let mut east = viml_pexpr_parse(&mut pstate, pflags);
+
+        let ret_size = 2 + usize::from(!east.err.msg.is_null()) + usize::from(hl);
+        let mut ret = arena_dict(arena, ret_size);
+        let parsed_len = if pstate.pos.line == 1 {
+            parser_lines[0].size
+        } else {
+            pstate.pos.col
+        };
+        put_c(&mut ret, c"len", integer_obj(parsed_len as Integer));
+
+        if !east.err.msg.is_null() {
+            let mut err_dict = arena_dict(arena, 2);
+            let msg_str = arena_string(arena, cstr_as_string(east.err.msg));
+            put_c(&mut err_dict, c"message", string_obj(msg_str));
+            put_c(
+                &mut err_dict,
+                c"arg",
+                cbuf_to_arena_obj(arena, east.err.arg, east.err.arg_len as usize),
+            );
+            put_c(&mut ret, c"error", dict_obj(err_dict));
+        }
+
+        if hl {
+            let mut hl_arr = arena_array(arena, colors.size);
+            for i in 0..colors.size {
+                let chunk = colors.get(i);
+                let mut chunk_arr = arena_array(arena, 4);
+                add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
+                add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
+                add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
+                add_c(&mut chunk_arr, string_obj(cstr_as_string(chunk.group)));
+                add_c(&mut hl_arr, array_obj(chunk_arr));
+            }
+            put_c(&mut ret, c"highlight", array_obj(hl_arr));
+        }
+        colors.destroy();
+
+        let mut ast_conv_stack: ExprASTConvStack = std::mem::zeroed();
+        ast_conv_stack.init();
+        let mut ast = nil_obj();
+        ast_conv_stack.push(ExprASTConvStackItem {
+            node_p: &mut east.root,
+            ret_node_p: &mut ast,
+        });
+
+        while ast_conv_stack.size != 0 {
+            let cur_item = ast_conv_stack.last();
+            let node = *cur_item.node_p;
+            if node.is_null() {
+                debug_assert_eq!(ast_conv_stack.size, 1);
+                ast_conv_stack.size -= 1;
+            } else {
+                if (*cur_item.ret_node_p).obj_type == ObjectType::kObjectTypeNil {
+                    let nt = (*node).r#type;
+                    let items_size = 3
+                        + usize::from(!(*node).children.is_null())
+                        + usize::from(nt == kExprNodeOption || nt == kExprNodePlainIdentifier)
+                        + usize::from(
+                            nt == kExprNodeOption
+                                || nt == kExprNodePlainIdentifier
+                                || nt == kExprNodePlainKey
+                                || nt == kExprNodeEnvironment,
+                        )
+                        + usize::from(nt == kExprNodeRegister)
+                        + 3 * usize::from(nt == kExprNodeComparison)
+                        + usize::from(nt == kExprNodeInteger)
+                        + usize::from(nt == kExprNodeFloat)
+                        + usize::from(
+                            nt == kExprNodeDoubleQuotedString || nt == kExprNodeSingleQuotedString,
+                        )
+                        + usize::from(nt == kExprNodeAssignment);
+                    let ret_node = arena_dict(arena, items_size);
+                    *cur_item.ret_node_p = dict_obj(ret_node);
+                }
+                let ret_node = &mut (*cur_item.ret_node_p).data.dict;
+                if !(*node).children.is_null() {
+                    let num_children = 1 + usize::from(!(*(*node).children).next.is_null());
+                    let mut children_array = arena_array(arena, num_children);
+                    for _ in 0..num_children {
+                        add_c(&mut children_array, nil_obj());
+                    }
+                    put_c(ret_node, c"children", array_obj(children_array));
+                    ast_conv_stack.push(ExprASTConvStackItem {
+                        node_p: &mut (*node).children,
+                        ret_node_p: children_array.items,
+                    });
+                } else if !(*node).next.is_null() {
+                    debug_assert!(ast_conv_stack.size > 1);
+                    ast_conv_stack.push(ExprASTConvStackItem {
+                        node_p: &mut (*node).next,
+                        ret_node_p: cur_item.ret_node_p.add(1),
+                    });
+                } else {
+                    ast_conv_stack.size -= 1;
+                    put_c(
+                        ret_node,
+                        c"type",
+                        string_obj(cstr_as_string(
+                            east_node_type_tab.0[(*node).r#type as usize],
+                        )),
+                    );
+                    let mut start_array = arena_array(arena, 2);
+                    add_c(&mut start_array, integer_obj((*node).start.line as Integer));
+                    add_c(&mut start_array, integer_obj((*node).start.col as Integer));
+                    put_c(ret_node, c"start", array_obj(start_array));
+                    put_c(ret_node, c"len", integer_obj((*node).len as Integer));
+
+                    match (*node).r#type {
+                        kExprNodeDoubleQuotedString | kExprNodeSingleQuotedString => {
+                            let str_obj = cbuf_to_arena_obj(
+                                arena,
+                                (*node).data.str.value,
+                                (*node).data.str.size,
+                            );
+                            put_c(ret_node, c"svalue", str_obj);
+                            xfree((*node).data.str.value.cast());
+                        }
+                        kExprNodeOption => {
+                            put_c(
+                                ret_node,
+                                c"scope",
+                                integer_obj(i64::from((*node).data.opt.scope)),
+                            );
+                            put_c(
+                                ret_node,
+                                c"ident",
+                                cbuf_to_arena_obj(
+                                    arena,
+                                    (*node).data.opt.ident,
+                                    (*node).data.opt.ident_len,
+                                ),
+                            );
+                        }
+                        kExprNodePlainIdentifier => {
+                            put_c(
+                                ret_node,
+                                c"scope",
+                                integer_obj(i64::from((*node).data.var.scope)),
+                            );
+                            put_c(
+                                ret_node,
+                                c"ident",
+                                cbuf_to_arena_obj(
+                                    arena,
+                                    (*node).data.var.ident,
+                                    (*node).data.var.ident_len,
+                                ),
+                            );
+                        }
+                        kExprNodePlainKey => {
+                            put_c(
+                                ret_node,
+                                c"ident",
+                                cbuf_to_arena_obj(
+                                    arena,
+                                    (*node).data.var.ident,
+                                    (*node).data.var.ident_len,
+                                ),
+                            );
+                        }
+                        kExprNodeEnvironment => {
+                            put_c(
+                                ret_node,
+                                c"ident",
+                                cbuf_to_arena_obj(
+                                    arena,
+                                    (*node).data.env.ident,
+                                    (*node).data.env.ident_len,
+                                ),
+                            );
+                        }
+                        kExprNodeRegister => {
+                            put_c(
+                                ret_node,
+                                c"name",
+                                integer_obj(i64::from((*node).data.reg.name)),
+                            );
+                        }
+                        kExprNodeComparison => {
+                            put_c(
+                                ret_node,
+                                c"cmp_type",
+                                string_obj(cstr_as_string(
+                                    eltkn_cmp_type_tab.0[(*node).data.cmp.r#type as usize],
+                                )),
+                            );
+                            put_c(
+                                ret_node,
+                                c"ccs_strategy",
+                                string_obj(cstr_as_string(
+                                    ccs_tab.0[(*node).data.cmp.ccs as usize],
+                                )),
+                            );
+                            put_c(ret_node, c"invert", boolean_obj((*node).data.cmp.inv));
+                        }
+                        kExprNodeFloat => {
+                            put_c(ret_node, c"fvalue", float_obj((*node).data.flt.value));
+                        }
+                        kExprNodeInteger => {
+                            let v = (*node).data.num.value;
+                            let iv = if v > API_INTEGER_MAX {
+                                API_INTEGER_MAX as Integer
+                            } else {
+                                v as Integer
+                            };
+                            put_c(ret_node, c"ivalue", integer_obj(iv));
+                        }
+                        kExprNodeAssignment => {
+                            let asgn_type = (*node).data.ass.r#type;
+                            let str_val = if asgn_type == kExprAsgnPlain {
+                                NvimString {
+                                    data: std::ptr::null_mut(),
+                                    size: 0,
+                                }
+                            } else {
+                                cstr_as_string(expr_asgn_type_tab.0[asgn_type as usize])
+                            };
+                            put_c(ret_node, c"augmentation", string_obj(str_val));
+                        }
+                        _ => {}
+                    }
+                    debug_assert_eq!(
+                        (*cur_item.ret_node_p).data.dict.size,
+                        (*cur_item.ret_node_p).data.dict.capacity
+                    );
+                    xfree((*cur_item.node_p).cast());
+                    *cur_item.node_p = std::ptr::null_mut();
+                }
+            }
+        }
+        ast_conv_stack.destroy();
+        put_c(&mut ret, c"ast", ast);
+
+        debug_assert_eq!(ret.size, ret.capacity);
+        viml_pexpr_free_ast(east);
+        viml_parser_destroy(&mut pstate);
+        ret
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cstr_as_string_handles_null_and_non_null() {
+        unsafe {
+            let empty = cstr_as_string(std::ptr::null());
+            assert!(empty.data.is_null());
+            assert_eq!(empty.size, 0);
+
+            let s = cstr_as_string(c"echo 1".as_ptr());
+            assert_eq!(s.size, 6);
+        }
+    }
+}
