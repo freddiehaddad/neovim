@@ -1,5 +1,6 @@
 pub mod autocmd;
 pub mod buffer;
+pub mod command;
 pub mod deprecated;
 pub mod events;
 pub mod extmark;
