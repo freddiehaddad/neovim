@@ -136,4 +136,67 @@ static inline DecorVirtText *mt_decor_virt(MTKey mark)
   return (mark.flags & MT_FLAG_DECOR_EXT) ? mark.decor_data.ext.vt : NULL;
 }
 
-#include "marktree.h.generated.h"
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+DLLEXPORT void marktree_put(MarkTree *b, MTKey key, int end_row, int end_col, bool end_right);
+DLLEXPORT void marktree_intersect_pair(MarkTree *b, uint64_t id, MarkTreeIter *itr,
+                                       MarkTreeIter *end_itr, bool delete);
+DLLEXPORT void marktree_put_key(MarkTree *b, MTKey k);
+DLLEXPORT uint64_t marktree_del_itr(MarkTree *b, MarkTreeIter *itr, bool rev);
+DLLEXPORT void marktree_revise_meta(MarkTree *b, MarkTreeIter *itr, MTKey old_key);
+DLLEXPORT bool intersect_mov_test(const uint64_t *x, size_t nx, const uint64_t *y, size_t ny,
+                                  const uint64_t *win, size_t nwin, uint64_t *wout, size_t *nwout,
+                                  uint64_t *dout, size_t *ndout);
+DLLEXPORT void kvi_move(Intersection *dest, Intersection *src);
+DLLEXPORT void marktree_clear(MarkTree *b);
+DLLEXPORT void marktree_free_subtree(MarkTree *b, MTNode *x);
+DLLEXPORT void marktree_move(MarkTree *b, MarkTreeIter *itr, int row, int col);
+DLLEXPORT void marktree_restore_pair(MarkTree *b, MTKey key);
+DLLEXPORT bool marktree_itr_get(MarkTree *b, int32_t row, int col, MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_get_ext(MarkTree *b, MTPos p, MarkTreeIter *itr, bool last,
+                                    bool gravity, MTPos *oldbase, MetaFilter meta_filter);
+DLLEXPORT bool marktree_itr_first(MarkTree *b, MarkTreeIter *itr);
+DLLEXPORT int marktree_itr_last(MarkTree *b, MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_next(MarkTree *b, MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_get_filter(MarkTree *b, int32_t row, int col, int stop_row,
+                                       int stop_col, MetaFilter meta_filter, MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_step_out_filter(MarkTree *b, MarkTreeIter *itr, MetaFilter meta_filter);
+DLLEXPORT bool marktree_itr_next_filter(MarkTree *b, MarkTreeIter *itr, int stop_row, int stop_col,
+                                        MetaFilter meta_filter);
+DLLEXPORT bool marktree_itr_prev(MarkTree *b, MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_node_done(MarkTreeIter *itr);
+DLLEXPORT MTPos marktree_itr_pos(MarkTreeIter *itr);
+DLLEXPORT MTKey marktree_itr_current(MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_get_overlap(MarkTree *b, int row, int col, MarkTreeIter *itr);
+DLLEXPORT bool marktree_itr_step_overlap(MarkTree *b, MarkTreeIter *itr, MTPair *pair);
+DLLEXPORT bool marktree_splice(MarkTree *b, int32_t start_line, int start_col, int old_extent_line,
+                               int old_extent_col, int new_extent_line, int new_extent_col);
+DLLEXPORT void marktree_move_region(MarkTree *b, int start_row, colnr_T start_col, int extent_row,
+                                    colnr_T extent_col, int new_row, colnr_T new_col);
+DLLEXPORT MTKey marktree_lookup_ns(MarkTree *b, uint32_t ns, uint32_t id, bool end,
+                                   MarkTreeIter *itr);
+DLLEXPORT MTKey marktree_lookup(MarkTree *b, uint64_t id, MarkTreeIter *itr);
+DLLEXPORT MTKey marktree_itr_set_node(MarkTree *b, MarkTreeIter *itr, MTNode *n, int i);
+DLLEXPORT MTPos marktree_get_altpos(MarkTree *b, MTKey mark, MarkTreeIter *itr);
+DLLEXPORT MTKey marktree_get_alt(MarkTree *b, MTKey mark, MarkTreeIter *itr);
+DLLEXPORT void marktree_put_test(MarkTree *b, uint32_t ns, uint32_t id, int row, int col,
+                                 bool right_gravity, int end_row, int end_col, bool end_right,
+                                 bool meta_inline);
+DLLEXPORT bool mt_right_test(MTKey key);
+DLLEXPORT void marktree_del_pair_test(MarkTree *b, uint32_t ns, uint32_t id);
+DLLEXPORT void marktree_check(MarkTree *b);
+DLLEXPORT size_t marktree_check_node(MarkTree *b, MTNode *x, MTPos *last, bool *last_right,
+                                     const uint32_t *meta_node_ref);
+DLLEXPORT bool marktree_check_intersections(MarkTree *b);
+DLLEXPORT void mt_recurse_nodes(MTNode *x, PMap(ptr_t) *checked);
+DLLEXPORT bool mt_recurse_nodes_compare(MTNode *x, PMap(ptr_t) *checked);
+DLLEXPORT String mt_inspect(MarkTree *b, bool keys, bool dot);
+#include "nvim/func_attr.h"
