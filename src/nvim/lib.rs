@@ -32,6 +32,7 @@ pub mod linematch;
 pub mod lua;
 pub mod map;
 pub mod map_glyph_cache;
+pub mod mark;
 pub mod marktree;
 pub mod r#match;
 pub mod math;
