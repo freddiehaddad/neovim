@@ -11,6 +11,7 @@ pub mod event;
 pub mod fuzzy;
 pub mod garray;
 pub mod hashtab;
+pub mod keycodes;
 pub mod kvec;
 pub mod linematch;
 pub mod lua;
