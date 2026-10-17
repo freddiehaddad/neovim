@@ -41,6 +41,7 @@ pub mod marktree;
 pub mod r#match;
 pub mod math;
 pub mod mcursor;
+pub mod memfile;
 pub mod memory;
 pub mod menu;
 pub mod mouse;
