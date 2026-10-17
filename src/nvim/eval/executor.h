@@ -2,4 +2,4 @@
 
 #include "nvim/eval/typval_defs.h"  // IWYU pragma: keep
 
-#include "eval/executor.h.generated.h"
+int eexe_mod_op(typval_T *const tv1, const typval_T *const tv2, const char *const op);
