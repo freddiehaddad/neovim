@@ -27,6 +27,7 @@ use crate::lua::converter::{Boolean, LuaRef};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
+use crate::plines::{win_get_fill, win_text_height};
 
 pub type linenr_T = i32;
 pub type colnr_T = c_int;
@@ -116,16 +117,6 @@ unsafe extern "C" {
         err: *mut Error,
     ) -> Object;
     fn normalize_index(buf: *mut buf_T, index: i64, end_exclusive: bool, oob: *mut bool) -> i64;
-    fn win_text_height(
-        wp: *mut win_T,
-        start_lnum: linenr_T,
-        start_vcol: i64,
-        end_lnum: *mut linenr_T,
-        end_vcol: *mut i64,
-        fill: *mut i64,
-        max: i64,
-    ) -> i64;
-    fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
     fn win_setheight_win(height: c_int, win: *mut win_T, from_top: bool);
     fn win_setwidth_win(width: c_int, wp: *mut win_T, from_left: bool);
 }

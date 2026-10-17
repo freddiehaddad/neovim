@@ -551,6 +551,16 @@ unsafe fn set_put_ptr(set: *mut Set<ptr_t>, key: ptr_t) {
 }
 
 #[inline]
+pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
+    unsafe {
+        if !set_has_u32(&raw mut namespace_localscope, ns_id) {
+            return true;
+        }
+        set_has_u32(&raw mut (*wp).w_ns_set, ns_id)
+    }
+}
+
+#[inline]
 const fn mt_right(key: MTKey) -> bool {
     (key.flags & MT_FLAG_RIGHT_GRAVITY) != 0
 }
