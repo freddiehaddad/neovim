@@ -1,0 +1,1268 @@
+//! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
+
+#![allow(
+    dead_code,
+    non_camel_case_types,
+    non_snake_case,
+    unused_imports,
+    clippy::missing_safety_doc
+)]
+
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+
+use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::eval::decode::{dict_T, dictitem_T};
+use crate::eval::deprecated::EvalFuncData;
+use crate::eval::encode::{encode_tv2echo, encode_tv2string};
+use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
+use crate::hashtab::hashitem_empty;
+use crate::math::FAIL;
+use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::profile::{FILE, estack_T};
+
+const VAR_UNLOCKED: c_int = 0;
+const K_BOOL_VAR_FALSE: i64 = 0;
+const K_BOOL_VAR_TRUE: i64 = 1;
+
+const ESTACK_NONE: c_int = 0;
+const NUMBUFLEN: usize = 65;
+const IOSIZE: usize = 1025;
+const EOF_VAL: c_int = -1;
+
+const BS: u8 = 0x08;
+const TAB: u8 = 0x09;
+const NL: u8 = 0x0a;
+const FF: u8 = 0x0c;
+const CAR: u8 = 0x0d;
+const ESC: u8 = 0x1b;
+
+const VV_ERRMSG: c_int = 3;
+const VV_EXCEPTION: c_int = 30;
+const VV_TESTING: c_int = 76;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AssertType {
+    Equal,
+    NotEqual,
+    Match,
+    NotMatch,
+    Fails,
+    Other,
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    static mut exestack: garray_T;
+    static mut did_beep: u64;
+    static mut suppress_errthrow: bool;
+    static mut emsg_silent: c_int;
+    static mut emsg_on_display: bool;
+    static mut trylevel: c_int;
+    static mut called_emsg: c_int;
+    static mut in_assert_fails: bool;
+    static mut no_wait_return: c_int;
+    static mut need_wait_return: bool;
+    static mut did_emsg: c_int;
+    static mut got_int: bool;
+    static mut msg_col: c_int;
+    static mut lines_left: c_int;
+    static mut Rows: c_int;
+    static mut emsg_assert_fails_msg: *mut c_char;
+    static mut emsg_assert_fails_lnum: c_long;
+    static mut emsg_assert_fails_context: *mut c_char;
+
+    fn estack_sfile(which: c_int) -> *mut c_char;
+    fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int;
+    fn utf_ptr2char(p: *const c_char) -> c_int;
+
+    fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
+    fn tv_clear(tv: *mut typval_T);
+    fn tv_dict_alloc() -> *mut dict_T;
+    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
+    fn tv_dict_add_tv(
+        d: *mut dict_T,
+        key: *const c_char,
+        key_len: usize,
+        tv: *mut typval_T,
+    ) -> c_int;
+
+    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
+    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
+    fn tv_get_string(tv: *const typval_T) -> *const c_char;
+    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
+    fn tv_get_float(tv: *const typval_T) -> f64;
+
+    fn tv_check_for_string_or_number_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_opt_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx: c_int) -> c_int;
+
+    fn get_vim_var_str(idx: c_int) -> *mut c_char;
+    fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
+    fn get_vim_var_nr(idx: c_int) -> i64;
+    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
+
+    fn assert_error(gap: *mut garray_T);
+    fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int;
+    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
+    fn msg_reset_scroll();
+    fn garbage_collect(testing: bool) -> bool;
+    fn emsg(s: *const c_char) -> bool;
+
+    fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
+    fn fgetc(stream: *mut FILE) -> c_int;
+    fn fclose(stream: *mut FILE) -> c_int;
+    fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
+    fn vim_snprintf_safelen(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
+}
+
+#[inline]
+unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
+    unsafe {
+        ga_concat_len(gap, s.as_ptr().cast::<c_char>(), s.len());
+    }
+}
+
+#[inline]
+unsafe fn tv_list_len(l: *const list_T) -> c_int {
+    if l.is_null() {
+        0
+    } else {
+        unsafe { (*l).lv_len }
+    }
+}
+
+#[inline]
+unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
+    if l.is_null() {
+        std::ptr::null_mut()
+    } else {
+        unsafe { (*l).lv_first }
+    }
+}
+
+#[inline]
+unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
+    if l.is_null() {
+        std::ptr::null_mut()
+    } else {
+        unsafe { (*l).lv_last }
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn sourcing_lnum() -> i32 {
+    unsafe {
+        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
+            0
+        } else {
+            (*exestack
+                .ga_data
+                .cast::<estack_T>()
+                .add((exestack.ga_len - 1) as usize))
+            .es_lnum
+        }
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn prepare_assert_error(gap: *mut garray_T) {
+    unsafe {
+        let sname = estack_sfile(ESTACK_NONE);
+        let slnum = sourcing_lnum();
+
+        ga_init(gap, 1, 100);
+        if !sname.is_null() {
+            ga_concat(gap, sname);
+            if slnum > 0 {
+                ga_concat_literal(gap, b" ");
+            }
+        }
+        if slnum > 0 {
+            let line_str = format!("line {slnum}");
+            ga_concat_literal(gap, line_str.as_bytes());
+        }
+        if !sname.is_null() || slnum > 0 {
+            ga_concat_literal(gap, b": ");
+        }
+        xfree(sname.cast::<c_void>());
+    }
+}
+
+unsafe fn ga_concat_esc(gap: *mut garray_T, p: *const c_char, clen: c_int) {
+    unsafe {
+        if clen > 1 {
+            ga_concat_len(gap, p, clen as usize);
+            return;
+        }
+
+        let b = *p as u8;
+        match b {
+            BS => ga_concat_literal(gap, b"\\b"),
+            ESC => ga_concat_literal(gap, b"\\e"),
+            FF => ga_concat_literal(gap, b"\\f"),
+            NL => ga_concat_literal(gap, b"\\n"),
+            TAB => ga_concat_literal(gap, b"\\t"),
+            CAR => ga_concat_literal(gap, b"\\r"),
+            b'\\' => ga_concat_literal(gap, b"\\\\"),
+            _ => {
+                if b < b' ' || b == 0x7f {
+                    let s = format!("\\x{:02x}", *p as c_int);
+                    ga_concat_literal(gap, s.as_bytes());
+                } else {
+                    ga_append(gap, b);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn ga_concat_shorten_esc(gap: *mut garray_T, str_ptr: *const c_char) {
+    unsafe {
+        if str_ptr.is_null() {
+            ga_concat_literal(gap, b"NULL");
+            return;
+        }
+
+        let mut p = str_ptr;
+        while *p != 0 {
+            let mut same_len: c_int = 1;
+            let mut s = p;
+            let c = mb_cptr2char_adv(&mut s);
+            let clen = (s as usize) - (p as usize);
+            while *s != 0 && c == utf_ptr2char(s) {
+                same_len += 1;
+                s = s.add(clen);
+            }
+            if same_len > 20 {
+                ga_concat_literal(gap, b"\\[");
+                ga_concat_esc(gap, p, clen as c_int);
+                let tail = format!(" occurs {same_len} times]");
+                ga_concat_literal(gap, tail.as_bytes());
+                p = s;
+            } else {
+                ga_concat_esc(gap, p, clen as c_int);
+                p = p.add(clen);
+            }
+        }
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn fill_assert_error(
+    gap: *mut garray_T,
+    opt_msg_tv: *mut typval_T,
+    exp_str: *const c_char,
+    exp_tv_arg: *mut typval_T,
+    got_tv_arg: *mut typval_T,
+    atype: AssertType,
+) {
+    unsafe {
+        let exp_tv = exp_tv_arg;
+        let got_tv = got_tv_arg;
+        let mut did_copy = false;
+        let mut omitted: c_int = 0;
+
+        let opt_msg = &*opt_msg_tv;
+        if opt_msg.v_type != VarType::VAR_UNKNOWN
+            && !(opt_msg.v_type == VarType::VAR_STRING
+                && (opt_msg.vval.v_string.is_null() || *opt_msg.vval.v_string == 0))
+        {
+            let tofree = encode_tv2echo(opt_msg_tv, std::ptr::null_mut());
+            ga_concat(gap, tofree);
+            xfree(tofree.cast::<c_void>());
+            ga_concat_literal(gap, b": ");
+        }
+
+        if atype == AssertType::Match || atype == AssertType::NotMatch {
+            ga_concat_literal(gap, b"Pattern ");
+        } else if atype == AssertType::NotEqual {
+            ga_concat_literal(gap, b"Expected not equal to ");
+        } else {
+            ga_concat_literal(gap, b"Expected ");
+        }
+
+        if exp_str.is_null() {
+            if atype != AssertType::NotEqual
+                && (*exp_tv).v_type == VarType::VAR_DICT
+                && (*got_tv).v_type == VarType::VAR_DICT
+                && !(*exp_tv).vval.v_ptr.is_null()
+                && !(*got_tv).vval.v_ptr.is_null()
+            {
+                let exp_d = (*exp_tv).vval.v_ptr.cast::<dict_T>();
+                let got_d = (*got_tv).vval.v_ptr.cast::<dict_T>();
+
+                did_copy = true;
+                let new_exp_d = tv_dict_alloc();
+                let new_got_d = tv_dict_alloc();
+                (*exp_tv).vval.v_ptr = new_exp_d.cast::<c_void>();
+                (*got_tv).vval.v_ptr = new_got_d.cast::<c_void>();
+
+                let key_off = std::mem::offset_of!(dictitem_T, di_key);
+                let mut todo = (*exp_d).dv_hashtab.ht_used as c_int;
+                let mut hi = (*exp_d).dv_hashtab.ht_array;
+                while todo > 0 {
+                    if !hashitem_empty(&*hi) {
+                        let di1 = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                        let item2 = tv_dict_find(got_d, (*hi).hi_key, -1);
+                        if item2.is_null()
+                            || !tv_equal(&mut (*di1).di_tv, &mut (*item2).di_tv, false)
+                        {
+                            let key_len = CStr::from_ptr((*hi).hi_key).to_bytes().len();
+                            tv_dict_add_tv(new_exp_d, (*hi).hi_key, key_len, &mut (*di1).di_tv);
+                            if !item2.is_null() {
+                                tv_dict_add_tv(
+                                    new_got_d,
+                                    (*hi).hi_key,
+                                    key_len,
+                                    &mut (*item2).di_tv,
+                                );
+                            }
+                        } else {
+                            omitted += 1;
+                        }
+                        todo -= 1;
+                    }
+                    hi = hi.add(1);
+                }
+
+                todo = (*got_d).dv_hashtab.ht_used as c_int;
+                hi = (*got_d).dv_hashtab.ht_array;
+                while todo > 0 {
+                    if !hashitem_empty(&*hi) {
+                        let item2 = tv_dict_find(exp_d, (*hi).hi_key, -1);
+                        if item2.is_null() {
+                            let di2 = (*hi).hi_key.sub(key_off).cast::<dictitem_T>();
+                            let key_len = CStr::from_ptr((*hi).hi_key).to_bytes().len();
+                            tv_dict_add_tv(new_got_d, (*hi).hi_key, key_len, &mut (*di2).di_tv);
+                        }
+                        todo -= 1;
+                    }
+                    hi = hi.add(1);
+                }
+            }
+
+            let tofree = encode_tv2string(exp_tv, std::ptr::null_mut());
+            ga_concat_shorten_esc(gap, tofree);
+            xfree(tofree.cast::<c_void>());
+        } else {
+            if atype == AssertType::Fails {
+                ga_concat_literal(gap, b"'");
+            }
+            ga_concat_shorten_esc(gap, exp_str);
+            if atype == AssertType::Fails {
+                ga_concat_literal(gap, b"'");
+            }
+        }
+
+        if atype != AssertType::NotEqual {
+            if atype == AssertType::Match {
+                ga_concat_literal(gap, b" does not match ");
+            } else if atype == AssertType::NotMatch {
+                ga_concat_literal(gap, b" does match ");
+            } else {
+                ga_concat_literal(gap, b" but got ");
+            }
+            let tofree = encode_tv2string(got_tv, std::ptr::null_mut());
+            ga_concat_shorten_esc(gap, tofree);
+            xfree(tofree.cast::<c_void>());
+
+            if omitted != 0 {
+                let s = if omitted == 1 {
+                    " - 1 equal item omitted".to_string()
+                } else {
+                    format!(" - {omitted} equal items omitted")
+                };
+                ga_concat_literal(gap, s.as_bytes());
+            }
+        }
+
+        if did_copy {
+            tv_clear(exp_tv);
+            tv_clear(got_tv);
+        }
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_equal_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
+    unsafe {
+        if tv_equal(argvars, argvars.add(1), false) != (atype == AssertType::Equal) {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            fill_assert_error(
+                &mut ga,
+                argvars.add(2),
+                std::ptr::null(),
+                argvars,
+                argvars.add(1),
+                atype,
+            );
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            return 1;
+        }
+        0
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_match_common(argvars: *mut typval_T, atype: AssertType) -> c_int {
+    unsafe {
+        let mut buf1 = [0 as c_char; NUMBUFLEN];
+        let mut buf2 = [0 as c_char; NUMBUFLEN];
+        let pat = tv_get_string_buf_chk(argvars, buf1.as_mut_ptr());
+        let text = tv_get_string_buf_chk(argvars.add(1), buf2.as_mut_ptr());
+
+        if !pat.is_null()
+            && !text.is_null()
+            && (pattern_match(pat, text, false) != 0) != (atype == AssertType::Match)
+        {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            fill_assert_error(
+                &mut ga,
+                argvars.add(2),
+                std::ptr::null(),
+                argvars,
+                argvars.add(1),
+                atype,
+            );
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            return 1;
+        }
+        0
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
+    unsafe {
+        let mut error = false;
+        let arg0 = &*argvars;
+        let expected_bool = if is_true {
+            K_BOOL_VAR_TRUE
+        } else {
+            K_BOOL_VAR_FALSE
+        };
+        if (arg0.v_type != VarType::VAR_NUMBER
+            || (tv_get_number_chk(argvars, &mut error) == 0) == is_true
+            || error)
+            && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_number != expected_bool)
+        {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            fill_assert_error(
+                &mut ga,
+                argvars.add(1),
+                if is_true {
+                    c"True".as_ptr()
+                } else {
+                    c"False".as_ptr()
+                },
+                std::ptr::null_mut(),
+                argvars,
+                AssertType::Other,
+            );
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            return 1;
+        }
+        0
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_append_cmd_or_arg(gap: *mut garray_T, argvars: *mut typval_T, cmd: *const c_char) {
+    unsafe {
+        if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
+            && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+        {
+            let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
+            ga_concat(gap, tofree);
+            xfree(tofree.cast::<c_void>());
+        } else {
+            ga_concat(gap, cmd);
+        }
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
+    unsafe {
+        let cmd = tv_get_string_chk(argvars);
+        let mut ret: c_int = 0;
+
+        let beeps = did_beep;
+        suppress_errthrow = true;
+        emsg_silent = 0;
+        do_cmdline_cmd(cmd);
+        let beeped = did_beep != beeps;
+        if if no_beep { beeped } else { !beeped } {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            if no_beep {
+                ga_concat_literal(&mut ga, b"command did beep: ");
+            } else {
+                ga_concat_literal(&mut ga, b"command did not beep: ");
+            }
+            ga_concat(&mut ga, cmd);
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            ret = 1;
+        }
+
+        suppress_errthrow = false;
+        emsg_on_display = false;
+        ret
+    }
+}
+
+/// `"assert_beeps(cmd [, error])"` function (`f_assert_beeps`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_beeps(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_beeps(argvars, false) as i64;
+    }
+}
+
+/// `"assert_nobeep(cmd [, error])"` function (`f_assert_nobeep`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_nobeep(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_beeps(argvars, true) as i64;
+    }
+}
+
+/// `"assert_equal(expected, actual[, msg])"` function (`f_assert_equal`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_equal(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_equal_common(argvars, AssertType::Equal) as i64;
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
+    unsafe {
+        let mut buf1 = [0 as c_char; NUMBUFLEN];
+        let mut buf2 = [0 as c_char; NUMBUFLEN];
+        let fname1 = tv_get_string_buf_chk(argvars, buf1.as_mut_ptr());
+        let fname2 = tv_get_string_buf_chk(argvars.add(1), buf2.as_mut_ptr());
+
+        if fname1.is_null() || fname2.is_null() {
+            return 0;
+        }
+
+        let mut iobuf = [0 as c_char; IOSIZE];
+        let mut iobuflen = 0usize;
+        let fd1 = os_fopen(fname1, c"rb".as_ptr());
+        let mut line1 = [0 as c_char; 200];
+        let mut line2 = [0 as c_char; 200];
+        let mut lineidx: usize = 0;
+
+        if fd1.is_null() {
+            iobuflen = vim_snprintf_safelen(
+                iobuf.as_mut_ptr(),
+                IOSIZE,
+                c"E485: Can't read file %s".as_ptr(),
+                fname1,
+            );
+        } else {
+            let fd2 = os_fopen(fname2, c"rb".as_ptr());
+            if fd2.is_null() {
+                fclose(fd1);
+                iobuflen = vim_snprintf_safelen(
+                    iobuf.as_mut_ptr(),
+                    IOSIZE,
+                    c"E485: Can't read file %s".as_ptr(),
+                    fname2,
+                );
+            } else {
+                let mut linecount: i64 = 1;
+                let mut count: i64 = 0;
+                loop {
+                    let c1 = fgetc(fd1);
+                    let c2 = fgetc(fd2);
+                    if c1 == EOF_VAL {
+                        if c2 != EOF_VAL {
+                            iobuflen = xstrlcpy(
+                                iobuf.as_mut_ptr(),
+                                c"first file is shorter".as_ptr(),
+                                IOSIZE,
+                            );
+                        }
+                        break;
+                    } else if c2 == EOF_VAL {
+                        iobuflen = xstrlcpy(
+                            iobuf.as_mut_ptr(),
+                            c"second file is shorter".as_ptr(),
+                            IOSIZE,
+                        );
+                        break;
+                    } else {
+                        line1[lineidx] = c1 as c_char;
+                        line2[lineidx] = c2 as c_char;
+                        lineidx += 1;
+                        if c1 != c2 {
+                            let msg = format!("difference at byte {count}, line {linecount}\0");
+                            iobuflen =
+                                xstrlcpy(iobuf.as_mut_ptr(), msg.as_ptr().cast::<c_char>(), IOSIZE);
+                            break;
+                        }
+                    }
+                    if c1 == (NL as c_int) {
+                        linecount += 1;
+                        lineidx = 0;
+                    } else if lineidx + 2 == line1.len() {
+                        line1.copy_within(100..lineidx, 0);
+                        line2.copy_within(100..lineidx, 0);
+                        lineidx -= 100;
+                    }
+                    count += 1;
+                }
+                fclose(fd1);
+                fclose(fd2);
+            }
+        }
+
+        if iobuflen > 0 {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+                let tofree = encode_tv2echo(argvars.add(2), std::ptr::null_mut());
+                ga_concat(&mut ga, tofree);
+                xfree(tofree.cast::<c_void>());
+                ga_concat_literal(&mut ga, b": ");
+            }
+            ga_concat_len(&mut ga, iobuf.as_ptr(), iobuflen);
+            if lineidx > 0 {
+                line1[lineidx] = 0;
+                line2[lineidx] = 0;
+                ga_concat_literal(&mut ga, b" after \"");
+                ga_concat_len(&mut ga, line1.as_ptr(), lineidx);
+                if line1[..lineidx] != line2[..lineidx] {
+                    ga_concat_literal(&mut ga, b"\" vs \"");
+                    ga_concat_len(&mut ga, line2.as_ptr(), lineidx);
+                }
+                ga_concat_literal(&mut ga, b"\"");
+            }
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            return 1;
+        }
+        0
+    }
+}
+
+/// `"assert_equalfile(fname-one, fname-two[, msg])"` function (`f_assert_equalfile`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_equalfile(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_equalfile(argvars) as i64;
+    }
+}
+
+/// `"assert_notequal(expected, actual[, msg])"` function (`f_assert_notequal`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_notequal(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_equal_common(argvars, AssertType::NotEqual) as i64;
+    }
+}
+
+/// `"assert_exception(string[, msg])"` function (`f_assert_exception`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_exception(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        let error = tv_get_string_chk(argvars);
+        let v_exc = get_vim_var_str(VV_EXCEPTION);
+        if *v_exc == 0 {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            ga_concat_literal(&mut ga, b"v:exception is not set");
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            (*rettv).vval.v_number = 1;
+        } else if !error.is_null() {
+            let exc_bytes = CStr::from_ptr(v_exc).to_bytes();
+            let err_bytes = CStr::from_ptr(error).to_bytes();
+            let found = if err_bytes.is_empty() {
+                true
+            } else {
+                exc_bytes.windows(err_bytes.len()).any(|w| w == err_bytes)
+            };
+            if !found {
+                let mut ga = garray_T {
+                    ga_len: 0,
+                    ga_maxlen: 0,
+                    ga_itemsize: 0,
+                    ga_growsize: 0,
+                    ga_data: std::ptr::null_mut(),
+                };
+                prepare_assert_error(&mut ga);
+                fill_assert_error(
+                    &mut ga,
+                    argvars.add(1),
+                    std::ptr::null(),
+                    argvars,
+                    get_vim_var_tv(VV_EXCEPTION),
+                    AssertType::Other,
+                );
+                assert_error(&mut ga);
+                ga_clear(&mut ga);
+                (*rettv).vval.v_number = 1;
+            }
+        }
+    }
+}
+
+/// `"assert_fails(cmd [, error [, msg]])"` function (`f_assert_fails`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_fails(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        let save_trylevel = trylevel;
+        let called_emsg_before = called_emsg;
+        let mut wrong_arg_msg: *const c_char = std::ptr::null();
+        let mut tofree: *mut c_char = std::ptr::null_mut();
+
+        if tv_check_for_string_or_number_arg(argvars, 0) == FAIL
+            || tv_check_for_opt_string_or_list_arg(argvars, 1) == FAIL
+            || ((*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
+                && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+                && (tv_check_for_opt_number_arg(argvars, 3) == FAIL
+                    || ((*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
+                        && tv_check_for_opt_string_arg(argvars, 4) == FAIL)))
+        {
+            return;
+        }
+
+        trylevel = 0;
+        suppress_errthrow = true;
+        in_assert_fails = true;
+        no_wait_return += 1;
+
+        let cmd = tv_get_string_chk(argvars);
+        do_cmdline_cmd(cmd);
+
+        trylevel = save_trylevel;
+        suppress_errthrow = false;
+
+        if called_emsg == called_emsg_before {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: std::ptr::null_mut(),
+            };
+            prepare_assert_error(&mut ga);
+            ga_concat_literal(&mut ga, b"command did not fail: ");
+            assert_append_cmd_or_arg(&mut ga, argvars, cmd);
+            assert_error(&mut ga);
+            ga_clear(&mut ga);
+            (*rettv).vval.v_number = 1;
+        } else if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+            let mut buf = [0 as c_char; NUMBUFLEN];
+            let mut expected_str: *const c_char = std::ptr::null();
+            let mut error_found = false;
+            let mut error_found_index: usize = 1;
+            let mut actual: *mut c_char = if emsg_assert_fails_msg.is_null() {
+                c"[unknown]".as_ptr().cast_mut()
+            } else {
+                emsg_assert_fails_msg
+            };
+
+            let arg1 = &*argvars.add(1);
+            let mut valid_args = true;
+            if arg1.v_type == VarType::VAR_STRING {
+                let expected = tv_get_string_buf_chk(arg1, buf.as_mut_ptr());
+                if expected.is_null() {
+                    error_found = true;
+                } else {
+                    let act_bytes = CStr::from_ptr(actual).to_bytes();
+                    let exp_bytes = CStr::from_ptr(expected).to_bytes();
+                    let contains = if exp_bytes.is_empty() {
+                        true
+                    } else {
+                        act_bytes.windows(exp_bytes.len()).any(|w| w == exp_bytes)
+                    };
+                    error_found = !contains;
+                }
+            } else if arg1.v_type == VarType::VAR_LIST {
+                let list = arg1.vval.v_list;
+                if list.is_null() || tv_list_len(list) < 1 || tv_list_len(list) > 2 {
+                    wrong_arg_msg =
+                        c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings"
+                            .as_ptr();
+                    valid_args = false;
+                } else {
+                    let first_tv = &(*tv_list_first(list)).li_tv;
+                    let expected = tv_get_string_buf_chk(first_tv, buf.as_mut_ptr());
+                    if expected.is_null() {
+                        valid_args = false;
+                    } else if pattern_match(expected, actual, false) == 0 {
+                        error_found = true;
+                        expected_str = expected;
+                    } else if tv_list_len(list) == 2 {
+                        tofree = xstrdup(get_vim_var_str(VV_ERRMSG));
+                        actual = tofree;
+                        let last_tv = &(*tv_list_last(list)).li_tv;
+                        let expected2 = tv_get_string_buf_chk(last_tv, buf.as_mut_ptr());
+                        if expected2.is_null() {
+                            valid_args = false;
+                        } else if pattern_match(expected2, actual, false) == 0 {
+                            error_found = true;
+                            expected_str = expected2;
+                        }
+                    }
+                }
+            } else {
+                wrong_arg_msg =
+                    c"E856: \"assert_fails()\" second argument must be a string or a list with one or two strings"
+                        .as_ptr();
+                valid_args = false;
+            }
+
+            if valid_args
+                && !error_found
+                && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+                && (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
+            {
+                let arg3 = &*argvars.add(3);
+                if arg3.v_type != VarType::VAR_NUMBER {
+                    wrong_arg_msg =
+                        c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
+                    valid_args = false;
+                } else if arg3.vval.v_number >= 0
+                    && arg3.vval.v_number != (emsg_assert_fails_lnum as i64)
+                {
+                    error_found = true;
+                    error_found_index = 3;
+                }
+                if valid_args && !error_found && (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN {
+                    let arg4 = &*argvars.add(4);
+                    if arg4.v_type != VarType::VAR_STRING {
+                        wrong_arg_msg =
+                            c"E1116: \"assert_fails()\" fifth argument must be a string".as_ptr();
+                        valid_args = false;
+                    } else if !arg4.vval.v_string.is_null()
+                        && pattern_match(arg4.vval.v_string, emsg_assert_fails_context, false) == 0
+                    {
+                        error_found = true;
+                        error_found_index = 4;
+                    }
+                }
+            }
+
+            if valid_args && error_found {
+                let mut actual_tv = typval_T {
+                    v_type: VarType::VAR_UNKNOWN,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval { v_number: 0 },
+                };
+                let mut ga = garray_T {
+                    ga_len: 0,
+                    ga_maxlen: 0,
+                    ga_itemsize: 0,
+                    ga_growsize: 0,
+                    ga_data: std::ptr::null_mut(),
+                };
+                prepare_assert_error(&mut ga);
+                if error_found_index == 3 {
+                    actual_tv.v_type = VarType::VAR_NUMBER;
+                    actual_tv.vval.v_number = emsg_assert_fails_lnum as i64;
+                } else if error_found_index == 4 {
+                    actual_tv.v_type = VarType::VAR_STRING;
+                    actual_tv.vval.v_string = emsg_assert_fails_context;
+                } else {
+                    actual_tv.v_type = VarType::VAR_STRING;
+                    actual_tv.vval.v_string = actual;
+                }
+                fill_assert_error(
+                    &mut ga,
+                    argvars.add(2),
+                    expected_str,
+                    argvars.add(error_found_index),
+                    &mut actual_tv,
+                    AssertType::Fails,
+                );
+                ga_concat_literal(&mut ga, b": ");
+                assert_append_cmd_or_arg(&mut ga, argvars, cmd);
+                assert_error(&mut ga);
+                ga_clear(&mut ga);
+                (*rettv).vval.v_number = 1;
+            }
+        }
+
+        trylevel = save_trylevel;
+        suppress_errthrow = false;
+        in_assert_fails = false;
+        did_emsg = 0;
+        got_int = false;
+        msg_col = 0;
+        no_wait_return -= 1;
+        need_wait_return = false;
+        emsg_on_display = false;
+        msg_reset_scroll();
+        lines_left = Rows;
+        xfree(emsg_assert_fails_msg.cast::<c_void>());
+        emsg_assert_fails_msg = std::ptr::null_mut();
+        xfree(tofree.cast::<c_void>());
+        set_vim_var_string(VV_ERRMSG, std::ptr::null(), 0);
+        if !wrong_arg_msg.is_null() {
+            emsg(wrong_arg_msg);
+        }
+    }
+}
+
+/// `"assert_false(actual[, msg])"` function (`f_assert_false`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_false(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_bool(argvars, false) as i64;
+    }
+}
+
+#[cfg(not(test))]
+unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
+    unsafe {
+        let mut error = false;
+        let arg0 = &*argvars;
+        let arg1 = &*argvars.add(1);
+        let arg2 = &*argvars.add(2);
+
+        if arg0.v_type == VarType::VAR_FLOAT
+            || arg1.v_type == VarType::VAR_FLOAT
+            || arg2.v_type == VarType::VAR_FLOAT
+        {
+            let flower = tv_get_float(arg0);
+            let fupper = tv_get_float(arg1);
+            let factual = tv_get_float(arg2);
+
+            if factual < flower || factual > fupper {
+                let mut ga = garray_T {
+                    ga_len: 0,
+                    ga_maxlen: 0,
+                    ga_itemsize: 0,
+                    ga_growsize: 0,
+                    ga_data: std::ptr::null_mut(),
+                };
+                prepare_assert_error(&mut ga);
+                let mut expected_str = [0 as c_char; 200];
+                vim_snprintf(
+                    expected_str.as_mut_ptr(),
+                    expected_str.len(),
+                    c"range %g - %g,".as_ptr(),
+                    flower,
+                    fupper,
+                );
+                fill_assert_error(
+                    &mut ga,
+                    argvars.add(3),
+                    expected_str.as_ptr(),
+                    std::ptr::null_mut(),
+                    argvars.add(2),
+                    AssertType::Other,
+                );
+                assert_error(&mut ga);
+                ga_clear(&mut ga);
+                return 1;
+            }
+        } else {
+            let lower = tv_get_number_chk(arg0, &mut error);
+            let upper = tv_get_number_chk(arg1, &mut error);
+            let actual = tv_get_number_chk(arg2, &mut error);
+
+            if error {
+                return 0;
+            }
+            if actual < lower || actual > upper {
+                let mut ga = garray_T {
+                    ga_len: 0,
+                    ga_maxlen: 0,
+                    ga_itemsize: 0,
+                    ga_growsize: 0,
+                    ga_data: std::ptr::null_mut(),
+                };
+                prepare_assert_error(&mut ga);
+                let expected_str = format!("range {lower} - {upper},\0");
+                fill_assert_error(
+                    &mut ga,
+                    argvars.add(3),
+                    expected_str.as_ptr().cast::<c_char>(),
+                    std::ptr::null_mut(),
+                    argvars.add(2),
+                    AssertType::Other,
+                );
+                assert_error(&mut ga);
+                ga_clear(&mut ga);
+                return 1;
+            }
+        }
+        0
+    }
+}
+
+/// `"assert_inrange(lower, upper, actual[, msg])"` function (`f_assert_inrange`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_inrange(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        if tv_check_for_float_or_nr_arg(argvars, 0) == FAIL
+            || tv_check_for_float_or_nr_arg(argvars, 1) == FAIL
+            || tv_check_for_float_or_nr_arg(argvars, 2) == FAIL
+            || tv_check_for_opt_string_arg(argvars, 3) == FAIL
+        {
+            return;
+        }
+        (*rettv).vval.v_number = assert_inrange(argvars) as i64;
+    }
+}
+
+/// `"assert_match(pattern, actual[, msg])"` function (`f_assert_match`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_match(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_match_common(argvars, AssertType::Match) as i64;
+    }
+}
+
+/// `"assert_notmatch(pattern, actual[, msg])"` function (`f_assert_notmatch`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_notmatch(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_match_common(argvars, AssertType::NotMatch) as i64;
+    }
+}
+
+/// `"assert_report(msg)"` function (`f_assert_report`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_report(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        let mut ga = garray_T {
+            ga_len: 0,
+            ga_maxlen: 0,
+            ga_itemsize: 0,
+            ga_growsize: 0,
+            ga_data: std::ptr::null_mut(),
+        };
+        prepare_assert_error(&mut ga);
+        ga_concat(&mut ga, tv_get_string(argvars));
+        assert_error(&mut ga);
+        ga_clear(&mut ga);
+        (*rettv).vval.v_number = 1;
+    }
+}
+
+/// `"assert_true(actual[, msg])"` function (`f_assert_true`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_assert_true(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = (argvars, rettv);
+
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = assert_bool(argvars, true) as i64;
+    }
+}
+
+/// `"test_garbagecollect_now()"` function (`f_test_garbagecollect_now`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_test_garbagecollect_now(
+    _argvars: *mut typval_T,
+    _rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        if get_vim_var_nr(VV_TESTING) == 0 {
+            emsg(c"E1142: Calling test_garbagecollect_now() while v:testing is not set".as_ptr());
+        } else {
+            garbage_collect(true);
+        }
+    }
+}
+
+/// `"test_write_list_log()"` function (`f_test_write_list_log`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn f_test_write_list_log(
+    argvars: *mut typval_T,
+    _rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(test)]
+    let _ = argvars;
+
+    #[cfg(not(test))]
+    unsafe {
+        let _fname = tv_get_string_chk(argvars);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ga_concat_esc_formats_control_chars_and_printable_ascii() {
+        let mut ga = garray_T {
+            ga_len: 0,
+            ga_maxlen: 0,
+            ga_itemsize: 0,
+            ga_growsize: 0,
+            ga_data: std::ptr::null_mut(),
+        };
+        unsafe {
+            ga_init(&mut ga, 1, 32);
+            ga_concat_esc(&mut ga, c"\n".as_ptr(), 1);
+            ga_concat_esc(&mut ga, c"\x01".as_ptr(), 1);
+            ga_concat_esc(&mut ga, c"A".as_ptr(), 1);
+            ga_append(&mut ga, 0);
+            let s = CStr::from_ptr(ga.ga_data.cast::<c_char>())
+                .to_str()
+                .unwrap();
+            assert_eq!(s, "\\n\\x01A");
+            ga_clear(&mut ga);
+        }
+    }
+}
