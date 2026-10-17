@@ -1,5 +1,6 @@
 pub mod r#loop;
 pub mod multiqueue;
+pub mod proc;
 pub mod rstream;
 pub mod signal;
 pub mod socket;

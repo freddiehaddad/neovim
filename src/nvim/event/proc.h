@@ -47,4 +47,24 @@ static inline bool proc_is_stopped(Proc *proc)
   return exited || (proc->stopped_time != 0);
 }
 
-#include "event/proc.h.generated.h"
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT void __gcov_flush(void);
+DLLEXPORT int proc_spawn(Proc *proc, bool in, bool out, bool err) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void proc_teardown(Loop *loop) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void proc_close_streams(Proc *proc) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT int proc_wait(Proc *proc, int ms, MultiQueue *events) FUNC_ATTR_NONNULL_ARG(1);
+DLLEXPORT void proc_stop(Proc *proc) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void proc_free(Proc *proc) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void exit_on_closed_chan(int status);
+
+#include "nvim/func_attr.h"
