@@ -7,6 +7,7 @@ pub mod cursor_shape;
 pub mod dialog;
 pub mod eval;
 pub mod event;
+pub mod fuzzy;
 pub mod garray;
 pub mod hashtab;
 pub mod kvec;

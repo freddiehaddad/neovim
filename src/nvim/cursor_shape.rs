@@ -74,6 +74,7 @@ pub struct cursorentry_T {
 unsafe impl Sync for cursorentry_T {}
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct pos_T {
     pub lnum: i32,
     pub col: c_int,
