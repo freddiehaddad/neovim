@@ -5,6 +5,7 @@ pub mod mem;
 pub mod os_win_console;
 pub mod proc;
 pub mod pty_conpty_win;
+pub mod signal;
 pub mod stdpaths;
 pub mod time;
 pub mod users;
