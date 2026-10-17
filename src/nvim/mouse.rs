@@ -99,7 +99,7 @@ const MOD_MASK_MULTI_CLICK: c_int = MOD_MASK_2CLICK | MOD_MASK_3CLICK | MOD_MASK
 
 const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
-const REPLACE_FLAG: c_int = 0x800;
+const REPLACE_FLAG: c_int = 0x100;
 
 const OP_NOP: c_int = 0;
 const PUT_FIXINDENT: c_int = 1;
