@@ -11,6 +11,7 @@ pub mod decoration_provider;
 pub mod dialog;
 pub mod eval;
 pub mod event;
+pub mod extmark;
 pub mod fuzzy;
 pub mod garray;
 pub mod hashtab;
