@@ -206,6 +206,18 @@ pub struct DecorState {
     pub free_slot_i: c_int,
     pub new_range_ordering: c_int,
     pub win: *mut win_T,
+    pub top_row: c_int,
+    pub row: c_int,
+    pub col_last: c_int,
+    pub current: c_int,
+    pub current_hl_eol: c_int,
+    pub eol_col: c_int,
+    pub conceal: c_int,
+    pub conceal_char: u32,
+    pub conceal_attr: c_int,
+    pub spell: c_int,
+    pub running_decor_provider: bool,
+    pub itr_valid: bool,
 }
 
 #[repr(C)]

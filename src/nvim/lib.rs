@@ -7,6 +7,7 @@ pub mod cmdhist;
 pub mod context;
 pub mod cursor_shape;
 pub mod debugger;
+pub mod decoration_provider;
 pub mod dialog;
 pub mod eval;
 pub mod event;
