@@ -55,6 +55,8 @@ pub enum VarType {
 #[allow(non_camel_case_types)]
 pub union TypvalVval {
     pub v_number: i64,
+    pub v_bool: c_int,
+    pub v_special: c_int,
     pub v_float: f64,
     pub v_string: *mut c_char,
     pub v_list: *mut list_T,

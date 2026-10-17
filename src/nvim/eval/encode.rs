@@ -1404,10 +1404,10 @@ unsafe fn convert_one_value(
                 }
             }
             VarType::VAR_BOOL => {
-                backend.conv_bool(tv_ref.vval.v_number == K_BOOL_VAR_TRUE);
+                backend.conv_bool(tv_ref.vval.v_bool == K_BOOL_VAR_TRUE as c_int);
             }
             VarType::VAR_SPECIAL => {
-                if tv_ref.vval.v_number == K_SPECIAL_VAR_NULL {
+                if tv_ref.vval.v_special == K_SPECIAL_VAR_NULL as c_int {
                     backend.conv_nil();
                 }
             }

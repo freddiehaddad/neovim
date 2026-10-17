@@ -464,7 +464,7 @@ unsafe fn assert_bool(argvars: *mut typval_T, is_true: bool) -> c_int {
         if (arg0.v_type != VarType::VAR_NUMBER
             || (tv_get_number_chk(argvars, &mut error) == 0) == is_true
             || error)
-            && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_number != expected_bool)
+            && (arg0.v_type != VarType::VAR_BOOL || arg0.vval.v_bool != expected_bool as c_int)
         {
             let mut ga = garray_T {
                 ga_len: 0,

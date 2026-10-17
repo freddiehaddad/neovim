@@ -33,6 +33,7 @@ pub mod profile;
 pub mod sha256;
 pub mod testing;
 pub mod tui;
+pub mod ui_compositor;
 pub mod viml;
 pub mod vterm;
 pub mod winfloat;
