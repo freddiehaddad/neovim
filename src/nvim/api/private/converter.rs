@@ -284,7 +284,7 @@ unsafe fn convert_one_value(
             }
         }
         VarType::VAR_BOOL => {
-            let b = unsafe { tv.vval.v_number == K_BOOL_VAR_TRUE };
+            let b = unsafe { tv.vval.v_bool == K_BOOL_VAR_TRUE as c_int };
             stack.push(Object {
                 obj_type: ObjectType::kObjectTypeBoolean,
                 data: ObjectData { boolean: b },

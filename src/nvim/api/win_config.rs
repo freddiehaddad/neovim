@@ -267,7 +267,7 @@ unsafe extern "C" {
     fn merge_win_config(dst: *mut WinConfig, src: WinConfig);
     fn redraw_later(wp: *mut win_T, type_: c_int);
     fn lastwin_nofloating(tp: *mut tabpage_T) -> *mut win_T;
-    fn ui_comp_remove_grid(grid: *mut ScreenGrid) -> bool;
+    fn ui_comp_remove_grid(grid: *mut ScreenGrid);
     fn set_must_redraw(type_: c_int);
     fn win_config_float(wp: *mut win_T, fconfig: WinConfig);
     fn syn_id2name(id: c_int) -> *mut c_char;
