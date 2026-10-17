@@ -49,7 +49,7 @@ unsafe fn nlua_funcref_str(_luaref: c_int, _arena: *mut c_void, _inspect: bool) 
 unsafe fn api_free_luaref(_luaref: c_int) {}
 
 #[inline]
-unsafe fn mpack_w(b: *mut *mut c_char, byte: u8) {
+pub(crate) unsafe fn mpack_w(b: *mut *mut c_char, byte: u8) {
     unsafe {
         **b = byte as c_char;
         *b = (*b).add(1);
@@ -84,7 +84,7 @@ unsafe fn mpack_w8(b: *mut *mut c_char, v: u64) {
 }
 
 #[inline]
-unsafe fn mpack_uint(buf: *mut *mut c_char, val: u32) {
+pub(crate) unsafe fn mpack_uint(buf: *mut *mut c_char, val: u32) {
     unsafe {
         if val > 0xffff {
             mpack_w(buf, 0xce);
