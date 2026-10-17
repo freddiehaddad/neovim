@@ -32,7 +32,7 @@ static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: c_void;
-    static mut got_int: c_int;
+    static mut got_int: bool;
 
     fn uv_hrtime() -> u64;
     fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
@@ -123,7 +123,7 @@ pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
 
         loop {
             let cond = if ignoreinput {
-                got_int != 0
+                got_int
             } else {
                 os_input_ready(std::ptr::null_mut())
             };

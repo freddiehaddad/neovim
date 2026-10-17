@@ -206,7 +206,7 @@ unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
 }
 
 #[inline]
-unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
+pub unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
     unsafe {
         let p = p_in.cast::<u8>();
         let first = *p;

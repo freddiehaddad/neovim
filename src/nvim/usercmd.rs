@@ -10,7 +10,7 @@
     clippy::too_many_arguments
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
@@ -283,10 +283,10 @@ unsafe extern "C" {
     static mut curtab: *mut tabpage_T;
     static mut current_sctx: sctx_T;
     static mut exestack: garray_T;
-    static mut got_int: c_int;
+    static mut got_int: bool;
     static mut IObuff: [c_char; IOSIZE];
     static mut Columns: c_int;
-    static mut p_verbose: c_long;
+    static mut p_verbose: i64;
     static mut p_cpo: *mut c_char;
     static mut cmdmod: cmdmod_T;
 
@@ -802,7 +802,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 }
                 found = true;
                 msg_putchar(b'\n' as c_int);
-                if got_int != 0 {
+                if got_int {
                     break;
                 }
 
@@ -983,7 +983,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     last_set_msg((*cmd).uc_script_ctx);
                 }
                 line_breakcheck();
-                if got_int != 0 {
+                if got_int {
                     break;
                 }
                 i += 1;

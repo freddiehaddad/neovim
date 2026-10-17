@@ -121,7 +121,7 @@ unsafe extern "C" {
     static mut msg_silent: c_int;
     static mut msg_didout: bool;
     static mut no_wait_return: c_int;
-    static mut got_int: c_int;
+    static mut got_int: bool;
 
     fn nlua_exec(
         str: NvimString,
@@ -1155,7 +1155,7 @@ unsafe fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
         msg_ext_no_fast();
         no_wait_return += 1;
         for i in 0..message.size {
-            if got_int != 0 {
+            if got_int {
                 break;
             }
             push_char(line_buf, *message.data.add(i), to_err);
