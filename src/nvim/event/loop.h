@@ -37,4 +37,24 @@ struct loop {
   bool closing;  ///< Set to true if loop_close() has been called
 };
 
-#include "event/loop.h.generated.h"
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT void loop_init(Loop *loop, void *data);
+DLLEXPORT bool loop_poll_events(Loop *loop, int64_t ms);
+DLLEXPORT void loop_schedule_fast(Loop *loop, Event event);
+DLLEXPORT void loop_schedule_deferred(Loop *loop, Event event);
+DLLEXPORT void loop_on_put(MultiQueue *queue, void *data);
+DLLEXPORT bool loop_close(Loop *loop, bool wait);
+DLLEXPORT void loop_purge(Loop *loop);
+DLLEXPORT size_t loop_size(Loop *loop);
+
+#include "nvim/func_attr.h"

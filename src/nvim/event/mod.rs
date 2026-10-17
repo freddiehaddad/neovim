@@ -1,3 +1,4 @@
+pub mod r#loop;
 pub mod multiqueue;
 pub mod rstream;
 pub mod signal;
