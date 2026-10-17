@@ -48,4 +48,17 @@ typedef kvec_t(char) AdditionalDataBuilder;
 // unrecovareble error. unpack_error should be set!
 #define unpacker_closed(p) ((p)->state < 0)
 
-#include "msgpack_rpc/unpacker.h.generated.h"
+Object unpack(const char *data, size_t size, Arena *arena, Error *err);
+void unpacker_init(Unpacker *p);
+void unpacker_teardown(Unpacker *p);
+bool unpacker_parse_header(Unpacker *p);
+bool unpacker_advance(Unpacker *p);
+bool unpacker_parse_redraw(Unpacker *p);
+String unpack_string(const char **data, size_t *size);
+ssize_t unpack_array(const char **data, size_t *size);
+bool unpack_integer(const char **data, size_t *size, Integer *res);
+bool unpack_uint_or_sint(mpack_token_t tok, Integer *res);
+int unpack_skip(const char **data, size_t *size);
+void push_additional_data(AdditionalDataBuilder *ad, const char *data, size_t size);
+bool unpack_keydict(void *retval, FieldHashfn hashy, AdditionalDataBuilder *ad, const char **data,
+                    size_t *restrict size, char **error);

@@ -22,10 +22,81 @@ impl<T> Copy for KVec<T> {}
 
 impl<T: Copy> KVec<T> {
     #[inline]
+    pub const fn new() -> Self {
+        Self {
+            size: 0,
+            capacity: 0,
+            items: std::ptr::null_mut(),
+        }
+    }
+
+    #[inline]
     pub fn init(&mut self) {
         self.size = 0;
         self.capacity = 0;
         self.items = std::ptr::null_mut();
+    }
+
+    /// Ensure at least `len` additional items fit in `self` (`kv_ensure_space`).
+    ///
+    /// # Safety
+    /// `self.items` must be null or allocated by `xmalloc`/`xrealloc`.
+    #[inline]
+    pub unsafe fn ensure_space(&mut self, len: usize) {
+        if self.capacity < self.size + len {
+            let mut new_cap = self.size + len;
+            new_cap = new_cap.next_power_of_two().max(1);
+            self.capacity = new_cap;
+            self.items = unsafe {
+                xrealloc(
+                    self.items.cast::<c_void>(),
+                    std::mem::size_of::<T>() * self.capacity,
+                )
+                .cast::<T>()
+            };
+        }
+    }
+
+    /// Push `value` onto `self` (`kv_push`).
+    ///
+    /// # Safety
+    /// `self.items` must be null or allocated by `xmalloc`/`xrealloc`.
+    #[inline]
+    pub unsafe fn push(&mut self, value: T) {
+        if self.size == self.capacity {
+            let new_cap = if self.capacity != 0 {
+                self.capacity << 1
+            } else {
+                8
+            };
+            self.capacity = new_cap;
+            self.items = unsafe {
+                xrealloc(
+                    self.items.cast::<c_void>(),
+                    std::mem::size_of::<T>() * self.capacity,
+                )
+                .cast::<T>()
+            };
+        }
+        unsafe {
+            *self.items.add(self.size) = value;
+        }
+        self.size += 1;
+    }
+
+    /// Append `len` elements from `data` (`kv_concat_len`).
+    ///
+    /// # Safety
+    /// `data` must be valid for `len` elements when `len > 0`.
+    #[inline]
+    pub unsafe fn concat_len(&mut self, data: *const T, len: usize) {
+        if len > 0 {
+            unsafe {
+                self.ensure_space(len);
+                std::ptr::copy_nonoverlapping(data, self.items.add(self.size), len);
+            }
+            self.size += len;
+        }
     }
 
     /// Free the backing buffer of this `KVec` and reset its state.
@@ -38,6 +109,13 @@ impl<T: Copy> KVec<T> {
             xfree(self.items.cast::<c_void>());
         }
         self.init();
+    }
+}
+
+impl<T: Copy> Default for KVec<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 

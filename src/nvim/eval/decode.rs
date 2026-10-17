@@ -44,6 +44,7 @@ pub const MPACK_OK: c_int = 0;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum mpack_token_type_t {
+    MPACK_TOKEN_NONE = 0,
     MPACK_TOKEN_NIL = 1,
     MPACK_TOKEN_BOOLEAN = 2,
     MPACK_TOKEN_UINT = 3,
@@ -1403,6 +1404,7 @@ unsafe extern "C" fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut 
                 (*node).data[1].p =
                     xmallocz(((*node).tok.length as usize) * 2 * std::mem::size_of::<typval_T>());
             }
+            mpack_token_type_t::MPACK_TOKEN_NONE => std::process::abort(),
         }
     }
 }
