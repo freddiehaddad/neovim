@@ -10,7 +10,25 @@
 #include "nvim/vterm/vterm_defs.h"
 #include "nvim/vterm/vterm_keycodes_defs.h"
 
-#include "vterm/vterm.h.generated.h"
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT VTerm *vterm_new(int rows, int cols);
+DLLEXPORT VTerm *vterm_build(const struct VTermBuilder *builder);
+DLLEXPORT void vterm_free(VTerm *vt);
+DLLEXPORT void *vterm_allocator_malloc(VTerm *vt, size_t size);
+DLLEXPORT void vterm_allocator_free(VTerm *vt, void *ptr);
+DLLEXPORT void vterm_get_size(const VTerm *vt, int *rowsp, int *colsp);
+DLLEXPORT void vterm_set_size(VTerm *vt, int rows, int cols);
+DLLEXPORT void vterm_set_utf8(VTerm *vt, int is_utf8);
+DLLEXPORT void vterm_output_set_callback(VTerm *vt, VTermOutputCallback *func, void *user);
+DLLEXPORT void vterm_push_output_bytes(VTerm *vt, const char *bytes, size_t len);
+DLLEXPORT VTermValueType vterm_get_attr_type(VTermAttr attr);
 
 #define VTERM_VERSION_MAJOR 0
 #define VTERM_VERSION_MINOR 3

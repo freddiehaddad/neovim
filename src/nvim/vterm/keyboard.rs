@@ -9,10 +9,13 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_void};
 
 use crate::tui::termkey::termkey::fill_utf8;
 use crate::vterm::mouse::{VTerm, VTermPos};
+use crate::vterm::vterm::{
+    vterm_push_output_bytes, vterm_push_output_bytes_slice, vterm_push_output_ctrl_bytes,
+};
 
 pub type VTermModifier = c_int;
 pub type VTermKey = c_int;
@@ -495,12 +498,6 @@ const KEYCODES_KP_CSIU: [KeycodeEntry; 18] = [
     },
 ];
 
-unsafe extern "C" {
-    fn vterm_push_output_bytes(vt: *mut VTerm, bytes: *const c_char, len: usize);
-    fn vterm_push_output_sprintf(vt: *mut VTerm, format: *const c_char, ...);
-    fn vterm_push_output_sprintf_ctrl(vt: *mut VTerm, ctrl: u8, fmt: *const c_char, ...);
-}
-
 #[inline]
 unsafe fn vterm_state_get_key_encoding_disambiguate(state: *const VTermStateFull) -> bool {
     unsafe {
@@ -542,7 +539,8 @@ pub unsafe extern "C" fn vterm_keyboard_unichar(
                 mod_ |= VTERM_MOD_SHIFT;
             }
 
-            vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"%d;%du".as_ptr(), c, mod_ + 1);
+            let s = format!("{c};{}u", mod_ + 1);
+            vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
             return;
         }
 
@@ -572,16 +570,11 @@ pub unsafe extern "C" fn vterm_keyboard_unichar(
             }
         }
 
-        vterm_push_output_sprintf(
-            vt,
-            c"%s%c".as_ptr(),
-            if (mod_ & VTERM_MOD_ALT) != 0 {
-                c"\x1b".as_ptr()
-            } else {
-                c"".as_ptr()
-            },
-            c as c_uint,
-        );
+        if (mod_ & VTERM_MOD_ALT) != 0 {
+            vterm_push_output_bytes_slice(vt, &[0x1b, c as u8]);
+        } else {
+            vterm_push_output_bytes_slice(vt, &[c as u8]);
+        }
     }
 }
 
@@ -598,17 +591,12 @@ unsafe fn emit_literal(
         }
 
         if disambiguate {
-            vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"%d;%du".as_ptr(), literal, mod_ + 1);
+            let s = format!("{literal};{}u", mod_ + 1);
+            vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
+        } else if (mod_ & VTERM_MOD_ALT) != 0 {
+            vterm_push_output_bytes_slice(vt, &[0x1b, literal as u8]);
         } else {
-            vterm_push_output_sprintf(
-                vt,
-                if (mod_ & VTERM_MOD_ALT) != 0 {
-                    c"\x1b%c".as_ptr()
-                } else {
-                    c"%c".as_ptr()
-                },
-                literal,
-            );
+            vterm_push_output_bytes_slice(vt, &[literal as u8]);
         }
     }
 }
@@ -616,9 +604,10 @@ unsafe fn emit_literal(
 unsafe fn emit_csi(vt: *mut VTerm, mod_: VTermModifier, literal: c_int) {
     unsafe {
         if mod_ == 0 {
-            vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"%c".as_ptr(), literal);
+            vterm_push_output_ctrl_bytes(vt, C1_CSI, &[literal as u8]);
         } else {
-            vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"1;%d%c".as_ptr(), mod_ + 1, literal);
+            let s = format!("1;{}{}", mod_ + 1, (literal as u8) as char);
+            vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
         }
     }
 }
@@ -626,7 +615,7 @@ unsafe fn emit_csi(vt: *mut VTerm, mod_: VTermModifier, literal: c_int) {
 unsafe fn emit_ss3(vt: *mut VTerm, mod_: VTermModifier, literal: c_int) {
     unsafe {
         if mod_ == 0 {
-            vterm_push_output_sprintf_ctrl(vt, C1_SS3, c"%c".as_ptr(), literal);
+            vterm_push_output_ctrl_bytes(vt, C1_SS3, &[literal as u8]);
         } else {
             emit_csi(vt, mod_, literal);
         }
@@ -673,16 +662,17 @@ pub unsafe extern "C" fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_:
                 if disambiguate {
                     emit_literal(vt, key, mod_, disambiguate, k.literal);
                 } else if mod_ == VTERM_MOD_SHIFT {
-                    vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"Z".as_ptr());
+                    vterm_push_output_ctrl_bytes(vt, C1_CSI, b"Z");
                 } else if (mod_ & VTERM_MOD_SHIFT) != 0 {
-                    vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"1;%dZ".as_ptr(), mod_ + 1);
+                    let s = format!("1;{}Z", mod_ + 1);
+                    vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
                 } else {
                     emit_literal(vt, key, mod_, disambiguate, k.literal);
                 }
             }
             KeycodeType::Enter => {
                 if ((*state).mode & MODE_NEWLINE_BIT) != 0 {
-                    vterm_push_output_sprintf(vt, c"\r\n".as_ptr());
+                    vterm_push_output_bytes_slice(vt, b"\r\n");
                 } else {
                     emit_literal(vt, key, mod_, disambiguate, k.literal);
                 }
@@ -698,22 +688,11 @@ pub unsafe extern "C" fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_:
             }
             KeycodeType::CsiNum => {
                 if mod_ == 0 {
-                    vterm_push_output_sprintf_ctrl(
-                        vt,
-                        C1_CSI,
-                        c"%d%c".as_ptr(),
-                        k.csinum,
-                        k.literal,
-                    );
+                    let s = format!("{}{}", k.csinum, (k.literal as u8) as char);
+                    vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
                 } else {
-                    vterm_push_output_sprintf_ctrl(
-                        vt,
-                        C1_CSI,
-                        c"%d;%d%c".as_ptr(),
-                        k.csinum,
-                        mod_ + 1,
-                        k.literal,
-                    );
+                    let s = format!("{};{}{}", k.csinum, mod_ + 1, (k.literal as u8) as char);
+                    vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
                 }
             }
             KeycodeType::CsiCursor => {
@@ -740,7 +719,7 @@ pub unsafe extern "C" fn vterm_keyboard_start_paste(vt: *mut VTerm) {
     unsafe {
         let state: *const VTermStateFull = (*vt).state.cast();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
-            vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"200~".as_ptr());
+            vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
         }
     }
 }
@@ -750,7 +729,7 @@ pub unsafe extern "C" fn vterm_keyboard_end_paste(vt: *mut VTerm) {
     unsafe {
         let state: *const VTermStateFull = (*vt).state.cast();
         if ((*state).mode & MODE_BRACKETPASTE_BIT) != 0 {
-            vterm_push_output_sprintf_ctrl(vt, C1_CSI, c"201~".as_ptr());
+            vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
         }
     }
 }

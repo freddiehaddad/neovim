@@ -22,6 +22,9 @@ use crate::vterm::state::{
     VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo, vterm_state_reset,
     vterm_state_set_callbacks, vterm_state_set_unrecognised_fallbacks,
 };
+use crate::vterm::vterm::{
+    vterm_allocator_free, vterm_allocator_malloc, vterm_get_size, vterm_scroll_rect,
+};
 
 pub type schar_T = u32;
 pub type VTermDamageSize = c_int;
@@ -455,48 +458,6 @@ impl VTermScreen {
     pub fn set_reflow(&mut self, val: bool) {
         self.flags = (self.flags & !(0x01 << 1)) | (u32::from(val) << 1);
     }
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn vterm_allocator_malloc(vt: *mut VTerm, size: usize) -> *mut c_void;
-    fn vterm_allocator_free(vt: *mut VTerm, ptr: *mut c_void);
-    fn vterm_get_size(vt: *const VTerm, rowsp: *mut c_int, colsp: *mut c_int);
-    fn vterm_scroll_rect(
-        rect: VTermRect,
-        downward: c_int,
-        rightward: c_int,
-        moverect: Option<
-            unsafe extern "C" fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int,
-        >,
-        eraserect: Option<
-            unsafe extern "C" fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int,
-        >,
-        user: *mut c_void,
-    );
-}
-
-#[cfg(test)]
-unsafe fn vterm_allocator_malloc(_vt: *mut VTerm, _size: usize) -> *mut c_void {
-    ptr::null_mut()
-}
-#[cfg(test)]
-unsafe fn vterm_allocator_free(_vt: *mut VTerm, _ptr: *mut c_void) {}
-#[cfg(test)]
-unsafe fn vterm_get_size(_vt: *const VTerm, _rowsp: *mut c_int, _colsp: *mut c_int) {}
-#[cfg(test)]
-unsafe fn vterm_scroll_rect(
-    _rect: VTermRect,
-    _downward: c_int,
-    _rightward: c_int,
-    _moverect: Option<
-        unsafe extern "C" fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int,
-    >,
-    _eraserect: Option<
-        unsafe extern "C" fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int,
-    >,
-    _user: *mut c_void,
-) {
 }
 
 #[inline]

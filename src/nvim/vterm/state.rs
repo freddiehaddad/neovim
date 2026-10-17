@@ -25,6 +25,10 @@ use crate::vterm::pen::{
     vterm_state_resetpen, vterm_state_savepen, vterm_state_setpen,
 };
 use crate::vterm::screen::{VTermGlyphInfo, VTermLineInfo, VTermStateFields};
+use crate::vterm::vterm::{
+    vterm_allocator_free, vterm_allocator_malloc, vterm_push_output_bytes,
+    vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
+};
 
 pub type VTermSelectionMask = c_int;
 
@@ -189,24 +193,6 @@ unsafe extern "C" {
     fn utf_char2cells(c: c_int) -> c_int;
     fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32;
     fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> ClusterInfo;
-
-    fn vterm_allocator_malloc(vt: *mut VTerm, size: usize) -> *mut c_void;
-    fn vterm_allocator_free(vt: *mut VTerm, ptr: *mut c_void);
-    fn vterm_push_output_bytes(vt: *mut VTerm, bytes: *const c_char, len: usize);
-    fn vterm_push_output_sprintf_ctrl(vt: *mut VTerm, ctrl: u8, fmt: *const c_char, ...);
-    fn vterm_push_output_sprintf_str(vt: *mut VTerm, ctrl: u8, term: bool, fmt: *const c_char, ...);
-    fn vterm_scroll_rect(
-        rect: VTermRect,
-        downward: c_int,
-        rightward: c_int,
-        moverect: Option<
-            unsafe extern "C" fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int,
-        >,
-        eraserect: Option<
-            unsafe extern "C" fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int,
-        >,
-        user: *mut c_void,
-    );
 }
 
 #[cfg(test)]
@@ -231,28 +217,6 @@ unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, _max_len: *mut c_int) -> Clust
         next: base,
         cells: 1,
     }
-}
-#[cfg(test)]
-unsafe fn vterm_allocator_malloc(_vt: *mut VTerm, _size: usize) -> *mut c_void {
-    ptr::null_mut()
-}
-#[cfg(test)]
-unsafe fn vterm_allocator_free(_vt: *mut VTerm, _ptr: *mut c_void) {}
-#[cfg(test)]
-unsafe fn vterm_push_output_bytes(_vt: *mut VTerm, _bytes: *const c_char, _len: usize) {}
-#[cfg(test)]
-unsafe fn vterm_scroll_rect(
-    _rect: VTermRect,
-    _downward: c_int,
-    _rightward: c_int,
-    _moverect: Option<
-        unsafe extern "C" fn(src: VTermRect, dest: VTermRect, user: *mut c_void) -> c_int,
-    >,
-    _eraserect: Option<
-        unsafe extern "C" fn(rect: VTermRect, selective: c_int, user: *mut c_void) -> c_int,
-    >,
-    _user: *mut c_void,
-) {
 }
 
 #[inline]
@@ -1403,45 +1367,22 @@ unsafe fn request_dec_mode(state: *mut VTermStateFull, num: c_int) {
             2026 => ((*state).mode & MODE_SYNCHRONIZED_OUTPUT) != 0,
             2031 => ((*state).mode & MODE_THEME_UPDATES) != 0,
             _ => {
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_ctrl(
-                    (*state).vt,
-                    C1_CSI,
-                    c"?%d;%d$y".as_ptr(),
-                    num,
-                    0 as c_int,
-                );
+                let s = format!("?{num};0$y");
+                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
                 return;
             }
         };
 
-        #[cfg(not(test))]
-        vterm_push_output_sprintf_ctrl(
-            (*state).vt,
-            C1_CSI,
-            c"?%d;%d$y".as_ptr(),
-            num,
-            if reply { 1 as c_int } else { 2 as c_int },
-        );
-        #[cfg(test)]
-        let _ = reply;
+        let s = format!("?{num};{}$y", if reply { 1 } else { 2 });
+        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
     }
 }
 
 unsafe fn request_version_string(state: *mut VTermStateFull) {
-    #[cfg(not(test))]
     unsafe {
-        vterm_push_output_sprintf_str(
-            (*state).vt,
-            C1_DCS,
-            true,
-            c">|libvterm(%d.%d)".as_ptr(),
-            VTERM_VERSION_MAJOR,
-            VTERM_VERSION_MINOR,
-        );
+        let s = format!(">|libvterm({VTERM_VERSION_MAJOR}.{VTERM_VERSION_MINOR})");
+        vterm_push_output_str_bytes((*state).vt, C1_DCS, true, s.as_bytes());
     }
-    #[cfg(test)]
-    let _ = state;
 }
 
 unsafe fn request_key_encoding_flags(state: *mut VTermStateFull) {
@@ -1472,10 +1413,8 @@ unsafe fn request_key_encoding_flags(state: *mut VTermStateFull) {
             reply |= KEY_ENCODING_REPORT_ASSOCIATED;
         }
 
-        #[cfg(not(test))]
-        vterm_push_output_sprintf_ctrl((*state).vt, C1_CSI, c"?%du".as_ptr(), reply);
-        #[cfg(test)]
-        let _ = reply;
+        let s = format!("?{reply}u");
+        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
     }
 }
 
@@ -1922,26 +1861,19 @@ unsafe extern "C" fn on_csi(
                 // DA - ECMA-48 8.3.24
                 let val = csi_arg_or(*args, 0);
                 if val == 0 {
-                    #[cfg(not(test))]
-                    vterm_push_output_sprintf_ctrl(
-                        (*state).vt,
-                        C1_CSI,
-                        c"?%sc".as_ptr(),
-                        (&raw const vterm_primary_device_attr).cast::<c_char>(),
-                    );
+                    let attr =
+                        CStr::from_ptr((&raw const vterm_primary_device_attr).cast::<c_char>())
+                            .to_bytes();
+                    let mut buf = Vec::with_capacity(attr.len() + 2);
+                    buf.push(b'?');
+                    buf.extend_from_slice(attr);
+                    buf.push(b'c');
+                    vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, &buf);
                 }
             }
             CMD_DA2 => {
                 // DEC secondary Device Attributes
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_ctrl(
-                    (*state).vt,
-                    C1_CSI,
-                    c">%d;%d;%dc".as_ptr(),
-                    0 as c_int,
-                    100 as c_int,
-                    0 as c_int,
-                );
+                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b">0;100;0c");
             }
             0x64 => {
                 // VPA - ECMA-48 8.3.158
@@ -2055,34 +1987,23 @@ unsafe extern "C" fn on_csi(
             0x6e | CMD_DECDSR => {
                 // DSR / DECDSR
                 let val = csi_arg_or(*args, 0);
-                let qmark: &CStr = if leader_byte == b'?' as c_int {
-                    c"?"
+                let qmark = if leader_byte == b'?' as c_int {
+                    "?"
                 } else {
-                    c""
+                    ""
                 };
                 let mut dark = false;
 
                 match val {
                     0..=4 => {}
                     5 => {
-                        #[cfg(not(test))]
-                        vterm_push_output_sprintf_ctrl(
-                            (*state).vt,
-                            C1_CSI,
-                            c"%s0n".as_ptr(),
-                            qmark.as_ptr(),
-                        );
+                        let s = format!("{qmark}0n");
+                        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
                     }
                     6 => {
-                        #[cfg(not(test))]
-                        vterm_push_output_sprintf_ctrl(
-                            (*state).vt,
-                            C1_CSI,
-                            c"%s%d;%dR".as_ptr(),
-                            qmark.as_ptr(),
-                            (*state).pos.row + 1,
-                            (*state).pos.col + 1,
-                        );
+                        let s =
+                            format!("{qmark}{};{}R", (*state).pos.row + 1, (*state).pos.col + 1);
+                        vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
                     }
                     996 => {
                         let callbacks = (*state).callbacks.cast::<VTermStateCallbacks>();
@@ -2090,19 +2011,12 @@ unsafe extern "C" fn on_csi(
                             && let Some(cb) = (*callbacks).theme
                             && cb(&raw mut dark, (*state).cbdata) != 0
                         {
-                            #[cfg(not(test))]
-                            vterm_push_output_sprintf_ctrl(
-                                (*state).vt,
-                                C1_CSI,
-                                c"?997;%cn".as_ptr(),
-                                if dark { b'1' as c_int } else { b'2' as c_int },
-                            );
+                            let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
+                            vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s);
                         }
                     }
                     _ => {}
                 }
-                #[cfg(test)]
-                let _ = (qmark, dark);
             }
             CMD_DECSTR => {
                 // DECSTR - DEC soft terminal reset
@@ -2691,27 +2605,21 @@ unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFra
             }
             KEY_R => {
                 // Query DECSTBM
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_str(
-                    vt,
-                    C1_DCS,
-                    true,
-                    c"1$r%d;%dr".as_ptr(),
+                let s = format!(
+                    "1$r{};{}r",
                     (*state).scrollregion_top + 1,
-                    scrollregion_bottom(state),
+                    scrollregion_bottom(state)
                 );
+                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
             KEY_S => {
                 // Query DECSLRM
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_str(
-                    vt,
-                    C1_DCS,
-                    true,
-                    c"1$r%d;%ds".as_ptr(),
+                let s = format!(
+                    "1$r{};{}s",
                     scrollregion_left(state) + 1,
-                    scrollregion_right(state),
+                    scrollregion_right(state)
                 );
+                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
             KEY_SP_Q => {
                 // Query DECSCUSR
@@ -2724,22 +2632,17 @@ unsafe fn request_status_string(state: *mut VTermStateFull, frag: VTermStringFra
                 if ((*state).mode & MODE_CURSOR_BLINK) != 0 {
                     reply -= 1;
                 }
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_str(vt, C1_DCS, true, c"1$r%d q".as_ptr(), reply);
-                #[cfg(test)]
-                let _ = reply;
+                let s = format!("1$r{reply} q");
+                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
             KEY_QT_Q => {
                 // Query DECSCA
                 let reply: c_int = if (*state).protected_cell != 0 { 1 } else { 2 };
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_str(vt, C1_DCS, true, c"1$r%d\"q".as_ptr(), reply);
-                #[cfg(test)]
-                let _ = reply;
+                let s = format!("1$r{reply}\"q");
+                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
             }
             _ => {
-                #[cfg(not(test))]
-                vterm_push_output_sprintf_str((*state).vt, C1_DCS, true, c"0$r".as_ptr());
+                vterm_push_output_str_bytes((*state).vt, C1_DCS, true, b"0$r");
             }
         }
     }
@@ -3171,8 +3074,7 @@ pub unsafe extern "C" fn vterm_state_set_termprop(
 pub unsafe extern "C" fn vterm_state_focus_in(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
-            #[cfg(not(test))]
-            vterm_push_output_sprintf_ctrl((*state).vt, C1_CSI, c"I".as_ptr());
+            vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b"I");
         }
     }
 }
@@ -3181,8 +3083,7 @@ pub unsafe extern "C" fn vterm_state_focus_in(state: *mut VTermStateFull) {
 pub unsafe extern "C" fn vterm_state_focus_out(state: *mut VTermStateFull) {
     unsafe {
         if ((*state).mode & MODE_REPORT_FOCUS) != 0 {
-            #[cfg(not(test))]
-            vterm_push_output_sprintf_ctrl((*state).vt, C1_CSI, c"O".as_ptr());
+            vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, b"O");
         }
     }
 }

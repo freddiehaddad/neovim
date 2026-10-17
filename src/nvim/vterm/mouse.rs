@@ -13,6 +13,7 @@ use std::ffi::{c_char, c_int, c_long, c_void};
 
 use crate::math::xctz;
 use crate::tui::termkey::termkey::fill_utf8;
+use crate::vterm::vterm::vterm_push_output_ctrl_bytes;
 
 pub type VTermModifier = c_int;
 
@@ -125,10 +126,6 @@ pub struct VTermState {
     pub mouse_protocol: c_int,
 }
 
-unsafe extern "C" {
-    fn vterm_push_output_sprintf_ctrl(vt: *mut VTerm, ctrl: u8, fmt: *const c_char, ...);
-}
-
 unsafe fn output_mouse(
     state: *mut VTermState,
     mut code: c_int,
@@ -156,58 +153,44 @@ unsafe fn output_mouse(
                 if (code & 0x80) != 0 {
                     return;
                 }
-                vterm_push_output_sprintf_ctrl(
-                    (*state).vt,
-                    C1_CSI,
-                    c"M%c%c%c".as_ptr(),
-                    (code | modifiers) + 0x20,
-                    col + 0x21,
-                    row + 0x21,
-                );
+                let payload = [
+                    b'M',
+                    ((code | modifiers) + 0x20) as u8,
+                    (col + 0x21) as u8,
+                    (row + 0x21) as u8,
+                ];
+                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, &payload);
             }
             MOUSE_UTF8 => {
-                let mut utf8 = [0 as c_char; 18];
-                let mut len: usize = 0;
+                let mut utf8 = [0u8; 19];
+                utf8[0] = b'M';
+                let mut len: usize = 1;
 
                 if pressed == 0 {
                     code = 3;
                 }
 
-                len += fill_utf8((code | modifiers) + 0x20, utf8.as_mut_ptr().add(len)) as usize;
-                len += fill_utf8(col + 0x21, utf8.as_mut_ptr().add(len)) as usize;
-                len += fill_utf8(row + 0x21, utf8.as_mut_ptr().add(len)) as usize;
-                utf8[len] = 0;
+                len += fill_utf8(
+                    (code | modifiers) + 0x20,
+                    utf8.as_mut_ptr().add(len).cast::<c_char>(),
+                ) as usize;
+                len += fill_utf8(col + 0x21, utf8.as_mut_ptr().add(len).cast::<c_char>()) as usize;
+                len += fill_utf8(row + 0x21, utf8.as_mut_ptr().add(len).cast::<c_char>()) as usize;
 
-                vterm_push_output_sprintf_ctrl((*state).vt, C1_CSI, c"M%s".as_ptr(), utf8.as_ptr());
+                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, &utf8[..len]);
             }
             MOUSE_SGR => {
-                vterm_push_output_sprintf_ctrl(
-                    (*state).vt,
-                    C1_CSI,
-                    c"<%d;%d;%d%c".as_ptr(),
-                    code | modifiers,
-                    col + 1,
-                    row + 1,
-                    if pressed != 0 {
-                        b'M' as c_int
-                    } else {
-                        b'm' as c_int
-                    },
-                );
+                let ch = if pressed != 0 { 'M' } else { 'm' };
+                let s = format!("<{};{};{}{ch}", code | modifiers, col + 1, row + 1);
+                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
             }
             MOUSE_RXVT => {
                 if pressed == 0 {
                     code = 3;
                 }
 
-                vterm_push_output_sprintf_ctrl(
-                    (*state).vt,
-                    C1_CSI,
-                    c"%d;%d;%dM".as_ptr(),
-                    code | modifiers,
-                    col + 1,
-                    row + 1,
-                );
+                let s = format!("{};{};{}M", code | modifiers, col + 1, row + 1);
+                vterm_push_output_ctrl_bytes((*state).vt, C1_CSI, s.as_bytes());
             }
             _ => {}
         }
