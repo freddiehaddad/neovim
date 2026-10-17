@@ -109,13 +109,11 @@ pub unsafe fn stream_uv_offset() -> usize {
 #[inline]
 pub unsafe fn stream_uv_size() -> usize {
     unsafe {
-        let mut sz = uv_handle_size(UV_NAMED_PIPE)
+        let sz = uv_handle_size(UV_NAMED_PIPE)
             .max(uv_handle_size(UV_TCP))
             .max(uv_handle_size(UV_IDLE));
         #[cfg(windows)]
-        {
-            sz = sz.max(uv_handle_size(UV_TTY));
-        }
+        let sz = sz.max(uv_handle_size(UV_TTY));
         sz
     }
 }
