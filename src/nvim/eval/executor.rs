@@ -5,7 +5,7 @@
 
 use std::ffi::{c_char, c_int, c_void};
 
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::garray::{ga_grow, garray_T};
 use crate::math::{FAIL, OK};
 
@@ -23,7 +23,7 @@ pub struct blob_T {
 unsafe extern "C" {
     static e_letwrong: [c_char; 0];
 
-    fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut c_void) -> c_int;
+    fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut listitem_T);
     fn tv_get_number(varp: *const typval_T) -> i64;
     fn tv_clear(tv: *mut typval_T);
     fn num_divide(n1: i64, n2: i64) -> i64;
