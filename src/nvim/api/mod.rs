@@ -5,4 +5,5 @@ pub mod options;
 pub mod private;
 pub mod tabpage;
 pub mod vimscript;
+pub mod win_config;
 pub mod window;
