@@ -21,6 +21,7 @@ use crate::api::private::validate::{
     check_string_array,
 };
 use crate::api::tabpage::{Buffer, pos_T, tabpage_T, win_T};
+use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T, fmark_T};
 use crate::kvec::KVec;
@@ -181,13 +182,6 @@ unsafe extern "C" {
     fn api_clear_error(value: *mut Error);
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn buf_updates_register(
-        buf: *mut buf_T,
-        channel_id: u64,
-        cb: BufUpdateCallbacks,
-        send_buffer: bool,
-    ) -> bool;
-    fn buf_updates_unregister(buf: *mut buf_T, channel_id: u64);
     fn normalize_index(buf: *mut buf_T, index: i64, end_exclusive: bool, oob: *mut bool) -> i64;
     fn memchrsub(data: *mut c_char, c: c_char, x: c_char, len: usize);
     fn strchrsub(buf: *mut c_char, c: c_char, x: c_char);
