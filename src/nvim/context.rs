@@ -311,7 +311,7 @@ pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
 }
 
 #[inline]
-unsafe fn handle_get_window(h: handle_T) -> *mut win_T {
+pub unsafe fn handle_get_window(h: handle_T) -> *mut win_T {
     unsafe {
         let k = mh_get_int(&raw mut window_handles.set, h);
         if k == MH_TOMBSTONE {
