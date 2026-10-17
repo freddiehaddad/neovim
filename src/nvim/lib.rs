@@ -24,6 +24,7 @@ pub mod math;
 pub mod memory;
 pub mod msgpack_rpc;
 pub mod os;
+pub mod plines;
 pub mod profile;
 pub mod sha256;
 pub mod testing;
