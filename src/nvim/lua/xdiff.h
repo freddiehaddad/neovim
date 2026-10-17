@@ -2,4 +2,4 @@
 
 #include <lua.h>  // IWYU pragma: keep
 
-#include "lua/xdiff.h.generated.h"
+int nlua_xdl_diff(lua_State *lstate);
