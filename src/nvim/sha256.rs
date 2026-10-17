@@ -421,6 +421,9 @@ pub unsafe extern "C" fn sha256_bytes(
 mod tests {
     use super::*;
     use std::ffi::CStr;
+    use std::sync::Mutex;
+
+    static HEX_BUF_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn context_layout_matches_c() {
@@ -461,6 +464,7 @@ mod tests {
         ];
 
         for &(input, expected) in cases {
+            let _guard = HEX_BUF_LOCK.lock().unwrap();
             let ptr = unsafe { sha256_bytes(input.as_ptr(), input.len(), std::ptr::null(), 0) };
             let got = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap();
             assert_eq!(got, expected);
@@ -475,10 +479,13 @@ mod tests {
         let combined: Vec<u8> = [data.as_slice(), salt.as_slice()].concat();
         let expected_hex = sha256_hex(&combined, None);
 
-        let salted_ptr =
-            unsafe { sha256_bytes(data.as_ptr(), data.len(), salt.as_ptr(), salt.len()) };
-        let salted_str = unsafe { CStr::from_ptr(salted_ptr) }.to_bytes();
-        assert_eq!(salted_str, &expected_hex);
+        {
+            let _guard = HEX_BUF_LOCK.lock().unwrap();
+            let salted_ptr =
+                unsafe { sha256_bytes(data.as_ptr(), data.len(), salt.as_ptr(), salt.len()) };
+            let salted_str = unsafe { CStr::from_ptr(salted_ptr) }.to_bytes();
+            assert_eq!(salted_str, &expected_hex);
+        }
 
         // Verify byte-by-byte and irregular chunk updates produce identical digest.
         for chunk_size in [1, 2, 3, 7, 13, 31, 55, 56, 63, 64, 65] {
