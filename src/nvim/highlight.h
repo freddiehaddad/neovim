@@ -109,7 +109,45 @@ EXTERN int *hl_attr_active INIT( = highlight_attr);
 // Enums need a typecast to be used as array index.
 #define HL_ATTR(n)      hl_attr_active[(int)(n)]
 
-#include "highlight.h.generated.h"
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT void highlight_init(void);
+DLLEXPORT bool highlight_use_hlstate(void);
+DLLEXPORT void ui_send_all_hls(RemoteUI *ui);
+DLLEXPORT int hl_get_syn_attr(int ns_id, int idx, HlAttrs at_en);
+DLLEXPORT void ns_hl_def(NS ns_id, int hl_id, HlAttrs attrs, int link_id, Dict(highlight) *dict);
+DLLEXPORT int ns_get_hl(NS *ns_hl, int hl_id, bool link, bool nodefault);
+DLLEXPORT bool hl_check_ns(void);
+DLLEXPORT bool win_check_ns_hl(win_T *wp);
+DLLEXPORT bool hl_ns_get_attrs(int ns_id, int hl_id, bool *optional, HlAttrs *attrs);
+DLLEXPORT int hl_get_ui_attr(int ns_id, int idx, int final_id, bool optional);
+DLLEXPORT int hl_apply_winblend(int winbl, int attr);
+DLLEXPORT void update_window_hl(win_T *wp, bool invalid);
+DLLEXPORT void update_ns_hl(int ns_id);
+DLLEXPORT int win_bg_attr(win_T *wp);
+DLLEXPORT int hl_get_underline(void);
+DLLEXPORT int hl_add_url(int attr, const char *url);
+DLLEXPORT const char *hl_get_url(uint32_t index);
+DLLEXPORT int32_t hl_add_font_idx(const char *font_name);
+DLLEXPORT const char *hl_get_font(int32_t index);
+DLLEXPORT int hl_get_term_attr(HlAttrs *aep);
+DLLEXPORT void clear_hl_tables(bool reinit);
+DLLEXPORT void hl_invalidate_blends(void);
+DLLEXPORT int hl_combine_attr(int char_attr, int prim_attr);
+DLLEXPORT int hl_blend_attrs(int back_attr, int front_attr, bool *through);
+DLLEXPORT HlAttrs syn_attr2entry(int attr);
+DLLEXPORT Dict hl_get_attr_by_id(Integer attr_id, Boolean rgb, Arena *arena, Error *err);
+DLLEXPORT void hlattrs2dict(Dict *hl, Dict *hl_attrs, HlAttrs ae, bool use_rgb, bool short_keys);
+DLLEXPORT HlAttrs dict2hlattrs(Dict(highlight) *dict, bool use_rgb, int *link_id, HlAttrs *base,
+                               Error *err);
+DLLEXPORT int object_to_color(Object val, char *key, bool rgb, Error *err);
+DLLEXPORT Array hl_inspect(int attr, Arena *arena);
 
 static inline int win_hl_attr(win_T *wp, int hlf)
 {
