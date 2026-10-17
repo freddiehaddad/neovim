@@ -21,7 +21,7 @@ pub use crate::eval::deprecated::pos_T;
 use crate::eval::deprecated::{Callback, buf_T, fmark_T};
 use crate::garray::garray_T;
 use crate::lua::converter::Boolean;
-use crate::map::Set;
+use crate::map::{Map, Set, StcClicks};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
@@ -429,6 +429,18 @@ pub struct win_T {
     pub w_floating: bool,
     pub w_kind: c_int,
     pub w_config: WinConfig,
+    pub w_fraction: c_int,
+    pub w_prev_fraction_row: c_int,
+    pub w_nrwidth_line_count: i32,
+    pub w_statuscol_line_count: i32,
+    pub w_nrwidth_width: c_int,
+    pub w_llist: *mut c_void,
+    pub w_llist_ref: *mut c_void,
+    pub w_status_click_defs: *mut c_void,
+    pub w_status_click_defs_size: usize,
+    pub w_winbar_click_defs: *mut c_void,
+    pub w_winbar_click_defs_size: usize,
+    pub w_statuscol_click_defs: [Map<c_int, StcClicks>; 1],
 }
 
 #[repr(C)]
