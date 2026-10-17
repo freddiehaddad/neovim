@@ -1,4 +1,5 @@
 pub mod autocmd;
+pub mod deprecated;
 pub mod events;
 pub mod options;
 pub mod private;
