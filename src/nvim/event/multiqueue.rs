@@ -27,6 +27,7 @@ impl Event {
 
 pub type PutCallback = Option<unsafe extern "C" fn(multiq: *mut MultiQueue, data: *mut c_void)>;
 
+#[repr(C)]
 struct MultiQueueItem {
     link: bool,
     queue: *mut MultiQueue,
@@ -36,6 +37,7 @@ struct MultiQueueItem {
     next: *mut MultiQueueItem,
 }
 
+#[repr(C)]
 pub struct MultiQueue {
     parent: *mut MultiQueue,
     head: *mut MultiQueueItem,
