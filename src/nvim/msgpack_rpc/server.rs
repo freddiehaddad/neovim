@@ -72,7 +72,7 @@ unsafe extern "C" {
     fn get_appname(namelike: bool) -> bool;
     fn fix_fname(fname: *const c_char) -> *mut c_char;
     #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char);
+    fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]
     fn path_to_slash_save(path: *const c_char) -> *mut c_char;
 

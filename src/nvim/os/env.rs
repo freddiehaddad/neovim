@@ -172,13 +172,13 @@ unsafe extern "C" {
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn path_tail(fname: *const c_char) -> *mut c_char;
     fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;
-    fn after_pathsep(b: *const c_char, p: *const c_char) -> bool;
+    fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int;
     fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> NvimString;
     fn path_cmp(ic: bool, p: *const c_char, q: *const c_char, maxlen: usize) -> c_int;
     fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> c_int;
     fn path_is_absolute(fname: *const c_char) -> bool;
     #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char);
+    fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]
     fn path_to_slash_save(path: *const c_char) -> *mut c_char;
 
@@ -947,7 +947,7 @@ pub unsafe extern "C" fn expand_env_esc(
                         ptr::copy_nonoverlapping(var, dst, c + 1);
                         dstlen -= c as c_int;
                         #[cfg(not(test))]
-                        let ends_with_sep = after_pathsep(dst, dst.add(c));
+                        let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
                         #[cfg(test)]
                         let ends_with_sep = false;
                         #[cfg(windows)]
@@ -1037,7 +1037,7 @@ unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_ch
         if (pend as usize) > (path as usize) + len {
             let new_tail = pend.sub(len + 1);
             if path_cmp(p_fic != 0, new_tail, dirname, len) == 0
-                && (new_tail == path || after_pathsep(path, new_tail))
+                && (new_tail == path || after_pathsep(path, new_tail) != 0)
             {
                 return new_tail;
             }
@@ -1191,7 +1191,7 @@ pub unsafe extern "C" fn vim_getenv(name: *const c_char) -> *mut c_char {
                             remove_tail(vim_path, vim_path_end, RUNTIME_DIRNAME.as_ptr());
                     }
                     if (vim_path_end as usize) > (vim_path as usize)
-                        && after_pathsep(vim_path, vim_path_end)
+                        && after_pathsep(vim_path, vim_path_end) != 0
                     {
                         vim_path_end = vim_path_end.sub(1);
                     }

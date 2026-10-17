@@ -26,7 +26,10 @@ use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
 #[cfg(windows)]
 use crate::os::os_win_console::os_redirect_stdin_to_conin;
 
-pub type Directory = c_void;
+#[repr(C)]
+pub struct Directory {
+    pub _opaque: [u64; 88],
+}
 pub type vim_acl_T = *mut c_void;
 pub type uv_fs_t = [u64; 80];
 
@@ -428,7 +431,7 @@ unsafe extern "C" {
     ) -> usize;
     fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int;
     #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char);
+    fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]
     fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: *mut *mut u16) -> c_int;
     #[cfg(windows)]

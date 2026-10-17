@@ -329,7 +329,7 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn after_pathsep(b: *const c_char, p: *const c_char) -> bool;
+    fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int;
     fn path_tail(fname: *const c_char) -> *mut c_char;
     fn path_equal(p1: *const c_char, p2: *const c_char, flags: PathCmpFlags) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -1214,7 +1214,7 @@ pub unsafe extern "C" fn buf_get_backup_name(
                 xfree(failed_dir.cast());
             }
         }
-        if dir_len > 1 && after_pathsep(iobuf, p) && *p.sub(1) == *p.sub(2) {
+        if dir_len > 1 && after_pathsep(iobuf, p) != 0 && *p.sub(1) == *p.sub(2) {
             let swname = make_percent_swname(iobuf, p, fname);
             if !swname.is_null() {
                 backup = modname(swname, backup_ext, no_prepend_dot);
