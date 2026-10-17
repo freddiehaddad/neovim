@@ -1,3 +1,4 @@
+pub mod buffer;
 pub mod decode;
 pub mod deprecated;
 pub mod encode;
