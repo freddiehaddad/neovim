@@ -20,6 +20,7 @@ pub mod msgpack_rpc;
 pub mod os;
 pub mod profile;
 pub mod sha256;
+pub mod testing;
 pub mod tui;
 pub mod viml;
 pub mod vterm;
