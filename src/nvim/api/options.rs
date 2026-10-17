@@ -18,7 +18,8 @@ use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
 };
-use crate::api::tabpage::{tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::context::{ctx_restore, ctx_switch};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
@@ -74,14 +75,6 @@ const KEYSET_OPTIDX_option__scope: u64 = 4;
 const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct pos_T {
-    pub lnum: linenr_T,
-    pub col: colnr_T,
-    pub coladd: colnr_T,
-}
 
 #[repr(C)]
 pub struct memfile_T {
@@ -231,14 +224,6 @@ unsafe extern "C" {
     fn ml_open(buf: *mut buf_T) -> c_int;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
     fn bufref_valid(bufref: *mut bufref_T) -> bool;
-    fn ctx_switch(
-        cs: *mut CtxSwitch,
-        win: *mut win_T,
-        tabpage: *mut tabpage_T,
-        buf: *mut buf_T,
-        flags: c_int,
-    ) -> bool;
-    fn ctx_restore(cs: *mut CtxSwitch);
     fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set_sid: scid_T);
     fn get_option_varp_scope_from(
         opt_idx: OptIndex,
@@ -577,7 +562,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
         };
         set_bufref(&mut bufref, ftbuf);
 
-        ctx_switch(aco, ptr::null_mut(), ptr::null_mut(), ftbuf, 0);
+        ctx_switch(aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
 
         set_option_direct(
             kOptBufhidden,

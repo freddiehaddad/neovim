@@ -10,7 +10,7 @@
     clippy::too_many_arguments
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -24,6 +24,7 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{
     Buffer, ScreenGrid, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T,
 };
+use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::eval::deprecated::buf_T;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
@@ -212,14 +213,6 @@ unsafe extern "C" {
         dir: c_int,
         to_flatten: *mut frame_T,
     ) -> *mut win_T;
-    fn ctx_switch(
-        cs: *mut CtxSwitch,
-        win: *mut win_T,
-        tabpage: *mut tabpage_T,
-        buf: *mut c_void,
-        flags: c_int,
-    ) -> bool;
-    fn ctx_restore(cs: *mut CtxSwitch);
     fn win_setwidth_win(width: c_int, wp: *mut win_T, from_left: bool);
     fn win_setheight_win(height: c_int, win: *mut win_T, from_top: bool);
     fn win_new_float(wp: *mut win_T, last: bool, fconfig: WinConfig, err: *mut Error)
@@ -249,7 +242,6 @@ unsafe extern "C" {
     fn win_locked(wp: *mut win_T) -> c_int;
     fn window_layout_locked_err(cmd: cmdidx_T, err: *mut Error) -> bool;
     fn expr_map_locked() -> bool;
-    fn is_ctx_win(win: *mut win_T) -> bool;
     fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut win_T;
     fn winframe_find_altwin(
         win: *mut win_T,
