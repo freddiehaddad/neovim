@@ -392,7 +392,7 @@ unsafe extern "C" {
     fn execute_cmd(eap: *mut exarg_T, cmdmod: *mut cmdmod_T, preview: bool);
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
     fn free_ucmd(cmd: *mut ucmd_T);
-    fn uc_validate_name(name: *mut c_char) -> bool;
+    fn uc_validate_name(name: *mut c_char) -> *mut c_char;
     fn mb_islower(c: c_int) -> bool;
     fn parse_addr_type_arg(
         value: *mut c_char,
@@ -1683,7 +1683,7 @@ pub unsafe extern "C" fn create_user_command(
         let mut preview_luaref: LuaRef = LUA_NOREF;
 
         'err: {
-            if !uc_validate_name(name.data) {
+            if uc_validate_name(name.data).is_null() {
                 api_err_invalid(err, c"command name".as_ptr(), name.data, 0, true);
                 break 'err;
             }
