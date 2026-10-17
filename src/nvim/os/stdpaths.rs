@@ -222,8 +222,6 @@ pub extern "C" fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
             &XDG_DEFAULTS,
             c_bytes_to_xmallocz as unsafe fn(&[u8]) -> *mut c_char,
             to_slash_in_place as unsafe fn(*mut c_char),
-            xfree as unsafe fn(*mut c_void),
-            xstrdup as unsafe fn(*const c_char) -> *mut c_char,
         );
         unsafe { c_bytes_to_xmallocz(b"/tmp/nvim_test_xdg") }
     }

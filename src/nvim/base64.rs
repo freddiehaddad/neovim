@@ -1,8 +1,8 @@
 //! Base64 encoding and decoding (`src/nvim/base64.c`).
 
-use std::ffi::{c_char, c_void};
+use std::ffi::c_char;
 
-use crate::memory::{xfree, xmalloc};
+use crate::memory::xmalloc;
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -177,15 +177,11 @@ pub unsafe extern "C" fn base64_decode(
     dest.cast::<c_char>()
 }
 
-#[allow(dead_code)]
-fn _keep_xfree_reference() {
-    let _ = xfree as unsafe fn(*mut c_void);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
+    use crate::memory::xfree;
+    use std::ffi::{CStr, c_void};
 
     #[test]
     fn rfc4648_vectors() {
