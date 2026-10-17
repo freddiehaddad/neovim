@@ -14,7 +14,11 @@ use crate::api::private::converter::sctx_T;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::eval::decode::dict_T;
 use crate::garray::garray_T;
+use crate::hashtab::hashtab_T;
 use crate::kvec::KVec;
+use crate::lua::converter::LuaRef;
+use crate::map::Map;
+use crate::marktree::MarkTree;
 use crate::memory::{xmalloc, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 
@@ -120,6 +124,85 @@ pub struct visualinfo_T {
     pub vi_end: pos_T,
     pub vi_mode: c_int,
     pub vi_curswant: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct syn_time_T {
+    pub total: u64,
+    pub slowest: u64,
+    pub count: c_int,
+    pub match_: c_int,
+}
+
+#[repr(C)]
+pub struct synblock_T {
+    pub b_keywtab: hashtab_T,
+    pub b_keywtab_ic: hashtab_T,
+    pub b_syn_error: bool,
+    pub b_syn_slow: bool,
+    pub b_syn_ic: c_int,
+    pub b_syn_foldlevel: c_int,
+    pub b_syn_spell: c_int,
+    pub b_syn_patterns: garray_T,
+    pub b_syn_clusters: garray_T,
+    pub b_spell_cluster_id: c_int,
+    pub b_nospell_cluster_id: c_int,
+    pub b_syn_containedin: c_int,
+    pub b_syn_sync_flags: c_int,
+    pub b_syn_sync_id: i16,
+    pub b_syn_sync_minlines: i32,
+    pub b_syn_sync_maxlines: i32,
+    pub b_syn_sync_linebreaks: i32,
+    pub b_syn_linecont_pat: *mut c_char,
+    pub b_syn_linecont_prog: *mut c_void,
+    pub b_syn_linecont_time: syn_time_T,
+    pub b_syn_linecont_ic: c_int,
+    pub b_syn_topgrp: c_int,
+    pub b_syn_conceal: c_int,
+    pub b_syn_folditems: c_int,
+    pub b_sst_array: *mut c_void,
+    pub b_sst_len: c_int,
+    pub b_sst_first: *mut c_void,
+    pub b_sst_search: *mut c_void,
+    pub b_sst_firstfree: *mut c_void,
+    pub b_sst_freecount: c_int,
+    pub b_sst_check_lnum: i32,
+    pub b_sst_lasttick: u64,
+    pub b_idlist_cache: *mut c_void,
+    pub b_langp: garray_T,
+    pub b_spell_ismw: [bool; 256],
+    pub b_spell_ismw_mb: *mut c_char,
+    pub b_p_spc: *mut c_char,
+    pub b_cap_prog: *mut c_void,
+    pub b_p_spf: *mut c_char,
+    pub b_p_spl: *mut c_char,
+    pub b_p_spo: *mut c_char,
+    pub b_p_spo_flags: c_uint,
+    pub b_cjk: c_int,
+    pub b_syn_chartab: [u64; 4],
+    pub b_syn_isk: *mut c_char,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BufSigncols {
+    pub max: c_int,
+    pub last_max: c_int,
+    pub count: [c_int; 9],
+    pub autom: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BufUpdateCallbacks {
+    pub on_lines: LuaRef,
+    pub on_bytes: LuaRef,
+    pub on_changedtick: LuaRef,
+    pub on_detach: LuaRef,
+    pub on_reload: LuaRef,
+    pub utf_sizes: bool,
+    pub preview: bool,
 }
 
 #[repr(C)]
@@ -354,6 +437,34 @@ pub struct buf_T {
     pub b_start_bomb: c_int,
     pub b_bufvar: ScopeDictDictItem,
     pub b_vars: *mut dict_T,
+    pub b_may_swap: bool,
+    pub b_did_warn: bool,
+    pub b_help: bool,
+    pub b_spell: bool,
+    pub b_prompt_text: *mut c_char,
+    pub b_prompt_callback: Callback,
+    pub b_prompt_interrupt: Callback,
+    pub b_prompt_append_new_line: bool,
+    pub b_prompt_insert: c_int,
+    pub b_prompt_start: fmark_T,
+    pub b_s: synblock_T,
+    pub b_signcols: BufSigncols,
+    pub terminal: *mut c_void,
+    pub additional_data: *mut c_void,
+    pub b_mapped_ctrl_c: c_int,
+    pub b_marktree: [MarkTree; 1],
+    pub b_extmark_ns: [Map<u32, u32>; 1],
+    pub b_prev_line_count: c_int,
+    pub update_channels: KVec<u64>,
+    pub update_callbacks: KVec<BufUpdateCallbacks>,
+    pub update_need_codepoints: bool,
+    pub deleted_bytes: usize,
+    pub deleted_bytes2: usize,
+    pub deleted_codepoints: usize,
+    pub deleted_codeunits: usize,
+    pub flush_count: c_int,
+    pub b_localdir: *mut c_char,
+    pub b_prevdir: *mut c_char,
 }
 
 #[cfg(not(test))]

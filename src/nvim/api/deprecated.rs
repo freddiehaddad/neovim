@@ -14,6 +14,7 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::options::{OptIndex, OptScope};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
@@ -168,26 +169,6 @@ unsafe extern "C" {
     fn syn_id2attr(hl_id: c_int) -> c_int;
     fn hl_get_attr_by_id(attr_id: c_int, rgb: Boolean, arena: *mut Arena, err: *mut Error) -> Dict;
     fn syn_name2id(name: *const c_char) -> c_int;
-    fn nvim_buf_set_lines(
-        channel_id: u64,
-        buffer: Buffer,
-        start: Integer,
-        end: Integer,
-        strict_indexing: Boolean,
-        replacement: Array,
-        arena: *mut Arena,
-        err: *mut Error,
-    );
-    fn nvim_buf_get_lines(
-        channel_id: u64,
-        buffer: Buffer,
-        start: Integer,
-        end: Integer,
-        strict_indexing: Boolean,
-        arena: *mut Arena,
-        lstate: *mut c_void,
-        err: *mut Error,
-    ) -> Array;
     fn dict_set_var(
         dict: *mut dict_T,
         name: NvimString,
