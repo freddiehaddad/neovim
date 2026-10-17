@@ -197,9 +197,48 @@ pub struct DecorProvider {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DecorRangeUI {
+    pub ns_id: u32,
+    pub mark_id: u32,
+    pub pos: VirtTextPos,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DecorRangeData {
+    pub sh: DecorSignHighlight,
+    pub vt: *mut DecorVirtText,
+    pub ui: DecorRangeUI,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DecorRange {
+    pub start_row: c_int,
+    pub start_col: c_int,
+    pub end_row: c_int,
+    pub end_col: c_int,
+    pub ordering: c_int,
+    pub priority_internal: u32,
+    pub owned: bool,
+    pub kind: u8,
+    pub data: DecorRangeData,
+    pub attr_id: c_int,
+    pub draw_col: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DecorRangeSlot {
+    pub range: DecorRange,
+    pub next_free_i: c_int,
+}
+
+#[repr(C)]
 pub struct DecorState {
     pub itr: [MarkTreeIter; 1],
-    pub slots: KVec<c_void>,
+    pub slots: KVec<DecorRangeSlot>,
     pub ranges_i: KVec<c_int>,
     pub current_end: c_int,
     pub future_begin: c_int,
