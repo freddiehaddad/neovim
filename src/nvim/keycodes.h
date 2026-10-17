@@ -511,4 +511,43 @@ extern const struct modmasktable {
   char name;  ///< Single letter name of modifier.
 } mod_mask_table[];
 
-#include "keycodes.h.generated.h"
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+DLLEXPORT int name_to_mod_mask(int c) FUNC_ATTR_CONST FUNC_ATTR_WARN_UNUSED_RESULT;
+DLLEXPORT int simplify_key(const int key,
+                           int *modifiers) FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT int unsimplify_key(const int c,
+                             int *modifiers) FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT int handle_x_keys(const int key) FUNC_ATTR_CONST FUNC_ATTR_WARN_UNUSED_RESULT;
+DLLEXPORT char *get_special_key(int c, int modifiers, struct keychord *data);
+DLLEXPORT char *get_special_key_name(int c, int modifiers);
+DLLEXPORT unsigned trans_special(const char **const srcp, const size_t src_len, char *const dst,
+                                 const int flags, const bool escape_ks,
+                                 bool *const did_simplify) FUNC_ATTR_NONNULL_ARG(1,
+                                                                                 3)
+                                                                                                                                                                                              FUNC_ATTR_WARN_UNUSED_RESULT;
+DLLEXPORT unsigned special_to_buf(int key, int modifiers, bool escape_ks, char *dst);
+DLLEXPORT int find_special_key(const char **const srcp, const size_t src_len, int *const modp,
+                               const int flags,
+                               bool *const did_simplify) FUNC_ATTR_WARN_UNUSED_RESULT
+                                                                                                                                                                       FUNC_ATTR_NONNULL_ARG
+    (1, 3);
+DLLEXPORT int find_special_key_in_table(int c);
+DLLEXPORT int get_special_key_code(const char *name) FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE
+                                                                                          FUNC_ATTR_WARN_UNUSED_RESULT;
+DLLEXPORT int get_mouse_button(int code, bool *is_click, bool *is_drag);
+DLLEXPORT char *replace_termcodes(const char *const from, const size_t from_len, char **const bufp,
+                                  const scid_T sid_arg, const int flags, bool *const did_simplify,
+                                  const char *const cpo_val) FUNC_ATTR_NONNULL_ARG(1, 3, 7);
+DLLEXPORT char *add_char2buf(int c, char *s) FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT;
+DLLEXPORT char *vim_strsave_escape_ks(char *p);
+DLLEXPORT size_t vim_unescape_ks(char *p);
+#include "nvim/func_attr.h"
