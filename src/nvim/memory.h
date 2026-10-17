@@ -50,6 +50,48 @@ EXTERN size_t arena_alloc_count INIT( = 0);
   ((v).capacity = (s), \
    (v).items = (void *)arena_alloc(a, sizeof((v).items[0]) * (v).capacity, true))
 
+void *try_malloc(size_t size);
+void *verbose_try_malloc(size_t size);
+void *xmalloc(size_t size);
+void xfree(void *ptr);
+void *xcalloc(size_t count, size_t size);
+void *xrealloc(void *ptr, size_t size);
+void *xmallocz(size_t size);
+void *xmemdupz(const void *data, size_t len);
+void *xmemcpyz(void *dst, const void *src, size_t len);
+size_t xstrnlen(const char *s, size_t n);
+char *xstrchrnul(const char *str, char c);
+void *xmemscan(const void *addr, char c, size_t size);
+void strchrsub(char *str, char c, char x);
+void memchrsub(void *data, char c, char x, size_t len);
+size_t strcnt(const char *str, char c);
+size_t memcnt(const void *data, char c, size_t len);
+char *xstpcpy(char *restrict dst, const char *restrict src);
+char *xstpncpy(char *restrict dst, const char *restrict src, size_t maxlen);
+size_t xstrlcpy(char *restrict dst, const char *restrict src, size_t dsize);
+size_t xstrlcat(char *const dst, const char *const src, const size_t dsize);
+char *xstrdup(const char *str);
+char *xstrdupnul(const char *const str);
+void *xmemrchr(const void *src, uint8_t c, size_t len);
+char *xstrndup(const char *str, size_t len);
+void *xmemdup(const void *data, size_t len);
+bool strequal(const char *a, const char *b);
+bool strnequal(const char *a, const char *b, size_t n);
+void time_to_bytes(time_t time_, uint8_t buf[8]);
+void *mergesort_list(void *head, MergeSortGetFunc get_next, MergeSortSetFunc set_next,
+                     MergeSortGetFunc get_prev, MergeSortSetFunc set_prev,
+                     MergeSortCompareFunc compare);
+void arena_free_reuse_blks(void);
+ArenaMem arena_finish(Arena *arena);
+void *alloc_block(void);
+void arena_alloc_block(Arena *arena);
+void *arena_alloc(Arena *arena, size_t size, bool align);
+void free_block(void *block);
+void arena_mem_free(ArenaMem mem);
+char *arena_allocz(Arena *arena, size_t size);
+char *arena_memdupz(Arena *arena, const char *buf, size_t size);
+char *arena_strdup(Arena *arena, const char *str);
+
 #include "memory.h.generated.h"
 
 #define XFREE_CLEAR(ptr) \
