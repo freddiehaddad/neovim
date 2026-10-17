@@ -82,7 +82,7 @@ const kBufOptFormatexpr: usize = 37;
 
 const VV_COUNT: c_int = 0;
 const VV_LNUM: c_int = 9;
-const VV_CHAR: c_int = 49;
+const VV_CHAR: c_int = 50;
 
 pub type MotionType = c_int;
 pub type InsArrow = c_int;

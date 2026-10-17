@@ -7,6 +7,7 @@ pub mod proc;
 pub mod pty_conpty_win;
 pub mod pty_proc_unix;
 pub mod pty_proc_win;
+pub mod shell;
 pub mod signal;
 pub mod stdpaths;
 pub mod time;

@@ -44,7 +44,7 @@ const KE_FILLER: c_char = b'X' as c_char;
 const HLF_8: c_int = 1;
 const HLF_D: c_int = 5;
 
-const CMD_map: cmdidx_T = 278;
+const CMD_map: cmdidx_T = 279;
 const CMD_SIZE: cmdidx_T = 564;
 const CMD_USER: cmdidx_T = -1;
 const CMD_USER_BUF: cmdidx_T = -2;

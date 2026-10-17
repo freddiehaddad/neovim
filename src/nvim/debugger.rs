@@ -36,9 +36,9 @@ const DBG_FUNC: c_int = 1;
 const DBG_FILE: c_int = 2;
 const DBG_EXPR: c_int = 3;
 
-const CMD_BREAKDEL: c_int = 37;
-const CMD_PROFILE: c_int = 337;
-const CMD_PROFDEL: c_int = 338;
+const CMD_BREAKDEL: c_int = 38;
+const CMD_PROFILE: c_int = 338;
+const CMD_PROFDEL: c_int = 339;
 
 const RE_MAGIC: c_int = 1;
 const RE_STRING: c_int = 2;
