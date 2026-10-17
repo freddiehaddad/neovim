@@ -19,6 +19,12 @@ unsafe extern "C" {
     #[link_name = "xstrdup"]
     fn c_xstrdup(str_ptr: *const std::ffi::c_char) -> *mut std::ffi::c_char;
 
+    #[link_name = "alloc_block"]
+    fn c_alloc_block() -> *mut std::ffi::c_char;
+
+    #[link_name = "free_block"]
+    fn c_free_block(block: *mut std::ffi::c_char);
+
     #[link_name = "xfree"]
     fn c_xfree(ptr: *mut c_void);
 }
@@ -127,6 +133,38 @@ pub unsafe fn xstrdup(str_ptr: *const std::ffi::c_char) -> *mut std::ffi::c_char
         let out = xmalloc(bytes.len()).cast::<u8>();
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
         out.cast::<std::ffi::c_char>()
+    }
+}
+
+/// Allocate a `ARENA_BLOCK_SIZE` (4096-byte) block via Neovim's `alloc_block`.
+///
+/// # Safety
+/// Returned pointer must be released with [`free_block`].
+#[inline]
+pub unsafe fn alloc_block() -> *mut std::ffi::c_char {
+    #[cfg(not(test))]
+    unsafe {
+        c_alloc_block()
+    }
+    #[cfg(test)]
+    unsafe {
+        xmalloc(4096).cast::<std::ffi::c_char>()
+    }
+}
+
+/// Free a block allocated by [`alloc_block`].
+///
+/// # Safety
+/// `block` must be null or previously returned by [`alloc_block`].
+#[inline]
+pub unsafe fn free_block(block: *mut std::ffi::c_char) {
+    #[cfg(not(test))]
+    unsafe {
+        c_free_block(block);
+    }
+    #[cfg(test)]
+    unsafe {
+        xfree(block.cast::<c_void>());
     }
 }
 
