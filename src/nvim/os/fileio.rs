@@ -1,0 +1,659 @@
+//! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
+
+#![cfg_attr(
+    any(test, target_os = "windows"),
+    allow(dead_code, unused_imports, unused_mut)
+)]
+
+use std::ffi::{c_char, c_int, c_void};
+
+use crate::memory::{alloc_block, free_block};
+
+pub const ARENA_BLOCK_SIZE: usize = 4096;
+
+pub const K_FILE_READ_ONLY: c_int = 1;
+pub const K_FILE_CREATE: c_int = 2;
+pub const K_FILE_WRITE_ONLY: c_int = 4;
+pub const K_FILE_NO_SYMLINK: c_int = 8;
+pub const K_FILE_CREATE_ONLY: c_int = 16;
+pub const K_FILE_TRUNCATE: c_int = 32;
+pub const K_FILE_APPEND: c_int = 64;
+pub const K_FILE_NON_BLOCKING: c_int = 128;
+pub const K_FILE_MK_DIR: c_int = 256;
+
+#[cfg(target_os = "windows")]
+mod os_consts {
+    use std::ffi::c_int;
+    pub const O_RDONLY: c_int = 0x0000;
+    pub const O_WRONLY: c_int = 0x0001;
+    pub const O_APPEND: c_int = 0x0008;
+    pub const O_CREAT: c_int = 0x0100;
+    pub const O_TRUNC: c_int = 0x0200;
+    pub const O_EXCL: c_int = 0x0400;
+    pub const O_NOFOLLOW: Option<c_int> = None;
+
+    pub const UV_EINVAL: c_int = -4071;
+    pub const UV_EIO: c_int = -4070;
+    pub const UV_ENOTSUP: c_int = -4049;
+    pub const UV_EROFS: c_int = -4043;
+}
+
+#[cfg(target_os = "linux")]
+mod os_consts {
+    use std::ffi::c_int;
+    pub const O_RDONLY: c_int = 0;
+    pub const O_WRONLY: c_int = 1;
+    pub const O_CREAT: c_int = 0o100;
+    pub const O_EXCL: c_int = 0o200;
+    pub const O_TRUNC: c_int = 0o1000;
+    pub const O_APPEND: c_int = 0o2000;
+    #[cfg(any(target_arch = "aarch64", target_arch = "arm"))]
+    pub const O_NOFOLLOW: Option<c_int> = Some(0o100000);
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "arm")))]
+    pub const O_NOFOLLOW: Option<c_int> = Some(0o400000);
+
+    pub const UV_EINVAL: c_int = -22;
+    pub const UV_EIO: c_int = -5;
+    pub const UV_ENOTSUP: c_int = -95;
+    pub const UV_EROFS: c_int = -30;
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+mod os_consts {
+    use std::ffi::c_int;
+    pub const O_RDONLY: c_int = 0x0000;
+    pub const O_WRONLY: c_int = 0x0001;
+    pub const O_APPEND: c_int = 0x0008;
+    pub const O_NOFOLLOW: Option<c_int> = Some(0x0100);
+    pub const O_CREAT: c_int = 0x0200;
+    pub const O_TRUNC: c_int = 0x0400;
+    pub const O_EXCL: c_int = 0x0800;
+
+    pub const UV_EINVAL: c_int = -22;
+    pub const UV_EIO: c_int = -5;
+    pub const UV_ENOTSUP: c_int = -45;
+    pub const UV_EROFS: c_int = -30;
+}
+
+use os_consts::{
+    O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_RDONLY, O_TRUNC, O_WRONLY, UV_EINVAL, UV_EIO,
+    UV_ENOTSUP, UV_EROFS,
+};
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct FileDescriptor {
+    pub fd: c_int,
+    pub buffer: *mut c_char,
+    pub read_pos: *mut c_char,
+    pub write_pos: *mut c_char,
+    pub wr: bool,
+    pub eof: bool,
+    pub non_blocking: bool,
+    pub bytes_read: u64,
+}
+
+#[cfg(unix)]
+#[repr(C)]
+struct IoVec {
+    iov_base: *mut c_void,
+    iov_len: usize,
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int;
+    fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int;
+    fn os_open_stdin_fd() -> c_int;
+    fn os_close(fd: c_int) -> c_int;
+    fn os_fsync(fd: c_int) -> c_int;
+    fn os_write(fd: c_int, buf: *const c_char, size: usize, non_blocking: bool) -> isize;
+    fn os_read(
+        fd: c_int,
+        ret_eof: *mut bool,
+        ret_buf: *mut c_char,
+        size: usize,
+        non_blocking: bool,
+    ) -> isize;
+    #[cfg(unix)]
+    fn os_readv(
+        fd: c_int,
+        ret_eof: *mut bool,
+        iov: *mut IoVec,
+        iov_size: usize,
+        non_blocking: bool,
+    ) -> isize;
+}
+
+#[cfg(test)]
+unsafe fn os_file_mkdir(_fname: *mut c_char, _mode: i32) -> c_int {
+    0
+}
+#[cfg(test)]
+unsafe fn os_open(_path: *const c_char, _flags: c_int, _mode: c_int) -> c_int {
+    -1
+}
+#[cfg(test)]
+unsafe fn os_open_stdin_fd() -> c_int {
+    0
+}
+#[cfg(test)]
+unsafe fn os_close(_fd: c_int) -> c_int {
+    0
+}
+#[cfg(test)]
+unsafe fn os_fsync(_fd: c_int) -> c_int {
+    0
+}
+#[cfg(test)]
+unsafe fn os_write(_fd: c_int, _buf: *const c_char, size: usize, _non_blocking: bool) -> isize {
+    size as isize
+}
+#[cfg(test)]
+unsafe fn os_read(
+    _fd: c_int,
+    ret_eof: *mut bool,
+    _ret_buf: *mut c_char,
+    _size: usize,
+    _non_blocking: bool,
+) -> isize {
+    unsafe {
+        *ret_eof = true;
+    }
+    0
+}
+#[cfg(all(unix, test))]
+unsafe fn os_readv(
+    _fd: c_int,
+    ret_eof: *mut bool,
+    _iov: *mut IoVec,
+    _iov_size: usize,
+    _non_blocking: bool,
+) -> isize {
+    unsafe {
+        *ret_eof = true;
+    }
+    0
+}
+
+#[inline]
+fn file_space(fp: &FileDescriptor) -> usize {
+    ((fp.buffer as usize) + ARENA_BLOCK_SIZE).saturating_sub(fp.write_pos as usize)
+}
+
+/// Open a file and initialize `ret_fp` (`file_open`).
+///
+/// # Safety
+/// `ret_fp` and `fname` must be valid pointers.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_open(
+    ret_fp: *mut FileDescriptor,
+    fname: *const c_char,
+    flags: c_int,
+    mode: c_int,
+) -> c_int {
+    let mut os_open_flags: c_int = 0;
+    let mut wr: Option<bool> = None;
+
+    if (flags & K_FILE_WRITE_ONLY) != 0 {
+        os_open_flags |= O_WRONLY;
+        wr = Some(true);
+    }
+    if (flags & K_FILE_CREATE_ONLY) != 0 {
+        os_open_flags |= O_CREAT | O_EXCL | O_WRONLY;
+        wr = Some(true);
+    }
+    if (flags & K_FILE_CREATE) != 0 {
+        assert_eq!(flags & K_FILE_CREATE_ONLY, 0);
+        os_open_flags |= O_CREAT | O_WRONLY;
+        wr = Some(true);
+    }
+    if (flags & K_FILE_TRUNCATE) != 0 {
+        assert_eq!(flags & K_FILE_CREATE_ONLY, 0);
+        os_open_flags |= O_TRUNC | O_WRONLY;
+        wr = Some(true);
+    }
+    if (flags & K_FILE_APPEND) != 0 {
+        assert_eq!(flags & K_FILE_CREATE_ONLY, 0);
+        os_open_flags |= O_APPEND | O_WRONLY;
+        wr = Some(true);
+    }
+    if (flags & K_FILE_READ_ONLY) != 0 {
+        assert_ne!(wr, Some(true));
+        os_open_flags |= O_RDONLY;
+    }
+    if let Some(o_nofollow) = O_NOFOLLOW {
+        if (flags & K_FILE_NO_SYMLINK) != 0 {
+            os_open_flags |= o_nofollow;
+        }
+        if (flags & K_FILE_MK_DIR) != 0 {
+            assert_eq!(flags & K_FILE_CREATE_ONLY, 0);
+            os_open_flags |= O_CREAT | O_WRONLY;
+        }
+    }
+
+    if (flags & K_FILE_MK_DIR) != 0 {
+        let mkdir_ret = unsafe { os_file_mkdir(fname.cast_mut(), 0o755) };
+        if mkdir_ret < 0 {
+            return mkdir_ret;
+        }
+    }
+
+    let fd = unsafe { os_open(fname, os_open_flags, mode) };
+    if fd < 0 {
+        return fd;
+    }
+    unsafe { file_open_fd(ret_fp, fd, flags) }
+}
+
+/// Wrap `fd` in a `FileDescriptor` (`file_open_fd`).
+///
+/// # Safety
+/// `ret_fp` must be a valid writable pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_open_fd(
+    ret_fp: *mut FileDescriptor,
+    fd: c_int,
+    flags: c_int,
+) -> c_int {
+    let fp = unsafe { &mut *ret_fp };
+    fp.wr = (flags
+        & (K_FILE_CREATE
+            | K_FILE_CREATE_ONLY
+            | K_FILE_TRUNCATE
+            | K_FILE_APPEND
+            | K_FILE_WRITE_ONLY))
+        != 0;
+    fp.non_blocking = (flags & K_FILE_NON_BLOCKING) != 0;
+    assert!(!fp.wr || !fp.non_blocking);
+    fp.fd = fd;
+    fp.eof = false;
+    fp.buffer = unsafe { alloc_block() };
+    fp.read_pos = fp.buffer;
+    fp.write_pos = fp.buffer;
+    fp.bytes_read = 0;
+    0
+}
+
+/// Open standard input as a `FileDescriptor` (`file_open_stdin`).
+///
+/// # Safety
+/// `fp` must be a valid writable pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
+    let stdin_fd = unsafe { os_open_stdin_fd() };
+    unsafe { file_open_fd(fp, stdin_fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING) }
+}
+
+/// Open an in-memory buffer `data[..len]` for reading (`file_open_buffer`).
+///
+/// # Safety
+/// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_open_buffer(
+    ret_fp: *mut FileDescriptor,
+    data: *mut c_char,
+    len: usize,
+) {
+    let fp = unsafe { &mut *ret_fp };
+    fp.wr = false;
+    fp.non_blocking = false;
+    fp.fd = -1;
+    fp.eof = true;
+    fp.buffer = std::ptr::null_mut();
+    fp.read_pos = data;
+    fp.write_pos = unsafe { data.add(len) };
+    fp.bytes_read = 0;
+}
+
+/// Close `fp` and free its buffer (`file_close`).
+///
+/// # Safety
+/// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> c_int {
+    let fp_ref = unsafe { &mut *fp };
+    if fp_ref.fd < 0 {
+        return 0;
+    }
+
+    let flush_error = if do_fsync {
+        unsafe { file_fsync(fp) }
+    } else {
+        unsafe { file_flush(fp) }
+    };
+    let close_error = unsafe { os_close(fp_ref.fd) };
+    unsafe {
+        free_block(fp_ref.buffer);
+    }
+    if close_error != 0 {
+        return close_error;
+    }
+    flush_error
+}
+
+/// Flush `fp` and run `fsync()` (`file_fsync`).
+///
+/// # Safety
+/// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_fsync(fp: *mut FileDescriptor) -> c_int {
+    let fp_ref = unsafe { &mut *fp };
+    if !fp_ref.wr {
+        return 0;
+    }
+    let flush_error = unsafe { file_flush(fp) };
+    if flush_error != 0 {
+        return flush_error;
+    }
+    let fsync_error = unsafe { os_fsync(fp_ref.fd) };
+    if fsync_error != UV_EINVAL && fsync_error != UV_EROFS && fsync_error != UV_ENOTSUP {
+        return fsync_error;
+    }
+    0
+}
+
+/// Flush buffered writes in `fp` to disk (`file_flush`).
+///
+/// # Safety
+/// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_flush(fp: *mut FileDescriptor) -> c_int {
+    let fp = unsafe { &mut *fp };
+    if !fp.wr {
+        return 0;
+    }
+
+    let to_write = (fp.write_pos as usize).saturating_sub(fp.read_pos as usize);
+    if to_write == 0 {
+        return 0;
+    }
+    let wres = unsafe { os_write(fp.fd, fp.read_pos, to_write, fp.non_blocking) };
+    fp.read_pos = fp.buffer;
+    fp.write_pos = fp.buffer;
+    if wres != to_write as isize {
+        return if wres >= 0 { UV_EIO } else { wres as c_int };
+    }
+    0
+}
+
+/// Read up to `size` bytes from `fp` into `ret_buf` (`file_read`).
+///
+/// # Safety
+/// `fp` must be a valid readable `FileDescriptor`, and `ret_buf` must be writable for `size` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_read(
+    fp: *mut FileDescriptor,
+    ret_buf: *mut c_char,
+    size: usize,
+) -> isize {
+    let fp = unsafe { &mut *fp };
+    assert!(!fp.wr);
+    let buffered = (fp.write_pos as usize).saturating_sub(fp.read_pos as usize);
+    let from_buffer = buffered.min(size);
+    if from_buffer > 0 {
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                fp.read_pos.cast::<u8>(),
+                ret_buf.cast::<u8>(),
+                from_buffer,
+            );
+        }
+    }
+
+    let mut buf = unsafe { ret_buf.add(from_buffer) };
+    let mut read_remaining = size - from_buffer;
+    if read_remaining == 0 {
+        fp.bytes_read += from_buffer as u64;
+        fp.read_pos = unsafe { fp.read_pos.add(from_buffer) };
+        return from_buffer as isize;
+    }
+
+    fp.read_pos = fp.buffer;
+    fp.write_pos = fp.buffer;
+
+    #[cfg(unix)]
+    {
+        let mut called_read = false;
+        while read_remaining > 0 {
+            if fp.eof || (called_read && fp.non_blocking) {
+                break;
+            }
+            let mut iov = [
+                IoVec {
+                    iov_base: buf.cast::<c_void>(),
+                    iov_len: read_remaining,
+                },
+                IoVec {
+                    iov_base: fp.write_pos.cast::<c_void>(),
+                    iov_len: ARENA_BLOCK_SIZE,
+                },
+            ];
+            let r_ret = unsafe {
+                os_readv(
+                    fp.fd,
+                    &mut fp.eof,
+                    iov.as_mut_ptr(),
+                    iov.len(),
+                    fp.non_blocking,
+                )
+            };
+            if r_ret > 0 {
+                let r_usize = r_ret as usize;
+                if r_usize > read_remaining {
+                    fp.write_pos = unsafe { fp.write_pos.add(r_usize - read_remaining) };
+                    read_remaining = 0;
+                } else {
+                    buf = unsafe { buf.add(r_usize) };
+                    read_remaining -= r_usize;
+                }
+            } else if r_ret < 0 {
+                return r_ret;
+            }
+            called_read = true;
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        if !fp.eof {
+            if read_remaining >= ARENA_BLOCK_SIZE {
+                let r_ret =
+                    unsafe { os_read(fp.fd, &mut fp.eof, buf, read_remaining, fp.non_blocking) };
+                if r_ret >= 0 {
+                    read_remaining -= r_ret as usize;
+                } else {
+                    return r_ret;
+                }
+            } else {
+                let r_ret = unsafe {
+                    os_read(
+                        fp.fd,
+                        &mut fp.eof,
+                        fp.write_pos,
+                        ARENA_BLOCK_SIZE,
+                        fp.non_blocking,
+                    )
+                };
+                if r_ret < 0 {
+                    return r_ret;
+                }
+                let r_usize = r_ret as usize;
+                fp.write_pos = unsafe { fp.write_pos.add(r_usize) };
+                let to_copy = r_usize.min(read_remaining);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        fp.read_pos.cast::<u8>(),
+                        buf.cast::<u8>(),
+                        to_copy,
+                    );
+                    fp.read_pos = fp.read_pos.add(to_copy);
+                }
+                read_remaining -= to_copy;
+            }
+        }
+    }
+
+    let total_read = size - read_remaining;
+    fp.bytes_read += total_read as u64;
+    total_read as isize
+}
+
+/// Try to read `size` already-buffered bytes in-place (`file_try_read_buffered`).
+///
+/// # Safety
+/// `fp` must be a valid writable pointer to a `FileDescriptor`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_try_read_buffered(
+    fp: *mut FileDescriptor,
+    size: usize,
+) -> *mut c_char {
+    let fp = unsafe { &mut *fp };
+    if (fp.write_pos as usize).saturating_sub(fp.read_pos as usize) >= size {
+        let ret = fp.read_pos;
+        fp.read_pos = unsafe { fp.read_pos.add(size) };
+        fp.bytes_read += size as u64;
+        ret
+    } else {
+        std::ptr::null_mut()
+    }
+}
+
+/// Write `size` bytes from `buf` to `fp` (`file_write`).
+///
+/// # Safety
+/// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_write(
+    fp: *mut FileDescriptor,
+    buf: *const c_char,
+    size: usize,
+) -> isize {
+    let fp_ref = unsafe { &mut *fp };
+    assert!(fp_ref.wr);
+    if size < file_space(fp_ref) {
+        if size > 0 {
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    buf.cast::<u8>(),
+                    fp_ref.write_pos.cast::<u8>(),
+                    size,
+                );
+                fp_ref.write_pos = fp_ref.write_pos.add(size);
+            }
+        }
+        return size as isize;
+    }
+
+    let status = unsafe { file_flush(fp) };
+    if status < 0 {
+        return status as isize;
+    }
+
+    if size < ARENA_BLOCK_SIZE {
+        if size > 0 {
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    buf.cast::<u8>(),
+                    fp_ref.write_pos.cast::<u8>(),
+                    size,
+                );
+                fp_ref.write_pos = fp_ref.write_pos.add(size);
+            }
+        }
+        return size as isize;
+    }
+
+    let wres = unsafe { os_write(fp_ref.fd, buf, size, fp_ref.non_blocking) };
+    if wres != size as isize && wres >= 0 {
+        UV_EIO as isize
+    } else {
+        wres
+    }
+}
+
+/// Skip `size` bytes forward in `fp` (`file_skip`).
+///
+/// # Safety
+/// `fp` must be a valid readable `FileDescriptor`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
+    let fp = unsafe { &mut *fp };
+    assert!(!fp.wr);
+    let buffered = (fp.write_pos as usize).saturating_sub(fp.read_pos as usize);
+    let from_buffer = buffered.min(size);
+    let mut skip_remaining = size - from_buffer;
+    if skip_remaining == 0 {
+        fp.read_pos = unsafe { fp.read_pos.add(from_buffer) };
+        fp.bytes_read += from_buffer as u64;
+        return from_buffer as isize;
+    }
+
+    fp.read_pos = fp.buffer;
+    fp.write_pos = fp.buffer;
+    let mut called_read = false;
+    while skip_remaining > 0 {
+        if fp.eof || (called_read && fp.non_blocking) {
+            break;
+        }
+        let r_ret = unsafe {
+            os_read(
+                fp.fd,
+                &mut fp.eof,
+                fp.buffer,
+                ARENA_BLOCK_SIZE,
+                fp.non_blocking,
+            )
+        };
+        if r_ret < 0 {
+            return r_ret;
+        }
+        let r_usize = r_ret as usize;
+        if r_usize > skip_remaining {
+            fp.read_pos = unsafe { fp.buffer.add(skip_remaining) };
+            fp.write_pos = unsafe { fp.buffer.add(r_usize) };
+            fp.bytes_read += size as u64;
+            return size as isize;
+        }
+        skip_remaining -= r_usize;
+        called_read = true;
+    }
+
+    let skipped = size - skip_remaining;
+    fp.bytes_read += skipped as u64;
+    skipped as isize
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_buffer_read_and_skip() {
+        let mut data = *b"0123456789abcdef";
+        let mut fp = FileDescriptor {
+            fd: -1,
+            buffer: std::ptr::null_mut(),
+            read_pos: std::ptr::null_mut(),
+            write_pos: std::ptr::null_mut(),
+            wr: false,
+            eof: false,
+            non_blocking: false,
+            bytes_read: 0,
+        };
+
+        unsafe {
+            file_open_buffer(&mut fp, data.as_mut_ptr().cast::<c_char>(), data.len());
+            let chunk = file_try_read_buffered(&mut fp, 4);
+            assert!(!chunk.is_null());
+            assert_eq!(std::slice::from_raw_parts(chunk.cast::<u8>(), 4), b"0123");
+
+            assert_eq!(file_skip(&mut fp, 6), 6);
+            let mut out = [0u8; 6];
+            assert_eq!(file_read(&mut fp, out.as_mut_ptr().cast::<c_char>(), 6), 6);
+            assert_eq!(&out, b"abcdef");
+            assert_eq!(fp.bytes_read, 16);
+            assert_eq!(file_close(&mut fp, false), 0);
+        }
+    }
+}
