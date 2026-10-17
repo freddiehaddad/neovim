@@ -55,4 +55,8 @@ typedef struct {
 
 extern cursorentry_T shape_table[SHAPE_IDX_COUNT];
 
-#include "cursor_shape.h.generated.h"
+Array mode_style_array(Arena *arena);
+const char *parse_shape_opt(int what);
+int cursor_mode_str2int(const char *mode);
+bool cursor_mode_uses_syn_id(int syn_id);
+int cursor_get_mode_idx(void);
