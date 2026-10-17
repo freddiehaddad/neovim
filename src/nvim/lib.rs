@@ -37,6 +37,7 @@ pub mod mark;
 pub mod marktree;
 pub mod r#match;
 pub mod math;
+pub mod mcursor;
 pub mod memory;
 pub mod menu;
 pub mod msgpack_rpc;

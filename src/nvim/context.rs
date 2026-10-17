@@ -299,7 +299,7 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
 }
 
 #[inline]
-unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
+pub unsafe fn handle_get_buffer(h: handle_T) -> *mut buf_T {
     unsafe {
         let k = mh_get_int(&raw mut buffer_handles.set, h);
         if k == MH_TOMBSTONE {
