@@ -131,7 +131,7 @@ pub struct memfile_T {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut firstbuf: *mut buf_T;
-    static mut got_int: c_int;
+    static mut got_int: bool;
     static mut did_swapwrite_msg: bool;
     static mut main_loop: u8;
     static e_swapclose: [c_char; 0];
@@ -553,7 +553,7 @@ pub unsafe extern "C" fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
 
         #[cfg(not(test))]
         {
-            got_int = 0;
+            got_int = false;
         }
 
         let mut status = OK;
@@ -588,7 +588,7 @@ pub unsafe extern "C" fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
                     }
                 }
                 #[cfg(not(test))]
-                if got_int != 0 {
+                if got_int {
                     break;
                 }
             }
