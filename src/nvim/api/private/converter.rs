@@ -30,6 +30,7 @@ const LUA_NOREF: c_int = -2;
 const FC_LUAREF: c_int = 0x800;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct sctx_T {
     pub sc_sid: c_int,
     pub sc_seq: c_int,
@@ -49,6 +50,24 @@ pub struct ufunc_T {
     pub uf_profiling: c_int,
     pub uf_prof_initialized: c_int,
     pub uf_luaref: c_int,
+    pub uf_tm_count: c_int,
+    pub uf_tm_total: u64,
+    pub uf_tm_self: u64,
+    pub uf_tm_children: u64,
+    pub uf_tml_count: *mut c_int,
+    pub uf_tml_total: *mut u64,
+    pub uf_tml_self: *mut u64,
+    pub uf_tml_start: u64,
+    pub uf_tml_children: u64,
+    pub uf_tml_wait: u64,
+    pub uf_tml_idx: c_int,
+    pub uf_tml_execed: c_int,
+    pub uf_script_ctx: sctx_T,
+    pub uf_refcount: c_int,
+    pub uf_scoped: *mut c_void,
+    pub uf_name_exp: *mut c_char,
+    pub uf_namelen: usize,
+    pub uf_name: [c_char; 1],
 }
 
 #[repr(C)]
