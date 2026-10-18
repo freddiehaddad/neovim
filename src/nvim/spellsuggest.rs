@@ -33,6 +33,7 @@ use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrl
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+use crate::spell::{repl_from, repl_to, spelltab};
 use crate::tag::BoolVarValue;
 use crate::undo::u_save_cursor;
 use std::ffi::{c_char, c_int, c_uint, c_void};
@@ -334,9 +335,6 @@ unsafe extern "C" {
     static mut lines_left: c_int;
     static mut msg_scroll: c_int;
     static mut p_sps: *mut c_char;
-    static mut repl_from: *mut c_char;
-    static mut repl_to: *mut c_char;
-    static mut spelltab: spelltab_T;
     static mut IObuff: [c_char; IOSIZE];
     static e_no_spell: [c_char; 1];
     static e_notopen: [c_char; 1];

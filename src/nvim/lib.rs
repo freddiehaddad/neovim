@@ -67,6 +67,7 @@ pub mod register;
 pub mod runtime;
 pub mod sha256;
 pub mod sign;
+pub mod spell;
 pub mod spellsuggest;
 pub mod state;
 pub mod statusline;

@@ -1617,7 +1617,7 @@ pub unsafe extern "C" fn decor_redraw_end(state: *mut DecorState) {
 }
 
 #[inline]
-unsafe fn decor_redraw_col(
+pub unsafe fn decor_redraw_col(
     wp: *mut win_T,
     col: c_int,
     win_col: c_int,
