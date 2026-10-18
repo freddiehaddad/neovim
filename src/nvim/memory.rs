@@ -59,6 +59,11 @@ pub static mut mem_calloc: MemCalloc = crt_calloc;
 #[unsafe(no_mangle)]
 pub static mut mem_realloc: MemRealloc = crt_realloc;
 
+/// Indicates that `free_all_mem` function was or is running.
+#[allow(non_upper_case_globals)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut entered_free_all_mem: bool = false;
+
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut arena_alloc_count: usize;

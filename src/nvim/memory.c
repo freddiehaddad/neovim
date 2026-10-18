@@ -66,8 +66,6 @@
 # include "nvim/tag.h"
 # include "nvim/window.h"
 
-bool entered_free_all_mem = false;
-
 // Free everything that we allocated.
 // Can be used to detect memory leaks, e.g., with ccmalloc.
 // NOTE: This is tricky!  Things are freed that functions depend on.  Don't be
