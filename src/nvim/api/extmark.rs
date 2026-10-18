@@ -429,7 +429,7 @@ unsafe extern "C" {
     fn decor_provider_clear(p: *mut DecorProvider);
     fn redraw_all_later(type_: c_int);
     fn transstr(s: *const c_char, replace_spaces: bool) -> *mut c_char;
-    fn mb_string2cells(p: *const c_char) -> c_int;
+    fn mb_string2cells(p: *const c_char) -> usize;
     fn mt_inspect(tree: *mut MarkTree, keys: bool, dot: bool) -> NvimString;
     fn changed_window_setting(wp: *mut win_T);
 }
@@ -1860,7 +1860,7 @@ pub unsafe extern "C" fn parse_virt_text(
                     },
                     untab,
                 );
-                w += mb_string2cells(text);
+                w += mb_string2cells(text) as c_int;
 
                 virt_text.push(VirtTextChunk { text, hl_id });
             }

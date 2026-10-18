@@ -272,8 +272,8 @@ unsafe extern "C" {
     fn win_config_float(wp: *mut win_T, fconfig: WinConfig);
     fn syn_id2name(id: c_int) -> *mut c_char;
     fn transstr(s: *const c_char, replace_spaces: bool) -> *mut c_char;
-    fn mb_string2cells(p: *const c_char) -> c_int;
-    fn mb_string2cells_len(p: *const c_char, size: usize) -> c_int;
+    fn mb_string2cells(p: *const c_char) -> usize;
+    fn mb_string2cells_len(p: *const c_char, size: usize) -> usize;
     fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error) -> c_int;
     fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
     fn ui_has(ext: UIExtension) -> bool;
@@ -1430,7 +1430,7 @@ pub unsafe extern "C" fn parse_bordertext(
             let text = transstr(bordertext.data.string.data, true);
             chunks.init();
             chunks.push(VirtTextChunk { text, hl_id: -1 });
-            *width = mb_string2cells(text);
+            *width = mb_string2cells(text) as c_int;
         } else {
             *chunks = parse_virt_text(bordertext.data.array, err, width, true);
             if error_set(err) {

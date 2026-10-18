@@ -166,7 +166,7 @@ mod win_impl {
         fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
         fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
-        fn utf8_to_utf16(str: *const c_char, str_len: isize, utf16_str: *mut *mut u16) -> c_int;
+        fn utf8_to_utf16(str: *const c_char, str_len: c_int, utf16_str: *mut *mut u16) -> c_int;
         fn os_shell_is_cmdexe(sh: *const c_char) -> bool;
         fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool;
         fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;

@@ -42,6 +42,7 @@ pub mod mark;
 pub mod marktree;
 pub mod r#match;
 pub mod math;
+pub mod mbyte;
 pub mod mcursor;
 pub mod memfile;
 pub mod memory;
