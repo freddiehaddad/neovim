@@ -1080,11 +1080,7 @@ unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
         let mut can_unload = (*buf).b_locked == 0;
 
         if can_unload && updating_screen {
-            let mut wp = if curtab == first_tabpage || (*curtab).tp_firstwin.is_null() {
-                firstwin
-            } else {
-                (*curtab).tp_firstwin
-            };
+            let mut wp = firstwin;
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
                     can_unload = false;
@@ -3049,12 +3045,7 @@ pub unsafe extern "C" fn buflist_findpat(
                         {
                             if curtab_only {
                                 let mut found_window = false;
-                                let mut wp =
-                                    if curtab == first_tabpage || (*curtab).tp_firstwin.is_null() {
-                                        firstwin
-                                    } else {
-                                        (*curtab).tp_firstwin
-                                    };
+                                let mut wp = firstwin;
                                 while !wp.is_null() {
                                     if (*wp).w_buffer == buf {
                                         found_window = true;
@@ -3435,11 +3426,7 @@ unsafe fn wininfo_other_tab_diff(wip: *mut WinInfo) -> bool {
             return false;
         }
 
-        let mut wp = if curtab == first_tabpage || (*curtab).tp_firstwin.is_null() {
-            firstwin
-        } else {
-            (*curtab).tp_firstwin
-        };
+        let mut wp = firstwin;
         while !wp.is_null() {
             if (*wip).wi_win == wp {
                 return false;

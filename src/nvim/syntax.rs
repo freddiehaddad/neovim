@@ -377,6 +377,7 @@ static mut expand_what: c_int = EXP_SUBCMD;
 
 unsafe extern "C" {
     static mut curwin: *mut win_T;
+    static mut firstwin: *mut win_T;
     static mut curbuf: *mut buf_T;
     static mut curtab: *mut tabpage_T;
     static mut got_int: bool;
@@ -1124,7 +1125,7 @@ pub unsafe extern "C" fn syn_stack_free_all(block: *mut synblock_T) {
         syn_stack_free_block(block);
 
         if !curtab.is_null() {
-            let mut wp = (*curtab).tp_firstwin;
+            let mut wp = firstwin;
             while !wp.is_null() {
                 if win_s(wp) == block && foldmethodIsSyntax(wp) {
                     foldUpdateAll(wp);
@@ -1199,7 +1200,7 @@ pub unsafe extern "C" fn syn_stack_apply_changes(buf: *mut buf_T) {
         syn_stack_apply_changes_block(&raw mut (*buf).b_s, buf);
 
         if !curtab.is_null() {
-            let mut wp = (*curtab).tp_firstwin;
+            let mut wp = firstwin;
             while !wp.is_null() {
                 if (*wp).w_buffer == buf && win_s(wp) != &raw mut (*buf).b_s {
                     syn_stack_apply_changes_block(win_s(wp), buf);

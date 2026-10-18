@@ -215,8 +215,8 @@ const HLF_E: c_int = 6;
 const DOCMD_VERBOSE: c_int = 0x01;
 const DOCMD_NOWAIT: c_int = 0x02;
 
+const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
-const OPT_GLOBAL: c_int = 0x04;
 
 const kOptInvalid: OptIndex = -1;
 const kOptCpoptions: OptIndex = 61;

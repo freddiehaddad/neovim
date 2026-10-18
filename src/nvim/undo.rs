@@ -211,6 +211,7 @@ static mut lastmark: c_int = 0;
 
 unsafe extern "C" {
     static mut curwin: *mut win_T;
+    static mut firstwin: *mut win_T;
     static mut curbuf: *mut buf_T;
     static mut curtab: *mut tabpage_T;
     static mut firstbuf: *mut buf_T;
@@ -2672,7 +2673,7 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             undo_fmt_time(msgbuf.as_mut_ptr(), msgbuf.len(), (*uhp).uh_time);
         }
 
-        let mut wp = (*curtab).tp_firstwin;
+        let mut wp = firstwin;
         while !wp.is_null() {
             if (*wp).w_buffer == curbuf && (*wp).w_onebuf_opt.wo_cole > 0 {
                 redraw_later(wp, UPD_NOT_VALID);
