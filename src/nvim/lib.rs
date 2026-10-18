@@ -99,4 +99,5 @@ pub mod undo;
 pub mod usercmd;
 pub mod viml;
 pub mod vterm;
+pub mod window;
 pub mod winfloat;
