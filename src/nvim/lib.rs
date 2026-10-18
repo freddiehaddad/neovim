@@ -31,6 +31,7 @@ pub mod grid;
 pub mod hashtab;
 pub mod help;
 pub mod highlight;
+pub mod highlight_group;
 pub mod indent;
 pub mod input_cmdatom;
 pub mod keycodes;

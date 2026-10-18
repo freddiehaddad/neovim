@@ -30,7 +30,7 @@ const LUA_NOREF: c_int = -2;
 const FC_LUAREF: c_int = 0x800;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct sctx_T {
     pub sc_sid: c_int,
     pub sc_seq: c_int,

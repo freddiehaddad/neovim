@@ -105,7 +105,7 @@ const VV_OPTION_TYPE: c_int = 67;
 
 const EXPAND_NOTHING: c_int = 0;
 const EXPAND_FILES: c_int = 2;
-const EXPAND_EVENTS: c_int = 11;
+const EXPAND_EVENTS: c_int = 10;
 
 const kRetNilBool: LuaRetMode = 1;
 
