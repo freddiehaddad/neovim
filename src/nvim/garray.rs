@@ -5,7 +5,7 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use crate::memory::{xfree, xmallocz, xrealloc};
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[allow(non_camel_case_types)]
 pub struct garray_T {
     pub ga_len: c_int,

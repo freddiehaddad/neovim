@@ -160,7 +160,7 @@ unsafe extern "C" {
     fn syn_id2attr(hl_id: c_int) -> c_int;
     fn syn_id2name(id: c_int) -> *mut c_char;
     fn conceal_cursor_line(wp: *const win_T) -> bool;
-    fn hasAnyFolding(win: *mut win_T) -> bool;
+    fn hasAnyFolding(win: *mut win_T) -> c_int;
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
@@ -1398,7 +1398,7 @@ pub unsafe extern "C" fn decor_conceal_line(
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn win_lines_concealed(wp: *mut win_T) -> bool {
-    unsafe { hasAnyFolding(wp) || (*wp).w_onebuf_opt.wo_cole >= 2 }
+    unsafe { hasAnyFolding(wp) != 0 || (*wp).w_onebuf_opt.wo_cole >= 2 }
 }
 
 unsafe fn sign_item_cmp_slice(s1: &SignItem, s2: &SignItem) -> Ordering {
