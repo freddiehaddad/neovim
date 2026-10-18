@@ -35,6 +35,7 @@ pub mod help;
 pub mod highlight;
 pub mod highlight_group;
 pub mod indent;
+pub mod input;
 pub mod input_cmdatom;
 pub mod keycodes;
 pub mod kvec;

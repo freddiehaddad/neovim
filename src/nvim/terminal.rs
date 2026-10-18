@@ -529,7 +529,7 @@ unsafe extern "C" {
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn map_execute_lua(may_repeat: bool, expr: bool);
+    fn map_execute_lua(may_repeat: bool, expr: bool) -> bool;
 
     fn utf_ptr2len(p: *const c_char) -> c_int;
     fn utf_ptr2char(p: *const c_char) -> c_int;

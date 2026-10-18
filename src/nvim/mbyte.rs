@@ -1186,7 +1186,7 @@ unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
 }
 
 #[inline]
-unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
+pub unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
     unsafe {
         StrCharInfo {
             ptr,

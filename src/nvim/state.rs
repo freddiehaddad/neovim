@@ -195,7 +195,7 @@ unsafe extern "C" {
         buf: *mut buf_T,
     ) -> bool;
     fn stuff_empty() -> bool;
-    fn using_script() -> bool;
+    fn using_script() -> c_int;
     fn logmsg(
         log_level: c_int,
         context: *const c_char,
@@ -500,7 +500,11 @@ pub unsafe extern "C" fn may_trigger_modechanged() {
 #[inline]
 unsafe fn is_safe_now() -> bool {
     unsafe {
-        stuff_empty() && typebuf.tb_len == 0 && !using_script() && global_busy == 0 && !debug_mode
+        stuff_empty()
+            && typebuf.tb_len == 0
+            && using_script() == 0
+            && global_busy == 0
+            && !debug_mode
     }
 }
 
