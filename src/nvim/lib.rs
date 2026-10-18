@@ -85,6 +85,7 @@ pub mod spellfile;
 pub mod spellsuggest;
 pub mod state;
 pub mod statusline;
+pub mod syntax;
 pub mod tag;
 pub mod terminal;
 pub mod testing;
