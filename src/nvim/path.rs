@@ -100,8 +100,8 @@ pub const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 pub const kPathCmpExpand: PathCmpFlags = 1 << 1;
 pub const kPathCmpFull: PathCmpFlags = 1 << 2;
 
-const WILD_ADD_SLASH: c_int = 0x02;
-const WILD_ICASE: c_int = 0x20;
+const WILD_ADD_SLASH: c_int = 0x10;
+const WILD_ICASE: c_int = 0x100;
 
 const RE_MAGIC: c_int = 1;
 const RE_STRING: c_int = 2;

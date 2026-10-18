@@ -1355,7 +1355,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
         let mut name_end: *const c_char = skiptowhite(line);
         let mut linep: *const c_char = skipwhite(name_end);
 
-        if (name_end as usize - line as usize) == 7 && strncmp(line, c"default".as_ptr(), 7) == 0 {
+        if strncmp(line, c"default".as_ptr(), name_end as usize - line as usize) == 0 {
             dodefault = true;
             line = linep;
             name_end = skiptowhite(line);
@@ -1366,9 +1366,9 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
         let mut dolink = false;
 
         let word_len = name_end as usize - line as usize;
-        if word_len == 5 && strncmp(line, c"clear".as_ptr(), 5) == 0 {
+        if strncmp(line, c"clear".as_ptr(), word_len) == 0 {
             doclear = true;
-        } else if word_len == 4 && strncmp(line, c"link".as_ptr(), 4) == 0 {
+        } else if strncmp(line, c"link".as_ptr(), word_len) == 0 {
             dolink = true;
         }
 
