@@ -32,7 +32,9 @@ use crate::autocmd::{
     EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, has_event, unblock_autocmds,
 };
 use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, buf_valid};
-use crate::charset::{skipwhite, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc, vim_str2nr};
+#[cfg(windows)]
+use crate::charset::vim_isfilec;
+use crate::charset::{skipwhite, vim_isIDc, vim_isprintc, vim_iswordc, vim_str2nr};
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cmdexpand::{
     CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL,
@@ -812,11 +814,7 @@ const fn lt(a: pos_T, b: pos_T) -> bool {
 
 #[inline]
 unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && *(*buf).b_p_bt == b'c' as c_char && cmdwin_type != 0 }
-}
-
-unsafe extern "C" {
-    static mut cmdwin_type: c_int;
+    unsafe { !buf.is_null() && buf == cmdwin_buf.cast_const() }
 }
 
 unsafe fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {
