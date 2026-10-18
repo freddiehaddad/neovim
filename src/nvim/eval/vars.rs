@@ -30,6 +30,7 @@ use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem, buf_T};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
+use crate::eval::eval_lavars_used;
 use crate::eval::executor::blob_T;
 use crate::eval::window::find_win_by_nr;
 use crate::ex_eval::aborting;
@@ -541,7 +542,6 @@ unsafe extern "C" {
     static mut current_sctx: sctx_T;
     static mut Search: SearchState;
     static mut EVALARG_EVALUATE: evalarg_T;
-    static mut eval_lavars_used: *mut bool;
 
     static mut sc_col: c_int;
     static mut got_int: bool;

@@ -26,7 +26,7 @@ add_custom_command(OUTPUT ${GENERATED_SYN_VIM}
     ${PROJECT_SOURCE_DIR}/src/nvim/auevents.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/options.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/vvars.lua
-    ${PROJECT_SOURCE_DIR}/src/nvim/eval.c
+    ${PROJECT_SOURCE_DIR}/src/nvim/eval.rs
     ${FUNCS_DATA}
 )
 

@@ -29,6 +29,7 @@ use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
+use crate::eval::eval_lavars_used;
 use crate::eval::vars::{
     LuaRef, VV_TESTING, evalarg_T, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr,
     init_var_dict, list_hashtable_vars, lval_T, scid_T, vars_clear, vars_clear_ext,
@@ -238,7 +239,6 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut eval_lavars_used: *mut bool;
     static mut current_sctx: sctx_T;
     static mut sandbox: c_int;
     static mut want_garbage_collect: bool;
