@@ -17,6 +17,7 @@ pub mod debugger;
 pub mod decoration;
 pub mod decoration_provider;
 pub mod dialog;
+pub mod diff;
 pub mod digraph;
 pub mod drawscreen;
 pub mod eval;
