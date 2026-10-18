@@ -3,6 +3,7 @@ pub mod arabic;
 pub mod arglist;
 pub mod autocmd;
 pub mod base64;
+pub mod buffer;
 pub mod buffer_updates;
 pub mod bufwrite;
 pub mod change;

@@ -153,6 +153,7 @@ pub struct CtxSwitch {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct CharBuf {
     pub data: *mut c_char,
     pub size: usize,
