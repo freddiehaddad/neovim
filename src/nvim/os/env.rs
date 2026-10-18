@@ -32,7 +32,7 @@ const MAXPATHL: usize = 4096;
 const IOSIZE: usize = 1025;
 const EXPAND_BUF_LEN: usize = 256;
 const INIT_SIZE: usize = 64;
-const VV_PROGPATH: c_int = 59;
+const VV_PROGPATH: c_int = 60;
 const RUNTIME_DIRNAME: &CStr = c"runtime";
 
 #[cfg(windows)]

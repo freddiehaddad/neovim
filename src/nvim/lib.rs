@@ -9,6 +9,7 @@ pub mod change;
 pub mod channel;
 pub mod charset;
 pub mod clipboard;
+pub mod cmdexpand;
 pub mod cmdhist;
 pub mod context;
 pub mod cursor;

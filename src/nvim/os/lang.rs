@@ -30,8 +30,8 @@ const kShellOptSilent: c_int = 4;
 const VV_LANG: c_int = 13;
 const VV_LC_TIME: c_int = 14;
 const VV_CTYPE: c_int = 15;
-const VV_PROGPATH: c_int = 59;
-const VV_COLLATE: c_int = 89;
+const VV_PROGPATH: c_int = 60;
+const VV_COLLATE: c_int = 90;
 
 #[cfg(windows)]
 const LC_ALL: c_int = 0;
