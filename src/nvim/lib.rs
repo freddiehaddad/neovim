@@ -40,6 +40,7 @@ pub mod indent;
 pub mod indent_c;
 pub mod input;
 pub mod input_cmdatom;
+pub mod insert;
 pub mod keycodes;
 pub mod kvec;
 pub mod linematch;

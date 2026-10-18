@@ -575,7 +575,7 @@ const fn is_internal_call(channel_id: u64) -> bool {
 }
 
 #[inline]
-unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
+pub(crate) unsafe fn langmap_adjust(c: &mut c_int, condition: bool) {
     unsafe {
         if *p_langmap != 0
             && condition

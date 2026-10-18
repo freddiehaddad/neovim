@@ -278,7 +278,7 @@ unsafe extern "C" {
     fn inc(lp: *mut pos_T) -> c_int;
     fn dec(lp: *mut pos_T) -> c_int;
     fn decl(lp: *mut pos_T) -> c_int;
-    fn beginline(flags: c_int) -> c_int;
+    fn beginline(flags: c_int);
     fn edit(cmdchar: c_int, startln: bool, count: linenr_T) -> bool;
     fn display_dollar(col_arg: colnr_T);
     fn virtual_active(wp: *mut win_T) -> bool;
