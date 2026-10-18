@@ -73,6 +73,7 @@ pub mod textformat;
 pub mod textobject;
 pub mod tui;
 pub mod ui_compositor;
+pub mod undo;
 pub mod usercmd;
 pub mod viml;
 pub mod vterm;
