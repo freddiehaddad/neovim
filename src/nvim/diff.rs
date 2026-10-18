@@ -361,7 +361,7 @@ unsafe extern "C" {
     fn scroll_to_fraction(wp: *mut win_T, prev_height: c_int);
     fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int);
     fn free_string_option(p: *mut c_char);
-    fn opt_keyset(value: *const c_void, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
+    fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
     fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
     fn set_option_direct_for(
         opt_idx: OptIndex,
@@ -2677,7 +2677,7 @@ pub unsafe extern "C" fn diffanchors_changed(buflocal: bool) -> c_int {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn diffopt_changed() -> c_int {
     unsafe {
-        let v = opt_keyset(p_dip.cast(), kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
+        let v = opt_keyset(p_dip, kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
         let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
             | (if (*v).anchor { DIFF_ANCHOR } else { 0 })
             | (if (*v).iblank { DIFF_IBLANK } else { 0 })
