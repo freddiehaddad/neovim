@@ -66,6 +66,7 @@ pub mod sha256;
 pub mod sign;
 pub mod state;
 pub mod statusline;
+pub mod tag;
 pub mod terminal;
 pub mod testing;
 pub mod textformat;
