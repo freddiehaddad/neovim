@@ -54,6 +54,7 @@ pub mod math;
 pub mod mbyte;
 pub mod mcursor;
 pub mod memfile;
+pub mod memline;
 pub mod memory;
 pub mod menu;
 pub mod mouse;

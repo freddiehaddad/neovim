@@ -85,7 +85,7 @@ unsafe extern "C" {
         buf: *mut buf_T,
     ) -> bool;
     #[cfg(target_os = "linux")]
-    fn ml_sync_all(check_file: bool, do_fsync: bool, only_modified: bool);
+    fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool);
     fn logmsg(
         log_level: c_int,
         context: *const c_char,
@@ -277,7 +277,7 @@ unsafe extern "C" fn on_signal(_handle: *mut SignalWatcher, signum: c_int, _data
     unsafe {
         #[cfg(target_os = "linux")]
         if signum == SIGPWR {
-            ml_sync_all(false, false, true);
+            ml_sync_all(0, 0, true);
             return;
         }
         #[cfg(unix)]
