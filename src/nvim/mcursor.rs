@@ -52,6 +52,7 @@ use crate::msgpack_rpc::packer::handle_T;
 use crate::os::time::os_realtime;
 use crate::plines::getvcols;
 use crate::popupmenu::pum_visible;
+use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::textformat::{InsState, MotionType, oparg_T};
 
@@ -277,7 +278,6 @@ unsafe extern "C" {
     fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: bool);
     fn visualinfo() -> visualinfo_T;
     fn api_free_string(value: NvimString);
-    fn shada_encode_regs(with_clipboard: bool, min_timestamp: Timestamp) -> NvimString;
     fn bufref_valid(bufref: *const crate::input_cmdatom::bufref_T) -> bool;
     fn line_breakcheck();
     fn u_save(top: linenr_T, bot: linenr_T) -> c_int;

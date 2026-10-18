@@ -30,6 +30,10 @@ use crate::map::{Map, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int, ptr_
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::memory::{Arena, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
+use crate::shada::{
+    shada_encode_buflist, shada_encode_gvars, shada_encode_jumps, shada_encode_regs,
+    shada_read_string,
+};
 
 pub type colnr_T = c_int;
 pub type CtxStateFlags = c_int;
@@ -195,14 +199,9 @@ unsafe extern "C" {
     fn api_clear_error(value: *mut Error);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn check_pos(buf: *mut buf_T, pos: *mut pos_T);
-    fn shada_encode_regs(export_reg_star_plus: bool, max_kbyte: usize) -> NvimString;
-    fn shada_encode_jumps() -> NvimString;
-    fn shada_encode_buflist() -> NvimString;
-    fn shada_encode_gvars() -> NvimString;
     fn func_tbl_get() -> *mut hashtab_T;
     fn free_register(reg: *mut yankreg_T);
     fn get_y_register(reg: c_int) -> *mut yankreg_T;
-    fn shada_read_string(sbuf: NvimString, flags: c_int) -> c_int;
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn tv_clear(varp: *mut typval_T);
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
