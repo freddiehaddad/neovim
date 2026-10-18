@@ -24,4 +24,24 @@ typedef struct {
   bool force_crlf;
 } TerminalOptions;
 
-#include "terminal.h.generated.h"
+#include "nvim/func_attr.h"
+
+DLLEXPORT void terminal_init(void);
+DLLEXPORT void terminal_teardown(void);
+DLLEXPORT Terminal *terminal_alloc(buf_T *buf, TerminalOptions opts) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_open(Terminal **termpp, buf_T *buf) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_close(Terminal **termpp, int status) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_set_state(Terminal *term, bool suspended) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_check_size(Terminal *term) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT bool terminal_enter(void);
+DLLEXPORT void terminal_destroy(Terminal **termpp) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_set_streamed_paste(Terminal *term, bool streamed) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_paste(int count, String *y_array, size_t y_size);
+DLLEXPORT void terminal_receive(Terminal *term, const char *data, size_t len);
+DLLEXPORT void terminal_get_line_attributes(Terminal *term, win_T *wp, int linenr, int *term_attrs);
+DLLEXPORT Buffer terminal_buf(const Terminal *term) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT bool terminal_running(const Terminal *term) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT bool terminal_suspended(const Terminal *term) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_notify_theme(Terminal *term, bool dark) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT void terminal_check_refresh(void);
+DLLEXPORT void on_scrollback_option_changed(Terminal *term);

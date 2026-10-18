@@ -28,12 +28,12 @@ type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
 type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
 
 #[repr(C)]
-struct TimeWatcherFields {
-    data: *mut c_void,
-    cb: time_cb,
-    close_cb: time_cb,
-    events: *mut MultiQueue,
-    blockable: bool,
+pub struct TimeWatcherFields {
+    pub data: *mut c_void,
+    pub cb: time_cb,
+    pub close_cb: time_cb,
+    pub events: *mut MultiQueue,
+    pub blockable: bool,
 }
 
 unsafe extern "C" {
@@ -47,7 +47,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn watcher_fields(watcher: *mut TimeWatcher) -> *mut TimeWatcherFields {
+pub unsafe fn watcher_fields(watcher: *mut TimeWatcher) -> *mut TimeWatcherFields {
     unsafe {
         watcher
             .cast::<u8>()
