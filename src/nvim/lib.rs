@@ -27,6 +27,7 @@ pub mod eval;
 pub mod event;
 pub mod ex_cmds2;
 pub mod ex_eval;
+pub mod ex_getln;
 pub mod ex_session;
 pub mod extmark;
 pub mod file_search;
