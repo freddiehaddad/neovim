@@ -67,6 +67,7 @@ pub mod menu;
 pub mod mouse;
 pub mod r#move;
 pub mod msgpack_rpc;
+pub mod normal;
 pub mod ops;
 pub mod optionstr;
 pub mod os;
