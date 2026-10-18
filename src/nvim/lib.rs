@@ -81,6 +81,7 @@ pub mod sha256;
 pub mod shada;
 pub mod sign;
 pub mod spell;
+pub mod spellfile;
 pub mod spellsuggest;
 pub mod state;
 pub mod statusline;
