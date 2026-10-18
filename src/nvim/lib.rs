@@ -19,6 +19,7 @@ pub mod decoration_provider;
 pub mod dialog;
 pub mod diff;
 pub mod digraph;
+pub mod drawline;
 pub mod drawscreen;
 pub mod eval;
 pub mod event;
