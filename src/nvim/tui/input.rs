@@ -63,9 +63,9 @@ const KEY_BUFFER_SIZE: usize = 0x1000;
 
 const TERMKEY_FORMAT_VIM: TermKeyFormat = TERMKEY_FORMAT_ALTISMETA | TERMKEY_FORMAT_WRAPBRACKET;
 
-const kKeyEncodingLegacy: KeyEncoding = 0;
-const kKeyEncodingKitty: KeyEncoding = 1;
-const kKeyEncodingXterm: KeyEncoding = 2;
+pub(crate) const kKeyEncodingLegacy: KeyEncoding = 0;
+pub(crate) const kKeyEncodingKitty: KeyEncoding = 1;
+pub(crate) const kKeyEncodingXterm: KeyEncoding = 2;
 
 const KEYMOD_SUPER: c_int = 1 << 3;
 const KEYMOD_META: c_int = 1 << 5;
@@ -82,22 +82,22 @@ pub struct TermInputCallbacks {
 }
 
 #[repr(C)]
-struct TermInputPrefix {
-    in_fd: c_int,
-    paste: i8,
-    ttimeout: bool,
-    callbacks: TermInputCallbacks,
-    key_encoding: KeyEncoding,
-    ttimeoutlen: OptInt,
-    tk: *mut TermKey,
-    tk_ti_hook_fn: TermKeyTerminfoGetstrHook,
+pub(crate) struct TermInputPrefix {
+    pub(crate) in_fd: c_int,
+    pub(crate) paste: i8,
+    pub(crate) ttimeout: bool,
+    pub(crate) callbacks: TermInputCallbacks,
+    pub(crate) key_encoding: KeyEncoding,
+    pub(crate) ttimeoutlen: OptInt,
+    pub(crate) tk: *mut TermKey,
+    pub(crate) tk_ti_hook_fn: TermKeyTerminfoGetstrHook,
 }
 
 #[repr(C)]
-struct TermInputSuffix {
-    tui_data: *mut TUIData,
-    key_buffer: [c_char; KEY_BUFFER_SIZE],
-    key_buffer_len: usize,
+pub(crate) struct TermInputSuffix {
+    pub(crate) tui_data: *mut TUIData,
+    pub(crate) key_buffer: [c_char; KEY_BUFFER_SIZE],
+    pub(crate) key_buffer_len: usize,
 }
 
 static mut LAST_PRESSED_BUTTON: c_int = 0;
@@ -118,7 +118,7 @@ unsafe extern "C" {
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
     fn os_exit(r: c_int) -> !;
-    fn rpc_send_event(id: u64, name: *const c_char, args: Array);
+    fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool;
     fn tui_query_bg_color(tui: *mut TUIData);
     fn tui_enable_extended_underline(tui: *mut TUIData);
     fn tui_handle_term_mode(tui: *mut TUIData, mode: TermMode, state: TermModeState);
@@ -126,7 +126,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn input_prefix(input: *mut TermInput) -> *mut TermInputPrefix {
+pub(crate) unsafe fn input_prefix(input: *mut TermInput) -> *mut TermInputPrefix {
     input.cast::<TermInputPrefix>()
 }
 
@@ -155,7 +155,7 @@ unsafe fn input_bg_query_timer(input: *mut TermInput) -> *mut uv_timer_t {
 }
 
 #[inline]
-unsafe fn input_loop_ptr(input: *mut TermInput) -> *mut *mut Loop {
+pub(crate) unsafe fn input_loop_ptr(input: *mut TermInput) -> *mut *mut Loop {
     unsafe {
         #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
@@ -169,7 +169,7 @@ unsafe fn input_loop_ptr(input: *mut TermInput) -> *mut *mut Loop {
 }
 
 #[inline]
-unsafe fn input_read_stream(input: *mut TermInput) -> *mut RStream {
+pub(crate) unsafe fn input_read_stream(input: *mut TermInput) -> *mut RStream {
     unsafe {
         #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
@@ -183,7 +183,7 @@ unsafe fn input_read_stream(input: *mut TermInput) -> *mut RStream {
 }
 
 #[inline]
-unsafe fn input_suffix(input: *mut TermInput) -> *mut TermInputSuffix {
+pub(crate) unsafe fn input_suffix(input: *mut TermInput) -> *mut TermInputSuffix {
     unsafe {
         #[cfg(not(test))]
         let timer_sz = uv_handle_size(UV_TIMER);
