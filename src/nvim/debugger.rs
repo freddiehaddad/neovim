@@ -243,7 +243,7 @@ unsafe extern "C" {
 
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_starthere();
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
+    fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;
 }

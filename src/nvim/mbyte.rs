@@ -3358,12 +3358,10 @@ pub unsafe extern "C" fn enc_canonize(enc: *mut c_char) -> *mut c_char {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn enc_locale() -> *mut c_char {
     unsafe {
-        let mut s: *const c_char = ptr::null();
-
         #[cfg(unix)]
-        {
-            s = nl_langinfo(CODESET);
-        }
+        let mut s: *const c_char = nl_langinfo(CODESET);
+        #[cfg(not(unix))]
+        let mut s: *const c_char = ptr::null();
 
         if s.is_null() || *s == NUL {
             s = setlocale(LC_CTYPE, ptr::null());

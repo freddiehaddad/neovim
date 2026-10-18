@@ -39,7 +39,7 @@ unsafe extern "C" {
     fn get_global_lstate() -> *mut lua_State;
     fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, nresults: c_int) -> c_int;
     fn nlua_error(lstate: *mut lua_State, msg: *const c_char);
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
+    fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;
 }
 

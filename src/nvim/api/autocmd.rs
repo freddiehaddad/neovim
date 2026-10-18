@@ -213,7 +213,7 @@ unsafe extern "C" {
         event: event_T,
         pat: *const c_char,
         once: bool,
-        nested: bool,
+        nested: c_int,
         cmd: *const c_char,
         forceit: bool,
         group: c_int,
@@ -555,7 +555,7 @@ unsafe fn clear_autocmd(
     err: *mut Error,
 ) -> bool {
     unsafe {
-        if do_autocmd_event(event, pat, false, false, c"".as_ptr(), true, au_group) == FAIL {
+        if do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) == FAIL {
             api_set_error(
                 err,
                 ErrorType::kErrorTypeException,
