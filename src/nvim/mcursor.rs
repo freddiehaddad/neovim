@@ -292,7 +292,7 @@ unsafe extern "C" {
     fn ins_compl_active() -> bool;
     fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> NvimString;
     fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn get_reg_contents(regname: c_int, flags: c_int) -> *mut c_char;
+    fn get_reg_contents(regname: c_int, flags: c_int) -> *mut c_void;
     fn get_unname_register() -> c_int;
     fn get_y_register(reg: c_int) -> *mut yankreg_T;
     fn get_y_previous() -> *mut yankreg_T;
@@ -1317,7 +1317,7 @@ unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
 
 unsafe fn mc_reg_read(reg: c_int) -> *mut c_char {
     unsafe {
-        let s = get_reg_contents(reg, 0);
+        let s = get_reg_contents(reg, 0).cast::<c_char>();
         if s.is_null() {
             return xstrdup(c"".as_ptr());
         }

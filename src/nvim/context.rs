@@ -9,7 +9,7 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::VisualState;
@@ -21,7 +21,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::{WinConfig, pos_T, tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
-use crate::clipboard::{VarType, typval_T};
+use crate::clipboard::{VarType, typval_T, yankreg_T};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
 use crate::eval::encode::encode_vim_list_to_buf;
 use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
@@ -200,8 +200,8 @@ unsafe extern "C" {
     fn shada_encode_buflist() -> NvimString;
     fn shada_encode_gvars() -> NvimString;
     fn func_tbl_get() -> *mut hashtab_T;
-    fn free_register(reg: *mut c_void);
-    fn get_y_register(reg: c_int) -> *mut c_void;
+    fn free_register(reg: *mut yankreg_T);
+    fn get_y_register(reg: c_int) -> *mut yankreg_T;
     fn shada_read_string(sbuf: NvimString, flags: c_int) -> c_int;
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn tv_clear(varp: *mut typval_T);

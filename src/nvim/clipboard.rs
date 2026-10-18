@@ -101,7 +101,7 @@ pub struct list_T {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[allow(non_camel_case_types)]
 pub struct yankreg_T {
     pub y_array: *mut NvimString,
