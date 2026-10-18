@@ -18,6 +18,7 @@ pub mod decoration;
 pub mod decoration_provider;
 pub mod dialog;
 pub mod digraph;
+pub mod drawscreen;
 pub mod eval;
 pub mod event;
 pub mod ex_cmds2;

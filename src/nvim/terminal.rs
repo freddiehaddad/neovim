@@ -504,7 +504,7 @@ unsafe extern "C" {
     fn redraw_later(wp: *mut win_T, type_: c_int);
     fn redraw_statuslines();
     fn status_redraw_buf(bp: *mut buf_T);
-    fn update_screen();
+    fn update_screen() -> c_int;
     fn show_cursor_info_later(force: bool);
     fn showmode() -> c_int;
     fn unshowmode(force: bool);

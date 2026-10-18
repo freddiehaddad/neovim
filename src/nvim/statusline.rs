@@ -132,7 +132,7 @@ const STL_TABPAGENR: c_char = b'T' as c_char;
 const STL_TABCLOSENR: c_char = b'X' as c_char;
 const STL_CLICK_FUNC: c_char = b'@' as c_char;
 
-const STL_ALL: &CStr = c"fFtcvVlLnknoObBrRhHyYwWmMqpPaNScs{=<*#$TX@";
+const STL_ALL: &CStr = c"fFtcvVlLnknoObBrRhHyYwWmMqpPaNSCs{=<*#$TX@";
 
 const kStlClickDisabled: c_int = 0;
 const kStlClickTabSwitch: c_int = 1;

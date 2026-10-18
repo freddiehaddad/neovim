@@ -158,7 +158,7 @@ unsafe extern "C" {
     fn vpeekc() -> c_int;
     fn safe_vgetc() -> c_int;
     fn ui_flush();
-    fn update_screen();
+    fn update_screen() -> c_int;
     fn setcursor();
     fn input_get(
         buf: *mut u8,
