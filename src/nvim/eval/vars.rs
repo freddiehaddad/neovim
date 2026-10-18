@@ -173,7 +173,7 @@ const BAD_DROP: c_int = -2;
 const TV_TRANSLATE: usize = usize::MAX;
 const TV_CSTRING: usize = usize::MAX - 1;
 
-const UPD_SOME_VALID: c_int = 25;
+const UPD_SOME_VALID: c_int = 35;
 
 const kCtxNoDisplay: c_int = 4;
 const kCtxNoEvents: c_int = 8;

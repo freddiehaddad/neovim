@@ -20,6 +20,7 @@ use crate::api::deprecated::DecorInline;
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, win_T};
+use crate::api::vim::nvim_feedkeys;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T, yankreg_T};
 use crate::context::{Context, ctx_free, ctx_load, ctx_save, handle_get_buffer};
 use crate::cursor::{check_cursor, check_cursor_col, check_pos, colnr_T, getvpos, linenr_T};
@@ -275,7 +276,6 @@ unsafe extern "C" {
     fn set_topline(wp: *mut win_T, lnum: linenr_T);
     fn update_topline(wp: *mut win_T);
     fn reg_max_ts(clipboard: bool) -> Timestamp;
-    fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: bool);
     fn visualinfo() -> visualinfo_T;
     fn api_free_string(value: NvimString);
     fn bufref_valid(bufref: *const crate::input_cmdatom::bufref_T) -> bool;

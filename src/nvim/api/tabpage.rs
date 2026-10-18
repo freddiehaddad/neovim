@@ -15,6 +15,7 @@ use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::deprecated::VirtText;
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::vim::nvim_get_current_win;
 use crate::clipboard::typval_T;
 use crate::eval::decode::dict_T;
 pub use crate::eval::deprecated::pos_T;
@@ -495,7 +496,6 @@ unsafe extern "C" {
         wp_out: *mut *mut win_T,
     ) -> *mut tabpage_T;
     fn win_set_buf(wp: *mut win_T, b: *mut buf_T, err: *mut Error);
-    fn nvim_get_current_win() -> Window;
 
     fn dict_get_value(
         dict: *mut dict_T,

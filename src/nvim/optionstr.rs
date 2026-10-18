@@ -381,7 +381,7 @@ const FO_ALL: &CStr = c"tcro/q2vlb1mMBn,aw]jp";
 const MOUSE_ALL: &CStr = c"anvichr";
 const WW_ALL: &CStr = c"bshl<>[]~";
 const WW_ALL_COMMA: &CStr = c"bshl<>[]~,";
-const STL_ALL: &CStr = c"fFtcvVlLnkoObBrRhHyYwWmMqpPaNScs{=<*#$TX@TX@";
+const STL_ALL: &CStr = c"fFtcvVlLnkoObBrRhHyYwWmMqpPaNSCs{=<*#$TX@";
 
 const E_ILLEGAL_CHARACTER_AFTER_CHR: &CStr = c"E535: Illegal character after <%c>";
 const E_COMMA_REQUIRED: &CStr = c"E536: Comma required";

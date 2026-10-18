@@ -17,6 +17,7 @@ use std::ptr;
 use crate::api::buffer::VisualState;
 use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::tabpage::{pos_T, win_T};
+use crate::api::vim::nvim_paste;
 use crate::charset::skipwhite;
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, linenr_T};
@@ -444,14 +445,6 @@ unsafe extern "C" {
         err: *mut Error,
     ) -> crate::api::private::validate::Object;
     fn api_clear_error(value: *mut Error);
-    fn nvim_paste(
-        channel_id: u64,
-        data: NvimString,
-        crlf: bool,
-        phase: i64,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> bool;
 
     fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;

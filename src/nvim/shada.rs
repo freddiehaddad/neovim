@@ -749,10 +749,10 @@ unsafe fn tv_list_len(l: *const list_T) -> c_int {
 #[inline]
 unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
     unsafe {
-        hi.cast::<u8>()
-            .sub(std::mem::offset_of!(dictitem_T, di_key))
+        (*hi)
+            .hi_key
+            .byte_sub(std::mem::offset_of!(dictitem_T, di_key))
             .cast::<dictitem_T>()
-            .cast_mut()
     }
 }
 
