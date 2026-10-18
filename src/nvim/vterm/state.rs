@@ -2236,13 +2236,13 @@ unsafe extern "C" fn on_csi(
             }
         } else {
             let max_row = (*state).rows - 1;
-            let max_col = thisrowwidth(state) - 1;
             if (*state).pos.row < 0 {
                 (*state).pos.row = 0;
             }
             if (*state).pos.row > max_row {
                 (*state).pos.row = max_row;
             }
+            let max_col = thisrowwidth(state) - 1;
             if (*state).pos.col < 0 {
                 (*state).pos.col = 0;
             }
