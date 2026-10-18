@@ -107,7 +107,7 @@ unsafe extern "C" {
     fn smsg(attr: c_int, s: *const c_char, ...) -> c_int;
     fn semsg(s: *const c_char, ...) -> bool;
 
-    fn get_vim_var_str(idx: c_int) -> *const c_char;
+    fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn path_tail(fname: *const c_char) -> *mut c_char;
     fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;

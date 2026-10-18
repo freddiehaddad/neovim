@@ -6,4 +6,5 @@ pub mod executor;
 pub mod fs;
 pub mod gc;
 pub mod list;
+pub mod vars;
 pub mod window;

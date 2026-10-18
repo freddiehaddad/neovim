@@ -151,7 +151,7 @@ unsafe extern "C" {
     fn emsg(s: *const c_char) -> bool;
     fn semsg(s: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
-    fn get_vim_var_str(idx: c_int) -> *const c_char;
+    fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
     fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
     fn modify_fname(
