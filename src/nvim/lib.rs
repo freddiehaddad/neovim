@@ -66,6 +66,7 @@ pub mod popupmenu;
 pub mod profile;
 pub mod register;
 pub mod runtime;
+pub mod search;
 pub mod sha256;
 pub mod sign;
 pub mod spell;

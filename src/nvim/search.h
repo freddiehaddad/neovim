@@ -107,4 +107,71 @@ typedef struct {
   int last_maxcount;  // the max count of the last search
 } searchstat_T;
 
-#include "search.h.generated.h"
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT int search_regcomp(char *pat, size_t patlen, char **used_pat, int pat_save, int pat_use,
+                             int options, bool magic, regmmatch_T *regmatch);
+DLLEXPORT char *get_search_pat(void);
+DLLEXPORT void save_re_pat(int idx, char *pat, size_t patlen, int magic);
+DLLEXPORT void save_search_patterns(void);
+DLLEXPORT void restore_search_patterns(void);
+#ifdef EXITFREE
+DLLEXPORT void free_search_patterns(void);
+#endif
+DLLEXPORT void save_last_search_pattern(void);
+DLLEXPORT void restore_last_search_pattern(void);
+DLLEXPORT char *last_search_pattern(void);
+DLLEXPORT size_t last_search_pattern_len(void);
+DLLEXPORT int ignorecase(char *pat);
+DLLEXPORT int ignorecase_opt(char *pat, int ic_in, int scs);
+DLLEXPORT bool pat_has_uppercase(char *pat) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT const char *last_csearch(void) FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT;
+DLLEXPORT int last_csearch_forward(void);
+DLLEXPORT int last_csearch_until(void);
+DLLEXPORT void set_last_csearch(int c, char *s, int len);
+DLLEXPORT void set_csearch_direction(Direction cdir);
+DLLEXPORT void set_csearch_until(int t_cmd);
+DLLEXPORT char *last_search_pat(void);
+DLLEXPORT void reset_search_dir(void);
+DLLEXPORT void set_last_search_pat(const char *s, int idx, int magic, bool setlast);
+DLLEXPORT void last_pat_prog(regmmatch_T *regmatch);
+DLLEXPORT int searchit(win_T *win, buf_T *buf, pos_T *pos, pos_T *end_pos, Direction dir, char *pat,
+                       size_t patlen, int count, int options, int pat_use, bool magic,
+                       searchit_arg_T *extra_arg);
+DLLEXPORT void set_search_direction(int cdir);
+DLLEXPORT int parse_search_pattern_offset(char **pat, size_t *patlen, int search_delim, int options,
+                                          char **strcopy, char **searchstr, size_t *searchstrlen,
+                                          char **dircp, SearchOffset *offset);
+DLLEXPORT int do_search(oparg_T *oap, int dirc, int search_delim, char *pat, size_t patlen,
+                        int count, int options, bool magic, searchit_arg_T *sia);
+DLLEXPORT int search_for_exact_line(buf_T *buf, pos_T *pos, Direction dir, char *pat);
+DLLEXPORT int searchc(cmdarg_T *cap, bool t_cmd) FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT pos_T *findmatch(oparg_T *oap, int initc);
+DLLEXPORT pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel);
+DLLEXPORT void showmatch(int c);
+DLLEXPORT int current_search(int count, bool forward);
+DLLEXPORT bool linewhite(linenr_T lnum);
+DLLEXPORT void f_searchcount(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
+DLLEXPORT void find_pattern_in_path(char *ptr, Direction dir, size_t len, bool whole,
+                                    bool skip_comments, int type, int count, int action,
+                                    linenr_T start_lnum, linenr_T end_lnum, bool forceit,
+                                    bool silent);
+DLLEXPORT void get_search_pattern(SearchPattern *const pat);
+DLLEXPORT void get_substitute_pattern(SearchPattern *const pat);
+DLLEXPORT Timestamp get_search_pattern_timestamp(bool substitute);
+DLLEXPORT bool search_pattern_cleared(bool substitute);
+DLLEXPORT void set_search_pattern(const SearchPattern pat);
+DLLEXPORT void set_substitute_pattern(const SearchPattern pat);
+DLLEXPORT void set_last_used_pattern(const bool is_substitute_pattern);
+DLLEXPORT bool search_was_last_used(void);
+
+#include "nvim/func_attr.h"
