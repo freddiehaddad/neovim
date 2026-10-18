@@ -347,13 +347,13 @@ unsafe extern "C" {
     static mut au_new_curbuf: bufref_T;
     static mut buffer_handles: Map<c_int, ptr_t>;
 
-    static mut readonlymode: c_int;
+    static mut readonlymode: bool;
     static mut v_dying: OptInt;
     static mut got_int: bool;
     static mut updating_screen: bool;
     static mut textlock: c_int;
     static mut exiting: bool;
-    static mut autocmd_busy: c_int;
+    static mut autocmd_busy: bool;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
     static mut swap_exists_action: c_int;
@@ -747,7 +747,7 @@ unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_in
         (*curwin).w_cursor.col = 0;
 
         if read_stdin {
-            if readonlymode == 0 && !buf_is_empty(curbuf) {
+            if !readonlymode && !buf_is_empty(curbuf) {
                 changed(curbuf);
             } else if retval != FAIL {
                 unchanged(curbuf, false, true);
@@ -800,7 +800,7 @@ pub unsafe extern "C" fn open_buffer(
         let mut read_fifo = false;
         let silent = shortmess(kShmFileinfo);
 
-        if readonlymode != 0
+        if readonlymode
             && !(*curbuf).b_ffname.is_null()
             && ((*curbuf).b_flags & BF_NEVERLOADED) != 0
         {
@@ -1514,7 +1514,7 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         for i in 0..(*buf).b_changelistlen as usize {
             free_fmark(*changelist_ptr.add(i));
         }
-        if autocmd_busy != 0 {
+        if autocmd_busy {
             ptr::write_bytes(namedm_ptr, 0, NMARKS);
             ptr::write_bytes(changelist_ptr, 0, JUMPLISTSIZE);
             (*buf).b_next = au_pending_free_buf;

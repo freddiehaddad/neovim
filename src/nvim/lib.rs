@@ -30,6 +30,7 @@ pub mod ex_eval;
 pub mod ex_session;
 pub mod extmark;
 pub mod file_search;
+pub mod fileio;
 pub mod fold;
 pub mod fuzzy;
 pub mod garray;
