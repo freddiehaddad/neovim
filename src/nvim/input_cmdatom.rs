@@ -87,7 +87,7 @@ const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
 const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
 
 const MAXMAPLEN: usize = 50;
-const MB_MAXBYTES: usize = 4;
+const MB_MAXBYTES: usize = 30;
 const NUMBUFLEN: usize = 65;
 
 const NV_LANG: c_int = 0x08;

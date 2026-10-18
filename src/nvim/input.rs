@@ -83,7 +83,7 @@ const FLUSH_TYPEAHEAD: flush_buffers_T = 1;
 const FLUSH_INPUT: flush_buffers_T = 2;
 
 const NSCRIPT: usize = 15;
-const MB_MAXBYTES: usize = 4;
+const MB_MAXBYTES: usize = 30;
 const MAXPATHL: usize = 4096;
 const SHOWCMD_COLS: c_int = 10;
 const TYPELEN_INIT: usize = 5 * (MAXMAPLEN + 3);
