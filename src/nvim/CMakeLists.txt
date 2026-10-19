@@ -743,8 +743,6 @@ endforeach()
 if(PREFER_LUA)
   message(STATUS "luajit not used, skipping unit tests")
 else()
-  file(GLOB UNIT_TEST_FIXTURES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/test/unit/fixtures/*.c)
-  target_sources(nvim_bin PRIVATE ${UNIT_TEST_FIXTURES})
   target_compile_definitions(nvim_bin PRIVATE UNIT_TESTING)
 endif()
 
@@ -789,6 +787,7 @@ add_custom_command(
   OUTPUT "${NVIM_RUST_LIB}"
   COMMAND ${CMAKE_COMMAND} -E env
     "CARGO_TARGET_DIR=${NVIM_RUST_TARGET_DIR}"
+    "VTERM_TEST_FILE=${VTERM_TEST_FILE}"
     "${CARGO_PRG}" build
     --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
     ${NVIM_RUST_CARGO_FLAGS}

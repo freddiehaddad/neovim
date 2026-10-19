@@ -8,3 +8,4 @@ pub mod pen;
 pub mod screen;
 pub mod state;
 pub mod vterm;
+pub mod vterm_test;
