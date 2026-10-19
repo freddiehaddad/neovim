@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_string};
 #[allow(unused_imports)]
+use crate::lua::converter::nlua_pop_keydict;
+#[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
@@ -143,16 +145,19 @@ unsafe extern "C-unwind" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn KeyDict_xdl_diff_get_field(str_ptr: *const c_char, len: usize) -> *const c_void;
-    fn nlua_pop_keydict(
-        lstate: *mut lua_State,
-        retval: *mut c_void,
-        get_field: FieldHashfn,
-        err_param: *mut *mut c_char,
-        arena: *mut c_void,
-        err: *mut Error,
-    );
+    fn KeyDict_xdl_diff_get_field(
+        str_ptr: *const c_char,
+        len: usize,
+    ) -> *const crate::lua::converter::KeySetLink;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
+}
+
+#[cfg(not(test))]
+unsafe extern "C-unwind" fn xdl_diff_get_field_cb(
+    str_ptr: *const c_char,
+    len: usize,
+) -> *const crate::lua::converter::KeySetLink {
+    unsafe { KeyDict_xdl_diff_get_field(str_ptr, len) }
 }
 
 #[cfg(not(test))]
@@ -390,7 +395,7 @@ unsafe fn process_xdl_diff_opts(
         nlua_pop_keydict(
             lstate,
             (&raw mut opts).cast::<c_void>(),
-            KeyDict_xdl_diff_get_field,
+            Some(xdl_diff_get_field_cb),
             &mut err_param,
             std::ptr::null_mut(),
             err,

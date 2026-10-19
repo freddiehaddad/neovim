@@ -42,6 +42,8 @@ use crate::message::msg_clr_eos;
 #[allow(unused_imports)]
 use crate::normal::showcmd_update_clear_state;
 #[allow(unused_imports)]
+use crate::option::was_set_insecurely;
+#[allow(unused_imports)]
 use crate::option::{
     find_option, get_fileformat, get_option_default, optval_free_read, set_option_direct,
 };
@@ -58,6 +60,8 @@ use crate::ui::ui_call_tabline_update;
 use crate::ui::{ui_call_msg_ruler, ui_has};
 #[allow(unused_imports)]
 use crate::undo::bufIsChanged;
+#[allow(unused_imports)]
+use crate::window::lastwin_nofloating;
 #[allow(unused_imports)]
 use crate::window::{global_stl_height, tabline_height};
 use std::ffi::{CStr, c_char, c_int};
@@ -277,8 +281,6 @@ unsafe extern "C" {
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn lastwin_nofloating(avoid: *mut win_T) -> *mut win_T;
-    fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 }

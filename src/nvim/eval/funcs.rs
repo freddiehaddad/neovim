@@ -62,9 +62,18 @@ use crate::eval::typval::{
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_copy, tv_list_flatten,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_set_range, tv_dict_extend, tv_list_find_nr};
+#[allow(unused_imports)]
+use crate::eval::userfunc::{
+    emsg_funcname, func_call, function_exists, get_func_arity, get_scriptlocal_funcname,
+    get_user_func_name, save_function_name, trans_function_name, translated_function_exists,
+};
+#[allow(unused_imports)]
 use crate::eval::vars::cat_prefix_varname;
 #[allow(unused_imports)]
 use crate::eval::{buf_byteidx_to_charidx, buf_charidx_to_byteidx};
+#[allow(unused_imports)]
+use crate::eval::{callback_from_typval, do_string_sub, partial_name};
 #[allow(unused_imports)]
 use crate::eval::{
     common_job_callbacks, eval_option, find_job, save_tv_as_string, string2float, tv_to_argv,
@@ -76,10 +85,14 @@ use crate::ex_docmd::expand_filename;
 #[allow(unused_imports)]
 use crate::ex_docmd::{cmd_exists, do_cmdline_cmd};
 #[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, eval_vars};
+#[allow(unused_imports)]
 use crate::ex_getln::{get_user_input, text_locked, text_locked_msg, vim_strsave_fnameescape};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::syn_get_final_id;
+#[allow(unused_imports)]
+use crate::keycodes::vim_strsave_escape_ks;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_exec;
 #[allow(unused_imports)]
@@ -116,6 +129,8 @@ use crate::option_vars::*;
 use crate::os::env::os_get_pid;
 #[allow(unused_imports)]
 use crate::os::stdpaths::get_appname;
+#[allow(unused_imports)]
+use crate::search::last_csearch;
 #[allow(unused_imports)]
 use crate::search::set_csearch_direction;
 #[allow(unused_imports)]
@@ -524,63 +539,6 @@ unsafe extern "C" {
     static mut main_loop: u8;
     static eval_has_list: [*const c_char; 0];
 
-    fn tv_blob_set_range(
-        dest: *mut blob_T,
-        n1: varnumber_T,
-        n2: varnumber_T,
-        src_tv: *const typval_T,
-    ) -> c_int;
-    fn tv_dict_extend(d1: *mut dict_T, d2: *const dict_T, action: *const c_char);
-    fn tv_list_find_nr(l: *const list_T, n: c_int, ret_error: *mut bool) -> varnumber_T;
-    fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
-    fn func_call(
-        name: *mut c_char,
-        args: *mut typval_T,
-        partial: *mut partial_T,
-        selfdict: *mut dict_T,
-        rettv: *mut typval_T,
-    ) -> c_int;
-    fn get_func_arity(
-        name: *const c_char,
-        required: *mut c_int,
-        optional: *mut c_int,
-        varargs: *mut bool,
-    ) -> c_int;
-    fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
-    fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn partial_name(pt: *mut partial_T) -> *const c_char;
-    fn save_function_name(
-        name: *mut *mut c_char,
-        skip: bool,
-        flags: c_int,
-        fdp: *mut c_void,
-    ) -> *mut c_char;
-    fn trans_function_name(
-        pp: *mut *mut c_char,
-        skip: bool,
-        flags: c_int,
-        fdp: *mut c_void,
-        partial: *mut *mut partial_T,
-    ) -> *mut c_char;
-    fn translated_function_exists(name: *const c_char) -> bool;
-    fn eval_vars(
-        src: *mut c_char,
-        usedlen: *const c_char,
-        lenp: *mut usize,
-        fnamep: *mut *const c_char,
-        errormsg: *mut *const c_char,
-        firstline: *mut linenr_T,
-        skip: bool,
-    ) -> *mut c_char;
-    fn do_string_sub(
-        str_: *mut c_char,
-        len: usize,
-        pat: *mut c_char,
-        sub: *mut c_char,
-        expr: *mut typval_T,
-        flags: *mut c_char,
-        endpos: *mut *mut c_char,
-    ) -> *mut c_char;
     #[cfg_attr(target_os = "windows", link_name = "_stricmp")]
     #[cfg_attr(not(target_os = "windows"), link_name = "strcasecmp")]
     fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -589,7 +547,6 @@ unsafe extern "C" {
     fn c_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn vim_strsave_escape_ks(p: *const c_char) -> *mut c_char;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -623,18 +580,9 @@ unsafe extern "C" {
     fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg_funcname(ermsg: *const c_char, name: *const c_char);
 
     fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16);
 
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn function_exists(name: *const c_char, no_deref: bool) -> bool;
-    fn last_csearch() -> *mut c_char;
     fn prompt_for_input(
         prompt: *const c_char,
         hl_id: c_int,
@@ -1380,7 +1328,7 @@ pub unsafe extern "C" fn f_call(argvars: *mut typval_T, rettv: *mut typval_T, _f
             func = (*argvars).vval.v_string;
         } else if (*argvars).v_type == VarType::VAR_PARTIAL {
             partial = (*argvars).vval.v_ptr.cast();
-            func = partial_name(partial).cast_mut();
+            func = partial_name(partial);
         } else if nlua_is_table_from_lua(argvars) {
             func = nlua_register_table_as_callable(argvars);
             owned = true;
@@ -2607,7 +2555,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
             s = (*argvars).vval.v_string;
         } else if (*argvars).v_type == VarType::VAR_PARTIAL && !(*argvars).vval.v_ptr.is_null() {
             arg_pt = (*argvars).vval.v_ptr.cast();
-            s = partial_name(arg_pt).cast_mut();
+            s = partial_name(arg_pt);
         } else {
             s = tv_get_string(argvars).cast_mut();
             use_string = true;
@@ -2862,7 +2810,7 @@ pub unsafe extern "C" fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                     };
                     debug_assert!(!name.is_null());
                     if (*rettv).v_type == VarType::VAR_FUNC {
-                        func_ref(name.cast_mut());
+                        func_ref(name);
                     }
                     if *what == b'n' as c_char
                         && (*pt).pt_name.is_null()

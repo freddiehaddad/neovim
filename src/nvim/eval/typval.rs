@@ -15,10 +15,16 @@
 
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::userfunc::{call_func, get_funccal_local_ht};
+#[allow(unused_imports)]
 use crate::eval::{
     callback_call, func_equal, get_copyID, partial_unref, set_selfdict, var_item_copy, var2fpos,
 };
+#[allow(unused_imports)]
+use crate::eval::{callback_from_typval, partial_name};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_funcref_str;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::message::semsg;
@@ -284,18 +290,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
-    fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, inspect: bool) -> *mut c_char;
-    fn call_func(
-        funcname: *const c_char,
-        len: c_int,
-        rettv: *mut typval_T,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        funcexe: *mut funcexe_T,
-    ) -> c_int;
-    fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
-    fn get_funccal_local_ht() -> *mut hashtab_T;
-    fn partial_name(pt: *mut partial_T) -> *const c_char;
 }
 
 #[inline]
@@ -4138,7 +4132,7 @@ unsafe fn nothing_convert_one_value(
                 let fun = if pt.is_null() {
                     ptr::null_mut()
                 } else {
-                    partial_name(pt).cast_mut()
+                    partial_name(pt)
                 };
                 #[cfg(test)]
                 let fun: *mut c_char = ptr::null_mut();

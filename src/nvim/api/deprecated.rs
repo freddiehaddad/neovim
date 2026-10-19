@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_set_sctx, arena_array, copy_object, copy_string,
     dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, try_enter,
@@ -139,7 +141,6 @@ pub type ApiDispatchWrapper = unsafe extern "C" fn(u64, Array, *mut Arena, *mut 
 
 unsafe extern "C" {
 
-    fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 

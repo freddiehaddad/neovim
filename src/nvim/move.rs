@@ -21,6 +21,8 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_check_for_number_arg;
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number, tv_get_number_chk};
 #[allow(unused_imports)]
 use crate::fold::{foldAdjustCursor, hasFolding};
@@ -36,6 +38,8 @@ use crate::memline::ml_get_buf;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::normal::{nv_g_home_m_cmd, nv_screengo};
+#[allow(unused_imports)]
+use crate::option::get_showbreak_value;
 #[allow(unused_imports)]
 use crate::option::{get_scrolloff_value, get_scrolloffpad_value, get_sidescrolloff_value};
 use crate::option_vars::*;
@@ -108,8 +112,6 @@ struct lineoff_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn get_showbreak_value(win: *const win_T) -> *mut c_char;
-    fn tv_check_for_number_arg(args: *mut typval_T, idx: c_int) -> c_int;
 }
 
 #[inline]

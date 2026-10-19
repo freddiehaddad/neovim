@@ -17,6 +17,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::open_buffer;
+#[allow(unused_imports)]
 use crate::buffer::{buf_inc_changedtick, buf_spname, setfname};
 #[allow(unused_imports)]
 use crate::dialog::do_dialog;
@@ -28,6 +30,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+#[allow(unused_imports)]
+use crate::fileio::readfile;
 #[allow(unused_imports)]
 use crate::fileio::{buf_store_file_info, modname};
 #[allow(unused_imports)]
@@ -352,18 +356,6 @@ unsafe extern "C" {
     fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T;
     #[cfg(unix)]
     fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
-
-    fn open_buffer(read_stdin: bool, eap: *mut c_void, flags_arg: c_int) -> c_int;
-    fn readfile(
-        fname: *mut c_char,
-        sfname: *mut c_char,
-        from: linenr_T,
-        lines_to_skip: linenr_T,
-        lines_to_read: linenr_T,
-        eap: *mut c_void,
-        flags: c_int,
-        silent: bool,
-    ) -> c_int;
 
 }
 

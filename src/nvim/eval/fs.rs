@@ -29,6 +29,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::userfunc::add_defer;
 #[allow(unused_imports)]
+use crate::eval::userfunc::can_add_defer;
+#[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
 use crate::eval::vars::{prepare_vimvar, restore_vimvar};
@@ -296,8 +298,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn os_is_reparse_point_include(path: *const c_char) -> bool;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn can_add_defer() -> bool;
 
     fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;

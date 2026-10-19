@@ -13,6 +13,10 @@
 )]
 
 #[allow(unused_imports)]
+use crate::eval::fs::modify_fname;
+#[allow(unused_imports)]
+use crate::eval::skip_expr;
+#[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -151,17 +155,6 @@ unsafe extern "C" {
     fn uv_os_homedir(buffer: *mut c_char, size: *mut usize) -> c_int;
     fn uv_err_name(err: c_int) -> *const c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
-    fn modify_fname(
-        src: *const c_char,
-        tilde_file: bool,
-        usedlen: *mut usize,
-        fnamep: *mut *mut c_char,
-        bufp: *mut *mut c_char,
-        fnamelen: *mut usize,
-        skip_did_modify: bool,
-    ) -> c_int;
 
     fn vim_ispathsep(c: c_int) -> bool;
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
@@ -1270,7 +1263,7 @@ pub unsafe extern "C" fn home_replace(
             let mut flen = c_strlen(homedir_env_mod);
             let mut fbuf: *mut c_char = ptr::null_mut();
             let _ = modify_fname(
-                c":p".as_ptr(),
+                c":p".as_ptr().cast_mut(),
                 false,
                 &raw mut usedlen,
                 &raw mut homedir_env_mod,

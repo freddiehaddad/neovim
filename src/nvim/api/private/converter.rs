@@ -18,6 +18,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::userfunc::find_func;
 #[allow(unused_imports)]
+use crate::eval::userfunc::register_luafunc;
+#[allow(unused_imports)]
 use crate::eval::{get_copyID, partial_name};
 #[allow(unused_imports)]
 use crate::lua::executor::api_new_luaref;
@@ -93,12 +95,6 @@ pub struct partial_T {
     pub pt_argc: c_int,
     pub pt_argv: *mut typval_T,
     pub pt_dict: *mut dict_T,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn register_luafunc(luaref: c_int) -> *mut c_char;
-
 }
 
 #[inline]

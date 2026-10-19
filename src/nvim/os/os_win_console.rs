@@ -15,6 +15,8 @@ use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::env::os_getenv;
 #[allow(unused_imports)]
+use crate::os::env::os_getenv_noalloc;
+#[allow(unused_imports)]
 use crate::os::fs::os_path_exists;
 #[allow(unused_imports)]
 use crate::ui::ui_active;
@@ -150,7 +152,6 @@ unsafe extern "C" {
 #[cfg(all(windows, not(test)))]
 unsafe extern "C" {
 
-    fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn uv_tty_set_vterm_state(state: c_int);
 }

@@ -11,6 +11,8 @@
 #[allow(unused_imports)]
 use crate::channel::channel_create_event;
 #[allow(unused_imports)]
+use crate::channel::{channel_close, channel_job_start};
+#[allow(unused_imports)]
 use crate::eval::find_job;
 #[allow(unused_imports)]
 use crate::eval::funcs::{f_jobstart, f_jobstop};
@@ -483,30 +485,6 @@ pub struct buf_T {
     pub flush_count: c_int,
     pub b_localdir: *mut c_char,
     pub b_prevdir: *mut c_char,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn channel_job_start(
-        argv: *mut *mut c_char,
-        exepath: *const c_char,
-        on_stdout: CallbackReader,
-        on_stderr: CallbackReader,
-        on_exit: Callback,
-        pty: bool,
-        rpc: bool,
-        overlapped: bool,
-        detach: bool,
-        stdin_mode: c_int,
-        cwd: *const c_char,
-        pty_width: u16,
-        pty_height: u16,
-        env: *mut dict_T,
-        status_out: *mut i64,
-    ) -> *mut Channel;
-    fn channel_close(id: u64, part: c_int, error: *mut *const c_char) -> bool;
-
 }
 
 #[inline]

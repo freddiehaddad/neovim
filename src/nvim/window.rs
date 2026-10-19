@@ -22,6 +22,8 @@ use crate::api::private::helpers::{
     api_clear_error, cstr_as_string, find_window_by_handle, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::buffer::bt_prompt;
+#[allow(unused_imports)]
 use crate::buffer::{bt_help, bt_quickfix};
 #[allow(unused_imports)]
 use crate::buffer::{
@@ -59,6 +61,8 @@ use crate::message::{
 #[allow(unused_imports)]
 use crate::r#move::{win_col_off, win_col_off2};
 #[allow(unused_imports)]
+use crate::normal::check_text_or_curbuf_locked;
+#[allow(unused_imports)]
 use crate::option::get_scrolloff_value;
 #[allow(unused_imports)]
 use crate::option::{
@@ -76,6 +80,8 @@ use crate::ui::{
     ui_call_win_external_pos, ui_call_win_float_pos, ui_call_win_pos, ui_call_win_viewport,
     ui_call_win_viewport_margins,
 };
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
 use std::ptr;
@@ -370,10 +376,6 @@ unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
-    fn bt_prompt(buf: *const buf_T) -> bool;
-
-    fn check_text_or_curbuf_locked(oap: *mut c_void) -> bool;
-
     fn apply_autocmds(
         event: event_T,
         fname: *const c_char,
@@ -398,7 +400,6 @@ unsafe extern "C" {
         flags: c_int,
         oldwin: *mut win_T,
     ) -> c_int;
-    fn bufIsChanged(buf: *const buf_T) -> bool;
 }
 
 const ERROR_INIT: Error = Error {

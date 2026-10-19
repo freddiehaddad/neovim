@@ -16,6 +16,8 @@
 #[allow(unused_imports)]
 use crate::cmdexpand::globpath;
 #[allow(unused_imports)]
+use crate::eval::eval_to_string;
+#[allow(unused_imports)]
 use crate::ex_docmd::eval_vars;
 #[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
@@ -140,7 +142,6 @@ unsafe extern "C" {
 
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
 
-    fn eval_to_string(arg: *const c_char, convert: bool, use_sandbox: bool) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

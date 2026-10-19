@@ -21,6 +21,8 @@ use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
 use crate::charset::{buf_init_isk_chartab, check_isopt, init_isf_chartab, init_isi_chartab};
 #[allow(unused_imports)]
 use crate::cursor::coladvance;
+#[allow(unused_imports)]
+use crate::digraph::keymap_init;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::{do_unlet, get_var_value};
@@ -46,6 +48,8 @@ use crate::option::{
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::spellfile::spell_check_msm;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
@@ -841,9 +845,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-
-    fn keymap_init() -> *const c_char;
-    fn spell_check_msm(p: *const c_char, do_msg: bool) -> c_int;
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;

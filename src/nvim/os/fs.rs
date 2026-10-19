@@ -25,6 +25,8 @@ use crate::message::{semsg, smsg};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::path::path_next_component;
+#[allow(unused_imports)]
 use crate::path::{
     FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
     path_tail, path_tail_with_sep, path_with_url, save_abs_path, vim_ispathsep,
@@ -415,7 +417,6 @@ unsafe extern "C" {
         cb: *const c_void,
     ) -> c_int;
 
-    fn path_next_component(fname: *const c_char) -> *mut c_char;
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]

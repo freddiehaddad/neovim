@@ -11,12 +11,16 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_dict_to_keydict, api_set_sctx, arena_array, arena_dict, arena_string,
     find_buffer_by_handle, try_enter, try_leave,
 };
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
+#[allow(unused_imports)]
+use crate::ex_docmd::get_command_name;
 #[allow(unused_imports)]
 use crate::ex_docmd::{excmd_get_argt, is_cmd_ni, is_map_cmd};
 #[allow(unused_imports)]
@@ -36,6 +40,8 @@ use crate::mbyte::mb_islower;
 use crate::regexp::vim_regcomp;
 #[allow(unused_imports)]
 use crate::register::valid_yank_reg;
+#[allow(unused_imports)]
+use crate::usercmd::get_user_command_name;
 use crate::usercmd::ucmds;
 #[allow(unused_imports)]
 use crate::usercmd::{
@@ -346,10 +352,7 @@ unsafe extern "C-unwind" {
 unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_typename(t: ObjectType) -> *const c_char;
 
-    fn get_command_name(xp: *mut c_void, idx: c_int) -> *mut c_char;
-    fn get_user_command_name(idx: c_int, cmdidx: cmdidx_T) -> *mut c_char;
     fn getdigits_long(pp: *mut *const c_char, strict: bool, def: c_long) -> c_long;
     fn invalid_range(eap: *const exarg_T) -> *const c_char;
 }

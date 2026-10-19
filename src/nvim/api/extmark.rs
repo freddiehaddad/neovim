@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     arena_array, arena_dict, copy_string, find_buffer_by_handle, find_window_by_handle,
     object_to_hl_id,
@@ -41,7 +43,9 @@ use crate::mbyte::utfc_ptr2schar;
 use crate::memline::ml_get_buf_len;
 #[allow(unused_imports)]
 use crate::r#move::changed_window_setting;
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[allow(unused_imports)]
+use crate::sign::init_sign_text;
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::autocmd::OptionalKeys;
@@ -370,9 +374,7 @@ pub struct KeyDict_ns_opts {
 
 unsafe extern "C" {
 
-    fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn init_sign_text(sp: *mut c_void, sign_text: *mut u32, text: *mut c_char) -> c_int;
 }
 
 #[inline]

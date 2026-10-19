@@ -17,6 +17,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 #[allow(unused_imports)]
+use crate::api::private::helpers::{dict_get_value, dict_set_var};
+#[allow(unused_imports)]
 use crate::autocmd::apply_autocmds_group;
 #[allow(unused_imports)]
 use crate::autocmd::{
@@ -31,6 +33,8 @@ use crate::drawscreen::{
 };
 #[allow(unused_imports)]
 use crate::eval::get_v_event;
+#[allow(unused_imports)]
+use crate::eval::restore_v_event;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_add_nr;
 #[allow(unused_imports)]
@@ -49,13 +53,19 @@ use crate::highlight_group::name_to_color;
 #[allow(unused_imports)]
 use crate::input::{getcmdkeycmd, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
 #[allow(unused_imports)]
+use crate::mbyte::mb_check_adjust_col;
+#[allow(unused_imports)]
 use crate::mbyte::{utf_ptr2char, utf_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::ml_append_buf;
 #[allow(unused_imports)]
 use crate::memline::{ml_delete_buf, ml_replace_buf};
 #[allow(unused_imports)]
 use crate::r#move::win_col_off;
 #[allow(unused_imports)]
 use crate::ops::clear_oparg;
+#[allow(unused_imports)]
+use crate::option::set_option_value;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::optionstr::free_string_option;
@@ -440,46 +450,12 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 unsafe extern "C" {
     static mut main_loop: c_void;
 
-    fn ml_append_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        line: *const c_char,
-        len: c_int,
-        newfile: bool,
-    ) -> c_int;
-
-    fn set_option_value(
-        opt_idx: OptIndex,
-        val: Object,
-        opt_flags: c_int,
-        set_sid: bool,
-        errbuf: *const c_void,
-    ) -> *const c_char;
-
-    fn restore_v_event(v_event: *mut dict_T, sve: *const save_v_event_T);
     fn eval_call_provider(
         provider: *const c_char,
         method: *const c_char,
         arguments: *mut list_T,
         discard: bool,
     ) -> typval_T;
-    fn dict_set_var(
-        dict: *mut dict_T,
-        key: NvimString,
-        value: Object,
-        del: bool,
-        retval: bool,
-        arena: *mut c_void,
-        err: *mut Error,
-    ) -> Object;
-    fn dict_get_value(
-        dict: *mut dict_T,
-        key: NvimString,
-        arena: *mut c_void,
-        err: *mut Error,
-    ) -> Object;
-
-    fn mb_check_adjust_col(wp: *mut win_T);
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
@@ -1298,7 +1274,7 @@ pub unsafe extern "C" fn terminal_close(termpp: *mut *mut Terminal, status: c_in
                 false,
             );
 
-            restore_v_event(dict, &save_v_event);
+            restore_v_event(dict, (&raw const save_v_event).cast_mut());
         }
     }
 }
@@ -3220,7 +3196,7 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
                     } else {
                         (*wp).w_cursor.lnum = (*wp).w_cursor.lnum.min(ml_end);
                     }
-                    mb_check_adjust_col(wp);
+                    mb_check_adjust_col(wp.cast());
                 }
                 wp = (*wp).w_next;
             }

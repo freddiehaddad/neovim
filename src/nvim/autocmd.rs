@@ -28,6 +28,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::callback_to_string;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_nr;
+#[allow(unused_imports)]
 use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_tv, tv_dict_set_keys_readonly};
 #[allow(unused_imports)]
 use crate::eval::userfunc::{restore_funccal, save_funccal};
@@ -70,6 +72,8 @@ use crate::os::input::line_breakcheck;
 use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::estack_pop;
+#[allow(unused_imports)]
+use crate::runtime::estack_push;
 use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::search::{restore_search_patterns, save_search_patterns};
@@ -1362,10 +1366,6 @@ unsafe extern "C" {
 
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: isize, nr: varnumber_T)
-    -> c_int;
-
-    fn estack_push(type_: c_int, name: *mut c_char, lnum: i32) -> *mut estack_T;
 }
 
 #[inline]

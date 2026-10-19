@@ -21,6 +21,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::callback_call;
 #[allow(unused_imports)]
+use crate::eval::set_ref_in_callback;
+#[allow(unused_imports)]
 use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline;
@@ -76,7 +78,7 @@ use crate::cursor::{
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T};
+use crate::eval::deprecated::buf_T;
 use crate::extmark::{ExtmarkOp, TriState, bcount_t, extmark_splice, extmark_splice_cols};
 use crate::indent::{
     change_indent, fix_indent, get_expr_indent, get_indent, get_lisp_indent, get_sw_value_indent,
@@ -264,12 +266,6 @@ unsafe extern "C" {
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn ml_get_pos_len(pos: *const pos_T) -> colnr_T;
     fn gchar_pos(pos: *const pos_T) -> c_int;
-    fn set_ref_in_callback(
-        callback: *mut Callback,
-        copyID: c_int,
-        ht_stack: *mut *mut c_void,
-        list_stack: *mut *mut c_void,
-    ) -> bool;
 }
 
 #[inline]

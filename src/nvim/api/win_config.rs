@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, arena_array, find_buffer_by_handle,
     find_window_by_handle, object_to_hl_id, try_enter, try_leave,
@@ -224,7 +226,6 @@ unsafe extern "C" {
     static opt_winborder_values: [*const c_char; 9];
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_typename(t: ObjectType) -> *const c_char;
 }
 
 const NIL: Object = Object {

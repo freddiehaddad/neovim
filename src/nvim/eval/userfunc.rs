@@ -22,6 +22,8 @@ use crate::eval::funcs::{
     call_internal_func, call_internal_method, check_internal_func, find_internal_func,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::value_check_lock;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
     tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_list_append, tv_list_init_static,
@@ -37,6 +39,8 @@ use crate::eval::{
 #[allow(unused_imports)]
 use crate::eval::{clear_evalarg, eval0, fill_evalarg_from_eap};
 #[allow(unused_imports)]
+use crate::eval::{find_name_end, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items};
+#[allow(unused_imports)]
 use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
 #[allow(unused_imports)]
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
@@ -45,6 +49,8 @@ use crate::globals::*;
 use crate::insexpand::ins_compl_active;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_exec_typval_callable, nlua_set_sctx};
+#[allow(unused_imports)]
+use crate::message::msg_prt_line;
 #[allow(unused_imports)]
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -285,25 +291,9 @@ unsafe extern "C" {
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn find_name_end(
-        arg: *const c_char,
-        expr_start: *mut *const c_char,
-        expr_end: *mut *const c_char,
-        flags: c_int,
-    ) -> *mut c_char;
-    fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
-    fn set_ref_in_list_items(l: *mut list_T, copyID: c_int, ht_stack: *mut *mut c_void) -> bool;
-    fn set_ref_in_item(
-        tv: *mut typval_T,
-        copyID: c_int,
-        ht_stack: *mut *mut c_void,
-        list_stack: *mut *mut c_void,
-    ) -> bool;
 
     fn nlua_call_vlua(
         funcname: *const c_char,
@@ -313,9 +303,6 @@ unsafe extern "C" {
         rettv: *mut typval_T,
     );
 
-    fn msg_prt_line(s: *mut c_char, list: bool);
-
-    fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
 }
 
 #[inline]
@@ -460,7 +447,6 @@ pub unsafe extern "C" fn func_tbl_get() -> *mut hashtab_T {
 /// Get one function argument.
 /// Return a pointer to after the type.
 /// When something is wrong return "arg".
-#[cfg(not(test))]
 unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool) -> *mut c_char {
     unsafe {
         let mut p = arg;
@@ -512,7 +498,6 @@ unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool)
 }
 
 /// Get function arguments.
-#[cfg(not(test))]
 unsafe fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
@@ -688,8 +673,7 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
 }
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_lambda_tv(
     arg: *mut *mut c_char,
     rettv: *mut typval_T,
@@ -859,8 +843,7 @@ pub unsafe extern "C" fn get_lambda_tv(
 }
 
 /// Return name of the function corresponding to `name`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn deref_func_name(
     name: *const c_char,
     lenp: *mut c_int,
@@ -910,8 +893,7 @@ pub unsafe extern "C" fn deref_func_name(
 }
 
 /// Give an error message with a function name. Handle `<SNR>` things.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
     unsafe {
         let mut p = name.cast_mut();
@@ -929,7 +911,6 @@ pub unsafe extern "C" fn emsg_funcname(errmsg: *const c_char, name: *const c_cha
 }
 
 /// Get function arguments at `*arg` and advance it.
-#[cfg(not(test))]
 unsafe fn get_func_arguments(
     arg: *mut *mut c_char,
     evalarg: *mut evalarg_T,
@@ -969,8 +950,7 @@ unsafe fn get_func_arguments(
 }
 
 /// Call a function and put the result in `rettv`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_func_tv(
     name: *const c_char,
     len: c_int,
@@ -1045,7 +1025,6 @@ unsafe fn eval_fname_sid(name: *const c_char) -> bool {
 }
 
 /// In a script transform script-local names into actually used names.
-#[cfg(not(test))]
 unsafe fn fname_trans_sid(
     name: *const c_char,
     fname_buf: *mut c_char,
@@ -1094,8 +1073,7 @@ unsafe fn fname_trans_sid(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_func_arity(
     name: *const c_char,
     required: *mut c_int,
@@ -1420,8 +1398,7 @@ pub unsafe extern "C" fn remove_funccal() {
 }
 
 /// Call a user function.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn call_user_func(
     fp: *mut ufunc_T,
     argcount: c_int,
@@ -1851,7 +1828,6 @@ unsafe fn check_user_func_argcount(fp: *mut ufunc_T, argcount: c_int) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn call_user_func_check(
     fp: *mut ufunc_T,
     argcount: c_int,
@@ -2005,8 +1981,7 @@ unsafe fn builtin_function(name: *const c_char, len: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn func_call(
     name: *mut c_char,
     args: *mut typval_T,
@@ -2060,8 +2035,7 @@ pub unsafe extern "C" fn func_call(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn callback_call_retnr(
     callback: *mut Callback,
     argcount: c_int,
@@ -2079,7 +2053,6 @@ pub unsafe extern "C" fn callback_call_retnr(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
     unsafe {
         match error {
@@ -2138,8 +2111,7 @@ unsafe fn argv_add_base(
 }
 
 /// Call a function with its resolved parameters.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn call_func(
     mut funcname: *const c_char,
     mut len: c_int,
@@ -2302,8 +2274,7 @@ pub unsafe extern "C" fn call_func(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn call_simple_luafunc(
     funcname: *const c_char,
     len: usize,
@@ -2320,8 +2291,7 @@ pub unsafe extern "C" fn call_simple_luafunc(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn call_simple_func(
     funcname: *const c_char,
     len: usize,
@@ -2391,7 +2361,6 @@ pub unsafe extern "C" fn printable_func_name(fp: *mut ufunc_T) -> *mut c_char {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
     unsafe {
         if prev_ht_changed != func_hashtab.ht_changed {
@@ -2402,7 +2371,6 @@ unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
     unsafe {
         let prev_ht_changed = func_hashtab.ht_changed;
@@ -2471,8 +2439,7 @@ unsafe fn list_func_head(fp: *mut ufunc_T, indent: bool, force: bool) -> c_int {
 }
 
 /// Get a function name, translating `<SID>` and `<SNR>`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn trans_function_name(
     pp: *mut *mut c_char,
     skip: bool,
@@ -2531,7 +2498,8 @@ pub unsafe extern "C" fn trans_function_name(
                     semsg!(gettext(e_invarg2.as_ptr()), start);
                 }
             } else {
-                *pp = find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR);
+                *pp =
+                    find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR).cast_mut();
             }
             clear_lval(&raw mut lv);
             return name;
@@ -2710,8 +2678,7 @@ pub unsafe extern "C" fn trans_function_name(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char {
     unsafe {
         if funcname.is_null() {
@@ -2751,8 +2718,7 @@ pub unsafe extern "C" fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut
 }
 
 /// Call `trans_function_name()`, except that a lambda is returned as-is.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn save_function_name(
     name: *mut *mut c_char,
     skip: bool,
@@ -2782,7 +2748,6 @@ pub unsafe extern "C" fn save_function_name(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn list_functions(regmatch: *mut regmatch_T) {
     unsafe {
         let prev_ht_changed = func_hashtab.ht_changed;
@@ -2815,7 +2780,6 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
     unsafe {
         let mut p = skip_regexp((*eap).arg.add(1), b'/' as c_int, 1);
@@ -2840,7 +2804,6 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
     unsafe {
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
@@ -2911,7 +2874,6 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_function_body(
     eap: *mut exarg_T,
     newlines: *mut garray_T,
@@ -3210,8 +3172,7 @@ unsafe fn get_function_body(
 }
 
 /// `:function`
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
     unsafe {
         let mut line_to_free: *mut c_char = ptr::null_mut();
@@ -3633,8 +3594,7 @@ pub unsafe extern "C" fn eval_fname_script(p: *const c_char) -> c_int {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn translated_function_exists(name: *const c_char) -> bool {
     unsafe {
         if builtin_function(name, -1) {
@@ -3644,8 +3604,7 @@ pub unsafe extern "C" fn translated_function_exists(name: *const c_char) -> bool
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn function_exists(name: *const c_char, no_deref: bool) -> bool {
     unsafe {
         let mut nm = name.cast_mut();
@@ -3668,8 +3627,7 @@ pub unsafe extern "C" fn function_exists(name: *const c_char, no_deref: bool) ->
 
 /// Function given to `ExpandGeneric()` to obtain the list of user defined
 /// function names.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         if idx == 0 {
@@ -3723,8 +3681,7 @@ pub unsafe extern "C" fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *m
 }
 
 /// `:delfunction {name}`
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
@@ -3886,8 +3843,7 @@ unsafe fn can_free_funccal(fc: *const funccall_T, copyID: c_int) -> bool {
 }
 
 /// `:return [expr]`
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_return(eap: *mut exarg_T) {
     unsafe {
         let arg = (*eap).arg;
@@ -3940,7 +3896,6 @@ pub unsafe extern "C" fn ex_return(eap: *mut exarg_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn ex_call_inner(
     eap: *mut exarg_T,
     name: *mut c_char,
@@ -3999,7 +3954,6 @@ unsafe fn ex_call_inner(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn ex_defer_inner(
     name: *mut c_char,
     arg: *mut *mut c_char,
@@ -4077,8 +4031,7 @@ unsafe fn ex_defer_inner(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn can_add_defer() -> bool {
     unsafe {
         if get_current_funccal().is_null() {
@@ -4119,7 +4072,6 @@ pub unsafe extern "C" fn add_defer(name: *mut c_char, argcount_arg: c_int, argva
     }
 }
 
-#[cfg(not(test))]
 unsafe fn handle_defer_one(funccal: *mut funccall_T) {
     unsafe {
         let mut idx = (*funccal).fc_defer.ga_len - 1;
@@ -4168,8 +4120,7 @@ unsafe fn handle_defer_one(funccal: *mut funccall_T) {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn invoke_all_defer() {
     unsafe {
         let mut fc = current_funccal;
@@ -4191,8 +4142,7 @@ pub unsafe extern "C" fn invoke_all_defer() {
 }
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
@@ -4295,8 +4245,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
 }
 
 /// Return from a function. Possibly makes the return pending.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn do_return(
     eap: *mut exarg_T,
     reanimate: bool,
@@ -4353,8 +4302,7 @@ pub unsafe extern "C" fn do_return(
 }
 
 /// Generate a return command for producing the value of `rettv`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
     unsafe {
         let mut s: *mut c_char = ptr::null_mut();
@@ -4385,8 +4333,7 @@ pub unsafe extern "C" fn get_return_cmd(rettv: *mut c_void) -> *mut c_char {
 }
 
 /// Get next function line.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_func_line(
     _c: c_int,
     cookie: *mut c_void,
@@ -4442,8 +4389,7 @@ pub unsafe extern "C" fn get_func_line(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn func_has_ended(cookie: *mut c_void) -> c_int {
     unsafe {
         let fcp = cookie.cast::<funccall_T>();
@@ -4463,8 +4409,7 @@ pub unsafe extern "C" fn func_has_abort(cookie: *mut c_void) -> c_int {
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
@@ -4562,8 +4507,7 @@ pub unsafe extern "C" fn current_func_returned() -> c_int {
     unsafe { (*current_funccal).fc_returned }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
     unsafe {
         let mut did_free = false;
@@ -4588,8 +4532,7 @@ pub unsafe extern "C" fn free_unref_funccal(copyID: c_int, testing: c_int) -> bo
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal() -> *mut funccall_T {
     unsafe {
         let mut funccal = current_funccal;
@@ -4608,7 +4551,6 @@ pub unsafe extern "C" fn get_funccal() -> *mut funccall_T {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn get_funccal_for_vars() -> *mut funccall_T {
     unsafe {
         if current_funccal.is_null() {
@@ -4622,8 +4564,7 @@ unsafe fn get_funccal_for_vars() -> *mut funccall_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal_local_dict() -> *mut dict_T {
     unsafe {
         let funccal = get_funccal_for_vars();
@@ -4635,8 +4576,7 @@ pub unsafe extern "C" fn get_funccal_local_dict() -> *mut dict_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal_local_ht() -> *mut hashtab_T {
     unsafe {
         let d = get_funccal_local_dict();
@@ -4648,8 +4588,7 @@ pub unsafe extern "C" fn get_funccal_local_ht() -> *mut hashtab_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal_local_var() -> *mut dictitem_T {
     unsafe {
         let funccal = get_funccal_for_vars();
@@ -4661,8 +4600,7 @@ pub unsafe extern "C" fn get_funccal_local_var() -> *mut dictitem_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal_args_dict() -> *mut dict_T {
     unsafe {
         let funccal = get_funccal_for_vars();
@@ -4674,8 +4612,7 @@ pub unsafe extern "C" fn get_funccal_args_dict() -> *mut dict_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal_args_ht() -> *mut hashtab_T {
     unsafe {
         let d = get_funccal_args_dict();
@@ -4687,8 +4624,7 @@ pub unsafe extern "C" fn get_funccal_args_ht() -> *mut hashtab_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_funccal_args_var() -> *mut dictitem_T {
     unsafe {
         let funccal = get_funccal_for_vars();
@@ -4700,8 +4636,7 @@ pub unsafe extern "C" fn get_funccal_args_var() -> *mut dictitem_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn list_func_vars(first: *mut c_int) {
     unsafe {
         if !current_funccal.is_null() && (*current_funccal).fc_l_vars.dv_refcount > 0 {
@@ -4725,8 +4660,7 @@ pub unsafe extern "C" fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut di
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn find_hi_in_scoped_ht(
     name: *const c_char,
     pht: *mut *mut hashtab_T,
@@ -4762,8 +4696,7 @@ pub unsafe extern "C" fn find_hi_in_scoped_ht(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn find_var_in_scoped_ht(
     name: *const c_char,
     namelen: usize,
@@ -4804,8 +4737,7 @@ pub unsafe extern "C" fn find_var_in_scoped_ht(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
         let mut fc = previous_funccal;
@@ -4829,7 +4761,6 @@ pub unsafe extern "C" fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn set_ref_in_funccal(fc: *mut funccall_T, copyID: c_int) -> bool {
     unsafe {
         if (*fc).fc_copyID != copyID {
@@ -4850,8 +4781,7 @@ unsafe fn set_ref_in_funccal(fc: *mut funccall_T, copyID: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_ref_in_call_stack(copyID: c_int) -> bool {
     unsafe {
         let mut fc = current_funccal;
@@ -4878,8 +4808,7 @@ pub unsafe extern "C" fn set_ref_in_call_stack(copyID: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_ref_in_functions(copyID: c_int) -> bool {
     unsafe {
         let mut todo = func_hashtab.ht_used as c_int;
@@ -4899,8 +4828,7 @@ pub unsafe extern "C" fn set_ref_in_functions(copyID: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_ref_in_func_args(copyID: c_int) -> bool {
     unsafe {
         for i in 0..funcargs.ga_len {
@@ -4913,8 +4841,7 @@ pub unsafe extern "C" fn set_ref_in_func_args(copyID: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_ref_in_func(
     name: *mut c_char,
     fp_in: *mut ufunc_T,
@@ -4952,8 +4879,7 @@ pub unsafe extern "C" fn set_ref_in_func(
 }
 
 /// Registers a luaref as a lambda.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn register_luafunc(ref_: LuaRef) -> *mut c_char {
     unsafe {
         let name = get_lambda_name();

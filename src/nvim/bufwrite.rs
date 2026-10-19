@@ -32,12 +32,16 @@ use crate::fileio::{
     write_eintr,
 };
 #[allow(unused_imports)]
+use crate::fileio::{filemess_bufwrite, get_fio_flags};
+#[allow(unused_imports)]
 use crate::fileio::{
     match_file_list, msg_add_fileformat, need_conversion, set_rw_fname, vim_rename, vim_tempname,
 };
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
+#[allow(unused_imports)]
+use crate::memline::get_file_in_dir;
 #[allow(unused_imports)]
 use crate::memline::{make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
 use crate::message::semsg;
@@ -262,10 +266,6 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-
-    fn get_fio_flags(name: *mut c_char) -> c_int;
-    fn filemess_bufwrite(buf: *mut buf_T, name: *const c_char, id: *const c_char);
-    fn get_file_in_dir(fname: *const c_char, dname: *const c_char) -> *mut c_char;
 
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 

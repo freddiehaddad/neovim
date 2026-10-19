@@ -61,6 +61,8 @@ use crate::main_init::getout;
 #[allow(unused_imports)]
 use crate::mapping::map_clear_mode;
 #[allow(unused_imports)]
+use crate::message::msg_delay;
+#[allow(unused_imports)]
 use crate::message::{
     emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_start,
     msg_trunc, set_keep_msg,
@@ -90,8 +92,6 @@ use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 #[allow(unused_imports)]
 use crate::version::min_vim_version;
 #[allow(unused_imports)]
-use crate::window::one_window;
-#[allow(unused_imports)]
 use crate::window::update_cwd;
 #[allow(unused_imports)]
 use crate::window::{
@@ -100,6 +100,8 @@ use crate::window::{
     win_close, win_enter, win_locked, win_move_after, win_split, win_valid, window_layout_lock,
     window_layout_unlock,
 };
+#[allow(unused_imports)]
+use crate::window::{check_colorcolumn, last_window, one_window, win_valid_any_tab};
 #[allow(unused_imports)]
 use crate::winfloat::win_set_minimal_style;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -417,17 +419,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
-    fn msg_delay(msec: i64, ignoreinput: bool);
-
-    #[cfg(any(
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-        target_os = "dragonfly",
-        target_os = "macos"
-    ))]
-    fn one_window(win: *const win_T, tp: *const tabpage_T) -> bool;
-    fn last_window(win: *const win_T) -> bool;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
@@ -437,8 +428,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
 
-    fn check_colorcolumn(errbuf: *const CharBuf, wp: *mut win_T) -> *const c_char;
-    fn win_valid_any_tab(win: *const win_T) -> bool;
 }
 
 #[inline]

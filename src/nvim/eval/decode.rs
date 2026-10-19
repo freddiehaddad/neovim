@@ -9,6 +9,10 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::vim_str2nr;
+#[allow(unused_imports)]
+use crate::eval::string2float;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_list_append_number;
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -175,19 +179,6 @@ struct ValuesStackItem {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn vim_str2nr(
-        start: *const c_char,
-        prep: *mut c_int,
-        len: *mut c_int,
-        what: c_int,
-        nptr: *mut i64,
-        unptr: *mut u64,
-        maxlen: c_int,
-        strict: bool,
-        overflow: *mut bool,
-    );
-    fn string2float(text: *const c_char, ret_value: *mut f64) -> usize;
 
     fn mpack_parser_init(p: *mut mpack_parser_t, c: u32);
     fn mpack_parse(

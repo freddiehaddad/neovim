@@ -17,15 +17,21 @@ use crate::api::private::helpers::api_metadata_raw;
 #[allow(unused_imports)]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[allow(unused_imports)]
+use crate::buffer::open_buffer;
+#[allow(unused_imports)]
 use crate::buffer::{
     buf_set_changedtick, buflist_new, do_autochdir, do_modelines, handle_swap_exists,
     set_buflisted, set_curbuf, setfname,
 };
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::userfunc::invoke_all_defer;
+#[allow(unused_imports)]
 use crate::eval::{eval_init, set_argv_var, timer_teardown};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
+#[allow(unused_imports)]
+use crate::fileio::readfile;
 #[allow(unused_imports)]
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
@@ -315,18 +321,6 @@ unsafe extern "C" {
 
     fn main_get_stdout() -> *mut FILE;
 
-    fn readfile(
-        fname: *mut c_char,
-        sfname: *mut c_char,
-        from: linenr_T,
-        lines_to_skip: linenr_T,
-        lines_to_read: linenr_T,
-        eap: *mut c_void,
-        flags: c_int,
-        silent: bool,
-    ) -> c_int;
-    fn open_buffer(read_stdin: bool, eap: *mut c_void, flags: c_int) -> c_int;
-    fn invoke_all_defer();
     fn free_all_mem();
 
     #[cfg_attr(windows, link_name = "_dup2")]

@@ -15,6 +15,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_free_dict, api_free_string, cstr_to_string};
 #[allow(unused_imports)]
+use crate::autocmd::aucmd_defer;
+#[allow(unused_imports)]
 use crate::autocmd::has_event;
 #[allow(unused_imports)]
 use crate::buffer::set_bufref;
@@ -46,7 +48,7 @@ use crate::register::reg_max_ts;
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
 use crate::window::win_valid;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::api::buffer::VisualState;
@@ -400,16 +402,6 @@ static mut typed: TypedState = TypedState {
 unsafe extern "C" {
 
     fn bufref_valid(bufref: *const bufref_T) -> bool;
-
-    fn aucmd_defer(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        group: c_int,
-        buf: *mut buf_T,
-        eap: *mut c_void,
-        data: *mut Object,
-    );
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;

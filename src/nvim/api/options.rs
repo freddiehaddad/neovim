@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_object, api_set_sctx, copy_object, find_buffer_by_handle, find_tab_by_handle,
     find_window_by_handle, try_enter, try_leave,
@@ -152,7 +154,6 @@ pub struct KeyDict_option {
 unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_typename(t: ObjectType) -> *const c_char;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 }
 

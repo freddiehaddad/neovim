@@ -15,6 +15,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::copy_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_free_dict, api_free_string};
 #[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, bt_terminal};
@@ -24,6 +26,8 @@ use crate::buffer::{buflist_findnr, buflist_new, buflist_setfpos};
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
 #[allow(unused_imports)]
 use crate::eval::{get_copyID, var_flavour, var_set_global};
+#[allow(unused_imports)]
+use crate::eval::{set_ref_in_ht, set_ref_in_list_items};
 #[allow(unused_imports)]
 use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
 #[allow(unused_imports)]
@@ -61,7 +65,7 @@ use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
 use crate::eval::vars::{VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list};
-use crate::hashtab::{hashitem_T, hashitem_empty, hashtab_T};
+use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::lua::converter::{Boolean, KeySetLink};
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t,
@@ -667,12 +671,8 @@ unsafe extern "C" {
     fn os_strerror(err: c_int) -> *const c_char;
 
     fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
-    fn set_ref_in_list_items(l: *mut list_T, copyID: c_int, ht_stack: *mut *mut c_void) -> bool;
 
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-
-    fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
 
     #[cfg(unix)]
     fn getuid() -> u32;

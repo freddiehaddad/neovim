@@ -21,6 +21,8 @@ use crate::api::private::helpers::{arena_array, arena_dict};
 use crate::autocmd::{apply_autocmds, has_event};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_find;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_free,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_unref,
@@ -171,8 +173,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut c_void;
 
     fn pty_proc_close_master(ptyproc: *mut c_void);
     fn pty_proc_resize(ptyproc: *mut c_void, width: u16, height: u16);

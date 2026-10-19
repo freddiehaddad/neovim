@@ -963,20 +963,20 @@ pub unsafe extern "C" fn object_to_hl_id(
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
-pub extern "C" fn api_typename(t: ObjectType) -> *mut c_char {
+pub extern "C" fn api_typename(t: ObjectType) -> *const c_char {
     match t {
-        ObjectType::kObjectTypeUnset => c"unset".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeNil => c"nil".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeBoolean => c"Boolean".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeInteger => c"Integer".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeFloat => c"Float".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeString => c"String".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeArray => c"Array".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeDict => c"Dict".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeLuaRef => c"Function".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeBuffer => c"Buffer".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeWindow => c"Window".as_ptr().cast_mut(),
-        ObjectType::kObjectTypeTabpage => c"Tabpage".as_ptr().cast_mut(),
+        ObjectType::kObjectTypeUnset => c"unset".as_ptr(),
+        ObjectType::kObjectTypeNil => c"nil".as_ptr(),
+        ObjectType::kObjectTypeBoolean => c"Boolean".as_ptr(),
+        ObjectType::kObjectTypeInteger => c"Integer".as_ptr(),
+        ObjectType::kObjectTypeFloat => c"Float".as_ptr(),
+        ObjectType::kObjectTypeString => c"String".as_ptr(),
+        ObjectType::kObjectTypeArray => c"Array".as_ptr(),
+        ObjectType::kObjectTypeDict => c"Dict".as_ptr(),
+        ObjectType::kObjectTypeLuaRef => c"Function".as_ptr(),
+        ObjectType::kObjectTypeBuffer => c"Buffer".as_ptr(),
+        ObjectType::kObjectTypeWindow => c"Window".as_ptr(),
+        ObjectType::kObjectTypeTabpage => c"Tabpage".as_ptr(),
     }
 }
 

@@ -22,6 +22,10 @@ use crate::eval::callback_call;
 #[allow(unused_imports)]
 use crate::eval::funcs::tv_get_buf;
 #[allow(unused_imports)]
+use crate::eval::funcs::tv_get_buf_from_arg;
+#[allow(unused_imports)]
+use crate::eval::set_ref_in_ht;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_check_str_or_nr, tv_dict_watcher_notify, tv_get_string, tv_get_string_buf_chk,
     tv_get_string_chk, tv_list_find_nr, tv_list_find_str,
@@ -37,6 +41,12 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::userfunc::get_current_funccal_dict;
 #[allow(unused_imports)]
+use crate::eval::userfunc::{
+    find_hi_in_scoped_ht, find_var_in_scoped_ht, function_exists, get_funccal_args_dict,
+    get_funccal_args_ht, get_funccal_args_var, get_funccal_local_dict, get_funccal_local_ht,
+    get_funccal_local_var, list_func_vars,
+};
+#[allow(unused_imports)]
 use crate::eval::{clear_evalarg, eval0, fill_evalarg_from_eap};
 #[allow(unused_imports)]
 use crate::eval::{
@@ -49,6 +59,8 @@ use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_docmd::{check_nextcmd, ends_excmd};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_funcref_str;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_set_sctx;
 use crate::message::semsg;
@@ -585,28 +597,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
-
-    fn list_func_vars(first: *mut c_int);
-    fn find_hi_in_scoped_ht(name: *const c_char, pht: *mut *mut hashtab_T) -> *mut hashitem_T;
-    fn find_var_in_scoped_ht(
-        name: *const c_char,
-        namelen: usize,
-        no_autoload: c_int,
-    ) -> *mut dictitem_T;
-    fn get_funccal_local_ht() -> *mut hashtab_T;
-    fn get_funccal_args_ht() -> *mut hashtab_T;
-    fn get_funccal_local_var() -> *mut dictitem_T;
-    fn get_funccal_args_var() -> *mut dictitem_T;
-    fn get_funccal_local_dict() -> *mut dict_T;
-    fn get_funccal_args_dict() -> *mut dict_T;
-    fn function_exists(name: *const c_char, no_deref: bool) -> bool;
-
-    fn tv_get_buf_from_arg(tv: *const typval_T) -> *mut buf_T;
-
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-
-    fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, show_ref: bool) -> *mut c_char;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }

@@ -16,6 +16,10 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_find};
 #[allow(unused_imports)]
+use crate::eval::userfunc::call_func;
+#[allow(unused_imports)]
+use crate::eval::{clear_evalarg, eval0};
+#[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -60,18 +64,7 @@ pub struct KeyDict_exec_opts {
 
 pub use crate::eval::vars::evalarg_T;
 
-#[repr(C)]
-pub struct funcexe_T {
-    pub fe_argv_func: *mut c_void,
-    pub fe_firstline: i32,
-    pub fe_lastline: i32,
-    pub fe_doesrange: *mut bool,
-    pub fe_evaluate: bool,
-    pub fe_partial: *mut c_void,
-    pub fe_selfdict: *mut dict_T,
-    pub fe_basetv: *mut typval_T,
-    pub fe_found_var: bool,
-}
+pub use crate::eval::userfunc::funcexe_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -87,22 +80,6 @@ static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn eval0(
-        arg: *mut c_char,
-        rettv: *mut typval_T,
-        eap: *mut c_void,
-        evalarg: *mut evalarg_T,
-    ) -> c_int;
-    fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut c_void);
-    fn call_func(
-        funcname: *const c_char,
-        len: c_int,
-        rettv: *mut typval_T,
-        argcount_in: c_int,
-        argv_in: *mut typval_T,
-        funcexe: *mut funcexe_T,
-    ) -> c_int;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
@@ -449,7 +426,7 @@ unsafe fn call_function_impl(
         let mut rettv: typval_T = std::mem::zeroed();
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: std::ptr::null_mut(),
+            fe_argv_func: None,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: std::ptr::null_mut(),

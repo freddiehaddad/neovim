@@ -20,9 +20,13 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
 #[allow(unused_imports)]
+use crate::eval::userfunc::{call_func, register_luafunc};
+#[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline;
+#[allow(unused_imports)]
+use crate::ex_docmd::get_command_name;
 #[allow(unused_imports)]
 use crate::ex_getln::script_get;
 #[allow(unused_imports)]
@@ -30,12 +34,16 @@ use crate::ex_getln::{get_user_input, ui_ext_cmdline_block_append, ui_ext_cmdlin
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::log_get_stderr;
+#[allow(unused_imports)]
+use crate::message::msg_multihl;
 use crate::message::semsg_multiline;
 #[allow(unused_imports)]
 use crate::message::{emsg, msg_ext_no_fast, msg_putchar, msg_use_printf, redirecting};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::home_replace_save;
+#[allow(unused_imports)]
+use crate::runtime::{cmd_source_buffer, new_script_item};
 #[allow(unused_imports)]
 use crate::runtime::{runtime_get_named_thread, runtime_search_path_validate};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -343,34 +351,11 @@ unsafe extern "C" {
     fn uv_thread_self() -> uv_thread_t;
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
-    fn get_command_name(xp: *mut expand_T, idx: c_int) -> *const c_char;
-    fn msg_multihl(
-        id: Object,
-        hl_msg: HlMessage,
-        kind: *const c_char,
-        history: bool,
-        err: bool,
-        msg_data: *mut c_void,
-        needs_msg_clear: *mut bool,
-        raw_for_lua_print: bool,
-    ) -> Object;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
-
-    fn cmd_source_buffer(eap: *const c_void, ex_lua: bool);
-    fn call_func(
-        funcname: *const c_char,
-        len: c_int,
-        rettv: *mut typval_T,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        funcexe: *mut funcexe_T,
-    ) -> c_int;
-    fn register_luafunc(ref_: LuaRef) -> *mut c_char;
-    fn new_script_item(name: *mut c_char, sc_id: *mut c_int) -> *mut scriptitem_T;
 
     #[cfg(unix)]
     fn pthread_exit(retval: *mut c_void) -> !;

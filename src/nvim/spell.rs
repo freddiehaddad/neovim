@@ -70,6 +70,10 @@ use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, pat
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regexec_prog, vim_regfree};
 #[allow(unused_imports)]
+use crate::runtime::do_in_runtimepath;
+#[allow(unused_imports)]
+use crate::search::do_search;
+#[allow(unused_imports)]
 use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
@@ -220,23 +224,6 @@ static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn do_search(
-        oap: *mut c_void,
-        dirc: c_int,
-        search_delim: c_int,
-        pat: *mut c_char,
-        patlen: usize,
-        count: c_int,
-        options: c_int,
-        magic: bool,
-        sia: *mut c_void,
-    ) -> c_int;
-    fn do_in_runtimepath(
-        name: *mut c_char,
-        flags: c_int,
-        callback: Option<unsafe extern "C" fn(c_int, *mut *mut c_char, bool, *mut c_void) -> bool>,
-        cookie: *mut c_void,
-    ) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

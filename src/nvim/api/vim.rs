@@ -47,6 +47,8 @@ use crate::grid::{get_win_by_grid_handle, win_grid_alloc};
 #[allow(unused_imports)]
 use crate::highlight::win_check_ns_hl;
 #[allow(unused_imports)]
+use crate::input::ins_typebuf;
+#[allow(unused_imports)]
 use crate::insexpand::get_cot_flags;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_get_global_ref_count, nlua_is_deferred_safe};
@@ -75,6 +77,8 @@ use crate::optionstr::check_stl_option;
 use crate::os::input::input_enqueue;
 #[allow(unused_imports)]
 use crate::register::{finish_yankreg_from_object, prepare_yankreg_from_object};
+#[allow(unused_imports)]
+use crate::runtime::do_in_runtimepath;
 #[allow(unused_imports)]
 use crate::runtime::{do_source, get_lib_dir, runtime_get_named, runtime_inspect, script_autoload};
 #[allow(unused_imports)]
@@ -432,27 +436,6 @@ unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
-    fn ins_typebuf(
-        str_: *const c_char,
-        noremap: c_int,
-        offset: c_int,
-        nottyped: bool,
-        silent: bool,
-    ) -> c_int;
-
-    fn do_in_runtimepath(
-        name: *mut c_char,
-        flags: c_int,
-        callback: Option<
-            unsafe extern "C" fn(
-                num_fnames: c_int,
-                fnames: *mut *mut c_char,
-                all: bool,
-                c: *mut c_void,
-            ) -> bool,
-        >,
-        cookie: *mut c_void,
-    ) -> c_int;
 }
 
 #[inline]

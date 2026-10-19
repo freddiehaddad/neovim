@@ -55,6 +55,8 @@ use crate::message::{
 };
 use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
+use crate::normal::exec_stuffed;
+#[allow(unused_imports)]
 use crate::normal::find_ident_under_cursor;
 #[allow(unused_imports)]
 use crate::ops::{adjust_cursor_eol, block_prep, charwise_block_prep, get_op_char};
@@ -237,7 +239,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn exec_stuffed(cap: *mut c_void);
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

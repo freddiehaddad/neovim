@@ -2,7 +2,11 @@
 
 #![allow(dead_code, unused_imports)]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::os::input::os_input_ready;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
@@ -38,8 +42,6 @@ unsafe extern "C" {
     fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
     fn uv_now(loop_ptr: *const c_void) -> u64;
     fn uv_sleep(msec: c_uint);
-    fn loop_poll_events(loop_ptr: *mut c_void, ms: i64) -> bool;
-    fn os_input_ready(events: *mut c_void) -> bool;
 
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "time")]

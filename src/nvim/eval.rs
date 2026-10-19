@@ -36,6 +36,8 @@ pub mod window;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, arena_array, cstr_to_string};
 #[allow(unused_imports)]
+use crate::buffer::bt_prompt;
+#[allow(unused_imports)]
 use crate::buffer::buflist_findnr;
 #[allow(unused_imports)]
 use crate::channel::callback_reader_free;
@@ -53,7 +55,18 @@ use crate::eval::typval::{
     tv_list_join, tv_list_slice_or_index,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_copy, tv_list_check_range_index_two, tv_list_concat, tv_list_equal, tv_list_find_nr,
+};
+#[allow(unused_imports)]
 use crate::eval::userfunc::eval_fname_script;
+#[allow(unused_imports)]
+use crate::eval::userfunc::{
+    call_func, call_simple_func, call_simple_luafunc, deref_func_name, free_unref_funccal,
+    get_func_tv, get_funccal_args_ht, get_lambda_tv, get_scriptlocal_funcname, make_partial,
+    set_ref_in_call_stack, set_ref_in_func, set_ref_in_func_args, set_ref_in_functions,
+    set_ref_in_previous_funccal,
+};
 #[allow(unused_imports)]
 use crate::eval::vars::opt_to_tv;
 #[allow(unused_imports)]
@@ -87,6 +100,8 @@ use crate::option::{
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::quickfix::set_ref_in_quickfix;
+#[allow(unused_imports)]
+use crate::regexp::vim_regsub;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
 #[allow(unused_imports)]
@@ -423,62 +438,6 @@ unsafe extern "C" {
     fn atol(nptr: *const c_char) -> c_long;
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
-    fn bt_prompt(buf: *const buf_T) -> bool;
-
-    fn tv_dict_copy(
-        conv: *const vimconv_T,
-        d: *const dict_T,
-        deep: bool,
-        copyID: c_int,
-    ) -> *mut dict_T;
-    fn tv_list_check_range_index_two(
-        l: *mut list_T,
-        n1: *mut c_int,
-        li1: *mut listitem_T,
-        n2: *mut c_int,
-        quiet: bool,
-    ) -> c_int;
-    fn tv_list_concat(l1: *const list_T, l2: *const list_T, tv: *mut typval_T) -> c_int;
-    fn tv_list_equal(l1: *const list_T, l2: *const list_T, ic: bool) -> bool;
-    fn tv_list_find_nr(l: *const list_T, n: c_int, error: *mut bool) -> varnumber_T;
-
-    fn call_func(
-        funcname: *const c_char,
-        len: c_int,
-        rettv: *mut typval_T,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        funcexe: *mut funcexe_T,
-    ) -> c_int;
-    fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut typval_T) -> c_int;
-    fn deref_func_name(
-        name: *const c_char,
-        lenp: *mut c_int,
-        partialp: *mut *mut partial_T,
-        no_autoload: bool,
-        found_var: *mut bool,
-    ) -> *const c_char;
-    fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool;
-    fn get_func_tv(
-        name: *const c_char,
-        len: c_int,
-        rettv: *mut typval_T,
-        arg: *mut *mut c_char,
-        evalarg: *mut evalarg_T,
-        funcexe: *mut funcexe_T,
-    ) -> c_int;
-    fn get_funccal_args_ht() -> *mut hashtab_T;
-    fn get_lambda_tv(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T)
-    -> c_int;
-    fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
-    fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T);
-    fn set_ref_in_call_stack(copyID: c_int) -> bool;
-    fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_int) -> bool;
-    fn set_ref_in_func_args(copyID: c_int) -> bool;
-    fn set_ref_in_functions(copyID: c_int) -> bool;
-    fn set_ref_in_previous_funccal(copyID: c_int) -> bool;
-
-    fn call_simple_luafunc(func: *const c_char, len: usize, rettv: *mut typval_T) -> c_int;
 }
 
 #[cfg(not(test))]
@@ -488,15 +447,6 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_regsub(
-        rmp: *mut regmatch_T,
-        source: *const c_char,
-        expr: *mut typval_T,
-        dest: *mut c_char,
-        destlen: colnr_T,
-        flags: c_int,
-    ) -> c_int;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
@@ -2711,8 +2661,7 @@ unsafe fn eval_func(
             &raw mut partial,
             !evaluate,
             &raw mut found_var,
-        )
-        .cast_mut();
+        );
 
         s = xmemdupz(s.cast(), len as usize).cast();
 

@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_dict, api_free_object, copy_dict};
 #[allow(unused_imports)]
+use crate::api::ui::remote_ui_disconnect;
+#[allow(unused_imports)]
 use crate::api::ui::remote_ui_flush_pending_data;
 #[allow(unused_imports)]
 use crate::channel::{channel_close, channel_decref, channel_event, channel_incref};
@@ -305,8 +307,6 @@ unsafe extern "C" {
         arena: *mut Arena,
         error: *mut Error,
     ) -> Object;
-
-    fn remote_ui_disconnect(channel_id: u64, arena: *mut Arena, do_free: bool);
 
     #[cfg(windows)]
     fn os_detach_ui_console(stdio_chan: bool);

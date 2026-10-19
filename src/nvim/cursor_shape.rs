@@ -11,6 +11,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{arena_array, arena_dict};
 #[allow(unused_imports)]
+use crate::charset::getdigits_int;
+#[allow(unused_imports)]
 use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -131,12 +133,6 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
     entry(c"showmatch", 100, 100, 100, c"sm", SHAPE_CURSOR as c_char),
     entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR as c_char),
 ];
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn getdigits_int(pp: *mut *const c_char, strict: bool, def: c_int) -> c_int;
-}
 
 #[inline]
 unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
@@ -476,7 +472,7 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
                             if !(*p as u8).is_ascii_digit() {
                                 return c"E548: Digit expected".as_ptr();
                             }
-                            let n = getdigits_int(&mut p, false, 0);
+                            let n = getdigits_int((&raw mut p).cast(), false, 0);
                             if len == 3 {
                                 if n == 0 {
                                     return c"E549: Illegal percentage".as_ptr();

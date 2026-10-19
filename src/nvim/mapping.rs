@@ -45,6 +45,8 @@ use crate::input::{ins_typebuf, noremap_keys};
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_ref;
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_funcref_str;
+#[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_set_sctx};
 #[allow(unused_imports)]
 use crate::message::{
@@ -286,8 +288,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-
-    fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, inspect: bool) -> *mut c_char;
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 

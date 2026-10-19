@@ -11,10 +11,14 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_set_sctx, arena_array, arena_dict, arena_string, arena_take_arraybuilder,
     find_buffer_by_handle, try_enter, try_leave,
 };
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds_group, autocmd_register};
 #[allow(unused_imports)]
 use crate::autocmd::{
     au_get_autocmds_for_event, aucmd_del_for_event_and_group, aucmd_span_pattern, augroup_add,
@@ -187,32 +191,6 @@ static mut NEXT_AUTOCMD_ID: i64 = 1;
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn autocmd_register(
-        id: i64,
-        event: event_T,
-        pat: *const c_char,
-        patlen: c_int,
-        group: c_int,
-        once: bool,
-        nested: bool,
-        desc: *const c_char,
-        handler_cmd: *const c_char,
-        handler_fn: *mut Callback,
-    ) -> c_int;
-    fn apply_autocmds_group(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        group: c_int,
-        buf: *mut buf_T,
-        win: *mut win_T,
-        eap: *mut c_void,
-        data: *mut Object,
-        buflocal_only: bool,
-    ) -> bool;
-
-    fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 
@@ -1067,7 +1045,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                         au_group,
                         (*opts).once,
                         (*opts).nested,
-                        desc,
+                        desc.cast_mut(),
                         handler_cmd,
                         &mut handler_fn,
                     );

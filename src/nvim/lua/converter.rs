@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, arena_array, arena_dict,
 };
@@ -20,6 +22,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::userfunc::find_func;
+#[allow(unused_imports)]
+use crate::eval::userfunc::register_luafunc;
 use crate::eval::vars::eval_msgpack_type_lists;
 #[allow(unused_imports)]
 use crate::eval::{get_copyID, partial_name};
@@ -217,9 +221,7 @@ unsafe extern "C-unwind" {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn register_luafunc(luaref: LuaRef) -> *mut c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_typename(object_type: ObjectType) -> *const c_char;
 
 }
 

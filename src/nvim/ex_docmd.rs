@@ -47,11 +47,15 @@ use crate::cmdexpand::expand_process_user_list;
 #[allow(unused_imports)]
 use crate::cmdhist::ex_history;
 #[allow(unused_imports)]
+use crate::debugger::{ex_breakadd, ex_breakdel, ex_breaklist, ex_debug, ex_debuggreedy};
+#[allow(unused_imports)]
 use crate::diff::{
     ex_diffgetput, ex_diffoff, ex_diffpatch, ex_diffsplit, ex_diffthis, ex_diffupdate,
 };
 #[allow(unused_imports)]
 use crate::digraph::ex_loadkeymap;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_list_copy;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_str, tv_dict_alloc, tv_list_alloc_ret,
@@ -60,11 +64,17 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_get_string, tv_get_string, tv_list_find_str};
 #[allow(unused_imports)]
+use crate::eval::userfunc::{
+    do_return, ex_call, ex_delfunction, ex_function, ex_return, func_has_ended, get_func_line,
+};
+#[allow(unused_imports)]
 use crate::eval::vars::{ex_let, ex_lockvar, ex_unlet};
 #[allow(unused_imports)]
 use crate::eval::{callback_call, eval_to_string, get_copyID};
 #[allow(unused_imports)]
 use crate::eval::{ex_echo, ex_echohl, ex_execute};
+#[allow(unused_imports)]
+use crate::eval::{set_ref_in_callback, skip_expr};
 #[allow(unused_imports)]
 use crate::ex_cmds::{
     do_ascii, do_wqall, ex_align, ex_append, ex_change, ex_file, ex_global, ex_oldfiles, ex_sort,
@@ -869,33 +879,6 @@ unsafe extern "C" {
     #[link_name = "strcasecmp"]
     fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int;
 
-    fn set_ref_in_callback(
-        callback: *mut Callback,
-        copyID: c_int,
-        ht_stack: *mut *mut c_void,
-        list_stack: *mut *mut c_void,
-    ) -> bool;
-    fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
-
-    fn tv_list_copy(
-        conv: *const c_void,
-        orig: *mut list_T,
-        deep: bool,
-        copyID: c_int,
-    ) -> *mut list_T;
-
-    fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
-    fn func_has_ended(cookie: *mut c_void) -> c_int;
-    fn get_func_line(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn ex_breakadd(eap: *mut exarg_T);
-    fn ex_breakdel(eap: *mut exarg_T);
-    fn ex_breaklist(eap: *mut exarg_T);
-    fn ex_call(eap: *mut exarg_T);
-    fn ex_debug(eap: *mut exarg_T);
-    fn ex_debuggreedy(eap: *mut exarg_T);
-    fn ex_delfunction(eap: *mut exarg_T);
-    fn ex_function(eap: *mut exarg_T);
-    fn ex_return(eap: *mut exarg_T);
 }
 
 #[allow(clippy::large_const_arrays)]

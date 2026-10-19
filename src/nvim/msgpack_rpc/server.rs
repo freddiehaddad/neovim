@@ -18,7 +18,11 @@ use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_wat
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
+use crate::os::env::os_getenv_noalloc;
+#[allow(unused_imports)]
 use crate::os::env::{os_env_exists, os_get_pid, os_unsetenv};
+#[allow(unused_imports)]
+use crate::os::stdpaths::get_appname;
 #[allow(unused_imports)]
 use crate::path::fix_fname;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -75,8 +79,6 @@ unsafe extern "C" {
     fn uv_freeaddrinfo(ai: *mut c_void);
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
-    fn get_appname(namelike: bool) -> bool;
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]

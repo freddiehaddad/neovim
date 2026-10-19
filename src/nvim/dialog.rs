@@ -12,6 +12,8 @@
 use crate::ex_getln::getcmdline_prompt;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::input::ins_typebuf;
+#[allow(unused_imports)]
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
 #[allow(unused_imports)]
 use crate::message::{display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
@@ -57,19 +59,6 @@ pub static mut confirm_msg: *mut c_char = std::ptr::null_mut();
 
 #[unsafe(no_mangle)]
 pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn ins_typebuf(
-        str_ptr: *const c_char,
-        noremap: c_int,
-        offset: c_int,
-        nottyped: bool,
-        silent: bool,
-    ) -> c_int;
-
-}
 
 #[cfg(not(test))]
 unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
@@ -432,7 +421,7 @@ pub unsafe extern "C" fn do_dialog(
                     }
                     if c == (b':' as c_int) && ex_cmd != 0 {
                         retval = dfltbutton;
-                        ins_typebuf(c":".as_ptr(), REMAP_YES, 0, false, false);
+                        ins_typebuf(c":".as_ptr().cast_mut(), REMAP_YES, 0, false, false);
                         break;
                     }
 

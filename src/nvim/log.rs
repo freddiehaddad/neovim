@@ -17,9 +17,13 @@ use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
 use crate::message::msg_schedule_semsg;
 #[allow(unused_imports)]
+use crate::os::env::os_getenv_buf;
+#[allow(unused_imports)]
 use crate::os::env::{expand_env, os_get_pid, os_setenv};
 #[allow(unused_imports)]
 use crate::os::fs::{os_exepath, os_isdir, os_mkdir_recurse};
+#[allow(unused_imports)]
+use crate::os::stdpaths::get_xdg_home;
 #[allow(unused_imports)]
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 #[allow(unused_imports)]
@@ -67,7 +71,6 @@ static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
-    fn get_xdg_home(idx: c_int) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
     fn uv_mutex_lock(handle: *mut c_void);
@@ -75,7 +78,6 @@ unsafe extern "C" {
     fn uv_print_all_handles(loop_: *mut c_void, stream: *mut FILE);
     fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
-    fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *const c_char;
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fclose(stream: *mut FILE) -> c_int;
@@ -243,8 +245,11 @@ unsafe fn log_path_init() {
             if user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT".as_ptr(), path_ptr, 1);
             }
-            let loghome =
-                concat_fnames_realloc(get_xdg_home(KXDG_STATE_HOME), c"logs".as_ptr(), true);
+            let loghome = concat_fnames_realloc(
+                get_xdg_home(crate::os::stdpaths::XDGVarType::kXDGStateHome),
+                c"logs".as_ptr(),
+                true,
+            );
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let mut log_dir_failure: c_int = 0;
             if !os_isdir(loghome) {

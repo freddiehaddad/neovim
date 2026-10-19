@@ -22,6 +22,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::copy_string;
+#[allow(unused_imports)]
 use crate::buffer::{
     buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, close_buffer, do_modelines,
     no_write_message, setfname, wipe_buffer,
@@ -38,12 +40,16 @@ use crate::ex_docmd::ex_cd;
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, is_loclist_cmd};
 #[allow(unused_imports)]
+use crate::fileio::readfile;
+#[allow(unused_imports)]
 use crate::fileio::{shorten_fnames, vim_fgets, vim_tempname};
 #[allow(unused_imports)]
 use crate::fold::{foldOpenCursor, foldUpdateAll};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::ptr2cells;
+#[allow(unused_imports)]
+use crate::message::msg_prt_line;
 #[allow(unused_imports)]
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
@@ -61,6 +67,8 @@ use crate::option::{
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::os_get_pid;
+#[allow(unused_imports)]
+use crate::regexp::vim_regexec_multi;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
@@ -592,33 +600,9 @@ static mut set_qf_ll_recursive: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn msg_prt_line(s: *mut c_char, list: bool);
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-
-    fn vim_regexec_multi(
-        rmp: *mut regmmatch_T,
-        win: *mut win_T,
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        tm: *mut c_void,
-        timed_out: *mut c_int,
-    ) -> c_long;
-
-    fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
-
-    fn readfile(
-        fname: *const c_char,
-        sfname: *const c_char,
-        from: linenr_T,
-        lines_to_skip: linenr_T,
-        lines_to_read: linenr_T,
-        eap: *mut exarg_T,
-        flags: c_int,
-        silent: bool,
-    ) -> c_int;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;

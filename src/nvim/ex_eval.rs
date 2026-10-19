@@ -14,7 +14,11 @@
 
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::eval_to_string_skip;
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
+#[allow(unused_imports)]
+use crate::eval::userfunc::{do_return, get_return_cmd};
 #[allow(unused_imports)]
 use crate::eval::vars::{set_vim_var_list, set_vim_var_string};
 #[allow(unused_imports)]
@@ -195,15 +199,12 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn get_return_cmd(rettv: *mut c_void) -> *mut c_char;
     fn eval_for_line(
         arg: *const c_char,
         errp: *mut bool,
         eap: *mut exarg_T,
         evalarg: *const evalarg_T,
     ) -> *mut c_void;
-    fn eval_to_string_skip(arg: *const c_char, eap: *mut exarg_T, skip: bool) -> *mut c_char;
-    fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;

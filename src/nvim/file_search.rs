@@ -32,7 +32,11 @@ use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::message::emsg;
 use crate::message::semsg;
 #[allow(unused_imports)]
+use crate::normal::get_visual_text;
+#[allow(unused_imports)]
 use crate::option::copy_option_part;
+#[allow(unused_imports)]
+use crate::option::was_set_insecurely;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::expand_env_esc;
@@ -51,7 +55,6 @@ use crate::strings::{vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::tabpage::win_T;
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
 use crate::clipboard::typval_T;
 use crate::context::CdCause;
@@ -178,8 +181,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn get_visual_text(cap: *mut c_void, pp: *mut *mut c_char, lenp: *mut usize) -> bool;
-    fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
 }
 
 #[inline]

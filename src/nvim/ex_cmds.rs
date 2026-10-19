@@ -27,6 +27,8 @@ use crate::buffer::{
     open_buffer, set_buflisted, setaltfname, setfname,
 };
 #[allow(unused_imports)]
+use crate::buffer::{buflist_findname, otherfile};
+#[allow(unused_imports)]
 use crate::drawscreen::number_width;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -37,6 +39,8 @@ use crate::ex_docmd::{before_quit_all, ex_may_print};
 use crate::ex_docmd::{check_nextcmd, do_cmdline, not_exiting};
 #[allow(unused_imports)]
 use crate::ex_eval::{aborting, should_abort};
+#[allow(unused_imports)]
+use crate::fileio::readfile;
 #[allow(unused_imports)]
 use crate::fileio::{
     buf_check_timestamp, set_file_options, set_forced_fenc, vim_tempname, write_lnum_adjust,
@@ -77,6 +81,8 @@ use crate::regexp::{
     re_multiline, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
     vim_regexec_multi, vim_regfree,
 };
+#[allow(unused_imports)]
+use crate::regexp::{regtilde, vim_regsub_multi};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
@@ -437,33 +443,11 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
-    fn vim_regsub_multi(
-        rmp: *mut regmmatch_T,
-        lnum: linenr_T,
-        source: *const c_char,
-        dest: *mut c_char,
-        destlen: colnr_T,
-        flags: c_int,
-    ) -> c_int;
-    fn regtilde(source: *const c_char, magic: c_int, preview: bool) -> *mut c_char;
-
-    fn buflist_findname(ffname: *const c_char) -> *mut buf_T;
-    fn otherfile(ffname: *const c_char) -> bool;
     fn prompt_for_input(
         prompt: *const c_char,
         hl_id: c_int,
         one_key: bool,
         mouse_used: *mut bool,
-    ) -> c_int;
-    fn readfile(
-        fname: *const c_char,
-        sfname: *const c_char,
-        from: linenr_T,
-        lines_to_skip: linenr_T,
-        lines_to_read: linenr_T,
-        eap: *mut exarg_T,
-        flags: c_int,
-        silent: bool,
     ) -> c_int;
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;

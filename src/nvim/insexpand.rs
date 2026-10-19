@@ -18,6 +18,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::copy_string;
+#[allow(unused_imports)]
 use crate::buffer::{bt_cmdwin, buf_spname};
 #[allow(unused_imports)]
 use crate::change::deleted_lines_mark;
@@ -25,9 +27,13 @@ use crate::change::deleted_lines_mark;
 use crate::charset::{getwhitecols, str_foldcase, vim_isIDc};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::set_ref_in_callback;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     callback_copy, tv_dict_get_number, tv_dict_get_string, tv_get_string, tv_get_string_chk,
 };
+#[allow(unused_imports)]
+use crate::eval::userfunc::callback_call_retnr;
 #[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, restore_v_event};
 #[allow(unused_imports)]
@@ -41,11 +47,15 @@ use crate::lua::executor::nlua_expand_pat;
 use crate::memline::dec;
 #[allow(unused_imports)]
 use crate::memory::strequal;
+#[allow(unused_imports)]
+use crate::message::msg_delay;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error, msg, msg_clr_cmdline, msg_ext_set_kind};
 #[allow(unused_imports)]
 use crate::option::copy_option_part;
+#[allow(unused_imports)]
+use crate::option::was_set_insecurely;
 #[allow(unused_imports)]
 use crate::option::{can_bs, option_set_callback_func, shortmess};
 use crate::option_vars::*;
@@ -587,7 +597,6 @@ use crate::state::save_v_event_T;
 unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
-    fn msg_delay(msec: i64, ignoreinput: bool);
     fn msg_progress(
         s: *const c_char,
         id: *const c_char,
@@ -598,19 +607,6 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
-    fn set_ref_in_callback(
-        callback: *mut Callback,
-        copyID: c_int,
-        ht_stack: *mut *mut c_void,
-        list_stack: *mut *mut c_void,
-    ) -> bool;
-    fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn callback_call_retnr(
-        callback: *mut Callback,
-        argcount: c_int,
-        argvars: *mut typval_T,
-    ) -> varnumber_T;
     fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

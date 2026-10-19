@@ -37,12 +37,16 @@ use crate::lua::executor::nlua_call_ref_ctx;
 use crate::message::{msg, msg_ext_ui_flush, msg_scroll_flush, msg_source, msg_ui_refresh};
 use crate::message::{msg_schedule_semsg, msg_schedule_semsg_multiline};
 #[allow(unused_imports)]
+use crate::option::set_option_value;
+#[allow(unused_imports)]
 use crate::option::ui_refresh_options;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::ui_compositor::ui_comp_msg_set_pos;
+#[allow(unused_imports)]
+use crate::ui_compositor::ui_comp_raw_line;
 #[allow(unused_imports)]
 use crate::ui_compositor::{ui_comp_grid_cursor_goto, ui_comp_grid_resize, ui_comp_grid_scroll};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -177,26 +181,8 @@ unsafe extern "C" {
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn set_option_value(
-        opt_idx: c_int,
-        val: Object,
-        opt_flags: c_int,
-        set_sid: bool,
-        err: *mut Error,
-    ) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
-    fn ui_comp_raw_line(
-        grid: Integer,
-        row: Integer,
-        startcol: Integer,
-        endcol: Integer,
-        clearcol: Integer,
-        clearattr: Integer,
-        flags: c_int,
-        chunk: *const schar_T,
-        attrs: *const sattr_T,
-    );
 }
 
 #[inline]

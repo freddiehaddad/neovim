@@ -43,6 +43,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_add_nr, tv_get_bool_chk};
 #[allow(unused_imports)]
+use crate::eval::userfunc::get_user_func_name;
+#[allow(unused_imports)]
 use crate::eval::vars::get_user_var_name;
 #[allow(unused_imports)]
 use crate::eval::{call_func_retlist, call_func_retstr};
@@ -77,6 +79,8 @@ use crate::mapping::ExpandMappings;
 #[allow(unused_imports)]
 use crate::mapping::set_context_in_map_cmd;
 #[allow(unused_imports)]
+use crate::menu::set_context_in_menu_cmd;
+#[allow(unused_imports)]
 use crate::menu::{get_menu_name, get_menu_names};
 use crate::message::semsg;
 #[allow(unused_imports)]
@@ -92,6 +96,8 @@ use crate::option::{
     get_findfunc, set_context_in_set_cmd,
 };
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::users::get_users;
 #[allow(unused_imports)]
 use crate::profile::{get_profile_name, set_context_in_profile_cmd};
 #[allow(unused_imports)]
@@ -1060,16 +1066,6 @@ static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn get_users(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn set_context_in_menu_cmd(
-        xp: *mut expand_T,
-        cmd: *const c_char,
-        arg: *mut c_char,
-        forceit: bool,
-    ) -> *const c_char;
-
-    fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
 
     fn qsort(
         base: *mut c_void,

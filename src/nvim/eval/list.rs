@@ -21,6 +21,8 @@ use crate::eval::typval::{
     tv_equal, tv_get_string, tv_get_string_chk, tv_list_remove,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_copy, tv_list_copy, value_check_lock};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_get_bool_chk, tv_get_number_chk};
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_tv, set_vim_var_nr, set_vim_var_string, set_vim_var_type};
@@ -65,27 +67,6 @@ enum FilterMap {
     Map,
     MapNew,
     ForEach,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
-
-    fn tv_dict_copy(
-        conv: *const c_void,
-        orig: *mut dict_T,
-        deep: bool,
-        copy_id: c_int,
-    ) -> *mut dict_T;
-
-    fn tv_list_copy(
-        conv: *const c_void,
-        orig: *mut list_T,
-        deep: bool,
-        copy_id: c_int,
-    ) -> *mut list_T;
-
 }
 
 #[inline]

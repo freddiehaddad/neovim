@@ -17,6 +17,8 @@ use crate::eval::typval::tv_free;
 #[allow(unused_imports)]
 use crate::eval::typval_tostring;
 #[allow(unused_imports)]
+use crate::eval::{eval_expr, typval_compare};
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
 #[allow(unused_imports)]
 use crate::ex_getln::{getcmdline_prompt, getexline};
@@ -30,6 +32,8 @@ use crate::message::{emsg, msg, msg_starthere};
 use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
 use crate::os::env::expand_env_save;
+#[allow(unused_imports)]
+use crate::os::env::home_replace;
 #[allow(unused_imports)]
 use crate::path::fix_fname;
 #[allow(unused_imports)]
@@ -126,46 +130,13 @@ pub struct debuggy {
     pub dbg_level: c_int,
 }
 
-#[repr(C)]
-pub struct exarg_Full {
-    pub arg: *mut c_char,
-    pub args: *mut *mut c_char,
-    pub arglens: *mut usize,
-    pub argc: usize,
-    pub nextcmd: *mut c_char,
-    pub cmd: *mut c_char,
-    pub cmdlinep: *mut *mut c_char,
-    pub cmdline_tofree: *mut c_char,
-    pub cmdidx: c_int,
-    pub argt: u32,
-    pub skip: c_int,
-    pub forceit: c_int,
-    pub addr_count: c_int,
-    pub line1: i32,
-    pub line2: i32,
-}
+pub use crate::api::command::exarg_T as exarg_Full;
 
 pub use crate::api::tabpage::win_T;
 pub use crate::eval::deprecated::buf_T;
 pub use crate::input::tasave_T;
 
 pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn eval_expr(arg: *mut c_char, eap: *mut c_void) -> *mut typval_T;
-    fn typval_compare(typ1: *mut typval_T, typ2: *mut typval_T, etype: c_int, ic: bool) -> c_int;
-
-    fn home_replace(
-        buf: *const c_void,
-        src: *const c_char,
-        dst: *mut c_char,
-        dstlen: usize,
-        one: bool,
-    ) -> usize;
-
-}
 
 #[inline]
 unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {

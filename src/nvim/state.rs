@@ -14,6 +14,8 @@ use crate::autocmd::{apply_autocmds, has_event};
 #[allow(unused_imports)]
 use crate::drawscreen::{setcursor, update_screen};
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_str;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_dict_set_keys_readonly;
 #[allow(unused_imports)]
 use crate::eval::{get_v_event, restore_v_event};
@@ -28,6 +30,8 @@ use crate::input::{
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::log::logmsg;
 #[allow(unused_imports)]
+use crate::option::get_ve_flags;
+#[allow(unused_imports)]
 use crate::os::input::{input_available, input_get, os_breakcheck};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
@@ -35,7 +39,6 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::tabpage::win_T;
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::Callback;
 use crate::event::multiqueue::{Event, MultiQueue, multiqueue_empty, multiqueue_get};
 use crate::extmark::TriState;
@@ -148,13 +151,6 @@ unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
     fn uv_loop_size() -> usize;
-    fn get_ve_flags(wp: *const win_T) -> c_uint;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: isize,
-        val: *const c_char,
-    ) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;

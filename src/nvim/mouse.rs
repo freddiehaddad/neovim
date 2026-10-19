@@ -17,6 +17,8 @@ use crate::cursor::set_leftcol;
 #[allow(unused_imports)]
 use crate::decoration::decor_conceal_line;
 #[allow(unused_imports)]
+use crate::decoration::decor_virt_lines;
+#[allow(unused_imports)]
 use crate::diff::diff_check_fill;
 #[allow(unused_imports)]
 use crate::drawscreen::{
@@ -47,6 +49,8 @@ use crate::keycodes::get_mouse_button;
 use crate::mbyte::utf8len_tab;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_get_class, utf_head_off, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::ml_get_buf;
 #[allow(unused_imports)]
 use crate::memline::{gchar_pos, inc, ml_get};
 use crate::message::siemsg;
@@ -88,7 +92,6 @@ use crate::charset::vim_iswordc;
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cursor::{coladvance, get_cursor_pos_ptr};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::buf_T;
 use crate::extmark::TriState;
 use crate::grid::grid_adjust;
 use crate::input_cmdatom::{CmdSpec, cmdarg_T};
@@ -219,19 +222,6 @@ static mut orig_topline: linenr_T = 0;
 static mut orig_topfill: c_int = 0;
 static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
-
-unsafe extern "C" {
-
-    fn ml_get_buf(buf: *const buf_T, lnum: linenr_T) -> *mut c_char;
-    fn decor_virt_lines(
-        wp: *mut win_T,
-        start_row: c_int,
-        end_row: c_int,
-        num_below: *mut c_int,
-        lines: *mut c_void,
-        apply_folds: bool,
-    ) -> c_int;
-}
 
 #[inline]
 const fn ascii_iswhite(c: c_int) -> bool {

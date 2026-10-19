@@ -31,6 +31,8 @@ use crate::eval::get_copyID;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_add_bool;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_alloc_lock;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_check_for_opt_dict_arg, tv_dict_add_func, tv_dict_copy, tv_dict_get_string, tv_get_string,
 };
@@ -45,12 +47,16 @@ use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal};
 #[allow(unused_imports)]
 use crate::eval::vars::new_script_vars;
 #[allow(unused_imports)]
+use crate::ex_docmd::do_exedit;
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, getline_cookie, getline_equal};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::openscript;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_exec;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_exec_ga;
 #[allow(unused_imports)]
 use crate::lua::executor::{nlua_exec_file, nlua_is_deferred_safe};
 #[allow(unused_imports)]
@@ -72,6 +78,8 @@ use crate::regexp::vim_regexec;
 use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::usercmd::add_win_cmd_modifiers;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
@@ -370,14 +378,7 @@ unsafe extern "C" {
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
-    fn nlua_exec_ga(ga: *mut garray_T, name: *const c_char);
-
-    fn add_win_cmd_modifiers(buf: *mut c_char, cmod: *mut cmdmod_T, multi_mods: *mut bool)
-    -> usize;
     fn vimrc_found(fname: *mut c_char, envname: *const c_char);
-    fn do_exedit(eap: *mut exarg_T, old_curwin: *mut c_void);
-
-    fn tv_dict_alloc_lock(lock: c_int) -> *mut dict_T;
 
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char);

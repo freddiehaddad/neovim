@@ -4,6 +4,8 @@
 
 #[cfg(windows)]
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::os::env::os_getenv_noalloc;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -79,11 +81,6 @@ unsafe extern "C" {
     fn getpwnam(name: *const c_char) -> *mut Passwd;
     fn getpwuid(uid: u32) -> *mut Passwd;
     fn getuid() -> u32;
-}
-
-#[cfg(all(unix, not(test)))]
-unsafe extern "C" {
-    fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
 }
 
 #[cfg(target_os = "windows")]
@@ -318,7 +315,7 @@ unsafe fn init_users() {
 /// # Safety
 /// Caller must ensure single-threaded access to user completion cache.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_users(_xp: *mut c_void, idx: c_int) -> *mut c_char {
+pub unsafe extern "C" fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         init_users();
         let ga = &*GA_USERS.0.get();

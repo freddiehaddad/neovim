@@ -67,6 +67,8 @@ use crate::mouse::cmdline_mousescroll;
 #[allow(unused_imports)]
 use crate::option::set_option_direct;
 #[allow(unused_imports)]
+use crate::option::string_to_key;
+#[allow(unused_imports)]
 use crate::option::{set_iminsert_global, set_imsearch_global};
 use crate::option_vars::*;
 #[allow(unused_imports)]
@@ -83,6 +85,8 @@ use crate::ui::{
 };
 #[allow(unused_imports)]
 use crate::ui::{ui_call_cmdline_hide, ui_call_cmdline_special_char};
+#[allow(unused_imports)]
+use crate::window::lastwin_nofloating;
 #[allow(unused_imports)]
 use crate::window::{
     close_windows, global_stl_height, may_trigger_win_scrolled_resized, win_enter,
@@ -450,15 +454,12 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn lastwin_nofloating(ock: *mut win_T) -> *mut win_T;
-
     #[cfg(not(windows))]
     fn csh_like_shell() -> c_int;
 
     fn get_expr_register() -> c_int;
 
     fn rename_buffer(new_fname: *const c_char) -> c_int;
-    fn string_to_key(str: *const c_char) -> c_int;
 
     #[cfg(windows)]
     fn vim_strnicmp(s1: *const c_char, s2: *const c_char, len: usize) -> c_int;

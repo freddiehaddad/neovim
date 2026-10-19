@@ -29,6 +29,8 @@ use crate::mapping::set_context_in_map_cmd;
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
 #[allow(unused_imports)]
 use crate::menu::set_context_in_menu_cmd;
+#[allow(unused_imports)]
+use crate::message::message_filtered;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{
@@ -311,7 +313,6 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 
 unsafe extern "C" {
 
-    fn message_filtered(msg: *mut c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn strchr(s: *const c_char, c: c_int) -> *const c_char;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

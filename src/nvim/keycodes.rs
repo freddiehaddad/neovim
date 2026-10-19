@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::vim_str2nr;
+#[allow(unused_imports)]
 use crate::charset::{transchar, vim_isprintc};
 #[allow(unused_imports)]
 use crate::eval::vars::get_var_value;
@@ -1909,17 +1911,6 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn vim_str2nr(
-        start: *const c_char,
-        prep: *mut c_int,
-        len: *mut c_int,
-        what: c_int,
-        nptr: *mut i64,
-        unptr: *mut u64,
-        maxlen: c_int,
-        strict: bool,
-        overflow: *mut bool,
-    );
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

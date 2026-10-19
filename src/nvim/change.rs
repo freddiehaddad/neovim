@@ -31,6 +31,8 @@ use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
 use crate::fold::foldUpdate;
 #[allow(unused_imports)]
+use crate::fold::hasFoldingWin;
+#[allow(unused_imports)]
 use crate::fold::{find_wl_entry, hasAnyFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -49,6 +51,8 @@ use crate::memline::{
     ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_buf, ml_get_len,
     ml_line_alloced, ml_open_file, ml_replace, ml_setflags,
 };
+#[allow(unused_imports)]
+use crate::message::msg_delay;
 use crate::message::siemsg;
 #[allow(unused_imports)]
 use crate::message::{
@@ -74,7 +78,7 @@ use crate::strings::{concat_str, vim_strchr, xstrnsave};
 use crate::ui::{ui_active, ui_has};
 #[allow(unused_imports)]
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::tabpage::{pos_T, win_T};
@@ -178,15 +182,6 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn msg_delay(ms: i64, ignoreinput: bool);
-    fn hasFoldingWin(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-        cache: bool,
-        infop: *mut c_void,
-    ) -> bool;
 }
 
 #[inline]

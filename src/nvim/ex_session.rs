@@ -20,6 +20,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_get_string;
 #[allow(unused_imports)]
+use crate::eval::var_flavour;
+#[allow(unused_imports)]
 use crate::eval::vars::get_globvar_dict;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_string;
@@ -123,7 +125,6 @@ static mut did_lcd: bool = false;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn var_flavour(varname: *mut c_char) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fwrite(ptr: *const c_void, size: usize, count: usize, stream: *mut FILE) -> usize;

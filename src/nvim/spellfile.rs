@@ -51,6 +51,8 @@ use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::home_replace;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
@@ -370,13 +372,6 @@ struct spellinfo_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn home_replace(
-        buf: *mut buf_T,
-        src: *const c_char,
-        dst: *mut c_char,
-        dstlen: usize,
-        one: bool,
-    ) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn atoi(s: *const c_char) -> c_int;

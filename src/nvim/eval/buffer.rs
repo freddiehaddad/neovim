@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_nofilename;
 #[allow(unused_imports)]
+use crate::buffer::bt_prompt;
+#[allow(unused_imports)]
 use crate::buffer::{
     bt_cmdwin, buf_ensure_loaded, buflist_add, buflist_findlnum, buflist_findname_exp,
     buflist_findnr, buflist_new,
@@ -24,7 +26,11 @@ use crate::change::{
 #[allow(unused_imports)]
 use crate::cursor::check_cursor_col;
 #[allow(unused_imports)]
+use crate::eval::callback_from_typval;
+#[allow(unused_imports)]
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
+#[allow(unused_imports)]
+use crate::eval::typval::tv_check_str_or_nr;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
@@ -106,10 +112,7 @@ struct cob_T {
 
 unsafe extern "C" {
 
-    fn bt_prompt(buf: *const buf_T) -> bool;
     fn ml_append(lnum: linenr_T, line: *const c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn tv_check_str_or_nr(tv: *mut typval_T) -> bool;
-    fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
 }
 
 #[inline]

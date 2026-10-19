@@ -19,6 +19,8 @@ use crate::buffer::{buflist_findname_exp, buflist_findnr, buflist_getfile};
 use crate::cmdexpand::{ExpandInit, ExpandOne};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::set_ref_in_callback;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_get_number,
@@ -49,6 +51,8 @@ use crate::insexpand::{ins_compl_check_keys, ins_compl_interrupted};
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_excmd;
 #[allow(unused_imports)]
+use crate::message::msg_delay;
+#[allow(unused_imports)]
 use crate::message::{
     emsg, give_warning, msg, msg_advance, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
     verbose_enter, verbose_leave, wait_return,
@@ -65,6 +69,10 @@ use crate::path::FreeWild;
 use crate::quickfix::set_errorlist;
 #[allow(unused_imports)]
 use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::runtime::do_in_runtimepath;
+#[allow(unused_imports)]
+use crate::search::do_search;
 #[allow(unused_imports)]
 use crate::search::{ignorecase, ignorecase_opt};
 #[allow(unused_imports)]
@@ -85,7 +93,7 @@ use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cursor::{check_cursor, linenr_T};
 use crate::drawscreen::redraw_later;
 use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, fmark_T, fmarkv_T, pos_T};
+use crate::eval::deprecated::{fmark_T, fmarkv_T, pos_T};
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
@@ -401,35 +409,9 @@ static mut DO_TAG_FLAGS: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn msg_delay(msec: i64, ignoreinput: bool);
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn do_in_runtimepath(
-        name: *mut c_char,
-        flags: c_int,
-        callback: Option<unsafe extern "C" fn(c_int, *mut *mut c_char, bool, *mut c_void) -> bool>,
-        cookie: *mut c_void,
-    ) -> c_int;
-
-    fn set_ref_in_callback(
-        callback: *mut Callback,
-        copyID: c_int,
-        ht_stack: *mut *mut c_void,
-        list_stack: *mut *mut c_void,
-    ) -> bool;
-
-    fn do_search(
-        oap: *mut c_void,
-        dirc: c_int,
-        search_delim: c_int,
-        pat: *mut c_char,
-        patlen: usize,
-        count: c_int,
-        options: c_int,
-        magic: bool,
-        sia: *mut c_void,
-    ) -> c_int;
 
     fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]

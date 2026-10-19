@@ -6,9 +6,13 @@
 use crate::fileio::vim_gettempdir;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::os::env::os_getenv_noalloc;
+#[allow(unused_imports)]
 use crate::os::env::{expand_env_save, os_env_exists, os_getenv};
 #[cfg(all(not(test), windows))]
 use crate::os::fs::os_realpath;
+#[allow(unused_imports)]
+use crate::path::path_equal;
 #[allow(unused_imports)]
 use crate::path::{concat_fnames_realloc, path_is_absolute};
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
@@ -87,11 +91,9 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
     #[cfg(not(target_os = "windows"))]
     #[cfg(target_os = "windows")]
     fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char;
-    fn path_equal(s1: *const c_char, s2: *const c_char, flags: c_int) -> bool;
 }
 
 #[inline]

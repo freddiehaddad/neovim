@@ -23,9 +23,13 @@ use crate::change::save_file_ff;
 use crate::cmdexpand::cmdline_fuzzy_complete;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::callback_from_typval;
+#[allow(unused_imports)]
 use crate::eval::last_set_msg;
 #[allow(unused_imports)]
 use crate::eval::typval::callback_free;
+#[allow(unused_imports)]
+use crate::eval::userfunc::get_scriptlocal_funcname;
 #[allow(unused_imports)]
 use crate::eval::vars::opt_to_tv;
 #[allow(unused_imports)]
@@ -49,6 +53,8 @@ use crate::option_vars::*;
 use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
 #[allow(unused_imports)]
 use crate::ui::ui_call_option_set;
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
 #[allow(unused_imports)]
 use crate::undo::curbufIsChanged;
 #[allow(unused_imports)]
@@ -721,10 +727,7 @@ unsafe extern "C" {
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 
-    fn bufIsChanged(buf: *const buf_T) -> bool;
-    fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
     fn callback_copy(dest: *mut Callback, src: *const Callback);
-    fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 

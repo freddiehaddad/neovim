@@ -45,6 +45,8 @@ use crate::mapping::add_map;
 #[allow(unused_imports)]
 use crate::memline::inc;
 #[allow(unused_imports)]
+use crate::message::msg_delay;
+#[allow(unused_imports)]
 use crate::message::{
     emsg, may_clear_sb_text, messaging, msg, msg_ext_set_trigger, msg_grid_validate, show_sb_text,
     wait_return,
@@ -462,7 +464,6 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    fn msg_delay(ms: i64, ignoreinput: bool);
     fn strlen(s: *const c_char) -> usize;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;

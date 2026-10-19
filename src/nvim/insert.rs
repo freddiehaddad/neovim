@@ -21,6 +21,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_cmdwin;
 #[allow(unused_imports)]
+use crate::buffer::{bt_prompt, buf_is_empty};
+#[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, set_bufref};
 #[allow(unused_imports)]
 use crate::change::get_leader_len;
@@ -34,11 +36,15 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
 #[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline;
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, expr_map_locked};
 #[allow(unused_imports)]
 use crate::ex_getln::cmdwin_do_action;
 #[allow(unused_imports)]
 use crate::fileio::check_timestamps;
+#[allow(unused_imports)]
+use crate::fold::hasFoldingWin;
 #[allow(unused_imports)]
 use crate::fold::{foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding};
 use crate::globals::*;
@@ -46,6 +52,8 @@ use crate::globals::*;
 use crate::highlight_group::highlight_changed;
 #[allow(unused_imports)]
 use crate::indent::tabstop_start;
+#[allow(unused_imports)]
+use crate::indent::{tabstop_at, tabstop_count, tabstop_first, tabstop_padding};
 #[allow(unused_imports)]
 use crate::indent_c::cindent_on;
 #[allow(unused_imports)]
@@ -82,8 +90,12 @@ use crate::normal::{
 #[allow(unused_imports)]
 use crate::option::copy_option_part;
 #[allow(unused_imports)]
+use crate::option::get_ve_flags;
+#[allow(unused_imports)]
 use crate::option::{can_bs, get_scrolloff_value, set_iminsert_global};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
@@ -381,33 +393,7 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
-    fn tabstop_at(col: colnr_T, ts: i64, vts: *const c_int, left: bool) -> c_int;
-    fn tabstop_count(ts: *const c_int) -> c_int;
-    fn tabstop_first(ts: *const c_int) -> c_int;
-    fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const c_int) -> c_int;
-
-    fn hasFoldingWin(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-        cache: bool,
-        infop: *mut c_void,
-    ) -> bool;
-
-    fn bt_prompt(buf: *const buf_T) -> bool;
-    fn buf_is_empty(buf: *const buf_T) -> bool;
     fn bufref_valid(bufref: *const bufref_T) -> bool;
-
-    fn get_ve_flags(wp: *const win_T) -> c_uint;
-    fn virtual_active(wp: *const win_T) -> bool;
-
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
 
 }
 

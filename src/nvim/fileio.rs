@@ -28,6 +28,8 @@ use crate::globals::*;
 use crate::input::stuff_empty;
 use crate::log::logmsg;
 #[allow(unused_imports)]
+use crate::message::msg_delay;
+#[allow(unused_imports)]
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_end, msg_may_trunc, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_hl, msg_start, msg_trunc, set_keep_msg,
@@ -56,6 +58,8 @@ use crate::strings::{sort_strings, vim_strchr};
 use crate::ui::ui_flush;
 #[allow(unused_imports)]
 use crate::ui::ui_has;
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -327,9 +331,7 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn msg_delay(ms: i64, ignoreinput: bool);
 
-    fn bufIsChanged(buf: *const buf_T) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;

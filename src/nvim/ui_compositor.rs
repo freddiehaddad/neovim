@@ -20,6 +20,8 @@ use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::ui::ui_composed_call_raw_line;
+#[allow(unused_imports)]
 use crate::ui::{
     ui_call_flush, ui_composed_call_grid_cursor_goto, ui_composed_call_grid_resize,
     ui_composed_call_grid_scroll, ui_has,
@@ -88,21 +90,6 @@ static mut dbghl_normal: c_int = 0;
 static mut dbghl_clear: c_int = 0;
 static mut dbghl_composed: c_int = 0;
 static mut dbghl_recompose: c_int = 0;
-
-unsafe extern "C" {
-
-    fn ui_composed_call_raw_line(
-        grid: Integer,
-        row: Integer,
-        startcol: Integer,
-        endcol: Integer,
-        clearcol: Integer,
-        clearattr: Integer,
-        flags: LineFlags,
-        chunk: *const schar_T,
-        attrs: *const sattr_T,
-    );
-}
 
 #[inline]
 unsafe fn push_layer(g: *mut ScreenGrid) {

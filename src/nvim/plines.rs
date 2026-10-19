@@ -12,9 +12,15 @@
 #[allow(unused_imports)]
 use crate::charset::vim_isprintc;
 #[allow(unused_imports)]
+use crate::charset::vim_strsize;
+#[allow(unused_imports)]
 use crate::decoration::decor_conceal_line;
 #[allow(unused_imports)]
+use crate::decoration::decor_virt_lines;
+#[allow(unused_imports)]
 use crate::diff::{diff_check_fill, diffopt_filler};
+#[allow(unused_imports)]
+use crate::fold::hasFoldingWin;
 #[allow(unused_imports)]
 use crate::fold::{hasFolding, lineFolded};
 use crate::globals::*;
@@ -37,7 +43,7 @@ use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::api::deprecated::{DecorInline, DecorVirtText, VirtTextPos};
@@ -111,27 +117,6 @@ pub struct StrCharInfo {
 pub struct ClusterInfo {
     pub next: StrCharInfo,
     pub cells: c_int,
-}
-
-unsafe extern "C" {
-
-    fn vim_strsize(s: *mut c_char) -> c_int;
-    fn decor_virt_lines(
-        wp: *mut win_T,
-        start_row: c_int,
-        end_row: c_int,
-        num_below: *mut c_int,
-        lines: *mut c_void,
-        apply_folds: bool,
-    ) -> c_int;
-    fn hasFoldingWin(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-        cache: bool,
-        infop: *mut c_void,
-    ) -> bool;
 }
 
 #[inline]
