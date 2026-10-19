@@ -345,9 +345,9 @@ static e_line_number_out_of_range_nr_past_the_end: &CStr =
 static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
-unsafe extern "C" {
-    static mut Versions: [*mut c_char; 1];
+use crate::version::Versions;
 
+unsafe extern "C" {
     fn close(fd: c_int) -> c_int;
     fn uv_uptime(uptime: *mut f64) -> c_int;
     #[link_name = "uv_strerror"]

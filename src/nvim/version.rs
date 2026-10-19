@@ -3764,8 +3764,16 @@ static INCLUDED_PATCHSETS: [&[c_int]; 5] = [
     PATCHES_902,
 ];
 
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut Versions: [*mut c_char; 5] = [
+    c"8.1".as_ptr().cast_mut(),
+    c"8.2".as_ptr().cast_mut(),
+    c"9.0".as_ptr().cast_mut(),
+    c"9.1".as_ptr().cast_mut(),
+    c"9.2".as_ptr().cast_mut(),
+];
+
 unsafe extern "C" {
-    static mut Versions: [*mut c_char; 5];
     static mut longVersion: *mut c_char;
     static mut version_buildtype: *mut c_char;
     static mut version_cflags: *mut c_char;
