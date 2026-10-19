@@ -72,6 +72,7 @@ pub mod r#move;
 pub mod msgpack_rpc;
 pub mod normal;
 pub mod ops;
+pub mod option;
 pub mod optionstr;
 pub mod os;
 pub mod path;

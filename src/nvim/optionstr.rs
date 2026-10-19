@@ -1208,7 +1208,7 @@ unsafe extern "C" fn OptKeyDict_pvp_get_field(
     }
 }
 
-unsafe fn opt_dict_schema(opt_idx: OptIndex) -> *const OptDictSchema {
+pub(crate) unsafe fn opt_dict_schema(opt_idx: OptIndex) -> *const OptDictSchema {
     static mut INFO_BRIOPT: OptDictSchema = OptDictSchema {
         get_field: None,
         schema: ptr::null(),

@@ -1,0 +1,8605 @@
+//! User-settable options (`src/nvim/option.c`).
+
+#![allow(
+    dead_code,
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    clashing_extern_declarations,
+    clippy::missing_safety_doc,
+    clippy::too_many_arguments,
+    clippy::unnecessary_cast,
+    clippy::useless_conversion
+)]
+
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
+
+use crate::api::command::regmatch_T;
+use crate::api::extmark::nvim_create_namespace;
+use crate::api::options::CtxSwitch;
+use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::{
+    api_free_string, arena_array, arena_dict, arena_string, copy_object, cstr_as_string,
+    cstr_to_string,
+};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+};
+use crate::api::tabpage::{frame_T, tabpage_T, win_T, winopt_T};
+use crate::autocmd::{
+    EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, apply_autocmds,
+    aucmd_defer_modified,
+};
+use crate::buffer::{bt_prompt, buf_is_empty};
+use crate::charset::{
+    buf_init_isk_chartab, init_isf_chartab, init_isi_chartab, skiptowhite_esc, skipwhite,
+    trans_characters, transchar, vim_isfilec, vim_str2nr, vim_strsize,
+};
+use crate::clipboard::{VarType, typval_T};
+use crate::cmdexpand::{
+    EXPAND_BOOL_SETTINGS, EXPAND_DIRECTORIES, EXPAND_FILES, EXPAND_FILETYPE, EXPAND_KEYMAP,
+    EXPAND_NOTHING, EXPAND_OLD_SETTING, EXPAND_OWNSYNTAX, EXPAND_SETTING_SUBTRACT, EXPAND_SETTINGS,
+    EXPAND_STRING_SETTING, EXPAND_UNSUCCESSFUL, XP_BS_COMMA, XP_BS_ONE, XP_BS_THREE, XP_PREFIX_INV,
+    XP_PREFIX_NO, cmdidx_T, exarg_T,
+};
+use crate::cmdhist::cmdmod_Prefix;
+use crate::context::{ctx_restore, ctx_switch};
+use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
+use crate::decoration_provider::get_decor_provider;
+use crate::diff::diff_buf_adjust;
+use crate::drawscreen::{
+    check_screensize, comp_col, redraw_all_later, redraw_buf_later, redraw_buf_status_later,
+    redraw_later, screen_resize, showmode, status_redraw_all, status_redraw_curbuf,
+};
+use crate::eval::decode::dict_T;
+use crate::eval::deprecated::{Callback, buf_T, synblock_T};
+use crate::eval::encode::encode_tv2string;
+use crate::eval::eval_expr;
+use crate::eval::typval::{callback_put, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_free};
+use crate::eval::vars::{
+    VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD, VV_OPTION_OLDGLOBAL, VV_OPTION_OLDLOCAL,
+    VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str, reset_v_option_vars, set_vim_var_string,
+    set_vim_var_tv,
+};
+use crate::ex_getln::{check_opt_wim, did_set_cedit, gotocmdline};
+use crate::ex_session::{FILE, put_eol, put_line};
+use crate::fold::{foldmethodIsDiff, foldmethodIsIndent, foldmethodIsSyntax};
+use crate::fuzzy::{fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
+use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
+use crate::highlight::{hl_invalidate_blends, ns_hl_def};
+use crate::highlight_group::{highlight_changed, syn_check_group};
+use crate::indent::{briopt_check, tabstop_set};
+use crate::indent_c::parse_cino;
+use crate::input_cmdatom::atom_follow_changed;
+use crate::insexpand::set_buflocal_cpt_callbacks;
+use crate::keycodes::{
+    FSK_KEEP_X_KEY, FSK_KEYCODE, FSK_SIMPLIFY, K_KENTER, K_ZERO, find_special_key,
+    find_special_key_in_table, get_special_key_code, get_special_key_name,
+};
+use crate::lua::converter::LuaRef;
+use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
+use crate::map::HlAttrs;
+use crate::map_glyph_cache::NvimString;
+use crate::math::{FAIL, OK};
+use crate::mbyte::{enc_locale, utfc_ptr2len};
+use crate::memfile::mf_close_file;
+use crate::memline::{ml_open_file, ml_open_files};
+use crate::memory::{
+    Arena, arena_memdupz, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy,
+};
+use crate::message::{
+    emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
+    msg_puts, msg_puts_title, msg_source,
+};
+use crate::mouse::setmouse;
+use crate::r#move::changed_window_setting;
+use crate::normal::get_vtopline;
+use crate::optionstr::{
+    CharBuf, CharsOption, OptIndex, OptScopeFlags, check_buf_options, check_illegal_path_names,
+    check_signcolumn, check_string_option, clear_string_option, did_set_breakat,
+    didset_string_options, free_string_option, opt_dict_schema, opt_strings_check, optexpand_T,
+    optset_T, scid_T, set_chars_option, vimoption_T,
+};
+use crate::os::env::{
+    expand_T, expand_env_esc, home_replace, os_env_exists, os_getenv, os_setenv, vim_getenv,
+};
+use crate::os::input::os_breakcheck;
+use crate::os::lang::{get_mess_lang, lang_init};
+use crate::os::stdpaths::{stdpaths_user_conf_subpath, stdpaths_user_state_subpath};
+use crate::path::{
+    FullName_save, after_pathsep, invocation_path_tail, path_tail, vim_ispathlistsep,
+};
+use crate::popupmenu::{pum_drawn, pum_redraw};
+use crate::profile::estack_T;
+use crate::quickfix::{ll_resize_stack, qf_resize_stack};
+use crate::regexp::vim_regexec;
+use crate::runtime::exestack;
+use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
+use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
+use crate::strings::{concat_str, sort_strings, vim_strchr, vim_strsave_escaped};
+use crate::tag::free_tagfunc_option;
+use crate::terminal::on_scrollback_option_changed;
+use crate::undo::{u_compute_hash, u_read_undo, u_sync};
+use crate::window::{
+    STATUS_HEIGHT, command_height, frame_new_height, global_stl_height, last_status, min_rows,
+    min_rows_for_all_tabpages, set_winbar, set_winbar_all, set_winbar_win, tabline_height,
+    unuse_tabpage, use_tabpage, win_comp_pos, win_comp_scroll, win_default_scroll, win_equal,
+    win_new_screen_rows, win_setheight, win_setwidth,
+};
+use crate::winfloat::win_float_update_statusline;
+
+pub type OptInt = i64;
+pub type OptScope = c_int;
+pub type set_op_T = c_int;
+pub type set_prefix_T = c_int;
+pub type TriState = c_int;
+
+const NUL: c_char = 0;
+const IOSIZE: usize = 1025;
+const MAXPATHL: usize = 4096;
+const NUMBUFLEN: usize = 65;
+const ERR_BUFLEN: usize = 256;
+const MAXCOL: i32 = 0x7fffffff;
+
+const kNone: TriState = -1;
+const kFalse: TriState = 0;
+const kTrue: TriState = 1;
+
+const OPT_GLOBAL: c_int = 0x01;
+const OPT_LOCAL: c_int = 0x02;
+const OPT_MODELINE: c_int = 0x04;
+const OPT_WINONLY: c_int = 0x08;
+const OPT_NOWIN: c_int = 0x10;
+const OPT_ONECOLUMN: c_int = 0x20;
+const OPT_NO_REDRAW: c_int = 0x40;
+const OPT_SKIPRTP: c_int = 0x80;
+
+const BCO_ENTER: c_int = 1;
+const BCO_ALWAYS: c_int = 2;
+const BCO_NOHELP: c_int = 4;
+
+const PREFIX_NO: set_prefix_T = 0;
+const PREFIX_NONE: set_prefix_T = 1;
+const PREFIX_INV: set_prefix_T = 2;
+
+const OP_NONE: set_op_T = 0;
+const OP_ADDING: set_op_T = 1;
+const OP_PREPENDING: set_op_T = 2;
+const OP_REMOVING: set_op_T = 3;
+
+const kOptScopeGlobal: OptScope = 0;
+const kOptScopeWin: OptScope = 1;
+const kOptScopeBuf: OptScope = 2;
+const kOptScopeTab: OptScope = 3;
+const kOptScopeSize: OptScope = 4;
+
+const kOptFlagExpand: u32 = 1 << 0;
+const kOptFlagNoDefExp: u32 = 1 << 1;
+const kOptFlagNoDefault: u32 = 1 << 2;
+const kOptFlagWasSet: u32 = 1 << 3;
+const kOptFlagNoMkrc: u32 = 1 << 4;
+const kOptFlagUIOption: u32 = 1 << 5;
+const kOptFlagRedrTabl: u32 = 1 << 6;
+const kOptFlagRedrStat: u32 = 1 << 7;
+const kOptFlagRedrWin: u32 = 1 << 8;
+const kOptFlagRedrBuf: u32 = 1 << 9;
+const kOptFlagRedrAll: u32 = kOptFlagRedrBuf | kOptFlagRedrWin;
+const kOptFlagComma: u32 = 1 << 10;
+const kOptFlagOneComma: u32 = (1 << 11) | kOptFlagComma;
+const kOptFlagNoDup: u32 = 1 << 12;
+const kOptFlagFlagList: u32 = 1 << 13;
+const kOptFlagSecure: u32 = 1 << 14;
+const kOptFlagGettext: u32 = 1 << 15;
+const kOptFlagNoGlob: u32 = 1 << 16;
+const kOptFlagNFname: u32 = 1 << 17;
+const kOptFlagInsecure: u32 = 1 << 18;
+const kOptFlagPriMkrc: u32 = 1 << 19;
+const kOptFlagCurswant: u32 = 1 << 20;
+const kOptFlagNDname: u32 = 1 << 21;
+const kOptFlagHLOnly: u32 = 1 << 22;
+const kOptFlagMLE: u32 = 1 << 23;
+const kOptFlagFunc: u32 = 1 << 24;
+const kOptFlagColon: u32 = 1 << 25;
+const kOptFlagExpr: u32 = 1 << 26;
+
+const kOptInvalid: OptIndex = -1;
+const kOptArabic: OptIndex = 3;
+const kOptAutocomplete: OptIndex = 6;
+const kOptAutoindent: OptIndex = 9;
+const kOptAutoread: OptIndex = 10;
+const kOptBackupcopy: OptIndex = 16;
+const kOptBackupdir: OptIndex = 17;
+const kOptBackupskip: OptIndex = 19;
+const kOptBinary: OptIndex = 21;
+const kOptBomb: OptIndex = 22;
+const kOptBreakindent: OptIndex = 24;
+const kOptBreakindentopt: OptIndex = 25;
+const kOptBufhidden: OptIndex = 27;
+const kOptBuflisted: OptIndex = 28;
+const kOptBuftype: OptIndex = 29;
+const kOptBusy: OptIndex = 30;
+const kOptCdpath: OptIndex = 33;
+const kOptChannel: OptIndex = 35;
+const kOptChistory: OptIndex = 37;
+const kOptCindent: OptIndex = 38;
+const kOptCinkeys: OptIndex = 39;
+const kOptCinoptions: OptIndex = 40;
+const kOptCinscopedecls: OptIndex = 41;
+const kOptCinwords: OptIndex = 42;
+const kOptCmdheight: OptIndex = 44;
+const kOptCmdwinheight: OptIndex = 45;
+const kOptColorcolumn: OptIndex = 46;
+const kOptColumns: OptIndex = 47;
+const kOptComments: OptIndex = 48;
+const kOptCommentstring: OptIndex = 49;
+const kOptComplete: OptIndex = 51;
+const kOptCompletefunc: OptIndex = 52;
+const kOptCompleteopt: OptIndex = 54;
+const kOptCompleteslash: OptIndex = 55;
+const kOptConcealcursor: OptIndex = 57;
+const kOptConceallevel: OptIndex = 58;
+const kOptCopyindent: OptIndex = 60;
+const kOptCursorbind: OptIndex = 62;
+const kOptCursorcolumn: OptIndex = 63;
+const kOptCursorline: OptIndex = 64;
+const kOptCursorlineopt: OptIndex = 65;
+const kOptDefine: OptIndex = 67;
+const kOptDictionary: OptIndex = 69;
+const kOptDiff: OptIndex = 70;
+const kOptDiffanchors: OptIndex = 71;
+const kOptDirectory: OptIndex = 75;
+const kOptEndoffile: OptIndex = 81;
+const kOptEndofline: OptIndex = 82;
+const kOptEqualprg: OptIndex = 84;
+const kOptErrorformat: OptIndex = 87;
+const kOptEventignorewin: OptIndex = 89;
+const kOptExpandtab: OptIndex = 90;
+const kOptFileencoding: OptIndex = 92;
+const kOptFileformat: OptIndex = 94;
+const kOptFileformats: OptIndex = 95;
+const kOptFiletype: OptIndex = 97;
+const kOptFillchars: OptIndex = 98;
+const kOptFindfunc: OptIndex = 99;
+const kOptFixendofline: OptIndex = 100;
+const kOptFoldcolumn: OptIndex = 102;
+const kOptFoldenable: OptIndex = 103;
+const kOptFoldexpr: OptIndex = 104;
+const kOptFoldignore: OptIndex = 105;
+const kOptFoldlevel: OptIndex = 106;
+const kOptFoldmarker: OptIndex = 108;
+const kOptFoldmethod: OptIndex = 109;
+const kOptFoldminlines: OptIndex = 110;
+const kOptFoldnestmax: OptIndex = 111;
+const kOptFoldtext: OptIndex = 113;
+const kOptFollow: OptIndex = 114;
+const kOptFormatexpr: OptIndex = 115;
+const kOptFormatlistpat: OptIndex = 116;
+const kOptFormatoptions: OptIndex = 117;
+const kOptFormatprg: OptIndex = 118;
+const kOptFsync: OptIndex = 119;
+const kOptGrepformat: OptIndex = 121;
+const kOptGrepprg: OptIndex = 122;
+const kOptHelpheight: OptIndex = 130;
+const kOptHelplang: OptIndex = 131;
+const kOptHistory: OptIndex = 134;
+const kOptIcon: OptIndex = 138;
+const kOptIminsert: OptIndex = 143;
+const kOptImsearch: OptIndex = 144;
+const kOptInclude: OptIndex = 146;
+const kOptIncludeexpr: OptIndex = 147;
+const kOptIndentexpr: OptIndex = 149;
+const kOptIndentkeys: OptIndex = 150;
+const kOptInfercase: OptIndex = 151;
+const kOptIskeyword: OptIndex = 155;
+const kOptKeymap: OptIndex = 159;
+const kOptKeywordprg: OptIndex = 161;
+const kOptLhistory: OptIndex = 168;
+const kOptLinebreak: OptIndex = 169;
+const kOptLines: OptIndex = 170;
+const kOptLisp: OptIndex = 172;
+const kOptLispoptions: OptIndex = 173;
+const kOptLispwords: OptIndex = 174;
+const kOptList: OptIndex = 175;
+const kOptListchars: OptIndex = 176;
+const kOptMakeencoding: OptIndex = 180;
+const kOptMakeprg: OptIndex = 181;
+const kOptMatchpairs: OptIndex = 182;
+const kOptMaxcombine: OptIndex = 184;
+const kOptMaxsearchcount: OptIndex = 188;
+const kOptModeline: OptIndex = 192;
+const kOptModifiable: OptIndex = 195;
+const kOptModified: OptIndex = 196;
+const kOptNrformats: OptIndex = 206;
+const kOptNumber: OptIndex = 207;
+const kOptNumberwidth: OptIndex = 208;
+const kOptOmnifunc: OptIndex = 209;
+const kOptPacklockfile: OptIndex = 212;
+const kOptPackpath: OptIndex = 213;
+const kOptPath: OptIndex = 219;
+const kOptPreserveindent: OptIndex = 220;
+const kOptPreviewwindow: OptIndex = 223;
+const kOptPumblend: OptIndex = 225;
+const kOptPyxversion: OptIndex = 230;
+const kOptQuoteescape: OptIndex = 232;
+const kOptReadonly: OptIndex = 233;
+const kOptRegexpengine: OptIndex = 236;
+const kOptRelativenumber: OptIndex = 237;
+const kOptReport: OptIndex = 239;
+const kOptRevins: OptIndex = 240;
+const kOptRightleft: OptIndex = 241;
+const kOptRightleftcmd: OptIndex = 242;
+const kOptRuler: OptIndex = 243;
+const kOptRuntimepath: OptIndex = 245;
+const kOptScroll: OptIndex = 246;
+const kOptScrollback: OptIndex = 247;
+const kOptScrollbind: OptIndex = 248;
+const kOptScrolljump: OptIndex = 249;
+const kOptScrolloff: OptIndex = 250;
+const kOptScrolloffpad: OptIndex = 251;
+const kOptShell: OptIndex = 260;
+const kOptShellcmdflag: OptIndex = 261;
+const kOptShellpipe: OptIndex = 262;
+const kOptShellredir: OptIndex = 264;
+const kOptShellslash: OptIndex = 265;
+const kOptShellxquote: OptIndex = 268;
+const kOptShiftwidth: OptIndex = 270;
+const kOptShowbreak: OptIndex = 272;
+const kOptShowmatch: OptIndex = 276;
+const kOptSidescroll: OptIndex = 279;
+const kOptSidescrolloff: OptIndex = 280;
+const kOptSigncolumn: OptIndex = 281;
+const kOptSmartindent: OptIndex = 283;
+const kOptSmarttab: OptIndex = 284;
+const kOptSmoothscroll: OptIndex = 285;
+const kOptSofttabstop: OptIndex = 286;
+const kOptSpell: OptIndex = 287;
+const kOptSpellcapcheck: OptIndex = 288;
+const kOptSpellfile: OptIndex = 289;
+const kOptSpelllang: OptIndex = 290;
+const kOptSpelloptions: OptIndex = 291;
+const kOptStatuscolumn: OptIndex = 297;
+const kOptStatusline: OptIndex = 298;
+const kOptSuffixesadd: OptIndex = 300;
+const kOptSwapfile: OptIndex = 301;
+const kOptSynmaxcol: OptIndex = 303;
+const kOptSyntax: OptIndex = 304;
+const kOptTabstop: OptIndex = 308;
+const kOptTagcase: OptIndex = 310;
+const kOptTagfunc: OptIndex = 311;
+const kOptTags: OptIndex = 314;
+const kOptTermbidi: OptIndex = 316;
+const kOptTextwidth: OptIndex = 322;
+const kOptThesaurus: OptIndex = 323;
+const kOptThesaurusfunc: OptIndex = 324;
+const kOptTimeoutlen: OptIndex = 327;
+const kOptTitle: OptIndex = 328;
+const kOptTitlelen: OptIndex = 329;
+const kOptTtyfast: OptIndex = 334;
+const kOptUndodir: OptIndex = 335;
+const kOptUndofile: OptIndex = 336;
+const kOptUndolevels: OptIndex = 337;
+const kOptUpdatecount: OptIndex = 339;
+const kOptUpdatetime: OptIndex = 340;
+const kOptVarsofttabstop: OptIndex = 341;
+const kOptVartabstop: OptIndex = 342;
+const kOptViewdir: OptIndex = 345;
+const kOptVirtualedit: OptIndex = 347;
+const kOptWildchar: OptIndex = 351;
+const kOptWildcharm: OptIndex = 352;
+const kOptWinbar: OptIndex = 359;
+const kOptWinblend: OptIndex = 360;
+const kOptWindow: OptIndex = 362;
+const kOptWinfixbuf: OptIndex = 363;
+const kOptWinfixheight: OptIndex = 364;
+const kOptWinfixwidth: OptIndex = 365;
+const kOptWinheight: OptIndex = 366;
+const kOptWinhighlight: OptIndex = 367;
+const kOptWinminheight: OptIndex = 368;
+const kOptWinminwidth: OptIndex = 369;
+const kOptWinpinned: OptIndex = 370;
+const kOptWinwidth: OptIndex = 371;
+const kOptWrap: OptIndex = 372;
+const kOptWrapmargin: OptIndex = 373;
+const kOptWritedelay: OptIndex = 378;
+const kOptCount: OptIndex = 379;
+
+const kBufOptAutoindent: usize = 1;
+const kBufOptBinary: usize = 4;
+const kBufOptBomb: usize = 5;
+const kBufOptCindent: usize = 11;
+const kBufOptCinkeys: usize = 12;
+const kBufOptCinoptions: usize = 13;
+const kBufOptCinscopedecls: usize = 14;
+const kBufOptCinwords: usize = 15;
+const kBufOptComments: usize = 16;
+const kBufOptCommentstring: usize = 17;
+const kBufOptComplete: usize = 18;
+const kBufOptCompletefunc: usize = 19;
+const kBufOptCompleteslash: usize = 21;
+const kBufOptCopyindent: usize = 22;
+const kBufOptExpandtab: usize = 30;
+const kBufOptFixendofline: usize = 35;
+const kBufOptFollow: usize = 36;
+const kBufOptFormatexpr: usize = 37;
+const kBufOptFormatlistpat: usize = 38;
+const kBufOptFormatoptions: usize = 39;
+const kBufOptIminsert: usize = 44;
+const kBufOptImsearch: usize = 45;
+const kBufOptIncludeexpr: usize = 47;
+const kBufOptIndentexpr: usize = 48;
+const kBufOptIndentkeys: usize = 49;
+const kBufOptInfercase: usize = 50;
+const kBufOptIskeyword: usize = 51;
+const kBufOptKeymap: usize = 52;
+const kBufOptLisp: usize = 54;
+const kBufOptLispoptions: usize = 55;
+const kBufOptMatchpairs: usize = 59;
+const kBufOptModeline: usize = 60;
+const kBufOptModifiable: usize = 61;
+const kBufOptNrformats: usize = 63;
+const kBufOptOmnifunc: usize = 64;
+const kBufOptPreserveindent: usize = 66;
+const kBufOptQuoteescape: usize = 67;
+const kBufOptScrollback: usize = 69;
+const kBufOptShiftwidth: usize = 70;
+const kBufOptSmartindent: usize = 71;
+const kBufOptSofttabstop: usize = 72;
+const kBufOptSpellcapcheck: usize = 73;
+const kBufOptSpellfile: usize = 74;
+const kBufOptSpelllang: usize = 75;
+const kBufOptSpelloptions: usize = 76;
+const kBufOptSuffixesadd: usize = 77;
+const kBufOptSwapfile: usize = 78;
+const kBufOptSynmaxcol: usize = 79;
+const kBufOptTabstop: usize = 81;
+const kBufOptTagfunc: usize = 83;
+const kBufOptTextwidth: usize = 85;
+const kBufOptUndofile: usize = 88;
+const kBufOptVarsofttabstop: usize = 90;
+const kBufOptVartabstop: usize = 91;
+const kBufOptWrapmargin: usize = 92;
+
+const EOL_UNKNOWN: c_int = -1;
+const EOL_UNIX: c_int = 0;
+const EOL_DOS: c_int = 1;
+const EOL_MAC: c_int = 2;
+
+const BS_START: c_int = b's' as c_int;
+const BS_EOL: c_int = b'l' as c_int;
+const BS_NOSTOP: c_int = b'p' as c_int;
+
+const kCpoBufopt: c_int = b's' as c_int;
+const kCpoBufoptglob: c_int = b'S' as c_int;
+
+const kOptCuloptFlagLine: u8 = 0x01;
+const kOptCuloptFlagScreenline: u8 = 0x02;
+const kOptCuloptFlagNumber: u8 = 0x04;
+
+const kOptVeFlagNone: c_uint = 0x10;
+const kOptVeFlagNoneU: c_uint = 0x20;
+
+const NO_LOCAL_UNDOLEVEL: OptInt = -123456;
+const SB_MAX: OptInt = 1_000_000;
+const MAX_NUMBERWIDTH: OptInt = 20;
+const TABSTOP_MAX: OptInt = 9999;
+const MAX_MCO: OptInt = 6;
+const MIN_COLUMNS: c_int = 12;
+const UNDO_HASH_SIZE: usize = 32;
+const DIP_ALL: c_int = 0x01;
+const KEYMAP_INIT: i16 = 1;
+const FORCE_BIN: c_int = 1;
+const MODE_TERMINAL: c_int = 0x2000;
+const HL_GLOBAL: i32 = 0x4000;
+const CMOD_NOSWAPFILE: c_int = 0x2000;
+const BF_SYN_SET: c_int = 0x200;
+
+const B_IMODE_USE_INSERT: OptInt = -1;
+const B_IMODE_NONE: OptInt = 0;
+const B_IMODE_LAST: OptInt = 1;
+
+const UPD_NOT_VALID: c_int = 35;
+const UPD_SOME_VALID: c_int = 30;
+const UPD_CLEAR: c_int = 40;
+const NO_SCREEN: c_int = 2;
+const SID_NONE: scid_T = -6;
+const STR2NR_ALL: c_int = 0x7f;
+const HLF_W: c_int = 39;
+const Ctrl_C: OptInt = 3;
+const kCtxNoDisplay: c_int = 1 << 0;
+const FUZZY_SCORE_NONE: c_int = i32::MIN;
+const VAR_STRING: VarType = VarType::VAR_STRING;
+
+const kCallbackNone: c_int = 0;
+const kCallbackFuncref: c_int = 1;
+const kCallbackPartial: c_int = 2;
+const kCallbackLua: c_int = 3;
+const kCallbackExpr: c_int = 4;
+
+#[cfg(unix)]
+const ROOT_UID: u32 = 0;
+
+#[cfg(windows)]
+const PATHSEPSTR: *const c_char = c"\\".as_ptr();
+#[cfg(not(windows))]
+const PATHSEPSTR: *const c_char = c"/".as_ptr();
+
+const SHM_ALL_ABBREVIATIONS: *const c_char = c"rmlw".as_ptr();
+
+const E_UNKNOWN_OPTION: *const c_char = c"E518: Unknown option".as_ptr();
+const E_NOT_ALLOWED_IN_MODELINE: *const c_char = c"E520: Not allowed in a modeline".as_ptr();
+const E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF: *const c_char =
+    c"E992: Not allowed in a modeline when 'modelineexpr' is off".as_ptr();
+const E_NUMBER_REQUIRED_AFTER_EQUAL: *const c_char = c"E521: Number required after =".as_ptr();
+const E_PREVIEW_WINDOW_ALREADY_EXISTS: *const c_char =
+    c"E590: A preview window already exists".as_ptr();
+const E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX: *const c_char =
+    c"E1542: Cannot have a negative or zero number of quickfix/location lists".as_ptr();
+const E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX: *const c_char =
+    c"E1543: Cannot have more than a hundred quickfix/location lists".as_ptr();
+const W_ARABIC: *const c_char = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'".as_ptr();
+
+static mut P_TERM: *mut c_char = ptr::null_mut();
+static mut P_TTYTYPE: *mut c_char = ptr::null_mut();
+
+// Saved values for when 'bin' is set.
+static mut P_ET_NOBIN: c_int = 0;
+static mut P_ML_NOBIN: c_int = 0;
+static mut P_TW_NOBIN: OptInt = 0;
+static mut P_WM_NOBIN: OptInt = 0;
+
+// Saved values for when 'paste' is set.
+static mut P_AI_NOPASTE: c_int = 0;
+static mut P_ET_NOPASTE: c_int = 0;
+static mut P_STS_NOPASTE: OptInt = 0;
+static mut P_TW_NOPASTE: OptInt = 0;
+static mut P_WM_NOPASTE: OptInt = 0;
+static mut P_VSTS_NOPASTE: *mut c_char = ptr::null_mut();
+
+// Saved values inside did_set_paste.
+static mut OLD_P_PASTE: c_int = 0;
+static mut SAVE_SM: c_int = 0;
+static mut SAVE_STA: c_int = 0;
+static mut SAVE_RU: c_int = 0;
+static mut SAVE_RI: c_int = 0;
+
+// Saved recursion depth inside do_syntax_autocmd.
+static mut SYN_RECURSIVE: c_int = 0;
+
+// Saved state for command-line expansion of :set.
+static mut EXPAND_OPTION_IDX: OptIndex = kOptInvalid;
+static mut EXPAND_OPTION_START_COL: c_int = 0;
+static mut EXPAND_OPTION_NAME: [c_char; 5] = [b't' as c_char, b'_' as c_char, 0, 0, 0];
+static mut EXPAND_OPTION_FLAGS: c_int = 0;
+static mut EXPAND_OPTION_APPEND: bool = false;
+
+static mut P_BIN_DEP_OPTS: [c_int; 5] = [
+    kOptTextwidth,
+    kOptWrapmargin,
+    kOptModeline,
+    kOptExpandtab,
+    kOptInvalid,
+];
+
+static mut P_PASTE_DEP_OPTS: [c_int; 11] = [
+    kOptAutoindent,
+    kOptExpandtab,
+    kOptRuler,
+    kOptShowmatch,
+    kOptSmarttab,
+    kOptSofttabstop,
+    kOptTextwidth,
+    kOptWrapmargin,
+    kOptRevins,
+    kOptVarsofttabstop,
+    kOptInvalid,
+];
+
+struct ShellRule {
+    pat: *const c_char,
+    shcf: *const c_char,
+    sp: *const c_char,
+    srr: *const c_char,
+    sxq: *const c_char,
+}
+
+unsafe impl Sync for ShellRule {}
+
+#[cfg(windows)]
+const SHELL_RULES: [ShellRule; 4] = [
+    ShellRule {
+        pat: c"cmd".as_ptr(),
+        shcf: c"/s /c".as_ptr(),
+        sp: ptr::null(),
+        srr: ptr::null(),
+        sxq: c"\"".as_ptr(),
+    },
+    ShellRule {
+        pat: c"powershell".as_ptr(),
+        shcf: c"-Command".as_ptr(),
+        sp: ptr::null(),
+        srr: ptr::null(),
+        sxq: ptr::null(),
+    },
+    ShellRule {
+        pat: c"csh".as_ptr(),
+        shcf: ptr::null(),
+        sp: c"|& tee".as_ptr(),
+        srr: c">&".as_ptr(),
+        sxq: ptr::null(),
+    },
+    ShellRule {
+        pat: c"sh".as_ptr(),
+        shcf: ptr::null(),
+        sp: c"2>&1| tee".as_ptr(),
+        srr: c">%s 2>&1".as_ptr(),
+        sxq: ptr::null(),
+    },
+];
+
+#[cfg(not(windows))]
+const SHELL_RULES: [ShellRule; 2] = [
+    ShellRule {
+        pat: c"csh".as_ptr(),
+        shcf: ptr::null(),
+        sp: c"|& tee".as_ptr(),
+        srr: c">&".as_ptr(),
+        sxq: ptr::null(),
+    },
+    ShellRule {
+        pat: c"sh".as_ptr(),
+        shcf: ptr::null(),
+        sp: c"2>&1| tee".as_ptr(),
+        srr: c">%s 2>&1".as_ptr(),
+        sxq: ptr::null(),
+    },
+];
+
+unsafe extern "C" {
+    static mut curbuf: *mut buf_T;
+    static mut firstbuf: *mut buf_T;
+    static mut curwin: *mut win_T;
+    static mut firstwin: *mut win_T;
+    static mut curtab: *mut tabpage_T;
+    static mut first_tabpage: *mut tabpage_T;
+    static mut topframe: *mut frame_T;
+
+    static mut Rows: c_int;
+    static mut Columns: c_int;
+    static mut cmdline_row: c_int;
+    static mut starting: c_int;
+    static mut full_screen: bool;
+    static mut updating_screen: bool;
+    static mut clear_cmdline: bool;
+    static mut need_maketitle: bool;
+    static mut redraw_tabline: bool;
+    static mut readonlymode: bool;
+    static mut sandbox: c_int;
+    static mut secure: c_int;
+    static mut silent_mode: bool;
+    static mut info_message: bool;
+    static mut no_wait_return: c_int;
+    static mut got_int: bool;
+    static mut State: c_int;
+    static mut t_colors: c_int;
+    static mut current_sctx: sctx_T;
+    static mut cmdmod: cmdmod_Prefix;
+    static mut fenc_default: *mut c_char;
+    static mut escape_chars: *const c_char;
+    static mut empty_string_option: [c_char; 1];
+    static mut IObuff: [c_char; IOSIZE];
+    static mut NameBuff: [c_char; MAXPATHL];
+    static mut wim_flags: [u8; 4];
+    static mut bkc_flags: c_uint;
+    static mut ve_flags: c_uint;
+    static mut spo_flags: c_uint;
+
+    static e_invarg: [c_char; 0];
+    static e_trailing: [c_char; 0];
+    static e_sandbox: [c_char; 0];
+    static e_secure: [c_char; 0];
+    static e_scroll: [c_char; 0];
+    static e_positive: [c_char; 0];
+    static e_winheight: [c_char; 0];
+    static e_winwidth: [c_char; 0];
+    static e_unsupportedoption: [c_char; 0];
+
+    static mut p_ai: c_int;
+    static mut p_arshape: c_int;
+    static mut p_bdir: *mut c_char;
+    static mut p_bin: c_int;
+    static mut p_bomb: c_int;
+    static mut p_bs: *mut c_char;
+    static mut p_cdpath: *mut c_char;
+    static mut p_cfu: Callback;
+    static mut p_ch: OptInt;
+    static mut p_chi: OptInt;
+    static mut p_ci: c_int;
+    static mut p_cin: c_int;
+    static mut p_cink: *mut c_char;
+    static mut p_cino: *mut c_char;
+    static mut p_cinsd: *mut c_char;
+    static mut p_cinw: *mut c_char;
+    static mut p_cms: *mut c_char;
+    static mut p_columns: OptInt;
+    static mut p_com: *mut c_char;
+    static mut p_cpo: *mut c_char;
+    static mut p_cpt: *mut c_char;
+    #[cfg(windows)]
+    static mut p_csl: *mut c_char;
+    static mut p_deco: c_int;
+    static mut p_dir: *mut c_char;
+    static mut p_ea: c_int;
+    static mut p_enc: *mut c_char;
+    static mut p_ep: *mut c_char;
+    static mut p_et: c_int;
+    static mut p_fenc: *mut c_char;
+    static mut p_fex: Callback;
+    static mut p_ff: *mut c_char;
+    static mut p_ffs: *mut c_char;
+    static mut p_ffu: Callback;
+    static mut p_fixeol: c_int;
+    static mut p_flp: *mut c_char;
+    static mut p_fo: *mut c_char;
+    static mut p_follow: c_int;
+    static mut p_ft: *mut c_char;
+    static mut p_hh: OptInt;
+    static mut p_hlg: *mut c_char;
+    static mut p_hls: c_int;
+    static mut p_icon: c_int;
+    static mut p_iminsert: OptInt;
+    static mut p_imsearch: OptInt;
+    static mut p_inde: Callback;
+    static mut p_indk: *mut c_char;
+    static mut p_inex: Callback;
+    static mut p_inf: c_int;
+    static mut p_isk: *mut c_char;
+    static mut p_keymap: *mut c_char;
+    static mut p_kp: *mut c_char;
+    static mut p_lines: OptInt;
+    static mut p_lisp: c_int;
+    static mut p_lnr: c_int;
+    static mut p_lop: *mut c_char;
+    static mut p_lrm: c_int;
+    static mut p_ma: c_int;
+    static mut p_ml: c_int;
+    static mut p_mle: c_int;
+    static mut p_mouse: *mut c_char;
+    static mut p_mps: *mut c_char;
+    static mut p_nf: *mut c_char;
+    static mut p_ofu: Callback;
+    static mut p_paste: c_int;
+    static mut p_path: *mut c_char;
+    static mut p_pi: c_int;
+    static mut p_pp: *mut c_char;
+    static mut p_qe: *mut c_char;
+    static mut p_ri: c_int;
+    static mut p_rtp: *mut c_char;
+    static mut p_ru: c_int;
+    static mut p_sbr: *mut c_char;
+    static mut p_scbk: OptInt;
+    static mut p_sh: *mut c_char;
+    static mut p_shm: *mut c_char;
+    static mut p_si: c_int;
+    static mut p_siso: OptInt;
+    static mut p_sj: OptInt;
+    static mut p_sm: c_int;
+    static mut p_smc: OptInt;
+    static mut p_so: OptInt;
+    static mut p_sop: OptInt;
+    static mut p_spc: *mut c_char;
+    static mut p_spf: *mut c_char;
+    static mut p_spl: *mut c_char;
+    static mut p_spo: *mut c_char;
+    static mut p_sps: *mut c_char;
+    static mut p_sta: c_int;
+    static mut p_sts: OptInt;
+    static mut p_sua: *mut c_char;
+    static mut p_sw: OptInt;
+    static mut p_swf: c_int;
+    static mut p_syn: *mut c_char;
+    static mut p_tags: *mut c_char;
+    static mut p_tbidi: c_int;
+    static mut p_tfu: Callback;
+    static mut p_title: c_int;
+    static mut p_titlelen: OptInt;
+    static mut p_ts: OptInt;
+    static mut p_tw: OptInt;
+    static mut p_uc: OptInt;
+    static mut p_udf: c_int;
+    static mut p_ul: OptInt;
+    static mut p_vdir: *mut c_char;
+    static mut p_verbose: OptInt;
+    static mut p_vsts: *mut c_char;
+    static mut p_vts: *mut c_char;
+    static mut p_wbr: *mut c_char;
+    static mut p_wc: OptInt;
+    static mut p_wcm: OptInt;
+    static mut p_wh: OptInt;
+    static mut p_wim: *mut c_char;
+    static mut p_window: OptInt;
+    static mut p_wiw: OptInt;
+    static mut p_wm: OptInt;
+    static mut p_wmh: OptInt;
+    static mut p_wmw: OptInt;
+
+    static buf_opt_idx: [OptIndex; 93];
+
+    fn gettext(msgid: *const c_char) -> *mut c_char;
+    #[cfg(windows)]
+    fn libintl_bind_textdomain_codeset(
+        domainname: *const c_char,
+        codeset: *const c_char,
+    ) -> *mut c_char;
+    #[cfg(not(windows))]
+    fn bind_textdomain_codeset(domainname: *const c_char, codeset: *const c_char) -> *mut c_char;
+    #[cfg(unix)]
+    fn getuid() -> u32;
+
+    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
+    fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
+    fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
+    fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
+    fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
+    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
+    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
+    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
+    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
+
+    fn maketitle();
+    fn do_autochdir();
+    fn free_buf_options(buf: *mut buf_T, free_p_ff: bool);
+    fn save_file_ff(buf: *mut buf_T);
+    fn bufIsChanged(buf: *const buf_T) -> bool;
+    fn curbufIsChanged() -> bool;
+    fn do_filetype_autocmd(buf: *mut buf_T, force: bool);
+    fn free_findfunc_option();
+    fn free_operatorfunc_option();
+    fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
+    fn opt_to_tv(val: Object, compat: bool) -> typval_T;
+    fn put_escstr(fd: *mut FILE, str_arg: *const c_char, what: c_int) -> c_int;
+    fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_char;
+    fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T;
+    fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool;
+    fn mc_ins_replay_can_join() -> bool;
+    fn last_set_msg(script_ctx: sctx_T);
+    fn callback_copy(dest: *mut Callback, src: *const Callback);
+    fn callback_free(callback: *mut Callback);
+    fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
+    fn do_check_scrollbind(check: bool);
+    fn foldUpdateAll(win: *mut win_T);
+    fn newFoldLevel();
+    fn langmap_init();
+    fn runtimepath_default(clean_arg: bool) -> *mut c_char;
+    fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
+    fn set_no_hlsearch(flag: bool);
+    fn ui_call_option_set(name: NvimString, value: Object);
+    fn api_free_luaref(luaref: LuaRef);
+    fn api_new_luaref(luaref: LuaRef) -> LuaRef;
+
+    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
+    fn logmsg(
+        log_level: c_int,
+        context: *const c_char,
+        func_name: *const c_char,
+        line_num: c_int,
+        eol: bool,
+        fmt: *const c_char,
+        ...
+    ) -> bool;
+
+    pub fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
+    pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex;
+    pub fn opt_error(errbuf: *const CharBuf, fmt: *const c_char, ...) -> *const c_char;
+}
+
+#[inline]
+unsafe fn tr(s: *const c_char) -> *mut c_char {
+    unsafe { gettext(s) }
+}
+
+#[inline]
+unsafe fn c_strlen(s: *const c_char) -> usize {
+    unsafe { CStr::from_ptr(s).to_bytes().len() }
+}
+
+#[inline]
+unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
+    unsafe { strcmp(s1, s2) }
+}
+
+#[inline]
+unsafe fn c_strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
+    unsafe { strncmp(s1, s2, n) }
+}
+
+#[inline]
+unsafe fn c_strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char {
+    unsafe { strstr(haystack, needle) }
+}
+
+#[inline]
+unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
+    unsafe {
+        ptr::copy(src, dst, c_strlen(src) + 1);
+    }
+}
+
+#[inline]
+unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
+    unsafe { c_strcmp(a, b) == 0 }
+}
+
+#[inline]
+unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
+    unsafe { c_strncmp(a, b, n) == 0 }
+}
+
+#[inline]
+fn ascii_iswhite(c: c_char) -> bool {
+    matches!(c as u8, b' ' | b'\t')
+}
+
+#[inline]
+fn ascii_isdigit(c: c_char) -> bool {
+    (c as u8).is_ascii_digit()
+}
+
+#[inline]
+fn ascii_isalpha(c: c_char) -> bool {
+    (c as u8).is_ascii_alphabetic()
+}
+
+#[inline]
+fn ascii_isalnum(c: c_char) -> bool {
+    (c as u8).is_ascii_alphanumeric()
+}
+
+#[inline]
+const fn nil_obj() -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeNil,
+        data: ObjectData { integer: 0 },
+    }
+}
+
+#[inline]
+const fn unset_obj() -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeUnset,
+        data: ObjectData { integer: 0 },
+    }
+}
+
+#[inline]
+const fn boolean_obj(b: bool) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBoolean,
+        data: ObjectData { boolean: b },
+    }
+}
+
+#[inline]
+const fn integer_obj(i: i64) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeInteger,
+        data: ObjectData { integer: i },
+    }
+}
+
+#[inline]
+const fn string_obj(s: NvimString) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeString,
+        data: ObjectData { string: s },
+    }
+}
+
+#[inline]
+const fn luaref_obj(r: LuaRef) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeLuaRef,
+        data: ObjectData { luaref: r },
+    }
+}
+
+#[inline]
+const fn array_obj(a: Array) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeArray,
+        data: ObjectData { array: a },
+    }
+}
+
+#[inline]
+const fn dict_obj(d: Dict) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeDict,
+        data: ObjectData { dict: d },
+    }
+}
+
+#[inline]
+unsafe fn cstr_as_obj(s: *const c_char) -> Object {
+    unsafe { string_obj(cstr_as_string(s)) }
+}
+
+#[inline]
+unsafe fn cstr_to_obj(s: *const c_char) -> Object {
+    unsafe { string_obj(cstr_to_string(s)) }
+}
+
+#[inline]
+const fn tristate_from_int(val: c_int) -> TriState {
+    if val == 0 {
+        kFalse
+    } else if val >= 1 {
+        kTrue
+    } else {
+        kNone
+    }
+}
+
+#[inline]
+const fn termcap2key(a: c_int, b: c_int) -> c_int {
+    -(a + (b << 8))
+}
+
+#[inline]
+const fn key2termcap0(x: c_int) -> u8 {
+    ((-x) & 0xff) as u8
+}
+
+#[inline]
+const fn key2termcap1(x: c_int) -> u8 {
+    ((((-x) as u32) >> 8) & 0xff) as u8
+}
+
+#[inline]
+const fn ctrl_chr(x: u8) -> c_int {
+    ((x ^ 0x40) & 0x9f) as c_int
+}
+
+#[inline]
+const fn is_special(c: OptInt) -> bool {
+    c < 0
+}
+
+#[inline]
+unsafe fn error_set(e: *const Error) -> bool {
+    unsafe { !e.is_null() && (*e).err_type != ErrorType::kErrorTypeNone }
+}
+
+#[inline]
+unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
+    match t {
+        ObjectType::kObjectTypeBoolean => c"boolean".as_ptr(),
+        ObjectType::kObjectTypeInteger => c"number".as_ptr(),
+        ObjectType::kObjectTypeString => c"string".as_ptr(),
+        _ => std::process::abort(),
+    }
+}
+
+#[inline]
+unsafe fn put_c(dict: &mut Dict, k: *const c_char, v: Object) {
+    unsafe {
+        debug_assert!(dict.size < dict.capacity);
+        *dict.items.add(dict.size) = KeyValuePair {
+            key: cstr_as_string(k),
+            value: v,
+        };
+        dict.size += 1;
+    }
+}
+
+#[inline]
+unsafe fn add_c(array: &mut Array, item: Object) {
+    unsafe {
+        debug_assert!(array.size < array.capacity);
+        *array.items.add(array.size) = item;
+        array.size += 1;
+    }
+}
+
+#[inline]
+unsafe fn ga_append_ptr(gap: *mut garray_T, item: *mut c_char) {
+    unsafe {
+        ga_grow(gap, 1);
+        let data = (*gap).ga_data.cast::<*mut c_char>();
+        *data.add((*gap).ga_len as usize) = item;
+        (*gap).ga_len += 1;
+    }
+}
+
+#[inline]
+unsafe fn get_opt_idx(opt: *mut vimoption_T) -> OptIndex {
+    unsafe { opt.offset_from(get_option(0)) as OptIndex }
+}
+
+#[inline]
+unsafe fn get_varp(p: *mut vimoption_T) -> *mut c_void {
+    unsafe { get_varp_from(p, curbuf, curwin) }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_init_tablocal() {
+    unsafe {
+        // cmdheight calls itself OPT_GLOBAL but is really tablocal!
+        p_ch = (*get_option(kOptCmdheight)).def_val.data.integer;
+    }
+}
+
+/// Initialize the 'shell' option to a default value.
+unsafe fn set_init_default_shell() {
+    unsafe {
+        let shell = os_getenv(c"SHELL".as_ptr());
+        if !shell.is_null() {
+            if !vim_strchr(shell, b' ' as c_int).is_null() {
+                let len = c_strlen(shell) + 3;
+                let cmd = xmalloc(len).cast::<c_char>();
+                snprintf(cmd, len, c"\"%s\"".as_ptr(), shell);
+                set_string_default(kOptShell, cmd, true);
+            } else {
+                set_string_default(kOptShell, shell, false);
+            }
+            xfree(shell.cast());
+        }
+    }
+}
+
+/// Set the default for 'backupskip' to include environment variables for temp files.
+unsafe fn set_init_default_backupskip() {
+    unsafe {
+        #[cfg(unix)]
+        let names: [*const c_char; 4] = [
+            c"".as_ptr(),
+            c"TMPDIR".as_ptr(),
+            c"TEMP".as_ptr(),
+            c"TMP".as_ptr(),
+        ];
+        #[cfg(not(unix))]
+        let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
+
+        let mut ga = garray_T {
+            ga_len: 0,
+            ga_maxlen: 0,
+            ga_itemsize: 0,
+            ga_growsize: 0,
+            ga_data: ptr::null_mut(),
+        };
+        let opt_idx = kOptBackupskip;
+
+        ga_init(&raw mut ga, 1, 100);
+        for &name in &names {
+            #[allow(unused_mut)]
+            let mut mustfree = true;
+            let p: *mut c_char;
+            let mut plen: usize;
+            #[cfg(unix)]
+            if *name == NUL {
+                #[cfg(target_os = "macos")]
+                {
+                    p = c"/private/tmp".as_ptr().cast_mut();
+                    plen = "/private/tmp".len();
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    p = c"/tmp".as_ptr().cast_mut();
+                    plen = "/tmp".len();
+                }
+                mustfree = false;
+            } else {
+                p = vim_getenv(name);
+                plen = 0;
+            }
+            #[cfg(not(unix))]
+            {
+                p = vim_getenv(name);
+                plen = 0;
+            }
+
+            if !p.is_null() && *p != NUL {
+                let mut has_trailing_path_sep = false;
+
+                if plen == 0 {
+                    plen = c_strlen(p);
+                    if after_pathsep(p, p.add(plen)) != 0 {
+                        has_trailing_path_sep = true;
+                    }
+                }
+
+                let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
+                let item = xmalloc(itemsize).cast::<c_char>();
+                let itemseplen: usize = if ga.ga_len == 0 { 0 } else { 1 };
+
+                let itemlen = vim_snprintf(
+                    item,
+                    itemsize,
+                    c"%s%s*".as_ptr(),
+                    p,
+                    if has_trailing_path_sep {
+                        c"".as_ptr()
+                    } else {
+                        PATHSEPSTR
+                    },
+                ) as usize;
+
+                if find_dup_item(
+                    ga.ga_data.cast(),
+                    item,
+                    itemlen,
+                    (*get_option(opt_idx)).flags,
+                )
+                .is_null()
+                {
+                    ga_grow(&raw mut ga, (itemseplen + itemlen + 1) as c_int);
+                    ga.ga_len += vim_snprintf(
+                        ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
+                        itemseplen + itemlen + 1,
+                        c"%s%s".as_ptr(),
+                        if itemseplen > 0 {
+                            c",".as_ptr()
+                        } else {
+                            c"".as_ptr()
+                        },
+                        item,
+                    );
+                }
+                xfree(item.cast());
+            }
+            if mustfree {
+                xfree(p.cast());
+            }
+        }
+        if !ga.ga_data.is_null() {
+            set_string_default(kOptBackupskip, ga.ga_data.cast(), true);
+        }
+    }
+}
+
+/// Initialize the 'cdpath' option to a default value.
+unsafe fn set_init_default_cdpath() {
+    unsafe {
+        let cdpath = vim_getenv(c"CDPATH".as_ptr());
+        if cdpath.is_null() {
+            return;
+        }
+
+        let buf = xmalloc(2 * c_strlen(cdpath) + 2).cast::<c_char>();
+        *buf = b',' as c_char;
+        let mut j: usize = 1;
+        let mut i: usize = 0;
+        while *cdpath.add(i) != NUL {
+            let ch = *cdpath.add(i);
+            if vim_ispathlistsep(ch as c_int) {
+                *buf.add(j) = b',' as c_char;
+                j += 1;
+            } else {
+                if ch == b' ' as c_char || ch == b',' as c_char {
+                    *buf.add(j) = b'\\' as c_char;
+                    j += 1;
+                }
+                *buf.add(j) = ch;
+                j += 1;
+            }
+            i += 1;
+        }
+        *buf.add(j) = NUL;
+        change_option_default(kOptCdpath, cstr_as_obj(buf));
+
+        xfree(cdpath.cast());
+    }
+}
+
+/// Expand environment variables and things like "~" for the defaults.
+unsafe fn set_init_expand_env() {
+    unsafe {
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            if ((*opt).flags & kOptFlagNoDefExp) != 0 {
+                continue;
+            }
+            let mut p: *mut c_char = ptr::null_mut();
+            if ((*opt).flags & kOptFlagGettext) != 0 && !(*opt).var.is_null() {
+                p = tr(*((*opt).var.cast::<*mut c_char>()));
+            } else if ((*opt).flags & kOptFlagExpand) != 0 {
+                p = option_expand(opt_idx, (*opt).def_val.data.string.data);
+            }
+            if !p.is_null() {
+                let ov = cstr_to_obj(p);
+                set_option_varp(opt_idx, (*opt).var, ov);
+                change_option_default(opt_idx, ov);
+            }
+        }
+    }
+}
+
+/// Initialize the encoding used for "default" in 'fileencodings'.
+unsafe fn set_init_fenc_default() {
+    unsafe {
+        let mut p = enc_locale();
+        if p.is_null() {
+            p = xmemdupz(c"utf-8".as_ptr().cast(), "utf-8".len()).cast::<c_char>();
+        }
+        fenc_default = p;
+    }
+}
+
+/// Initialize the options, first part.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_init_1(clean_arg: bool) {
+    unsafe {
+        langmap_init();
+
+        alloc_options_default();
+
+        set_init_default_shell();
+        set_init_default_backupskip();
+        set_init_default_cdpath();
+
+        let mut backupdir = stdpaths_user_state_subpath(c"backup".as_ptr(), 2, true);
+        let backupdir_len = c_strlen(backupdir);
+        backupdir = xrealloc(backupdir.cast(), backupdir_len + 3).cast::<c_char>();
+        ptr::copy(backupdir, backupdir.add(2), backupdir_len + 1);
+        ptr::copy_nonoverlapping(b".,".as_ptr().cast::<c_char>(), backupdir, 2);
+        set_string_default(kOptBackupdir, backupdir, true);
+        set_string_default(
+            kOptViewdir,
+            stdpaths_user_state_subpath(c"view".as_ptr(), 2, false),
+            true,
+        );
+        set_string_default(
+            kOptDirectory,
+            stdpaths_user_state_subpath(c"swap".as_ptr(), 2, true),
+            true,
+        );
+        set_string_default(
+            kOptUndodir,
+            stdpaths_user_state_subpath(c"undo".as_ptr(), 2, true),
+            true,
+        );
+        set_string_default(
+            kOptPacklockfile,
+            stdpaths_user_conf_subpath(c"nvim-pack-lock.json".as_ptr()),
+            true,
+        );
+        let rtp = runtimepath_default(clean_arg);
+        if !rtp.is_null() {
+            set_string_default(kOptRuntimepath, rtp, true);
+            set_string_default(kOptPackpath, rtp, false);
+        }
+
+        set_options_default(0);
+
+        (*curbuf).b_p_initialized = true;
+        (*curbuf).b_p_ac = -1;
+        (*curbuf).b_p_ar = -1;
+        (*curbuf).b_p_fs = -1;
+        (*curbuf).b_p_ul = NO_LOCAL_UNDOLEVEL;
+        check_buf_options(curbuf);
+        check_win_options(curwin);
+        check_options();
+
+        last_status(false);
+
+        didset_options();
+
+        init_spell_chartab();
+
+        set_init_expand_env();
+
+        if os_env_exists(c"NVIM_NOTTYFAST".as_ptr(), false) {
+            set_option_value_give_err(kOptTtyfast, boolean_obj(false), 0);
+        }
+
+        save_file_ff(curbuf);
+
+        if os_env_exists(c"MLTERM".as_ptr(), false) {
+            set_option_value_give_err(kOptTermbidi, boolean_obj(true), 0);
+        }
+
+        didset_options2();
+
+        lang_init();
+        set_init_fenc_default();
+
+        #[cfg(windows)]
+        {
+            let _ = libintl_bind_textdomain_codeset(c"nvim".as_ptr(), p_enc);
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = bind_textdomain_codeset(c"nvim".as_ptr(), p_enc);
+        }
+
+        set_helplang_default(get_mess_lang());
+    }
+}
+
+/// Get default value for option, based on the option's type and scope.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_default(opt_idx: OptIndex, opt_flags: c_int) -> Object {
+    unsafe {
+        let opt = get_option(opt_idx);
+        let is_global_local_option = option_is_global_local(opt_idx);
+
+        #[cfg(unix)]
+        if opt_idx == kOptModeline && getuid() == ROOT_UID {
+            return boolean_obj(false);
+        }
+
+        if (opt_flags & OPT_LOCAL) != 0 && is_global_local_option {
+            return unset_obj();
+        }
+
+        let mut def_val = (*opt).def_val;
+        if option_has_type(opt_idx, ObjectType::kObjectTypeString)
+            && ((*opt).flags & kOptFlagNoDefExp) == 0
+        {
+            let s = option_expand(opt_idx, def_val.data.string.data);
+            if !s.is_null() {
+                def_val = cstr_as_obj(s);
+            }
+        }
+        if optval_is_owned(opt_idx) {
+            copy_object(def_val, ptr::null_mut())
+        } else {
+            def_val
+        }
+    }
+}
+
+/// Allocate the default values for all options by copying them from the stack.
+unsafe fn alloc_options_default() {
+    unsafe {
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            (*opt).def_val = copy_object((*opt).def_val, ptr::null_mut());
+        }
+    }
+}
+
+/// Change the default value for an option.
+unsafe fn change_option_default(opt_idx: OptIndex, value: Object) {
+    unsafe {
+        let opt = get_option(opt_idx);
+        optval_free((*opt).def_val);
+        (*opt).def_val = value;
+    }
+}
+
+/// Set an option to its default value.
+unsafe fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
+    unsafe {
+        let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+        let def_val = get_option_default(opt_idx, opt_flags);
+        set_option_direct(opt_idx, def_val, opt_flags, current_sctx.sc_sid);
+        optval_free_read(opt_idx, def_val);
+
+        if opt_idx == kOptScroll {
+            win_comp_scroll(curwin);
+        }
+
+        let mut flagsp = insecure_flag(curwin, opt_idx, opt_flags);
+        *flagsp &= !kOptFlagInsecure;
+        if both {
+            flagsp = insecure_flag(curwin, opt_idx, OPT_LOCAL);
+            *flagsp &= !kOptFlagInsecure;
+        }
+    }
+}
+
+/// Set all options (except terminal options) to their default value.
+unsafe fn set_options_default(opt_flags: c_int) {
+    unsafe {
+        for opt_idx in 0..kOptCount {
+            if ((*get_option(opt_idx)).flags & kOptFlagNoDefault) == 0 {
+                set_option_default(opt_idx, opt_flags);
+            }
+        }
+
+        let mut tp = first_tabpage;
+        while !tp.is_null() {
+            let mut wp = if tp == curtab {
+                firstwin
+            } else {
+                (*tp).tp_firstwin
+            };
+            while !wp.is_null() {
+                win_comp_scroll(wp);
+                wp = (*wp).w_next;
+            }
+            tp = (*tp).tp_next;
+        }
+
+        parse_cino(curbuf);
+    }
+}
+
+/// Set the Vi-default value of a string option.
+unsafe fn set_string_default(opt_idx: OptIndex, val: *mut c_char, allocated: bool) {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+        change_option_default(
+            opt_idx,
+            cstr_as_obj(if allocated { val } else { xstrdup(val) }),
+        );
+    }
+}
+
+/// For an option value that contains comma separated items, find "newval" in "origval".
+unsafe fn find_dup_item(
+    origval: *const c_char,
+    newval: *const c_char,
+    newvallen: usize,
+    flags: u32,
+) -> *const c_char {
+    unsafe {
+        if origval.is_null() {
+            return ptr::null();
+        }
+
+        let mut bs: c_int = 0;
+        let mut s = origval;
+        while *s != NUL {
+            if ((flags & kOptFlagComma) == 0
+                || s == origval
+                || (*s.offset(-1) == b',' as c_char && (bs & 1) == 0))
+                && c_strncmp(s, newval, newvallen) == 0
+                && ((flags & kOptFlagComma) == 0
+                    || *s.add(newvallen) == b',' as c_char
+                    || *s.add(newvallen) == NUL)
+            {
+                return s;
+            }
+            if (s > origval.add(1)
+                && *s.offset(-1) == b'\\' as c_char
+                && *s.offset(-2) != b',' as c_char)
+                || (s == origval.add(1) && *s.offset(-1) == b'\\' as c_char)
+            {
+                bs += 1;
+            } else {
+                bs = 0;
+            }
+            s = s.add(1);
+        }
+        ptr::null()
+    }
+}
+
+/// Free all options.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn free_all_options() {
+    unsafe {
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            let hidden = is_option_hidden(opt_idx);
+
+            if option_is_global_only(opt_idx) || hidden {
+                if !hidden {
+                    optval_free(opt_from_varp(opt_idx, (*opt).var));
+                }
+            } else if !option_is_window_local(opt_idx) {
+                optval_free(opt_from_varp(opt_idx, (*opt).var));
+            }
+            optval_free((*opt).def_val);
+        }
+        free_operatorfunc_option();
+        free_tagfunc_option();
+        free_findfunc_option();
+        xfree(fenc_default.cast());
+        fenc_default = ptr::null_mut();
+        xfree(P_TERM.cast());
+        P_TERM = ptr::null_mut();
+        xfree(P_TTYTYPE.cast());
+        P_TTYTYPE = ptr::null_mut();
+    }
+}
+
+/// Initialize the options, part two: After getting Rows and Columns.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_init_2(_headless: bool) {
+    unsafe {
+        logmsg(
+            1,
+            ptr::null(),
+            c"set_init_2".as_ptr(),
+            592,
+            true,
+            c"startup runtimepath/packpath value: %s".as_ptr(),
+            p_rtp,
+        );
+
+        if ((*get_option(kOptScroll)).flags & kOptFlagWasSet) == 0 {
+            set_option_default(kOptScroll, OPT_LOCAL);
+        }
+        comp_col();
+
+        if !option_was_set(kOptWindow) {
+            p_window = OptInt::from(Rows - 1);
+        }
+        change_option_default(kOptWindow, integer_obj(OptInt::from(Rows - 1)));
+    }
+}
+
+unsafe fn change_option_and_default_if_unset(idx: OptIndex, val: *const c_char) {
+    unsafe {
+        if val.is_null() || ((*get_option(idx)).flags & kOptFlagWasSet) != 0 {
+            return;
+        }
+        let optval = cstr_as_obj(val);
+        set_option_direct(idx, optval, 0, SID_NONE);
+        change_option_default(idx, copy_object(optval, ptr::null_mut()));
+    }
+}
+
+/// Initialize the options, part three: After reading the .vimrc
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_init_3() {
+    unsafe {
+        parse_shape_opt(SHAPE_CURSOR);
+
+        let mut len: usize = 0;
+        let mut name = [0 as c_char; MAXPATHL];
+        let p = invocation_path_tail(p_sh, &raw mut len);
+        xmemcpyz(name.as_mut_ptr().cast(), p.cast(), len);
+        for (i, rule) in SHELL_RULES.iter().enumerate() {
+            if c_strstr(name.as_ptr(), rule.pat).is_null() {
+                continue;
+            }
+            change_option_and_default_if_unset(kOptShellcmdflag, rule.shcf);
+            change_option_and_default_if_unset(kOptShellpipe, rule.sp);
+            change_option_and_default_if_unset(kOptShellredir, rule.srr);
+            change_option_and_default_if_unset(kOptShellxquote, rule.sxq);
+            #[cfg(windows)]
+            if i > 0 && ((*get_option(kOptShellslash)).flags & kOptFlagWasSet) == 0 {
+                set_option_direct(kOptShellslash, boolean_obj(true), 0, SID_NONE);
+                change_option_default(kOptShellslash, boolean_obj(true));
+            }
+            let _ = i;
+            break;
+        }
+
+        if buf_is_empty(curbuf) && ((*get_option(kOptFileformats)).flags & kOptFlagWasSet) != 0 {
+            set_fileformat(default_fileformat(), OPT_LOCAL);
+        }
+
+        set_title_defaults();
+    }
+}
+
+/// When 'helplang' is still at its default value, set it to "lang".
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_helplang_default(lang: *const c_char) {
+    unsafe {
+        if lang.is_null() {
+            return;
+        }
+
+        let lang_len = c_strlen(lang);
+        if lang_len < 2 {
+            return;
+        }
+        if ((*get_option(kOptHelplang)).flags & kOptFlagWasSet) != 0 {
+            return;
+        }
+
+        free_string_option(p_hlg);
+        p_hlg = xmemdupz(lang.cast(), lang_len).cast::<c_char>();
+        if lang_len >= 5
+            && (*p_hlg.add(0) as u8).eq_ignore_ascii_case(&b'z')
+            && (*p_hlg.add(1) as u8).eq_ignore_ascii_case(&b'h')
+            && *p_hlg.add(2) == b'_' as c_char
+        {
+            *p_hlg.add(0) = (*p_hlg.add(3) as u8).to_ascii_lowercase() as c_char;
+            *p_hlg.add(1) = (*p_hlg.add(4) as u8).to_ascii_lowercase() as c_char;
+        } else if lang_len > 0 && *p_hlg == b'C' as c_char {
+            *p_hlg.add(0) = b'e' as c_char;
+            *p_hlg.add(1) = b'n' as c_char;
+        }
+        *p_hlg.add(2) = NUL;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_title_defaults() {
+    unsafe {
+        if ((*get_option(kOptTitle)).flags & kOptFlagWasSet) == 0 {
+            change_option_default(kOptTitle, boolean_obj(false));
+            p_title = 0;
+        }
+        if ((*get_option(kOptIcon)).flags & kOptFlagWasSet) == 0 {
+            change_option_default(kOptIcon, boolean_obj(false));
+            p_icon = 0;
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ex_set(eap: *mut exarg_T) {
+    unsafe {
+        let mut flags: c_int = 0;
+
+        if (*eap).cmdidx == cmdidx_T::CMD_setlocal {
+            flags = OPT_LOCAL;
+        } else if (*eap).cmdidx == cmdidx_T::CMD_setglobal {
+            flags = OPT_GLOBAL;
+        }
+        if (*eap).forceit != 0 {
+            flags |= OPT_ONECOLUMN;
+        }
+        do_set((*eap).arg, flags);
+    }
+}
+
+/// Copy the new string value into allocated memory for the option.
+unsafe fn stropt_copy_value(
+    origval: *const c_char,
+    argp: *mut *mut c_char,
+    op: set_op_T,
+    flags: u32,
+) -> *mut c_char {
+    unsafe {
+        let mut arg = *argp;
+
+        let mut newlen = c_strlen(arg) + 1;
+        if op != OP_NONE {
+            newlen += c_strlen(origval) + 1;
+        }
+        let newval = xmalloc(newlen).cast::<c_char>();
+        let mut s = newval;
+
+        while *arg != NUL && !ascii_iswhite(*arg) {
+            #[cfg(windows)]
+            let remove_bs = *arg == b'\\' as c_char
+                && *arg.add(1) != NUL
+                && !((flags & kOptFlagExpand) != 0
+                    && vim_isfilec(*arg.add(1) as u8 as c_int)
+                    && !ascii_iswhite(*arg.add(1))
+                    && (*arg.add(1) != b'\\' as c_char
+                        || (s == newval && *arg.add(2) != b'\\' as c_char)));
+            #[cfg(not(windows))]
+            let remove_bs = {
+                let _ = flags;
+                *arg == b'\\' as c_char && *arg.add(1) != NUL
+            };
+            if remove_bs {
+                arg = arg.add(1);
+            }
+            let i = utfc_ptr2len(arg);
+            if i > 1 {
+                ptr::copy(arg, s, i as usize);
+                arg = arg.add(i as usize);
+                s = s.add(i as usize);
+            } else {
+                *s = *arg;
+                s = s.add(1);
+                arg = arg.add(1);
+            }
+        }
+        *s = NUL;
+
+        *argp = arg;
+        newval
+    }
+}
+
+/// Expand environment variables and ~ in string option value 'newval'.
+unsafe fn stropt_expand_envvar(
+    opt_idx: OptIndex,
+    origval: *const c_char,
+    mut newval: *mut c_char,
+    op: set_op_T,
+) -> *mut c_char {
+    unsafe {
+        let s = option_expand(opt_idx, newval);
+        if s.is_null() {
+            return newval;
+        }
+
+        xfree(newval.cast());
+        let mut newlen = (c_strlen(s) as u32) + 1;
+        if op != OP_NONE {
+            newlen += (c_strlen(origval) as u32) + 1;
+        }
+        newval = xmalloc(newlen as usize).cast::<c_char>();
+        c_strcpy(newval, s);
+
+        newval
+    }
+}
+
+/// Concatenate the original and new values of a string option, adding a "," if needed.
+unsafe fn stropt_concat_with_comma(
+    origval: *const c_char,
+    newval: *mut c_char,
+    op: set_op_T,
+    flags: u32,
+) {
+    unsafe {
+        let mut len: usize;
+        let comma = usize::from((flags & kOptFlagComma) != 0 && *origval != NUL && *newval != NUL);
+        if op == OP_ADDING {
+            len = c_strlen(origval);
+            if comma != 0
+                && len > 1
+                && (flags & kOptFlagOneComma) == kOptFlagOneComma
+                && *origval.add(len - 1) == b',' as c_char
+                && *origval.add(len - 2) != b'\\' as c_char
+            {
+                len -= 1;
+            }
+            ptr::copy(newval, newval.add(len + comma), c_strlen(newval) + 1);
+            ptr::copy(origval, newval, len);
+        } else {
+            len = c_strlen(newval);
+            ptr::copy(origval, newval.add(len + comma), c_strlen(origval) + 1);
+        }
+        if comma != 0 {
+            *newval.add(len) = b',' as c_char;
+        }
+    }
+}
+
+/// Remove a value from a string option.
+unsafe fn stropt_remove_val(
+    origval: *const c_char,
+    newval: *mut c_char,
+    flags: u32,
+    mut strval: *const c_char,
+    mut len: c_int,
+) {
+    unsafe {
+        c_strcpy(newval, origval);
+        if *strval != NUL {
+            if (flags & kOptFlagComma) != 0 {
+                if strval == origval {
+                    if *strval.add(len as usize) == b',' as c_char {
+                        len += 1;
+                    }
+                } else {
+                    strval = strval.offset(-1);
+                    len += 1;
+                }
+            }
+            let src = strval.add(len as usize);
+            let dst_off = strval.offset_from(origval) as usize;
+            ptr::copy(src, newval.add(dst_off), c_strlen(src) + 1);
+        }
+    }
+}
+
+/// Find a comma-separated item in "src" that matches the key part of "key".
+unsafe fn find_key_item(
+    src: *mut c_char,
+    key: *mut c_char,
+    keylen: isize,
+    itemlenp: *mut isize,
+) -> *mut c_char {
+    unsafe {
+        let mut p = src;
+
+        while *p != NUL {
+            if (p == src || *p.offset(-1) == b',' as c_char)
+                && c_strncmp(p, key, keylen as usize) == 0
+            {
+                let mut end = vim_strchr(p, b',' as c_int);
+                if end.is_null() {
+                    end = p.add(c_strlen(p));
+                }
+                *itemlenp = end.offset_from(p);
+                return p;
+            }
+            p = p.add(1);
+        }
+        ptr::null_mut()
+    }
+}
+
+/// Remove one item of length "itemlen" at position "item" from comma-separated string "str" in-place.
+unsafe fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: isize) {
+    unsafe {
+        if *item.offset(itemlen) == b',' as c_char {
+            let src = item.offset(itemlen + 1);
+            ptr::copy(src, item, c_strlen(src) + 1);
+        } else if (item as *const c_char) > str_arg && *item.offset(-1) == b',' as c_char {
+            let src = item.offset(itemlen);
+            ptr::copy(src, item.offset(-1), c_strlen(src) + 1);
+        } else {
+            *item = NUL;
+        }
+    }
+}
+
+/// Remove all items matching "key" (with ':') from comma-separated string "str" in-place.
+unsafe fn remove_key_item(
+    str_arg: *mut c_char,
+    key: *mut c_char,
+    keylen: isize,
+    skip: *const c_char,
+) {
+    unsafe {
+        let mut itemlen: isize = 0;
+        loop {
+            let mut found = find_key_item(str_arg, key, keylen, &raw mut itemlen);
+            if found.is_null() {
+                break;
+            }
+            if ptr::eq(found, skip) {
+                let mut next = found.offset(itemlen);
+                if *next == b',' as c_char {
+                    next = next.add(1);
+                }
+                found = find_key_item(next, key, keylen, &raw mut itemlen);
+                if found.is_null() {
+                    break;
+                }
+            }
+
+            remove_comma_item(str_arg, found, itemlen);
+        }
+    }
+}
+
+/// Append a comma-separated item to the end of "str" in-place.
+unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
+    unsafe {
+        let mut len = c_strlen(str_arg) as isize;
+        if len > 0 {
+            *str_arg.offset(len) = b',' as c_char;
+            len += 1;
+        }
+        ptr::copy(item, str_arg.offset(len), item_len as usize);
+        *str_arg.offset(len + item_len) = NUL;
+    }
+}
+
+/// Prepend a comma-separated item to the beginning of "str" in-place.
+unsafe fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
+    unsafe {
+        let len = c_strlen(str_arg) as isize;
+        let comma: isize = if len > 0 { 1 } else { 0 };
+
+        ptr::copy(
+            str_arg,
+            str_arg.offset(item_len + comma),
+            (len + 1) as usize,
+        );
+        ptr::copy(item, str_arg, item_len as usize);
+        if comma != 0 {
+            *str_arg.offset(item_len) = b',' as c_char;
+        }
+    }
+}
+
+/// For a P_COMMA option: process "key:value" items in "newval" individually.
+unsafe fn stropt_handle_keymatch(
+    origval: *const c_char,
+    newval: *mut c_char,
+    op: set_op_T,
+    _flags: u32,
+) -> bool {
+    unsafe {
+        if vim_strchr(newval, b':' as c_int).is_null()
+            && vim_strchr(newval, b',' as c_int).is_null()
+        {
+            return false;
+        }
+
+        let newval_copy = xstrdup(newval);
+        c_strcpy(newval, origval);
+
+        let mut item_start = newval_copy;
+        loop {
+            let p = vim_strchr(item_start, b',' as c_int);
+            let item_len = if p.is_null() {
+                c_strlen(item_start) as isize
+            } else {
+                p.offset_from(item_start)
+            };
+
+            if item_len > 0 {
+                let colon = vim_strchr(item_start, b':' as c_int);
+                if !colon.is_null() && colon < item_start.offset(item_len) {
+                    let keylen = colon.offset_from(item_start) + 1;
+
+                    if op == OP_ADDING || op == OP_PREPENDING {
+                        let mut old_itemlen: isize = 0;
+                        let found = find_key_item(newval, item_start, keylen, &raw mut old_itemlen);
+                        if !found.is_null() {
+                            if old_itemlen == item_len
+                                && c_strncmp(found, item_start, item_len as usize) == 0
+                            {
+                                remove_key_item(newval, item_start, keylen, found);
+                            } else {
+                                remove_key_item(newval, item_start, keylen, ptr::null());
+                                if op == OP_PREPENDING {
+                                    prepend_item(newval, item_start, item_len);
+                                } else {
+                                    append_item(newval, item_start, item_len);
+                                }
+                            }
+                        } else if op == OP_PREPENDING {
+                            prepend_item(newval, item_start, item_len);
+                        } else {
+                            append_item(newval, item_start, item_len);
+                        }
+                    } else if op == OP_REMOVING {
+                        remove_key_item(newval, item_start, keylen, ptr::null());
+                    }
+                } else if op == OP_ADDING || op == OP_PREPENDING {
+                    let found = find_dup_item(newval, item_start, item_len as usize, kOptFlagComma);
+                    if found.is_null() {
+                        if op == OP_PREPENDING {
+                            prepend_item(newval, item_start, item_len);
+                        } else {
+                            append_item(newval, item_start, item_len);
+                        }
+                    }
+                } else if op == OP_REMOVING {
+                    let found = find_dup_item(newval, item_start, item_len as usize, kOptFlagComma)
+                        .cast_mut();
+                    if !found.is_null() {
+                        remove_comma_item(newval, found, item_len);
+                    }
+                }
+            }
+
+            if p.is_null() {
+                break;
+            }
+            item_start = p.add(1);
+        }
+
+        xfree(newval_copy.cast());
+        true
+    }
+}
+
+/// Remove flags that appear twice in the string option value 'newval'.
+unsafe fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
+    unsafe {
+        let mut s = newval;
+        while *s != NUL {
+            if (flags & kOptFlagOneComma) != 0 {
+                if *s != b',' as c_char
+                    && *s.add(1) == b',' as c_char
+                    && !vim_strchr(s.add(2), *s as u8 as c_int).is_null()
+                {
+                    let src = s.add(2);
+                    ptr::copy(src, s, c_strlen(src) + 1);
+                    continue;
+                }
+            } else if ((flags & kOptFlagComma) == 0 || *s != b',' as c_char)
+                && !vim_strchr(s.add(1), *s as u8 as c_int).is_null()
+            {
+                let src = s.add(1);
+                ptr::copy(src, s, c_strlen(src) + 1);
+                continue;
+            }
+            s = s.add(1);
+        }
+    }
+}
+
+/// Get the string value specified for a ":set" command.
+unsafe fn stropt_get_newval(
+    opt_idx: OptIndex,
+    argp: *mut *mut c_char,
+    varp: *mut c_void,
+    origval: *const c_char,
+    op_arg: *mut set_op_T,
+) -> *mut c_char {
+    unsafe {
+        let mut arg = *argp;
+        let mut op = *op_arg;
+        let mut save_arg: *mut c_char = ptr::null_mut();
+        let mut s: *const c_char = ptr::null();
+        let flags = (*get_option(opt_idx)).flags;
+
+        arg = arg.add(1);
+
+        if varp == (&raw mut p_kp).cast::<c_void>() && (*arg == NUL || *arg == b' ' as c_char) {
+            save_arg = arg;
+            arg = c":help".as_ptr().cast_mut();
+        }
+
+        let mut newval = stropt_copy_value(origval, &raw mut arg, op, flags);
+
+        if op == OP_NONE || (flags & kOptFlagComma) != 0 {
+            newval = stropt_expand_envvar(opt_idx, origval, newval, op);
+        }
+
+        if (flags & kOptFlagComma) != 0
+            && (flags & kOptFlagColon) != 0
+            && op != OP_NONE
+            && stropt_handle_keymatch(origval, newval, op, flags)
+        {
+            // fully handled
+        } else {
+            let mut len: c_int = 0;
+            if op == OP_REMOVING || (flags & kOptFlagNoDup) != 0 {
+                len = c_strlen(newval) as c_int;
+                s = find_dup_item(origval, newval, len as usize, flags);
+
+                if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
+                    op = OP_NONE;
+                    c_strcpy(newval, origval);
+                }
+
+                if s.is_null() {
+                    s = origval.add(c_strlen(origval));
+                }
+            }
+
+            if op == OP_ADDING || op == OP_PREPENDING {
+                stropt_concat_with_comma(origval, newval, op, flags);
+            } else if op == OP_REMOVING {
+                stropt_remove_val(origval, newval, flags, s, len);
+            }
+        }
+
+        if (flags & kOptFlagFlagList) != 0 {
+            stropt_remove_dupflags(newval, flags);
+        }
+
+        if !save_arg.is_null() {
+            arg = save_arg;
+        }
+        *argp = arg;
+        *op_arg = op;
+
+        newval
+    }
+}
+
+unsafe fn get_op(arg: *const c_char) -> set_op_T {
+    unsafe {
+        let mut op = OP_NONE;
+        if *arg != NUL && *arg.add(1) == b'=' as c_char {
+            if *arg == b'+' as c_char {
+                op = OP_ADDING;
+            } else if *arg == b'^' as c_char {
+                op = OP_PREPENDING;
+            } else if *arg == b'-' as c_char {
+                op = OP_REMOVING;
+            }
+        }
+        op
+    }
+}
+
+unsafe fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
+    unsafe {
+        if c_strncmp(*argp, c"no".as_ptr(), 2) == 0 {
+            *argp = (*argp).add(2);
+            PREFIX_NO
+        } else if c_strncmp(*argp, c"inv".as_ptr(), 3) == 0 {
+            *argp = (*argp).add(3);
+            PREFIX_INV
+        } else {
+            PREFIX_NONE
+        }
+    }
+}
+
+unsafe fn validate_opt_idx(
+    win: *mut win_T,
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    flags: u32,
+    prefix: set_prefix_T,
+    errmsg: *mut *const c_char,
+) -> c_int {
+    unsafe {
+        if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) && prefix != PREFIX_NONE {
+            *errmsg = e_invarg.as_ptr();
+            return FAIL;
+        }
+
+        if (opt_flags & OPT_WINONLY) != 0 && !option_is_window_local(opt_idx) {
+            return FAIL;
+        }
+
+        if (opt_flags & OPT_NOWIN) != 0 && option_is_window_local(opt_idx) {
+            return FAIL;
+        }
+
+        if (opt_flags & OPT_MODELINE) != 0 {
+            if (flags & kOptFlagSecure) != 0 {
+                *errmsg = E_NOT_ALLOWED_IN_MODELINE;
+                return FAIL;
+            }
+            if (flags & kOptFlagMLE) != 0 && p_mle == 0 {
+                *errmsg = E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF;
+                return FAIL;
+            }
+            if (*win).w_onebuf_opt.wo_diff != 0
+                && (opt_idx == kOptFoldmethod || opt_idx == kOptWrap)
+            {
+                return FAIL;
+            }
+        }
+
+        if sandbox != 0 && (flags & kOptFlagSecure) != 0 {
+            *errmsg = e_sandbox.as_ptr();
+            return FAIL;
+        }
+
+        OK
+    }
+}
+
+/// Skip over the name of a TTY option or keycode option.
+unsafe fn find_tty_option_end(arg: *const c_char) -> *const c_char {
+    unsafe {
+        if strequal(arg, c"term".as_ptr()) {
+            return arg.add("term".len());
+        } else if strequal(arg, c"ttytype".as_ptr()) {
+            return arg.add("ttytype".len());
+        }
+
+        let mut p = arg;
+        let mut delimit = false;
+
+        if *arg == b'<' as c_char {
+            delimit = true;
+            p = p.add(1);
+        }
+        if *p == b't' as c_char
+            && *p.add(1) == b'_' as c_char
+            && *p.add(2) != NUL
+            && *p.add(3) != NUL
+        {
+            p = p.add(4);
+        } else if delimit {
+            while *p != NUL && *p != b'>' as c_char {
+                p = p.add(1);
+            }
+        }
+        if delimit {
+            if *p != b'>' as c_char {
+                return ptr::null();
+            }
+            p = p.add(1);
+        }
+
+        if arg == p { ptr::null() } else { p }
+    }
+}
+
+/// Skip over the name of an option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn find_option_end(
+    arg: *const c_char,
+    opt_idxp: *mut OptIndex,
+) -> *const c_char {
+    unsafe {
+        let mut p = find_tty_option_end(arg);
+        if !p.is_null() {
+            *opt_idxp = kOptInvalid;
+            return p;
+        }
+        p = arg;
+
+        if !ascii_isalpha(*p) {
+            *opt_idxp = kOptInvalid;
+            return ptr::null();
+        }
+        while ascii_isalpha(*p) {
+            p = p.add(1);
+        }
+
+        *opt_idxp = find_option_len(arg, p.offset_from(arg) as usize);
+        p
+    }
+}
+
+/// Get new option value from argp. Allocated Object must be freed by caller.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_newval(
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    prefix: set_prefix_T,
+    argp: *mut *mut c_char,
+    nextchar: c_int,
+    mut op: set_op_T,
+    varp: *mut c_void,
+    oldval_override: *mut Object,
+    errmsg: *mut *const c_char,
+) -> Object {
+    unsafe {
+        assert!(!varp.is_null());
+
+        let opt = get_option(opt_idx);
+        let mut arg = *argp;
+        let mut newval = nil_obj();
+
+        if nextchar == b'&' as c_int {
+            return optval_own(opt_idx, get_option_default(opt_idx, OPT_GLOBAL));
+        } else if nextchar == b'<' as c_int {
+            if option_is_global_local(opt_idx) && (opt_flags & OPT_LOCAL) == 0 {
+                unset_option_local_value(opt_idx);
+            }
+            return get_option_value(opt_idx, OPT_GLOBAL);
+        }
+
+        let oldval = if !oldval_override.is_null() {
+            *oldval_override
+        } else {
+            let oldval_is_global = option_is_global_local(opt_idx) && (opt_flags & OPT_LOCAL) != 0;
+            optval_own(
+                opt_idx,
+                opt_from_varp(
+                    opt_idx,
+                    if oldval_is_global {
+                        get_varp(opt)
+                    } else {
+                        varp
+                    },
+                ),
+            )
+        };
+
+        match oldval.obj_type {
+            ObjectType::kObjectTypeNil => std::process::abort(),
+            ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeBoolean => {
+                let newval_bool: TriState = if nextchar == b'!' as c_int {
+                    if oldval.obj_type == ObjectType::kObjectTypeUnset {
+                        kNone
+                    } else if oldval.data.boolean {
+                        kFalse
+                    } else {
+                        kTrue
+                    }
+                } else if prefix == PREFIX_INV {
+                    *(varp.cast::<c_int>()) ^ 1
+                } else if prefix == PREFIX_NO {
+                    0
+                } else {
+                    1
+                };
+
+                newval = opt_from_tristate(newval_bool);
+            }
+            ObjectType::kObjectTypeInteger => {
+                let oldval_num = oldval.data.integer;
+                let mut newval_num: OptInt = 0;
+
+                arg = arg.add(1);
+                if (varp.cast::<OptInt>() == &raw mut p_wc
+                    || varp.cast::<OptInt>() == &raw mut p_wcm)
+                    && (*arg == b'<' as c_char
+                        || *arg == b'^' as c_char
+                        || (*arg != NUL
+                            && (*arg.add(1) == NUL || ascii_iswhite(*arg.add(1)))
+                            && !ascii_isdigit(*arg)))
+                {
+                    newval_num = OptInt::from(string_to_key(arg));
+                    if newval_num == 0 {
+                        *errmsg = e_invarg.as_ptr();
+                        if oldval_override.is_null() {
+                            optval_free(oldval);
+                        }
+                        return newval;
+                    }
+                } else if *arg == b'-' as c_char || ascii_isdigit(*arg) {
+                    let mut i: c_int = 0;
+                    vim_str2nr(
+                        arg,
+                        ptr::null_mut(),
+                        &raw mut i,
+                        STR2NR_ALL,
+                        &raw mut newval_num,
+                        ptr::null_mut(),
+                        0,
+                        true,
+                        ptr::null_mut(),
+                    );
+                    if i == 0
+                        || (*arg.add(i as usize) != NUL && !ascii_iswhite(*arg.add(i as usize)))
+                    {
+                        *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
+                        if oldval_override.is_null() {
+                            optval_free(oldval);
+                        }
+                        return newval;
+                    }
+                } else {
+                    *errmsg = E_NUMBER_REQUIRED_AFTER_EQUAL;
+                    if oldval_override.is_null() {
+                        optval_free(oldval);
+                    }
+                    return newval;
+                }
+
+                if op == OP_ADDING {
+                    newval_num += oldval_num;
+                }
+                if op == OP_PREPENDING {
+                    newval_num *= oldval_num;
+                }
+                if op == OP_REMOVING {
+                    newval_num = oldval_num - newval_num;
+                }
+
+                newval = integer_obj(newval_num);
+            }
+            ObjectType::kObjectTypeString => {
+                let oldval_str = oldval.data.string.data;
+                let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &raw mut op);
+                newval = cstr_as_obj(newval_str);
+            }
+            ObjectType::kObjectTypeLuaRef => {
+                let newval_str = stropt_get_newval(opt_idx, argp, varp, c"".as_ptr(), &raw mut op);
+                newval = cstr_as_obj(newval_str);
+            }
+            _ => std::process::abort(),
+        }
+
+        if oldval_override.is_null() {
+            optval_free(oldval);
+        }
+        newval
+    }
+}
+
+unsafe fn do_one_set_option(
+    opt_flags: c_int,
+    argp: *mut *mut c_char,
+    did_show: *mut bool,
+    errbuf: *const CharBuf,
+) -> *const c_char {
+    unsafe {
+        let prefix = get_option_prefix(argp);
+        let arg = *argp;
+
+        let mut opt_idx: OptIndex = kOptInvalid;
+        let option_end = find_option_end(arg, &raw mut opt_idx);
+
+        if opt_idx != kOptInvalid {
+            assert!(option_end >= arg as *const c_char);
+        } else if is_tty_option(arg) {
+            return ptr::null();
+        } else {
+            return E_UNKNOWN_OPTION;
+        }
+
+        let afterchar = *option_end;
+        let mut p = option_end.cast_mut();
+
+        while ascii_iswhite(*p) {
+            p = p.add(1);
+        }
+
+        let op = get_op(p);
+        if op != OP_NONE {
+            p = p.add(1);
+        }
+
+        let nextchar = *p as u8 as c_int;
+        let opt = get_option(opt_idx);
+        let flags = (*opt).flags;
+        let varp = get_varp_scope(opt, opt_flags);
+
+        let mut errmsg: *const c_char = ptr::null();
+        if validate_opt_idx(curwin, opt_idx, opt_flags, flags, prefix, &raw mut errmsg) == FAIL {
+            return errmsg;
+        }
+
+        if !vim_strchr(c"?=:!&<".as_ptr(), nextchar).is_null() {
+            *argp = p;
+
+            if nextchar == b'&' as c_int
+                && *(*argp).add(1) == b'v' as c_char
+                && *(*argp).add(2) == b'i' as c_char
+            {
+                if *(*argp).add(3) == b'm' as c_char {
+                    *argp = (*argp).add(3);
+                } else {
+                    *argp = (*argp).add(2);
+                }
+            }
+            if !vim_strchr(c"?!&<".as_ptr(), nextchar).is_null()
+                && *(*argp).add(1) != NUL
+                && !ascii_iswhite(*(*argp).add(1))
+            {
+                return e_trailing.as_ptr();
+            }
+        }
+
+        if nextchar == b'?' as c_int
+            || (prefix == PREFIX_NONE
+                && vim_strchr(c"=:&<".as_ptr(), nextchar).is_null()
+                && !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean))
+        {
+            if *did_show {
+                msg_putchar(b'\n' as c_int);
+            } else {
+                msg_ext_set_kind(c"list_cmd".as_ptr());
+                gotocmdline(true);
+                *did_show = true;
+            }
+            showoneopt(opt, opt_flags);
+
+            if p_verbose > 0 {
+                if varp == (*opt).var {
+                    last_set_msg((*opt).script_ctx);
+                } else if option_has_scope(opt_idx, kOptScopeWin) {
+                    last_set_msg(
+                        (*curwin).w_onebuf_opt.wo_script_ctx
+                            [option_scope_idx(opt_idx, kOptScopeWin) as usize],
+                    );
+                } else if option_has_scope(opt_idx, kOptScopeBuf) {
+                    last_set_msg(
+                        (*curbuf).b_p_script_ctx[option_scope_idx(opt_idx, kOptScopeBuf) as usize],
+                    );
+                }
+            }
+
+            if nextchar != b'?' as c_int && nextchar != NUL as c_int && !ascii_iswhite(afterchar) {
+                return e_trailing.as_ptr();
+            }
+            return ptr::null();
+        }
+
+        if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
+            if !vim_strchr(c"=:".as_ptr(), nextchar).is_null() {
+                return e_invarg.as_ptr();
+            }
+
+            if vim_strchr(c"!&<".as_ptr(), nextchar).is_null()
+                && nextchar != NUL as c_int
+                && !ascii_iswhite(afterchar)
+            {
+                return e_trailing.as_ptr();
+            }
+        } else if vim_strchr(c"=:&<".as_ptr(), nextchar).is_null() {
+            return e_invarg.as_ptr();
+        }
+
+        let newval = get_option_newval(
+            opt_idx,
+            opt_flags,
+            prefix,
+            argp,
+            nextchar,
+            op,
+            varp,
+            ptr::null_mut(),
+            &raw mut errmsg,
+        );
+
+        if newval.obj_type == ObjectType::kObjectTypeNil || !errmsg.is_null() {
+            return errmsg;
+        }
+
+        set_option(opt_idx, newval, opt_flags, 0, false, op == OP_NONE, errbuf)
+    }
+}
+
+/// Parse 'arg' for option settings.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
+    unsafe {
+        let mut did_show = false;
+
+        if *arg == NUL {
+            showoptions(false, opt_flags);
+            did_show = true;
+        } else {
+            while *arg != NUL {
+                if c_strncmp(arg, c"all".as_ptr(), 3) == 0
+                    && !ascii_isalpha(*arg.add(3))
+                    && (opt_flags & OPT_MODELINE) == 0
+                {
+                    arg = arg.add(3);
+                    if *arg == b'&' as c_char {
+                        arg = arg.add(1);
+                        set_options_default(opt_flags);
+                        didset_options_all();
+                        didset_options();
+                        didset_options2();
+                        ui_refresh_options();
+                        redraw_all_later(UPD_CLEAR);
+                    } else {
+                        showoptions(true, opt_flags);
+                        did_show = true;
+                    }
+                } else {
+                    let startarg = arg;
+                    let mut errbuf_storage = [0 as c_char; ERR_BUFLEN];
+                    let errbuf = CharBuf {
+                        data: errbuf_storage.as_mut_ptr(),
+                        size: ERR_BUFLEN,
+                    };
+                    let errmsg = do_one_set_option(
+                        opt_flags,
+                        &raw mut arg,
+                        &raw mut did_show,
+                        &raw const errbuf,
+                    );
+
+                    for _ in 0..2 {
+                        arg = skiptowhite_esc(arg);
+                        arg = skipwhite(arg);
+                        if *arg != b'=' as c_char {
+                            break;
+                        }
+                    }
+
+                    if !errmsg.is_null() {
+                        let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
+                        let i = (vim_snprintf(iobuf_ptr, IOSIZE, c"%s".as_ptr(), tr(errmsg)) + 2)
+                            as isize;
+                        let arg_len = arg.offset_from(startarg);
+                        if (i + arg_len) < IOSIZE as isize {
+                            xstrlcpy(
+                                iobuf_ptr.offset(i - 2),
+                                c": ".as_ptr(),
+                                (IOSIZE as isize - i + 2) as usize,
+                            );
+                            assert!(arg >= startarg);
+                            ptr::copy(startarg, iobuf_ptr.offset(i), arg_len as usize);
+                            *iobuf_ptr.offset(i + arg_len) = NUL;
+                        }
+                        trans_characters(iobuf_ptr, IOSIZE as c_int);
+
+                        no_wait_return += 1;
+                        emsg(iobuf_ptr);
+                        no_wait_return -= 1;
+
+                        return FAIL;
+                    }
+                }
+
+                arg = skipwhite(arg);
+            }
+        }
+
+        if silent_mode && did_show {
+            silent_mode = false;
+            info_message = true;
+            msg_putchar(b'\n' as c_int);
+            silent_mode = true;
+            info_message = false;
+        }
+
+        OK
+    }
+}
+
+unsafe fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_int {
+    unsafe {
+        let mut key: c_int = 0;
+        let mut arg = arg_arg;
+
+        if len >= 4 && *arg == b't' as c_char && *arg.add(1) == b'_' as c_char {
+            if !has_lt || *arg.add(4) == b'>' as c_char {
+                key = termcap2key(*arg.add(2) as u8 as c_int, *arg.add(3) as u8 as c_int);
+            }
+        } else if has_lt {
+            arg = arg.offset(-1);
+            let mut modifiers: c_int = 0;
+            key = find_special_key(
+                &raw mut arg,
+                len + 1,
+                &raw mut modifiers,
+                FSK_KEYCODE | FSK_KEEP_X_KEY | FSK_SIMPLIFY,
+                ptr::null_mut(),
+            );
+            if modifiers != 0 {
+                key = 0;
+            }
+        }
+        key
+    }
+}
+
+/// Convert a key name or string into a key value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn string_to_key(arg: *mut c_char) -> c_int {
+    unsafe {
+        if *arg == b'<' as c_char && *arg.add(1) != NUL {
+            return find_key_len(arg.add(1), c_strlen(arg), true);
+        }
+        if *arg == b'^' as c_char && *arg.add(1) != NUL {
+            let mut key = ctrl_chr(*arg.add(1) as u8);
+            if key == 0 {
+                key = K_ZERO;
+            }
+            return key;
+        }
+        *arg as u8 as c_int
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_title() {
+    unsafe {
+        if starting != NO_SCREEN {
+            maketitle();
+        }
+    }
+}
+
+/// set_options_bin - called when 'bin' changes value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
+    unsafe {
+        if newval != 0 {
+            if oldval == 0 {
+                if (opt_flags & OPT_GLOBAL) == 0 {
+                    (*curbuf).b_p_tw_nobin = (*curbuf).b_p_tw;
+                    (*curbuf).b_p_wm_nobin = (*curbuf).b_p_wm;
+                    (*curbuf).b_p_ml_nobin = (*curbuf).b_p_ml;
+                    (*curbuf).b_p_et_nobin = (*curbuf).b_p_et;
+                }
+                if (opt_flags & OPT_LOCAL) == 0 {
+                    P_TW_NOBIN = p_tw;
+                    P_WM_NOBIN = p_wm;
+                    P_ML_NOBIN = p_ml;
+                    P_ET_NOBIN = p_et;
+                }
+            }
+
+            if (opt_flags & OPT_GLOBAL) == 0 {
+                (*curbuf).b_p_tw = 0;
+                (*curbuf).b_p_wm = 0;
+                (*curbuf).b_p_ml = 0;
+                (*curbuf).b_p_et = 0;
+            }
+            if (opt_flags & OPT_LOCAL) == 0 {
+                p_tw = 0;
+                p_wm = 0;
+                p_ml = 0;
+                p_et = 0;
+                p_bin = 1;
+            }
+        } else if oldval != 0 {
+            if (opt_flags & OPT_GLOBAL) == 0 {
+                (*curbuf).b_p_tw = (*curbuf).b_p_tw_nobin;
+                (*curbuf).b_p_wm = (*curbuf).b_p_wm_nobin;
+                (*curbuf).b_p_ml = (*curbuf).b_p_ml_nobin;
+                (*curbuf).b_p_et = (*curbuf).b_p_et_nobin;
+            }
+            if (opt_flags & OPT_LOCAL) == 0 {
+                p_tw = P_TW_NOBIN;
+                p_wm = P_WM_NOBIN;
+                p_ml = P_ML_NOBIN;
+                p_et = P_ET_NOBIN;
+            }
+        }
+
+        didset_options_sctx(opt_flags, (&raw mut P_BIN_DEP_OPTS).cast::<c_int>());
+    }
+}
+
+/// Expand environment variables for some string options.
+unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_char {
+    unsafe {
+        let opt = get_option(opt_idx);
+        if ((*opt).flags & kOptFlagExpand) == 0 || is_option_hidden(opt_idx) {
+            return ptr::null_mut();
+        }
+
+        if val.is_null() {
+            val = *((*opt).var.cast::<*const c_char>());
+        }
+
+        if val.is_null() || c_strlen(val) > MAXPATHL {
+            return ptr::null_mut();
+        }
+
+        let var = (*opt).var.cast::<*mut c_char>();
+        let esc = var == &raw mut p_tags || var == &raw mut p_path;
+        let namebuf_ptr = (&raw mut NameBuff).cast::<c_char>();
+        expand_env_esc(
+            val,
+            namebuf_ptr,
+            MAXPATHL as c_int,
+            if esc {
+                c" \t".as_ptr().cast_mut()
+            } else {
+                ptr::null_mut()
+            },
+            false,
+            if var == &raw mut p_sps {
+                c"file:".as_ptr().cast_mut()
+            } else {
+                ptr::null_mut()
+            },
+        );
+        if c_strcmp(namebuf_ptr, val) == 0 {
+            return ptr::null_mut();
+        }
+
+        namebuf_ptr
+    }
+}
+
+/// After setting various option values: recompute variables that depend on option values.
+unsafe fn didset_options() {
+    unsafe {
+        buf_init_isk_chartab(curbuf);
+        init_isf_chartab();
+        init_isi_chartab();
+
+        didset_string_options();
+
+        let mut sps_flags: c_int = 0;
+        let mut sps_limit: c_int = 0;
+        if spell_check_sps(p_sps, &raw mut sps_flags, &raw mut sps_limit) == OK {
+            spell_apply_sps(sps_flags, sps_limit);
+        }
+        let ws = (*curwin).w_s.cast::<synblock_T>();
+        compile_cap_prog((*ws).b_p_spc, (&raw mut (*ws).b_cap_prog).cast());
+        did_set_spell_option();
+        did_set_cedit(ptr::null_mut());
+        did_set_breakat(ptr::null_mut());
+        didset_window_options(curwin, true);
+    }
+}
+
+unsafe fn didset_options2() {
+    unsafe {
+        highlight_changed();
+
+        set_chars_option(
+            curwin,
+            (*curwin).w_onebuf_opt.wo_fcs,
+            CharsOption::kFillchars,
+            true,
+            ptr::null(),
+        );
+        set_chars_option(
+            curwin,
+            (*curwin).w_onebuf_opt.wo_lcs,
+            CharsOption::kListchars,
+            true,
+            ptr::null(),
+        );
+
+        check_opt_wim(p_wim, (&raw mut wim_flags).cast::<u8>());
+        xfree((*curbuf).b_p_vsts_array.cast());
+        tabstop_set(
+            (*curbuf).b_p_vsts,
+            &raw mut (*curbuf).b_p_vsts_array,
+            ptr::null(),
+        );
+        xfree((*curbuf).b_p_vts_array.cast());
+        tabstop_set(
+            (*curbuf).b_p_vts,
+            &raw mut (*curbuf).b_p_vts_array,
+            ptr::null(),
+        );
+    }
+}
+
+/// Repair UI state after `:set all&`.
+unsafe fn didset_options_all() {
+    unsafe {
+        let errmsg = parse_shape_opt(SHAPE_CURSOR);
+        assert!(errmsg.is_null());
+        last_status(false);
+        win_float_update_statusline();
+        win_new_screen_rows();
+    }
+}
+
+/// Check for string options that are NULL (normally only termcap options).
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn check_options() {
+    unsafe {
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            if option_has_type(opt_idx, ObjectType::kObjectTypeString) && !(*opt).var.is_null() {
+                check_string_option(get_varp(opt).cast::<*mut c_char>());
+            }
+        }
+    }
+}
+
+/// Check if option was set insecurely.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn was_set_insecurely(
+    wp: *mut win_T,
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+) -> c_int {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+        let flagp = insecure_flag(wp, opt_idx, opt_flags);
+        c_int::from((*flagp & kOptFlagInsecure) != 0)
+    }
+}
+
+/// Get a pointer to the flags used for the kOptFlagInsecure flag of option "opt_idx".
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn insecure_flag(
+    wp: *mut win_T,
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+) -> *mut u32 {
+    unsafe {
+        if (opt_flags & OPT_LOCAL) != 0 {
+            assert!(!wp.is_null());
+            match opt_idx {
+                kOptWrap => return &raw mut (*wp).w_onebuf_opt.wo_wrap_flags,
+                kOptStatusline => return &raw mut (*wp).w_onebuf_opt.wo_stl_flags,
+                kOptWinbar => return &raw mut (*wp).w_onebuf_opt.wo_wbr_flags,
+                kOptFoldexpr => return &raw mut (*wp).w_onebuf_opt.wo_fde_flags,
+                kOptFoldtext => return &raw mut (*wp).w_onebuf_opt.wo_fdt_flags,
+                kOptIndentexpr => return &raw mut (*(*wp).w_buffer).b_p_inde_flags,
+                kOptFormatexpr => return &raw mut (*(*wp).w_buffer).b_p_fex_flags,
+                kOptIncludeexpr => return &raw mut (*(*wp).w_buffer).b_p_inex_flags,
+                kOptComplete => return &raw mut (*(*wp).w_buffer).b_p_cpt_flags,
+                _ => {}
+            }
+        } else {
+            match opt_idx {
+                kOptWrap => return &raw mut (*wp).w_allbuf_opt.wo_wrap_flags,
+                kOptFoldexpr => return &raw mut (*wp).w_allbuf_opt.wo_fde_flags,
+                kOptFoldtext => return &raw mut (*wp).w_allbuf_opt.wo_fdt_flags,
+                _ => {}
+            }
+        }
+        &raw mut (*get_option(opt_idx)).flags
+    }
+}
+
+/// Redraw the window title and/or tab page text later.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn redraw_titles() {
+    unsafe {
+        need_maketitle = true;
+        redraw_tabline = true;
+    }
+}
+
+/// Return true if "val" is a valid name.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn valid_name(val: *const c_char, allowed: *const c_char) -> bool {
+    unsafe {
+        let mut s = val;
+        while *s != NUL {
+            if !ascii_isalnum(*s) && vim_strchr(allowed, *s as u8 as c_int).is_null() {
+                return false;
+            }
+            s = s.add(1);
+        }
+        true
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn check_blending(wp: *mut win_T) {
+    unsafe {
+        (*wp).w_grid_alloc.blending =
+            (*wp).w_onebuf_opt.wo_winbl > 0 || ((*wp).w_floating && (*wp).w_config.shadow);
+    }
+}
+
+/// Handle setting 'winhighlight' in window "wp".
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
+    unsafe {
+        let mut p: *const c_char = (&raw const empty_string_option).cast();
+        if !winhl.is_null() {
+            p = winhl;
+        } else if !wp.is_null() {
+            p = (*wp).w_onebuf_opt.wo_winhl;
+        }
+
+        if *p == NUL {
+            if !wp.is_null() && (*wp).w_ns_hl_winhl > 0 && (*wp).w_ns_hl == (*wp).w_ns_hl_winhl {
+                (*wp).w_ns_hl = 0;
+                (*wp).w_hl_needs_update = 1;
+            }
+            return true;
+        }
+
+        let mut ns_hl: c_int = 0;
+        if !wp.is_null() {
+            if (*wp).w_ns_hl_winhl == 0 {
+                (*wp).w_ns_hl_winhl = nvim_create_namespace(NvimString {
+                    data: ptr::null_mut(),
+                    size: 0,
+                }) as c_int;
+            } else {
+                let dp = get_decor_provider((*wp).w_ns_hl_winhl, true);
+                (*dp).hl_valid += 1;
+            }
+            ns_hl = (*wp).w_ns_hl_winhl;
+            if (*wp).w_ns_hl <= 0 {
+                (*wp).w_ns_hl = (*wp).w_ns_hl_winhl;
+            }
+        }
+
+        let mut key: *const c_char = ptr::null();
+        let mut val: *const c_char = ptr::null();
+        let mut keylen: usize = 0;
+        let mut vallen: usize = 0;
+        while option_next_keyval(
+            &raw mut p,
+            &raw mut key,
+            &raw mut keylen,
+            &raw mut val,
+            &raw mut vallen,
+        ) {
+            if val.is_null() {
+                return false;
+            }
+            let hl_id = if vallen != 0 {
+                syn_check_group(val, vallen)
+            } else {
+                -1
+            };
+            if hl_id == 0 {
+                return false;
+            }
+            let hl_id_link = if keylen != 0 {
+                syn_check_group(key, keylen)
+            } else {
+                0
+            };
+            if hl_id_link == 0 {
+                return false;
+            }
+
+            if !wp.is_null() {
+                let attrs = HlAttrs {
+                    rgb_ae_attr: HL_GLOBAL,
+                    cterm_ae_attr: 0,
+                    rgb_fg_color: -1,
+                    rgb_bg_color: -1,
+                    rgb_sp_color: -1,
+                    cterm_fg_color: 0,
+                    cterm_bg_color: 0,
+                    hl_blend: -1,
+                    url: -1,
+                    font: -1,
+                };
+                ns_hl_def(ns_hl, hl_id_link, attrs, hl_id, ptr::null_mut());
+            }
+        }
+
+        if !wp.is_null() {
+            (*wp).w_hl_needs_update = 1;
+        }
+        true
+    }
+}
+
+/// Get the script context of global option at index opt_idx.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_sctx(opt_idx: OptIndex) -> *mut sctx_T {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+        &raw mut (*get_option(opt_idx)).script_ctx
+    }
+}
+
+#[inline]
+unsafe fn sourcing_lnum() -> i32 {
+    unsafe {
+        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
+            0
+        } else {
+            (*exestack
+                .ga_data
+                .cast::<estack_T>()
+                .add((exestack.ga_len - 1) as usize))
+            .es_lnum
+        }
+    }
+}
+
+/// Set the script_ctx for an option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_option_sctx(
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    mut script_ctx: sctx_T,
+) {
+    unsafe {
+        let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+
+        if (opt_flags & OPT_MODELINE) == 0 {
+            script_ctx.sc_lnum += sourcing_lnum();
+        }
+        nlua_set_sctx(&raw mut script_ctx);
+
+        if both || (opt_flags & OPT_GLOBAL) != 0 || option_is_global_only(opt_idx) {
+            (*get_option(opt_idx)).script_ctx = script_ctx;
+        }
+        if both || (opt_flags & OPT_LOCAL) != 0 {
+            if option_has_scope(opt_idx, kOptScopeBuf) {
+                (*curbuf).b_p_script_ctx[option_scope_idx(opt_idx, kOptScopeBuf) as usize] =
+                    script_ctx;
+            } else if option_has_scope(opt_idx, kOptScopeWin) {
+                let win_idx = option_scope_idx(opt_idx, kOptScopeWin) as usize;
+                (*curwin).w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                if both {
+                    (*curwin).w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                }
+            }
+        }
+    }
+}
+
+/// Execute OptionSet autocmd now (not deferred).
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn apply_optionset_autocmd_now(
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    oldval: Object,
+    oldval_g: Object,
+    oldval_l: Object,
+    newval: Object,
+) {
+    unsafe {
+        if starting != 0 || *get_vim_var_str(VV_OPTION_TYPE) != NUL {
+            return;
+        }
+
+        let mut buf_type = [0 as c_char; 7];
+        let mut oldval_tv = opt_to_tv(oldval, false);
+        let mut oldval_g_tv = opt_to_tv(oldval_g, false);
+        let mut oldval_l_tv = opt_to_tv(oldval_l, false);
+        let mut newval_tv = opt_to_tv(newval, false);
+
+        set_vim_var_tv(VV_OPTION_OLD, &raw mut oldval_tv);
+        set_vim_var_tv(VV_OPTION_NEW, &raw mut newval_tv);
+        let typelen = vim_snprintf_safelen(
+            buf_type.as_mut_ptr(),
+            buf_type.len(),
+            c"%s".as_ptr(),
+            if (opt_flags & OPT_LOCAL) != 0 {
+                c"local".as_ptr()
+            } else {
+                c"global".as_ptr()
+            },
+        );
+        set_vim_var_string(VV_OPTION_TYPE, buf_type.as_ptr(), typelen as isize);
+        if (opt_flags & OPT_LOCAL) != 0 {
+            set_vim_var_string(
+                VV_OPTION_COMMAND,
+                c"setlocal".as_ptr(),
+                "setlocal".len() as isize,
+            );
+            set_vim_var_tv(VV_OPTION_OLDLOCAL, &raw mut oldval_tv);
+        }
+        if (opt_flags & OPT_GLOBAL) != 0 {
+            set_vim_var_string(
+                VV_OPTION_COMMAND,
+                c"setglobal".as_ptr(),
+                "setglobal".len() as isize,
+            );
+            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &raw mut oldval_tv);
+        }
+        if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0 {
+            set_vim_var_string(VV_OPTION_COMMAND, c"set".as_ptr(), "set".len() as isize);
+            set_vim_var_tv(VV_OPTION_OLDLOCAL, &raw mut oldval_l_tv);
+            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &raw mut oldval_g_tv);
+        }
+        if (opt_flags & OPT_MODELINE) != 0 {
+            set_vim_var_string(
+                VV_OPTION_COMMAND,
+                c"modeline".as_ptr(),
+                "modeline".len() as isize,
+            );
+            set_vim_var_tv(VV_OPTION_OLDLOCAL, &raw mut oldval_tv);
+        }
+        apply_autocmds(
+            EVENT_OPTIONSET,
+            (*get_option(opt_idx)).fullname,
+            ptr::null_mut(),
+            false,
+            ptr::null_mut(),
+        );
+        reset_v_option_vars();
+
+        tv_clear(&raw mut oldval_tv);
+        tv_clear(&raw mut oldval_g_tv);
+        tv_clear(&raw mut oldval_l_tv);
+        tv_clear(&raw mut newval_tv);
+    }
+}
+
+/// For 'modified', the event is deferred.
+unsafe fn apply_optionset_autocmd(
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    oldval: Object,
+    oldval_g: Object,
+    oldval_l: Object,
+    newval: Object,
+) {
+    unsafe {
+        if starting != 0 {
+            return;
+        }
+        if opt_idx == kOptModified {
+            aucmd_defer_modified(curbuf, newval.data.boolean);
+            return;
+        }
+        apply_optionset_autocmd_now(opt_idx, opt_flags, oldval, oldval_g, oldval_l, newval);
+    }
+}
+
+/// Process the updated 'arabic' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_arabic(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        let mut errmsg: *const c_char = ptr::null();
+
+        if (*win).w_onebuf_opt.wo_arab != 0 {
+            if p_tbidi == 0 {
+                if (*win).w_onebuf_opt.wo_rl == 0 {
+                    (*win).w_onebuf_opt.wo_rl = 1;
+                    changed_window_setting(win);
+                }
+
+                if p_arshape == 0 {
+                    p_arshape = 1;
+                    redraw_all_later(UPD_NOT_VALID);
+                }
+            }
+
+            if c_strcmp(p_enc, c"utf-8".as_ptr()) != 0 {
+                msg_source(HLF_W);
+                msg(tr(W_ARABIC), HLF_W);
+                set_vim_var_string(VV_WARNINGMSG, tr(W_ARABIC), -1);
+            }
+
+            p_deco = 1;
+
+            errmsg = set_option_value(
+                kOptKeymap,
+                string_obj(NvimString {
+                    data: c"arabic".as_ptr().cast_mut(),
+                    size: "arabic".len(),
+                }),
+                OPT_LOCAL,
+                true,
+                (*args).os_errbuf,
+            );
+        } else {
+            if p_tbidi == 0 && (*win).w_onebuf_opt.wo_rl != 0 {
+                (*win).w_onebuf_opt.wo_rl = 0;
+                changed_window_setting(win);
+            }
+
+            (*(*win).w_buffer).b_p_iminsert = B_IMODE_NONE;
+            (*(*win).w_buffer).b_p_imsearch = B_IMODE_USE_INSERT;
+        }
+
+        errmsg
+    }
+}
+
+/// Process the updated 'autochdir' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_autochdir(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        do_autochdir();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'binary' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_binary(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        set_options_bin(
+            c_int::from((*args).os_oldval.data.boolean),
+            (*(*args).os_buf).b_p_bin,
+            (*args).os_flags,
+        );
+        redraw_titles();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'buflisted' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_buflisted(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+
+        if c_int::from((*args).os_oldval.data.boolean) != (*buf).b_p_bl {
+            apply_autocmds(
+                if (*buf).b_p_bl != 0 {
+                    EVENT_BUFADD
+                } else {
+                    EVENT_BUFDELETE
+                },
+                ptr::null_mut(),
+                ptr::null_mut(),
+                true,
+                buf,
+            );
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'cmdheight' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_cmdheight(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let old_value = (*args).os_oldval.data.integer;
+
+        if p_ch > OptInt::from(Rows - min_rows(curtab) + 1) {
+            p_ch = OptInt::from(Rows - min_rows(curtab) + 1);
+        }
+
+        if (p_ch != old_value
+            || OptInt::from(tabline_height() + global_stl_height() + (*topframe).fr_height)
+                != OptInt::from(Rows) - p_ch)
+            && full_screen
+        {
+            command_height();
+        }
+
+        ptr::null()
+    }
+}
+
+/// Process the updated 'diff' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_diff(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        diff_buf_adjust(win);
+        if foldmethodIsDiff(win) {
+            foldUpdateAll(win);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'endoffile' or 'endofline' or 'fixendofline' or 'bomb' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_eof_eol_fixeol_bomb(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        redraw_titles();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'equalalways' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_equalalways(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if p_ea != 0 && !(*args).os_oldval.data.boolean {
+            win_equal((*args).os_win, false, 0);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'foldenable' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_foldenable(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        if (*args).os_varp == (&raw mut (*win).w_onebuf_opt.wo_fen).cast::<c_void>()
+            && c_int::from((*args).os_oldval.data.boolean) != (*win).w_onebuf_opt.wo_fen
+            && foldmethodIsDiff(win)
+            && (*win).w_onebuf_opt.wo_scb != 0
+        {
+            let mut wp = firstwin;
+            while !wp.is_null() {
+                if wp != win && foldmethodIsDiff(wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
+                    (*wp).w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
+                    changed_window_setting(wp);
+                }
+                wp = (*wp).w_next;
+            }
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'foldlevel' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_foldlevel(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        newFoldLevel();
+        ptr::null()
+    }
+}
+
+/// Process the new 'foldminlines' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_foldminlines(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        foldUpdateAll((*args).os_win);
+        ptr::null()
+    }
+}
+
+/// Process the new 'foldnestmax' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_foldnestmax(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        if foldmethodIsSyntax(win) || foldmethodIsIndent(win) {
+            foldUpdateAll(win);
+        }
+        ptr::null()
+    }
+}
+
+/// Multicursor: handle updates to 'follow' option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_follow(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if (*args).os_buf == curbuf {
+            atom_follow_changed();
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'helpheight' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_helpheight(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if !(*firstwin).w_next.is_null()
+            && (*curbuf).b_help
+            && OptInt::from((*curwin).w_height) < p_hh
+        {
+            win_setheight(p_hh as c_int);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'hlsearch' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_hlsearch(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        set_no_hlsearch(false);
+        ptr::null()
+    }
+}
+
+/// Process the updated 'ignorecase' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_ignorecase(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if p_hls != 0 {
+            redraw_all_later(UPD_SOME_VALID);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'iminsert' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_iminsert(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        showmode();
+        status_redraw_curbuf();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'langnoremap' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_langnoremap(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        p_lrm = c_int::from(p_lnr == 0);
+        ptr::null()
+    }
+}
+
+/// Process the updated 'langremap' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_langremap(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        p_lnr = c_int::from(p_lrm == 0);
+        ptr::null()
+    }
+}
+
+/// Process the new 'laststatus' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_laststatus(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let old_value = (*args).os_oldval.data.integer;
+        let value = (*args).os_newval.data.integer;
+
+        if value == 3 && old_value != 3 {
+            frame_new_height(
+                topframe,
+                (*topframe).fr_height - STATUS_HEIGHT,
+                false,
+                false,
+                false,
+            );
+            win_comp_pos();
+            clear_cmdline = true;
+        }
+        if old_value == 3 && value != 3 {
+            frame_new_height(
+                topframe,
+                (*topframe).fr_height + STATUS_HEIGHT,
+                false,
+                false,
+                false,
+            );
+            win_comp_pos();
+        }
+
+        status_redraw_curbuf();
+        last_status(false);
+        win_float_update_statusline();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'lines' or 'columns' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_lines_or_columns(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if p_lines != OptInt::from(Rows) || p_columns != OptInt::from(Columns) {
+            if updating_screen {
+                let oldval = integer_obj((*args).os_oldval.data.integer);
+                set_option_varp((*args).os_idx, (*args).os_varp, oldval);
+            } else if full_screen {
+                screen_resize(p_columns as c_int, p_lines as c_int);
+            } else {
+                Rows = p_lines as c_int;
+                Columns = p_columns as c_int;
+                check_screensize();
+                let new_row = (OptInt::from(Rows) - p_ch.max(1)) as c_int;
+                if cmdline_row > new_row && OptInt::from(Rows) > p_ch {
+                    cmdline_row = new_row;
+                }
+            }
+            if p_window >= OptInt::from(Rows) || !option_was_set(kOptWindow) {
+                p_window = OptInt::from(Rows - 1);
+            }
+        }
+
+        if p_sj >= OptInt::from(Rows) && full_screen {
+            p_sj = OptInt::from(Rows / 2);
+        }
+
+        ptr::null()
+    }
+}
+
+/// Process the updated 'lisp' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_lisp(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        buf_init_isk_chartab((*args).os_buf);
+        ptr::null()
+    }
+}
+
+/// Process the updated 'modifiable' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_modifiable(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        redraw_titles();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'modified' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_modified(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+        if !(*args).os_newval.data.boolean {
+            save_file_ff(buf);
+        }
+        redraw_titles();
+        (*buf).b_modified_was_set = (*args).os_newval.data.boolean;
+        ptr::null()
+    }
+}
+
+/// Process the updated 'number' or 'relativenumber' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_number_relativenumber(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        if *(*win).w_onebuf_opt.wo_stc != NUL {
+            (*win).w_nrwidth_line_count = 0;
+        }
+        check_signcolumn(ptr::null_mut(), win);
+        ptr::null()
+    }
+}
+
+/// Process the new 'numberwidth' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_numberwidth(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        (*(*args).os_win).w_nrwidth_line_count = 0;
+        ptr::null()
+    }
+}
+
+/// Process the updated 'paste' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_paste(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
+        if p_paste != 0 {
+            if OLD_P_PASTE == 0 {
+                let mut buf = firstbuf;
+                while !buf.is_null() {
+                    (*buf).b_p_tw_nopaste = (*buf).b_p_tw;
+                    (*buf).b_p_wm_nopaste = (*buf).b_p_wm;
+                    (*buf).b_p_sts_nopaste = (*buf).b_p_sts;
+                    (*buf).b_p_ai_nopaste = (*buf).b_p_ai;
+                    (*buf).b_p_et_nopaste = (*buf).b_p_et;
+                    if !(*buf).b_p_vsts_nopaste.is_null() {
+                        xfree((*buf).b_p_vsts_nopaste.cast());
+                    }
+                    (*buf).b_p_vsts_nopaste =
+                        if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
+                            xstrdup((*buf).b_p_vsts)
+                        } else {
+                            ptr::null_mut()
+                        };
+                    buf = (*buf).b_next;
+                }
+
+                SAVE_SM = p_sm;
+                SAVE_STA = p_sta;
+                SAVE_RU = p_ru;
+                SAVE_RI = p_ri;
+                P_AI_NOPASTE = p_ai;
+                P_ET_NOPASTE = p_et;
+                P_STS_NOPASTE = p_sts;
+                P_TW_NOPASTE = p_tw;
+                P_WM_NOPASTE = p_wm;
+                if !P_VSTS_NOPASTE.is_null() {
+                    xfree(P_VSTS_NOPASTE.cast());
+                }
+                P_VSTS_NOPASTE = if !p_vsts.is_null() && p_vsts != empty_opt {
+                    xstrdup(p_vsts)
+                } else {
+                    ptr::null_mut()
+                };
+            }
+
+            let mut buf = firstbuf;
+            while !buf.is_null() {
+                (*buf).b_p_tw = 0;
+                (*buf).b_p_wm = 0;
+                (*buf).b_p_sts = 0;
+                (*buf).b_p_ai = 0;
+                (*buf).b_p_et = 0;
+                if !(*buf).b_p_vsts.is_null() {
+                    free_string_option((*buf).b_p_vsts);
+                }
+                (*buf).b_p_vsts = empty_opt;
+                xfree((*buf).b_p_vsts_array.cast());
+                (*buf).b_p_vsts_array = ptr::null_mut();
+                buf = (*buf).b_next;
+            }
+
+            p_sm = 0;
+            p_sta = 0;
+            if p_ru != 0 {
+                status_redraw_all();
+            }
+            p_ru = 0;
+            p_ri = 0;
+            p_tw = 0;
+            p_wm = 0;
+            p_sts = 0;
+            p_ai = 0;
+            p_et = 0;
+            if !p_vsts.is_null() {
+                free_string_option(p_vsts);
+            }
+            p_vsts = empty_opt;
+        } else if OLD_P_PASTE != 0 {
+            let mut buf = firstbuf;
+            while !buf.is_null() {
+                (*buf).b_p_tw = (*buf).b_p_tw_nopaste;
+                (*buf).b_p_wm = (*buf).b_p_wm_nopaste;
+                (*buf).b_p_sts = (*buf).b_p_sts_nopaste;
+                (*buf).b_p_ai = (*buf).b_p_ai_nopaste;
+                (*buf).b_p_et = (*buf).b_p_et_nopaste;
+                if !(*buf).b_p_vsts.is_null() {
+                    free_string_option((*buf).b_p_vsts);
+                }
+                (*buf).b_p_vsts = if !(*buf).b_p_vsts_nopaste.is_null() {
+                    xstrdup((*buf).b_p_vsts_nopaste)
+                } else {
+                    empty_opt
+                };
+                xfree((*buf).b_p_vsts_array.cast());
+                if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
+                    tabstop_set((*buf).b_p_vsts, &raw mut (*buf).b_p_vsts_array, ptr::null());
+                } else {
+                    (*buf).b_p_vsts_array = ptr::null_mut();
+                }
+                buf = (*buf).b_next;
+            }
+
+            p_sm = SAVE_SM;
+            p_sta = SAVE_STA;
+            if p_ru != SAVE_RU {
+                status_redraw_all();
+            }
+            p_ru = SAVE_RU;
+            p_ri = SAVE_RI;
+            p_ai = P_AI_NOPASTE;
+            p_et = P_ET_NOPASTE;
+            p_sts = P_STS_NOPASTE;
+            p_tw = P_TW_NOPASTE;
+            p_wm = P_WM_NOPASTE;
+            if !p_vsts.is_null() {
+                free_string_option(p_vsts);
+            }
+            p_vsts = if !P_VSTS_NOPASTE.is_null() {
+                xstrdup(P_VSTS_NOPASTE)
+            } else {
+                empty_opt
+            };
+        }
+
+        OLD_P_PASTE = p_paste;
+
+        didset_options_sctx(
+            OPT_LOCAL | OPT_GLOBAL,
+            (&raw mut P_PASTE_DEP_OPTS).cast::<c_int>(),
+        );
+
+        ptr::null()
+    }
+}
+
+/// Validate the 'previewwindow' option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn validate_previewwindow(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if ((*args).os_flags & OPT_GLOBAL) != 0 || !(*args).os_newval.data.boolean {
+            return ptr::null();
+        }
+        let win = (*args).os_win;
+        let tab = if win == curwin {
+            curtab
+        } else {
+            win_find_tabpage(win)
+        };
+        let mut wp = if tab == curtab {
+            firstwin
+        } else {
+            (*tab).tp_firstwin
+        };
+        while !wp.is_null() {
+            if wp != win && (*wp).w_onebuf_opt.wo_pvw != 0 {
+                return E_PREVIEW_WINDOW_ALREADY_EXISTS;
+            }
+            wp = (*wp).w_next;
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'pumblend' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_pumblend(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        hl_invalidate_blends();
+        if pum_drawn() {
+            pum_redraw();
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'readonly' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_readonly(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+
+        if (*buf).b_p_ro == 0 && ((*args).os_flags & OPT_LOCAL) == 0 {
+            readonlymode = false;
+        }
+
+        if (*buf).b_p_ro != 0 {
+            (*buf).b_did_warn = false;
+        }
+
+        redraw_titles();
+        ptr::null()
+    }
+}
+
+/// Process the new 'scrollback' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_scrollback(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+        let old_value = (*args).os_oldval.data.integer;
+        let value = (*args).os_newval.data.integer;
+
+        if !(*buf).terminal.is_null() && value < old_value {
+            on_scrollback_option_changed((*buf).terminal.cast());
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'scrollbind' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_scrollbind(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+
+        if (*win).w_onebuf_opt.wo_scb == 0 {
+            return ptr::null();
+        }
+        do_check_scrollbind(false);
+        (*win).w_scbind_pos = get_vtopline(win);
+        ptr::null()
+    }
+}
+
+/// Process the new 'shiftwidth' or the 'tabstop' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_shiftwidth_tabstop(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+        let win = (*args).os_win;
+        let pp = (*args).os_varp.cast::<OptInt>();
+
+        if foldmethodIsIndent(win) {
+            foldUpdateAll(win);
+        }
+        if pp == &raw mut (*buf).b_p_sw || (*buf).b_p_sw == 0 {
+            parse_cino(buf);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'showtabline' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_showtabline(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        win_new_screen_rows();
+        ptr::null()
+    }
+}
+
+/// Process the updated 'smoothscroll' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_smoothscroll(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        if (*win).w_onebuf_opt.wo_sms == 0 {
+            (*win).w_skipcol = 0;
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'spell' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_spell(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        if (*win).w_onebuf_opt.wo_spell != 0 {
+            return parse_spelllang(win);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'swapfile' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_swapfile(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+        if (*buf).b_p_swf != 0 && p_uc != 0 {
+            ml_open_file(buf);
+        } else {
+            mf_close_file(buf, true);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'textwidth' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_textwidth(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let mut tp = first_tabpage;
+        while !tp.is_null() {
+            let mut wp = if tp == curtab {
+                firstwin
+            } else {
+                (*tp).tp_firstwin
+            };
+            while !wp.is_null() {
+                check_colorcolumn(ptr::null_mut(), wp);
+                wp = (*wp).w_next;
+            }
+            tp = (*tp).tp_next;
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'title' or the 'icon' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_title_icon(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        did_set_title();
+        ptr::null()
+    }
+}
+
+/// Process the new 'titlelen' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_titlelen(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let old_value = (*args).os_oldval.data.integer;
+        if starting != NO_SCREEN && old_value != p_titlelen {
+            need_maketitle = true;
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'undofile' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_undofile(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+
+        if (*buf).b_p_udf == 0 && p_udf == 0 {
+            return ptr::null();
+        }
+
+        let mut hash = [0u8; UNDO_HASH_SIZE];
+
+        let mut bp = firstbuf;
+        while !bp.is_null() {
+            if (buf == bp || ((*args).os_flags & OPT_GLOBAL) != 0 || (*args).os_flags == 0)
+                && !bufIsChanged(bp)
+                && !(*bp).b_ml.ml_mfp.is_null()
+            {
+                u_compute_hash(bp, hash.as_mut_ptr());
+                u_read_undo(ptr::null_mut(), hash.as_ptr(), (*bp).b_fname);
+            }
+            bp = (*bp).b_next;
+        }
+
+        ptr::null()
+    }
+}
+
+/// Process the new global 'undolevels' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_global_undolevels(
+    value: OptInt,
+    old_value: OptInt,
+) -> *const c_char {
+    unsafe {
+        p_ul = old_value;
+        u_sync(true);
+        p_ul = value;
+        ptr::null()
+    }
+}
+
+/// Process the new buffer local 'undolevels' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_buflocal_undolevels(
+    buf: *mut buf_T,
+    value: OptInt,
+    old_value: OptInt,
+) -> *const c_char {
+    unsafe {
+        (*buf).b_p_ul = old_value;
+        u_sync(true);
+        (*buf).b_p_ul = value;
+        ptr::null()
+    }
+}
+
+/// Process the new 'undolevels' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_undolevels(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let buf = (*args).os_buf;
+        let pp = (*args).os_varp.cast::<OptInt>();
+
+        if pp == &raw mut p_ul {
+            did_set_global_undolevels(
+                (*args).os_newval.data.integer,
+                (*args).os_oldval.data.integer,
+            );
+        } else if pp == &raw mut (*buf).b_p_ul {
+            did_set_buflocal_undolevels(
+                buf,
+                (*args).os_newval.data.integer,
+                (*args).os_oldval.data.integer,
+            );
+        }
+
+        ptr::null()
+    }
+}
+
+/// Process the new 'updatecount' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_updatecount(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let old_value = (*args).os_oldval.data.integer;
+        if p_uc != 0 && old_value == 0 {
+            ml_open_files();
+        }
+        ptr::null()
+    }
+}
+
+/// Validate the 'wildchar' or 'wildcharm' option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn validate_wildchar(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let c = (*args).os_newval.data.integer;
+        if c == Ctrl_C
+            || c == OptInt::from(b'\n')
+            || c == OptInt::from(b'\r')
+            || c == OptInt::from(K_KENTER)
+        {
+            return e_invarg.as_ptr();
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'winblend' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_winblend(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        let old_value = (*args).os_oldval.data.integer;
+        let value = (*args).os_newval.data.integer;
+
+        if value != old_value {
+            (*win).w_onebuf_opt.wo_winbl = (*win).w_onebuf_opt.wo_winbl.clamp(0, 100);
+            (*win).w_hl_needs_update = 1;
+            check_blending(win);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'window' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_window(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if p_window < 1 || p_window >= OptInt::from(Rows) {
+            p_window = OptInt::from(Rows - 1);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'winheight' value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_winheight(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if !(*firstwin).w_next.is_null() && OptInt::from((*curwin).w_height) < p_wh {
+            win_setheight(p_wh as c_int);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'winwidth' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_winwidth(_args: *mut optset_T) -> *const c_char {
+    unsafe {
+        if !(*firstwin).w_next.is_null() && OptInt::from((*curwin).w_width) < p_wiw {
+            win_setwidth(p_wiw as c_int);
+        }
+        ptr::null()
+    }
+}
+
+/// Process the updated 'wrap' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_wrap(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let win = (*args).os_win;
+        if (*win).w_onebuf_opt.wo_wrap != 0 {
+            (*win).w_leftcol = 0;
+        } else {
+            (*win).w_skipcol = 0;
+        }
+        ptr::null()
+    }
+}
+
+/// Process the new 'chistory' or 'lhistory' option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn did_set_xhistory(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let is_p_chi = (*args).os_varp.cast::<OptInt>() == &raw mut p_chi;
+        let arg = if is_p_chi {
+            &raw mut p_chi
+        } else {
+            (*args).os_varp.cast::<OptInt>()
+        };
+
+        if is_p_chi {
+            qf_resize_stack(*arg as c_int);
+        } else {
+            ll_resize_stack((*args).os_win, *arg as c_int);
+        }
+
+        ptr::null()
+    }
+}
+
+unsafe fn do_syntax_autocmd(buf: *mut buf_T, value_changed: bool) {
+    unsafe {
+        SYN_RECURSIVE += 1;
+        (*buf).b_flags |= BF_SYN_SET;
+        apply_autocmds(
+            EVENT_SYNTAX,
+            (*buf).b_p_syn,
+            (*buf).b_fname,
+            value_changed || SYN_RECURSIVE == 1,
+            buf,
+        );
+        SYN_RECURSIVE -= 1;
+    }
+}
+
+unsafe fn do_spelllang_source(win: *mut win_T) {
+    unsafe {
+        let mut fname = [0 as c_char; 200];
+        let ws = (*win).w_s.cast::<synblock_T>();
+        let mut q = (*ws).b_p_spl;
+
+        if c_strncmp(q, c"cjk,".as_ptr(), 4) == 0 {
+            q = q.add(4);
+        }
+
+        let mut p = q;
+        while *p != NUL {
+            if !ascii_isalnum(*p) && *p != b'-' as c_char {
+                break;
+            }
+            p = p.add(1);
+        }
+        if p > q {
+            vim_snprintf(
+                fname.as_mut_ptr(),
+                fname.len(),
+                c"spell/%.*s.*".as_ptr(),
+                p.offset_from(q) as c_int,
+                q,
+            );
+            source_runtime_vim_lua(fname.as_mut_ptr(), DIP_ALL);
+        }
+    }
+}
+
+/// Check the bounds of numeric options.
+unsafe fn check_num_option_bounds(
+    opt_idx: OptIndex,
+    newval: *mut OptInt,
+    win: *mut win_T,
+    errbuf: *const CharBuf,
+) -> *const c_char {
+    unsafe {
+        let mut errmsg: *const c_char = ptr::null();
+
+        match opt_idx {
+            kOptLines => {
+                let min_r = min_rows_for_all_tabpages();
+                if *newval < OptInt::from(min_r) && full_screen {
+                    errmsg = opt_error(errbuf, c"E593: Need at least %d lines".as_ptr(), min_r);
+                    *newval = OptInt::from(min_r);
+                }
+                *newval = (*newval).min(OptInt::from(c_int::MAX));
+            }
+            kOptColumns => {
+                if *newval < OptInt::from(MIN_COLUMNS) && full_screen {
+                    errmsg = opt_error(
+                        errbuf,
+                        c"E594: Need at least %d columns".as_ptr(),
+                        MIN_COLUMNS,
+                    );
+                    *newval = OptInt::from(MIN_COLUMNS);
+                }
+                *newval = (*newval).min(OptInt::from(c_int::MAX));
+            }
+            kOptPumblend => {
+                *newval = (*newval).clamp(0, 100);
+            }
+            kOptScrolljump => {
+                if (*newval < -100 || *newval >= OptInt::from(Rows)) && full_screen {
+                    errmsg = e_scroll.as_ptr();
+                    *newval = 1;
+                }
+            }
+            kOptScroll
+                if (*newval <= 0
+                    || (*newval > OptInt::from((*win).w_view_height)
+                        && (*win).w_view_height > 0))
+                    && full_screen =>
+            {
+                if *newval != 0 {
+                    errmsg = e_scroll.as_ptr();
+                }
+                *newval = OptInt::from(win_default_scroll(win));
+            }
+            _ => {}
+        }
+
+        errmsg
+    }
+}
+
+/// Validate and bound check option value.
+unsafe fn validate_num_option(
+    opt_idx: OptIndex,
+    newval: *mut OptInt,
+    win: *mut win_T,
+    errbuf: *const CharBuf,
+) -> *const c_char {
+    unsafe {
+        let value = *newval;
+
+        if value < OptInt::from(c_int::MIN) || value > OptInt::from(c_int::MAX) {
+            return e_invarg.as_ptr();
+        }
+
+        const MAX_SEARCH_COUNT: OptInt = 9999;
+
+        match opt_idx {
+            kOptHelpheight | kOptTitlelen | kOptUpdatecount | kOptReport | kOptUpdatetime
+            | kOptSidescroll | kOptFoldlevel | kOptShiftwidth | kOptTextwidth | kOptWritedelay
+            | kOptTimeoutlen => {
+                if value < 0 {
+                    return e_positive.as_ptr();
+                }
+            }
+            kOptWinheight => {
+                if value < 1 {
+                    return e_positive.as_ptr();
+                } else if p_wmh > value {
+                    return e_winheight.as_ptr();
+                }
+            }
+            kOptWinminheight => {
+                if value < 0 {
+                    return e_positive.as_ptr();
+                } else if value > p_wh {
+                    return e_winheight.as_ptr();
+                }
+            }
+            kOptWinwidth => {
+                if value < 1 {
+                    return e_positive.as_ptr();
+                } else if p_wmw > value {
+                    return e_winwidth.as_ptr();
+                }
+            }
+            kOptWinminwidth => {
+                if value < 0 {
+                    return e_positive.as_ptr();
+                } else if value > p_wiw {
+                    return e_winwidth.as_ptr();
+                }
+            }
+            kOptMaxcombine => {
+                *newval = MAX_MCO;
+            }
+            kOptCmdheight => {
+                if value < 0 {
+                    return e_positive.as_ptr();
+                }
+            }
+            kOptHistory => {
+                if value < 0 {
+                    return e_positive.as_ptr();
+                } else if value > 10000 {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptPyxversion => {
+                if value == 0 {
+                    *newval = 3;
+                } else if value != 3 {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptRegexpengine => {
+                if !(0..=2).contains(&value) {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptScrolloff => {
+                if value < 0 && full_screen {
+                    return e_positive.as_ptr();
+                }
+            }
+            kOptScrolloffpad => {
+                if value < 0 {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptSidescrolloff => {
+                if value < 0 && full_screen {
+                    return e_positive.as_ptr();
+                }
+            }
+            kOptCmdwinheight => {
+                if value < 1 {
+                    return e_positive.as_ptr();
+                }
+            }
+            kOptConceallevel => {
+                if value < 0 {
+                    return e_positive.as_ptr();
+                } else if value > 3 {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptNumberwidth => {
+                if value < 1 {
+                    return e_positive.as_ptr();
+                } else if value > MAX_NUMBERWIDTH {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptIminsert => {
+                if !(0..=B_IMODE_LAST).contains(&value) {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptImsearch => {
+                if !(-1..=B_IMODE_LAST).contains(&value) {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptChannel => {
+                return e_invarg.as_ptr();
+            }
+            kOptScrollback => {
+                if !(-1..=SB_MAX).contains(&value) {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptTabstop => {
+                if value < 1 {
+                    return e_positive.as_ptr();
+                } else if value > TABSTOP_MAX {
+                    return e_invarg.as_ptr();
+                }
+            }
+            kOptChistory | kOptLhistory => {
+                if value < 1 {
+                    return E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX;
+                } else if value > 100 {
+                    return E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX;
+                }
+            }
+            kOptMaxsearchcount => {
+                if value <= 0 {
+                    return e_positive.as_ptr();
+                } else if value > MAX_SEARCH_COUNT {
+                    return e_invarg.as_ptr();
+                }
+            }
+            _ => {}
+        }
+
+        check_num_option_bounds(opt_idx, newval, win, errbuf)
+    }
+}
+
+/// Called after an option changed: check if something needs to be redrawn.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
+    unsafe {
+        let all = (flags & kOptFlagRedrAll) == kOptFlagRedrAll;
+
+        if (flags & kOptFlagRedrStat) != 0 || all {
+            status_redraw_all();
+        }
+
+        if (flags & kOptFlagRedrTabl) != 0 || all {
+            redraw_tabline = true;
+        }
+
+        if (flags & kOptFlagRedrBuf) != 0 || (flags & kOptFlagRedrWin) != 0 || all {
+            if (flags & kOptFlagHLOnly) != 0 {
+                redraw_later(win, UPD_NOT_VALID);
+            } else {
+                changed_window_setting(win);
+            }
+        }
+        if (flags & kOptFlagRedrBuf) != 0 {
+            redraw_buf_later(buf, UPD_NOT_VALID);
+        }
+        if all {
+            redraw_all_later(UPD_NOT_VALID);
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn check_redraw(flags: u32) {
+    unsafe {
+        check_redraw_for(curbuf, curwin, flags);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn is_tty_option(name: *const c_char) -> bool {
+    unsafe { !find_tty_option_end(name).is_null() }
+}
+
+/// Get value of TTY option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_tty_option(name: *const c_char) -> Object {
+    unsafe {
+        let mut value: *mut c_char = ptr::null_mut();
+
+        if strequal(name, c"t_Co".as_ptr()) {
+            if t_colors <= 1 {
+                value = xstrdup(c"".as_ptr());
+            } else {
+                value = xmalloc(NUMBUFLEN).cast::<c_char>();
+                snprintf(value, NUMBUFLEN, c"%d".as_ptr(), t_colors);
+            }
+        } else if strequal(name, c"term".as_ptr()) {
+            value = if !P_TERM.is_null() {
+                xstrdup(P_TERM)
+            } else {
+                xstrdup(c"nvim".as_ptr())
+            };
+        } else if strequal(name, c"ttytype".as_ptr()) {
+            value = if !P_TTYTYPE.is_null() {
+                xstrdup(P_TTYTYPE)
+            } else {
+                xstrdup(c"nvim".as_ptr())
+            };
+        } else if is_tty_option(name) {
+            value = xstrdup(c"".as_ptr());
+        }
+
+        if value.is_null() {
+            nil_obj()
+        } else {
+            cstr_as_obj(value)
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_tty_option(name: *const c_char, value: *mut c_char) -> bool {
+    unsafe {
+        if strequal(name, c"term".as_ptr()) {
+            if !P_TERM.is_null() {
+                xfree(P_TERM.cast());
+            }
+            P_TERM = value;
+            return true;
+        }
+
+        if strequal(name, c"ttytype".as_ptr()) {
+            if !P_TTYTYPE.is_null() {
+                xfree(P_TTYTYPE.cast());
+            }
+            P_TTYTYPE = value;
+            return true;
+        }
+
+        false
+    }
+}
+
+/// Find index for an option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn find_option(name: *const c_char) -> OptIndex {
+    unsafe { find_option_len(name, c_strlen(name)) }
+}
+
+/// True if `opt_idx` is a dict option (`schema.dict` in options.lua, e.g. 'diffopt').
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn is_dict_option(opt_idx: OptIndex) -> bool {
+    unsafe { !opt_dict_schema(opt_idx).is_null() }
+}
+
+/// Release an option value read from opt_from_varp() (and similar).
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn optval_free_read(opt_idx: OptIndex, value: Object) {
+    unsafe {
+        if optval_is_owned(opt_idx) {
+            optval_free(value);
+        }
+    }
+}
+
+/// Free an allocated option value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn optval_free(o: Object) {
+    unsafe {
+        match o.obj_type {
+            ObjectType::kObjectTypeString => {
+                if o.data.string.data != (&raw mut empty_string_option).cast::<c_char>() {
+                    api_free_string(o.data.string);
+                }
+            }
+            ObjectType::kObjectTypeLuaRef => {
+                api_free_luaref(o.data.luaref);
+            }
+            ObjectType::kObjectTypeUnset
+            | ObjectType::kObjectTypeNil
+            | ObjectType::kObjectTypeBoolean
+            | ObjectType::kObjectTypeInteger => {}
+            _ => std::process::abort(),
+        }
+    }
+}
+
+/// Check if two option values are equal.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_equal(o1: Object, o2: Object) -> bool {
+    unsafe {
+        if o1.obj_type != o2.obj_type {
+            return false;
+        }
+
+        match o1.obj_type {
+            ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => true,
+            ObjectType::kObjectTypeBoolean => o1.data.boolean == o2.data.boolean,
+            ObjectType::kObjectTypeInteger => o1.data.integer == o2.data.integer,
+            ObjectType::kObjectTypeString => {
+                o1.data.string.size == o2.data.string.size
+                    && (o1.data.string.data == o2.data.string.data
+                        || strnequal(
+                            o1.data.string.data,
+                            o2.data.string.data,
+                            o1.data.string.size,
+                        ))
+            }
+            ObjectType::kObjectTypeLuaRef => false,
+            _ => std::process::abort(),
+        }
+    }
+}
+
+/// Convert a tri-state boolean option to Object.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn opt_from_tristate(t: TriState) -> Object {
+    if t == kNone {
+        unset_obj()
+    } else {
+        boolean_obj(t == kTrue)
+    }
+}
+
+unsafe fn optval_type(o: Object) -> ObjectType {
+    match o.obj_type {
+        ObjectType::kObjectTypeNil => ObjectType::kObjectTypeNil,
+        ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeBoolean => {
+            ObjectType::kObjectTypeBoolean
+        }
+        ObjectType::kObjectTypeInteger => ObjectType::kObjectTypeInteger,
+        ObjectType::kObjectTypeString => ObjectType::kObjectTypeString,
+        ObjectType::kObjectTypeLuaRef => ObjectType::kObjectTypeLuaRef,
+        _ => std::process::abort(),
+    }
+}
+
+unsafe fn is_callback_option(opt_idx: OptIndex) -> bool {
+    unsafe { ((*get_option(opt_idx)).flags & (kOptFlagFunc | kOptFlagExpr)) != 0 }
+}
+
+unsafe fn optval_is_owned(opt_idx: OptIndex) -> bool {
+    unsafe { is_callback_option(opt_idx) }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
+    unsafe {
+        if optval_is_owned(opt_idx) {
+            value
+        } else {
+            copy_object(value, ptr::null_mut())
+        }
+    }
+}
+
+unsafe fn optval_snapshot(value: Object) -> Object {
+    unsafe {
+        if value.obj_type == ObjectType::kObjectTypeLuaRef {
+            return cstr_as_obj(nlua_funcref_str(value.data.luaref, ptr::null_mut(), true));
+        }
+        copy_object(value, ptr::null_mut())
+    }
+}
+
+unsafe fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
+    unsafe {
+        let value = opt_from_varp(opt_idx, varp);
+        let snapshot = optval_snapshot(value);
+        optval_free_read(opt_idx, value);
+        snapshot
+    }
+}
+
+unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
+    unsafe {
+        match (*cb).cb_type {
+            kCallbackLua => {
+                let luaref = *(&raw const (*cb).data).cast::<LuaRef>();
+                return luaref_obj(api_new_luaref(luaref));
+            }
+            kCallbackExpr | kCallbackFuncref => {
+                return cstr_to_obj((*cb).data.cast::<c_char>());
+            }
+            kCallbackPartial => {
+                let mut tv = std::mem::zeroed::<typval_T>();
+                callback_put(cb, &raw mut tv);
+                let str_ = encode_tv2string(&raw mut tv, ptr::null_mut());
+                tv_clear(&raw mut tv);
+                return cstr_as_obj(str_);
+            }
+            kCallbackNone => {}
+            _ => {}
+        }
+        cstr_to_obj(c"".as_ptr())
+    }
+}
+
+unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
+    unsafe {
+        let mut cb = Callback {
+            data: ptr::null_mut(),
+            cb_type: kCallbackNone,
+        };
+        match value.obj_type {
+            ObjectType::kObjectTypeLuaRef => {
+                cb.cb_type = kCallbackLua;
+                *(&raw mut cb.data).cast::<LuaRef>() = api_new_luaref(value.data.luaref);
+            }
+            ObjectType::kObjectTypeString => {
+                if !is_expr {
+                    option_set_callback_func(value.data.string.data, &raw mut cb);
+                } else if value.data.string.size > 0 {
+                    cb.cb_type = kCallbackExpr;
+                    let name = get_scriptlocal_funcname(value.data.string.data);
+                    cb.data = if !name.is_null() {
+                        name.cast()
+                    } else {
+                        xstrdup(value.data.string.data).cast()
+                    };
+                }
+            }
+            _ => {}
+        }
+        cb
+    }
+}
+
+/// Creates Object from var pointer.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
+    unsafe {
+        if varp.cast::<c_int>() == &raw mut (*curbuf).b_changed {
+            return boolean_obj(curbufIsChanged());
+        }
+
+        if is_callback_option(opt_idx) {
+            return opt_from_callback(varp.cast::<Callback>());
+        }
+
+        match (*get_option(opt_idx)).opt_type {
+            ObjectType::kObjectTypeBoolean => {
+                opt_from_tristate(tristate_from_int(*(varp.cast::<c_int>())))
+            }
+            ObjectType::kObjectTypeInteger => integer_obj(*(varp.cast::<OptInt>())),
+            ObjectType::kObjectTypeString => {
+                string_obj(cstr_as_string(*(varp.cast::<*mut c_char>())))
+            }
+            _ => std::process::abort(),
+        }
+    }
+}
+
+/// Stores an option value at its "varp", freeing the previously-stored value.
+unsafe fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
+    unsafe {
+        if is_callback_option(opt_idx) {
+            let cb = varp.cast::<Callback>();
+            callback_free(cb);
+            *cb = opt_to_callback(value, ((*get_option(opt_idx)).flags & kOptFlagExpr) != 0);
+            return;
+        }
+
+        match value.obj_type {
+            ObjectType::kObjectTypeUnset => {
+                assert!(option_is_global_local(opt_idx));
+                if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
+                    *(varp.cast::<c_int>()) = kNone;
+                } else if option_has_type(opt_idx, ObjectType::kObjectTypeString) {
+                    let pp = varp.cast::<*mut c_char>();
+                    free_string_option(*pp);
+                    *pp = (&raw mut empty_string_option).cast::<c_char>();
+                } else if opt_idx == kOptUndolevels {
+                    *(varp.cast::<OptInt>()) = NO_LOCAL_UNDOLEVEL;
+                } else {
+                    assert!(
+                        opt_idx == kOptScrolloff
+                            || opt_idx == kOptScrolloffpad
+                            || opt_idx == kOptSidescrolloff
+                    );
+                    *(varp.cast::<OptInt>()) = -1;
+                }
+            }
+            ObjectType::kObjectTypeBoolean => {
+                assert!(option_has_type(opt_idx, ObjectType::kObjectTypeBoolean));
+                *(varp.cast::<c_int>()) = c_int::from(value.data.boolean);
+            }
+            ObjectType::kObjectTypeInteger => {
+                assert!(option_has_type(opt_idx, ObjectType::kObjectTypeInteger));
+                *(varp.cast::<OptInt>()) = value.data.integer;
+            }
+            ObjectType::kObjectTypeString => {
+                assert!(option_has_type(opt_idx, ObjectType::kObjectTypeString));
+                let pp = varp.cast::<*mut c_char>();
+                free_string_option(*pp);
+                *pp = copy_option_val(value.data.string.data);
+            }
+            _ => std::process::abort(),
+        }
+    }
+}
+
+/// Gets the string form of an option value. Caller must free the result.
+unsafe fn optval_to_cstr(o: Object, quote: bool) -> *mut c_char {
+    unsafe {
+        match o.obj_type {
+            ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeNil => xstrdup(c"".as_ptr()),
+            ObjectType::kObjectTypeBoolean => xstrdup(if o.data.boolean {
+                c"true".as_ptr()
+            } else {
+                c"false".as_ptr()
+            }),
+            ObjectType::kObjectTypeInteger => {
+                let s = format!("{}\0", o.data.integer);
+                xmemdupz(s.as_ptr().cast(), s.len() - 1).cast::<c_char>()
+            }
+            ObjectType::kObjectTypeString => {
+                if !quote {
+                    return xmemdupz(o.data.string.data.cast(), o.data.string.size)
+                        .cast::<c_char>();
+                }
+                let buf = xmalloc(o.data.string.size + 3).cast::<c_char>();
+                snprintf(
+                    buf,
+                    o.data.string.size + 3,
+                    c"\"%s\"".as_ptr(),
+                    o.data.string.data,
+                );
+                buf
+            }
+            ObjectType::kObjectTypeLuaRef => {
+                nlua_funcref_str(o.data.luaref, ptr::null_mut(), false)
+            }
+            _ => std::process::abort(),
+        }
+    }
+}
+
+/// Converts an option value to its structured form.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn optval_to_obj(
+    opt_idx: OptIndex,
+    value: Object,
+    arena: *mut Arena,
+) -> Object {
+    unsafe {
+        if value.obj_type == ObjectType::kObjectTypeLuaRef {
+            return luaref_obj(api_new_luaref(value.data.luaref));
+        }
+        if value.obj_type != ObjectType::kObjectTypeString {
+            return value;
+        }
+
+        let opt = get_option(opt_idx);
+        let flags = (*opt).flags;
+        let schema = (*opt).schema;
+
+        let str_ptr = if !value.data.string.data.is_null() {
+            value.data.string.data
+        } else {
+            c"".as_ptr().cast_mut()
+        };
+
+        if (flags & (kOptFlagComma | kOptFlagFlagList)) == 0 {
+            string_obj(arena_string(arena, cstr_as_string(str_ptr)))
+        } else if (flags & kOptFlagFlagList) != 0 && (flags & kOptFlagComma) == 0 {
+            let n = c_strlen(str_ptr);
+            let mut d = arena_dict(arena, n);
+            for i in 0..n {
+                put_c(
+                    &mut d,
+                    arena_memdupz(arena, str_ptr.add(i), 1),
+                    boolean_obj(true),
+                );
+            }
+            dict_obj(d)
+        } else {
+            let mut nparts: usize = 1;
+            let mut p = str_ptr;
+            while *p != NUL {
+                if *p == b',' as c_char {
+                    nparts += 1;
+                }
+                p = p.add(1);
+            }
+            let as_map = (flags & kOptFlagColon) != 0
+                || (flags & kOptFlagFlagList) != 0
+                || !schema.is_null();
+            let mut d = if as_map {
+                arena_dict(arena, nparts)
+            } else {
+                Dict::new()
+            };
+            let mut a = if as_map {
+                Array::new()
+            } else {
+                arena_array(arena, nparts)
+            };
+            let str_len = c_strlen(str_ptr);
+            let item = xmalloc(str_len + 1).cast::<c_char>();
+            p = str_ptr;
+            while *p != NUL {
+                copy_option_part(&raw mut p, item, str_len + 1, c",".as_ptr().cast_mut());
+                if *item == NUL {
+                    continue;
+                }
+                if !as_map {
+                    add_c(
+                        &mut a,
+                        string_obj(arena_string(arena, cstr_as_string(item))),
+                    );
+                    continue;
+                }
+                let colon = strchr(item, b':' as c_int);
+                let mut val: *mut c_char = ptr::null_mut();
+                if !colon.is_null() {
+                    *colon = NUL;
+                    val = colon.add(1);
+                }
+                let key = arena_string(arena, cstr_as_string(item));
+                let v = if (flags & kOptFlagFlagList) != 0 || val.is_null() {
+                    boolean_obj(true)
+                } else {
+                    string_obj(arena_string(arena, cstr_as_string(val)))
+                };
+                put_c(&mut d, key.data, v);
+            }
+            xfree(item.cast());
+            if as_map { dict_obj(d) } else { array_obj(a) }
+        }
+    }
+}
+
+/// Converts a structured option (non-scalar Object) to the internal scalar (:set-style) form.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn optval_from_obj(
+    opt_idx: OptIndex,
+    o: Object,
+    op: set_op_T,
+    error: *mut bool,
+) -> Object {
+    unsafe {
+        if o.obj_type == ObjectType::kObjectTypeNil {
+            return nil_obj();
+        }
+
+        let flags = (*get_option(opt_idx)).flags;
+        let is_list = (flags & (kOptFlagComma | kOptFlagFlagList)) != 0;
+        let is_map = (flags & kOptFlagColon) != 0 || is_dict_option(opt_idx);
+        let is_flaglist = (flags & kOptFlagFlagList) != 0;
+        let is_comma = (flags & kOptFlagComma) != 0;
+        let allow_dup = (flags & kOptFlagNoDup) == 0;
+
+        let type_ok = match o.obj_type {
+            ObjectType::kObjectTypeBoolean => {
+                option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
+            }
+            ObjectType::kObjectTypeInteger => {
+                option_has_type(opt_idx, ObjectType::kObjectTypeInteger)
+            }
+            ObjectType::kObjectTypeString => {
+                option_has_type(opt_idx, ObjectType::kObjectTypeString)
+                    || opt_idx == kOptWildchar
+                    || opt_idx == kOptWildcharm
+            }
+            ObjectType::kObjectTypeArray => is_list,
+            ObjectType::kObjectTypeDict => is_map || is_flaglist,
+            ObjectType::kObjectTypeLuaRef => is_callback_option(opt_idx),
+            _ => false,
+        };
+        if !type_ok {
+            *error = true;
+            return nil_obj();
+        }
+
+        match o.obj_type {
+            ObjectType::kObjectTypeBoolean | ObjectType::kObjectTypeInteger => return o,
+            ObjectType::kObjectTypeLuaRef => return luaref_obj(api_new_luaref(o.data.luaref)),
+            _ => {}
+        }
+
+        let mut str_ptr: *mut c_char = if o.obj_type == ObjectType::kObjectTypeString {
+            xstrdup(o.data.string.data)
+        } else if o.obj_type == ObjectType::kObjectTypeArray {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: ptr::null_mut(),
+            };
+            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 4);
+            for ai in 0..o.data.array.size {
+                let item = *o.data.array.items.add(ai);
+                if item.obj_type != ObjectType::kObjectTypeString {
+                    *error = true;
+                    ga_clear_strings(&raw mut ga);
+                    return nil_obj();
+                }
+                let mut dup = false;
+                if !allow_dup {
+                    let ga_items = ga.ga_data.cast::<*mut c_char>();
+                    for j in 0..ga.ga_len as usize {
+                        if strequal(*ga_items.add(j), item.data.string.data) {
+                            dup = true;
+                            break;
+                        }
+                    }
+                }
+                if !dup {
+                    ga_append_ptr(&raw mut ga, xstrdup(item.data.string.data));
+                }
+            }
+            let s = ga_concat_strings(
+                &raw const ga,
+                if is_flaglist && !is_comma {
+                    c"".as_ptr()
+                } else {
+                    c",".as_ptr()
+                },
+            );
+            ga_clear_strings(&raw mut ga);
+            s
+        } else {
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: ptr::null_mut(),
+            };
+            let dict = o.data.dict;
+            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 4);
+            for di in 0..dict.size {
+                let k = (*dict.items.add(di)).key;
+                let v = (*dict.items.add(di)).value;
+                if is_flaglist {
+                    if !(v.obj_type == ObjectType::kObjectTypeNil
+                        || (v.obj_type == ObjectType::kObjectTypeBoolean && !v.data.boolean))
+                    {
+                        ga_append_ptr(&raw mut ga, xstrdup(k.data));
+                    }
+                } else if v.obj_type == ObjectType::kObjectTypeString {
+                    let kv = concat_str(k.data, c":".as_ptr());
+                    ga_append_ptr(&raw mut ga, concat_str(kv, v.data.string.data));
+                    xfree(kv.cast());
+                } else if v.obj_type == ObjectType::kObjectTypeInteger {
+                    let num_s = format!(":{}\0", v.data.integer);
+                    let kv = concat_str(k.data, num_s.as_ptr().cast());
+                    ga_append_ptr(&raw mut ga, kv);
+                } else if v.obj_type == ObjectType::kObjectTypeBoolean
+                    || v.obj_type == ObjectType::kObjectTypeNil
+                {
+                    if v.obj_type == ObjectType::kObjectTypeBoolean && v.data.boolean {
+                        ga_append_ptr(&raw mut ga, xstrdup(k.data));
+                    }
+                } else {
+                    *error = true;
+                    ga_clear_strings(&raw mut ga);
+                    return nil_obj();
+                }
+            }
+            if ga.ga_len > 0 && (is_map || is_comma) {
+                sort_strings(ga.ga_data.cast(), ga.ga_len);
+            }
+            let s = ga_concat_strings(
+                &raw const ga,
+                if is_flaglist && !is_comma {
+                    c"".as_ptr()
+                } else {
+                    c",".as_ptr()
+                },
+            );
+            ga_clear_strings(&raw mut ga);
+            s
+        };
+
+        if op == OP_REMOVING && is_map && strchr(str_ptr, b':' as c_int).is_null() {
+            let with_colon = concat_str(str_ptr, c":".as_ptr());
+            xfree(str_ptr.cast());
+            str_ptr = with_colon;
+        }
+
+        cstr_as_obj(str_ptr)
+    }
+}
+
+/// Check if option is hidden.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn is_option_hidden(opt_idx: OptIndex) -> bool {
+    unsafe {
+        if opt_idx == kOptInvalid {
+            return false;
+        }
+        let opt = get_option(opt_idx);
+        (*opt).immutable && (*opt).var == (&raw mut (*opt).def_val.data).cast::<c_void>()
+    }
+}
+
+/// Check if option supports a specific type.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_has_type(opt_idx: OptIndex, opt_type: ObjectType) -> bool {
+    unsafe { opt_idx != kOptInvalid && (*get_option(opt_idx)).opt_type == opt_type }
+}
+
+/// Check if option supports a specific scope.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_has_scope(opt_idx: OptIndex, scope: OptScope) -> bool {
+    unsafe {
+        assert!((kOptScopeGlobal..kOptScopeSize).contains(&scope));
+        ((*get_option(opt_idx)).scope_flags & (1u8 << scope)) != 0
+    }
+}
+
+#[inline]
+unsafe fn option_is_global_local(opt_idx: OptIndex) -> bool {
+    unsafe {
+        if opt_idx == kOptInvalid {
+            return false;
+        }
+        let bw: OptScopeFlags = (1 << kOptScopeBuf) | (1 << kOptScopeWin);
+        ((*get_option(opt_idx)).scope_flags & bw) != 0 && option_has_scope(opt_idx, kOptScopeGlobal)
+    }
+}
+
+#[inline]
+unsafe fn option_is_global_only(opt_idx: OptIndex) -> bool {
+    unsafe {
+        if opt_idx == kOptInvalid {
+            return false;
+        }
+        let bw: OptScopeFlags = (1 << kOptScopeBuf) | (1 << kOptScopeWin);
+        ((*get_option(opt_idx)).scope_flags & bw) == 0 && option_has_scope(opt_idx, kOptScopeGlobal)
+    }
+}
+
+#[inline]
+unsafe fn option_is_window_local(opt_idx: OptIndex) -> bool {
+    unsafe {
+        if opt_idx == kOptInvalid {
+            return false;
+        }
+        let exclude: OptScopeFlags = (1 << kOptScopeGlobal) | (1 << kOptScopeBuf);
+        ((*get_option(opt_idx)).scope_flags & exclude) == 0
+            && option_has_scope(opt_idx, kOptScopeWin)
+    }
+}
+
+/// Get option index for scope.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_scope_idx(opt_idx: OptIndex, scope: OptScope) -> isize {
+    unsafe { (*get_option(opt_idx)).scope_idx[scope as usize] }
+}
+
+/// Get option flags.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_flags(opt_idx: OptIndex) -> u32 {
+    unsafe {
+        if opt_idx == kOptInvalid {
+            0
+        } else {
+            (*get_option(opt_idx)).flags
+        }
+    }
+}
+
+/// Gets the value for an option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object {
+    unsafe {
+        if opt_idx == kOptInvalid {
+            return nil_obj();
+        }
+        let opt = get_option(opt_idx);
+        optval_own(
+            opt_idx,
+            opt_from_varp(opt_idx, get_varp_scope(opt, opt_flags)),
+        )
+    }
+}
+
+unsafe fn optval_is_unset_local(opt_idx: OptIndex, value: Object) -> bool {
+    unsafe {
+        if !option_is_global_local(opt_idx) {
+            return false;
+        }
+        if value.obj_type == ObjectType::kObjectTypeUnset {
+            return true;
+        }
+        if option_has_type(opt_idx, ObjectType::kObjectTypeString) {
+            return value.obj_type == ObjectType::kObjectTypeString && value.data.string.size == 0;
+        }
+        if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
+            || value.obj_type != ObjectType::kObjectTypeInteger
+        {
+            return false;
+        }
+        match opt_idx {
+            kOptScrolloff | kOptScrolloffpad | kOptSidescrolloff => value.data.integer == -1,
+            kOptUndolevels => value.data.integer == NO_LOCAL_UNDOLEVEL,
+            _ => std::process::abort(),
+        }
+    }
+}
+
+unsafe fn is_option_local_value_unset(opt_idx: OptIndex) -> bool {
+    unsafe {
+        if !option_is_global_local(opt_idx) {
+            return false;
+        }
+        let opt = get_option(opt_idx);
+        let local_value = opt_from_varp(opt_idx, get_varp_scope(opt, OPT_LOCAL));
+        let is_unset = optval_is_unset_local(opt_idx, local_value);
+        optval_free_read(opt_idx, local_value);
+        is_unset
+    }
+}
+
+/// Handle side-effects of setting an option.
+unsafe fn did_set_option(
+    args: *mut optset_T,
+    set_sid: scid_T,
+    direct: bool,
+    value_replaced: bool,
+    value_untrusted: bool,
+) -> *const c_char {
+    unsafe {
+        let opt_idx = (*args).os_idx;
+        let varp = (*args).os_varp;
+        let opt_flags = (*args).os_flags;
+        let opt = get_option(opt_idx);
+        let mut errmsg: *const c_char = ptr::null();
+
+        if direct {
+            // Don't do any extra processing if setting directly.
+        } else if (secure != 0 || sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
+            errmsg = e_secure.as_ptr();
+        } else if (*args).os_newval.obj_type == ObjectType::kObjectTypeString
+            && check_illegal_path_names(*(varp.cast::<*mut c_char>()), (*opt).flags)
+        {
+            errmsg = e_invarg.as_ptr();
+        } else if let Some(cb) = (*opt).opt_did_set_cb {
+            errmsg = cb(args);
+        }
+
+        if !errmsg.is_null() {
+            set_option_varp(opt_idx, varp, (*args).os_oldval);
+            optval_free((*args).os_oldval);
+            return errmsg;
+        }
+
+        let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+
+        if set_sid != SID_NONE {
+            let script_ctx = if set_sid == 0 {
+                current_sctx
+            } else {
+                sctx_T {
+                    sc_sid: set_sid,
+                    sc_seq: 0,
+                    sc_lnum: 0,
+                    sc_chan: 0,
+                }
+            };
+            set_option_sctx(opt_idx, opt_flags, script_ctx);
+        }
+
+        optval_free((*args).os_oldval);
+
+        let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+
+        if scope_both {
+            if option_is_global_local(opt_idx) {
+                set_option_varp(opt_idx, get_varp_scope(opt, OPT_LOCAL), unset_obj());
+            } else {
+                let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+                if varp_global != varp {
+                    set_option_varp(opt_idx, varp_global, new_value);
+                }
+            }
+        }
+
+        optval_free(new_value);
+
+        if direct {
+            return errmsg;
+        }
+
+        let ws = (*curwin).w_s.cast::<synblock_T>();
+        if varp == (&raw mut (*curbuf).b_p_syn).cast::<c_void>() {
+            do_syntax_autocmd(curbuf, (*args).os_value_changed);
+        } else if varp == (&raw mut (*curbuf).b_p_ft).cast::<c_void>() {
+            if (opt_flags & OPT_MODELINE) == 0 || (*args).os_value_changed {
+                do_filetype_autocmd(curbuf, (*args).os_value_changed);
+            }
+        } else if varp == (&raw mut (*ws).b_p_spl).cast::<c_void>() {
+            do_spelllang_source(curwin);
+        }
+
+        comp_col();
+
+        if varp == (&raw mut p_mouse).cast::<c_void>() {
+            setmouse();
+        } else if (varp == (&raw mut p_flp).cast::<c_void>()
+            || varp == (&raw mut (*curbuf).b_p_flp).cast::<c_void>())
+            && (*curwin).w_briopt_list != 0
+        {
+            redraw_all_later(UPD_NOT_VALID);
+        } else if varp == (&raw mut p_wbr).cast::<c_void>()
+            || varp == (&raw mut (*curwin).w_onebuf_opt.wo_wbr).cast::<c_void>()
+        {
+            if varp == (&raw mut p_wbr).cast::<c_void>() {
+                set_winbar_all(true);
+            } else {
+                set_winbar(true);
+            }
+        }
+
+        if (*curwin).w_curswant != MAXCOL
+            && ((*opt).flags & (kOptFlagCurswant | kOptFlagRedrAll)) != 0
+            && ((*opt).flags & kOptFlagHLOnly) == 0
+        {
+            (*curwin).w_set_curswant = true;
+        }
+
+        check_redraw((*opt).flags);
+
+        if errmsg.is_null() {
+            (*opt).flags |= kOptFlagWasSet;
+
+            let flagsp = insecure_flag(curwin, opt_idx, opt_flags);
+            let flagsp_local = if scope_both {
+                insecure_flag(curwin, opt_idx, OPT_LOCAL)
+            } else {
+                ptr::null_mut()
+            };
+            if !(*args).os_value_checked && value_untrusted {
+                *flagsp |= kOptFlagInsecure;
+                if !flagsp_local.is_null() {
+                    *flagsp_local |= kOptFlagInsecure;
+                }
+            } else if value_replaced {
+                *flagsp &= !kOptFlagInsecure;
+                if !flagsp_local.is_null() {
+                    *flagsp_local &= !kOptFlagInsecure;
+                }
+            }
+        }
+
+        errmsg
+    }
+}
+
+/// Validates an option value and prepares any data needed to apply it, without side effects.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn validate_and_prepare_option_value(args: *mut optset_T) -> *const c_char {
+    unsafe {
+        let opt_idx = (*args).os_idx;
+        let newval = &raw mut (*args).os_newval;
+        let opt_flags = (*args).os_flags;
+        let buf = (*args).os_buf;
+        let win = (*args).os_win;
+        let errbuf = (*args).os_errbuf;
+        let mut errmsg: *const c_char = ptr::null();
+        let opt = get_option(opt_idx);
+
+        if (opt_flags & OPT_LOCAL) != 0 && optval_is_unset_local(opt_idx, *newval) {
+            return ptr::null();
+        }
+
+        if (*newval).obj_type == ObjectType::kObjectTypeNil {
+            if opt_flags == OPT_GLOBAL {
+                errmsg = tr(c"Cannot unset global option value".as_ptr());
+            } else {
+                let varp = get_varp_scope_from(opt, OPT_GLOBAL, buf, win);
+                *newval = if option_is_global_local(opt_idx) {
+                    unset_obj()
+                } else {
+                    optval_own(opt_idx, opt_from_varp(opt_idx, varp))
+                };
+            }
+        } else if (*newval).obj_type == ObjectType::kObjectTypeLuaRef {
+            assert!(is_callback_option(opt_idx));
+        } else if !option_has_type(opt_idx, optval_type(*newval)) {
+            let rep = optval_to_cstr(*newval, true);
+            let type_str = optval_type_name((*opt).opt_type);
+            errmsg = opt_error(
+                errbuf,
+                c"Invalid value for option '%s': expected %s, got %s %s".as_ptr(),
+                (*opt).fullname,
+                type_str,
+                optval_type_name(optval_type(*newval)),
+                rep,
+            );
+            xfree(rep.cast());
+        } else if (*newval).obj_type == ObjectType::kObjectTypeInteger {
+            errmsg = validate_num_option(opt_idx, &raw mut (*newval).data.integer, win, errbuf);
+        }
+        if !errmsg.is_null() {
+            return errmsg;
+        }
+
+        if (*opt).immutable {
+            let oldval = opt_from_varp(opt_idx, get_varp_scope_from(opt, opt_flags, buf, win));
+            let unchanged = option_equal(oldval, *newval);
+            optval_free_read(opt_idx, oldval);
+            if !unchanged {
+                return e_unsupportedoption.as_ptr();
+            }
+        }
+        if (*newval).obj_type == ObjectType::kObjectTypeString && !(*opt).schema.is_null() {
+            errmsg = opt_strings_check((*newval).data.string.data, (*opt).schema, errbuf);
+            if !errmsg.is_null() {
+                return errmsg;
+            }
+        }
+        if (*newval).obj_type != ObjectType::kObjectTypeUnset
+            && let Some(validate_cb) = (*opt).opt_validate_cb
+        {
+            let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+            (*args).os_varp = if scope_both && option_is_global_local(opt_idx) {
+                (*opt).var
+            } else {
+                get_varp_scope_from(opt, opt_flags, buf, win)
+            };
+            (*args).os_oldval = opt_from_varp(opt_idx, (*args).os_varp);
+            errmsg = validate_cb(args);
+            optval_free_read(opt_idx, (*args).os_oldval);
+            (*args).os_oldval = nil_obj();
+            return errmsg;
+        }
+        ptr::null()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn free_option_prepared(args: *mut optset_T) {
+    unsafe {
+        if let Some(free_fn) = (*args).os_prep_free
+            && !(*args).os_prep.ptr.is_null()
+        {
+            free_fn((*args).os_prep.ptr);
+        }
+        (*args).os_prep.ptr = ptr::null_mut();
+        (*args).os_prep_free = None;
+    }
+}
+
+/// Set the value of an option using an Object.
+unsafe fn set_option(
+    opt_idx: OptIndex,
+    mut value: Object,
+    opt_flags: c_int,
+    set_sid: scid_T,
+    direct: bool,
+    value_replaced: bool,
+    errbuf: *const CharBuf,
+) -> *const c_char {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+
+        let mut errmsg: *const c_char = ptr::null();
+        let mut args = optset_T {
+            os_varp: ptr::null_mut(),
+            os_idx: opt_idx,
+            os_flags: opt_flags,
+            os_oldval: nil_obj(),
+            os_newval: value,
+            os_prep: crate::optionstr::OptSetPrep {
+                ptr: ptr::null_mut(),
+            },
+            os_prep_free: None,
+            os_value_checked: false,
+            os_value_changed: false,
+            os_restore_chartab: false,
+            os_errbuf: errbuf,
+            os_win: curwin,
+            os_buf: curbuf,
+        };
+
+        let opt = get_option(opt_idx);
+        if !direct {
+            if (secure != 0 || sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
+                optval_free(value);
+                return e_secure.as_ptr();
+            }
+
+            errmsg = validate_and_prepare_option_value(&raw mut args);
+            value = args.os_newval;
+
+            if errmsg.is_null()
+                && value.obj_type == ObjectType::kObjectTypeString
+                && ((*opt).flags & kOptFlagFunc) != 0
+                && value.data.string.size > 0
+            {
+                let mut cb = Callback {
+                    data: ptr::null_mut(),
+                    cb_type: kCallbackNone,
+                };
+                if option_set_callback_func(value.data.string.data, &raw mut cb) == FAIL {
+                    errmsg = e_invarg.as_ptr();
+                }
+                callback_free(&raw mut cb);
+            }
+        } else if value.obj_type == ObjectType::kObjectTypeString && is_dict_option(opt_idx) {
+            errmsg = opt_strings_check(
+                value.data.string.data,
+                (*opt_dict_schema(opt_idx)).schema,
+                errbuf,
+            );
+        }
+
+        if !errmsg.is_null() {
+            free_option_prepared(&raw mut args);
+            optval_free(value);
+            return errmsg;
+        }
+
+        #[cfg(windows)]
+        {
+            let flags = (*opt).flags;
+            if value.obj_type == ObjectType::kObjectTypeString
+                && (flags & kOptFlagExpand) != 0
+                && opt_idx != kOptEqualprg
+                && opt_idx != kOptFormatprg
+                && opt_idx != kOptGrepprg
+                && opt_idx != kOptKeywordprg
+                && opt_idx != kOptMakeprg
+                && opt_idx != kOptShell
+            {
+                let allow_comma = (flags & kOptFlagComma) != 0;
+                let allow_space =
+                    opt_idx == kOptCdpath || opt_idx == kOptPath || opt_idx == kOptTags;
+                let mut p = value.data.string.data;
+                while *p != NUL {
+                    if *p != b'\\' as c_char
+                        || (*p.add(1) == b',' as c_char && allow_comma)
+                        || (*p.add(1) == b' ' as c_char && allow_space)
+                    {
+                        p = p.add(1);
+                        continue;
+                    }
+                    *p = b'/' as c_char;
+                    p = p.add(1);
+                }
+            }
+        }
+
+        let scope_local = (opt_flags & OPT_LOCAL) != 0;
+        let scope_global = (opt_flags & OPT_GLOBAL) != 0;
+        let scope_both = !scope_local && !scope_global;
+        let is_opt_local_unset = is_option_local_value_unset(opt_idx);
+
+        let varp = if scope_both && option_is_global_local(opt_idx) {
+            (*opt).var
+        } else {
+            get_varp_scope(opt, opt_flags)
+        };
+        let varp_local = get_varp_scope(opt, OPT_LOCAL);
+        let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+
+        let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+
+        let mut saved_used_value = nil_obj();
+        let mut saved_old_global_value = nil_obj();
+        let mut saved_old_local_value = nil_obj();
+        let mut saved_new_value = nil_obj();
+        if !direct {
+            saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
+            saved_old_local_value = if is_opt_local_unset {
+                copy_object(saved_old_global_value, ptr::null_mut())
+            } else {
+                optval_snapshot_varp(opt_idx, varp_local)
+            };
+            saved_used_value = if scope_local && is_opt_local_unset {
+                optval_snapshot_varp(opt_idx, get_varp(opt))
+            } else {
+                optval_snapshot(old_value)
+            };
+        }
+
+        let secure_saved = secure;
+
+        let value_untrusted = secure != 0
+            || sandbox != 0
+            || (opt_flags & OPT_MODELINE) != 0
+            || (!value_replaced && was_set_insecurely(curwin, opt_idx, opt_flags) != 0);
+        if secure == 0 && value_untrusted {
+            secure = 1;
+        }
+
+        set_option_varp(opt_idx, varp, value);
+        if value.obj_type == ObjectType::kObjectTypeUnset {
+            value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+        }
+        if !direct {
+            saved_new_value = optval_snapshot(value);
+        }
+        args.os_varp = varp;
+        args.os_oldval = old_value;
+        args.os_newval = value;
+        args.os_buf = curbuf;
+        args.os_win = curwin;
+        errmsg = did_set_option(
+            &raw mut args,
+            set_sid,
+            direct,
+            value_replaced,
+            value_untrusted,
+        );
+        free_option_prepared(&raw mut args);
+
+        secure = secure_saved;
+
+        if errmsg.is_null() && !direct {
+            if starting == 0 {
+                apply_optionset_autocmd(
+                    opt_idx,
+                    opt_flags,
+                    saved_used_value,
+                    saved_old_global_value,
+                    saved_old_local_value,
+                    saved_new_value,
+                );
+            }
+            if ((*opt).flags & kOptFlagUIOption) != 0 {
+                ui_call_option_set(cstr_as_string((*opt).fullname), saved_new_value);
+            }
+        }
+
+        optval_free(saved_used_value);
+        optval_free(saved_old_local_value);
+        optval_free(saved_old_global_value);
+        optval_free(saved_new_value);
+        optval_free(value);
+
+        errmsg
+    }
+}
+
+/// Set option value directly, without processing any side effects.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_option_direct(
+    opt_idx: OptIndex,
+    value: Object,
+    opt_flags: c_int,
+    set_sid: scid_T,
+) {
+    unsafe {
+        if is_option_hidden(opt_idx) {
+            return;
+        }
+
+        let errmsg = set_option(
+            opt_idx,
+            copy_object(value, ptr::null_mut()),
+            opt_flags,
+            set_sid,
+            true,
+            true,
+            ptr::null(),
+        );
+        assert!(errmsg.is_null());
+    }
+}
+
+/// Set option value directly for buffer / window, without processing any side effects.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_option_direct_for(
+    opt_idx: OptIndex,
+    value: Object,
+    opt_flags: c_int,
+    set_sid: scid_T,
+    scope: OptScope,
+    from: *mut c_void,
+) {
+    unsafe {
+        let save_curbuf = curbuf;
+        let save_curwin = curwin;
+
+        match scope {
+            kOptScopeGlobal => {}
+            kOptScopeWin => {
+                curwin = from.cast::<win_T>();
+                curbuf = (*curwin).w_buffer;
+            }
+            kOptScopeBuf => {
+                curbuf = from.cast::<buf_T>();
+            }
+            _ => std::process::abort(),
+        }
+
+        set_option_direct(opt_idx, value, opt_flags, set_sid);
+
+        curwin = save_curwin;
+        curbuf = save_curbuf;
+    }
+}
+
+/// Sets the value of an (non-tty) option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_option_value(
+    opt_idx: OptIndex,
+    value: Object,
+    opt_flags: c_int,
+    value_replaced: bool,
+    errbuf: *const CharBuf,
+) -> *const c_char {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+
+        let flags = (*get_option(opt_idx)).flags;
+        if sandbox > 0 && (flags & kOptFlagSecure) != 0 {
+            return tr(e_sandbox.as_ptr());
+        }
+
+        set_option(
+            opt_idx,
+            copy_object(value, ptr::null_mut()),
+            opt_flags,
+            0,
+            false,
+            value_replaced,
+            errbuf,
+        )
+    }
+}
+
+#[inline]
+unsafe fn unset_option_local_value(opt_idx: OptIndex) -> *const c_char {
+    unsafe {
+        assert!(option_is_global_local(opt_idx));
+        set_option_value(opt_idx, unset_obj(), OPT_LOCAL, true, ptr::null())
+    }
+}
+
+/// Call set_option_value() and when an error is returned, report it.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_option_value_give_err(
+    opt_idx: OptIndex,
+    value: Object,
+    opt_flags: c_int,
+) {
+    unsafe {
+        let mut errbuf_storage = [0 as c_char; IOSIZE];
+        let errbuf = CharBuf {
+            data: errbuf_storage.as_mut_ptr(),
+            size: IOSIZE,
+        };
+        let errmsg = set_option_value(opt_idx, value, opt_flags, true, &raw const errbuf);
+
+        if !errmsg.is_null() {
+            emsg(tr(errmsg));
+        }
+    }
+}
+
+/// Switch current context to get/set option value for the target window/buffer/tabpage.
+unsafe fn switch_option_context(
+    ctx: *mut c_void,
+    scope: OptScope,
+    from: *mut c_void,
+    err: *mut Error,
+) -> bool {
+    unsafe {
+        match scope {
+            kOptScopeGlobal => false,
+            kOptScopeWin => {
+                let win = from.cast::<win_T>();
+                if win == curwin {
+                    return false;
+                }
+                if !ctx_switch(
+                    ctx.cast::<CtxSwitch>(),
+                    win,
+                    win_find_tabpage(win),
+                    ptr::null_mut(),
+                    kCtxNoDisplay,
+                ) {
+                    ctx_restore(ctx.cast::<CtxSwitch>());
+                    if !error_set(err) {
+                        api_set_error(
+                            err,
+                            ErrorType::kErrorTypeException,
+                            c"Problem while switching windows".as_ptr(),
+                        );
+                    }
+                    return false;
+                }
+                true
+            }
+            kOptScopeBuf => {
+                let buf = from.cast::<buf_T>();
+                if buf == curbuf {
+                    return false;
+                }
+                ctx_switch(
+                    ctx.cast::<CtxSwitch>(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    buf,
+                    0,
+                );
+                true
+            }
+            kOptScopeTab => {
+                let tab = from.cast::<tabpage_T>();
+                let saved_curtab = ctx.cast::<*mut tabpage_T>();
+                if tab == curtab {
+                    return false;
+                }
+                *saved_curtab = curtab;
+                unuse_tabpage(curtab);
+                use_tabpage(tab);
+                true
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+unsafe fn restore_option_context(ctx: *mut c_void, scope: OptScope) {
+    unsafe {
+        match scope {
+            kOptScopeGlobal => {}
+            kOptScopeWin | kOptScopeBuf => {
+                ctx_restore(ctx.cast::<CtxSwitch>());
+            }
+            kOptScopeTab => {
+                let saved_curtab = *(ctx.cast::<*mut tabpage_T>());
+                unuse_tabpage(curtab);
+                use_tabpage(saved_curtab);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Get option value for buffer / window.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_value_for(
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    scope: OptScope,
+    from: *mut c_void,
+    err: *mut Error,
+) -> Object {
+    unsafe {
+        let mut cs = std::mem::zeroed::<CtxSwitch>();
+        let mut swtab: *mut tabpage_T = ptr::null_mut();
+        let ctx = if scope == kOptScopeTab {
+            (&raw mut swtab).cast::<c_void>()
+        } else {
+            (&raw mut cs).cast::<c_void>()
+        };
+
+        let switched = switch_option_context(ctx, scope, from, err);
+        if error_set(err) {
+            return nil_obj();
+        }
+
+        let retv = get_option_value(opt_idx, opt_flags);
+
+        if switched {
+            restore_option_context(ctx, scope);
+        }
+
+        retv
+    }
+}
+
+/// Set option value for buffer / window.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_option_value_for(
+    opt_idx: OptIndex,
+    value: Object,
+    opt_flags: c_int,
+    scope: OptScope,
+    from: *mut c_void,
+    value_replaced: bool,
+    err: *mut Error,
+) {
+    unsafe {
+        if scope == kOptScopeTab && from.cast::<tabpage_T>() != curtab {
+            let tab = from.cast::<tabpage_T>();
+            assert!(opt_idx == kOptCmdheight);
+            if value.obj_type != ObjectType::kObjectTypeInteger {
+                api_set_error(
+                    err,
+                    ErrorType::kErrorTypeValidation,
+                    c"'cmdheight' requires a Number".as_ptr(),
+                );
+                return;
+            }
+            (*tab).tp_ch_used = value.data.integer;
+            return;
+        }
+
+        let mut cs = std::mem::zeroed::<CtxSwitch>();
+        let mut swtab: *mut tabpage_T = ptr::null_mut();
+        let ctx = if scope == kOptScopeTab {
+            (&raw mut swtab).cast::<c_void>()
+        } else {
+            (&raw mut cs).cast::<c_void>()
+        };
+
+        let switched = switch_option_context(ctx, scope, from, err);
+        if error_set(err) {
+            return;
+        }
+
+        let mut errbuf_storage = [0 as c_char; IOSIZE];
+        let errbuf = CharBuf {
+            data: errbuf_storage.as_mut_ptr(),
+            size: IOSIZE,
+        };
+        let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, &raw const errbuf);
+        if !errmsg.is_null() {
+            api_set_error(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
+        }
+
+        if switched {
+            restore_option_context(ctx, scope);
+        }
+    }
+}
+
+unsafe fn showoptions(all: bool, opt_flags: c_int) {
+    unsafe {
+        const INC: c_int = 20;
+        const GAP: c_int = 3;
+
+        let items = xmalloc(std::mem::size_of::<*mut vimoption_T>() * (kOptCount as usize))
+            .cast::<*mut vimoption_T>();
+
+        msg_ext_set_kind(c"list_cmd".as_ptr());
+        if (opt_flags & OPT_GLOBAL) != 0 {
+            msg_puts_title(tr(c"\n--- Global option values ---".as_ptr()));
+        } else if (opt_flags & OPT_LOCAL) != 0 {
+            msg_puts_title(tr(c"\n--- Local option values ---".as_ptr()));
+        } else {
+            msg_puts_title(tr(c"\n--- Options ---".as_ptr()));
+        }
+
+        let mut run = 1;
+        while run <= 2 && !got_int {
+            let mut item_count: usize = 0;
+            for opt_idx in 0..kOptCount {
+                let opt = get_option(opt_idx);
+                if message_filtered((*opt).fullname) {
+                    continue;
+                }
+
+                let mut varp: *mut c_void = ptr::null_mut();
+                if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) != 0 {
+                    if !option_is_global_only(opt_idx) {
+                        varp = get_varp_scope(opt, opt_flags);
+                    }
+                } else {
+                    varp = get_varp(opt);
+                }
+                if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
+                    let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
+                        Columns
+                    } else if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
+                        1
+                    } else {
+                        optval_fmt(opt_idx, opt_flags);
+                        (c_strlen((*opt).fullname) as c_int)
+                            + vim_strsize((&raw const NameBuff).cast())
+                            + 1
+                    };
+                    if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
+                        *items.add(item_count) = opt;
+                        item_count += 1;
+                    }
+                }
+            }
+
+            let rows = if run == 1 {
+                let mut cols = (Columns + GAP - 3) / INC;
+                if cols == 0 {
+                    cols = 1;
+                }
+                (item_count as c_int + cols - 1) / cols
+            } else {
+                item_count as c_int
+            };
+
+            let mut row = 0;
+            while row < rows && !got_int {
+                msg_putchar(b'\n' as c_int);
+                if got_int {
+                    break;
+                }
+                let mut col: c_int = 0;
+                let mut i = row as usize;
+                while i < item_count {
+                    msg_advance(col);
+                    showoneopt(*items.add(i), opt_flags);
+                    col += INC;
+                    i += rows as usize;
+                }
+                os_breakcheck();
+                row += 1;
+            }
+            run += 1;
+        }
+        xfree(items.cast());
+    }
+}
+
+unsafe fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> c_int {
+    unsafe {
+        if is_option_hidden(opt_idx) {
+            return 1;
+        }
+
+        let current_val = opt_from_varp(opt_idx, varp);
+        let default_val = (*get_option(opt_idx)).def_val;
+
+        let is_default = option_equal(current_val, default_val);
+        optval_free_read(opt_idx, current_val);
+        c_int::from(is_default)
+    }
+}
+
+/// Send update to UIs with values of UI relevant options.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_refresh_options() {
+    unsafe {
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            if ((*opt).flags & kOptFlagUIOption) == 0 {
+                continue;
+            }
+            let name = cstr_as_string((*opt).fullname);
+            let value = opt_from_varp(opt_idx, (*opt).var);
+            ui_call_option_set(name, value);
+        }
+        if !p_mouse.is_null() {
+            setmouse();
+        }
+    }
+}
+
+unsafe fn showoneopt(opt: *mut vimoption_T, opt_flags: c_int) {
+    unsafe {
+        let save_silent = silent_mode;
+
+        silent_mode = false;
+        info_message = true;
+
+        let opt_idx = get_opt_idx(opt);
+        let varp = get_varp_scope(opt, opt_flags);
+
+        if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
+            && if varp.cast::<c_int>() == &raw mut (*curbuf).b_changed {
+                !curbufIsChanged()
+            } else {
+                *(varp.cast::<c_int>()) == 0
+            }
+        {
+            msg_puts(c"no".as_ptr());
+        } else if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
+            && *(varp.cast::<c_int>()) < 0
+        {
+            msg_puts(c"--".as_ptr());
+        } else {
+            msg_puts(c"  ".as_ptr());
+        }
+        msg_puts((*opt).fullname);
+        if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
+            msg_putchar(b'=' as c_int);
+            optval_fmt(opt_idx, opt_flags);
+            let namebuf_ptr = (&raw const NameBuff).cast::<c_char>();
+            if *namebuf_ptr != NUL {
+                msg_outtrans(namebuf_ptr, 0, false);
+            }
+        }
+
+        silent_mode = save_silent;
+        info_message = false;
+    }
+}
+
+/// Write modified options as ":set" commands to a file.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
+    unsafe {
+        for pri in (0..=1).rev() {
+            for opt_idx in 0..kOptCount {
+                let opt = get_option(opt_idx);
+
+                if ((*opt).flags & kOptFlagNoMkrc) == 0
+                    && ((pri == 1) == (((*opt).flags & kOptFlagPriMkrc) != 0))
+                {
+                    if option_is_global_only(opt_idx) && (opt_flags & OPT_GLOBAL) == 0 {
+                        continue;
+                    }
+
+                    if (opt_flags & OPT_GLOBAL) != 0 && ((*opt).flags & kOptFlagNoGlob) != 0 {
+                        continue;
+                    }
+
+                    let mut varp = get_varp_scope(opt, opt_flags);
+                    if varp.is_null() {
+                        continue;
+                    }
+                    if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp) != 0 {
+                        continue;
+                    }
+
+                    if (opt_flags & OPT_SKIPRTP) != 0
+                        && ((*opt).var == (&raw mut p_rtp).cast::<c_void>()
+                            || (*opt).var == (&raw mut p_pp).cast::<c_void>())
+                    {
+                        continue;
+                    }
+
+                    let mut round: c_int = 2;
+                    let mut varp_local: *mut c_void = ptr::null_mut();
+                    if option_is_window_local(opt_idx) {
+                        if (opt_flags & OPT_LOCAL) == 0 {
+                            continue;
+                        }
+                        if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
+                            let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
+                            if optval_default(opt_idx, varp_fresh) == 0 {
+                                round = 1;
+                                varp_local = varp;
+                                varp = varp_fresh;
+                            }
+                        }
+                    }
+
+                    while round <= 2 {
+                        let cmd = if round == 1 || (opt_flags & OPT_GLOBAL) != 0 {
+                            c"set".as_ptr().cast_mut()
+                        } else {
+                            c"setlocal".as_ptr().cast_mut()
+                        };
+
+                        let mut do_endif = false;
+                        if opt_idx == kOptSyntax || opt_idx == kOptFiletype {
+                            if fprintf(
+                                fd,
+                                c"if &%s != '%s'".as_ptr(),
+                                (*opt).fullname,
+                                *(varp.cast::<*mut c_char>()),
+                            ) < 0
+                                || put_eol(fd.cast()) < 0
+                            {
+                                return FAIL;
+                            }
+                            do_endif = true;
+                        }
+                        if put_set(fd, cmd, opt_idx, varp) == FAIL {
+                            return FAIL;
+                        }
+                        if do_endif && put_line(fd.cast(), c"endif".as_ptr().cast_mut()) == FAIL {
+                            return FAIL;
+                        }
+
+                        varp = varp_local;
+                        round += 1;
+                    }
+                }
+            }
+        }
+        OK
+    }
+}
+
+/// Generate set commands for the local fold options only.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn makefoldset(fd: *mut FILE) -> c_int {
+    unsafe {
+        let cmd = c"setlocal".as_ptr().cast_mut();
+        if put_set(
+            fd,
+            cmd,
+            kOptFoldmethod,
+            (&raw mut (*curwin).w_onebuf_opt.wo_fdm).cast(),
+        ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldexpr,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fde).cast(),
+            ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldmarker,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fmr).cast(),
+            ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldignore,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fdi).cast(),
+            ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldlevel,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fdl).cast(),
+            ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldminlines,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fml).cast(),
+            ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldnestmax,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fdn).cast(),
+            ) == FAIL
+            || put_set(
+                fd,
+                cmd,
+                kOptFoldenable,
+                (&raw mut (*curwin).w_onebuf_opt.wo_fen).cast(),
+            ) == FAIL
+        {
+            return FAIL;
+        }
+        OK
+    }
+}
+
+unsafe fn put_set_value(
+    fd: *mut FILE,
+    cmd: *mut c_char,
+    opt_idx: OptIndex,
+    varp: *mut c_void,
+    value: Object,
+) -> c_int {
+    unsafe {
+        let opt = get_option(opt_idx);
+        let name = (*opt).fullname;
+        let flags = (*opt).flags;
+
+        if varp != (*opt).var && optval_is_unset_local(opt_idx, value) {
+            return OK;
+        }
+
+        match value.obj_type {
+            ObjectType::kObjectTypeBoolean => {
+                let value_bool = value.data.boolean;
+                if fprintf(
+                    fd,
+                    c"%s %s%s".as_ptr(),
+                    cmd,
+                    if value_bool {
+                        c"".as_ptr()
+                    } else {
+                        c"no".as_ptr()
+                    },
+                    name,
+                ) < 0
+                {
+                    return FAIL;
+                }
+            }
+            ObjectType::kObjectTypeInteger => {
+                if fprintf(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
+                    return FAIL;
+                }
+                let value_num = value.data.integer;
+                let mut wc: OptInt = 0;
+                if wc_use_keyname(varp, &raw mut wc) != 0 {
+                    if fputs(get_special_key_name(wc as c_int, 0), fd) < 0 {
+                        return FAIL;
+                    }
+                } else {
+                    let num_s = format!("{value_num}\0");
+                    if fputs(num_s.as_ptr().cast(), fd) < 0 {
+                        return FAIL;
+                    }
+                }
+            }
+            ObjectType::kObjectTypeString => {
+                if fprintf(fd, c"%s %s=".as_ptr(), cmd, name) < 0 {
+                    return FAIL;
+                }
+                let value_str = value.data.string.data;
+                if !value_str.is_null() {
+                    if (flags & kOptFlagExpand) != 0 {
+                        let size = c_strlen(value_str) + 1;
+                        let buf = xmalloc(size).cast::<c_char>();
+                        home_replace(ptr::null_mut(), value_str, buf, size, false);
+
+                        if size >= MAXPATHL
+                            && (flags & kOptFlagComma) != 0
+                            && !vim_strchr(value_str, b',' as c_int).is_null()
+                        {
+                            let part = xmalloc(size).cast::<c_char>();
+                            if put_eol(fd.cast()) == FAIL {
+                                xfree(buf.cast());
+                                xfree(part.cast());
+                                return FAIL;
+                            }
+                            let mut p = buf;
+                            while *p != NUL {
+                                if fprintf(fd, c"%s %s+=".as_ptr(), cmd, name) < 0 {
+                                    xfree(buf.cast());
+                                    xfree(part.cast());
+                                    return FAIL;
+                                }
+                                copy_option_part(&raw mut p, part, size, c",".as_ptr().cast_mut());
+                                if put_escstr(fd.cast(), part, 2) == FAIL
+                                    || put_eol(fd.cast()) == FAIL
+                                {
+                                    xfree(buf.cast());
+                                    xfree(part.cast());
+                                    return FAIL;
+                                }
+                            }
+                            xfree(buf.cast());
+                            xfree(part.cast());
+                            return OK;
+                        }
+                        if put_escstr(fd.cast(), buf, 2) == FAIL {
+                            xfree(buf.cast());
+                            return FAIL;
+                        }
+                        xfree(buf.cast());
+                    } else if put_escstr(fd.cast(), value_str, 2) == FAIL {
+                        return FAIL;
+                    }
+                }
+            }
+            _ => std::process::abort(),
+        }
+
+        if put_eol(fd.cast()) < 0 {
+            return FAIL;
+        }
+        OK
+    }
+}
+
+unsafe fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut c_void) -> c_int {
+    unsafe {
+        let value = opt_from_varp(opt_idx, varp);
+        let ret = if value.obj_type == ObjectType::kObjectTypeLuaRef {
+            OK
+        } else {
+            put_set_value(fd, cmd, opt_idx, varp, value)
+        };
+        optval_free_read(opt_idx, value);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_varp_scope_from(
+    p: *mut vimoption_T,
+    opt_flags: c_int,
+    buf: *mut buf_T,
+    win: *mut win_T,
+) -> *mut c_void {
+    unsafe {
+        let opt_idx = get_opt_idx(p);
+
+        if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
+            if option_is_window_local(opt_idx) {
+                return get_varp_from(p, buf, win)
+                    .cast::<u8>()
+                    .add(std::mem::size_of::<winopt_T>())
+                    .cast::<c_void>();
+            }
+            return (*p).var;
+        }
+
+        if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
+            let ptr: *mut c_void = match opt_idx {
+                kOptFormatprg => (&raw mut (*buf).b_p_fp).cast(),
+                kOptFsync => (&raw mut (*buf).b_p_fs).cast(),
+                kOptFindfunc => (&raw mut (*buf).b_p_ffu).cast(),
+                kOptErrorformat => (&raw mut (*buf).b_p_efm).cast(),
+                kOptGrepformat => (&raw mut (*buf).b_p_gefm).cast(),
+                kOptGrepprg => (&raw mut (*buf).b_p_gp).cast(),
+                kOptMakeprg => (&raw mut (*buf).b_p_mp).cast(),
+                kOptEqualprg => (&raw mut (*buf).b_p_ep).cast(),
+                kOptKeywordprg => (&raw mut (*buf).b_p_kp).cast(),
+                kOptPath => (&raw mut (*buf).b_p_path).cast(),
+                kOptAutocomplete => (&raw mut (*buf).b_p_ac).cast(),
+                kOptAutoread => (&raw mut (*buf).b_p_ar).cast(),
+                kOptTags => (&raw mut (*buf).b_p_tags).cast(),
+                kOptTagcase => (&raw mut (*buf).b_p_tc).cast(),
+                kOptSidescrolloff => (&raw mut (*win).w_onebuf_opt.wo_siso).cast(),
+                kOptScrolloff => (&raw mut (*win).w_onebuf_opt.wo_so).cast(),
+                kOptScrolloffpad => (&raw mut (*win).w_onebuf_opt.wo_sop).cast(),
+                kOptDefine => (&raw mut (*buf).b_p_def).cast(),
+                kOptInclude => (&raw mut (*buf).b_p_inc).cast(),
+                kOptCompleteopt => (&raw mut (*buf).b_p_cot).cast(),
+                kOptDictionary => (&raw mut (*buf).b_p_dict).cast(),
+                kOptDiffanchors => (&raw mut (*buf).b_p_dia).cast(),
+                kOptThesaurus => (&raw mut (*buf).b_p_tsr).cast(),
+                kOptThesaurusfunc => (&raw mut (*buf).b_p_tsrfu).cast(),
+                kOptTagfunc => (&raw mut (*buf).b_p_tfu).cast(),
+                kOptShowbreak => (&raw mut (*win).w_onebuf_opt.wo_sbr).cast(),
+                kOptStatusline => (&raw mut (*win).w_onebuf_opt.wo_stl).cast(),
+                kOptWinbar => (&raw mut (*win).w_onebuf_opt.wo_wbr).cast(),
+                kOptUndolevels => (&raw mut (*buf).b_p_ul).cast(),
+                kOptLispwords => (&raw mut (*buf).b_p_lw).cast(),
+                kOptBackupcopy => (&raw mut (*buf).b_p_bkc).cast(),
+                kOptMakeencoding => (&raw mut (*buf).b_p_menc).cast(),
+                kOptFillchars => (&raw mut (*win).w_onebuf_opt.wo_fcs).cast(),
+                kOptListchars => (&raw mut (*win).w_onebuf_opt.wo_lcs).cast(),
+                kOptVirtualedit => (&raw mut (*win).w_onebuf_opt.wo_ve).cast(),
+                _ => std::process::abort(),
+            };
+            return ptr;
+        }
+
+        get_varp_from(p, buf, win)
+    }
+}
+
+/// Get pointer to option variable, depending on local or global scope.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_varp_scope(p: *mut vimoption_T, opt_flags: c_int) -> *mut c_void {
+    unsafe { get_varp_scope_from(p, opt_flags, curbuf, curwin) }
+}
+
+/// Get pointer to option variable at 'opt_idx', depending on local or global scope.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_varp_scope_from(
+    opt_idx: OptIndex,
+    opt_flags: c_int,
+    buf: *mut buf_T,
+    win: *mut win_T,
+) -> *mut c_void {
+    unsafe { get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win) }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_varp_from(
+    p: *mut vimoption_T,
+    buf: *mut buf_T,
+    win: *mut win_T,
+) -> *mut c_void {
+    unsafe {
+        let opt_idx = get_opt_idx(p);
+
+        if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
+            return (*p).var;
+        }
+
+        match opt_idx {
+            kOptEqualprg => {
+                if *(*buf).b_p_ep != NUL {
+                    (&raw mut (*buf).b_p_ep).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptKeywordprg => {
+                if *(*buf).b_p_kp != NUL {
+                    (&raw mut (*buf).b_p_kp).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptPath => {
+                if *(*buf).b_p_path != NUL {
+                    (&raw mut (*buf).b_p_path).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptAutocomplete => {
+                if (*buf).b_p_ac >= 0 {
+                    (&raw mut (*buf).b_p_ac).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptAutoread => {
+                if (*buf).b_p_ar >= 0 {
+                    (&raw mut (*buf).b_p_ar).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptTags => {
+                if *(*buf).b_p_tags != NUL {
+                    (&raw mut (*buf).b_p_tags).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptTagcase => {
+                if *(*buf).b_p_tc != NUL {
+                    (&raw mut (*buf).b_p_tc).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptSidescrolloff => {
+                if (*win).w_onebuf_opt.wo_siso >= 0 {
+                    (&raw mut (*win).w_onebuf_opt.wo_siso).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptScrolloff => {
+                if (*win).w_onebuf_opt.wo_so >= 0 {
+                    (&raw mut (*win).w_onebuf_opt.wo_so).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptScrolloffpad => {
+                if (*win).w_onebuf_opt.wo_sop >= 0 {
+                    (&raw mut (*win).w_onebuf_opt.wo_sop).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptBackupcopy => {
+                if *(*buf).b_p_bkc != NUL {
+                    (&raw mut (*buf).b_p_bkc).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptDefine => {
+                if *(*buf).b_p_def != NUL {
+                    (&raw mut (*buf).b_p_def).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptInclude => {
+                if *(*buf).b_p_inc != NUL {
+                    (&raw mut (*buf).b_p_inc).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptCompleteopt => {
+                if *(*buf).b_p_cot != NUL {
+                    (&raw mut (*buf).b_p_cot).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptDictionary => {
+                if *(*buf).b_p_dict != NUL {
+                    (&raw mut (*buf).b_p_dict).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptDiffanchors => {
+                if *(*buf).b_p_dia != NUL {
+                    (&raw mut (*buf).b_p_dia).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptThesaurus => {
+                if *(*buf).b_p_tsr != NUL {
+                    (&raw mut (*buf).b_p_tsr).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptThesaurusfunc => {
+                if (*buf).b_p_tsrfu.cb_type != kCallbackNone {
+                    (&raw mut (*buf).b_p_tsrfu).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptFormatprg => {
+                if *(*buf).b_p_fp != NUL {
+                    (&raw mut (*buf).b_p_fp).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptFsync => {
+                if (*buf).b_p_fs >= 0 {
+                    (&raw mut (*buf).b_p_fs).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptFindfunc => {
+                if (*buf).b_p_ffu.cb_type != kCallbackNone {
+                    (&raw mut (*buf).b_p_ffu).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptErrorformat => {
+                if *(*buf).b_p_efm != NUL {
+                    (&raw mut (*buf).b_p_efm).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptGrepformat => {
+                if *(*buf).b_p_gefm != NUL {
+                    (&raw mut (*buf).b_p_gefm).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptGrepprg => {
+                if *(*buf).b_p_gp != NUL {
+                    (&raw mut (*buf).b_p_gp).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptMakeprg => {
+                if *(*buf).b_p_mp != NUL {
+                    (&raw mut (*buf).b_p_mp).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptShowbreak => {
+                if *(*win).w_onebuf_opt.wo_sbr != NUL {
+                    (&raw mut (*win).w_onebuf_opt.wo_sbr).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptStatusline => {
+                if *(*win).w_onebuf_opt.wo_stl != NUL {
+                    (&raw mut (*win).w_onebuf_opt.wo_stl).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptWinbar => {
+                if *(*win).w_onebuf_opt.wo_wbr != NUL {
+                    (&raw mut (*win).w_onebuf_opt.wo_wbr).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptUndolevels => {
+                if (*buf).b_p_ul != NO_LOCAL_UNDOLEVEL {
+                    (&raw mut (*buf).b_p_ul).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptLispwords => {
+                if *(*buf).b_p_lw != NUL {
+                    (&raw mut (*buf).b_p_lw).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptMakeencoding => {
+                if *(*buf).b_p_menc != NUL {
+                    (&raw mut (*buf).b_p_menc).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptFillchars => {
+                if *(*win).w_onebuf_opt.wo_fcs != NUL {
+                    (&raw mut (*win).w_onebuf_opt.wo_fcs).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptListchars => {
+                if *(*win).w_onebuf_opt.wo_lcs != NUL {
+                    (&raw mut (*win).w_onebuf_opt.wo_lcs).cast()
+                } else {
+                    (*p).var
+                }
+            }
+            kOptVirtualedit => {
+                if *(*win).w_onebuf_opt.wo_ve != NUL {
+                    (&raw mut (*win).w_onebuf_opt.wo_ve).cast()
+                } else {
+                    (*p).var
+                }
+            }
+
+            kOptArabic => (&raw mut (*win).w_onebuf_opt.wo_arab).cast(),
+            kOptList => (&raw mut (*win).w_onebuf_opt.wo_list).cast(),
+            kOptSpell => (&raw mut (*win).w_onebuf_opt.wo_spell).cast(),
+            kOptCursorcolumn => (&raw mut (*win).w_onebuf_opt.wo_cuc).cast(),
+            kOptCursorline => (&raw mut (*win).w_onebuf_opt.wo_cul).cast(),
+            kOptCursorlineopt => (&raw mut (*win).w_onebuf_opt.wo_culopt).cast(),
+            kOptColorcolumn => (&raw mut (*win).w_onebuf_opt.wo_cc).cast(),
+            kOptDiff => (&raw mut (*win).w_onebuf_opt.wo_diff).cast(),
+            kOptEventignorewin => (&raw mut (*win).w_onebuf_opt.wo_eiw).cast(),
+            kOptFoldcolumn => (&raw mut (*win).w_onebuf_opt.wo_fdc).cast(),
+            kOptFoldenable => (&raw mut (*win).w_onebuf_opt.wo_fen).cast(),
+            kOptFoldignore => (&raw mut (*win).w_onebuf_opt.wo_fdi).cast(),
+            kOptFoldlevel => (&raw mut (*win).w_onebuf_opt.wo_fdl).cast(),
+            kOptFoldmethod => (&raw mut (*win).w_onebuf_opt.wo_fdm).cast(),
+            kOptFoldminlines => (&raw mut (*win).w_onebuf_opt.wo_fml).cast(),
+            kOptFoldnestmax => (&raw mut (*win).w_onebuf_opt.wo_fdn).cast(),
+            kOptFoldexpr => (&raw mut (*win).w_onebuf_opt.wo_fde).cast(),
+            kOptFoldtext => (&raw mut (*win).w_onebuf_opt.wo_fdt).cast(),
+            kOptFoldmarker => (&raw mut (*win).w_onebuf_opt.wo_fmr).cast(),
+            kOptNumber => (&raw mut (*win).w_onebuf_opt.wo_nu).cast(),
+            kOptRelativenumber => (&raw mut (*win).w_onebuf_opt.wo_rnu).cast(),
+            kOptNumberwidth => (&raw mut (*win).w_onebuf_opt.wo_nuw).cast(),
+            kOptWinfixbuf => (&raw mut (*win).w_onebuf_opt.wo_wfb).cast(),
+            kOptWinfixheight => (&raw mut (*win).w_onebuf_opt.wo_wfh).cast(),
+            kOptWinfixwidth => (&raw mut (*win).w_onebuf_opt.wo_wfw).cast(),
+            kOptWinpinned => (&raw mut (*win).w_onebuf_opt.wo_wp).cast(),
+            kOptPreviewwindow => (&raw mut (*win).w_onebuf_opt.wo_pvw).cast(),
+            kOptLhistory => (&raw mut (*win).w_onebuf_opt.wo_lhi).cast(),
+            kOptRightleft => (&raw mut (*win).w_onebuf_opt.wo_rl).cast(),
+            kOptRightleftcmd => (&raw mut (*win).w_onebuf_opt.wo_rlc).cast(),
+            kOptScroll => (&raw mut (*win).w_onebuf_opt.wo_scr).cast(),
+            kOptSmoothscroll => (&raw mut (*win).w_onebuf_opt.wo_sms).cast(),
+            kOptWrap => (&raw mut (*win).w_onebuf_opt.wo_wrap).cast(),
+            kOptLinebreak => (&raw mut (*win).w_onebuf_opt.wo_lbr).cast(),
+            kOptBreakindent => (&raw mut (*win).w_onebuf_opt.wo_bri).cast(),
+            kOptBreakindentopt => (&raw mut (*win).w_onebuf_opt.wo_briopt).cast(),
+            kOptScrollbind => (&raw mut (*win).w_onebuf_opt.wo_scb).cast(),
+            kOptCursorbind => (&raw mut (*win).w_onebuf_opt.wo_crb).cast(),
+            kOptConcealcursor => (&raw mut (*win).w_onebuf_opt.wo_cocu).cast(),
+            kOptConceallevel => (&raw mut (*win).w_onebuf_opt.wo_cole).cast(),
+
+            kOptAutoindent => (&raw mut (*buf).b_p_ai).cast(),
+            kOptBinary => (&raw mut (*buf).b_p_bin).cast(),
+            kOptBomb => (&raw mut (*buf).b_p_bomb).cast(),
+            kOptBufhidden => (&raw mut (*buf).b_p_bh).cast(),
+            kOptBuftype => (&raw mut (*buf).b_p_bt).cast(),
+            kOptBuflisted => (&raw mut (*buf).b_p_bl).cast(),
+            kOptBusy => (&raw mut (*buf).b_p_busy).cast(),
+            kOptChannel => (&raw mut (*buf).b_p_channel).cast(),
+            kOptCopyindent => (&raw mut (*buf).b_p_ci).cast(),
+            kOptCindent => (&raw mut (*buf).b_p_cin).cast(),
+            kOptCinkeys => (&raw mut (*buf).b_p_cink).cast(),
+            kOptCinoptions => (&raw mut (*buf).b_p_cino).cast(),
+            kOptCinscopedecls => (&raw mut (*buf).b_p_cinsd).cast(),
+            kOptCinwords => (&raw mut (*buf).b_p_cinw).cast(),
+            kOptComments => (&raw mut (*buf).b_p_com).cast(),
+            kOptCommentstring => (&raw mut (*buf).b_p_cms).cast(),
+            kOptComplete => (&raw mut (*buf).b_p_cpt).cast(),
+            #[cfg(windows)]
+            kOptCompleteslash => (&raw mut (*buf).b_p_csl).cast(),
+            kOptCompletefunc => (&raw mut (*buf).b_p_cfu).cast(),
+            kOptOmnifunc => (&raw mut (*buf).b_p_ofu).cast(),
+            kOptEndoffile => (&raw mut (*buf).b_p_eof).cast(),
+            kOptEndofline => (&raw mut (*buf).b_p_eol).cast(),
+            kOptFixendofline => (&raw mut (*buf).b_p_fixeol).cast(),
+            kOptExpandtab => (&raw mut (*buf).b_p_et).cast(),
+            kOptFileencoding => (&raw mut (*buf).b_p_fenc).cast(),
+            kOptFileformat => (&raw mut (*buf).b_p_ff).cast(),
+            kOptFiletype => (&raw mut (*buf).b_p_ft).cast(),
+            kOptFollow => (&raw mut (*buf).b_p_follow).cast(),
+            kOptFormatoptions => (&raw mut (*buf).b_p_fo).cast(),
+            kOptFormatlistpat => (&raw mut (*buf).b_p_flp).cast(),
+            kOptIminsert => (&raw mut (*buf).b_p_iminsert).cast(),
+            kOptImsearch => (&raw mut (*buf).b_p_imsearch).cast(),
+            kOptInfercase => (&raw mut (*buf).b_p_inf).cast(),
+            kOptIskeyword => (&raw mut (*buf).b_p_isk).cast(),
+            kOptIncludeexpr => (&raw mut (*buf).b_p_inex).cast(),
+            kOptIndentexpr => (&raw mut (*buf).b_p_inde).cast(),
+            kOptIndentkeys => (&raw mut (*buf).b_p_indk).cast(),
+            kOptFormatexpr => (&raw mut (*buf).b_p_fex).cast(),
+            kOptLisp => (&raw mut (*buf).b_p_lisp).cast(),
+            kOptLispoptions => (&raw mut (*buf).b_p_lop).cast(),
+            kOptModeline => (&raw mut (*buf).b_p_ml).cast(),
+            kOptMatchpairs => (&raw mut (*buf).b_p_mps).cast(),
+            kOptModifiable => (&raw mut (*buf).b_p_ma).cast(),
+            kOptModified => (&raw mut (*buf).b_changed).cast(),
+            kOptNrformats => (&raw mut (*buf).b_p_nf).cast(),
+            kOptPreserveindent => (&raw mut (*buf).b_p_pi).cast(),
+            kOptQuoteescape => (&raw mut (*buf).b_p_qe).cast(),
+            kOptReadonly => (&raw mut (*buf).b_p_ro).cast(),
+            kOptScrollback => (&raw mut (*buf).b_p_scbk).cast(),
+            kOptSmartindent => (&raw mut (*buf).b_p_si).cast(),
+            kOptSofttabstop => (&raw mut (*buf).b_p_sts).cast(),
+            kOptSuffixesadd => (&raw mut (*buf).b_p_sua).cast(),
+            kOptSwapfile => (&raw mut (*buf).b_p_swf).cast(),
+            kOptSynmaxcol => (&raw mut (*buf).b_p_smc).cast(),
+            kOptSyntax => (&raw mut (*buf).b_p_syn).cast(),
+            kOptSpellcapcheck => {
+                let ws = (*win).w_s.cast::<synblock_T>();
+                (&raw mut (*ws).b_p_spc).cast()
+            }
+            kOptSpellfile => {
+                let ws = (*win).w_s.cast::<synblock_T>();
+                (&raw mut (*ws).b_p_spf).cast()
+            }
+            kOptSpelllang => {
+                let ws = (*win).w_s.cast::<synblock_T>();
+                (&raw mut (*ws).b_p_spl).cast()
+            }
+            kOptSpelloptions => {
+                let ws = (*win).w_s.cast::<synblock_T>();
+                (&raw mut (*ws).b_p_spo).cast()
+            }
+            kOptShiftwidth => (&raw mut (*buf).b_p_sw).cast(),
+            kOptTagfunc => (&raw mut (*buf).b_p_tfu).cast(),
+            kOptTabstop => (&raw mut (*buf).b_p_ts).cast(),
+            kOptTextwidth => (&raw mut (*buf).b_p_tw).cast(),
+            kOptUndofile => (&raw mut (*buf).b_p_udf).cast(),
+            kOptWrapmargin => (&raw mut (*buf).b_p_wm).cast(),
+            kOptVarsofttabstop => (&raw mut (*buf).b_p_vsts).cast(),
+            kOptVartabstop => (&raw mut (*buf).b_p_vts).cast(),
+            kOptKeymap => (&raw mut (*buf).b_p_keymap).cast(),
+            kOptSigncolumn => (&raw mut (*win).w_onebuf_opt.wo_scl).cast(),
+            kOptWinhighlight => (&raw mut (*win).w_onebuf_opt.wo_winhl).cast(),
+            kOptWinblend => (&raw mut (*win).w_onebuf_opt.wo_winbl).cast(),
+            kOptStatuscolumn => (&raw mut (*win).w_onebuf_opt.wo_stc).cast(),
+            _ => {
+                iemsg(tr(c"E356: get_varp ERROR".as_ptr()));
+                (&raw mut (*buf).b_p_wm).cast()
+            }
+        }
+    }
+}
+
+/// Get the value of 'equalprg', either the buffer-local one or the global one.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_equalprg() -> *mut c_char {
+    unsafe {
+        if *(*curbuf).b_p_ep == NUL {
+            p_ep
+        } else {
+            (*curbuf).b_p_ep
+        }
+    }
+}
+
+/// Get the value of 'findfunc', either the buffer-local one or the global one.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_findfunc() -> *mut Callback {
+    unsafe {
+        if (*curbuf).b_p_ffu.cb_type != kCallbackNone {
+            &raw mut (*curbuf).b_p_ffu
+        } else {
+            &raw mut p_ffu
+        }
+    }
+}
+
+/// Copy options from one window to another.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn win_copy_options(wp_from: *mut win_T, wp_to: *mut win_T) {
+    unsafe {
+        copy_winopt(
+            &raw mut (*wp_from).w_onebuf_opt,
+            &raw mut (*wp_to).w_onebuf_opt,
+        );
+        copy_winopt(
+            &raw mut (*wp_from).w_allbuf_opt,
+            &raw mut (*wp_to).w_allbuf_opt,
+        );
+        didset_window_options(wp_to, true);
+    }
+}
+
+unsafe fn copy_option_val(val: *const c_char) -> *mut c_char {
+    unsafe {
+        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
+        if ptr::eq(val, empty_opt) {
+            empty_opt
+        } else {
+            xstrdup(val)
+        }
+    }
+}
+
+/// Copy the options from one winopt_T to another.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
+    unsafe {
+        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
+        (*to).wo_arab = (*from).wo_arab;
+        (*to).wo_list = (*from).wo_list;
+        (*to).wo_lcs = copy_option_val((*from).wo_lcs);
+        (*to).wo_fcs = copy_option_val((*from).wo_fcs);
+        (*to).wo_nu = (*from).wo_nu;
+        (*to).wo_rnu = (*from).wo_rnu;
+        (*to).wo_ve = copy_option_val((*from).wo_ve);
+        (*to).wo_ve_flags = (*from).wo_ve_flags;
+        (*to).wo_nuw = (*from).wo_nuw;
+        (*to).wo_rl = (*from).wo_rl;
+        (*to).wo_rlc = copy_option_val((*from).wo_rlc);
+        (*to).wo_sbr = copy_option_val((*from).wo_sbr);
+        (*to).wo_stl = copy_option_val((*from).wo_stl);
+        (*to).wo_wbr = copy_option_val((*from).wo_wbr);
+        (*to).wo_wrap = (*from).wo_wrap;
+        (*to).wo_wrap_save = (*from).wo_wrap_save;
+        (*to).wo_lbr = (*from).wo_lbr;
+        (*to).wo_bri = (*from).wo_bri;
+        (*to).wo_briopt = copy_option_val((*from).wo_briopt);
+        (*to).wo_scb = (*from).wo_scb;
+        (*to).wo_scb_save = (*from).wo_scb_save;
+        (*to).wo_sms = (*from).wo_sms;
+        (*to).wo_crb = (*from).wo_crb;
+        (*to).wo_crb_save = (*from).wo_crb_save;
+        (*to).wo_siso = (*from).wo_siso;
+        (*to).wo_so = (*from).wo_so;
+        (*to).wo_sop = (*from).wo_sop;
+        (*to).wo_spell = (*from).wo_spell;
+        (*to).wo_cuc = (*from).wo_cuc;
+        (*to).wo_cul = (*from).wo_cul;
+        (*to).wo_culopt = copy_option_val((*from).wo_culopt);
+        (*to).wo_cc = copy_option_val((*from).wo_cc);
+        (*to).wo_diff = (*from).wo_diff;
+        (*to).wo_diff_saved = (*from).wo_diff_saved;
+        (*to).wo_eiw = copy_option_val((*from).wo_eiw);
+        (*to).wo_cocu = copy_option_val((*from).wo_cocu);
+        (*to).wo_cole = (*from).wo_cole;
+        (*to).wo_fdc = copy_option_val((*from).wo_fdc);
+        (*to).wo_fdc_save = if (*from).wo_diff_saved != 0 {
+            xstrdup((*from).wo_fdc_save)
+        } else {
+            empty_opt
+        };
+        (*to).wo_fen = (*from).wo_fen;
+        (*to).wo_fen_save = (*from).wo_fen_save;
+        (*to).wo_fdi = copy_option_val((*from).wo_fdi);
+        (*to).wo_fml = (*from).wo_fml;
+        (*to).wo_fdl = (*from).wo_fdl;
+        (*to).wo_fdl_save = (*from).wo_fdl_save;
+        (*to).wo_fdm = copy_option_val((*from).wo_fdm);
+        (*to).wo_fdm_save = if (*from).wo_diff_saved != 0 {
+            xstrdup((*from).wo_fdm_save)
+        } else {
+            empty_opt
+        };
+        (*to).wo_fdn = (*from).wo_fdn;
+        callback_copy(&raw mut (*to).wo_fde, &raw const (*from).wo_fde);
+        callback_copy(&raw mut (*to).wo_fdt, &raw const (*from).wo_fdt);
+        (*to).wo_fmr = copy_option_val((*from).wo_fmr);
+        (*to).wo_scl = copy_option_val((*from).wo_scl);
+        (*to).wo_lhi = (*from).wo_lhi;
+        (*to).wo_winhl = copy_option_val((*from).wo_winhl);
+        (*to).wo_winbl = (*from).wo_winbl;
+        (*to).wo_stc = copy_option_val((*from).wo_stc);
+
+        (*to).wo_wrap_flags = (*from).wo_wrap_flags;
+        (*to).wo_stl_flags = (*from).wo_stl_flags;
+        (*to).wo_wbr_flags = (*from).wo_wbr_flags;
+        (*to).wo_fde_flags = (*from).wo_fde_flags;
+        (*to).wo_fdt_flags = (*from).wo_fdt_flags;
+
+        (*to).wo_script_ctx = (*from).wo_script_ctx;
+        check_winopt(to);
+    }
+}
+
+unsafe fn check_win_options(win: *mut win_T) {
+    unsafe {
+        check_winopt(&raw mut (*win).w_onebuf_opt);
+        check_winopt(&raw mut (*win).w_allbuf_opt);
+    }
+}
+
+unsafe fn check_winopt(wop: *mut winopt_T) {
+    unsafe {
+        check_string_option(&raw mut (*wop).wo_fdc);
+        check_string_option(&raw mut (*wop).wo_fdc_save);
+        check_string_option(&raw mut (*wop).wo_fdi);
+        check_string_option(&raw mut (*wop).wo_fdm);
+        check_string_option(&raw mut (*wop).wo_fdm_save);
+        check_string_option(&raw mut (*wop).wo_fmr);
+        check_string_option(&raw mut (*wop).wo_eiw);
+        check_string_option(&raw mut (*wop).wo_scl);
+        check_string_option(&raw mut (*wop).wo_rlc);
+        check_string_option(&raw mut (*wop).wo_sbr);
+        check_string_option(&raw mut (*wop).wo_stl);
+        check_string_option(&raw mut (*wop).wo_culopt);
+        check_string_option(&raw mut (*wop).wo_cc);
+        check_string_option(&raw mut (*wop).wo_cocu);
+        check_string_option(&raw mut (*wop).wo_briopt);
+        check_string_option(&raw mut (*wop).wo_winhl);
+        check_string_option(&raw mut (*wop).wo_lcs);
+        check_string_option(&raw mut (*wop).wo_fcs);
+        check_string_option(&raw mut (*wop).wo_ve);
+        check_string_option(&raw mut (*wop).wo_wbr);
+        check_string_option(&raw mut (*wop).wo_stc);
+    }
+}
+
+/// Free the allocated memory inside a winopt_T.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn clear_winopt(wop: *mut winopt_T) {
+    unsafe {
+        clear_string_option(&raw mut (*wop).wo_fdc);
+        clear_string_option(&raw mut (*wop).wo_fdc_save);
+        clear_string_option(&raw mut (*wop).wo_fdi);
+        clear_string_option(&raw mut (*wop).wo_fdm);
+        clear_string_option(&raw mut (*wop).wo_fdm_save);
+        callback_free(&raw mut (*wop).wo_fde);
+        callback_free(&raw mut (*wop).wo_fdt);
+        clear_string_option(&raw mut (*wop).wo_fmr);
+        clear_string_option(&raw mut (*wop).wo_eiw);
+        clear_string_option(&raw mut (*wop).wo_scl);
+        clear_string_option(&raw mut (*wop).wo_rlc);
+        clear_string_option(&raw mut (*wop).wo_sbr);
+        clear_string_option(&raw mut (*wop).wo_stl);
+        clear_string_option(&raw mut (*wop).wo_culopt);
+        clear_string_option(&raw mut (*wop).wo_cc);
+        clear_string_option(&raw mut (*wop).wo_cocu);
+        clear_string_option(&raw mut (*wop).wo_briopt);
+        clear_string_option(&raw mut (*wop).wo_winhl);
+        clear_string_option(&raw mut (*wop).wo_lcs);
+        clear_string_option(&raw mut (*wop).wo_fcs);
+        clear_string_option(&raw mut (*wop).wo_ve);
+        clear_string_option(&raw mut (*wop).wo_wbr);
+        clear_string_option(&raw mut (*wop).wo_stc);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
+    unsafe {
+        if (*wp).w_onebuf_opt.wo_wrap != 0 {
+            (*wp).w_leftcol = 0;
+        } else {
+            (*wp).w_skipcol = 0;
+        }
+        check_colorcolumn(ptr::null_mut(), wp);
+        briopt_check(wp);
+        let mut culopt_flags: c_uint = 0;
+        if fill_culopt_flags((*wp).w_onebuf_opt.wo_culopt, &raw mut culopt_flags) == OK {
+            (*wp).w_p_culopt_flags = culopt_flags as u8;
+        }
+        set_chars_option(
+            wp,
+            (*wp).w_onebuf_opt.wo_fcs,
+            CharsOption::kFillchars,
+            true,
+            ptr::null(),
+        );
+        set_chars_option(
+            wp,
+            (*wp).w_onebuf_opt.wo_lcs,
+            CharsOption::kListchars,
+            true,
+            ptr::null(),
+        );
+        parse_winhl_opt(ptr::null(), wp);
+        check_blending(wp);
+        set_winbar_win(wp, false, valid_cursor);
+        check_signcolumn(ptr::null_mut(), wp);
+        (*wp).w_grid_alloc.blending = (*wp).w_onebuf_opt.wo_winbl > 0;
+    }
+}
+
+#[inline]
+unsafe fn copy_opt_sctx(buf: *mut buf_T, bv: usize) {
+    unsafe {
+        (*buf).b_p_script_ctx[bv] = (*get_option(buf_opt_idx[bv])).script_ctx;
+    }
+}
+
+#[inline]
+unsafe fn copy_opt_insecure(bv: usize) -> u32 {
+    unsafe { (*get_option(buf_opt_idx[bv])).flags & kOptFlagInsecure }
+}
+
+/// Copy global option values to local options for one buffer.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
+    unsafe {
+        let mut should_copy = true;
+        let mut save_p_isk: *mut c_char = ptr::null_mut();
+        let mut did_isk = false;
+        let empty_opt = (&raw mut empty_string_option).cast::<c_char>();
+
+        if !p_cpo.is_null() {
+            if (vim_strchr(p_cpo, kCpoBufoptglob).is_null() || (flags & BCO_ENTER) == 0)
+                && ((*buf).b_p_initialized
+                    || ((flags & BCO_ENTER) == 0 && !vim_strchr(p_cpo, kCpoBufopt).is_null()))
+            {
+                should_copy = false;
+            }
+
+            if should_copy || (flags & BCO_ALWAYS) != 0 {
+                (*buf).b_p_script_ctx = [sctx_T {
+                    sc_sid: 0,
+                    sc_seq: 0,
+                    sc_lnum: 0,
+                    sc_chan: 0,
+                }; 93];
+                let dont_do_help =
+                    ((flags & BCO_NOHELP) != 0 && (*buf).b_help) || (*buf).b_p_initialized;
+                if dont_do_help {
+                    save_p_isk = (*buf).b_p_isk;
+                    (*buf).b_p_isk = ptr::null_mut();
+                }
+                if !(*buf).b_p_initialized {
+                    free_buf_options(buf, true);
+                    (*buf).b_p_ro = 0;
+                    (*buf).b_p_fenc = xstrdup(p_fenc);
+                    (*buf).b_p_ff = match *p_ffs as u8 {
+                        b'm' => xstrdup(c"mac".as_ptr()),
+                        b'd' => xstrdup(c"dos".as_ptr()),
+                        b'u' => xstrdup(c"unix".as_ptr()),
+                        _ => xstrdup(p_ff),
+                    };
+                    (*buf).b_p_bh = empty_opt;
+                    (*buf).b_p_bt = empty_opt;
+                } else {
+                    free_buf_options(buf, false);
+                }
+
+                (*buf).b_p_ai = p_ai;
+                copy_opt_sctx(buf, kBufOptAutoindent);
+                (*buf).b_p_ai_nopaste = P_AI_NOPASTE;
+                (*buf).b_p_sw = p_sw;
+                copy_opt_sctx(buf, kBufOptShiftwidth);
+                (*buf).b_p_scbk = p_scbk;
+                copy_opt_sctx(buf, kBufOptScrollback);
+                (*buf).b_p_tw = p_tw;
+                copy_opt_sctx(buf, kBufOptTextwidth);
+                (*buf).b_p_tw_nopaste = P_TW_NOPASTE;
+                (*buf).b_p_tw_nobin = P_TW_NOBIN;
+                (*buf).b_p_wm = p_wm;
+                copy_opt_sctx(buf, kBufOptWrapmargin);
+                (*buf).b_p_wm_nopaste = P_WM_NOPASTE;
+                (*buf).b_p_wm_nobin = P_WM_NOBIN;
+                (*buf).b_p_bin = p_bin;
+                copy_opt_sctx(buf, kBufOptBinary);
+                (*buf).b_p_bomb = p_bomb;
+                copy_opt_sctx(buf, kBufOptBomb);
+                (*buf).b_p_et = p_et;
+                copy_opt_sctx(buf, kBufOptExpandtab);
+                (*buf).b_p_fixeol = p_fixeol;
+                copy_opt_sctx(buf, kBufOptFixendofline);
+                (*buf).b_p_follow = p_follow;
+                copy_opt_sctx(buf, kBufOptFollow);
+                (*buf).b_p_et_nobin = P_ET_NOBIN;
+                (*buf).b_p_et_nopaste = P_ET_NOPASTE;
+                (*buf).b_p_ml = p_ml;
+                copy_opt_sctx(buf, kBufOptModeline);
+                (*buf).b_p_ml_nobin = P_ML_NOBIN;
+                (*buf).b_p_inf = p_inf;
+                copy_opt_sctx(buf, kBufOptInfercase);
+                if (cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
+                    (*buf).b_p_swf = 0;
+                } else {
+                    (*buf).b_p_swf = p_swf;
+                    copy_opt_sctx(buf, kBufOptSwapfile);
+                }
+                (*buf).b_p_cpt = xstrdup(p_cpt);
+                copy_opt_sctx(buf, kBufOptComplete);
+                (*buf).b_p_cpt_flags = copy_opt_insecure(kBufOptComplete);
+                set_buflocal_cpt_callbacks(buf);
+                #[cfg(windows)]
+                {
+                    (*buf).b_p_csl = xstrdup(p_csl);
+                    copy_opt_sctx(buf, kBufOptCompleteslash);
+                }
+                callback_copy(&raw mut (*buf).b_p_cfu, &raw const p_cfu);
+                copy_opt_sctx(buf, kBufOptCompletefunc);
+                callback_copy(&raw mut (*buf).b_p_ofu, &raw const p_ofu);
+                copy_opt_sctx(buf, kBufOptOmnifunc);
+                callback_copy(&raw mut (*buf).b_p_tfu, &raw const p_tfu);
+                copy_opt_sctx(buf, kBufOptTagfunc);
+                (*buf).b_p_sts = p_sts;
+                copy_opt_sctx(buf, kBufOptSofttabstop);
+                (*buf).b_p_sts_nopaste = P_STS_NOPASTE;
+                (*buf).b_p_vsts = xstrdup(p_vsts);
+                copy_opt_sctx(buf, kBufOptVarsofttabstop);
+                if !p_vsts.is_null() && p_vsts != empty_opt {
+                    tabstop_set(p_vsts, &raw mut (*buf).b_p_vsts_array, ptr::null());
+                } else {
+                    (*buf).b_p_vsts_array = ptr::null_mut();
+                }
+                (*buf).b_p_vsts_nopaste = if !P_VSTS_NOPASTE.is_null() {
+                    xstrdup(P_VSTS_NOPASTE)
+                } else {
+                    ptr::null_mut()
+                };
+                (*buf).b_p_com = xstrdup(p_com);
+                copy_opt_sctx(buf, kBufOptComments);
+                (*buf).b_p_cms = xstrdup(p_cms);
+                copy_opt_sctx(buf, kBufOptCommentstring);
+                (*buf).b_p_fo = xstrdup(p_fo);
+                copy_opt_sctx(buf, kBufOptFormatoptions);
+                (*buf).b_p_flp = xstrdup(p_flp);
+                copy_opt_sctx(buf, kBufOptFormatlistpat);
+                (*buf).b_p_nf = xstrdup(p_nf);
+                copy_opt_sctx(buf, kBufOptNrformats);
+                (*buf).b_p_mps = xstrdup(p_mps);
+                copy_opt_sctx(buf, kBufOptMatchpairs);
+                (*buf).b_p_si = p_si;
+                copy_opt_sctx(buf, kBufOptSmartindent);
+                (*buf).b_p_channel = 0;
+                (*buf).b_p_ci = p_ci;
+                copy_opt_sctx(buf, kBufOptCopyindent);
+                (*buf).b_p_cin = p_cin;
+                copy_opt_sctx(buf, kBufOptCindent);
+                (*buf).b_p_cink = xstrdup(p_cink);
+                copy_opt_sctx(buf, kBufOptCinkeys);
+                (*buf).b_p_cino = xstrdup(p_cino);
+                copy_opt_sctx(buf, kBufOptCinoptions);
+                (*buf).b_p_cinsd = xstrdup(p_cinsd);
+                copy_opt_sctx(buf, kBufOptCinscopedecls);
+                (*buf).b_p_lop = xstrdup(p_lop);
+                copy_opt_sctx(buf, kBufOptLispoptions);
+
+                (*buf).b_p_ft = empty_opt;
+                (*buf).b_p_pi = p_pi;
+                copy_opt_sctx(buf, kBufOptPreserveindent);
+                (*buf).b_p_cinw = xstrdup(p_cinw);
+                copy_opt_sctx(buf, kBufOptCinwords);
+                (*buf).b_p_lisp = p_lisp;
+                copy_opt_sctx(buf, kBufOptLisp);
+                (*buf).b_p_syn = empty_opt;
+                (*buf).b_p_smc = p_smc;
+                copy_opt_sctx(buf, kBufOptSynmaxcol);
+                (*buf).b_s.b_syn_isk = empty_opt;
+                (*buf).b_s.b_p_spc = xstrdup(p_spc);
+                copy_opt_sctx(buf, kBufOptSpellcapcheck);
+                compile_cap_prog((*buf).b_s.b_p_spc, (&raw mut (*buf).b_s.b_cap_prog).cast());
+                (*buf).b_s.b_p_spf = xstrdup(p_spf);
+                copy_opt_sctx(buf, kBufOptSpellfile);
+                (*buf).b_s.b_p_spl = xstrdup(p_spl);
+                copy_opt_sctx(buf, kBufOptSpelllang);
+                (*buf).b_s.b_p_spo = xstrdup(p_spo);
+                copy_opt_sctx(buf, kBufOptSpelloptions);
+                (*buf).b_s.b_p_spo_flags = spo_flags;
+                callback_copy(&raw mut (*buf).b_p_inde, &raw const p_inde);
+                copy_opt_sctx(buf, kBufOptIndentexpr);
+                (*buf).b_p_inde_flags = copy_opt_insecure(kBufOptIndentexpr);
+                (*buf).b_p_indk = xstrdup(p_indk);
+                copy_opt_sctx(buf, kBufOptIndentkeys);
+                (*buf).b_p_fp = empty_opt;
+                callback_copy(&raw mut (*buf).b_p_fex, &raw const p_fex);
+                copy_opt_sctx(buf, kBufOptFormatexpr);
+                (*buf).b_p_fex_flags = copy_opt_insecure(kBufOptFormatexpr);
+                (*buf).b_p_sua = xstrdup(p_sua);
+                copy_opt_sctx(buf, kBufOptSuffixesadd);
+                (*buf).b_p_keymap = xstrdup(p_keymap);
+                copy_opt_sctx(buf, kBufOptKeymap);
+                (*buf).b_kmap_state |= KEYMAP_INIT;
+                (*buf).b_p_iminsert = p_iminsert;
+                copy_opt_sctx(buf, kBufOptIminsert);
+                (*buf).b_p_imsearch = p_imsearch;
+                copy_opt_sctx(buf, kBufOptImsearch);
+
+                (*buf).b_p_ac = -1;
+                (*buf).b_p_ar = -1;
+                (*buf).b_p_fs = -1;
+                (*buf).b_p_ul = NO_LOCAL_UNDOLEVEL;
+                (*buf).b_p_bkc = empty_opt;
+                (*buf).b_bkc_flags = 0;
+                (*buf).b_p_gefm = empty_opt;
+                (*buf).b_p_gp = empty_opt;
+                (*buf).b_p_mp = empty_opt;
+                (*buf).b_p_efm = empty_opt;
+                (*buf).b_p_ep = empty_opt;
+                (*buf).b_p_ffu = Callback {
+                    data: ptr::null_mut(),
+                    cb_type: kCallbackNone,
+                };
+                (*buf).b_p_kp = empty_opt;
+                (*buf).b_p_path = empty_opt;
+                (*buf).b_p_tags = empty_opt;
+                (*buf).b_p_tc = empty_opt;
+                (*buf).b_tc_flags = 0;
+                (*buf).b_p_def = empty_opt;
+                (*buf).b_p_inc = empty_opt;
+                callback_copy(&raw mut (*buf).b_p_inex, &raw const p_inex);
+                copy_opt_sctx(buf, kBufOptIncludeexpr);
+                (*buf).b_p_inex_flags = copy_opt_insecure(kBufOptIncludeexpr);
+                (*buf).b_p_cot = empty_opt;
+                (*buf).b_cot_flags = 0;
+                (*buf).b_p_dict = empty_opt;
+                (*buf).b_p_dia = empty_opt;
+                (*buf).b_p_tsr = empty_opt;
+                (*buf).b_p_tsrfu = Callback {
+                    data: ptr::null_mut(),
+                    cb_type: kCallbackNone,
+                };
+                (*buf).b_p_qe = xstrdup(p_qe);
+                copy_opt_sctx(buf, kBufOptQuoteescape);
+                (*buf).b_p_udf = p_udf;
+                copy_opt_sctx(buf, kBufOptUndofile);
+                (*buf).b_p_lw = empty_opt;
+                (*buf).b_p_menc = empty_opt;
+
+                if dont_do_help {
+                    (*buf).b_p_isk = save_p_isk;
+                    if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_null() {
+                        tabstop_set(p_vts, &raw mut (*buf).b_p_vts_array, ptr::null());
+                    } else {
+                        (*buf).b_p_vts_array = ptr::null_mut();
+                    }
+                } else {
+                    (*buf).b_p_isk = xstrdup(p_isk);
+                    copy_opt_sctx(buf, kBufOptIskeyword);
+                    did_isk = true;
+                    (*buf).b_p_ts = p_ts;
+                    copy_opt_sctx(buf, kBufOptTabstop);
+                    (*buf).b_p_vts = xstrdup(p_vts);
+                    copy_opt_sctx(buf, kBufOptVartabstop);
+                    if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_null() {
+                        tabstop_set(p_vts, &raw mut (*buf).b_p_vts_array, ptr::null());
+                    } else {
+                        (*buf).b_p_vts_array = ptr::null_mut();
+                    }
+                    (*buf).b_help = false;
+                    if *(*buf).b_p_bt == b'h' as c_char {
+                        clear_string_option(&raw mut (*buf).b_p_bt);
+                    }
+                    (*buf).b_p_ma = p_ma;
+                    copy_opt_sctx(buf, kBufOptModifiable);
+                }
+            }
+
+            if should_copy {
+                (*buf).b_p_initialized = true;
+            }
+        }
+
+        check_buf_options(buf);
+        if did_isk {
+            buf_init_isk_chartab(buf);
+        }
+    }
+}
+
+/// Reset the 'modifiable' option and its default value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn reset_modifiable() {
+    unsafe {
+        (*curbuf).b_p_ma = 0;
+        p_ma = 0;
+        change_option_default(kOptModifiable, boolean_obj(false));
+    }
+}
+
+/// Set the global value for 'iminsert' to the local value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_iminsert_global(buf: *mut buf_T) {
+    unsafe {
+        p_iminsert = (*buf).b_p_iminsert;
+    }
+}
+
+/// Set the global value for 'imsearch' to the local value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_imsearch_global(buf: *mut buf_T) {
+    unsafe {
+        p_imsearch = (*buf).b_p_imsearch;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_context_in_set_cmd(
+    xp: *mut expand_T,
+    mut arg: *mut c_char,
+    opt_flags: c_int,
+) {
+    unsafe {
+        EXPAND_OPTION_FLAGS = opt_flags;
+
+        (*xp).xp_context = EXPAND_SETTINGS;
+        if *arg == NUL {
+            (*xp).xp_pattern = arg;
+            return;
+        }
+        let argend = arg.add(c_strlen(arg));
+        let mut p = argend.offset(-1);
+        if *p == b' ' as c_char && *p.offset(-1) != b'\\' as c_char {
+            (*xp).xp_pattern = p.add(1);
+            return;
+        }
+        while p > arg {
+            let mut s = p;
+            if *p == b' ' as c_char || *p == b',' as c_char {
+                while s > arg && *s.offset(-1) == b'\\' as c_char {
+                    s = s.offset(-1);
+                }
+            }
+            if *p == b' ' as c_char && (p.offset_from(s) & 1) == 0 {
+                p = p.add(1);
+                break;
+            }
+            p = p.offset(-1);
+        }
+        if c_strncmp(p, c"no".as_ptr(), 2) == 0 {
+            (*xp).xp_context = EXPAND_BOOL_SETTINGS;
+            (*xp).xp_prefix = XP_PREFIX_NO;
+            p = p.add(2);
+        } else if c_strncmp(p, c"inv".as_ptr(), 3) == 0 {
+            (*xp).xp_context = EXPAND_BOOL_SETTINGS;
+            (*xp).xp_prefix = XP_PREFIX_INV;
+            p = p.add(3);
+        }
+        (*xp).xp_pattern = p;
+        arg = p;
+
+        let mut nextchar: c_char;
+        let mut flags: u32 = 0;
+        let mut opt_idx: OptIndex = 0;
+        let mut is_term_option = false;
+
+        if *arg == b'<' as c_char {
+            while *p != b'>' as c_char {
+                if *p == NUL {
+                    return;
+                }
+                p = p.add(1);
+            }
+            p = p.add(1);
+            let key = get_special_key_code(arg.add(1));
+            if key == 0 {
+                (*xp).xp_context = EXPAND_NOTHING;
+                return;
+            }
+            nextchar = *p;
+            is_term_option = true;
+            EXPAND_OPTION_NAME[2] = key2termcap0(key) as c_char;
+            EXPAND_OPTION_NAME[3] = key2termcap1(key) as c_char;
+        } else if *p == b't' as c_char && *p.add(1) == b'_' as c_char {
+            p = p.add(2);
+            if *p != NUL {
+                p = p.add(1);
+            }
+            if *p == NUL {
+                return;
+            }
+            p = p.add(1);
+            nextchar = *p;
+            is_term_option = true;
+            EXPAND_OPTION_NAME[2] = *p.offset(-2);
+            EXPAND_OPTION_NAME[3] = *p.offset(-1);
+        } else {
+            while ascii_isalnum(*p) || *p == b'_' as c_char || *p == b'*' as c_char {
+                p = p.add(1);
+            }
+            if *p == NUL {
+                return;
+            }
+            nextchar = *p;
+            opt_idx = find_option_len(arg, p.offset_from(arg) as usize);
+            if opt_idx == kOptInvalid || is_option_hidden(opt_idx) {
+                (*xp).xp_context = EXPAND_NOTHING;
+                return;
+            }
+            flags = (*get_option(opt_idx)).flags;
+            if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
+                (*xp).xp_context = EXPAND_NOTHING;
+                return;
+            }
+        }
+
+        EXPAND_OPTION_APPEND = false;
+        let mut expand_option_subtract = false;
+        if (nextchar == b'-' as c_char || nextchar == b'+' as c_char || nextchar == b'^' as c_char)
+            && *p.add(1) == b'=' as c_char
+        {
+            if nextchar == b'-' as c_char {
+                expand_option_subtract = true;
+            }
+            if nextchar == b'+' as c_char || nextchar == b'^' as c_char {
+                EXPAND_OPTION_APPEND = true;
+            }
+            p = p.add(1);
+            nextchar = b'=' as c_char;
+        }
+        if (nextchar != b'=' as c_char && nextchar != b':' as c_char)
+            || (*xp).xp_context == EXPAND_BOOL_SETTINGS
+        {
+            (*xp).xp_context = EXPAND_UNSUCCESSFUL;
+            return;
+        }
+
+        if is_term_option {
+            EXPAND_OPTION_IDX = kOptInvalid;
+        } else {
+            EXPAND_OPTION_IDX = opt_idx;
+        }
+
+        (*xp).xp_pattern = p.add(1);
+        EXPAND_OPTION_START_COL = p.add(1).offset_from((*xp).xp_line) as c_int;
+
+        let opt_var = (*get_option(opt_idx)).var;
+        if opt_var == (&raw mut p_syn).cast::<c_void>() {
+            (*xp).xp_context = EXPAND_OWNSYNTAX;
+            return;
+        }
+        if opt_var == (&raw mut p_ft).cast::<c_void>() {
+            (*xp).xp_context = EXPAND_FILETYPE;
+            return;
+        }
+        if opt_var == (&raw mut p_keymap).cast::<c_void>() {
+            (*xp).xp_context = EXPAND_KEYMAP;
+            return;
+        }
+
+        if expand_option_subtract {
+            (*xp).xp_context = EXPAND_SETTING_SUBTRACT;
+            return;
+        } else if EXPAND_OPTION_IDX != kOptInvalid
+            && (*get_option(EXPAND_OPTION_IDX)).opt_expand_cb.is_some()
+        {
+            (*xp).xp_context = EXPAND_STRING_SETTING;
+        } else if *(*xp).xp_pattern == NUL {
+            (*xp).xp_context = EXPAND_OLD_SETTING;
+            return;
+        } else {
+            (*xp).xp_context = EXPAND_NOTHING;
+        }
+
+        if is_term_option || option_has_type(opt_idx, ObjectType::kObjectTypeInteger) {
+            return;
+        }
+
+        if (flags & kOptFlagExpand) != 0 {
+            let v = (*get_option(opt_idx)).var;
+            if v == (&raw mut p_bdir).cast()
+                || v == (&raw mut p_dir).cast()
+                || v == (&raw mut p_path).cast()
+                || v == (&raw mut p_pp).cast()
+                || v == (&raw mut p_rtp).cast()
+                || v == (&raw mut p_cdpath).cast()
+                || v == (&raw mut p_vdir).cast()
+            {
+                (*xp).xp_context = EXPAND_DIRECTORIES;
+                if v == (&raw mut p_path).cast() || v == (&raw mut p_cdpath).cast() {
+                    (*xp).xp_backslash = XP_BS_THREE;
+                } else {
+                    (*xp).xp_backslash = XP_BS_ONE;
+                }
+            } else {
+                (*xp).xp_context = EXPAND_FILES;
+                if v == (&raw mut p_tags).cast() {
+                    (*xp).xp_backslash = XP_BS_THREE;
+                } else {
+                    (*xp).xp_backslash = XP_BS_ONE;
+                }
+            }
+            if (flags & kOptFlagComma) != 0 {
+                (*xp).xp_backslash |= XP_BS_COMMA;
+            }
+        }
+
+        if (flags & kOptFlagExpand) != 0
+            || (flags & kOptFlagComma) != 0
+            || (flags & kOptFlagColon) != 0
+        {
+            p = argend.offset(-1);
+            while p > (*xp).xp_pattern {
+                if *p == b' ' as c_char
+                    || *p == b',' as c_char
+                    || (*p == b':' as c_char && (flags & kOptFlagColon) != 0)
+                {
+                    let mut s = p;
+                    while s > (*xp).xp_pattern && *s.offset(-1) == b'\\' as c_char {
+                        s = s.offset(-1);
+                    }
+                    #[cfg(windows)]
+                    let comma_unesc = *p == b',' as c_char
+                        && (flags & kOptFlagComma) != 0
+                        && p.offset_from(s) < 1;
+                    #[cfg(not(windows))]
+                    let comma_unesc = *p == b',' as c_char
+                        && (flags & kOptFlagComma) != 0
+                        && p.offset_from(s) < 2;
+
+                    if (*p == b' ' as c_char
+                        && (((*xp).xp_backslash & XP_BS_THREE) != 0 && p.offset_from(s) < 3))
+                        || comma_unesc
+                        || (*p == b':' as c_char && (flags & kOptFlagColon) != 0)
+                    {
+                        (*xp).xp_pattern = p.add(1);
+                        break;
+                    }
+                }
+                p = p.offset(-1);
+            }
+        }
+
+        if (flags & kOptFlagFlagList) != 0 {
+            (*xp).xp_pattern = argend;
+        }
+
+        if (*get_option(opt_idx)).var == (&raw mut p_sps).cast() {
+            if c_strncmp((*xp).xp_pattern, c"file:".as_ptr(), 5) == 0 {
+                (*xp).xp_pattern = (*xp).xp_pattern.add(5);
+            } else if (*get_option(EXPAND_OPTION_IDX)).opt_expand_cb.is_some() {
+                (*xp).xp_context = EXPAND_STRING_SETTING;
+            }
+        }
+    }
+}
+
+unsafe fn match_str(
+    str_arg: *mut c_char,
+    regmatch: *mut regmatch_T,
+    matches: *mut *mut c_char,
+    idx: c_int,
+    test_only: bool,
+    fuzzy: bool,
+    fuzzystr: *const c_char,
+    fuzmatch: *mut fuzmatch_str_T,
+) -> bool {
+    unsafe {
+        if !fuzzy {
+            if vim_regexec(regmatch.cast(), str_arg, 0) {
+                if !test_only {
+                    *matches.add(idx as usize) = xstrdup(str_arg);
+                }
+                return true;
+            }
+        } else {
+            let score = fuzzy_match_str(str_arg, fuzzystr);
+            if score != FUZZY_SCORE_NONE {
+                if !test_only {
+                    let fm = fuzmatch.add(idx as usize);
+                    (*fm).idx = idx;
+                    (*fm).str_ptr = xstrdup(str_arg);
+                    (*fm).score = score;
+                }
+                return true;
+            }
+        }
+        false
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ExpandSettings(
+    xp: *mut expand_T,
+    regmatch: *mut regmatch_T,
+    fuzzystr: *mut c_char,
+    numMatches: *mut c_int,
+    matches: *mut *mut *mut c_char,
+    can_fuzzy: bool,
+) -> c_int {
+    unsafe {
+        let mut num_normal: c_int = 0;
+        let mut count: c_int = 0;
+        let names: [*mut c_char; 1] = [c"all".as_ptr().cast_mut()];
+        let ic = (*regmatch).rm_ic;
+
+        let mut fuzmatch: *mut fuzmatch_str_T = ptr::null_mut();
+        let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr);
+
+        for loop_idx in 0..=1 {
+            (*regmatch).rm_ic = ic;
+            if (*xp).xp_context != EXPAND_BOOL_SETTINGS {
+                for &name in &names {
+                    if match_str(
+                        name,
+                        regmatch,
+                        *matches,
+                        count,
+                        loop_idx == 0,
+                        fuzzy,
+                        fuzzystr,
+                        fuzmatch,
+                    ) {
+                        if loop_idx == 0 {
+                            num_normal += 1;
+                        } else {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            for opt_idx in 0..kOptCount {
+                let opt = get_option(opt_idx);
+                let str_ptr = (*opt).fullname;
+                if is_option_hidden(opt_idx) {
+                    continue;
+                }
+                if (*xp).xp_context == EXPAND_BOOL_SETTINGS
+                    && !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean)
+                {
+                    continue;
+                }
+
+                if match_str(
+                    str_ptr,
+                    regmatch,
+                    *matches,
+                    count,
+                    loop_idx == 0,
+                    fuzzy,
+                    fuzzystr,
+                    fuzmatch,
+                ) {
+                    if loop_idx == 0 {
+                        num_normal += 1;
+                    } else {
+                        count += 1;
+                    }
+                } else if !fuzzy
+                    && !(*opt).shortname.is_null()
+                    && vim_regexec(regmatch.cast(), (*opt).shortname, 0)
+                {
+                    if loop_idx == 0 {
+                        num_normal += 1;
+                    } else {
+                        *(*matches).add(count as usize) = xstrdup(str_ptr);
+                        count += 1;
+                    }
+                }
+            }
+
+            if loop_idx == 0 {
+                if num_normal > 0 {
+                    *numMatches = num_normal;
+                } else {
+                    return OK;
+                }
+                if !fuzzy {
+                    *matches = xmalloc((*numMatches as usize) * std::mem::size_of::<*mut c_char>())
+                        .cast::<*mut c_char>();
+                } else {
+                    fuzmatch =
+                        xmalloc((*numMatches as usize) * std::mem::size_of::<fuzmatch_str_T>())
+                            .cast::<fuzmatch_str_T>();
+                }
+            }
+        }
+
+        if fuzzy {
+            fuzzymatches_to_strmatches(fuzmatch, matches, count, false);
+        }
+
+        OK
+    }
+}
+
+/// Escape an option value that can be used on the command-line with :set.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn escape_option_str_cmdline(var_arg: *mut c_char) -> *mut c_char {
+    unsafe {
+        let buf = vim_strsave_escaped(var_arg, escape_chars);
+
+        #[cfg(windows)]
+        {
+            let mut var = buf;
+            while *var != NUL {
+                if *var == b'\\' as c_char
+                    && *var.add(1) == b'\\' as c_char
+                    && EXPAND_OPTION_IDX != kOptInvalid
+                    && ((*get_option(EXPAND_OPTION_IDX)).flags & kOptFlagExpand) != 0
+                    && vim_isfilec(*var.add(2) as u8 as c_int)
+                    && (*var.add(2) != b'\\' as c_char
+                        || (var == buf && *var.add(4) != b'\\' as c_char))
+                {
+                    let src = var.add(1);
+                    ptr::copy(src, var, c_strlen(src) + 1);
+                }
+                var = var.add(utfc_ptr2len(var) as usize);
+            }
+        }
+        buf
+    }
+}
+
+/// Expansion handler for :set= when we just want to fill in with the existing value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ExpandOldSetting(
+    numMatches: *mut c_int,
+    matches: *mut *mut *mut c_char,
+) -> c_int {
+    unsafe {
+        *numMatches = 0;
+        *matches = ptr::null_mut();
+
+        if EXPAND_OPTION_IDX == kOptInvalid {
+            EXPAND_OPTION_IDX = find_option((&raw const EXPAND_OPTION_NAME).cast());
+        }
+
+        let var = if EXPAND_OPTION_IDX != kOptInvalid {
+            let o = opt_from_varp(
+                EXPAND_OPTION_IDX,
+                get_varp_scope(get_option(EXPAND_OPTION_IDX), EXPAND_OPTION_FLAGS),
+            );
+            let is_luafn = o.obj_type == ObjectType::kObjectTypeLuaRef;
+            optval_free_read(EXPAND_OPTION_IDX, o);
+            if is_luafn {
+                return OK;
+            }
+            optval_fmt(EXPAND_OPTION_IDX, EXPAND_OPTION_FLAGS);
+            (&raw mut NameBuff).cast::<c_char>()
+        } else {
+            c"".as_ptr().cast_mut()
+        };
+
+        let buf = escape_option_str_cmdline(var);
+
+        *matches = xmalloc(std::mem::size_of::<*mut c_char>()).cast::<*mut c_char>();
+        *(*matches) = buf;
+        *numMatches = 1;
+        OK
+    }
+}
+
+/// Expansion handler for :set=/:set+= when the option has a custom expansion handler.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ExpandStringSetting(
+    xp: *mut expand_T,
+    regmatch: *mut regmatch_T,
+    numMatches: *mut c_int,
+    matches: *mut *mut *mut c_char,
+) -> c_int {
+    unsafe {
+        if EXPAND_OPTION_IDX == kOptInvalid {
+            return FAIL;
+        }
+        let opt = get_option(EXPAND_OPTION_IDX);
+        let Some(expand_cb) = (*opt).opt_expand_cb else {
+            return FAIL;
+        };
+
+        let set_arg = (*xp).xp_line.add(EXPAND_OPTION_START_COL as usize);
+        let mut args = optexpand_T {
+            oe_varp: get_varp_scope(opt, EXPAND_OPTION_FLAGS).cast::<c_char>(),
+            oe_idx: EXPAND_OPTION_IDX,
+            oe_opt_value: ptr::null_mut(),
+            oe_append: EXPAND_OPTION_APPEND,
+            oe_include_orig_val: !EXPAND_OPTION_APPEND && *set_arg == NUL,
+            oe_regmatch: regmatch,
+            oe_xp: xp,
+            oe_set_arg: set_arg,
+        };
+
+        optval_fmt(EXPAND_OPTION_IDX, EXPAND_OPTION_FLAGS);
+        let buf = escape_option_str_cmdline((&raw mut NameBuff).cast::<c_char>());
+        args.oe_opt_value = buf;
+
+        let num_ret = expand_cb(&raw mut args, numMatches, matches);
+
+        xfree(buf.cast());
+        num_ret
+    }
+}
+
+/// Expansion handler for :set-=
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ExpandSettingSubtract(
+    xp: *mut expand_T,
+    regmatch: *mut regmatch_T,
+    numMatches: *mut c_int,
+    matches: *mut *mut *mut c_char,
+) -> c_int {
+    unsafe {
+        if EXPAND_OPTION_IDX == kOptInvalid {
+            return ExpandOldSetting(numMatches, matches);
+        }
+
+        let option_val =
+            *(get_option_varp_scope_from(EXPAND_OPTION_IDX, EXPAND_OPTION_FLAGS, curbuf, curwin)
+                .cast::<*mut c_char>());
+
+        let option_flags = (*get_option(EXPAND_OPTION_IDX)).flags;
+
+        if option_has_type(EXPAND_OPTION_IDX, ObjectType::kObjectTypeInteger) {
+            return ExpandOldSetting(numMatches, matches);
+        } else if (option_flags & kOptFlagComma) != 0 {
+            if *option_val == NUL {
+                return FAIL;
+            }
+
+            let option_copy = xstrdup(option_val);
+            let mut next_val = option_copy;
+
+            let mut ga = garray_T {
+                ga_len: 0,
+                ga_maxlen: 0,
+                ga_itemsize: 0,
+                ga_growsize: 0,
+                ga_data: ptr::null_mut(),
+            };
+            ga_init(&raw mut ga, std::mem::size_of::<*mut c_char>() as c_int, 10);
+
+            loop {
+                let item = next_val;
+                let mut comma = vim_strchr(next_val, b',' as c_int);
+                while !comma.is_null() && comma != next_val && *comma.offset(-1) == b'\\' as c_char
+                {
+                    comma = vim_strchr(comma.add(1), b',' as c_int);
+                }
+                if !comma.is_null() {
+                    *comma = NUL;
+                    next_val = comma.add(1);
+                } else {
+                    next_val = ptr::null_mut();
+                }
+
+                if *item != NUL && vim_regexec(regmatch.cast(), item, 0) {
+                    let buf = escape_option_str_cmdline(item);
+                    ga_append_ptr(&raw mut ga, buf);
+                }
+
+                if next_val.is_null() {
+                    break;
+                }
+            }
+
+            xfree(option_copy.cast());
+
+            *matches = ga.ga_data.cast();
+            *numMatches = ga.ga_len;
+            return OK;
+        } else if (option_flags & kOptFlagFlagList) != 0 {
+            if *(*xp).xp_pattern != NUL {
+                return FAIL;
+            }
+
+            let num_flags = c_strlen(option_val);
+            if num_flags == 0 {
+                return FAIL;
+            }
+
+            *matches =
+                xmalloc(std::mem::size_of::<*mut c_char>() * (num_flags + 1)).cast::<*mut c_char>();
+            let mut count: usize = 0;
+
+            *(*matches).add(count) = xmemdupz(option_val.cast(), num_flags).cast::<c_char>();
+            count += 1;
+
+            if num_flags > 1 {
+                let mut flag = option_val;
+                while *flag != NUL {
+                    *(*matches).add(count) = xmemdupz(flag.cast(), 1).cast::<c_char>();
+                    count += 1;
+                    flag = flag.add(1);
+                }
+            }
+
+            *numMatches = count as c_int;
+            return OK;
+        }
+
+        ExpandOldSetting(numMatches, matches)
+    }
+}
+
+unsafe fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
+    unsafe {
+        let opt = get_option(opt_idx);
+        let varp = get_varp_scope(opt, opt_flags);
+        assert!(!varp.is_null());
+
+        let namebuf_ptr = (&raw mut NameBuff).cast::<c_char>();
+        let mut wc: OptInt = 0;
+        if wc_use_keyname(varp, &raw mut wc) != 0 {
+            xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);
+            return;
+        }
+        if wc != 0 {
+            xstrlcpy(namebuf_ptr, transchar(wc as c_int), MAXPATHL);
+            return;
+        }
+        if ((*opt).flags & kOptFlagExpand) != 0
+            && !is_callback_option(opt_idx)
+            && option_has_type(opt_idx, ObjectType::kObjectTypeString)
+        {
+            home_replace(
+                ptr::null_mut(),
+                *(varp.cast::<*mut c_char>()),
+                namebuf_ptr,
+                MAXPATHL,
+                false,
+            );
+            return;
+        }
+
+        let o = opt_from_varp(opt_idx, varp);
+        let s = optval_to_cstr(o, false);
+        xstrlcpy(namebuf_ptr, s, MAXPATHL);
+        xfree(s.cast());
+        optval_free_read(opt_idx, o);
+    }
+}
+
+unsafe fn wc_use_keyname(varp: *const c_void, wcp: *mut OptInt) -> c_int {
+    unsafe {
+        let p = varp.cast::<OptInt>();
+        if p == &raw const p_wc || p == &raw const p_wcm {
+            *wcp = *p;
+            if is_special(*wcp) || find_special_key_in_table(*wcp as c_int) >= 0 {
+                return 1;
+            }
+        }
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn shortmess(x: c_int) -> bool {
+    unsafe {
+        !p_shm.is_null()
+            && (!vim_strchr(p_shm, x).is_null()
+                || (!vim_strchr(p_shm, b'a' as c_int).is_null()
+                    && !vim_strchr(SHM_ALL_ABBREVIATIONS, x).is_null()))
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vimrc_found(fname: *mut c_char, envname: *mut c_char) {
+    unsafe {
+        if !fname.is_null() && !envname.is_null() {
+            let mut p = vim_getenv(envname);
+            if p.is_null() {
+                p = FullName_save(fname, false);
+                if !p.is_null() {
+                    os_setenv(envname, p, 1);
+                    xfree(p.cast());
+                }
+            } else {
+                xfree(p.cast());
+            }
+        }
+    }
+}
+
+/// Check whether global option has been set.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_was_set(opt_idx: OptIndex) -> bool {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+        ((*get_option(opt_idx)).flags & kOptFlagWasSet) != 0
+    }
+}
+
+/// Reset the flag indicating option "name" was set.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn reset_option_was_set(opt_idx: OptIndex) {
+    unsafe {
+        assert!(opt_idx != kOptInvalid);
+        (*get_option(opt_idx)).flags &= !kOptFlagWasSet;
+    }
+}
+
+/// Parse 'cursorlineopt', writing flags only when the value is valid.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
+    unsafe {
+        let mut p = val;
+        let mut culopt_flags_new: u8 = 0;
+
+        while *p != NUL {
+            if c_strncmp(p, c"line".as_ptr(), 4) == 0 {
+                p = p.add(4);
+                culopt_flags_new |= kOptCuloptFlagLine;
+            } else if c_strncmp(p, c"both".as_ptr(), 4) == 0 {
+                p = p.add(4);
+                culopt_flags_new |= kOptCuloptFlagLine | kOptCuloptFlagNumber;
+            } else if c_strncmp(p, c"number".as_ptr(), 6) == 0 {
+                p = p.add(6);
+                culopt_flags_new |= kOptCuloptFlagNumber;
+            } else if c_strncmp(p, c"screenline".as_ptr(), 10) == 0 {
+                p = p.add(10);
+                culopt_flags_new |= kOptCuloptFlagScreenline;
+            }
+
+            if *p != b',' as c_char && *p != NUL {
+                return FAIL;
+            }
+            if *p == b',' as c_char {
+                p = p.add(1);
+            }
+        }
+
+        if (culopt_flags_new & kOptCuloptFlagLine) != 0
+            && (culopt_flags_new & kOptCuloptFlagScreenline) != 0
+        {
+            return FAIL;
+        }
+        *flags = c_uint::from(culopt_flags_new);
+
+        OK
+    }
+}
+
+/// Set the callback function value for an option that accepts a function name, lambda, et al.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_set_callback_func(
+    optval: *mut c_char,
+    optcb: *mut Callback,
+) -> c_int {
+    unsafe {
+        if optval.is_null() || *optval == NUL {
+            callback_free(optcb);
+            return OK;
+        }
+
+        let tv: *mut typval_T = if *optval == b'{' as c_char
+            || c_strncmp(optval, c"function(".as_ptr(), 9) == 0
+            || c_strncmp(optval, c"funcref(".as_ptr(), 8) == 0
+        {
+            let evaluated = eval_expr(optval, ptr::null_mut());
+            if evaluated.is_null() {
+                return FAIL;
+            }
+            evaluated
+        } else {
+            let allocated = xcalloc(1, std::mem::size_of::<typval_T>()).cast::<typval_T>();
+            (*allocated).v_type = VAR_STRING;
+            (*allocated).vval.v_string = xstrdup(optval);
+            allocated
+        };
+
+        let mut cb = Callback {
+            data: ptr::null_mut(),
+            cb_type: kCallbackNone,
+        };
+        if !callback_from_typval(&raw mut cb, tv) || cb.cb_type == kCallbackNone {
+            tv_free(tv);
+            return FAIL;
+        }
+
+        callback_free(optcb);
+        *optcb = cb;
+        tv_free(tv);
+        OK
+    }
+}
+
+unsafe fn didset_options_sctx(opt_flags: c_int, buf: *mut c_int) {
+    unsafe {
+        let mut i: usize = 0;
+        loop {
+            let opt_idx = *buf.add(i);
+            if opt_idx == kOptInvalid {
+                break;
+            }
+            set_option_sctx(opt_idx, opt_flags, current_sctx);
+            i += 1;
+        }
+    }
+}
+
+/// Check if backspacing over something is allowed.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn can_bs(what: c_int) -> bool {
+    unsafe {
+        if what == BS_START && bt_prompt(curbuf) {
+            return false;
+        }
+
+        if what == BS_EOL && !mc_ins_replay_can_join() {
+            return false;
+        }
+
+        if *p_bs == b'2' as c_char {
+            return what != BS_NOSTOP;
+        }
+
+        !vim_strchr(p_bs, what).is_null()
+    }
+}
+
+/// Get the local or global value of 'backupcopy' flags.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_bkc_flags(buf: *mut buf_T) -> c_uint {
+    unsafe {
+        if (*buf).b_bkc_flags != 0 {
+            (*buf).b_bkc_flags
+        } else {
+            bkc_flags
+        }
+    }
+}
+
+/// Get the local or global value of 'formatlistpat'.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_flp_value(buf: *mut buf_T) -> *mut c_char {
+    unsafe {
+        if (*buf).b_p_flp.is_null() || *(*buf).b_p_flp == NUL {
+            p_flp
+        } else {
+            (*buf).b_p_flp
+        }
+    }
+}
+
+/// Get the local or global value of 'virtualedit' flags.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_ve_flags(wp: *mut win_T) -> c_uint {
+    unsafe {
+        let f = if (*wp).w_onebuf_opt.wo_ve_flags != 0 {
+            (*wp).w_onebuf_opt.wo_ve_flags
+        } else {
+            ve_flags
+        };
+        f & !(kOptVeFlagNone | kOptVeFlagNoneU)
+    }
+}
+
+/// Get the local or global value of 'showbreak'.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_showbreak_value(win: *mut win_T) -> *mut c_char {
+    unsafe {
+        let sbr = (*win).w_onebuf_opt.wo_sbr;
+        if sbr.is_null() || *sbr == NUL {
+            return p_sbr;
+        }
+        if c_strcmp(sbr, c"NONE".as_ptr()) == 0 {
+            return (&raw mut empty_string_option).cast::<c_char>();
+        }
+        sbr
+    }
+}
+
+/// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_fileformat(buf: *const buf_T) -> c_int {
+    unsafe {
+        let c = *(*buf).b_p_ff as u8;
+        if (*buf).b_p_bin != 0 || c == b'u' {
+            return EOL_UNIX;
+        }
+        if c == b'm' {
+            return EOL_MAC;
+        }
+        EOL_DOS
+    }
+}
+
+/// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int {
+    unsafe {
+        let c = if !eap.is_null() && (*eap).force_ff != 0 {
+            (*eap).force_ff as u8
+        } else {
+            let is_bin = if !eap.is_null() && (*eap).force_bin != 0 {
+                (*eap).force_bin == FORCE_BIN
+            } else {
+                (*buf).b_p_bin != 0
+            };
+            if is_bin {
+                return EOL_UNIX;
+            }
+            *(*buf).b_p_ff as u8
+        };
+        if c == b'u' {
+            return EOL_UNIX;
+        }
+        if c == b'm' {
+            return EOL_MAC;
+        }
+        EOL_DOS
+    }
+}
+
+/// Return the default fileformat from 'fileformats'.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn default_fileformat() -> c_int {
+    unsafe {
+        match *p_ffs as u8 {
+            b'm' => EOL_MAC,
+            b'd' => EOL_DOS,
+            _ => EOL_UNIX,
+        }
+    }
+}
+
+/// Set the current end-of-line type to EOL_UNIX, EOL_MAC, or EOL_DOS.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_fileformat(eol_style: c_int, opt_flags: c_int) {
+    unsafe {
+        let p: *const c_char = match eol_style {
+            EOL_UNIX => c"unix".as_ptr(),
+            EOL_MAC => c"mac".as_ptr(),
+            EOL_DOS => c"dos".as_ptr(),
+            _ => ptr::null(),
+        };
+
+        if !p.is_null() {
+            set_option_direct(kOptFileformat, cstr_as_obj(p), opt_flags, 0);
+        }
+
+        redraw_buf_status_later(curbuf);
+        redraw_tabline = true;
+        need_maketitle = true;
+    }
+}
+
+/// Skip to next part of an option argument: skip space and comma.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn skip_to_option_part(mut p: *const c_char) -> *mut c_char {
+    unsafe {
+        if *p == b',' as c_char {
+            p = p.add(1);
+        }
+        while *p == b' ' as c_char {
+            p = p.add(1);
+        }
+        p.cast_mut()
+    }
+}
+
+/// Isolate one part of a string option separated by `sep_chars`.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn copy_option_part(
+    option: *mut *mut c_char,
+    buf: *mut c_char,
+    maxlen: usize,
+    sep_chars: *mut c_char,
+) -> usize {
+    unsafe {
+        let mut len: usize = 0;
+        let mut p = *option;
+
+        if *p == b'.' as c_char {
+            *buf.add(len) = *p;
+            len += 1;
+            p = p.add(1);
+        }
+        while *p != NUL && vim_strchr(sep_chars, *p as u8 as c_int).is_null() {
+            if *p == b'\\' as c_char && !vim_strchr(sep_chars, *p.add(1) as u8 as c_int).is_null() {
+                p = p.add(1);
+            }
+            if len < maxlen - 1 {
+                *buf.add(len) = *p;
+                len += 1;
+            }
+            p = p.add(1);
+        }
+        *buf.add(len) = NUL;
+
+        if *p != NUL && *p != b',' as c_char {
+            p = p.add(1);
+        }
+        p = skip_to_option_part(p);
+
+        *option = p;
+        len
+    }
+}
+
+/// Iterates comma-separated parts of option, splitting each part at its first ':' into key/value.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_next_keyval(
+    p: *mut *const c_char,
+    key: *mut *const c_char,
+    keylen: *mut usize,
+    val: *mut *const c_char,
+    vallen: *mut usize,
+) -> bool {
+    unsafe {
+        let s = *p;
+        if *s == NUL {
+            return false;
+        }
+
+        let comma = vim_strchr(s, b',' as c_int);
+        let end = if !comma.is_null() {
+            comma as *const c_char
+        } else {
+            s.add(c_strlen(s))
+        };
+        let colon = vim_strchr(s, b':' as c_int) as *const c_char;
+
+        *key = s;
+        if !colon.is_null() && colon < end {
+            *keylen = colon.offset_from(s) as usize;
+            *val = colon.add(1);
+            *vallen = end.offset_from(colon.add(1)) as usize;
+        } else {
+            *keylen = end.offset_from(s) as usize;
+            *val = ptr::null();
+            *vallen = 0;
+        }
+
+        *p = if !comma.is_null() {
+            (comma as *const c_char).add(1)
+        } else {
+            end
+        };
+        true
+    }
+}
+
+/// Compare a (non-NUL-terminated) slice from option_next_keyval() against a name.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_slice_eq(
+    slice: *const c_char,
+    slicelen: usize,
+    name: *const c_char,
+) -> bool {
+    unsafe {
+        !slice.is_null() && c_strlen(name) == slicelen && c_strncmp(slice, name, slicelen) == 0
+    }
+}
+
+/// Return true when 'shell' has "csh" in the tail.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn csh_like_shell() -> c_int {
+    unsafe { c_int::from(!c_strstr(path_tail(p_sh), c"csh".as_ptr()).is_null()) }
+}
+
+/// Return true when 'shell' has "fish" in the tail.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn fish_like_shell() -> bool {
+    unsafe { !c_strstr(path_tail(p_sh), c"fish".as_ptr()).is_null() }
+}
+
+/// Get window or buffer local options.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
+    unsafe {
+        let d = tv_dict_alloc();
+
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+
+            if (bufopt != 0 && option_has_scope(opt_idx, kOptScopeBuf))
+                || (bufopt == 0 && option_has_scope(opt_idx, kOptScopeWin))
+            {
+                let varp = get_varp(opt);
+                if !varp.is_null() {
+                    let ov = opt_from_varp(opt_idx, varp);
+                    let mut opt_tv = opt_to_tv(ov, true);
+                    tv_dict_add_tv(
+                        d,
+                        (*opt).fullname,
+                        c_strlen((*opt).fullname),
+                        &raw mut opt_tv,
+                    );
+                    tv_clear(&raw mut opt_tv);
+                    optval_free_read(opt_idx, ov);
+                }
+            }
+        }
+
+        d
+    }
+}
+
+/// Return the effective 'scrolloff' value for the current window.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_scrolloff_value(wp: *mut win_T) -> i64 {
+    unsafe {
+        if (State & MODE_TERMINAL) != 0 && !(*(*wp).w_buffer).terminal.is_null() {
+            return 0;
+        }
+        if (*wp).w_onebuf_opt.wo_so < 0 {
+            p_so
+        } else {
+            (*wp).w_onebuf_opt.wo_so
+        }
+    }
+}
+
+/// Return the effective 'scrolloffpad' value for the current window.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_scrolloffpad_value(wp: *mut win_T) -> i64 {
+    unsafe {
+        if (*wp).w_onebuf_opt.wo_sop == -1 {
+            p_sop
+        } else {
+            (*wp).w_onebuf_opt.wo_sop
+        }
+    }
+}
+
+/// Return the effective 'sidescrolloff' value for the current window.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_sidescrolloff_value(wp: *mut win_T) -> i64 {
+    unsafe {
+        if (*wp).w_onebuf_opt.wo_siso < 0 {
+            p_siso
+        } else {
+            (*wp).w_onebuf_opt.wo_siso
+        }
+    }
+}
+
+/// Metadata Dict for option `name`; errors if `name` is unknown.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_option_info(
+    name: NvimString,
+    opt_flags: c_int,
+    buf: *mut buf_T,
+    win: *mut win_T,
+    arena: *mut Arena,
+    err: *mut Error,
+) -> Dict {
+    unsafe {
+        let opt_idx = find_option_len(name.data, name.size);
+        if opt_idx == kOptInvalid {
+            api_set_error(
+                err,
+                ErrorType::kErrorTypeValidation,
+                c"Invalid option (not found): '%s'".as_ptr(),
+                name.data,
+            );
+            return Dict::new();
+        }
+
+        option_info_dict(get_option(opt_idx), opt_flags, buf, win, arena)
+    }
+}
+
+/// Metadata Dict for every option, keyed by full name.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_all_options_info(arena: *mut Arena) -> Dict {
+    unsafe {
+        let mut retval = arena_dict(arena, kOptCount as usize);
+        for opt_idx in 0..kOptCount {
+            let opt = get_option(opt_idx);
+            let opt_dict = option_info_dict(opt, OPT_GLOBAL, curbuf, curwin, arena);
+            put_c(&mut retval, (*opt).fullname, dict_obj(opt_dict));
+        }
+        retval
+    }
+}
+
+unsafe fn option_info_dict(
+    opt: *mut vimoption_T,
+    opt_flags: c_int,
+    buf: *mut buf_T,
+    win: *mut win_T,
+    arena: *mut Arena,
+) -> Dict {
+    unsafe {
+        let opt_idx = get_opt_idx(opt);
+        let mut dict = arena_dict(arena, 13);
+
+        put_c(&mut dict, c"name".as_ptr(), cstr_as_obj((*opt).fullname));
+        put_c(
+            &mut dict,
+            c"shortname".as_ptr(),
+            cstr_as_obj((*opt).shortname),
+        );
+
+        let scope = if option_has_scope(opt_idx, kOptScopeBuf) {
+            c"buf".as_ptr()
+        } else if option_has_scope(opt_idx, kOptScopeWin) {
+            c"win".as_ptr()
+        } else if option_has_scope(opt_idx, kOptScopeTab) {
+            c"tab".as_ptr()
+        } else {
+            c"global".as_ptr()
+        };
+
+        put_c(&mut dict, c"scope".as_ptr(), cstr_as_obj(scope));
+
+        put_c(
+            &mut dict,
+            c"global_local".as_ptr(),
+            boolean_obj(option_is_global_local(opt_idx)),
+        );
+        put_c(
+            &mut dict,
+            c"commalist".as_ptr(),
+            boolean_obj(((*opt).flags & kOptFlagComma) != 0),
+        );
+        put_c(
+            &mut dict,
+            c"flaglist".as_ptr(),
+            boolean_obj(((*opt).flags & kOptFlagFlagList) != 0),
+        );
+
+        put_c(
+            &mut dict,
+            c"was_set".as_ptr(),
+            boolean_obj(((*opt).flags & kOptFlagWasSet) != 0),
+        );
+
+        let mut script_ctx = sctx_T {
+            sc_sid: 0,
+            sc_seq: 0,
+            sc_lnum: 0,
+            sc_chan: 0,
+        };
+        if opt_flags == OPT_GLOBAL {
+            script_ctx = (*opt).script_ctx;
+        } else {
+            if option_has_scope(opt_idx, kOptScopeBuf) {
+                script_ctx =
+                    (*buf).b_p_script_ctx[(*opt).scope_idx[kOptScopeBuf as usize] as usize];
+            }
+            if option_has_scope(opt_idx, kOptScopeWin) {
+                script_ctx = (*win).w_onebuf_opt.wo_script_ctx
+                    [(*opt).scope_idx[kOptScopeWin as usize] as usize];
+            }
+            if opt_flags != OPT_LOCAL && script_ctx.sc_sid == 0 {
+                script_ctx = (*opt).script_ctx;
+            }
+        }
+
+        put_c(
+            &mut dict,
+            c"last_set_sid".as_ptr(),
+            integer_obj(i64::from(script_ctx.sc_sid)),
+        );
+        put_c(
+            &mut dict,
+            c"last_set_linenr".as_ptr(),
+            integer_obj(i64::from(script_ctx.sc_lnum)),
+        );
+        put_c(
+            &mut dict,
+            c"last_set_chan".as_ptr(),
+            integer_obj(script_ctx.sc_chan as i64),
+        );
+
+        put_c(
+            &mut dict,
+            c"type".as_ptr(),
+            cstr_as_obj(optval_type_name((*get_option(get_opt_idx(opt))).opt_type)),
+        );
+        put_c(&mut dict, c"default".as_ptr(), (*opt).def_val);
+        put_c(
+            &mut dict,
+            c"allows_duplicates".as_ptr(),
+            boolean_obj(((*opt).flags & kOptFlagNoDup) == 0),
+        );
+
+        dict
+    }
+}
