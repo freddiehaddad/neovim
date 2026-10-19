@@ -34,6 +34,8 @@ use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_end, msg_may_trunc, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_hl, msg_start, msg_trunc, set_keep_msg,
 };
+#[allow(unused_imports)]
+use crate::message::{msg_progress, msg_with_id};
 use crate::message::{msg_schedule_semsg, semsg, smsg};
 #[allow(unused_imports)]
 use crate::r#move::update_topline;
@@ -310,27 +312,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn msg_progress(
-        msg: *const c_char,
-        id: *const c_char,
-        status: *const c_char,
-        percent: c_int,
-        hl_id: c_int,
-        progress_title: bool,
-        history: bool,
-        force: bool,
-    ) -> *mut c_char;
-    fn msg_with_id(
-        s: *const c_char,
-        id: *const c_char,
-        kind: *const c_char,
-        data: *mut c_void,
-        hl_id: c_int,
-        hist: bool,
-        trunc: bool,
-        err: bool,
-    ) -> *mut c_char;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
@@ -638,7 +619,7 @@ unsafe fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id:
         if !msg_id.is_null() {
             msg_with_id(
                 iobuf_ptr,
-                msg_id,
+                msg_id.cast_mut(),
                 c"bufwrite".as_ptr(),
                 ptr::null_mut(),
                 0,
@@ -696,7 +677,16 @@ unsafe fn readfile_progress(
     unsafe {
         let buf = curbuf;
         (*buf).b_locked += 1;
-        let rv = msg_progress(s, msg_id, status, percent, 0, hist, !s.is_null(), false);
+        let rv = msg_progress(
+            s.cast_mut(),
+            msg_id.cast_mut(),
+            status.cast_mut(),
+            percent,
+            0,
+            hist,
+            !s.is_null(),
+            false,
+        );
         (*buf).b_locked -= 1;
         rv
     }

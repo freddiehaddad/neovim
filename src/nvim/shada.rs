@@ -46,6 +46,8 @@ use crate::message::{verbose_enter, verbose_leave};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::env::expand_env;
+#[allow(unused_imports)]
 use crate::regexp::regtilde;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
@@ -671,8 +673,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     #[link_name = "uv_strerror"]
     fn os_strerror(err: c_int) -> *const c_char;
-
-    fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
 
     #[cfg(unix)]
     fn getuid() -> u32;
@@ -1757,7 +1757,7 @@ unsafe fn shada_filename(mut file: *const c_char) -> *mut c_char {
                     file = shada_get_default_file();
                 }
                 let name_buff_ptr = (&raw mut NameBuff).cast::<c_char>();
-                let len = expand_env(file, name_buff_ptr, MAXPATHL as c_int);
+                let len = expand_env(file.cast_mut(), name_buff_ptr, MAXPATHL as c_int);
                 return xmemdupz_cstr(name_buff_ptr, len);
             }
         }

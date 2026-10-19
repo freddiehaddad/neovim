@@ -21,10 +21,14 @@ use crate::api::private::helpers::{
     find_buffer_by_handle,
 };
 #[allow(unused_imports)]
+use crate::buffer::bufref_valid;
+#[allow(unused_imports)]
 use crate::buffer::{bt_nofile, set_bufref};
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, do_modelines};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::callback_copy;
 #[allow(unused_imports)]
 use crate::eval::typval::callback_to_string;
 #[allow(unused_imports)]
@@ -45,6 +49,8 @@ use crate::ex_docmd::{do_cmdline, ends_excmd, expand_sfile};
 use crate::fileio::check_timestamps;
 #[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
+#[allow(unused_imports)]
+use crate::fileio::match_file_pat;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{restore_redobuff, save_redobuff};
@@ -1352,19 +1358,6 @@ unsafe extern "C" {
     static mut main_loop: u8;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn match_file_pat(
-        pattern: *const c_char,
-        prog: *mut *mut c_void,
-        fname: *const c_char,
-        sfname: *const c_char,
-        tail: *const c_char,
-        allow_dirs: c_int,
-    ) -> bool;
-
-    fn callback_copy(dest: *mut Callback, src: *const Callback);
-
-    fn bufref_valid(bufref: *const bufref_T) -> bool;
 
 }
 
@@ -2860,7 +2853,7 @@ pub unsafe extern "C" fn ex_doautoall(eap: *mut exarg_T) {
 
             ctx_restore(&raw mut aco);
 
-            if retval == FAIL || !bufref_valid(&raw const bufref) {
+            if retval == FAIL || !bufref_valid(&raw mut bufref) {
                 retval = FAIL;
                 break;
             }
@@ -3641,8 +3634,8 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                 }
                 let matches = if (*ap).buflocal_nr == 0 {
                     match_file_pat(
-                        ptr::null(),
-                        (&raw mut (*ap).reg_prog).cast(),
+                        ptr::null_mut(),
+                        &raw mut (*ap).reg_prog,
                         (*apc).fname,
                         (*apc).sfname,
                         (*apc).tail,
@@ -3868,8 +3861,8 @@ pub unsafe extern "C" fn has_autocmd(event: event_T, sfname: *mut c_char, buf: *
             if !ap.is_null() {
                 let matched = if (*ap).buflocal_nr == 0 {
                     match_file_pat(
-                        ptr::null(),
-                        (&raw mut (*ap).reg_prog).cast(),
+                        ptr::null_mut(),
+                        &raw mut (*ap).reg_prog,
                         fname,
                         sfname,
                         tail,

@@ -10,6 +10,10 @@ pub mod proc;
 pub mod pty_conpty_win;
 pub mod pty_proc_unix;
 pub mod pty_proc_win;
+#[cfg(unix)]
+pub use pty_proc_unix as pty_proc;
+#[cfg(windows)]
+pub use pty_proc_win as pty_proc;
 pub mod shell;
 pub mod signal;
 pub mod stdpaths;

@@ -43,6 +43,9 @@ use crate::lua::executor::{
 };
 #[allow(unused_imports)]
 use crate::lua::executor::{nlua_call_typval, nlua_exec};
+#[cfg(not(test))]
+#[allow(unused_imports)]
+use crate::memory::free_all_mem;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{msg_putchar, wait_return};
@@ -320,8 +323,6 @@ unsafe extern "C" {
     fn setbuf(stream: *mut FILE, buffer: *mut c_char);
 
     fn main_get_stdout() -> *mut FILE;
-
-    fn free_all_mem();
 
     #[cfg_attr(windows, link_name = "_dup2")]
     fn dup2(oldfd: c_int, newfd: c_int) -> c_int;

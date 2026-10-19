@@ -32,6 +32,8 @@ use crate::drawscreen::{
     showmode, status_redraw_buf, unshowmode, update_screen,
 };
 #[allow(unused_imports)]
+use crate::eval::eval_call_provider;
+#[allow(unused_imports)]
 use crate::eval::get_v_event;
 #[allow(unused_imports)]
 use crate::eval::restore_v_event;
@@ -449,13 +451,6 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: c_void;
-
-    fn eval_call_provider(
-        provider: *const c_char,
-        method: *const c_char,
-        arguments: *mut list_T,
-        discard: bool,
-    ) -> typval_T;
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
@@ -2513,7 +2508,12 @@ unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
         let regtype: c_char = b'v' as c_char;
         tv_list_append_string(args, &regtype, 1);
         tv_list_append_string(args, &regname, 1);
-        eval_call_provider(c"clipboard".as_ptr(), c"set".as_ptr(), args, true);
+        eval_call_provider(
+            c"clipboard".as_ptr().cast_mut(),
+            c"set".as_ptr().cast_mut(),
+            args,
+            true,
+        );
     }
 }
 

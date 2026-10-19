@@ -15,6 +15,10 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::main_init::{os_exit, preserve_exit};
 #[allow(unused_imports)]
+use crate::os::pty_proc::{
+    pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
+};
+#[allow(unused_imports)]
 use crate::os::shell::shell_free_argv;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
@@ -102,12 +106,6 @@ unsafe extern "C" {
     fn uv_timer_start(handle: *mut uv_timer_t, cb: uv_timer_cb, timeout: u64, repeat: u64)
     -> c_int;
     fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
-
-    fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int;
-    fn pty_proc_close(ptyproc: *mut PtyProc);
-    fn pty_proc_close_master(ptyproc: *mut PtyProc);
-    fn pty_proc_flush_master(ptyproc: *mut PtyProc);
-    fn pty_proc_teardown(loop_: *mut Loop);
 
 }
 

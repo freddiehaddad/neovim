@@ -22,6 +22,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::{ins_compl_col_range_attr, ins_compl_lnum_in_range, ins_compl_win_active};
 #[allow(unused_imports)]
+use crate::memline::gchar_pos;
+#[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 #[allow(unused_imports)]
 use crate::option::get_showbreak_value;
@@ -253,7 +255,6 @@ static mut stc_prev_tick: disptick_T = 0;
 
 unsafe extern "C" {
 
-    fn gchar_pos(pos: *const pos_T) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

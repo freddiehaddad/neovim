@@ -19,6 +19,8 @@ use crate::autocmd::aucmd_defer;
 #[allow(unused_imports)]
 use crate::autocmd::has_event;
 #[allow(unused_imports)]
+use crate::buffer::bufref_valid;
+#[allow(unused_imports)]
 use crate::buffer::set_bufref;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
@@ -401,8 +403,6 @@ static mut typed: TypedState = TypedState {
 
 unsafe extern "C" {
 
-    fn bufref_valid(bufref: *const bufref_T) -> bool;
-
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
@@ -639,13 +639,16 @@ unsafe fn atom_origin() -> CmdOrigin {
 
 #[inline]
 unsafe fn atom_origin_changed(origin: CmdOrigin) -> bool {
-    unsafe { bufref_valid(&origin.buf) && buf_get_changedtick(origin.buf.br_buf) != origin.tick }
+    unsafe {
+        bufref_valid((&raw const origin.buf).cast_mut())
+            && buf_get_changedtick(origin.buf.br_buf) != origin.tick
+    }
 }
 
 #[inline]
 unsafe fn atom_origin_moved(origin: CmdOrigin) -> bool {
     unsafe {
-        bufref_valid(&origin.buf)
+        bufref_valid((&raw const origin.buf).cast_mut())
             && win_valid(origin.win)
             && (*origin.win).w_buffer == origin.buf.br_buf
             && !equalpos(origin.pos, (*origin.win).w_cursor)
@@ -655,7 +658,7 @@ unsafe fn atom_origin_moved(origin: CmdOrigin) -> bool {
 #[inline]
 unsafe fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
     unsafe {
-        if bufref_valid(&origin.buf) {
+        if bufref_valid((&raw const origin.buf).cast_mut()) {
             (*origin.buf.br_buf).b_u_seq_cur
         } else {
             0
@@ -669,7 +672,7 @@ pub unsafe extern "C" fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
         let o = composite.origin;
         if composite.open
             && o.buf.br_buf == buf
-            && bufref_valid(&o.buf)
+            && bufref_valid((&raw const o.buf).cast_mut())
             && buf_get_changedtick(buf) == o.tick
         {
             return o.pos;

@@ -51,6 +51,8 @@ use crate::message::{
 use crate::r#move::set_topline;
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::env::expand_env;
+#[allow(unused_imports)]
 use crate::os::fs::os_dirname;
 #[allow(unused_imports)]
 use crate::os::input::os_breakcheck;
@@ -182,7 +184,6 @@ static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
 }
 
 #[inline]
@@ -993,7 +994,11 @@ unsafe fn fname2fnum(fm: *mut xfmark_T) {
         if *(*fm).fname == b'~' as c_char
             && vim_ispathsep_nocolon(c_int::from(*(*fm).fname.add(1) as u8))
         {
-            let len = expand_env(c"~/".as_ptr(), &raw mut NameBuff[0], MAXPATHL as c_int);
+            let len = expand_env(
+                c"~/".as_ptr().cast_mut(),
+                &raw mut NameBuff[0],
+                MAXPATHL as c_int,
+            );
             xstrlcpy(
                 (&raw mut NameBuff[0]).add(len),
                 (*fm).fname.add(2),

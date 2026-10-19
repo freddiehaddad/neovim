@@ -42,6 +42,8 @@ use crate::memline::{
     dec, decl, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_get_pos,
     ml_replace, ml_replace_len,
 };
+#[allow(unused_imports)]
+use crate::memline::{gchar_pos, ml_get_pos_len};
 use crate::message::smsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore};
@@ -264,8 +266,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn ml_get_pos_len(pos: *const pos_T) -> colnr_T;
-    fn gchar_pos(pos: *const pos_T) -> c_int;
 }
 
 #[inline]
@@ -1187,7 +1187,7 @@ pub unsafe extern "C" fn op_delete(oap: *mut oparg_T) -> c_int {
                 }
             } else {
                 if virtual_op != 0 {
-                    if gchar_pos(&raw const (*oap).start) == TAB {
+                    if gchar_pos(&raw mut (*oap).start) == TAB {
                         let mut endcol: c_int = 0;
                         if u_save_cursor() == FAIL {
                             return FAIL;
@@ -1205,7 +1205,7 @@ pub unsafe extern "C" fn op_delete(oap: *mut oparg_T) -> c_int {
                         }
                     }
 
-                    if gchar_pos(&raw const (*oap).end) == TAB
+                    if gchar_pos(&raw mut (*oap).end) == TAB
                         && (*oap).end.coladd == 0
                         && (*oap).inclusive
                     {
@@ -1647,7 +1647,7 @@ pub unsafe extern "C" fn op_tilde(oap: *mut oparg_T) {
                     let len = if pos.lnum == (*oap).end.lnum {
                         (*oap).end.col + 1
                     } else {
-                        ml_get_pos_len(&raw const pos)
+                        ml_get_pos_len(&raw mut pos)
                     };
                     did_change |= swapchars((*oap).op_type, &raw mut pos, len) != 0;
                     if ltoreq((*oap).end, pos) || inc(&raw mut pos) == -1 {
@@ -4080,7 +4080,7 @@ pub unsafe extern "C" fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int,
             (*oap).empty = (*oap).motion_type != kMTLineWise
                 && (!(*oap).inclusive
                     || ((*oap).op_type == OP_YANK
-                        && gchar_pos(&raw const (*oap).end) == c_int::from(NUL)))
+                        && gchar_pos(&raw mut (*oap).end) == c_int::from(NUL)))
                 && equalpos((*oap).start, (*oap).end)
                 && !(virtual_op != 0 && (*oap).start.coladd != (*oap).end.coladd);
             let empty_region_error = (*oap).empty && !vim_strchr(p_cpo, kCpoEmptyregion).is_null();

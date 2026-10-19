@@ -45,6 +45,8 @@ use crate::charset::getdigits_int;
 use crate::cmdexpand::cmdline_pum_active;
 #[allow(unused_imports)]
 use crate::dialog::do_dialog;
+#[allow(unused_imports)]
+use crate::dialog::prompt_for_input;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::decode::{mpack_parse_typval, typval_parser_error_free, unpack_typval};
@@ -127,6 +129,8 @@ use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::os_get_pid;
+#[allow(unused_imports)]
+use crate::os::pty_proc::pty_proc_resize;
 #[allow(unused_imports)]
 use crate::os::stdpaths::get_appname;
 #[allow(unused_imports)]
@@ -581,14 +585,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16);
-
-    fn prompt_for_input(
-        prompt: *const c_char,
-        hl_id: c_int,
-        use_CTRL_C: bool,
-        mouse_used: *mut bool,
-    ) -> c_int;
     fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32);
 }
 
@@ -4265,7 +4261,7 @@ pub unsafe extern "C" fn f_inputlist(
         }
 
         let mut mouse_used = false;
-        let mut selected = prompt_for_input(ptr::null(), 0, false, &raw mut mouse_used);
+        let mut selected = prompt_for_input(ptr::null_mut(), 0, false, &raw mut mouse_used);
         if mouse_used {
             selected = tv_list_len(l) - (cmdline_row - mouse_row);
         }

@@ -45,6 +45,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::get_list_line;
 #[allow(unused_imports)]
+use crate::eval::typval::callback_copy;
+#[allow(unused_imports)]
 use crate::eval::typval::{callback_free, callback_put};
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -450,7 +452,6 @@ unsafe extern "C" {
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
-    fn callback_copy(dest: *mut Callback, src: *const Callback);
 }
 
 #[inline]

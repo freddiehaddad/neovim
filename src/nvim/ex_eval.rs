@@ -14,6 +14,8 @@
 
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::eval_for_line;
+#[allow(unused_imports)]
 use crate::eval::eval_to_string_skip;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
@@ -199,12 +201,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn eval_for_line(
-        arg: *const c_char,
-        errp: *mut bool,
-        eap: *mut exarg_T,
-        evalarg: *const evalarg_T,
-    ) -> *mut c_void;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
@@ -1053,7 +1049,7 @@ pub unsafe extern "C" fn ex_while(eap: *mut exarg_T) {
                     error = false;
                     (*cstack).cs_forinfo[idx]
                 } else {
-                    let fi = eval_for_line((*eap).arg, &mut error, eap, &evalarg);
+                    let fi = eval_for_line((*eap).arg, &mut error, eap, &mut evalarg);
                     (*cstack).cs_forinfo[idx] = fi;
                     fi
                 };

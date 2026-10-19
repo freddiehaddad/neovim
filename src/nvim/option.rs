@@ -29,6 +29,8 @@ use crate::eval::callback_from_typval;
 #[allow(unused_imports)]
 use crate::eval::last_set_msg;
 #[allow(unused_imports)]
+use crate::eval::typval::callback_copy;
+#[allow(unused_imports)]
 use crate::eval::typval::callback_free;
 #[allow(unused_imports)]
 use crate::eval::userfunc::get_scriptlocal_funcname;
@@ -728,8 +730,6 @@ unsafe extern "C" {
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
-
-    fn callback_copy(dest: *mut Callback, src: *const Callback);
 
     pub fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
     pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex;
@@ -6792,8 +6792,14 @@ pub unsafe extern "C" fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
             empty_opt
         };
         (*to).wo_fdn = (*from).wo_fdn;
-        callback_copy(&raw mut (*to).wo_fde, &raw const (*from).wo_fde);
-        callback_copy(&raw mut (*to).wo_fdt, &raw const (*from).wo_fdt);
+        callback_copy(
+            &raw mut (*to).wo_fde,
+            (&raw const (*from).wo_fde).cast_mut(),
+        );
+        callback_copy(
+            &raw mut (*to).wo_fdt,
+            (&raw const (*from).wo_fdt).cast_mut(),
+        );
         (*to).wo_fmr = copy_option_val((*from).wo_fmr);
         (*to).wo_scl = copy_option_val((*from).wo_scl);
         (*to).wo_lhi = (*from).wo_lhi;
@@ -7016,11 +7022,11 @@ pub unsafe extern "C" fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     (*buf).b_p_csl = xstrdup(p_csl);
                     copy_opt_sctx(buf, kBufOptCompleteslash);
                 }
-                callback_copy(&raw mut (*buf).b_p_cfu, &raw const p_cfu);
+                callback_copy(&raw mut (*buf).b_p_cfu, &raw mut p_cfu);
                 copy_opt_sctx(buf, kBufOptCompletefunc);
-                callback_copy(&raw mut (*buf).b_p_ofu, &raw const p_ofu);
+                callback_copy(&raw mut (*buf).b_p_ofu, &raw mut p_ofu);
                 copy_opt_sctx(buf, kBufOptOmnifunc);
-                callback_copy(&raw mut (*buf).b_p_tfu, &raw const p_tfu);
+                callback_copy(&raw mut (*buf).b_p_tfu, &raw mut p_tfu);
                 copy_opt_sctx(buf, kBufOptTagfunc);
                 (*buf).b_p_sts = p_sts;
                 copy_opt_sctx(buf, kBufOptSofttabstop);
@@ -7086,13 +7092,13 @@ pub unsafe extern "C" fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_s.b_p_spo = xstrdup(p_spo);
                 copy_opt_sctx(buf, kBufOptSpelloptions);
                 (*buf).b_s.b_p_spo_flags = spo_flags;
-                callback_copy(&raw mut (*buf).b_p_inde, &raw const p_inde);
+                callback_copy(&raw mut (*buf).b_p_inde, &raw mut p_inde);
                 copy_opt_sctx(buf, kBufOptIndentexpr);
                 (*buf).b_p_inde_flags = copy_opt_insecure(kBufOptIndentexpr);
                 (*buf).b_p_indk = xstrdup(p_indk);
                 copy_opt_sctx(buf, kBufOptIndentkeys);
                 (*buf).b_p_fp = empty_opt;
-                callback_copy(&raw mut (*buf).b_p_fex, &raw const p_fex);
+                callback_copy(&raw mut (*buf).b_p_fex, &raw mut p_fex);
                 copy_opt_sctx(buf, kBufOptFormatexpr);
                 (*buf).b_p_fex_flags = copy_opt_insecure(kBufOptFormatexpr);
                 (*buf).b_p_sua = xstrdup(p_sua);
@@ -7127,7 +7133,7 @@ pub unsafe extern "C" fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_tc_flags = 0;
                 (*buf).b_p_def = empty_opt;
                 (*buf).b_p_inc = empty_opt;
-                callback_copy(&raw mut (*buf).b_p_inex, &raw const p_inex);
+                callback_copy(&raw mut (*buf).b_p_inex, &raw mut p_inex);
                 copy_opt_sctx(buf, kBufOptIncludeexpr);
                 (*buf).b_p_inex_flags = copy_opt_insecure(kBufOptIncludeexpr);
                 (*buf).b_p_cot = empty_opt;

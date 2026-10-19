@@ -22,7 +22,11 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
 #[allow(unused_imports)]
+use crate::charset::getdigits_long;
+#[allow(unused_imports)]
 use crate::ex_docmd::get_command_name;
+#[allow(unused_imports)]
+use crate::ex_docmd::invalid_range;
 #[allow(unused_imports)]
 use crate::ex_docmd::{excmd_get_argt, is_cmd_ni, is_map_cmd};
 #[allow(unused_imports)]
@@ -50,7 +54,7 @@ use crate::usercmd::{
     commands_array, free_ucmd, parse_addr_type_arg, parse_compl_arg, uc_add_command,
     uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -349,12 +353,6 @@ unsafe extern "C-unwind" {
     fn KeyDict_cmd_magic_get_field(str: *const c_char, len: usize) -> *const KeySetLink;
     fn KeyDict_cmd_mods_get_field(str: *const c_char, len: usize) -> *const KeySetLink;
     fn KeyDict_cmd_mods_filter_get_field(str: *const c_char, len: usize) -> *const KeySetLink;
-}
-
-unsafe extern "C" {
-
-    fn getdigits_long(pp: *mut *const c_char, strict: bool, def: c_long) -> c_long;
-    fn invalid_range(eap: *const exarg_T) -> *const c_char;
 }
 
 #[inline]
@@ -988,7 +986,7 @@ pub unsafe extern "C" fn nvim_cmd(
                         count_value = first_arg.data.integer;
                     } else if first_arg.obj_type == ObjectType::kObjectTypeString {
                         let mut endptr: *const c_char = first_arg.data.string.data;
-                        let val = getdigits_long(&mut endptr, false, 0);
+                        let val = getdigits_long((&raw mut endptr).cast(), false, 0);
                         if *endptr == 0 && first_arg.data.string.size > 0 {
                             is_numeric = true;
                             count_value = i64::from(val);
@@ -1131,7 +1129,9 @@ pub unsafe extern "C" fn nvim_cmd(
                 ea.argt = EX_RANGE | EX_SBOXOK;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__range) && !invalid_range(&ea).is_null() {
+            if has_key(mask, KEYSET_OPTIDX_cmd__range)
+                && !invalid_range((&raw const ea).cast_mut()).is_null()
+            {
                 api_err_invalid(err, c"range".as_ptr(), c"".as_ptr(), 0, true);
                 break 'end;
             }

@@ -15,7 +15,11 @@ use crate::arglist::{do_argfile, ex_all, ex_rewind};
 #[allow(unused_imports)]
 use crate::arglist::{editing_arg_idx, set_arglist};
 #[allow(unused_imports)]
+use crate::autocmd::au_event_disable;
+#[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, au_event_restore};
+#[allow(unused_imports)]
+use crate::buffer::buf_set_name;
 #[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bufref_valid, set_bufref};
 #[allow(unused_imports)]
@@ -30,6 +34,8 @@ use crate::change::unchanged;
 #[allow(unused_imports)]
 use crate::channel::channel_job_running;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::eval_call_provider;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
@@ -82,7 +88,6 @@ use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::{UIExtension, bufref_T};
-use crate::clipboard::{list_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
 use crate::eval::deprecated::buf_T;
@@ -149,14 +154,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn buf_set_name(fnum: c_int, name: *const c_char);
-    fn au_event_disable(what: *const c_char) -> *mut c_char;
-    fn eval_call_provider(
-        provider: *const c_char,
-        method: *const c_char,
-        arguments: *mut list_T,
-        discard: bool,
-    ) -> typval_T;
 }
 
 #[inline]
@@ -367,7 +364,7 @@ pub unsafe extern "C" fn dialog_changed(buf: *mut buf_T, checkall: bool) {
         if ret == VIM_YES {
             let empty_bufname = (*buf).b_fname.is_null();
             if empty_bufname {
-                buf_set_name((*buf).b_fnum, c"Untitled".as_ptr());
+                buf_set_name((*buf).b_fnum, c"Untitled".as_ptr().cast_mut());
             }
 
             if check_overwrite(&raw mut ea, buf, (*buf).b_fname, (*buf).b_ffname, false) == OK
@@ -668,7 +665,7 @@ pub unsafe extern "C" fn ex_listdo(eap: *mut exarg_T) {
         msg_listdo_overwrite += 1;
 
         if (*eap).cmdidx != CMD_windo && (*eap).cmdidx != CMD_tabdo {
-            save_ei = au_event_disable(c",Syntax".as_ptr());
+            save_ei = au_event_disable(c",Syntax".as_ptr().cast_mut());
 
             let mut buf = firstbuf;
             while !buf.is_null() {
@@ -978,7 +975,7 @@ unsafe fn script_host_execute(name: *const c_char, eap: *mut exarg_T) {
             tv_list_append_number(args, (*eap).line1 as varnumber_T);
             tv_list_append_number(args, (*eap).line2 as varnumber_T);
 
-            eval_call_provider(name, c"execute".as_ptr(), args, true);
+            eval_call_provider(name.cast_mut(), c"execute".as_ptr().cast_mut(), args, true);
         }
     }
 }
@@ -993,7 +990,12 @@ unsafe fn script_host_execute_file(name: *const c_char, eap: *mut exarg_T) {
             tv_list_append_string(args, buffer.as_ptr(), -1);
             tv_list_append_number(args, (*eap).line1 as varnumber_T);
             tv_list_append_number(args, (*eap).line2 as varnumber_T);
-            eval_call_provider(name, c"execute_file".as_ptr(), args, true);
+            eval_call_provider(
+                name.cast_mut(),
+                c"execute_file".as_ptr().cast_mut(),
+                args,
+                true,
+            );
         }
     }
 }
@@ -1005,7 +1007,7 @@ unsafe fn script_host_do_range(name: *const c_char, eap: *mut exarg_T) {
             tv_list_append_number(args, (*eap).line1 as varnumber_T);
             tv_list_append_number(args, (*eap).line2 as varnumber_T);
             tv_list_append_string(args, (*eap).arg, -1);
-            eval_call_provider(name, c"do_range".as_ptr(), args, true);
+            eval_call_provider(name.cast_mut(), c"do_range".as_ptr().cast_mut(), args, true);
         }
     }
 }

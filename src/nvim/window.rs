@@ -24,6 +24,8 @@ use crate::api::private::helpers::{
     api_clear_error, cstr_as_string, find_window_by_handle, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, apply_autocmds_win};
+#[allow(unused_imports)]
 use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
 use crate::buffer::{bt_help, bt_quickfix};
@@ -37,6 +39,8 @@ use crate::drawscreen::{comp_col, showmode};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_extend;
+#[allow(unused_imports)]
+use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_cmds2::can_abandon;
 #[allow(unused_imports)]
@@ -376,30 +380,6 @@ unsafe extern "C" {
     fn gettext(str: *const c_char) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
-    fn apply_autocmds(
-        event: event_T,
-        fname: *const c_char,
-        fname_io: *const c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn apply_autocmds_win(
-        event: event_T,
-        fname: *const c_char,
-        fname_io: *const c_char,
-        force: bool,
-        buf: *mut buf_T,
-        win: *mut win_T,
-    ) -> bool;
-    fn do_ecmd(
-        fnum: c_int,
-        ffname: *const c_char,
-        sfname: *const c_char,
-        eap: *mut exarg_T,
-        newlnum: linenr_T,
-        flags: c_int,
-        oldwin: *mut win_T,
-    ) -> c_int;
 }
 
 const ERROR_INIT: Error = Error {
@@ -652,7 +632,7 @@ unsafe fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
                 if do_ecmd(
                     0,
                     ptr,
-                    ptr::null(),
+                    ptr::null_mut(),
                     ptr::null_mut(),
                     ECMD_LASTL,
                     ECMD_HIDE,
@@ -878,8 +858,8 @@ pub unsafe extern "C" fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xcha
                             goto_tabpage_tp(newtab, true, true);
                             apply_autocmds(
                                 EVENT_TABNEWENTERED,
-                                ptr::null(),
-                                ptr::null(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
                                 false,
                                 curbuf,
                             );
@@ -3035,10 +3015,28 @@ unsafe fn close_last_window_tabpage(
         }
         entering_window(curwin);
 
-        apply_autocmds(EVENT_WINENTER, ptr::null(), ptr::null(), false, curbuf);
-        apply_autocmds(EVENT_TABENTER, ptr::null(), ptr::null(), false, curbuf);
+        apply_autocmds(
+            EVENT_WINENTER,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            curbuf,
+        );
+        apply_autocmds(
+            EVENT_TABENTER,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            curbuf,
+        );
         if !ptr::eq(old_curbuf, curbuf) {
-            apply_autocmds(EVENT_BUFENTER, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_BUFENTER,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
         }
         true
     }
@@ -3179,7 +3177,13 @@ pub unsafe extern "C" fn win_close(win: *mut win_T, free_buf: bool, force: bool)
                     return FAIL;
                 }
                 (*win).w_locked += 1;
-                apply_autocmds(EVENT_BUFLEAVE, ptr::null(), ptr::null(), false, curbuf);
+                apply_autocmds(
+                    EVENT_BUFLEAVE,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    curbuf,
+                );
                 if !win_valid(win) {
                     return FAIL;
                 }
@@ -3189,7 +3193,13 @@ pub unsafe extern "C" fn win_close(win: *mut win_T, free_buf: bool, force: bool)
                 }
             }
             (*win).w_locked += 1;
-            apply_autocmds(EVENT_WINLEAVE, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINLEAVE,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             if !win_valid(win) {
                 return FAIL;
             }
@@ -3342,7 +3352,13 @@ pub unsafe extern "C" fn win_close(win: *mut win_T, free_buf: bool, force: bool)
                 WEE_CURWIN_INVALID | WEE_TRIGGER_ENTER_AUTOCMDS | WEE_TRIGGER_LEAVE_AUTOCMDS,
             );
             if other_buffer {
-                apply_autocmds(EVENT_BUFENTER, ptr::null(), ptr::null(), false, curbuf);
+                apply_autocmds(
+                    EVENT_BUFENTER,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    curbuf,
+                );
             }
         }
 
@@ -3351,7 +3367,13 @@ pub unsafe extern "C" fn win_close(win: *mut win_T, free_buf: bool, force: bool)
             && (*curbuf).b_locked_split != 0
             && !(*first_tabpage).tp_next.is_null()
         {
-            apply_autocmds(EVENT_TABLEAVE, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_TABLEAVE,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
         }
 
         split_disallowed -= 1;
@@ -3394,8 +3416,8 @@ unsafe fn trigger_winnewpre() {
         window_layout_lock();
         apply_autocmds(
             EVENT_WINNEWPRE,
-            ptr::null(),
-            ptr::null(),
+            ptr::null_mut(),
+            ptr::null_mut(),
             false,
             ptr::null_mut(),
         );
@@ -3418,8 +3440,8 @@ unsafe fn do_autocmd_winclosed(win: *mut win_T) {
         );
         apply_autocmds_win(
             EVENT_WINCLOSED,
-            winid.as_ptr(),
-            winid.as_ptr(),
+            winid.as_mut_ptr(),
+            winid.as_mut_ptr(),
             false,
             (*win).w_buffer,
             win,
@@ -3444,8 +3466,8 @@ pub unsafe extern "C" fn trigger_tabclosedpre(tp: *mut tabpage_T) {
         window_layout_lock();
         apply_autocmds(
             EVENT_TABCLOSEDPRE,
-            ptr::null(),
-            ptr::null(),
+            ptr::null_mut(),
+            ptr::null_mut(),
             false,
             ptr::null_mut(),
         );
@@ -3604,8 +3626,8 @@ pub unsafe extern "C" fn win_close_othertab(
                 );
                 apply_autocmds(
                     EVENT_TABCLOSED,
-                    prev_idx.as_ptr(),
-                    prev_idx.as_ptr(),
+                    prev_idx.as_mut_ptr(),
+                    prev_idx.as_mut_ptr(),
                     false,
                     if !bufref.br_buf.is_null() && bufref_valid(&raw mut bufref) {
                         bufref.br_buf
@@ -4760,10 +4782,28 @@ pub unsafe extern "C" fn win_new_tabpage(
             lastused_tabpage = old_curtab;
             entering_window(curwin);
 
-            apply_autocmds(EVENT_WINNEW, ptr::null(), ptr::null(), false, curbuf);
-            apply_autocmds(EVENT_WINENTER, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINNEW,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
+            apply_autocmds(
+                EVENT_WINENTER,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             apply_autocmds(EVENT_TABNEW, filename, filename, false, curbuf);
-            apply_autocmds(EVENT_TABENTER, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_TABENTER,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
         } else {
             unuse_tabpage(curtab);
             use_tabpage(old_curtab);
@@ -4782,7 +4822,13 @@ pub unsafe extern "C" fn win_new_tabpage(
             );
             debug_assert!(sw_ok);
 
-            apply_autocmds(EVENT_WINNEW, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINNEW,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             apply_autocmds(EVENT_TABNEW, filename, filename, false, curbuf);
 
             ctx_restore(&raw mut switchwin);
@@ -4812,7 +4858,13 @@ unsafe fn may_open_tabpage() -> c_int {
             FAIL
         };
         if status == OK {
-            apply_autocmds(EVENT_TABNEWENTERED, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_TABNEWENTERED,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
         }
         status
     }
@@ -4937,16 +4989,34 @@ unsafe fn leave_tabpage(new_curbuf: *mut buf_T, trigger_leave_autocmds: bool) ->
         reset_VIsual_and_resel();
         if trigger_leave_autocmds {
             if !ptr::eq(new_curbuf, curbuf) {
-                apply_autocmds(EVENT_BUFLEAVE, ptr::null(), ptr::null(), false, curbuf);
+                apply_autocmds(
+                    EVENT_BUFLEAVE,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    curbuf,
+                );
                 if !ptr::eq(curtab, tp) {
                     return FAIL;
                 }
             }
-            apply_autocmds(EVENT_WINLEAVE, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINLEAVE,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             if !ptr::eq(curtab, tp) {
                 return FAIL;
             }
-            apply_autocmds(EVENT_TABLEAVE, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_TABLEAVE,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             if !ptr::eq(curtab, tp) {
                 return FAIL;
             }
@@ -5030,9 +5100,21 @@ unsafe fn enter_tabpage(
         lastused_tabpage = old_curtab;
 
         if trigger_enter_autocmds {
-            apply_autocmds(EVENT_TABENTER, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_TABENTER,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             if !ptr::eq(old_curbuf, curbuf) {
-                apply_autocmds(EVENT_BUFENTER, ptr::null(), ptr::null(), false, curbuf);
+                apply_autocmds(
+                    EVENT_BUFENTER,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    curbuf,
+                );
             }
         }
 
@@ -5488,13 +5570,25 @@ unsafe fn win_enter_ext(wp: *mut win_T, flags: c_int) {
 
         if !curwin_invalid && (flags & WEE_TRIGGER_LEAVE_AUTOCMDS) != 0 {
             if !ptr::eq((*wp).w_buffer, curbuf) {
-                apply_autocmds(EVENT_BUFLEAVE, ptr::null(), ptr::null(), false, curbuf);
+                apply_autocmds(
+                    EVENT_BUFLEAVE,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    curbuf,
+                );
                 other_buffer = true;
                 if !win_valid(wp) {
                     return;
                 }
             }
-            apply_autocmds(EVENT_WINLEAVE, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINLEAVE,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             if !win_valid(wp) {
                 return;
             }
@@ -5535,12 +5629,30 @@ unsafe fn win_enter_ext(wp: *mut win_T, flags: c_int) {
 
         entering_window(curwin);
         if (flags & WEE_TRIGGER_NEW_AUTOCMDS) != 0 {
-            apply_autocmds(EVENT_WINNEW, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINNEW,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
         }
         if (flags & WEE_TRIGGER_ENTER_AUTOCMDS) != 0 {
-            apply_autocmds(EVENT_WINENTER, ptr::null(), ptr::null(), false, curbuf);
+            apply_autocmds(
+                EVENT_WINENTER,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                curbuf,
+            );
             if other_buffer {
-                apply_autocmds(EVENT_BUFENTER, ptr::null(), ptr::null(), false, curbuf);
+                apply_autocmds(
+                    EVENT_BUFENTER,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    false,
+                    curbuf,
+                );
             }
         }
 
@@ -6365,8 +6477,8 @@ pub unsafe extern "C" fn may_trigger_win_scrolled_resized() {
                 };
                 apply_autocmds_win(
                     EVENT_WINRESIZED,
-                    resize_winid.as_ptr(),
-                    resize_winid.as_ptr(),
+                    resize_winid.as_mut_ptr(),
+                    resize_winid.as_mut_ptr(),
                     false,
                     buf,
                     win,
@@ -6395,8 +6507,8 @@ pub unsafe extern "C" fn may_trigger_win_scrolled_resized() {
             };
             apply_autocmds_win(
                 EVENT_WINSCROLLED,
-                scroll_winid.as_ptr(),
-                scroll_winid.as_ptr(),
+                scroll_winid.as_mut_ptr(),
+                scroll_winid.as_mut_ptr(),
                 false,
                 buf,
                 win,

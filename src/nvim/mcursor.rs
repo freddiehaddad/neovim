@@ -18,6 +18,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
+use crate::buffer::bufref_valid;
+#[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_tv;
@@ -290,8 +292,6 @@ static mut ns_session: u32 = 0;
 
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
-
-    fn bufref_valid(bufref: *const crate::input_cmdatom::bufref_T) -> bool;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
@@ -726,7 +726,8 @@ unsafe fn mc_cascade() {
         'outer: for ai in 0..g_atoms.size {
             let atom = g_atoms.items.add(ai);
             if !(*atom).origin.buf.br_buf.is_null()
-                && (!bufref_valid(&(*atom).origin.buf) || (*atom).origin.buf.br_buf != curbuf)
+                && (!bufref_valid(&raw mut (*atom).origin.buf)
+                    || (*atom).origin.buf.br_buf != curbuf)
             {
                 continue;
             }

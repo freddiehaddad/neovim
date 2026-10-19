@@ -24,6 +24,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
+use crate::ex_cmds::getfile;
+#[allow(unused_imports)]
 use crate::ex_cmds::prepare_tagpreview;
 #[allow(unused_imports)]
 use crate::ex_docmd::set_no_hlsearch;
@@ -325,14 +327,6 @@ unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn getfile(
-        fnum: c_int,
-        ffname_arg: *const c_char,
-        sfname_arg: *const c_char,
-        setpm: bool,
-        lnum: linenr_T,
-        forceit: bool,
-    ) -> c_int;
 }
 
 #[inline]
@@ -3928,8 +3922,8 @@ pub unsafe extern "C" fn find_pattern_in_path(
                                             if !win_valid(curwin_save)
                                                 || !getfile_success(getfile(
                                                     (*(*curwin_save).w_buffer).b_fnum,
-                                                    ptr::null(),
-                                                    ptr::null(),
+                                                    ptr::null_mut(),
+                                                    ptr::null_mut(),
                                                     true,
                                                     lnum,
                                                     forceit,
@@ -3947,7 +3941,7 @@ pub unsafe extern "C" fn find_pattern_in_path(
                                     } else if !getfile_success(getfile(
                                         0,
                                         (*files.add(depth as usize)).name,
-                                        ptr::null(),
+                                        ptr::null_mut(),
                                         true,
                                         (*files.add(depth as usize)).lnum,
                                         forceit,

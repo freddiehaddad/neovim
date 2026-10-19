@@ -49,6 +49,8 @@ use crate::memline::dec;
 use crate::memory::strequal;
 #[allow(unused_imports)]
 use crate::message::msg_delay;
+#[allow(unused_imports)]
+use crate::message::msg_progress;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error, msg, msg_clr_cmdline, msg_ext_set_kind};
@@ -601,16 +603,6 @@ use crate::state::save_v_event_T;
 unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
-    fn msg_progress(
-        s: *const c_char,
-        id: *const c_char,
-        status: *const c_char,
-        percent: c_int,
-        hl_id: c_int,
-        hist: bool,
-        trunc: bool,
-        err: bool,
-    ) -> *mut c_char;
     fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
@@ -2525,8 +2517,8 @@ unsafe fn ins_compl_files(
                 );
                 msg_progress(
                     iobuff_ptr,
-                    c"nvim.completion".as_ptr(),
-                    c"running".as_ptr(),
+                    c"nvim.completion".as_ptr().cast_mut(),
+                    c"running".as_ptr().cast_mut(),
                     -1,
                     HLF_R,
                     false,
@@ -4387,8 +4379,8 @@ unsafe fn process_next_cpt_value(
                 vim_snprintf(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s".as_ptr()), name);
                 msg_progress(
                     iobuff_ptr,
-                    c"nvim.completion".as_ptr(),
-                    c"running".as_ptr(),
+                    c"nvim.completion".as_ptr().cast_mut(),
+                    c"running".as_ptr().cast_mut(),
                     -1,
                     HLF_R,
                     false,
@@ -4437,8 +4429,8 @@ unsafe fn process_next_cpt_value(
                         );
                         msg_progress(
                             iobuff_ptr,
-                            c"nvim.completion".as_ptr(),
-                            c"running".as_ptr(),
+                            c"nvim.completion".as_ptr().cast_mut(),
+                            c"running".as_ptr().cast_mut(),
                             -1,
                             HLF_R,
                             false,
@@ -6973,9 +6965,9 @@ pub unsafe extern "C" fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
 
         if !shortmess(kShmCompletionscan) && !compl_autocomplete {
             msg_progress(
-                ptr::null(),
-                c"nvim.completion".as_ptr(),
-                c"success".as_ptr(),
+                ptr::null_mut(),
+                c"nvim.completion".as_ptr().cast_mut(),
+                c"success".as_ptr().cast_mut(),
                 -1,
                 0,
                 false,

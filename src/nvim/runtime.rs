@@ -73,6 +73,8 @@ use crate::message::{semsg, smsg};
 use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::set_option_value_give_err;
+#[allow(unused_imports)]
+use crate::option::vimrc_found;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::path::path_to_slash;
@@ -379,8 +381,6 @@ unsafe extern "C" {
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-
-    fn vimrc_found(fname: *mut c_char, envname: *const c_char);
 
 }
 
@@ -3342,7 +3342,7 @@ unsafe fn do_source_ext(
                 verbose_leave();
             }
             if is_vimrc == DOSO_VIMRC {
-                vimrc_found(fname_exp, c"MYVIMRC".as_ptr());
+                vimrc_found(fname_exp, c"MYVIMRC".as_ptr().cast_mut());
             }
 
             #[cfg(windows)]

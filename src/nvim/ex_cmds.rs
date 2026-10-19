@@ -29,6 +29,10 @@ use crate::buffer::{
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findname, otherfile};
 #[allow(unused_imports)]
+use crate::change::file_ff_differs;
+#[allow(unused_imports)]
+use crate::dialog::prompt_for_input;
+#[allow(unused_imports)]
 use crate::drawscreen::number_width;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -445,13 +449,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
-    fn prompt_for_input(
-        prompt: *const c_char,
-        hl_id: c_int,
-        one_key: bool,
-        mouse_used: *mut bool,
-    ) -> c_int;
-
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
@@ -556,16 +553,14 @@ unsafe fn cbuf_to_string(s: *const c_char, len: usize) -> NvimString {
 
 #[inline]
 unsafe fn bufIsChanged(buf: *const buf_T) -> bool {
-    unsafe { !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf, true)) }
+    unsafe {
+        !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf.cast_mut(), true))
+    }
 }
 
 #[inline]
 unsafe fn curbufIsChanged() -> bool {
     unsafe { bufIsChanged(curbuf) }
-}
-
-unsafe extern "C" {
-    fn file_ff_differs(buf: *const buf_T, ignore_empty: bool) -> bool;
 }
 
 #[inline]

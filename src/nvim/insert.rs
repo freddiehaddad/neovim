@@ -21,6 +21,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_cmdwin;
 #[allow(unused_imports)]
+use crate::buffer::bufref_valid;
+#[allow(unused_imports)]
 use crate::buffer::{bt_prompt, buf_is_empty};
 #[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, set_bufref};
@@ -392,8 +394,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    fn bufref_valid(bufref: *const bufref_T) -> bool;
 
 }
 
@@ -1289,7 +1289,7 @@ unsafe fn insert_handle_key(s: *mut InsertState) -> c_int {
                     pum_want.active = false;
                 }
 
-                let changed = bufref_valid(&raw const save_curbuf)
+                let changed = bufref_valid(&raw mut save_curbuf)
                     && curbuf == save_curbuf.br_buf
                     && tick != buf_get_changedtick(curbuf);
                 if (*curbuf).b_u_synced || changed {

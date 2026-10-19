@@ -37,6 +37,8 @@ use crate::eval::vars::heredoc_get;
 #[allow(unused_imports)]
 use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
 #[allow(unused_imports)]
+use crate::ex_cmds::rename_buffer;
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, expr_map_locked, set_no_hlsearch, skip_range, undo_cmdmod};
 #[allow(unused_imports)]
 use crate::ex_docmd::{execute_cmd, parse_cmd_address, parse_cmdline, parse_command_modifiers};
@@ -459,8 +461,6 @@ unsafe extern "C" {
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn rename_buffer(new_fname: *const c_char) -> c_int;
 
     #[cfg(not(windows))]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
@@ -3176,7 +3176,7 @@ unsafe fn cmdpreview_open_buf() -> *mut buf_T {
             cmdpreview_buf,
             kCtxKeepDirs,
         );
-        let retv = rename_buffer(c"[Preview]".as_ptr());
+        let retv = rename_buffer(c"[Preview]".as_ptr().cast_mut());
         ctx_restore(&raw mut aco);
 
         if retv == FAIL {

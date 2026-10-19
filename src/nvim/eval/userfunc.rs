@@ -48,6 +48,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::ins_compl_active;
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_call_vlua;
+#[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_exec_typval_callable, nlua_set_sctx};
 #[allow(unused_imports)]
 use crate::message::msg_prt_line;
@@ -294,14 +296,6 @@ unsafe extern "C" {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn nlua_call_vlua(
-        funcname: *const c_char,
-        len: usize,
-        argvars: *const typval_T,
-        argcount: c_int,
-        rettv: *mut typval_T,
-    );
 
 }
 
@@ -2286,7 +2280,7 @@ pub unsafe extern "C" fn call_simple_luafunc(
 
         let mut argvars: [typval_T; 1] = std::mem::zeroed();
         argvars[0].v_type = VarType::VAR_UNKNOWN;
-        nlua_call_vlua(funcname, len, argvars.as_ptr(), 0, rettv);
+        nlua_call_vlua(funcname, len, argvars.as_mut_ptr(), 0, rettv);
         OK
     }
 }

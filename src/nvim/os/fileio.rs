@@ -94,36 +94,14 @@ pub struct FileDescriptor {
 }
 
 #[cfg(unix)]
-#[repr(C)]
-struct IoVec {
-    iov_base: *mut c_void,
-    iov_len: usize,
-}
+use crate::os::fs::iovec as IoVec;
 
+#[cfg(all(not(test), unix))]
+use crate::os::fs::os_readv;
 #[cfg(not(test))]
-unsafe extern "C" {
-    fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int;
-    fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int;
-    fn os_open_stdin_fd() -> c_int;
-    fn os_close(fd: c_int) -> c_int;
-    fn os_fsync(fd: c_int) -> c_int;
-    fn os_write(fd: c_int, buf: *const c_char, size: usize, non_blocking: bool) -> isize;
-    fn os_read(
-        fd: c_int,
-        ret_eof: *mut bool,
-        ret_buf: *mut c_char,
-        size: usize,
-        non_blocking: bool,
-    ) -> isize;
-    #[cfg(unix)]
-    fn os_readv(
-        fd: c_int,
-        ret_eof: *mut bool,
-        iov: *mut IoVec,
-        iov_size: usize,
-        non_blocking: bool,
-    ) -> isize;
-}
+use crate::os::fs::{
+    os_close, os_file_mkdir, os_fsync, os_open, os_open_stdin_fd, os_read, os_write,
+};
 
 #[cfg(test)]
 unsafe fn os_file_mkdir(_fname: *mut c_char, _mode: i32) -> c_int {

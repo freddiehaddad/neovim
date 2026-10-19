@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_set_name;
+#[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_add, buflist_findnr, curbuf_reusable, maketitle, otherfile};
 #[allow(unused_imports)]
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
@@ -156,7 +158,6 @@ static mut arglist_locked: bool = false;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn buf_set_name(fnum: c_int, name: *const c_char);
 }
 
 #[inline]

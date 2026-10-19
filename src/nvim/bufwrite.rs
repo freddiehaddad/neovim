@@ -16,6 +16,8 @@
 #[allow(unused_imports)]
 use crate::autocmd::apply_autocmds_exarg;
 #[allow(unused_imports)]
+use crate::buffer::bufref_valid;
+#[allow(unused_imports)]
 use crate::buffer::{bt_nofilename, buf_set_file_id, set_bufref};
 #[allow(unused_imports)]
 use crate::drawscreen::status_redraw_all;
@@ -47,6 +49,8 @@ use crate::memline::{make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp}
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, msg, msg_puts_hl, set_keep_msg};
+#[allow(unused_imports)]
+use crate::message::{msg_progress, msg_with_id};
 #[allow(unused_imports)]
 use crate::option::copy_option_part;
 #[allow(unused_imports)]
@@ -246,28 +250,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-    fn msg_progress(
-        msg: *const c_char,
-        id: *const c_char,
-        status: *const c_char,
-        percent: c_int,
-        hl_id: c_int,
-        progress_title: bool,
-        history: bool,
-        force: bool,
-    ) -> *mut c_char;
-    fn msg_with_id(
-        s: *const c_char,
-        id: *const c_char,
-        kind: *const c_char,
-        data: *mut c_void,
-        hl_id: c_int,
-        hist: bool,
-        trunc: bool,
-        err: bool,
-    ) -> *mut c_char;
-
-    fn bufref_valid(bufref: *const bufref_T) -> bool;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -772,7 +754,7 @@ unsafe fn buf_write_do_autocmds(
 
         ctx_restore(&raw mut aco);
 
-        if !bufref_valid(&raw const bufref) {
+        if !bufref_valid(&raw mut bufref) {
             buf = ptr::null_mut();
         }
         if buf.is_null()
@@ -959,9 +941,9 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
 
         if !msg_id.is_null() {
             let _ = msg_progress(
-                errmsg.as_ptr(),
-                msg_id,
-                c"failed".as_ptr(),
+                errmsg.as_mut_ptr(),
+                msg_id.cast_mut(),
+                c"failed".as_ptr().cast_mut(),
                 -1,
                 HLF_E,
                 false,
@@ -1976,8 +1958,8 @@ pub unsafe extern "C" fn buf_write(
                                     add_quoted_fname(iobuf, IOSIZE, buf, msgname);
                                     let _ = msg_progress(
                                         iobuf,
-                                        msg_id.as_ptr(),
-                                        c"running".as_ptr(),
+                                        msg_id.as_mut_ptr(),
+                                        c"running".as_ptr().cast_mut(),
                                         progress,
                                         0,
                                         false,
@@ -2211,8 +2193,8 @@ pub unsafe extern "C" fn buf_write(
                             if progress >= 0 {
                                 msg_progress(
                                     iobuf,
-                                    msg_id.as_ptr(),
-                                    c"success".as_ptr(),
+                                    msg_id.as_mut_ptr(),
+                                    c"success".as_ptr().cast_mut(),
                                     -1,
                                     0,
                                     true,
@@ -2222,7 +2204,7 @@ pub unsafe extern "C" fn buf_write(
                             } else {
                                 msg_with_id(
                                     iobuf,
-                                    msg_id.as_ptr(),
+                                    msg_id.as_mut_ptr(),
                                     c"bufwrite".as_ptr(),
                                     ptr::null_mut(),
                                     0,

@@ -393,9 +393,7 @@ fn csi_arg_is_missing(a: c_long) -> bool {
     csi_arg(a) == CSI_ARG_MISSING_I64
 }
 
-unsafe extern "C" {
-    fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType;
-}
+use crate::vterm::vterm::vterm_get_attr_type;
 
 fn lookup_default_colour_ansi(idx: isize, col: &mut VTermColor) {
     if (0..16).contains(&idx) {

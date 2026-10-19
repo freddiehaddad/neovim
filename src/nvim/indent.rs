@@ -37,6 +37,8 @@ use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
 #[allow(unused_imports)]
 use crate::message::emsg;
 #[allow(unused_imports)]
+use crate::message::msg_progress;
+#[allow(unused_imports)]
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 #[allow(unused_imports)]
 use crate::ops::shift_line;
@@ -163,16 +165,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn msg_progress(
-        s: *mut c_char,
-        id: *const c_char,
-        status: *const c_char,
-        percent: c_int,
-        hl_id: c_int,
-        hist: bool,
-        trunc: bool,
-        err: bool,
-    ) -> *mut c_char;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
@@ -1132,8 +1124,8 @@ pub unsafe extern "C" fn op_reindent(oap: *mut oparg_T, how: Indenter) {
                     (*curwin).w_cursor.lnum = start_lnum;
                     msg_progress(
                         &raw mut IObuff[0],
-                        c"nvim.indent".as_ptr(),
-                        c"running".as_ptr(),
+                        c"nvim.indent".as_ptr().cast_mut(),
+                        c"running".as_ptr().cast_mut(),
                         -1,
                         0,
                         true,
@@ -1201,8 +1193,8 @@ pub unsafe extern "C" fn op_reindent(oap: *mut oparg_T, how: Indenter) {
             IObuff[copy_len] = NUL;
             msg_progress(
                 &raw mut IObuff[0],
-                c"nvim.indent".as_ptr(),
-                c"success".as_ptr(),
+                c"nvim.indent".as_ptr().cast_mut(),
+                c"success".as_ptr().cast_mut(),
                 -1,
                 0,
                 true,

@@ -51,6 +51,8 @@ use crate::insert::buf_prompt_text;
 #[allow(unused_imports)]
 use crate::mark::mark_adjust_buf;
 #[allow(unused_imports)]
+use crate::memline::ml_append;
+#[allow(unused_imports)]
 use crate::memline::{
     ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace, ml_replace_buf,
 };
@@ -108,11 +110,6 @@ struct cob_T {
     cob_aco: CtxSwitch,
     cob_using_aco: c_int,
     cob_save_VIsual_active: c_int,
-}
-
-unsafe extern "C" {
-
-    fn ml_append(lnum: linenr_T, line: *const c_char, len: colnr_T, newfile: bool) -> c_int;
 }
 
 #[inline]
@@ -458,7 +455,7 @@ pub unsafe extern "C" fn prompt_invoke_callback() {
             return;
         }
 
-        ml_append(lnum, c"".as_ptr(), 0, false);
+        ml_append(lnum, c"".as_ptr().cast_mut(), 0, false);
         appended_lines_mark(lnum, 1);
         (*curwin).w_cursor.lnum = lnum + 1;
         (*curwin).w_cursor.col = 0;

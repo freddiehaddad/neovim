@@ -42,6 +42,8 @@ use crate::memline::{
     ml_replace_buf,
 };
 #[allow(unused_imports)]
+use crate::memory::memchrsub;
+#[allow(unused_imports)]
 use crate::memory::strchrsub;
 #[allow(unused_imports)]
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
@@ -187,11 +189,6 @@ pub struct VisualState {
 }
 
 pub use crate::extmark::u_header_T;
-
-unsafe extern "C" {
-
-    fn memchrsub(data: *mut c_char, c: c_char, x: c_char, len: usize);
-}
 
 unsafe extern "C-unwind" {
     fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
@@ -528,7 +525,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
         for i in 0..new_len {
             let l = (*replacement.items.add(i)).data.string;
             let p = arena_memdupz(arena, l.data, l.size);
-            memchrsub(p, NUL, NL, l.size);
+            memchrsub(p.cast(), NUL, NL, l.size);
             *lines.add(i) = p;
         }
 
@@ -797,7 +794,12 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 first_item.size,
             );
         }
-        memchrsub(first.add(start_col as usize), NUL, NL, first_item.size);
+        memchrsub(
+            first.add(start_col as usize).cast(),
+            NUL,
+            NL,
+            first_item.size,
+        );
         if replacement.size == 1 {
             ptr::copy_nonoverlapping(
                 str_at_end.add(end_col as usize),
@@ -809,7 +811,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             if last_item.size > 0 {
                 ptr::copy_nonoverlapping(last_item.data, last, last_item.size);
             }
-            memchrsub(last, NUL, NL, last_item.size);
+            memchrsub(last.cast(), NUL, NL, last_item.size);
             ptr::copy_nonoverlapping(
                 str_at_end.add(end_col as usize),
                 last.add(last_item.size),
@@ -824,7 +826,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
         for i in 1..new_len.saturating_sub(1) {
             let l = (*replacement.items.add(i)).data.string;
             let p = arena_memdupz(arena, l.data, l.size);
-            memchrsub(p, NUL, NL, l.size);
+            memchrsub(p.cast(), NUL, NL, l.size);
             *lines.add(i) = p;
             new_byte += (l.size as bcount_t) + 1;
         }

@@ -46,6 +46,10 @@ use crate::os::os_win_console::os_attach_parent_console;
 #[allow(unused_imports)]
 use crate::os::pty_conpty_win::os_has_conpty_working;
 #[allow(unused_imports)]
+use crate::os::pty_proc::{
+    pty_proc_close_master, pty_proc_resize, pty_proc_resume, pty_proc_tty_name,
+};
+#[allow(unused_imports)]
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
     terminal_set_state,
@@ -181,11 +185,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn pty_proc_close_master(ptyproc: *mut c_void);
-    fn pty_proc_resize(ptyproc: *mut c_void, width: u16, height: u16);
-    fn pty_proc_resume(ptyproc: *mut c_void);
-    fn pty_proc_tty_name(ptyproc: *mut c_void) -> *const c_char;
 
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
 
