@@ -58,6 +58,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::ui::vim_beep;
@@ -265,7 +267,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -507,7 +508,7 @@ pub unsafe extern "C" fn op_shift(oap: *mut oparg_T, curs_top: bool, amount: c_i
                 amount as c_ulong,
             );
             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-            vim_snprintf(
+            vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
                 ngettext(
@@ -3174,28 +3175,28 @@ pub unsafe extern "C" fn do_addsub(
 
                 *buf2_ptr.add(buf2len as usize) = NUL;
             } else if pre == 0 {
-                buf2len = vim_snprintf(
+                buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
                     c"%llu".as_ptr(),
                     n as std::ffi::c_ulonglong,
                 );
             } else if pre == b'0' as c_int {
-                buf2len = vim_snprintf(
+                buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
                     c"%llo".as_ptr(),
                     n as std::ffi::c_ulonglong,
                 );
             } else if addsub_hexupper {
-                buf2len = vim_snprintf(
+                buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
                     c"%llX".as_ptr(),
                     n as std::ffi::c_ulonglong,
                 );
             } else {
-                buf2len = vim_snprintf(
+                buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,
                     c"%llx".as_ptr(),
@@ -3467,7 +3468,7 @@ pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
                         let cols = i64::from(oparg.end_vcol + 1)
                             .checked_sub(i64::from(oparg.start_vcol))
                             .unwrap_or_else(|| std::process::abort());
-                        vim_snprintf(
+                        vim_snprintf!(
                             buf1_ptr,
                             buf1.len(),
                             tr(c"%lld Cols; ".as_ptr()),
@@ -3478,7 +3479,7 @@ pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
                     }
 
                     if char_count_cursor == byte_count_cursor && char_count == byte_count {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3494,7 +3495,7 @@ pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
                             byte_count as std::ffi::c_longlong,
                         );
                     } else {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3529,7 +3530,7 @@ pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
                     );
 
                     if char_count_cursor == byte_count_cursor && char_count == byte_count {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3546,7 +3547,7 @@ pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
                             byte_count as std::ffi::c_longlong,
                         );
                     } else {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3571,7 +3572,7 @@ pub unsafe extern "C" fn cursor_pos_info(dict: *mut dict_T) {
             bom_count = varnumber_T::from(bomb_size());
             if dict.is_null() && bom_count > 0 {
                 let len = CStr::from_ptr(iobuff_ptr).to_bytes().len();
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr.add(len),
                     IOSIZE - len,
                     tr(c"(+%lld for BOM)".as_ptr()),

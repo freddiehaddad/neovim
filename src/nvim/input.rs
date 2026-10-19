@@ -58,6 +58,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::expand_env;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
@@ -358,7 +360,6 @@ unsafe extern "C" {
     fn uv_loop_size() -> usize;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
@@ -515,7 +516,7 @@ unsafe fn redo_prefix(spec: *const CmdSpec, buf: *mut StringBuilder, replay: boo
         }
         if (*spec).count != 0 {
             let mut numbuf = [0 as c_char; 32];
-            let n = vim_snprintf(
+            let n = vim_snprintf!(
                 numbuf.as_mut_ptr(),
                 numbuf.len(),
                 c"%d".as_ptr(),
@@ -624,7 +625,7 @@ unsafe fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
 unsafe fn add_num_buff(buf: *mut StuffBuf, n: c_int) {
     unsafe {
         let mut number = [0 as c_char; 32];
-        let numberlen = vim_snprintf(number.as_mut_ptr(), number.len(), c"%d".as_ptr(), n);
+        let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d".as_ptr(), n);
         add_buff(buf, number.as_ptr(), numberlen as isize);
     }
 }
@@ -1767,7 +1768,7 @@ pub unsafe extern "C" fn open_scriptin(scriptin_name: *mut c_char) -> bool {
         };
         if error != 0 {
             let mut errbuf = [0 as c_char; 1024];
-            let n = vim_snprintf(
+            let n = vim_snprintf!(
                 errbuf.as_mut_ptr(),
                 errbuf.len(),
                 gettext(c"Cannot open for reading: \"%s\": %s\n".as_ptr()),

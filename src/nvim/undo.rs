@@ -60,6 +60,8 @@ use crate::option_vars::*;
 use crate::spell::spell_check_window;
 #[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
+#[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_add};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -259,9 +261,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn uv_strerror(err: c_int) -> *const c_char;
 
@@ -2687,7 +2686,7 @@ pub unsafe extern "C" fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time
             }
         } else {
             let seconds = now - tt;
-            vim_snprintf(
+            vim_snprintf!(
                 buf,
                 buflen,
                 ngettext(
@@ -2741,7 +2740,7 @@ pub unsafe extern "C" fn ex_undolist(_eap: *mut exarg_T) {
         let mut uhp = (*curbuf).b_u_oldhead.cast::<u_header_T>();
         while !uhp.is_null() {
             if (*uhp).uh_prev.ptr.is_null() && (*uhp).uh_walk != nomark && (*uhp).uh_walk != mark {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
                     c"%6d %7d  ".as_ptr(),
@@ -2754,7 +2753,7 @@ pub unsafe extern "C" fn ex_undolist(_eap: *mut exarg_T) {
                     while strlen(iobuf_ptr) < 33 {
                         xstrlcat(iobuf_ptr, c" ".as_ptr(), IOSIZE);
                     }
-                    vim_snprintf_add(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), (*uhp).uh_save_nr);
+                    vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), (*uhp).uh_save_nr);
                 }
                 ga_grow(&raw mut ga, 1);
                 *(ga.ga_data.cast::<*mut c_char>()).add(ga.ga_len as usize) = xstrdup(iobuf_ptr);

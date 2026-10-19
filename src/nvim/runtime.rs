@@ -85,6 +85,8 @@ use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::usercmd::add_win_cmd_modifiers;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -378,9 +380,6 @@ unsafe extern "C" {
     fn __error() -> *mut c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
 }
 
@@ -714,7 +713,7 @@ pub unsafe extern "C" fn estack_sfile(which: estack_arg_T) -> *mut c_char {
                 ga_concat_len(&mut ga, type_name.data, type_name.size);
                 ga_concat_len(&mut ga, es_name.data, es_name.size);
                 if lnum != 0 {
-                    ga.ga_len += vim_snprintf_safelen(
+                    ga.ga_len += vim_snprintf_safelen!(
                         (ga.ga_data as *mut c_char).add(ga.ga_len as usize),
                         (ga.ga_maxlen - ga.ga_len) as usize,
                         c"[%d]".as_ptr(),
@@ -1317,7 +1316,7 @@ unsafe fn runtime_get_named_common(
             let item = &mut *path.items.add(i);
             if lua {
                 if item.has_lua == kNone {
-                    let size = vim_snprintf(buf, buf_len, c"%s/lua/".as_ptr(), item.path) as usize;
+                    let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path) as usize;
                     item.has_lua = TriState::from(size < buf_len && os_isdir(buf));
                 }
                 if item.has_lua == kFalse {
@@ -1328,7 +1327,7 @@ unsafe fn runtime_get_named_common(
             for j in 0..pat.size {
                 let pat_item = *pat.items.add(j);
                 if pat_item.obj_type == ObjectType::kObjectTypeString {
-                    let size = vim_snprintf(
+                    let size = vim_snprintf!(
                         buf,
                         buf_len,
                         c"%s/%s".as_ptr(),
@@ -2026,7 +2025,7 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
         let len = CStr::from_ptr(ffname).to_bytes().len() + 14;
         let mut pat = xmallocz(len).cast::<c_char>();
 
-        vim_snprintf(pat, len, c"%s/plugin/**/*".as_ptr(), ffname);
+        vim_snprintf!(pat, len, c"%s/plugin/**/*".as_ptr(), ffname);
         gen_expand_wildcards_and_cb(
             1,
             &mut pat,
@@ -2040,7 +2039,7 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
 
         if opt && eval_to_number(cmd, false) > 0 {
             do_cmdline_cmd(c"augroup filetypedetect".as_ptr());
-            vim_snprintf(pat, len, c"%s/ftdetect/*".as_ptr(), ffname);
+            vim_snprintf!(pat, len, c"%s/ftdetect/*".as_ptr(), ffname);
             gen_expand_wildcards_and_cb(
                 1,
                 &mut pat,
@@ -2274,7 +2273,7 @@ pub unsafe extern "C" fn ex_packadd(eap: *mut exarg_T) {
         };
 
         if !did_source_packages {
-            vim_snprintf(
+            vim_snprintf!(
                 pat,
                 len,
                 c"pack/*/%s/%s".as_ptr(),
@@ -2291,7 +2290,7 @@ pub unsafe extern "C" fn ex_packadd(eap: *mut exarg_T) {
             );
         }
 
-        vim_snprintf(
+        vim_snprintf!(
             pat,
             len,
             c"pack/*/%s/%s".as_ptr(),
@@ -2335,7 +2334,7 @@ unsafe fn ExpandRTDir_int(
             } else {
                 c"".as_ptr()
             };
-            vim_snprintf(
+            vim_snprintf!(
                 buf,
                 buf_len,
                 c"%s%s%s%s".as_ptr(),
@@ -2357,7 +2356,7 @@ unsafe fn ExpandRTDir_int(
                 };
 
                 if (flags & DIP_START) != 0 {
-                    vim_snprintf(
+                    vim_snprintf!(
                         buf,
                         buf_len,
                         c"pack/*/start/*/%s%s%s%s".as_ptr(),
@@ -2368,7 +2367,7 @@ unsafe fn ExpandRTDir_int(
                     );
                     globpath(p_pp, buf, gap, glob_flags, expand_dirs);
 
-                    vim_snprintf(
+                    vim_snprintf!(
                         buf,
                         buf_len,
                         c"start/*/%s%s%s%s".as_ptr(),
@@ -2381,7 +2380,7 @@ unsafe fn ExpandRTDir_int(
                 }
 
                 if (flags & DIP_OPT) != 0 {
-                    vim_snprintf(
+                    vim_snprintf!(
                         buf,
                         buf_len,
                         c"pack/*/opt/*/%s%s%s%s".as_ptr(),
@@ -2392,7 +2391,7 @@ unsafe fn ExpandRTDir_int(
                     );
                     globpath(p_pp, buf, gap, glob_flags, expand_dirs);
 
-                    vim_snprintf(
+                    vim_snprintf!(
                         buf,
                         buf_len,
                         c"opt/*/%s%s%s%s".as_ptr(),
@@ -2405,7 +2404,7 @@ unsafe fn ExpandRTDir_int(
                 }
 
                 if *dir == NUL && !expand_dirs {
-                    vim_snprintf(buf, buf_len, c"%s*".as_ptr(), pat);
+                    vim_snprintf!(buf, buf_len, c"%s*".as_ptr(), pat);
                     glob_flags = WILD_ADD_SLASH;
                     expand_dirs = true;
                     continue;
@@ -2566,9 +2565,9 @@ pub unsafe extern "C" fn ExpandPackAddDir(
 
         let buflen = pat_len + 26;
         let s = xmalloc(buflen).cast::<c_char>();
-        vim_snprintf(s, buflen, c"pack/*/opt/%s*".as_ptr(), pat);
+        vim_snprintf!(s, buflen, c"pack/*/opt/%s*".as_ptr(), pat);
         globpath(p_pp, s, &mut ga, 0, true);
-        vim_snprintf(s, buflen, c"opt/%s*".as_ptr(), pat);
+        vim_snprintf!(s, buflen, c"opt/%s*".as_ptr(), pat);
         globpath(p_pp, s, &mut ga, 0, true);
         xfree(s.cast::<c_void>());
 
@@ -3110,14 +3109,14 @@ unsafe fn do_source_buffer_init(
             xstrdup((*curbuf).b_ffname)
         } else {
             if ex_lua {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     c":{range}lua buffer=%d".as_ptr(),
                     (*curbuf).b_fnum,
                 );
             } else {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     c":source buffer=%d".as_ptr(),
@@ -3194,7 +3193,7 @@ pub unsafe extern "C" fn do_source_str(
         let slnum = sourcing_lnum();
         let mut sname_buf = [0 as c_char; 256];
         if !sname.is_null() {
-            vim_snprintf(
+            vim_snprintf!(
                 sname_buf.as_mut_ptr(),
                 sname_buf.len(),
                 c"%s called at %s:%d".as_ptr(),
@@ -3530,7 +3529,7 @@ unsafe fn do_source_ext(
 
             if !l_time_fd.is_null() {
                 let iobuff = (&raw mut IObuff).cast::<c_char>();
-                vim_snprintf(iobuff, IOSIZE, c"sourcing %s".as_ptr(), fname);
+                vim_snprintf!(iobuff, IOSIZE, c"sourcing %s".as_ptr(), fname);
                 time_msg(iobuff, &start_time);
                 time_pop(rel_time);
             }
@@ -3647,7 +3646,7 @@ pub unsafe extern "C" fn ex_scriptnames(eap: *mut exarg_T) {
             let si = script_item(i);
             if !(*si).sn_name.is_null() {
                 home_replace(ptr::null_mut(), (*si).sn_name, namebuff, MAXPATHL, true);
-                vim_snprintf(iobuff, IOSIZE, c"%3d: %s".as_ptr(), i, namebuff);
+                vim_snprintf!(iobuff, IOSIZE, c"%3d: %s".as_ptr(), i, namebuff);
                 if !message_filtered(iobuff) {
                     if msg_col > 0 {
                         msg_putchar(b'\n' as c_int);
@@ -3679,7 +3678,7 @@ pub unsafe extern "C" fn get_scriptname(script_ctx: sctx_T, should_free: *mut bo
             SID_WINLAYOUT => gettext(c"changed window size".as_ptr()),
             SID_LUA => gettext(c"Lua".as_ptr()),
             SID_API_CLIENT => {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     gettext(c"API client (channel id %llu)".as_ptr()),
@@ -3691,7 +3690,7 @@ pub unsafe extern "C" fn get_scriptname(script_ctx: sctx_T, should_free: *mut bo
             _ => {
                 let sname = (*script_item(script_ctx.sc_sid)).sn_name;
                 if sname.is_null() {
-                    vim_snprintf(
+                    vim_snprintf!(
                         iobuff,
                         IOSIZE,
                         gettext(c"anonymous :source (script id %d)".as_ptr()),

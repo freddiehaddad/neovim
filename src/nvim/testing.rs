@@ -36,6 +36,8 @@ use crate::os::fs::os_fopen;
 #[allow(unused_imports)]
 use crate::runtime::estack_sfile;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -83,8 +85,6 @@ unsafe extern "C" {
 
     fn fgetc(stream: *mut FILE) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 }
 
 #[inline]
@@ -584,7 +584,7 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
         let mut lineidx: usize = 0;
 
         if fd1.is_null() {
-            iobuflen = vim_snprintf_safelen(
+            iobuflen = vim_snprintf_safelen!(
                 iobuf.as_mut_ptr(),
                 IOSIZE,
                 c"E485: Can't read file %s".as_ptr(),
@@ -594,7 +594,7 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
             let fd2 = os_fopen(fname2, c"rb".as_ptr());
             if fd2.is_null() {
                 fclose(fd1);
-                iobuflen = vim_snprintf_safelen(
+                iobuflen = vim_snprintf_safelen!(
                     iobuf.as_mut_ptr(),
                     IOSIZE,
                     c"E485: Can't read file %s".as_ptr(),
@@ -1024,7 +1024,7 @@ unsafe fn assert_inrange(argvars: *mut typval_T) -> c_int {
                 };
                 prepare_assert_error(&mut ga);
                 let mut expected_str = [0 as c_char; 200];
-                vim_snprintf(
+                vim_snprintf!(
                     expected_str.as_mut_ptr(),
                     expected_str.len(),
                     c"range %g - %g,".as_ptr(),

@@ -70,6 +70,8 @@ use crate::register::get_default_register_name;
 #[allow(unused_imports)]
 use crate::runtime::{do_source, load_plugins};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::syntax::syn_maybe_enable;
 #[allow(unused_imports)]
 use crate::ui::{ui_call_error_exit, ui_call_set_title};
@@ -312,7 +314,6 @@ unsafe extern "C" {
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
 
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn uv_guess_handle(file: c_int) -> c_int;
@@ -1825,7 +1826,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         }
                         b's' => {
                             if !(*parmp).scriptin.is_null() {
-                                vim_snprintf(
+                                vim_snprintf!(
                                     (&raw mut IObuff).cast(),
                                     IOSIZE,
                                     gettext(
@@ -1859,7 +1860,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 argv_idx = -1;
                             } else {
                                 if !(*parmp).scriptout.is_null() {
-                                    vim_snprintf(
+                                    vim_snprintf!(
                                         (&raw mut IObuff).cast(),
                                         IOSIZE,
                                         gettext(
@@ -2099,7 +2100,7 @@ unsafe fn handle_quickfix(paramp: *mut mparm_T) {
             if !(*paramp).use_ef.is_null() {
                 set_option_direct(kOptErrorfile, cstr_obj((*paramp).use_ef), 0, SID_CARG);
             }
-            vim_snprintf((&raw mut IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), p_ef);
+            vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), p_ef);
             if qf_init(
                 ptr::null_mut(),
                 p_ef,
@@ -2126,7 +2127,7 @@ unsafe fn handle_tag(tagname: *mut c_char) {
     unsafe {
         if !tagname.is_null() {
             swap_exists_did_quit = false;
-            vim_snprintf((&raw mut IObuff).cast(), IOSIZE, c"ta %s".as_ptr(), tagname);
+            vim_snprintf!((&raw mut IObuff).cast(), IOSIZE, c"ta %s".as_ptr(), tagname);
             do_cmdline_cmd((&raw const IObuff).cast());
             time_msg_if_enabled(c"jumping to tag".as_ptr());
 
@@ -2173,7 +2174,7 @@ unsafe fn read_stdin() {
             let stdin_buf_empty = buf_is_empty(curbuf);
 
             let mut buf = [0 as c_char; 100];
-            vim_snprintf(
+            vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"silent! buffer %d".as_ptr(),
@@ -2182,7 +2183,7 @@ unsafe fn read_stdin() {
             do_cmdline_cmd(buf.as_ptr());
 
             if stdin_buf_empty {
-                vim_snprintf(
+                vim_snprintf!(
                     buf.as_mut_ptr(),
                     buf.len(),
                     c"silent! bwipeout! %d".as_ptr(),
@@ -2346,7 +2347,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
                     if i == 1 {
                         let mut buf = [0 as c_char; 100];
                         p_shm_save = xstrdup(p_shm);
-                        vim_snprintf(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), p_shm);
+                        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s".as_ptr(), p_shm);
                         set_option_value_give_err(kOptShortmess, cstr_obj(buf.as_ptr()), 0);
                     }
                 } else {

@@ -99,6 +99,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::syntax::syntax_present;
@@ -393,7 +395,6 @@ static mut ins_esc_disabled_redraw: bool = false;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
 }
 
@@ -2270,7 +2271,7 @@ unsafe fn redo_literal(c: c_int) {
     unsafe {
         if ascii_isdigit(c) {
             let mut buf = [0 as c_char; 10];
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut buf).cast(),
                 size_of_val(&buf),
                 c"%03d".as_ptr(),

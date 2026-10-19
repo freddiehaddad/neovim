@@ -51,6 +51,8 @@ use crate::path::{
     path_to_slash, path_with_url, simplify_filename, vim_FullName, vim_isAbsName, vim_ispathsep,
 };
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -180,7 +182,6 @@ static mut ff_expand_buffer: NvimString = NULL_STRING;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -409,7 +410,7 @@ pub unsafe extern "C" fn vim_findfile_init(
                 .data
                 .add((*search_ctx).ffsc_start_dir.size),
         ) == 0;
-        ff_expand_buffer.size = vim_snprintf(
+        ff_expand_buffer.size = vim_snprintf!(
             ff_expand_buffer.data,
             MAXPATHL,
             c"%s%s".as_ptr(),
@@ -425,7 +426,7 @@ pub unsafe extern "C" fn vim_findfile_init(
             let bufsize = ff_expand_buffer.size + (*search_ctx).ffsc_fix_path.size + 1;
             let buf: *mut c_char = xmalloc(bufsize).cast();
 
-            vim_snprintf(
+            vim_snprintf!(
                 buf,
                 bufsize,
                 c"%s%s".as_ptr(),
@@ -441,7 +442,7 @@ pub unsafe extern "C" fn vim_findfile_init(
                             .data
                             .add((*search_ctx).ffsc_fix_path.size),
                     ) == 0;
-                    ff_expand_buffer.size += vim_snprintf(
+                    ff_expand_buffer.size += vim_snprintf!(
                         ff_expand_buffer.data.add(ff_expand_buffer.size),
                         MAXPATHL - ff_expand_buffer.size,
                         c"%s%s".as_ptr(),
@@ -476,7 +477,7 @@ pub unsafe extern "C" fn vim_findfile_init(
                             .data
                             .add((*search_ctx).ffsc_fix_path.size),
                     ) == 0;
-                    ff_expand_buffer.size += vim_snprintf(
+                    ff_expand_buffer.size += vim_snprintf!(
                         ff_expand_buffer.data.add(ff_expand_buffer.size),
                         MAXPATHL - ff_expand_buffer.size,
                         c"%.*s%s".as_ptr(),
@@ -495,7 +496,7 @@ pub unsafe extern "C" fn vim_findfile_init(
                         + (*search_ctx).ffsc_wc_path.size
                         + 1;
                     let temp: *mut c_char = xmalloc(tempsize).cast();
-                    (*search_ctx).ffsc_wc_path.size = vim_snprintf(
+                    (*search_ctx).ffsc_wc_path.size = vim_snprintf!(
                         temp,
                         tempsize,
                         c"%s%s".as_ptr(),
@@ -654,7 +655,7 @@ pub unsafe extern "C" fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_cha
                                 .data
                                 .add((*search_ctx).ffsc_start_dir.size),
                         ) == 0;
-                        file_path.size = vim_snprintf(
+                        file_path.size = vim_snprintf!(
                             file_path.data,
                             MAXPATHL,
                             c"%s%s".as_ptr(),
@@ -679,7 +680,7 @@ pub unsafe extern "C" fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_cha
                         (*stackp).ffs_fix_path.data,
                         (*stackp).ffs_fix_path.data.add((*stackp).ffs_fix_path.size),
                     ) == 0;
-                    file_path.size += vim_snprintf(
+                    file_path.size += vim_snprintf!(
                         file_path.data.add(file_path.size),
                         MAXPATHL - file_path.size,
                         c"%s%s".as_ptr(),
@@ -788,7 +789,7 @@ pub unsafe extern "C" fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_cha
                                 break 'upward;
                             }
                             let add_sep = after_pathsep(entry, entry.add(len)) == 0;
-                            file_path.size = vim_snprintf(
+                            file_path.size = vim_snprintf!(
                                 file_path.data,
                                 MAXPATHL,
                                 c"%s%s%s".as_ptr(),
@@ -961,7 +962,7 @@ pub unsafe extern "C" fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_cha
                         .data
                         .add((*search_ctx).ffsc_start_dir.size),
                 ) == 0;
-                file_path.size = vim_snprintf(
+                file_path.size = vim_snprintf!(
                     file_path.data,
                     MAXPATHL,
                     c"%s%s%s".as_ptr(),
@@ -1453,7 +1454,7 @@ pub unsafe extern "C" fn find_file_in_path_option(
                         && !rel_fname.is_null()
                         && rel_fnamelen + l < MAXPATHL
                     {
-                        l = vim_snprintf(
+                        l = vim_snprintf!(
                             name_buff,
                             MAXPATHL,
                             c"%.*s%s".as_ptr(),

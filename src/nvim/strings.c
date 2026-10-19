@@ -103,27 +103,6 @@ void va_report_null_string(void)
 #endif
 }
 
-/// Append a formatted value to the string
-///
-/// @see vim_vsnprintf_typval().
-int vim_snprintf_add(char *str, size_t str_m, const char *fmt, ...)
-  FUNC_ATTR_PRINTF(3, 4)
-{
-  const size_t len = strlen(str);
-  size_t space;
-
-  if (str_m <= len) {
-    space = 0;
-  } else {
-    space = str_m - len;
-  }
-  va_list ap;
-  va_start(ap, fmt);
-  const int str_l = vim_vsnprintf(str + len, space, fmt, ap);
-  va_end(ap);
-  return str_l;
-}
-
 /// Write formatted value to the string
 ///
 /// @param[out]  str  String to write to.
@@ -137,51 +116,12 @@ int vim_snprintf(char *str, size_t str_m, const char *fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
-  const int str_l = vim_vsnprintf(str, str_m, fmt, ap);
-  va_end(ap);
-  return str_l;
-}
-
-/// Like vim_snprintf() except the return value can be safely used to increment a
-/// buffer length.
-/// Normal `snprintf()` (and `vim_snprintf()`) returns the number of bytes that
-/// would have been copied if the destination buffer was large enough.
-/// This means that you cannot rely on it's return value for the destination
-/// length because the destination may be shorter than the source. This function
-/// guarantees the returned length will never be greater than the destination length.
-size_t vim_snprintf_safelen(char *str, size_t str_m, const char *fmt, ...)
-{
-  va_list ap;
-  int str_l;
-
-  if (str_m == 0) {
-    return 0;
-  }
-
-  va_start(ap, fmt);
-  str_l = vim_vsnprintf_typval(str, str_m, fmt, ap, NULL);
-  va_end(ap);
-
-  if (str_l < 0) {
-    *str = NUL;
-    return 0;
-  }
-  return ((size_t)str_l >= str_m) ? str_m - 1 : (size_t)str_l;
-}
-
-int vim_vsnprintf(char *str, size_t str_m, const char *fmt, va_list ap)
-{
-  return vim_vsnprintf_typval(str, str_m, fmt, ap, NULL);
-}
-
-int vim_vsnprintf_typval(char *str, size_t str_m, const char *fmt, va_list ap_start,
-                         typval_T *const tvs)
-{
   VaState va;
-  va_copy(va.ap_start, ap_start);
-  va_copy(va.ap, ap_start);
-  int ret = vim_vsnprintf_typval_rs(str, str_m, fmt, &va, tvs);
+  va_copy(va.ap_start, ap);
+  va_copy(va.ap, ap);
+  const int str_l = vim_vsnprintf_typval_rs(str, str_m, fmt, &va, NULL);
   va_end(va.ap);
   va_end(va.ap_start);
-  return ret;
+  va_end(ap);
+  return str_l;
 }

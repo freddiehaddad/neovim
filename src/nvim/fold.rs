@@ -37,6 +37,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::search::linewhite;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
 use crate::syntax::syn_get_foldlevel;
@@ -173,8 +175,6 @@ unsafe extern "C" {
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     #[cfg(windows)]
     fn libintl_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-
-    fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
 }
 
@@ -1822,7 +1822,7 @@ pub unsafe extern "C" fn get_foldtext(
         }
         if text.is_null() {
             let count = lnume - lnum + 1;
-            vim_snprintf(
+            vim_snprintf!(
                 buf,
                 FOLD_TEXT_LEN,
                 ngettext_wrap(
@@ -2945,7 +2945,7 @@ unsafe fn put_folds_recurse(fd: *mut FILE, gap: *const garray_T, off: linenr_T) 
                 return FAIL;
             }
             let mut buf = [0 as c_char; 64];
-            vim_snprintf(
+            vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"sil! %lld,%lldfold".as_ptr(),
@@ -2973,7 +2973,7 @@ unsafe fn put_foldopen_recurse(
             if (*fp).fd_flags != FD_LEVEL {
                 if (*fp).fd_nested.ga_len > 0 {
                     let mut buf = [0 as c_char; 32];
-                    vim_snprintf(
+                    vim_snprintf!(
                         buf.as_mut_ptr(),
                         buf.len(),
                         c"%lld".as_ptr(),
@@ -3012,7 +3012,7 @@ unsafe fn put_foldopen_recurse(
 unsafe fn put_fold_open_close(fd: *mut FILE, fp: *const fold_T, off: linenr_T) -> c_int {
     unsafe {
         let mut buf = [0 as c_char; 32];
-        vim_snprintf(
+        vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
             c"%d".as_ptr(),
@@ -3133,7 +3133,7 @@ pub unsafe extern "C" fn f_foldtext(
                 + 20
                 + s_len;
             let r = xmalloc(len).cast::<c_char>();
-            vim_snprintf(r, len, txt, dashes, count);
+            vim_snprintf!(r, len, txt, dashes, count);
             let r_len = CStr::from_ptr(r).to_bytes().len();
             ptr::copy_nonoverlapping(s, r.add(r_len), s_len + 1);
             foldtext_cleanup(r.add(r_len));

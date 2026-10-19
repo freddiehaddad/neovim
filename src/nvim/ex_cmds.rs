@@ -92,6 +92,8 @@ use crate::strings::vim_stricmp;
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_add, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
 #[allow(unused_imports)]
 use crate::window::update_cwd;
@@ -449,9 +451,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
@@ -633,7 +632,7 @@ pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
             if vim_isprintc(c) && (c < b' ' as c_int || c > b'~' as c_int) {
                 let mut buf3: [c_char; 7] = [0; 7];
                 transchar_nonprint(curbuf, buf3.as_mut_ptr(), c);
-                vim_snprintf(buf1.as_mut_ptr(), 20, c"  <%s>".as_ptr(), buf3.as_ptr());
+                vim_snprintf!(buf1.as_mut_ptr(), 20, c"  <%s>".as_ptr(), buf3.as_ptr());
             } else {
                 buf1[0] = NUL;
             }
@@ -641,7 +640,7 @@ pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
 
             let dig = get_digraph_for_char(cval);
             if !dig.is_null() {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
                     gettext(c"<%s>%s%s  %d,  Hex %02x,  Oct %03o, Digr %s".as_ptr()),
@@ -654,7 +653,7 @@ pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
                     dig,
                 );
             } else {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
                     gettext(c"<%s>%s%s  %d,  Hex %02x,  Octal %03o".as_ptr()),
@@ -701,7 +700,7 @@ pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
                 } else {
                     gettext(c"> %d, Hex %08x, Oct %o, Digr %s".as_ptr())
                 };
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr.add(iobuff_len),
                     IOSIZE - iobuff_len,
                     fmt,
@@ -716,7 +715,7 @@ pub unsafe extern "C" fn do_ascii(_eap: *mut exarg_T) {
                 } else {
                     gettext(c"> %d, Hex %08x, Octal %o".as_ptr())
                 };
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr.add(iobuff_len),
                     IOSIZE - iobuff_len,
                     fmt,
@@ -2018,7 +2017,7 @@ unsafe fn do_filter(
                     if (linecount as OptInt) > p_report {
                         if do_in {
                             let msg_buf_ptr = (&raw mut msg_buf).cast::<c_char>();
-                            vim_snprintf(
+                            vim_snprintf!(
                                 msg_buf_ptr,
                                 MSG_BUF_LEN,
                                 gettext(c"%lld lines filtered".as_ptr()),
@@ -2210,7 +2209,7 @@ pub unsafe extern "C" fn make_filter_cmd(
                     } else {
                         c"(%s)".as_ptr()
                     };
-                    vim_snprintf(buf, len, fmt, cmd);
+                    vim_snprintf!(buf, len, fmt, cmd);
                 } else {
                     xstrlcpy(buf, cmd, len);
                 }
@@ -2274,14 +2273,14 @@ pub unsafe extern "C" fn append_redir(
         }
         if !p.is_null() {
             *end = b' ' as c_char;
-            vim_snprintf(
+            vim_snprintf!(
                 end.add(1),
                 (buflen as isize - end.add(1).offset_from(buf)) as usize,
                 opt,
                 fname,
             );
         } else {
-            vim_snprintf(
+            vim_snprintf!(
                 end,
                 (buflen as isize - end.offset_from(buf)) as usize,
                 c" %s %s".as_ptr(),
@@ -2298,7 +2297,7 @@ pub unsafe extern "C" fn print_line_no_prefix(lnum: linenr_T, use_number: bool, 
         let mut numbuf: [c_char; 30] = [0; 30];
 
         if (*curwin).w_onebuf_opt.wo_nu != 0 || use_number {
-            vim_snprintf(
+            vim_snprintf!(
                 numbuf.as_mut_ptr(),
                 30,
                 c"%*d ".as_ptr(),
@@ -2720,7 +2719,7 @@ pub unsafe extern "C" fn check_overwrite(
                 if os_path_exists(swapname) {
                     if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                         let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-                        vim_snprintf(
+                        vim_snprintf!(
                             buff.as_mut_ptr(),
                             DIALOG_MSG_SIZE,
                             gettext(c"Swap file \"%s\" exists, overwrite anyway?".as_ptr()),
@@ -3020,9 +3019,9 @@ pub unsafe extern "C" fn set_swapcommand(command: *mut c_char, newlnum: linenr_T
         };
         let data = xmalloc(valsize).cast::<c_char>();
         let size = if !command.is_null() {
-            vim_snprintf_safelen(data, valsize, c":%s\r".as_ptr(), command)
+            vim_snprintf_safelen!(data, valsize, c":%s\r".as_ptr(), command)
         } else {
-            vim_snprintf_safelen(data, valsize, c"%lldG".as_ptr(), newlnum as i64)
+            vim_snprintf_safelen!(data, valsize, c"%lldG".as_ptr(), newlnum as i64)
         };
         set_vim_var_string(VV_SWAPCOMMAND, data, size as isize);
         xfree(data.cast::<c_void>());
@@ -5156,7 +5155,7 @@ pub unsafe extern "C" fn do_sub_msg(count_only: bool) -> bool {
                     sub_nsubs as c_ulong,
                 )
             };
-            vim_snprintf_add(
+            vim_snprintf_add!(
                 msg_buf_ptr,
                 MSG_BUF_LEN,
                 ngettext(msg_single, msg_plural, sub_nlines as c_ulong),

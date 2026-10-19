@@ -31,6 +31,8 @@ use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_stricmp;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
@@ -286,7 +288,6 @@ unsafe extern "C" {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
@@ -5341,7 +5342,7 @@ pub unsafe extern "C" fn tv_get_string_buf_chk(
                 buf
             }
             VarType::VAR_FLOAT => {
-                vim_snprintf(buf, NUMBUFLEN, c"%g".as_ptr(), (*tv).vval.v_float);
+                vim_snprintf!(buf, NUMBUFLEN, c"%g".as_ptr(), (*tv).vval.v_float);
                 buf
             }
             VarType::VAR_STRING => {
@@ -5441,7 +5442,7 @@ pub unsafe extern "C" fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -
         }
 
         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
-        vim_snprintf(buf.as_mut_ptr(), buf.len(), c"%lld".as_ptr(), n);
+        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%lld".as_ptr(), n);
         semsg!(tr(e_val_too_large.as_ptr()), buf.as_ptr());
         FAIL
     }

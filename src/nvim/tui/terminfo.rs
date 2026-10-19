@@ -11,6 +11,8 @@
     clippy::upper_case_acronyms
 )]
 
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -2226,7 +2228,6 @@ static FKEY_NAMES: [&str; kTerminfoFuncKeyMax] = [
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn vim_snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn unibi_from_term(name: *const c_char) -> *mut unibi_term;
     fn unibi_destroy(ut: *mut unibi_term);
     fn unibi_get_bool(ut: *const unibi_term, v: unibi_boolean) -> c_int;
@@ -2604,7 +2605,7 @@ unsafe fn onum(
         }
         #[cfg(not(test))]
         {
-            let l = vim_snprintf(*buf, len + 2, fmt, num);
+            let l = vim_snprintf!(*buf, len + 2, fmt, num);
             if l < 0 {
                 return false;
             }
@@ -2762,7 +2763,7 @@ pub unsafe extern "C" fn terminfo_fmt(
                         }
                         #[cfg(not(test))]
                         {
-                            let r = vim_snprintf(buf, l + 1, fmt.as_ptr(), ostr);
+                            let r = vim_snprintf!(buf, l + 1, fmt.as_ptr(), ostr);
                             if r >= 0 {
                                 buf = buf.add(r as usize);
                             }

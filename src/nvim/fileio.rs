@@ -55,6 +55,8 @@ use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::shada::check_marks_read;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
@@ -312,8 +314,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn ferror(stream: *mut FILE) -> c_int;
@@ -2237,7 +2237,7 @@ pub unsafe extern "C" fn readfile(
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm) {
-                            buflen += vim_snprintf(
+                            buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
                                 c"%s".as_ptr(),
@@ -2246,7 +2246,7 @@ pub unsafe extern "C" fn readfile(
                             c = true;
                         }
                         if s_issock(perm) {
-                            buflen += vim_snprintf(
+                            buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
                                 c"%s".as_ptr(),
@@ -2262,7 +2262,7 @@ pub unsafe extern "C" fn readfile(
                             target_os = "macos"
                         ))]
                         if s_ischr(perm) {
-                            buflen += vim_snprintf(
+                            buflen += vim_snprintf!(
                                 iobuf_ptr.offset(buflen as isize),
                                 (IOSIZE as c_int - buflen) as usize,
                                 c"%s".as_ptr(),
@@ -2272,7 +2272,7 @@ pub unsafe extern "C" fn readfile(
                         }
                     }
                     if (*curbuf).b_p_ro != 0 {
-                        buflen += vim_snprintf(
+                        buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2285,7 +2285,7 @@ pub unsafe extern "C" fn readfile(
                         c = true;
                     }
                     if read_no_eol_lnum != 0 {
-                        buflen += vim_snprintf(
+                        buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2294,7 +2294,7 @@ pub unsafe extern "C" fn readfile(
                         c = true;
                     }
                     if ff_error == EOL_DOS {
-                        buflen += vim_snprintf(
+                        buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2303,7 +2303,7 @@ pub unsafe extern "C" fn readfile(
                         c = true;
                     }
                     if split != 0 {
-                        buflen += vim_snprintf(
+                        buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2312,7 +2312,7 @@ pub unsafe extern "C" fn readfile(
                         c = true;
                     }
                     if notconverted {
-                        buflen += vim_snprintf(
+                        buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2320,7 +2320,7 @@ pub unsafe extern "C" fn readfile(
                         );
                         c = true;
                     } else if converted {
-                        buflen += vim_snprintf(
+                        buflen += vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2329,7 +2329,7 @@ pub unsafe extern "C" fn readfile(
                         c = true;
                     }
                     if conv_error != 0 {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             tr(c"[CONVERSION ERROR in line %lld]".as_ptr()),
@@ -2337,7 +2337,7 @@ pub unsafe extern "C" fn readfile(
                         );
                         c = true;
                     } else if illegal_byte > 0 {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             tr(c"[ILLEGAL BYTE in line %lld]".as_ptr()),
@@ -2345,7 +2345,7 @@ pub unsafe extern "C" fn readfile(
                         );
                         c = true;
                     } else if error {
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s".as_ptr(),
@@ -2841,7 +2841,7 @@ pub unsafe extern "C" fn msg_add_lines(insert_space: c_int, lnum: linenr_T, ncha
         };
 
         if shortmess(kShmLines) {
-            vim_snprintf(
+            vim_snprintf!(
                 iobuf_ptr.add(len),
                 IOSIZE - len,
                 tr(c"%s%lldL, %lldB".as_ptr()),
@@ -2850,7 +2850,7 @@ pub unsafe extern "C" fn msg_add_lines(insert_space: c_int, lnum: linenr_T, ncha
                 nchars,
             );
         } else {
-            len += vim_snprintf(
+            len += vim_snprintf!(
                 iobuf_ptr.add(len),
                 IOSIZE - len,
                 ngettext(
@@ -2861,7 +2861,7 @@ pub unsafe extern "C" fn msg_add_lines(insert_space: c_int, lnum: linenr_T, ncha
                 space,
                 i64::from(lnum),
             ) as usize;
-            vim_snprintf(
+            vim_snprintf!(
                 iobuf_ptr.add(len),
                 IOSIZE - len,
                 ngettext(
@@ -3337,7 +3337,7 @@ unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
         for n in 123..99999 {
             let tail = path_tail(tempname.as_ptr());
             let rem = (MAXPATHL + 1) - tail.offset_from(tempname.as_ptr()) as usize;
-            vim_snprintf(tail, rem, c"%d".as_ptr(), n);
+            vim_snprintf!(tail, rem, c"%d".as_ptr(), n);
 
             if !os_path_exists(tempname.as_ptr()) {
                 if os_rename(from, tempname.as_ptr()) == OK {
@@ -3698,11 +3698,11 @@ pub unsafe extern "C" fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             }
             let tbufsize = c_strlen(path) + c_strlen(mesg) + c_strlen(mesg2) + 3;
             let tbuf = xmalloc(tbufsize).cast::<c_char>();
-            let tbuflen = vim_snprintf(tbuf, tbufsize, mesg, path);
+            let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path);
             set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
             if can_reload {
                 if *mesg2 != NUL {
-                    vim_snprintf(
+                    vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
                         c"\n%s".as_ptr(),
@@ -3724,7 +3724,7 @@ pub unsafe extern "C" fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                 }
             } else if State > MODE_NORMAL_BUSY || (State & MODE_CMDLINE) != 0 || ALREADY_WARNED {
                 if *mesg2 != NUL {
-                    vim_snprintf(
+                    vim_snprintf!(
                         tbuf.offset(tbuflen as isize),
                         tbufsize - (tbuflen as usize),
                         c"; %s".as_ptr(),
@@ -3989,7 +3989,7 @@ unsafe fn vim_mktempdir() {
             }
 
             if after_pathsep(tmp.as_ptr(), tmp.as_ptr().add(tmplen)) == 0 {
-                tmplen += vim_snprintf(
+                tmplen += vim_snprintf!(
                     tmp.as_mut_ptr().add(tmplen),
                     tmp.len() - tmplen,
                     c"%s".as_ptr(),
@@ -3997,7 +3997,7 @@ unsafe fn vim_mktempdir() {
                 ) as usize;
                 debug_assert!(tmplen < tmp.len());
             }
-            tmplen += vim_snprintf(
+            tmplen += vim_snprintf!(
                 tmp.as_mut_ptr().add(tmplen),
                 tmp.len() - tmplen,
                 c"nvim.%s".as_ptr(),
@@ -4015,7 +4015,7 @@ unsafe fn vim_mktempdir() {
             let valid = isdir && owned;
             if valid {
                 if after_pathsep(tmp.as_ptr(), tmp.as_ptr().add(tmplen)) == 0 {
-                    tmplen += vim_snprintf(
+                    tmplen += vim_snprintf!(
                         tmp.as_mut_ptr().add(tmplen),
                         tmp.len() - tmplen,
                         c"%s".as_ptr(),
@@ -4063,7 +4063,7 @@ unsafe fn vim_mktempdir() {
                 tmp[tmplen] = NUL;
             }
 
-            tmplen += vim_snprintf(
+            tmplen += vim_snprintf!(
                 tmp.as_mut_ptr().add(tmplen),
                 tmp.len() - tmplen,
                 c"XXXXXX".as_ptr(),
@@ -4158,11 +4158,11 @@ pub unsafe extern "C" fn delete_recursive(name: *const c_char) -> c_int {
             let mut ga: garray_T = std::mem::zeroed();
             if readdir_core(&raw mut ga, exp, ptr::null_mut(), None) == OK {
                 let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
-                let len = vim_snprintf(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp);
+                let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp);
 
                 for i in 0..ga.ga_len {
                     let entry = *ga.ga_data.cast::<*mut c_char>().offset(i as isize);
-                    vim_snprintf(
+                    vim_snprintf!(
                         namebuff_ptr.offset(len as isize),
                         MAXPATHL - (len as usize),
                         c"%s".as_ptr(),
@@ -4311,7 +4311,7 @@ pub unsafe extern "C" fn vim_tempname() -> *mut c_char {
         let mut templ: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
         let count = TEMP_COUNT;
         TEMP_COUNT += 1;
-        let itmplen = vim_snprintf(
+        let itmplen = vim_snprintf!(
             templ.as_mut_ptr(),
             TEMP_FILE_PATH_MAXLEN,
             c"%s%llu".as_ptr(),

@@ -23,6 +23,8 @@ use crate::mbyte::{
 #[allow(unused_imports)]
 use crate::message::emsg;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
@@ -1908,12 +1910,6 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
     },
 ];
 
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-}
-
 #[inline]
 fn ascii_isident(c: c_char) -> bool {
     let b = c as u8;
@@ -2825,7 +2821,7 @@ pub unsafe extern "C" fn replace_termcodes(
                         dlen += 1;
                         *result.add(dlen) = KE_SNR as c_char;
                         dlen += 1;
-                        vim_snprintf(
+                        vim_snprintf!(
                             result.add(dlen),
                             buf_len - dlen,
                             c"%d".as_ptr(),

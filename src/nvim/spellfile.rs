@@ -74,6 +74,8 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, langp_T, salfirst_T, salitem_T, slang_T, spelltab_T};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{has_non_ascii, vim_strchr};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
@@ -372,7 +374,6 @@ struct spellinfo_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn atoi(s: *const c_char) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
@@ -1936,7 +1937,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
             return ptr::null_mut();
         }
 
-        vim_snprintf(
+        vim_snprintf!(
             (&raw mut IObuff).cast(),
             IOSIZE,
             gettext(c"Reading affix file %s...".as_ptr()),
@@ -3211,7 +3212,7 @@ unsafe fn spell_read_dic(
 
         hash_init(&raw mut ht);
 
-        vim_snprintf(
+        vim_snprintf!(
             (&raw mut IObuff).cast(),
             IOSIZE,
             gettext(c"Reading dictionary file %s...".as_ptr()),
@@ -3290,7 +3291,7 @@ unsafe fn spell_read_dic(
                 (*spin).si_msg_count = 0;
                 if os_time() > last_msg_time {
                     last_msg_time = os_time();
-                    vim_snprintf(
+                    vim_snprintf!(
                         message.as_mut_ptr(),
                         message.len(),
                         gettext(c"line %6d, word %6d - %s".as_ptr()),
@@ -3869,7 +3870,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
             return FAIL;
         }
 
-        vim_snprintf(
+        vim_snprintf!(
             (&raw mut IObuff).cast(),
             IOSIZE,
             gettext(c"Reading word file %s...".as_ptr()),
@@ -4060,7 +4061,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
         fclose(fd);
 
         if (*spin).si_ascii != 0 && non_ascii > 0 {
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 IOSIZE,
                 gettext(c"Ignored %d words with non-ASCII characters".as_ptr()),
@@ -4404,7 +4405,7 @@ unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: *mut wordnode_T, name:
             } else {
                 ((tot - n) * 100 / tot) as c_long
             };
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 IOSIZE,
                 gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining".as_ptr()),
@@ -5252,7 +5253,7 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
             return;
         }
 
-        vim_snprintf(
+        vim_snprintf!(
             (&raw mut IObuff).cast(),
             IOSIZE,
             gettext(c"Writing suggestion file %s...".as_ptr()),
@@ -5298,7 +5299,7 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
                 emsg(gettext((&raw const e_write).cast()));
             }
 
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 IOSIZE,
                 gettext(c"Estimated runtime memory use: %d bytes".as_ptr()),
@@ -5357,10 +5358,10 @@ unsafe fn mkspell(
             let len = strlen(f0);
             if fcount == 1 && len > 4 && strcmp(f0.add(len - 4), c".add".as_ptr()) == 0 {
                 incount = 1;
-                vim_snprintf(wfname, MAXPATHL, c"%s.spl".as_ptr(), f0);
+                vim_snprintf!(wfname, MAXPATHL, c"%s.spl".as_ptr(), f0);
             } else if fcount == 1 {
                 incount = 1;
-                vim_snprintf(
+                vim_snprintf!(
                     wfname,
                     MAXPATHL,
                     SPL_FNAME_TMPL,
@@ -5374,7 +5375,7 @@ unsafe fn mkspell(
             } else if len > 4 && strcmp(f0.add(len - 4), c".spl".as_ptr()) == 0 {
                 xstrlcpy(wfname, f0, MAXPATHL);
             } else {
-                vim_snprintf(
+                vim_snprintf!(
                     wfname,
                     MAXPATHL,
                     SPL_FNAME_TMPL,
@@ -5446,13 +5447,13 @@ unsafe fn mkspell(
                     spin.si_conv.vc_type = CONV_NONE;
                     spin.si_region = 1 << i;
 
-                    vim_snprintf(fname, MAXPATHL, c"%s.aff".as_ptr(), in_i);
+                    vim_snprintf!(fname, MAXPATHL, c"%s.aff".as_ptr(), in_i);
                     if os_path_exists(fname) {
                         afile[i] = spell_read_aff(&raw mut spin, fname);
                         if afile[i].is_null() {
                             error = true;
                         } else {
-                            vim_snprintf(fname, MAXPATHL, c"%s.dic".as_ptr(), in_i);
+                            vim_snprintf!(fname, MAXPATHL, c"%s.dic".as_ptr(), in_i);
                             if spell_read_dic(&raw mut spin, fname, afile[i]) == FAIL {
                                 error = true;
                             }
@@ -5480,7 +5481,7 @@ unsafe fn mkspell(
                 }
 
                 if !error && !got_int {
-                    vim_snprintf(
+                    vim_snprintf!(
                         (&raw mut IObuff).cast(),
                         IOSIZE,
                         gettext(c"Writing spell file %s...".as_ptr()),
@@ -5491,7 +5492,7 @@ unsafe fn mkspell(
                     error = write_vim_spell(&raw mut spin, wfname) == FAIL;
 
                     spell_message(&raw const spin, gettext(c"Done!".as_ptr()));
-                    vim_snprintf(
+                    vim_snprintf!(
                         (&raw mut IObuff).cast(),
                         IOSIZE,
                         gettext(c"Estimated runtime memory use: %d bytes".as_ptr()),
@@ -5806,7 +5807,7 @@ unsafe fn init_spellfile() {
         }
 
         let cur_len = strlen(buf);
-        vim_snprintf(
+        vim_snprintf!(
             buf.add(cur_len),
             buf_len - cur_len,
             c"/%.*s".as_ptr(),
@@ -5822,7 +5823,7 @@ unsafe fn init_spellfile() {
                 spell_enc()
             };
         let cur_len2 = strlen(buf);
-        vim_snprintf(
+        vim_snprintf!(
             buf.add(cur_len2),
             buf_len - cur_len2,
             c".%s.add".as_ptr(),

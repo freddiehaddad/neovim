@@ -14,6 +14,8 @@
 use crate::charset::vim_str2nr;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, trans_special};
@@ -643,11 +645,6 @@ const NODE_PROPS: [(ExprOpLvl, ExprOpAssociativity); 39] = [
     (ExprOpLvl::Assignment, ExprOpAssociativity::Left), // kExprNodeAssignment
 ];
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-}
-
 #[inline]
 fn ascii_iswhite(b: u8) -> bool {
     b == b' ' || b == TAB
@@ -1244,7 +1241,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
         let mut p = ret;
         let e = ret.add(1023);
 
-        p = p.add(vim_snprintf(
+        p = p.add(vim_snprintf!(
             p,
             1024 - (p as usize - ret as usize),
             c"%zu:%zu:%s".as_ptr(),
@@ -1261,7 +1258,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
 
         match token.r#type {
             kExprLexComparison => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(type=%s,ccs=%s,inv=%i)".as_ptr(),
@@ -1271,7 +1268,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 ) as usize);
             }
             kExprLexMultiplication => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(type=%s)".as_ptr(),
@@ -1279,7 +1276,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 ) as usize);
             }
             kExprLexAssignment => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(type=%s)".as_ptr(),
@@ -1287,7 +1284,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 ) as usize);
             }
             kExprLexRegister => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(name=%s)".as_ptr(),
@@ -1295,7 +1292,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 ) as usize);
             }
             kExprLexDoubleQuotedString | kExprLexSingleQuotedString => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(closed=%i)".as_ptr(),
@@ -1308,7 +1305,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                     kExprOptScopeLocal => c"Local".as_ptr(),
                     _ => c"Unspecified".as_ptr(),
                 };
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(scope=%s,name=%.*s)".as_ptr(),
@@ -1318,7 +1315,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 ) as usize);
             }
             kExprLexPlainIdentifier => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(scope=%s,autoload=%i)".as_ptr(),
@@ -1332,7 +1329,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 } else {
                     token.data.num.val.integer as f64
                 };
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(is_float=%i,base=%i,val=%lg)".as_ptr(),
@@ -1342,7 +1339,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
                 ) as usize);
             }
             kExprLexInvalid => {
-                p = p.add(vim_snprintf(
+                p = p.add(vim_snprintf!(
                     p,
                     1024 - (p as usize - ret as usize),
                     c"(msg=%s)".as_ptr(),
@@ -1358,7 +1355,7 @@ pub unsafe extern "C" fn viml_pexpr_repr_token(
             return ret;
         }
         if pstate.is_null() {
-            p = p.add(vim_snprintf(
+            p = p.add(vim_snprintf!(
                 p,
                 1024 - (p as usize - ret as usize),
                 c"::%zu".as_ptr(),

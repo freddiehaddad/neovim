@@ -34,6 +34,8 @@ use crate::option::get_ve_flags;
 #[allow(unused_imports)]
 use crate::os::input::{input_available, input_get, os_breakcheck};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::ui::ui_flush;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -151,7 +153,6 @@ unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
     fn uv_loop_size() -> usize;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }
@@ -423,7 +424,7 @@ pub unsafe extern "C" fn may_trigger_modechanged() {
         );
         tv_dict_set_keys_readonly(v_event);
 
-        vim_snprintf(
+        vim_snprintf!(
             pattern_buf.as_mut_ptr(),
             pattern_buf.len(),
             c"%s:%s".as_ptr(),

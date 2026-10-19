@@ -74,6 +74,8 @@ use crate::quickfix::{ex_cc, ex_cnext, qf_get_cur_idx, qf_get_valid_size};
 #[allow(unused_imports)]
 use crate::runtime::source_runtime_vim_lua;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::undo::bufIsChanged;
@@ -153,7 +155,6 @@ use crate::arglist::{aentry_T, alist_T};
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -349,7 +350,7 @@ pub unsafe extern "C" fn dialog_changed(buf: *mut buf_T, checkall: bool) {
         } else {
             gettext(c"Untitled".as_ptr())
         };
-        vim_snprintf(
+        vim_snprintf!(
             buff.as_mut_ptr(),
             DIALOG_MSG_SIZE,
             gettext(c"Save changes to \"%s\"?".as_ptr()),
@@ -427,7 +428,7 @@ pub unsafe extern "C" fn dialog_close_terminal(buf: *mut buf_T) -> bool {
         } else {
             c"?".as_ptr()
         };
-        vim_snprintf(
+        vim_snprintf!(
             buff.as_mut_ptr(),
             DIALOG_MSG_SIZE,
             gettext(c"Close \"%s\"?".as_ptr()),
@@ -921,7 +922,7 @@ pub unsafe extern "C" fn ex_compiler(eap: *mut exarg_T) {
         do_unlet(c"g:current_compiler".as_ptr(), 18, true);
         do_unlet(c"b:current_compiler".as_ptr(), 18, true);
 
-        vim_snprintf(buf, bufsize, c"compiler/%s.*".as_ptr(), (*eap).arg);
+        vim_snprintf!(buf, bufsize, c"compiler/%s.*".as_ptr(), (*eap).arg);
         if source_runtime_vim_lua(buf, DIP_ALL) == FAIL {
             semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR.as_ptr()), (*eap).arg);
         }

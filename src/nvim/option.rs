@@ -56,6 +56,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::ui::ui_call_option_set;
 #[allow(unused_imports)]
 use crate::undo::bufIsChanged;
@@ -722,8 +724,6 @@ unsafe extern "C" {
     fn getuid() -> u32;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-    fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -745,7 +745,7 @@ pub unsafe extern "C" fn opt_error(
         return c"".as_ptr();
     }
     unsafe {
-        vim_snprintf((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
+        vim_snprintf!((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
         (*errbuf).data.cast_const()
     }
 }
@@ -759,7 +759,7 @@ pub unsafe fn opt_error_int(
         return c"".as_ptr();
     }
     unsafe {
-        vim_snprintf((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
+        vim_snprintf!((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
         (*errbuf).data.cast_const()
     }
 }
@@ -1083,7 +1083,7 @@ unsafe fn set_init_default_backupskip() {
                 let item = xmalloc(itemsize).cast::<c_char>();
                 let itemseplen: usize = if ga.ga_len == 0 { 0 } else { 1 };
 
-                let itemlen = vim_snprintf(
+                let itemlen = vim_snprintf!(
                     item,
                     itemsize,
                     c"%s%s*".as_ptr(),
@@ -1104,7 +1104,7 @@ unsafe fn set_init_default_backupskip() {
                 .is_null()
                 {
                     ga_grow(&raw mut ga, (itemseplen + itemlen + 1) as c_int);
-                    ga.ga_len += vim_snprintf(
+                    ga.ga_len += vim_snprintf!(
                         ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
                         itemseplen + itemlen + 1,
                         c"%s%s".as_ptr(),
@@ -2501,7 +2501,7 @@ pub unsafe extern "C" fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int
 
                     if !errmsg.is_null() {
                         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
-                        let i = (vim_snprintf(iobuf_ptr, IOSIZE, c"%s".as_ptr(), tr(errmsg)) + 2)
+                        let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s".as_ptr(), tr(errmsg)) + 2)
                             as isize;
                         let arg_len = arg.offset_from(startarg);
                         if (i + arg_len) < IOSIZE as isize {
@@ -3022,7 +3022,7 @@ pub unsafe extern "C" fn apply_optionset_autocmd_now(
 
         set_vim_var_tv(VV_OPTION_OLD, &raw mut oldval_tv);
         set_vim_var_tv(VV_OPTION_NEW, &raw mut newval_tv);
-        let typelen = vim_snprintf_safelen(
+        let typelen = vim_snprintf_safelen!(
             buf_type.as_mut_ptr(),
             buf_type.len(),
             c"%s".as_ptr(),
@@ -4058,7 +4058,7 @@ unsafe fn do_spelllang_source(win: *mut win_T) {
             p = p.add(1);
         }
         if p > q {
-            vim_snprintf(
+            vim_snprintf!(
                 fname.as_mut_ptr(),
                 fname.len(),
                 c"spell/%.*s.*".as_ptr(),
@@ -5234,7 +5234,7 @@ pub unsafe extern "C" fn validate_and_prepare_option_value(args: *mut optset_T) 
             errmsg = if errbuf.is_null() {
                 c"".as_ptr()
             } else {
-                vim_snprintf(
+                vim_snprintf!(
                     (*errbuf).data,
                     (*errbuf).size,
                     gettext(c"Invalid value for option '%s': expected %s, got %s %s".as_ptr()),

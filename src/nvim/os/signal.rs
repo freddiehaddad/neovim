@@ -20,6 +20,8 @@ use crate::main_init::preserve_exit;
 #[allow(unused_imports)]
 use crate::memline::ml_sync_all;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -80,8 +82,6 @@ static mut rejecting_deadly: bool = false;
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     #[cfg(unix)]
     fn sigemptyset(set: *mut c_void) -> c_int;
@@ -242,7 +242,7 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
         v_dying = 1;
 
         let io_buf = (&raw mut IObuff).cast::<c_char>();
-        vim_snprintf(
+        vim_snprintf!(
             io_buf,
             IOSIZE,
             c"Nvim: Caught deadly signal '%s'\n".as_ptr(),

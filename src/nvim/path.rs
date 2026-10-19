@@ -34,6 +34,8 @@ use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::concat_str;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -142,7 +144,6 @@ unsafe extern "C" {
     fn _getdrive() -> c_int;
     fn tolower(c: c_int) -> c_int;
 
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -782,7 +783,7 @@ unsafe fn do_path_expand(
             && e.offset_from(s) == 2
             && *path_end == b'/' as c_char
         {
-            vim_snprintf(s, buflen - len, c"%s".as_ptr(), path_end.add(1));
+            vim_snprintf!(s, buflen - len, c"%s".as_ptr(), path_end.add(1));
             STARDEPTH += 1;
             do_path_expand(gap, buf, len, flags, true);
             STARDEPTH -= 1;
@@ -809,19 +810,19 @@ unsafe fn do_path_expand(
                         && path_cmp(p_fic != 0, path.add(len), name, e.offset_from(s) as usize)
                             == 0);
                 if dot_ok && reg_ok {
-                    len += vim_snprintf(s, buflen - len, c"%s".as_ptr(), name) as usize;
+                    len += vim_snprintf!(s, buflen - len, c"%s".as_ptr(), name) as usize;
                     if len + 1 >= buflen {
                         continue;
                     }
 
                     if starstar && STARDEPTH < 100 {
-                        vim_snprintf(buf.add(len), buflen - len, c"/**%s".as_ptr(), path_end);
+                        vim_snprintf!(buf.add(len), buflen - len, c"/**%s".as_ptr(), path_end);
                         STARDEPTH += 1;
                         do_path_expand(gap, buf, len + 1, flags, true);
                         STARDEPTH -= 1;
                     }
 
-                    vim_snprintf(buf.add(len), buflen - len, c"%s".as_ptr(), path_end);
+                    vim_snprintf!(buf.add(len), buflen - len, c"%s".as_ptr(), path_end);
                     if path_has_wildcard(path_end, false) {
                         if STARDEPTH < 100 {
                             STARDEPTH += 1;
@@ -1101,7 +1102,7 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
             if path_is_absolute(path) {
                 let short_name = path_shorten_fname(path, curdir);
                 if !short_name.is_null() && short_name > path.add(1) {
-                    vim_snprintf(
+                    vim_snprintf!(
                         path,
                         MAXPATHL,
                         c".%s%s".as_ptr(),
@@ -1135,7 +1136,7 @@ unsafe fn uniquefy_paths(gap: *mut garray_T, pattern: *mut c_char, path_option: 
             let rel_pathsize =
                 1 + (PATHSEPSTR.len() - 1) + CStr::from_ptr(short_name).to_bytes().len() + 1;
             let rel_path = xmalloc(rel_pathsize).cast::<c_char>();
-            vim_snprintf(
+            vim_snprintf!(
                 rel_path,
                 rel_pathsize,
                 c".%s%s".as_ptr(),

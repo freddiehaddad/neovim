@@ -74,6 +74,8 @@ use crate::optionstr::free_string_option;
 #[allow(unused_imports)]
 use crate::state::may_trigger_modechanged;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
@@ -452,7 +454,6 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 unsafe extern "C" {
     static mut main_loop: c_void;
 
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -824,7 +825,7 @@ unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mu
         if frag.initial() {
             (*term).termrequest_buffer.size = 0;
             let mut prefix = [0 as c_char; 32];
-            let n = vim_snprintf(
+            let n = vim_snprintf!(
                 prefix.as_mut_ptr(),
                 prefix.len(),
                 c"\x1b]%d;".as_ptr(),
@@ -1136,7 +1137,7 @@ pub unsafe extern "C" fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf
         let state = vterm_obtain_state((*term).vt);
         for i in 0..16 {
             let mut var = [0 as c_char; 64];
-            vim_snprintf(
+            vim_snprintf!(
                 var.as_mut_ptr(),
                 var.len(),
                 c"terminal_color_%d".as_ptr(),

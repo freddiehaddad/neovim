@@ -47,6 +47,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::{re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -141,7 +143,6 @@ pub struct SearchState {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -1088,7 +1089,7 @@ pub unsafe extern "C" fn f_getmatches(
                         tv_list_append_number(l, llpos.len as varnumber_T);
                     }
                     let mut buf = [0 as c_char; 30];
-                    let len = vim_snprintf(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), i + 1);
+                    let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), i + 1);
                     tv_dict_add_list(dict, buf.as_ptr(), len as usize, l);
                 }
             } else {
@@ -1182,7 +1183,7 @@ pub unsafe extern "C" fn f_setmatches(
                 i = 1;
                 while i < 9 {
                     let mut buf = [0 as c_char; 30];
-                    vim_snprintf(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), i);
+                    vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d".as_ptr(), i);
                     let pos_di = tv_dict_find(d, buf.as_ptr(), -1);
                     if !pos_di.is_null() {
                         if (*pos_di).di_tv.v_type != VarType::VAR_LIST {

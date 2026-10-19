@@ -48,6 +48,8 @@ use crate::os::env::home_replace_save;
 use crate::runtime::{cmd_source_buffer, new_script_item};
 #[allow(unused_imports)]
 use crate::runtime::{runtime_get_named_thread, runtime_search_path_validate};
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -353,7 +355,6 @@ unsafe extern "C" {
     fn uv_thread_self() -> uv_thread_t;
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
 
@@ -1630,7 +1631,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
                 ga_clear(&raw mut msg_ga);
                 let buff = xmalloc(IOSIZE).cast::<c_char>();
                 let fmt = gettext(c"E5114: Converting print argument #%i: %.*s".as_ptr());
-                let len = vim_snprintf(buff, IOSIZE, fmt, curargidx, errmsg_len as c_int, errmsg)
+                let len = vim_snprintf!(buff, IOSIZE, fmt, curargidx, errmsg_len as c_int, errmsg)
                     as usize;
                 lua_pushlstring(lstate, buff, len);
                 xfree(buff.cast());
@@ -1710,7 +1711,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
         time_push(&raw mut rel_time, &raw mut start_time);
         let status = lua_pcall(lstate, 1, 1, 0);
         if status == 0 {
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 IOSIZE,
                 c"require('%s')".as_ptr(),
@@ -1747,7 +1748,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
             get_user_input(input_args.as_ptr(), &raw mut input, false, false);
 
             if ui_has(kUICmdline) {
-                vim_snprintf(
+                vim_snprintf!(
                     (&raw mut IObuff).cast(),
                     IOSIZE,
                     c"lua_debug> %s".as_ptr(),
@@ -1827,7 +1828,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
         let name = luaL_checklstring(lstate, 1, &raw mut name_len);
         if !nlua_is_deferred_safe() && !viml_func_is_fast(name) {
             let length = name_len.min(100) + 22;
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 length,
                 c"Vimscript function \"%s\"".as_ptr(),
@@ -2159,10 +2160,10 @@ unsafe fn nlua_exec_typval_fmt(
         static mut LCMD_BUF: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = (&raw mut LCMD_BUF).cast::<c_char>();
         let mut lcmd = buf_ptr;
-        let lcmd_len = vim_snprintf(buf_ptr, IOSIZE, fmt, bodylen as c_int, body);
+        let lcmd_len = vim_snprintf!(buf_ptr, IOSIZE, fmt, bodylen as c_int, body);
         if lcmd_len as usize >= IOSIZE {
             lcmd = xmalloc(lcmd_len as usize + 1).cast::<c_char>();
-            vim_snprintf(lcmd, lcmd_len as usize + 1, fmt, bodylen as c_int, body);
+            vim_snprintf!(lcmd, lcmd_len as usize + 1, fmt, bodylen as c_int, body);
         }
 
         nlua_exec_typval(
@@ -2405,7 +2406,7 @@ pub unsafe extern "C" fn nlua_call_typval(
         }
 
         let mut buf = [0 as c_char; 256];
-        let len = vim_snprintf(
+        let len = vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
             c"return require('%s').%s(...)".as_ptr(),
@@ -2650,7 +2651,7 @@ pub unsafe extern "C" fn ex_lua(eap: *mut exarg_T) {
             let off: usize = if (*eap).cmdidx == CMD_equal { 0 } else { 1 };
             len += 18 - off;
             let code_buf = xmallocz(len).cast::<c_char>();
-            vim_snprintf(
+            vim_snprintf!(
                 code_buf,
                 len + 1,
                 c"vim._print(true, %s)".as_ptr(),
@@ -3282,7 +3283,7 @@ pub unsafe extern "C" fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
     unsafe {
         let length = CStr::from_ptr(lua_funcname).to_bytes().len() + 8;
         let str_ = xmalloc(length).cast::<c_char>();
-        vim_snprintf(str_, length, c"return %s".as_ptr(), lua_funcname);
+        vim_snprintf!(str_, length, c"return %s".as_ptr(), lua_funcname);
         let mut args_items: [Object; 1] = [Object {
             obj_type: ObjectType::kObjectTypeString,
             data: ObjectData {

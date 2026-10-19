@@ -18,6 +18,8 @@ use crate::log::logmsg;
 use crate::os::fs::{os_path_exists, os_remove};
 #[allow(unused_imports)]
 use crate::path::path_tail;
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -182,7 +184,6 @@ unsafe extern "C" {
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
 }
 
@@ -451,7 +452,7 @@ pub unsafe extern "C" fn socket_watcher_start(
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &raw mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
                     let len = c_strlen(addr);
-                    vim_snprintf(
+                    vim_snprintf!(
                         addr.add(len),
                         ADDRESS_MAX_SIZE - len,
                         c":%u".as_ptr(),

@@ -76,6 +76,8 @@ use crate::search::do_search;
 #[allow(unused_imports)]
 use crate::search::{ignorecase, ignorecase_opt};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::window::{
@@ -409,9 +411,6 @@ static mut DO_TAG_FLAGS: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
     fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
@@ -962,7 +961,7 @@ pub unsafe extern "C" fn do_tag(
                         } else {
                             c"".as_ptr()
                         };
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuf_ptr,
                             IOSIZE,
                             gettext(c"tag %d of %d%s".as_ptr()),
@@ -992,7 +991,7 @@ pub unsafe extern "C" fn do_tag(
 
                     let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
                     let iobufflen =
-                        vim_snprintf_safelen(iobuf_ptr, IOSIZE, c":ta %s\r".as_ptr(), name);
+                        vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r".as_ptr(), name);
                     set_vim_var_string(VV_SWAPCOMMAND, iobuf_ptr, iobufflen as isize);
 
                     let i = jumpto_tag(*DO_TAG_MATCHES.add(cur_match as usize), forceit, true);
@@ -1234,7 +1233,7 @@ unsafe fn add_llist_tags(tag: *mut c_char, num_matches: c_int, matches: *mut *mu
         }
 
         let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
-        vim_snprintf(iobuf_ptr, IOSIZE, c"ltag %s".as_ptr(), tag);
+        vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s".as_ptr(), tag);
         set_errorlist(curwin, list, b' ' as c_int, iobuf_ptr, ptr::null_mut());
 
         tv_list_free(list);
@@ -1286,7 +1285,7 @@ pub unsafe extern "C" fn do_tags(_eap: *mut exarg_T) {
 
                 msg_putchar(b'\n' as c_int);
                 let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
-                vim_snprintf(
+                vim_snprintf!(
                     iobuf_ptr,
                     IOSIZE,
                     c"%c%2d %2d %-15s %5d  ".as_ptr(),
@@ -1459,7 +1458,7 @@ unsafe fn find_tagfunc_tags(
         args[2].vval.v_dict = d;
         args[3].v_type = VarType::VAR_UNKNOWN;
 
-        vim_snprintf(
+        vim_snprintf!(
             flagString.as_mut_ptr(),
             flagString.len(),
             c"%s%s%s".as_ptr(),
@@ -2201,7 +2200,7 @@ unsafe fn findtags_add_match(
                 if margs.match_re { margs.matchoff } else { 0 },
                 !margs.match_no_ic,
             ) + (*st).help_pri;
-            vim_snprintf(
+            vim_snprintf!(
                 p.add(len + 1 + ML_EXTRA),
                 mfp_size - (len + 1 + ML_EXTRA),
                 c"%06d".as_ptr(),
@@ -3090,7 +3089,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                             test_for_static(&tagp);
                             let cc = *tagp.tagname_end;
                             *tagp.tagname_end = NUL;
-                            pbuflen = vim_snprintf(
+                            pbuflen = vim_snprintf!(
                                 pbuf,
                                 LSIZE as usize,
                                 c"^%s\\s\\*(".as_ptr(),
@@ -3108,7 +3107,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                                 ptr::null_mut(),
                             ) == 0
                             {
-                                pbuflen = vim_snprintf(
+                                pbuflen = vim_snprintf!(
                                     pbuf,
                                     LSIZE as usize,
                                     c"^\\[#a-zA-Z_]\\.\\*\\<%s\\s\\*(".as_ptr(),

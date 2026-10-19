@@ -19,6 +19,8 @@ use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error};
+#[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -134,14 +136,6 @@ struct MPConvStackVal {
     tv: *mut typval_T,
     saved_copy_id: c_int,
     data: MPConvStackData,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-
 }
 
 #[inline]
@@ -475,7 +469,7 @@ unsafe fn conv_error(
                         },
                     };
                     let key = encode_tv2string(&mut key_tv, std::ptr::null_mut());
-                    vim_snprintf(iobuf.as_mut_ptr(), iobuf.len(), c"key %s".as_ptr(), key);
+                    vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"key %s".as_ptr(), key);
                     xfree(key.cast::<c_void>());
                     ga_concat(&mut msg_ga, iobuf.as_ptr());
                 }
@@ -498,14 +492,14 @@ unsafe fn conv_error(
                         || ((*prev_li).li_tv.v_type != VarType::VAR_LIST
                             && tv_list_len((*prev_li).li_tv.vval.v_list) <= 0)
                     {
-                        vim_snprintf(iobuf.as_mut_ptr(), iobuf.len(), c"index %i".as_ptr(), idx);
+                        vim_snprintf!(iobuf.as_mut_ptr(), iobuf.len(), c"index %i".as_ptr(), idx);
                         ga_concat(&mut msg_ga, iobuf.as_ptr());
                     } else {
                         let first_item = tv_list_first((*prev_li).li_tv.vval.v_list);
                         assert!(!first_item.is_null());
                         let mut key_tv = (*first_item).li_tv;
                         let key = encode_tv2echo(&mut key_tv, std::ptr::null_mut());
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuf.as_mut_ptr(),
                             iobuf.len(),
                             c"key %s at index %i from special map".as_ptr(),
@@ -527,7 +521,7 @@ unsafe fn conv_error(
                 },
                 MPConvStackData::PartialList { arg, argv, .. } => {
                     let idx = (arg.offset_from(argv) as c_int) - 1;
-                    vim_snprintf(
+                    vim_snprintf!(
                         iobuf.as_mut_ptr(),
                         iobuf.len(),
                         c"argument %i".as_ptr(),
@@ -843,7 +837,7 @@ impl EncodeBackend {
                         ga_concat_literal(gap, b"str2float('inf')");
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
-                        let len = vim_snprintf_safelen(
+                        let len = vim_snprintf_safelen!(
                             numbuf.as_mut_ptr(),
                             numbuf.len(),
                             c"%g".as_ptr(),
@@ -865,7 +859,7 @@ impl EncodeBackend {
                         return FAIL;
                     } else {
                         let mut numbuf = [0 as c_char; NUMBUFLEN];
-                        let len = vim_snprintf_safelen(
+                        let len = vim_snprintf_safelen!(
                             numbuf.as_mut_ptr(),
                             numbuf.len(),
                             c"%g".as_ptr(),
@@ -969,7 +963,7 @@ impl EncodeBackend {
                             if i > 0 && (i & 3) == 0 {
                                 ga_append(gap, b'.');
                             }
-                            let nlen = vim_snprintf_safelen(
+                            let nlen = vim_snprintf_safelen!(
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%02X".as_ptr(),
@@ -992,7 +986,7 @@ impl EncodeBackend {
                             if i > 0 {
                                 ga_concat_literal(gap, b", ");
                             }
-                            let nlen = vim_snprintf_safelen(
+                            let nlen = vim_snprintf_safelen!(
                                 numbuf.as_mut_ptr(),
                                 numbuf.len(),
                                 c"%d".as_ptr(),

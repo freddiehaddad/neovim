@@ -62,6 +62,8 @@ use crate::option_vars::*;
 use crate::regexp::vim_regexec;
 use crate::runtime::exestack;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -288,8 +290,6 @@ unsafe extern "C" {
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
 }
 
@@ -779,7 +779,7 @@ unsafe fn set_maparg_rhs(
             mapargs.orig_rhs = xcalloc(1, 1).cast::<c_char>();
             mapargs.orig_rhs_len = 0;
             map_luaid += 1;
-            mapargs.rhs_len = vim_snprintf(
+            mapargs.rhs_len = vim_snprintf!(
                 tmp_buf.as_mut_ptr(),
                 tmp_buf.len(),
                 c"%c%c%c%d\r".as_ptr(),

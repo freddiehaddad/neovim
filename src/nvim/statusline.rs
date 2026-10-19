@@ -55,6 +55,8 @@ use crate::path::{path_tail, shorten_dir};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::ui::ui_call_tabline_update;
 #[allow(unused_imports)]
 use crate::ui::{ui_call_msg_ruler, ui_has};
@@ -281,8 +283,6 @@ unsafe extern "C" {
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 }
 
 #[inline]
@@ -1122,7 +1122,7 @@ pub unsafe extern "C" fn draw_tabline() {
 
                 if modified || wincount > 1 {
                     if wincount > 1 {
-                        let len = vim_snprintf(name_buff, MAXPATHL, c"%d".as_ptr(), wincount);
+                        let len = vim_snprintf!(name_buff, MAXPATHL, c"%d".as_ptr(), wincount);
                         if col + len >= Columns - 3 {
                             break;
                         }
@@ -1976,14 +1976,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
 
                         out_p = t;
 
-                        vim_snprintf(
+                        vim_snprintf!(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d".as_ptr(),
                             (*curbuf).b_fnum,
                         );
                         set_internal_string_var(c"g:actual_curbuf".as_ptr(), buf_tmp.as_mut_ptr());
-                        vim_snprintf(
+                        vim_snprintf!(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d".as_ptr(),
@@ -2207,7 +2207,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_FILETYPE => {
                     let ft = (*(*wp).w_buffer).b_p_ft;
                     if *ft != NUL && CStr::from_ptr(ft).to_bytes().len() < TMPLEN - 3 {
-                        vim_snprintf(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]".as_ptr(), ft);
+                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c"[%s]".as_ptr(), ft);
                         str = buf_tmp.as_mut_ptr();
                     }
                 }
@@ -2215,7 +2215,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     itemisflag = true;
                     let ft = (*(*wp).w_buffer).b_p_ft;
                     if *ft != NUL && CStr::from_ptr(ft).to_bytes().len() < TMPLEN - 2 {
-                        vim_snprintf(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s".as_ptr(), ft);
+                        vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s".as_ptr(), ft);
                         let mut t = buf_tmp.as_mut_ptr();
                         while *t != NUL {
                             *t = toupper(c_int::from(*t as u8)) as c_char;
@@ -2498,7 +2498,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     *t.add(2) = base_ch;
                     *t.add(3) = NUL;
 
-                    out_p = out_p.add(vim_snprintf_safelen(
+                    out_p = out_p.add(vim_snprintf_safelen!(
                         out_p,
                         remaining_buf_len,
                         nstr.as_ptr(),
@@ -2507,7 +2507,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         n,
                     ));
                 } else {
-                    out_p = out_p.add(vim_snprintf_safelen(
+                    out_p = out_p.add(vim_snprintf_safelen!(
                         out_p,
                         remaining_buf_len,
                         nstr.as_ptr(),

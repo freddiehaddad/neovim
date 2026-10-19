@@ -74,6 +74,8 @@ use crate::runtime::{DIP_ALL, DOSO_NONE};
 #[allow(unused_imports)]
 use crate::runtime::{do_source, source_runtime};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
 #[allow(unused_imports)]
 use crate::strings::{vim_stricmp, vim_strnicmp};
@@ -402,7 +404,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
@@ -3219,7 +3220,7 @@ unsafe fn syn_cmd_onoff(eap: *mut exarg_T, name: *const c_char) {
             did_syntax_onoff = true;
             let mut buf = [0 as c_char; 100];
             memcpy(buf.as_mut_ptr().cast(), c"so ".as_ptr().cast(), 4);
-            vim_snprintf(buf.as_mut_ptr().add(3), 100 - 3, SYNTAX_FNAME, name);
+            vim_snprintf!(buf.as_mut_ptr().add(3), 100 - 3, SYNTAX_FNAME, name);
             do_cmdline_cmd(buf.as_ptr());
         }
     }
@@ -5631,7 +5632,7 @@ pub unsafe extern "C" fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut 
             EXP_CLUSTER => {
                 if idx < (*win_s(curwin)).b_syn_clusters.ga_len {
                     let xp_buf = (&raw mut (*xp).xp_buf).cast::<c_char>();
-                    vim_snprintf(
+                    vim_snprintf!(
                         xp_buf,
                         EXPAND_BUF_LEN,
                         c"@%s".as_ptr(),

@@ -78,6 +78,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::ui::{
     ui_call_grid_destroy, ui_call_win_close, ui_call_win_hide, ui_check_cursor_grid, ui_has,
 };
@@ -378,7 +380,6 @@ static mut win_scrolled_resized_recursive: bool = false;
 unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
 }
 
@@ -592,7 +593,7 @@ pub unsafe extern "C" fn swbuf_goto_win_with_buf(buf: *mut buf_T) -> *mut win_T 
 unsafe fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
     unsafe {
         if Prenum != 0 {
-            vim_snprintf(
+            vim_snprintf!(
                 cbuf.as_mut_ptr(),
                 cbuf.len() - 5,
                 c"%lld".as_ptr(),
@@ -1080,7 +1081,7 @@ unsafe fn cmd_with_count(cmd: *const c_char, bufp: *mut c_char, bufsize: usize, 
     unsafe {
         let len = xstrlcpy(bufp, cmd, bufsize);
         if Prenum > 0 && len < bufsize {
-            vim_snprintf(bufp.add(len), bufsize - len, c"%lld".as_ptr(), Prenum);
+            vim_snprintf!(bufp.add(len), bufsize - len, c"%lld".as_ptr(), Prenum);
         }
     }
 }
@@ -3432,7 +3433,7 @@ unsafe fn do_autocmd_winclosed(win: *mut win_T) {
         }
         winclosed_recursive = true;
         let mut winid = [0 as c_char; NUMBUFLEN];
-        vim_snprintf(
+        vim_snprintf!(
             winid.as_mut_ptr(),
             winid.len(),
             c"%d".as_ptr(),
@@ -3618,7 +3619,7 @@ pub unsafe extern "C" fn win_close_othertab(
 
             if has_event(EVENT_TABCLOSED) {
                 let mut prev_idx = [0 as c_char; NUMBUFLEN];
-                vim_snprintf(
+                vim_snprintf!(
                     prev_idx.as_mut_ptr(),
                     NUMBUFLEN,
                     c"%i".as_ptr(),
@@ -5308,7 +5309,7 @@ pub unsafe extern "C" fn tabpage_move(nr: c_int) {
 
         if has_event(EVENT_TABMOVED) {
             let mut prev_idx = [0 as c_char; NUMBUFLEN];
-            vim_snprintf(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i".as_ptr(), old_nr);
+            vim_snprintf!(prev_idx.as_mut_ptr(), NUMBUFLEN, c"%i".as_ptr(), old_nr);
             let mut data_items = [
                 KeyValuePair {
                     key: cstr_as_string(c"tabnr_old".as_ptr()),
@@ -6330,7 +6331,7 @@ unsafe fn check_window_scroll_resize(
                     break;
                 }
                 let mut winid = [0 as c_char; NUMBUFLEN];
-                let key_len = vim_snprintf(
+                let key_len = vim_snprintf!(
                     winid.as_mut_ptr(),
                     winid.len(),
                     c"%d".as_ptr(),
@@ -6436,7 +6437,7 @@ pub unsafe extern "C" fn may_trigger_win_scrolled_resized() {
         let mut resize_bufref: bufref_T = zeroed();
         if trigger_resize {
             resize_win = first_size_win;
-            vim_snprintf(
+            vim_snprintf!(
                 resize_winid.as_mut_ptr(),
                 resize_winid.len(),
                 c"%d".as_ptr(),
@@ -6450,7 +6451,7 @@ pub unsafe extern "C" fn may_trigger_win_scrolled_resized() {
         let mut scroll_bufref: bufref_T = zeroed();
         if trigger_scroll {
             scroll_win = first_scroll_win;
-            vim_snprintf(
+            vim_snprintf!(
                 scroll_winid.as_mut_ptr(),
                 scroll_winid.len(),
                 c"%d".as_ptr(),

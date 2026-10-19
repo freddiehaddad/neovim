@@ -42,6 +42,8 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 #[allow(unused_imports)]
 use crate::runtime::{getsourceline, source_runtime};
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -1641,7 +1643,6 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -2054,7 +2055,7 @@ unsafe fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
             p = p.add(1);
         }
         let used = p.offset_from(buf.as_ptr()) as usize;
-        vim_snprintf(p, buf.len() - used, c" %3d".as_ptr(), (*dp).result);
+        vim_snprintf!(p, buf.len() - used, c" %3d".as_ptr(), (*dp).result);
         msg_outtrans(buf.as_ptr(), 0, false);
     }
 }
@@ -2263,7 +2264,7 @@ pub unsafe extern "C" fn keymap_init() -> *mut c_char {
                 + 14;
             let buf = xmalloc(buflen).cast::<c_char>();
 
-            vim_snprintf(
+            vim_snprintf!(
                 buf,
                 buflen,
                 c"keymap/%s_%s.vim".as_ptr(),
@@ -2272,7 +2273,7 @@ pub unsafe extern "C" fn keymap_init() -> *mut c_char {
             );
 
             if source_runtime(buf, 0) == FAIL {
-                vim_snprintf(buf, buflen, c"keymap/%s.vim".as_ptr(), (*curbuf).b_p_keymap);
+                vim_snprintf!(buf, buflen, c"keymap/%s.vim".as_ptr(), (*curbuf).b_p_keymap);
 
                 if source_runtime(buf, 0) == FAIL {
                     xfree(buf.cast());
@@ -2368,7 +2369,7 @@ pub unsafe extern "C" fn ex_loadkeymap(eap: *mut exarg_T) {
 
         for i in 0..(*curbuf).b_kmap_ga.ga_len {
             let kp = (*curbuf).b_kmap_ga.ga_data.cast::<kmap_T>().add(i as usize);
-            vim_snprintf(
+            vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"<buffer> %s %s".as_ptr(),
@@ -2413,7 +2414,7 @@ unsafe fn keymap_unload() {
         let kp = (*curbuf).b_kmap_ga.ga_data.cast::<kmap_T>();
         for i in 0..(*curbuf).b_kmap_ga.ga_len {
             let entry = kp.add(i as usize);
-            vim_snprintf(
+            vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"<buffer> %s".as_ptr(),
@@ -2478,7 +2479,7 @@ pub unsafe extern "C" fn get_keymap_str(
                 p = c"lang".as_ptr();
             }
         }
-        let mut plen = vim_snprintf(buf, len as usize, fmt, p);
+        let mut plen = vim_snprintf!(buf, len as usize, fmt, p);
         xfree(s.cast());
         if plen < 0 || plen > len - 1 {
             *buf = NUL;

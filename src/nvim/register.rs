@@ -66,6 +66,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::search::{last_search_pat, set_last_search_pat};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped_ext};
 #[allow(unused_imports)]
 use crate::ui::ui_has;
@@ -239,8 +241,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
 }
@@ -1425,7 +1425,7 @@ pub unsafe extern "C" fn op_yank_reg(
                 if (*oap).regname == 0 {
                     namebuf[0] = NUL;
                 } else {
-                    vim_snprintf(
+                    vim_snprintf!(
                         namebuf.as_mut_ptr(),
                         namebuf.len(),
                         gettext(c" into \"%c".as_ptr()),
@@ -1516,7 +1516,7 @@ pub unsafe extern "C" fn format_reg_type(
                 1
             }
             MotionType::kMTBlockWise => {
-                vim_snprintf_safelen(buf, bufsize, c"\x16%d".as_ptr(), reg_width + 1)
+                vim_snprintf_safelen!(buf, bufsize, c"\x16%d".as_ptr(), reg_width + 1)
             }
             MotionType::kMTUnknown => {
                 *buf = NUL;

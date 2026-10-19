@@ -45,6 +45,8 @@ use crate::runtime::exestack;
 use crate::runtime::{do_finish, stacktrace_create};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, xstrnsave};
+#[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -199,8 +201,6 @@ unsafe extern "C" {
     static mut p_vfile: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
@@ -654,7 +654,7 @@ unsafe fn catch_exception(excp: *mut except_T) {
         set_vim_var_list(VV_STACKTRACE, (*excp).stacktrace);
         if *(*excp).throw_name != NUL {
             let iobufflen = if (*excp).throw_lnum != 0 {
-                vim_snprintf_safelen(
+                vim_snprintf_safelen!(
                     ptr::addr_of_mut!(IObuff).cast(),
                     IOSIZE,
                     gettext(c"%s, line %lld".as_ptr()),
@@ -662,7 +662,7 @@ unsafe fn catch_exception(excp: *mut except_T) {
                     i64::from((*excp).throw_lnum),
                 )
             } else {
-                vim_snprintf_safelen(
+                vim_snprintf_safelen!(
                     ptr::addr_of_mut!(IObuff).cast(),
                     IOSIZE,
                     c"%s".as_ptr(),
@@ -717,7 +717,7 @@ unsafe fn finish_exception(excp: *mut except_T) {
             set_vim_var_list(VV_STACKTRACE, (*caught_stack).stacktrace);
             if *(*caught_stack).throw_name != NUL {
                 let iobufflen = if (*caught_stack).throw_lnum != 0 {
-                    vim_snprintf_safelen(
+                    vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         gettext(c"%s, line %lld".as_ptr()),
@@ -725,7 +725,7 @@ unsafe fn finish_exception(excp: *mut except_T) {
                         i64::from((*caught_stack).throw_lnum),
                     )
                 } else {
-                    vim_snprintf_safelen(
+                    vim_snprintf_safelen!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         c"%s".as_ptr(),
@@ -804,7 +804,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
             CSTP_RETURN => get_return_cmd(value),
             _ => {
                 if (pending & CSTP_THROW) != 0 {
-                    vim_snprintf(
+                    vim_snprintf!(
                         ptr::addr_of_mut!(IObuff).cast(),
                         IOSIZE,
                         mesg,

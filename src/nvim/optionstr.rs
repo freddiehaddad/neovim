@@ -51,6 +51,8 @@ use crate::regexp::{vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::spellfile::spell_check_msm;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::ui::ui_has;
@@ -846,7 +848,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 
-    fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
@@ -3924,7 +3925,7 @@ unsafe fn opt_values_err(
             item.cast(),
             itemlen.min(itembuf.len() - 1),
         );
-        let mut n = vim_snprintf(
+        let mut n = vim_snprintf!(
             (*errbuf).data,
             (*errbuf).size,
             gettext(fmt),
@@ -3932,7 +3933,7 @@ unsafe fn opt_values_err(
         );
         let mut j: usize = 0;
         while !(*values.add(j)).is_null() && n > 0 && (n as usize) < (*errbuf).size {
-            n += vim_snprintf(
+            n += vim_snprintf!(
                 (*errbuf).data.add(n as usize),
                 (*errbuf).size - (n as usize),
                 c"%s%s".as_ptr(),

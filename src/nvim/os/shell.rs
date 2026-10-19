@@ -46,6 +46,8 @@ use crate::path::invocation_path_tail;
 #[allow(unused_imports)]
 use crate::path::{add_pathsep, path_has_wildcard, path_tail};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[allow(unused_imports)]
 use crate::tag::tag_freematch;
@@ -157,8 +159,6 @@ unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_err_name(err: c_int) -> *const c_char;
@@ -1415,11 +1415,11 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> *mut c_char {
         let ncmd: *mut c_char = xmalloc(ncmd_size).cast();
 
         if sxq_bytes == b"(" {
-            vim_snprintf(ncmd, ncmd_size, c"(%s)".as_ptr(), ecmd);
+            vim_snprintf!(ncmd, ncmd_size, c"(%s)".as_ptr(), ecmd);
         } else if sxq_bytes == b"\"(" {
-            vim_snprintf(ncmd, ncmd_size, c"\"(%s)\"".as_ptr(), ecmd);
+            vim_snprintf!(ncmd, ncmd_size, c"\"(%s)\"".as_ptr(), ecmd);
         } else {
-            vim_snprintf(ncmd, ncmd_size, c"%s%s%s".as_ptr(), p_sxq, ecmd, p_sxq);
+            vim_snprintf!(ncmd, ncmd_size, c"%s%s%s".as_ptr(), p_sxq, ecmd, p_sxq);
         }
 
         if ecmd != cmd {

@@ -14,6 +14,8 @@
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -585,8 +587,6 @@ unsafe extern "C" {
     fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
     fn uv_dlerror(lib: *const UvLib) -> *const c_char;
 
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
     fn ts_parser_new() -> *mut TSParser;
     fn ts_parser_delete(self_: *mut TSParser);
     fn ts_parser_language(self_: *const TSParser) -> *const TSLanguage;
@@ -875,7 +875,7 @@ unsafe fn load_language_from_object(
         }
 
         let mut symbol_buf = [0 as c_char; 128];
-        vim_snprintf(
+        vim_snprintf!(
             symbol_buf.as_mut_ptr(),
             symbol_buf.len(),
             c"tree_sitter_%s".as_ptr(),
@@ -1025,7 +1025,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
                 lua_pushboolean(L, c_int::from(named));
                 if !named {
                     let mut buf = [0 as c_char; 256];
-                    vim_snprintf(buf.as_mut_ptr(), buf.len(), c"\"%s\"".as_ptr(), name);
+                    vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"\"%s\"".as_ptr(), name);
                     lua_setfield(L, -2, buf.as_ptr());
                 } else {
                     lua_setfield(L, -2, name);
@@ -1353,7 +1353,7 @@ unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
                 let buf = handle_get_buffer(bufnr);
                 if buf.is_null() {
                     let mut ebuf = [0 as c_char; IOSIZE];
-                    vim_snprintf(
+                    vim_snprintf!(
                         ebuf.as_mut_ptr(),
                         IOSIZE,
                         c"invalid buffer handle: %d".as_ptr(),
@@ -2780,7 +2780,7 @@ unsafe fn query_err_string(
 
         let column = error_offset - line_start;
         let type_msg = query_err_to_string(error_type);
-        vim_snprintf(
+        vim_snprintf!(
             err_data,
             err_size,
             c"Query error at %d:%d. %s".as_ptr(),
@@ -2819,7 +2819,7 @@ unsafe fn query_err_string(
                     c = *suffix.add(suffix_len) as u8;
                 }
             }
-            vim_snprintf(
+            vim_snprintf!(
                 err_data,
                 err_size,
                 c"\"%.*s\":\n".as_ptr(),
@@ -2832,11 +2832,11 @@ unsafe fn query_err_string(
         }
 
         if error_line.is_null() {
-            vim_snprintf(err_data, err_size, c"Unexpected EOF\n".as_ptr());
+            vim_snprintf!(err_data, err_size, c"Unexpected EOF\n".as_ptr());
             return;
         }
 
-        vim_snprintf(
+        vim_snprintf!(
             err_data,
             err_size,
             c"%.*s\n%*s^\n".as_ptr(),

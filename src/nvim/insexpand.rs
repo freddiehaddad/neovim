@@ -68,6 +68,8 @@ use crate::regexp::vim_regexec;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
@@ -603,7 +605,6 @@ use crate::state::save_v_event_T;
 unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 
@@ -2369,7 +2370,7 @@ unsafe fn ins_compl_dictionaries(
             let pat_esc = vim_strsave_escaped(pat, c"\\".as_ptr());
             let len = strlen(pat_esc) + 10;
             let ptr = xmalloc(len).cast::<c_char>();
-            vim_snprintf(ptr, len, c"^\\s*\\zs\\V%s".as_ptr(), pat_esc);
+            vim_snprintf!(ptr, len, c"^\\s*\\zs\\V%s".as_ptr(), pat_esc);
             regmatch.regprog = vim_regcomp(ptr, RE_MAGIC);
             xfree(pat_esc.cast());
             xfree(ptr.cast());
@@ -2509,7 +2510,7 @@ unsafe fn ins_compl_files(
             let fp = os_fopen(*files.add(i as usize), c"r".as_ptr());
             if flags != DICT_EXACT && !shortmess(kShmCompletionscan) && !compl_autocomplete {
                 let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr,
                     IOSIZE,
                     gettext(c"Scanning dictionary: %s".as_ptr()),
@@ -4376,7 +4377,7 @@ unsafe fn process_next_cpt_value(
                 } else {
                     (*(*st).ins_buf).b_sfname
                 };
-                vim_snprintf(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s".as_ptr()), name);
+                vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s".as_ptr()), name);
                 msg_progress(
                     iobuff_ptr,
                     c"nvim.completion".as_ptr().cast_mut(),
@@ -4421,7 +4422,7 @@ unsafe fn process_next_cpt_value(
                     compl_type = CTRL_X_TAGS;
                     if !shortmess(kShmCompletionscan) && !compl_autocomplete {
                         let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-                        vim_snprintf(
+                        vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             c"%s".as_ptr(),
@@ -4671,7 +4672,7 @@ unsafe fn get_next_filename_completion() {
             } else {
                 let path_len = last_sep.offset_from(leader) as usize + 1;
                 let path_with_wildcard = xmalloc(path_len + 2).cast::<c_char>();
-                vim_snprintf(
+                vim_snprintf!(
                     path_with_wildcard,
                     path_len + 2,
                     c"%*.*s*".as_ptr(),
@@ -5947,7 +5948,7 @@ unsafe fn ins_compl_show_filename() {
         if !compl_autocomplete {
             msg_hist_off = true;
             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-            vim_snprintf(
+            vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
                 c"%s %s%s".as_ptr(),
@@ -6853,7 +6854,7 @@ unsafe fn ins_compl_show_statusmsg() {
                 if (*compl_curr_match).cp_number != -1 {
                     let match_ref_ptr = (&raw mut match_ref).cast::<c_char>();
                     if compl_matches > 0 {
-                        vim_snprintf(
+                        vim_snprintf!(
                             match_ref_ptr,
                             81,
                             gettext(c"match %d of %d".as_ptr()),
@@ -6861,7 +6862,7 @@ unsafe fn ins_compl_show_statusmsg() {
                             compl_matches,
                         );
                     } else {
-                        vim_snprintf(
+                        vim_snprintf!(
                             match_ref_ptr,
                             81,
                             gettext(c"match %d".as_ptr()),

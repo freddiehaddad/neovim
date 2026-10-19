@@ -74,6 +74,8 @@ use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::{has_non_ascii, vim_strchr};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::ui::ui_flush;
 #[allow(unused_imports)]
 use crate::window::{
@@ -600,9 +602,6 @@ static mut set_qf_ll_recursive: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;
@@ -1818,7 +1817,7 @@ unsafe fn qf_store_title(qfl: *mut qf_list_T, title: *const c_char) {
 unsafe fn qf_cmdtitle(cmd: *const c_char) -> *mut c_char {
     unsafe {
         let buf = (&raw mut qftitle_str).cast::<c_char>();
-        vim_snprintf(buf, IOSIZE, c":%s".as_ptr(), cmd);
+        vim_snprintf!(buf, IOSIZE, c":%s".as_ptr(), cmd);
         buf
     }
 }
@@ -3602,7 +3601,7 @@ unsafe fn qf_jump_print_msg(
         } else {
             c"".as_ptr()
         };
-        let iobufflen = vim_snprintf_safelen(
+        let iobufflen = vim_snprintf_safelen!(
             iobuff_ptr,
             IOSIZE,
             gettext(c"(%d of %d)%s%s: ".as_ptr()),
@@ -3830,7 +3829,7 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
         let mut fname: *mut c_char = ptr::null_mut();
         let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
         if !(*qfp).qf_module.is_null() && *(*qfp).qf_module != NUL {
-            vim_snprintf(
+            vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
                 c"%2d %s".as_ptr(),
@@ -3852,9 +3851,9 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
                 }
             }
             if fname.is_null() {
-                vim_snprintf(iobuff_ptr, IOSIZE, c"%2d".as_ptr(), qf_idx);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d".as_ptr(), qf_idx);
             } else {
-                vim_snprintf(iobuff_ptr, IOSIZE, c"%2d %s".as_ptr(), qf_idx, fname);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%2d %s".as_ptr(), qf_idx, fname);
             }
         }
 
@@ -4018,10 +4017,10 @@ unsafe fn qf_fmt_text(gap: *mut garray_T, text: *const c_char) {
 unsafe fn qf_range_text(gap: *mut garray_T, qfp: *const qfline_T) {
     unsafe {
         let buf_data = (&raw mut IObuff).cast::<c_char>();
-        let mut buf_size = vim_snprintf_safelen(buf_data, IOSIZE, c"%d".as_ptr(), (*qfp).qf_lnum);
+        let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d".as_ptr(), (*qfp).qf_lnum);
 
         if (*qfp).qf_end_lnum > 0 && (*qfp).qf_lnum != (*qfp).qf_end_lnum {
-            buf_size += vim_snprintf_safelen(
+            buf_size += vim_snprintf_safelen!(
                 buf_data.add(buf_size),
                 IOSIZE - buf_size,
                 c"-%d".as_ptr(),
@@ -4029,14 +4028,14 @@ unsafe fn qf_range_text(gap: *mut garray_T, qfp: *const qfline_T) {
             );
         }
         if (*qfp).qf_col > 0 {
-            buf_size += vim_snprintf_safelen(
+            buf_size += vim_snprintf_safelen!(
                 buf_data.add(buf_size),
                 IOSIZE - buf_size,
                 c" col %d".as_ptr(),
                 (*qfp).qf_col,
             );
             if (*qfp).qf_end_col > 0 && (*qfp).qf_col != (*qfp).qf_end_col {
-                buf_size += vim_snprintf_safelen(
+                buf_size += vim_snprintf_safelen!(
                     buf_data.add(buf_size),
                     IOSIZE - buf_size,
                     c"-%d".as_ptr(),
@@ -4055,7 +4054,7 @@ unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
         let count = (*(*qi).qf_lists.add(which as usize)).qf_count;
         let mut buf = [0 as c_char; IOSIZE];
 
-        vim_snprintf(
+        vim_snprintf!(
             buf.as_mut_ptr(),
             IOSIZE,
             gettext(c"%serror list %d of %d; %d errors ".as_ptr()),
@@ -4286,7 +4285,7 @@ unsafe fn qf_types(c: c_int, nr: c_int) -> *const c_char {
         }
 
         let buf = (&raw mut qf_types_buf).cast::<c_char>();
-        vim_snprintf(buf, 20, c"%s %3d".as_ptr(), p, nr);
+        vim_snprintf!(buf, 20, c"%s %3d".as_ptr(), p, nr);
         buf
     }
 }
@@ -5118,7 +5117,7 @@ unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> *mut
             len += c_strlen(p_sp) + c_strlen(fname) + 3;
         }
         let cmd = xmalloc(len).cast::<c_char>();
-        vim_snprintf(cmd, len, c"%s%s%s".as_ptr(), p_shq, makecmd, p_shq);
+        vim_snprintf!(cmd, len, c"%s%s%s".as_ptr(), p_shq, makecmd, p_shq);
 
         if *p_sp != NUL {
             append_redir(cmd, len, p_sp, fname);
@@ -5265,7 +5264,7 @@ unsafe fn get_mef_name() -> *mut c_char {
             let name = xmalloc(mef_len + 30).cast::<c_char>();
             c_strcpy(name, p_mef);
             let off_idx = p.offset_from(p_mef) as usize;
-            vim_snprintf(
+            vim_snprintf!(
                 name.add(off_idx),
                 mef_len + 30 - off_idx,
                 c"%d%d".as_ptr(),
@@ -7903,7 +7902,7 @@ pub unsafe extern "C" fn ex_cbuffer(eap: *mut exarg_T) {
         let mut qf_title = qf_cmdtitle(*(*eap).cmdlinep);
         if !(*buf).b_sfname.is_null() {
             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-            vim_snprintf(
+            vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
                 c"%s (%s)".as_ptr(),

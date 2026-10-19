@@ -102,11 +102,23 @@ pub struct keyvalue_T {
     pub length: usize,
 }
 
+#[cfg_attr(all(test, windows), link(name = "legacy_stdio_definitions"))]
+unsafe extern "C" {
+    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
+}
+
+#[cfg(test)]
+unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
+    msgid.cast_mut()
+}
+
+#[cfg(test)]
+unsafe fn va_report_null_string() {}
+
 #[cfg(not(test))]
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
     fn va_state_reset(va_ptr: *mut c_void);
     fn va_state_int(va_ptr: *mut c_void) -> c_int;
@@ -951,7 +963,6 @@ pub unsafe extern "C" fn format_typeof(mut type_: *const c_char) -> c_int {
 }
 
 unsafe fn format_typename(type_: *const c_char) -> *const c_char {
-    #[cfg(not(test))]
     unsafe {
         match format_typeof(type_) {
             TYPE_INT => c"int".as_ptr(),
@@ -970,11 +981,6 @@ unsafe fn format_typename(type_: *const c_char) -> *const c_char {
             _ => gettext(c"unknown".as_ptr()),
         }
     }
-    #[cfg(test)]
-    {
-        let _ = type_;
-        c"unknown".as_ptr()
-    }
 }
 
 unsafe fn adjust_types(
@@ -983,7 +989,6 @@ unsafe fn adjust_types(
     num_posarg: *mut c_int,
     type_: *const c_char,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         if arg <= 0 {
             semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), type_);
@@ -1037,16 +1042,10 @@ unsafe fn adjust_types(
         *(*ap_types).add((arg - 1) as usize) = type_;
         OK
     }
-    #[cfg(test)]
-    {
-        let _ = (ap_types, arg, num_posarg, type_);
-        OK
-    }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn format_overflow_error(pstart: *const c_char) {
-    #[cfg(not(test))]
     unsafe {
         let mut p = pstart;
         while ascii_isdigit(*p) {
@@ -1057,10 +1056,6 @@ pub unsafe extern "C" fn format_overflow_error(pstart: *const c_char) {
             p.offset_from(pstart) as c_int,
             pstart,
         );
-    }
-    #[cfg(test)]
-    {
-        let _ = pstart;
     }
 }
 
@@ -1099,7 +1094,6 @@ pub unsafe extern "C" fn parse_fmt_types(
     fmt: *const c_char,
     tvs: *mut typval_T,
 ) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         if fmt.is_null() {
             return OK;
@@ -1304,17 +1298,192 @@ pub unsafe extern "C" fn parse_fmt_types(
 
         OK
     }
-    #[cfg(test)]
-    {
-        let _ = (ap_types, num_posarg, fmt, tvs);
-        OK
-    }
 }
 
 const E_APTYPES_IS_NULL_NR_STR: &CStr =
     c"E1507: Internal error: ap_types or ap_types[idx] is NULL: %d: %s";
 const E_TOO_MANY_ARGS: &CStr = c"E767: Too many arguments to printf()";
 const TMP_LEN: usize = 350;
+
+#[derive(Clone, Copy)]
+pub enum FmtVal {
+    Signed(i64),
+    Unsigned(u64),
+    Float(f64),
+    Ptr(*const c_void),
+}
+
+impl FmtVal {
+    #[inline]
+    fn as_i64(self) -> i64 {
+        match self {
+            Self::Signed(v) => v,
+            Self::Unsigned(v) => v as i64,
+            Self::Float(v) => v as i64,
+            Self::Ptr(p) => p as usize as i64,
+        }
+    }
+
+    #[inline]
+    fn as_u64(self) -> u64 {
+        match self {
+            Self::Signed(v) => v as u64,
+            Self::Unsigned(v) => v,
+            Self::Float(v) => v as u64,
+            Self::Ptr(p) => p as usize as u64,
+        }
+    }
+
+    #[inline]
+    fn as_f64(self) -> f64 {
+        match self {
+            Self::Float(v) => v,
+            Self::Signed(v) => v as f64,
+            Self::Unsigned(v) => v as f64,
+            Self::Ptr(_) => 0.0,
+        }
+    }
+
+    #[inline]
+    fn as_ptr(self) -> *const c_void {
+        match self {
+            Self::Ptr(p) => p,
+            Self::Signed(v) => v as usize as *const c_void,
+            Self::Unsigned(v) => v as usize as *const c_void,
+            Self::Float(_) => ptr::null(),
+        }
+    }
+}
+
+pub trait IntoFmtVal {
+    fn into_fmt_val(self) -> FmtVal;
+}
+
+impl IntoFmtVal for FmtVal {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        self
+    }
+}
+
+impl IntoFmtVal for i8 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Signed(i64::from(self))
+    }
+}
+
+impl IntoFmtVal for i16 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Signed(i64::from(self))
+    }
+}
+
+impl IntoFmtVal for i32 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Signed(i64::from(self))
+    }
+}
+
+impl IntoFmtVal for i64 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Signed(self)
+    }
+}
+
+impl IntoFmtVal for isize {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Signed(self as i64)
+    }
+}
+
+impl IntoFmtVal for u8 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Unsigned(u64::from(self))
+    }
+}
+
+impl IntoFmtVal for u16 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Unsigned(u64::from(self))
+    }
+}
+
+impl IntoFmtVal for u32 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Unsigned(u64::from(self))
+    }
+}
+
+impl IntoFmtVal for u64 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Unsigned(self)
+    }
+}
+
+impl IntoFmtVal for usize {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Unsigned(self as u64)
+    }
+}
+
+impl IntoFmtVal for bool {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Unsigned(u64::from(self))
+    }
+}
+
+impl IntoFmtVal for f32 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Float(f64::from(self))
+    }
+}
+
+impl IntoFmtVal for f64 {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Float(self)
+    }
+}
+
+impl<T> IntoFmtVal for *const T {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Ptr(self.cast())
+    }
+}
+
+impl<T> IntoFmtVal for *mut T {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Ptr(self.cast())
+    }
+}
+
+impl IntoFmtVal for &CStr {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal {
+        FmtVal::Ptr(self.as_ptr().cast())
+    }
+}
+
+#[inline]
+fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut c_int) -> FmtVal {
+    let idx = (*arg_idx - 1) as usize;
+    *arg_idx += 1;
+    args.get(idx).copied().unwrap_or(FmtVal::Signed(0))
+}
 
 #[cfg(not(test))]
 unsafe fn skip_to_arg(
@@ -1392,6 +1561,64 @@ unsafe fn skip_to_arg(
     }
 }
 
+#[cfg(test)]
+unsafe fn skip_to_arg(
+    _ap_types: *const *const c_char,
+    _va_ptr: *mut c_void,
+    arg_idx: *mut c_int,
+    arg_cur: *mut c_int,
+    _fmt: *const c_char,
+) {
+    unsafe {
+        *arg_cur += 1;
+        *arg_idx += 1;
+    }
+}
+#[cfg(test)]
+unsafe fn va_state_int(_va_ptr: *mut c_void) -> c_int {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_long(_va_ptr: *mut c_void) -> c_long {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_llong(_va_ptr: *mut c_void) -> c_longlong {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_ptrdiff(_va_ptr: *mut c_void) -> isize {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_uint(_va_ptr: *mut c_void) -> c_uint {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_ulong(_va_ptr: *mut c_void) -> c_ulong {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_ullong(_va_ptr: *mut c_void) -> c_ulonglong {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_size(_va_ptr: *mut c_void) -> usize {
+    0
+}
+#[cfg(test)]
+unsafe fn va_state_str(_va_ptr: *mut c_void) -> *const c_char {
+    ptr::null()
+}
+#[cfg(test)]
+unsafe fn va_state_ptr(_va_ptr: *mut c_void) -> *mut c_void {
+    ptr::null_mut()
+}
+#[cfg(test)]
+unsafe fn va_state_double(_va_ptr: *mut c_void) -> c_double {
+    0.0
+}
+
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
     str_out: *mut c_char,
@@ -1400,7 +1627,17 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
     va_ptr: *mut c_void,
     tvs: *mut typval_T,
 ) -> c_int {
-    #[cfg(not(test))]
+    unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, va_ptr, tvs, None) }
+}
+
+unsafe fn vim_vsnprintf_typval_inner(
+    str_out: *mut c_char,
+    str_m: usize,
+    fmt: *const c_char,
+    va_ptr: *mut c_void,
+    tvs: *mut typval_T,
+    fmt_args: Option<&[FmtVal]>,
+) -> c_int {
     unsafe {
         let mut str_l: usize = 0;
         let mut str_avail = str_l < str_m;
@@ -1516,6 +1753,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
 
                     let mut j = if !tvs.is_null() {
                         tv_nr(tvs, &raw mut arg_idx) as c_int
+                    } else if let Some(args) = fmt_args {
+                        fmt_arg_val(args, &mut arg_idx).as_i64() as c_int
                     } else {
                         skip_to_arg(ap_types, va_ptr, &raw mut arg_idx, &raw mut arg_cur, fmt);
                         va_state_int(va_ptr)
@@ -1579,6 +1818,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
 
                         let mut j = if !tvs.is_null() {
                             tv_nr(tvs, &raw mut arg_idx) as c_int
+                        } else if let Some(args) = fmt_args {
+                            fmt_arg_val(args, &mut arg_idx).as_i64() as c_int
                         } else {
                             skip_to_arg(ap_types, va_ptr, &raw mut arg_idx, &raw mut arg_cur, fmt);
                             va_state_int(va_ptr)
@@ -1651,6 +1892,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                             b'c' => {
                                 let j = if !tvs.is_null() {
                                     tv_nr(tvs, &raw mut arg_idx) as c_int
+                                } else if let Some(args) = fmt_args {
+                                    fmt_arg_val(args, &mut arg_idx).as_i64() as c_int
                                 } else {
                                     skip_to_arg(
                                         ap_types,
@@ -1667,6 +1910,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                             b's' | b'S' => {
                                 str_arg = if !tvs.is_null() {
                                     tv_str(tvs, &raw mut arg_idx, &raw mut tofree)
+                                } else if let Some(args) = fmt_args {
+                                    fmt_arg_val(args, &mut arg_idx).as_ptr().cast::<c_char>()
                                 } else {
                                     skip_to_arg(
                                         ap_types,
@@ -1725,6 +1970,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                         if fmt_spec == b'p' as c_char {
                             ptr_arg = if !tvs.is_null() {
                                 tv_ptr(tvs, &raw mut arg_idx)
+                            } else if let Some(args) = fmt_args {
+                                fmt_arg_val(args, &mut arg_idx).as_ptr()
                             } else {
                                 skip_to_arg(
                                     ap_types,
@@ -1741,6 +1988,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                         } else if fmt_spec == b'b' as c_char || fmt_spec == b'B' as c_char {
                             uarg = if !tvs.is_null() {
                                 tv_nr(tvs, &raw mut arg_idx) as c_ulonglong
+                            } else if let Some(args) = fmt_args {
+                                fmt_arg_val(args, &mut arg_idx).as_u64()
                             } else {
                                 skip_to_arg(
                                     ap_types,
@@ -1757,6 +2006,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 0 => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_int
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_i64() as c_int
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1772,6 +2023,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'h' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_int
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_i64() as c_int
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1787,6 +2040,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'l' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_long
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_i64() as c_long
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1802,6 +2057,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'L' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_longlong
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_i64()
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1817,6 +2074,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'z' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as isize
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_i64() as isize
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1841,6 +2100,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 0 => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_uint
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_u64() as c_uint
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1856,6 +2117,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'h' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_uint
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_u64() as c_uint
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1871,6 +2134,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'l' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_ulong
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_u64() as c_ulong
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1886,6 +2151,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'L' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as c_ulonglong
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_u64()
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -1901,6 +2168,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                                 b'z' => {
                                     let v = if !tvs.is_null() {
                                         tv_nr(tvs, &raw mut arg_idx) as usize
+                                    } else if let Some(args) = fmt_args {
+                                        fmt_arg_val(args, &mut arg_idx).as_u64() as usize
                                     } else {
                                         skip_to_arg(
                                             ap_types,
@@ -2048,6 +2317,8 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
 
                         let f = if !tvs.is_null() {
                             tv_float(tvs, &raw mut arg_idx)
+                        } else if let Some(args) = fmt_args {
+                            fmt_arg_val(args, &mut arg_idx).as_f64()
                         } else {
                             skip_to_arg(ap_types, va_ptr, &raw mut arg_idx, &raw mut arg_cur, fmt);
                             va_state_double(va_ptr)
@@ -2290,6 +2561,7 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
                 *str_out.add(str_l.min(str_m - 1)) = NUL;
             }
 
+            #[cfg(not(test))]
             if !tvs.is_null() {
                 let check_idx = if num_posarg != 0 {
                     num_posarg as usize
@@ -2305,12 +2577,97 @@ pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
         xfree(ap_types.cast());
         str_l as c_int
     }
-    #[cfg(test)]
-    {
-        let _ = (str_out, str_m, fmt, va_ptr, tvs);
-        0
+}
+
+pub unsafe fn vim_snprintf_fmt(
+    str_out: *mut c_char,
+    str_m: usize,
+    fmt: *const c_char,
+    args: &[FmtVal],
+) -> c_int {
+    unsafe {
+        vim_vsnprintf_typval_inner(
+            str_out,
+            str_m,
+            fmt,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            Some(args),
+        )
     }
 }
+
+pub unsafe fn vim_snprintf_add_fmt(
+    str_out: *mut c_char,
+    str_m: usize,
+    fmt: *const c_char,
+    args: &[FmtVal],
+) -> c_int {
+    unsafe {
+        let len = CStr::from_ptr(str_out).to_bytes().len();
+        let space = str_m.saturating_sub(len);
+        vim_snprintf_fmt(str_out.add(len), space, fmt, args)
+    }
+}
+
+pub unsafe fn vim_snprintf_safelen_fmt(
+    str_out: *mut c_char,
+    str_m: usize,
+    fmt: *const c_char,
+    args: &[FmtVal],
+) -> usize {
+    unsafe {
+        if str_m == 0 {
+            return 0;
+        }
+        let str_l = vim_snprintf_fmt(str_out, str_m, fmt, args);
+        if str_l < 0 {
+            *str_out = NUL;
+            return 0;
+        }
+        let len = str_l as usize;
+        if len >= str_m { str_m - 1 } else { len }
+    }
+}
+
+#[macro_export]
+macro_rules! vim_snprintf {
+    ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
+        $crate::strings::vim_snprintf_fmt(
+            $str_out,
+            $str_m,
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
+    };
+}
+pub use vim_snprintf;
+
+#[macro_export]
+macro_rules! vim_snprintf_add {
+    ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
+        $crate::strings::vim_snprintf_add_fmt(
+            $str_out,
+            $str_m,
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
+    };
+}
+pub use vim_snprintf_add;
+
+#[macro_export]
+macro_rules! vim_snprintf_safelen {
+    ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
+        $crate::strings::vim_snprintf_safelen_fmt(
+            $str_out,
+            $str_m,
+            $fmt,
+            &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
+        )
+    };
+}
+pub use vim_snprintf_safelen;
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn vim_snprintf_typval_only(
@@ -3513,6 +3870,46 @@ mod tests {
             assert!(!has_non_ascii(c"ascii".as_ptr()));
             assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
             assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
+        }
+    }
+
+    #[test]
+    fn vim_snprintf_macros_format_correctly() {
+        unsafe {
+            let mut buf = [0 as c_char; 64];
+            let n = vim_snprintf!(
+                buf.as_mut_ptr(),
+                buf.len(),
+                c"%s %d %x %06b".as_ptr(),
+                c"val",
+                -42,
+                0xdeadbeef_u32,
+                12_u64,
+            );
+            assert_eq!(n, 23);
+            assert_eq!(
+                CStr::from_ptr(buf.as_ptr()).to_str().unwrap(),
+                "val -42 deadbeef 001100"
+            );
+
+            let added = vim_snprintf_add!(
+                buf.as_mut_ptr(),
+                buf.len(),
+                c" %2$s %1$d".as_ptr(),
+                7,
+                c"ok"
+            );
+            assert_eq!(added, 5);
+            assert_eq!(
+                CStr::from_ptr(buf.as_ptr()).to_str().unwrap(),
+                "val -42 deadbeef 001100 ok 7"
+            );
+
+            let mut small = [0 as c_char; 5];
+            let safelen =
+                vim_snprintf_safelen!(small.as_mut_ptr(), small.len(), c"hello world".as_ptr(),);
+            assert_eq!(safelen, 4);
+            assert_eq!(CStr::from_ptr(small.as_ptr()).to_str().unwrap(), "hell");
         }
     }
 }

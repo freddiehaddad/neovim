@@ -19,6 +19,8 @@ use crate::os::env::os_getenv_noalloc;
 #[allow(unused_imports)]
 use crate::os::fs::os_path_exists;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::ui::ui_active;
 #[cfg(windows)]
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
@@ -152,7 +154,6 @@ unsafe extern "C" {
 #[cfg(all(windows, not(test)))]
 unsafe extern "C" {
 
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn uv_tty_set_vterm_state(state: c_int);
 }
 
@@ -314,7 +315,7 @@ pub unsafe extern "C" fn os_icon_init() {
         let vimruntime = os_getenv(c"VIMRUNTIME".as_ptr());
         if !vimruntime.is_null() {
             let namebuff = std::ptr::addr_of_mut!(NameBuff).cast::<c_char>();
-            vim_snprintf(namebuff, MAXPATHL, c"%s/neovim.ico".as_ptr(), vimruntime);
+            vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico".as_ptr(), vimruntime);
             if !os_path_exists(namebuff) {
                 logmsg!(
                     LOGLVL_WRN,

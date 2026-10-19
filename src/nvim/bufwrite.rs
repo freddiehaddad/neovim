@@ -63,6 +63,8 @@ use crate::path::{after_pathsep, path_equal, path_tail};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_add};
+#[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 #[allow(unused_imports)]
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
@@ -250,9 +252,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_add(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     #[cfg(windows)]
     fn libiconv(
@@ -915,7 +914,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
         if !(*e).num.is_null() && (*e).arg != 0 {
-            let _ = vim_snprintf(
+            let _ = vim_snprintf!(
                 errmsg.as_mut_ptr(),
                 IOSIZE,
                 c"%s: %s%s: %s".as_ptr(),
@@ -925,7 +924,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
                 uv_strerror((*e).arg),
             );
         } else if !(*e).num.is_null() {
-            let _ = vim_snprintf(
+            let _ = vim_snprintf!(
                 errmsg.as_mut_ptr(),
                 IOSIZE,
                 c"%s: %s%s".as_ptr(),
@@ -934,7 +933,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
                 (*e).msg,
             );
         } else if (*e).arg != 0 {
-            let _ = vim_snprintf(errmsg.as_mut_ptr(), IOSIZE, (*e).msg, uv_strerror((*e).arg));
+            let _ = vim_snprintf!(errmsg.as_mut_ptr(), IOSIZE, (*e).msg, uv_strerror((*e).arg));
         } else {
             xstrlcpy(errmsg.as_mut_ptr(), (*e).msg, IOSIZE);
         }
@@ -2081,7 +2080,7 @@ pub unsafe extern "C" fn buf_write(
                                     ));
                                 } else {
                                     let alloc_msg = xmalloc(300).cast::<c_char>();
-                                    let _ = vim_snprintf(
+                                    let _ = vim_snprintf!(
                                         alloc_msg,
                                         300,
                                         gettext(
@@ -2137,7 +2136,7 @@ pub unsafe extern "C" fn buf_write(
                             xstrlcat(iobuf, gettext(c" CONVERSION ERROR".as_ptr()), IOSIZE);
                             insert_space = true;
                             if write_info.bw_conv_error_lnum != 0 {
-                                let _ = vim_snprintf_add(
+                                let _ = vim_snprintf_add!(
                                     iobuf,
                                     IOSIZE,
                                     gettext(c" in line %lld;".as_ptr()),

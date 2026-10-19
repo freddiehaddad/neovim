@@ -81,6 +81,8 @@ use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::vim_beep;
@@ -275,7 +277,6 @@ static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;
     fn strlen(s: *const c_char) -> usize;
@@ -1301,7 +1302,7 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
         if os_env_exists(c"DIFF_OPTIONS".as_ptr(), true) {
             let _ = os_unsetenv(c"DIFF_OPTIONS".as_ptr());
         }
-        vim_snprintf(
+        vim_snprintf!(
             cmd,
             len,
             c"diff %s%s%s%s%s%s%s%s %s".as_ptr(),
@@ -1431,7 +1432,7 @@ pub unsafe extern "C" fn ex_diffpatch(eap: *mut exarg_T) {
                 #[cfg(not(unix))]
                 eval_patch(tmp_orig, (*eap).arg, tmp_new);
             } else {
-                vim_snprintf(
+                vim_snprintf!(
                     buf,
                     buflen,
                     c"patch -o %s %s < %s".as_ptr(),
@@ -1616,7 +1617,7 @@ pub unsafe extern "C" fn diff_win_options(wp: *mut win_T, addbuf: bool) {
         free_string_option((*wp).w_onebuf_opt.wo_fdc);
         (*wp).w_onebuf_opt.wo_fdc = xstrdup(c"2".as_ptr());
         debug_assert!(diff_foldcolumn >= 0 && diff_foldcolumn <= 9);
-        vim_snprintf(
+        vim_snprintf!(
             (*wp).w_onebuf_opt.wo_fdc,
             strlen((*wp).w_onebuf_opt.wo_fdc) + 1,
             c"%d".as_ptr(),
@@ -3397,7 +3398,7 @@ pub unsafe extern "C" fn nv_diffgetput(put: bool, count: usize) {
         if count == 0 {
             ea.arg = c"".as_ptr().cast_mut();
         } else {
-            vim_snprintf((&raw mut buf).cast(), buf.len(), c"%zu".as_ptr(), count);
+            vim_snprintf!((&raw mut buf).cast(), buf.len(), c"%zu".as_ptr(), count);
             ea.arg = (&raw mut buf).cast();
         }
         ea.cmdidx = if put { CMD_diffput } else { CMD_diffget };

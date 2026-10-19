@@ -49,6 +49,8 @@ use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::message::{emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title};
 use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::window::buf_jump_open_win;
@@ -190,7 +192,6 @@ const CMDS: [*const c_char; 7] = [
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -530,7 +531,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                 } else {
                     gettext(c"Untitled".as_ptr()).cast_const()
                 };
-                vim_snprintf(
+                vim_snprintf!(
                     lbuf.as_mut_ptr(),
                     MSG_BUF_LEN,
                     gettext(c"Signs for %s:".as_ptr()),
@@ -568,7 +569,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
 
                         let sh = decor_find_sign(mt_decor(mark));
                         if !(*sh).sign_name.is_null() {
-                            vim_snprintf(
+                            vim_snprintf!(
                                 namebuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
                                 gettext(c"  name=%s".as_ptr()),
@@ -576,14 +577,14 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                             );
                         }
                         if mark.ns != 0 {
-                            vim_snprintf(
+                            vim_snprintf!(
                                 groupbuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
                                 gettext(c"  group=%s".as_ptr()),
                                 describe_ns(mark.ns as c_int, c"".as_ptr()),
                             );
                         }
-                        vim_snprintf(
+                        vim_snprintf!(
                             lbuf.as_mut_ptr(),
                             MSG_BUF_LEN,
                             gettext(c"    line=%d  id=%u%s%s  priority=%d".as_ptr()),
@@ -803,7 +804,7 @@ unsafe fn sign_list_defined(sp: *mut sign_T) {
         }
         if (*sp).sn_priority > 0 {
             let mut lbuf = [0 as c_char; MSG_BUF_LEN];
-            vim_snprintf(
+            vim_snprintf!(
                 lbuf.as_mut_ptr(),
                 MSG_BUF_LEN,
                 c" priority=%d".as_ptr(),

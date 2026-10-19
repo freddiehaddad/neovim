@@ -58,6 +58,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{reverse_text, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
@@ -326,7 +328,6 @@ unsafe extern "C" {
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -1521,7 +1522,7 @@ pub unsafe extern "C" fn do_search(
                     }
                     off_buf[off_len] = NUL;
                     if spats[0].off.off != 0 || spats[0].off.line {
-                        let n = vim_snprintf(
+                        let n = vim_snprintf!(
                             off_buf_ptr.add(off_len),
                             off_buf.len() - off_len,
                             c"%+lld".as_ptr(),
@@ -2983,9 +2984,9 @@ unsafe fn cmdline_search_stat(
 
         if (*curwin).w_onebuf_opt.wo_rl != 0 && *(*curwin).w_onebuf_opt.wo_rlc == b's' as c_char {
             if stat.incomplete == 1 {
-                len = vim_snprintf(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]".as_ptr()) as usize;
+                len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]".as_ptr()) as usize;
             } else if stat.cnt > maxcount && stat.cur > maxcount {
-                len = vim_snprintf(
+                len = vim_snprintf!(
                     t_ptr,
                     SEARCH_STAT_BUF_LEN,
                     c"[>%d/>%d]".as_ptr(),
@@ -2993,7 +2994,7 @@ unsafe fn cmdline_search_stat(
                     maxcount,
                 ) as usize;
             } else if stat.cnt > maxcount {
-                len = vim_snprintf(
+                len = vim_snprintf!(
                     t_ptr,
                     SEARCH_STAT_BUF_LEN,
                     c"[>%d/%d]".as_ptr(),
@@ -3001,7 +3002,7 @@ unsafe fn cmdline_search_stat(
                     stat.cur,
                 ) as usize;
             } else {
-                len = vim_snprintf(
+                len = vim_snprintf!(
                     t_ptr,
                     SEARCH_STAT_BUF_LEN,
                     c"[%d/%d]".as_ptr(),
@@ -3010,9 +3011,9 @@ unsafe fn cmdline_search_stat(
                 ) as usize;
             }
         } else if stat.incomplete == 1 {
-            len = vim_snprintf(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]".as_ptr()) as usize;
+            len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]".as_ptr()) as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
-            len = vim_snprintf(
+            len = vim_snprintf!(
                 t_ptr,
                 SEARCH_STAT_BUF_LEN,
                 c"[>%d/>%d]".as_ptr(),
@@ -3020,7 +3021,7 @@ unsafe fn cmdline_search_stat(
                 maxcount,
             ) as usize;
         } else if stat.cnt > maxcount {
-            len = vim_snprintf(
+            len = vim_snprintf!(
                 t_ptr,
                 SEARCH_STAT_BUF_LEN,
                 c"[%d/>%d]".as_ptr(),
@@ -3028,7 +3029,7 @@ unsafe fn cmdline_search_stat(
                 maxcount,
             ) as usize;
         } else {
-            len = vim_snprintf(
+            len = vim_snprintf!(
                 t_ptr,
                 SEARCH_STAT_BUF_LEN,
                 c"[%d/%d]".as_ptr(),
@@ -3392,7 +3393,7 @@ pub unsafe extern "C" fn find_pattern_in_path(
             let patsize = len + 5;
             let pat: *mut c_char = xmalloc(patsize).cast();
             debug_assert!(len <= c_int::MAX as usize);
-            vim_snprintf(
+            vim_snprintf!(
                 pat,
                 patsize,
                 if whole {
@@ -3631,7 +3632,7 @@ pub unsafe extern "C" fn find_pattern_in_path(
                         if action == ACTION_EXPAND && !shortmess(kShmCompletionscan) && !silent {
                             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
                             msg_hist_off = true;
-                            vim_snprintf(
+                            vim_snprintf!(
                                 iobuff_ptr,
                                 IOSIZE,
                                 tr(c"Scanning included file: %s".as_ptr()),
@@ -4111,9 +4112,9 @@ unsafe fn show_pat_in_path(
             }
             if action == ACTION_SHOW_ALL {
                 let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-                vim_snprintf(iobuff_ptr, IOSIZE, c"%3d: ".as_ptr(), count);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ".as_ptr(), count);
                 msg_puts(iobuff_ptr);
-                vim_snprintf(iobuff_ptr, IOSIZE, c"%4d".as_ptr(), *lnum);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d".as_ptr(), *lnum);
                 msg_puts_hl(iobuff_ptr, HLF_N, false);
                 msg_puts(c" ".as_ptr());
             }

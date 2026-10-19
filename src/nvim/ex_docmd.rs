@@ -145,6 +145,8 @@ use crate::spell::{ex_spelldump, ex_spellinfo, ex_spellrepall};
 #[allow(unused_imports)]
 use crate::spellfile::{ex_mkspell, ex_spell};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 #[allow(unused_imports)]
 use crate::tag::do_tags;
@@ -860,7 +862,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_long) -> *mut c_char;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn fclose(stream: *mut FILE) -> c_int;
     fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
@@ -5737,7 +5738,7 @@ pub unsafe extern "C" fn handle_did_throw() {
 
         match (*current_exception).r#type {
             ET_USER => {
-                let _ = vim_snprintf(
+                let _ = vim_snprintf!(
                     (&raw mut IObuff).cast(),
                     IOSIZE,
                     gettext(c"E605: Exception not caught: %s".as_ptr()),
@@ -9341,7 +9342,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
                     && !(*curbuf).b_fname.is_null()
                 {
                     let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
-                    let _ = vim_snprintf(
+                    let _ = vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
                         ngettext(
@@ -10239,7 +10240,7 @@ pub unsafe extern "C" fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int)
             done += 1;
             done < 1000
         } {
-            let _ = vim_snprintf(
+            let _ = vim_snprintf!(
                 prev_idx.as_mut_ptr(),
                 NUMBUFLEN,
                 c"%i".as_ptr(),
@@ -10760,7 +10761,7 @@ unsafe extern "C" fn ex_tabs(_eap: *mut exarg_T) {
             if msg_col > 0 {
                 msg_putchar(b'\n' as c_int);
             }
-            let _ = vim_snprintf(
+            let _ = vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 IOSIZE,
                 gettext(c"Tab page %d".as_ptr()),
@@ -12808,7 +12809,7 @@ pub unsafe extern "C" fn eval_vars(
                             gettext(e_no_autocommand_buffer_number_to_substitute_for_abuf.as_ptr());
                         return ptr::null_mut();
                     }
-                    let _ = vim_snprintf(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), autocmd_bufnr);
+                    let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), autocmd_bufnr);
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_AMATCH => {
@@ -12852,7 +12853,7 @@ pub unsafe extern "C" fn eval_vars(
                         *errormsg = gettext(e_no_line_number_to_use_for_slnum.as_ptr());
                         return ptr::null_mut();
                     }
-                    let _ = vim_snprintf(
+                    let _ = vim_snprintf!(
                         strbuf.as_mut_ptr(),
                         30,
                         c"%d".as_ptr(),
@@ -12866,7 +12867,7 @@ pub unsafe extern "C" fn eval_vars(
                         *errormsg = gettext(e_no_line_number_to_use_for_sflnum.as_ptr());
                         return ptr::null_mut();
                     }
-                    let _ = vim_snprintf(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), sflnum as c_int);
+                    let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), sflnum as c_int);
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_SID => {
@@ -12874,7 +12875,7 @@ pub unsafe extern "C" fn eval_vars(
                         *errormsg = gettext(e_usingsid.as_ptr());
                         return ptr::null_mut();
                     }
-                    let _ = vim_snprintf(
+                    let _ = vim_snprintf!(
                         strbuf.as_mut_ptr(),
                         30,
                         c"<SNR>%d_".as_ptr(),
@@ -13096,7 +13097,7 @@ static mut EX_ERROR_BUF: [c_char; MSG_BUF_LEN] = [0; MSG_BUF_LEN];
 pub unsafe extern "C" fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
     unsafe {
         let buf = (&raw mut EX_ERROR_BUF).cast::<c_char>();
-        let _ = vim_snprintf(buf, MSG_BUF_LEN, gettext(msg), arg);
+        let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg);
         buf
     }
 }

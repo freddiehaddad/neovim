@@ -66,6 +66,8 @@ use crate::spell::{repl_from, repl_to, spelltab};
 #[allow(unused_imports)]
 use crate::spellfile::suggest_load_files;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 use crate::tag::BoolVarValue;
 #[allow(unused_imports)]
@@ -363,7 +365,6 @@ static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
     fn qsort(
         base: *mut c_void,
@@ -844,7 +845,7 @@ pub unsafe extern "C" fn spell_suggest(count: c_int) {
                 let stp = sug_at(&raw const sug.su_ga, (selected - 1) as usize);
                 if sug.su_badlen > (*stp).st_orglen {
                     repl_from = xstrnsave(sug.su_badptr, sug.su_badlen as usize);
-                    vim_snprintf(
+                    vim_snprintf!(
                         (&raw mut IObuff).cast(),
                         IOSIZE,
                         c"%s%.*s".as_ptr(),

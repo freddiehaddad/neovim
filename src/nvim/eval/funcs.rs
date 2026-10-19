@@ -146,6 +146,8 @@ use crate::state::virtual_active;
 #[allow(unused_imports)]
 use crate::strings::{mb_strup_buf, vim_snprintf_typval_only};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::ui::ui_gui_attached;
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
@@ -549,8 +551,6 @@ unsafe extern "C" {
     #[cfg_attr(target_os = "windows", link_name = "_strnicmp")]
     #[cfg_attr(not(target_os = "windows"), link_name = "strncasecmp")]
     fn c_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -6058,7 +6058,7 @@ pub unsafe extern "C" fn f_msgpackdump(
         let mut idx: c_int = 0;
         let mut li = tv_list_first(list);
         while !li.is_null() {
-            vim_snprintf(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
+            vim_snprintf!(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
             idx += 1;
             if encode_vim_to_msgpack(&raw mut packer, &raw mut (*li).li_tv, msgbuf.as_ptr()) == FAIL
             {
@@ -6657,7 +6657,7 @@ pub unsafe extern "C" fn f_getreginfo(
                 buf[1] = NUL;
                 1
             }
-            crate::clipboard::MotionType::kMTBlockWise => vim_snprintf_safelen(
+            crate::clipboard::MotionType::kMTBlockWise => vim_snprintf_safelen!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"%c%d".as_ptr(),

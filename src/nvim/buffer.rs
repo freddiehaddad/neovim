@@ -88,6 +88,8 @@ use crate::quickfix::qf_stack_get_bufnr;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::syntax::{reset_synblock, syntax_clear};
@@ -423,9 +425,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
-
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
 }
 
@@ -3455,7 +3454,7 @@ pub unsafe extern "C" fn buflist_list(eap: *mut exarg_T) {
                 msg_putchar(b'\n' as c_int);
             }
             let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
-            let mut len = vim_snprintf_safelen(
+            let mut len = vim_snprintf_safelen!(
                 iobuff_ptr,
                 IOSIZE - 20,
                 c"%3d%c%c%c%c%c \"%s\"".as_ptr(),
@@ -3497,7 +3496,7 @@ pub unsafe extern "C" fn buflist_list(eap: *mut exarg_T) {
             if !vim_strchr((*eap).arg, b't' as c_int).is_null() && (*buf).b_last_used != 0 {
                 undo_fmt_time(iobuff_ptr.add(len), IOSIZE - len, (*buf).b_last_used);
             } else {
-                vim_snprintf(
+                vim_snprintf!(
                     iobuff_ptr.add(len),
                     IOSIZE - len,
                     gettext(c"line %lld".as_ptr()),
@@ -3784,7 +3783,7 @@ pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_trunca
 
         if fullname > 1 {
             bufferlen =
-                vim_snprintf_safelen(buffer, IOSIZE, c"buf %d: ".as_ptr(), (*curbuf).b_fnum);
+                vim_snprintf_safelen!(buffer, IOSIZE, c"buf %d: ".as_ptr(), (*curbuf).b_fnum);
         }
 
         *buffer.add(bufferlen) = b'"' as c_char;
@@ -3792,7 +3791,7 @@ pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_trunca
 
         let mut name = buf_spname(curbuf);
         if !name.is_null() {
-            bufferlen += vim_snprintf_safelen(
+            bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
                 c"%s".as_ptr(),
@@ -3859,7 +3858,7 @@ pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_trunca
                 c"".as_ptr()
             };
 
-        bufferlen += vim_snprintf_safelen(
+        bufferlen += vim_snprintf_safelen!(
             buffer.add(bufferlen),
             IOSIZE - bufferlen,
             c"\"%s%s%s%s%s%s".as_ptr(),
@@ -3874,14 +3873,14 @@ pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_trunca
         let line_count = i64::from((*curbuf).b_ml.ml_line_count);
         let cur_lnum = i64::from((*curwin).w_cursor.lnum);
         if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
-            bufferlen += vim_snprintf_safelen(
+            bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
                 c"%s".as_ptr(),
                 gettext(no_lines_msg.as_ptr()),
             );
         } else if p_ru != 0 {
-            bufferlen += vim_snprintf_safelen(
+            bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
                 ngettext(
@@ -3893,7 +3892,7 @@ pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_trunca
                 calc_percentage(cur_lnum, line_count),
             );
         } else {
-            bufferlen += vim_snprintf_safelen(
+            bufferlen += vim_snprintf_safelen!(
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
                 gettext(c"line %lld of %lld --%d%%-- col ".as_ptr()),
@@ -3938,9 +3937,9 @@ pub unsafe extern "C" fn col_print(
 ) -> c_int {
     unsafe {
         if col == vcol {
-            vim_snprintf_safelen(buf, buflen, c"%d".as_ptr(), col) as c_int
+            vim_snprintf_safelen!(buf, buflen, c"%d".as_ptr(), col) as c_int
         } else {
-            vim_snprintf_safelen(buf, buflen, c"%d-%d".as_ptr(), col, vcol) as c_int
+            vim_snprintf_safelen!(buf, buflen, c"%d-%d".as_ptr(), col, vcol) as c_int
         }
     }
 }
@@ -4119,7 +4118,7 @@ pub unsafe extern "C" fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c
         }
         let below = (*(*wp).w_buffer).b_ml.ml_line_count - (*wp).w_botline + 1;
         if below <= 0 {
-            return vim_snprintf_safelen(
+            return vim_snprintf_safelen!(
                 buf,
                 buflen as usize,
                 c"%s".as_ptr(),
@@ -4132,7 +4131,7 @@ pub unsafe extern "C" fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c
         }
 
         if above <= 0 {
-            return vim_snprintf_safelen(
+            return vim_snprintf_safelen!(
                 buf,
                 buflen as usize,
                 c"%s".as_ptr(),
@@ -4142,8 +4141,8 @@ pub unsafe extern "C" fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c
 
         let perc = calc_percentage(i64::from(above), i64::from(above + below));
         let mut tmp = [0 as c_char; 8];
-        vim_snprintf(tmp.as_mut_ptr(), tmp.len(), gettext(c"%d%%".as_ptr()), perc);
-        vim_snprintf_safelen(buf, buflen as usize, gettext(c"%3s".as_ptr()), tmp.as_ptr()) as c_int
+        vim_snprintf!(tmp.as_mut_ptr(), tmp.len(), gettext(c"%d%%".as_ptr()), perc);
+        vim_snprintf_safelen!(buf, buflen as usize, gettext(c"%3s".as_ptr()), tmp.as_ptr()) as c_int
     }
 }
 
@@ -4166,7 +4165,7 @@ pub unsafe extern "C" fn append_arg_number(
             gettext(c" (%d of %d)".as_ptr())
         };
 
-        vim_snprintf_safelen(buf, buflen, msg, (*wp).w_arg_idx + 1, argcount) as c_int
+        vim_snprintf_safelen!(buf, buflen, msg, (*wp).w_arg_idx + 1, argcount) as c_int
     }
 }
 

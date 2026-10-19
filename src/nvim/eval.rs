@@ -19,6 +19,8 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::strings::vim_snprintf;
 pub mod buffer;
 pub mod decode;
 pub mod deprecated;
@@ -449,8 +451,6 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
 }
 
@@ -7089,7 +7089,7 @@ unsafe fn make_expanded_name(
                 + 1;
             retval = xmalloc(retvalsize).cast::<c_char>();
             #[cfg(not(test))]
-            vim_snprintf(
+            vim_snprintf!(
                 retval,
                 retvalsize,
                 c"%s%s%s".as_ptr(),

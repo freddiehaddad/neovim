@@ -79,6 +79,8 @@ use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
 };
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::syntax::{syn_get_id, syntax_present};
@@ -224,7 +226,6 @@ static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
@@ -1387,7 +1388,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         strcpy((&raw mut sl.sl_lang).cast(), lang);
         (*curbuf).b_locked += 1;
         for round in 1..=2 {
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut fname_enc).cast(),
                 fname_enc.len() - 5,
                 c"spell/%s.%s.spl".as_ptr(),
@@ -1401,7 +1402,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
                 (&raw mut sl).cast(),
             );
             if r == FAIL && sl.sl_lang[0] != NUL {
-                vim_snprintf(
+                vim_snprintf!(
                     (&raw mut fname_enc).cast(),
                     fname_enc.len() - 5,
                     c"spell/%s.ascii.spl".as_ptr(),
@@ -1433,7 +1434,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         if r == FAIL {
             if starting != 0 {
                 let mut autocmd_buf: [c_char; 512] = [0; 512];
-                vim_snprintf(
+                vim_snprintf!(
                     (&raw mut autocmd_buf).cast(),
                     autocmd_buf.len(),
                     c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell"
@@ -1472,7 +1473,7 @@ pub unsafe extern "C" fn spell_enc() -> *mut c_char {
 }
 unsafe fn int_wordlist_spl(fname: *mut c_char) {
     unsafe {
-        vim_snprintf(
+        vim_snprintf!(
             fname,
             MAXPATHL,
             c"%s.%s.spl".as_ptr(),
@@ -2421,7 +2422,7 @@ pub unsafe extern "C" fn ex_spellrepall(_eap: *mut exarg_T) {
         let frompatsize = repl_from_len + 7;
         let frompat = xmalloc(frompatsize).cast::<c_char>();
         let frompatlen =
-            vim_snprintf(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from) as usize;
+            vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from) as usize;
         p_ws = 0;
         sub_nsubs = 0;
         sub_nlines = 0;
@@ -3019,7 +3020,7 @@ pub unsafe extern "C" fn spell_dump_compl(
             }
         }
         if do_region && !region_names.is_null() && pat.is_null() {
-            vim_snprintf(
+            vim_snprintf!(
                 (&raw mut IObuff).cast(),
                 IOSIZE,
                 c"/regions=%s".as_ptr(),
@@ -3037,7 +3038,7 @@ pub unsafe extern "C" fn spell_dump_compl(
                 continue;
             }
             if pat.is_null() {
-                vim_snprintf(
+                vim_snprintf!(
                     (&raw mut IObuff).cast(),
                     IOSIZE,
                     c"# file: %s".as_ptr(),
@@ -3181,7 +3182,7 @@ unsafe fn dump_word(
                     for i in 0..7 {
                         if (flags & (0x10000 << i)) != 0 {
                             let badword_len = strlen(bw_ptr);
-                            vim_snprintf(
+                            vim_snprintf!(
                                 bw_ptr.add(badword_len),
                                 badword.len() - badword_len,
                                 c"%d".as_ptr(),
@@ -3199,7 +3200,7 @@ unsafe fn dump_word(
                         .hi_key
                         .sub(std::mem::offset_of!(wordcount_T, wc_word))
                         .cast::<wordcount_T>();
-                    vim_snprintf(
+                    vim_snprintf!(
                         (&raw mut IObuff).cast(),
                         IOSIZE,
                         c"%s\t%d".as_ptr(),

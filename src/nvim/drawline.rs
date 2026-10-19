@@ -33,6 +33,8 @@ use crate::quickfix::qf_current_entry;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::syntax::{
@@ -252,11 +254,6 @@ static mut stc_prev_virtnum: c_int = 0;
 static mut stc_prev_wp: *mut win_T = ptr::null_mut();
 static mut stc_prev_lnum: linenr_T = 0;
 static mut stc_prev_tick: disptick_T = 0;
-
-unsafe extern "C" {
-
-    fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-}
 
 #[inline]
 unsafe fn vim_isbreak(c: c_int) -> bool {
@@ -915,7 +912,7 @@ unsafe fn get_line_number_str(wp: *mut win_T, lnum: linenr_T, buf: *mut c_char, 
             }
         }
 
-        vim_snprintf(buf, buf_len, fmt, number_width(wp), num);
+        vim_snprintf!(buf, buf_len, fmt, number_width(wp), num);
     }
 }
 
