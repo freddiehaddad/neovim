@@ -11,7 +11,7 @@
     clippy::too_many_arguments
 )]
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T};
+use crate::api::command::{cmd_addr_T, cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T};
@@ -30,6 +30,7 @@ use crate::eval::fs::FileInfo;
 use crate::extmark::extmark_adjust;
 use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::keycodes::scid_T;
 use crate::linematch::{linematch_nbuffers, mmfile_t};
 use crate::map_glyph_cache::NvimString;
@@ -231,13 +232,6 @@ static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
-    static mut first_tabpage: *mut tabpage_T;
-    static mut curtab: *mut tabpage_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut cmdmod: cmdmod_T;
-    static mut KeyTyped: bool;
     static mut diff_context: c_int;
     static mut diff_foldcolumn: c_int;
     static mut diff_need_scrollbind: bool;

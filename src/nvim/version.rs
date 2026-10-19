@@ -10,17 +10,17 @@
     clippy::needless_range_loop
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::exarg_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectType};
-use crate::api::tabpage::{GridView, frame_T, win_T};
+use crate::api::tabpage::GridView;
 use crate::api::win_config::UIExtension;
 use crate::buffer::buf_is_empty;
 use crate::charset::vim_strsize;
 use crate::drawscreen::screenclear;
-use crate::eval::deprecated::buf_T;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
@@ -3759,20 +3759,11 @@ unsafe extern "C" {
     static nvim_version_minor: c_int;
     static nvim_version_patch: c_int;
 
-    static mut Columns: c_int;
-    static mut Rows: c_int;
-    static mut msg_col: c_int;
-    static mut got_int: bool;
     static mut p_verbose: i64;
     static mut p_ls: i64;
     static mut p_shm: *mut c_char;
-    static mut starting: c_int;
     static mut default_vim_dir: *mut c_char;
     static mut default_vimruntime_dir: *mut c_char;
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut topframe: *mut frame_T;
     static mut default_gridview: GridView;
     static mut hl_attr_active: *mut c_int;
 

@@ -12,6 +12,7 @@
     clippy::if_same_then_else
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -364,22 +365,7 @@ static mut typed: TypedState = TypedState {
 };
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut Visual: VisualState;
-    static mut State: c_int;
-    static mut finish_op: bool;
-    static mut maptick: c_int;
     static mut repeat_luamap: c_int;
-    static mut reg_executing: c_int;
-    static mut pending_end_reg_executing: bool;
-    static mut ex_normal_busy: c_int;
-    static mut KeyTyped: bool;
-    static mut expr_map_lock: c_int;
-    static mut cmdline_star: c_int;
-    static mut repeat_cmdline: *mut c_char;
-    static mut did_beep: u64;
-    static mut restart_edit: c_int;
     static mut p_cpo: *mut c_char;
 
     fn nv_is(cmdchar: c_int, flags: c_int) -> bool;

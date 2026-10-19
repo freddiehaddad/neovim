@@ -14,6 +14,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -267,9 +268,6 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut got_int: bool;
-    static mut did_emsg: c_int;
-    static mut curwin: *mut win_T;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

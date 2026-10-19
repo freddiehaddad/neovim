@@ -5,6 +5,8 @@
 
 #[cfg(not(test))]
 use crate::errors::*;
+#[cfg(not(test))]
+use crate::globals::*;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -69,8 +71,6 @@ pub static mut entered_free_all_mem: bool = false;
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut arena_alloc_count: usize;
-    static mut did_outofmem_msg: bool;
-    static mut emsg_silent: c_int;
 
     fn clear_sb_text(all: bool);
     fn mf_release_all() -> bool;
@@ -882,8 +882,7 @@ pub unsafe extern "C" fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char)
 pub unsafe extern "C" fn free_all_mem() {
     use crate::api::command::exarg_T;
     use crate::api::extmark::api_extmark_free_all_mem;
-    use crate::api::tabpage::{tabpage_T, win_T};
-    use crate::arglist::{alist_T, alist_clear};
+    use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};
     use crate::buffer::{
         DOBUF_WIPE, bufref_T, bufref_valid, close_buffer, free_titles, set_bufref,
@@ -930,14 +929,6 @@ pub unsafe extern "C" fn free_all_mem() {
         static mut p_ea: c_int;
         static mut p_hi: i64;
         static mut p_acd: c_int;
-        static mut first_tabpage: *mut tabpage_T;
-        static mut curtab: *mut tabpage_T;
-        static mut curwin: *mut win_T;
-        static mut curbuf: *mut buf_T;
-        static mut firstbuf: *mut buf_T;
-        static mut global_alist: alist_T;
-        static mut last_cmdline: *mut c_char;
-        static mut new_last_cmdline: *mut c_char;
         static mut buffer_handles: Map<c_int, *mut c_void>;
         static mut window_handles: Map<c_int, *mut c_void>;
         static mut tabpage_handles: Map<c_int, *mut c_void>;

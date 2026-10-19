@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -114,12 +115,8 @@ pub struct SearchState {
 }
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
     static mut p_rdt: OptInt;
     static mut p_cpo: *mut c_char;
-    static mut called_emsg: c_int;
-    static mut got_int: bool;
-    static mut Search: SearchState;
     static mut search_hl_has_cursor_lnum: linenr_T;
     static mut ns_hl_fast: c_int;
     static mut hl_attr_active: *mut c_int;

@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -271,8 +272,6 @@ unsafe extern "C" {
     static mut hl_attr_active: *mut c_int;
     static mut p_pb: i64;
     static mut p_bg: *mut c_char;
-    static mut must_redraw_pum: bool;
-    static mut curwin: *mut win_T;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -16,6 +16,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -138,19 +139,8 @@ static E_NOFOLD: &CStr = c"E490: No fold found";
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut firstwin: *mut win_T;
-    static mut current_sctx: sctx_T;
-    static mut State: c_int;
-    static mut Visual: VisualState;
-    static mut got_int: bool;
-    static mut did_emsg: c_int;
-    static mut emsg_off: c_int;
-    static mut KeyTyped: bool;
     static mut disable_fold_update: c_int;
-    static mut need_diff_redraw: c_int;
+    static mut need_diff_redraw: bool;
     static mut diff_context: c_int;
     static mut p_fcl: *mut c_char;
     static mut p_sel: *mut c_char;
@@ -881,7 +871,7 @@ pub unsafe extern "C" fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T
             return;
         }
 
-        if need_diff_redraw != 0 {
+        if need_diff_redraw {
             return;
         }
 

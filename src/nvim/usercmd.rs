@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -279,16 +280,10 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 ];
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut current_sctx: sctx_T;
     static mut exestack: garray_T;
-    static mut got_int: bool;
     static mut IObuff: [c_char; IOSIZE];
-    static mut Columns: c_int;
     static mut p_verbose: i64;
     static mut p_cpo: *mut c_char;
-    static mut cmdmod: cmdmod_T;
 
     fn prevwin_curwin() -> *mut win_T;
     fn set_context_in_menu_cmd(

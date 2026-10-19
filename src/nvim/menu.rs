@@ -11,13 +11,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::command::exarg_T;
-use crate::api::private::converter::sctx_T;
-use crate::api::tabpage::win_T;
 use crate::charset::{getdigits_int, skipwhite};
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, gchar_cursor};
@@ -176,17 +174,6 @@ unsafe extern "C" {
 }
 
 unsafe extern "C" {
-    static mut root_menu: *mut vimmenu_T;
-    static mut sys_menu: bool;
-    static mut got_int: bool;
-    static mut finish_op: bool;
-    static mut restart_edit: c_int;
-    static mut ex_normal_busy: c_int;
-    static mut State: c_int;
-    static mut Visual: VisualState;
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut current_sctx: sctx_T;
     static mut p_cpo: *mut c_char;
     static mut p_sel: *mut c_char;
 

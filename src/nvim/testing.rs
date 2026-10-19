@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -53,23 +54,6 @@ enum AssertType {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut exestack: garray_T;
-    static mut did_beep: u64;
-    static mut suppress_errthrow: bool;
-    static mut emsg_silent: c_int;
-    static mut emsg_on_display: bool;
-    static mut trylevel: c_int;
-    static mut called_emsg: c_int;
-    static mut in_assert_fails: bool;
-    static mut no_wait_return: c_int;
-    static mut need_wait_return: bool;
-    static mut did_emsg: c_int;
-    static mut got_int: bool;
-    static mut msg_col: c_int;
-    static mut lines_left: c_int;
-    static mut Rows: c_int;
-    static mut emsg_assert_fails_msg: *mut c_char;
-    static mut emsg_assert_fails_lnum: c_long;
-    static mut emsg_assert_fails_context: *mut c_char;
 
     fn estack_sfile(which: c_int) -> *mut c_char;
     fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int;

@@ -10,12 +10,12 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::buf_collect_lines;
 use crate::api::private::validate::{Array, Error, Object, ObjectData, ObjectType};
-use crate::api::tabpage::win_T;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
@@ -41,10 +41,6 @@ const kRetNilBool: LuaRetMode = 1;
 const LOG_ERROR: c_int = 3;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut textlock: c_int;
-    static mut cmdpreview: bool;
 
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool;

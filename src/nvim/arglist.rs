@@ -11,10 +11,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::command::{cmdidx_T, cmdmod_T, exarg_T};
+use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::bufref_T;
 use crate::clipboard::{VarType, list_T, typval_T};
@@ -112,25 +113,12 @@ struct arg_all_state_T {
 static mut arglist_locked: bool = false;
 
 unsafe extern "C" {
-    static mut global_alist: alist_T;
-    static mut max_alist_id: c_int;
-    static mut arg_had_last: bool;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut lastused_tabpage: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
     static mut p_su: *mut c_char;
     static mut empty_string_option: [c_char; 1];
-    static mut got_int: bool;
     static mut p_fic: c_int;
     static mut p_magic: c_int;
     static mut p_ea: c_int;
     static mut p_tpm: OptInt;
-    static mut cmdmod: cmdmod_T;
-    static mut Columns: c_int;
     static mut tabpage_move_disallowed: c_int;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;

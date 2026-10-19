@@ -11,12 +11,13 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::command::{cmdmod_T, exarg_T};
+use crate::api::command::exarg_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
-use crate::api::tabpage::{tabpage_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::eval::deprecated::buf_T;
 use crate::map_glyph_cache::NvimString;
@@ -63,18 +64,10 @@ const kBoolVarTrue: i64 = 1;
 const kSpecialVarNull: i64 = 0;
 
 unsafe extern "C" {
-    static mut KeyTyped: bool;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut cmdmod: cmdmod_T;
     static mut p_hf: *mut c_char;
     static mut p_sb: c_int;
     static mut p_hh: OptInt;
     static mut p_hlg: *mut c_char;
-    static mut Columns: c_int;
-    static mut restart_edit: c_int;
     static mut IObuff: [c_char; IOSIZE];
 
     fn nlua_call_typval(

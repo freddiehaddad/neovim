@@ -15,6 +15,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -535,23 +536,7 @@ static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut lastused_tabpage: *mut tabpage_T;
-    static mut current_sctx: sctx_T;
-    static mut Search: SearchState;
     static mut EVALARG_EVALUATE: evalarg_T;
-
-    static mut sc_col: c_int;
-    static mut got_int: bool;
-    static mut sandbox: c_int;
-    static mut emsg_off: c_int;
-    static mut emsg_skip: c_int;
-    static mut emsg_severe: bool;
-    static mut called_emsg: c_int;
-    static mut did_emsg: bool;
 
     static mut p_ccv: crate::eval::deprecated::Callback;
     static mut p_dex: crate::eval::deprecated::Callback;
@@ -4342,7 +4327,7 @@ pub unsafe extern "C" fn var_redir_start(name: *mut c_char, append: bool) -> c_i
         }
 
         let called_emsg_before = called_emsg;
-        did_emsg = false;
+        did_emsg = 0;
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,

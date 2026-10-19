@@ -16,6 +16,7 @@
     clippy::useless_conversion
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -294,27 +295,11 @@ static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstbuf: *mut buf_T;
-    static mut cmdmod: cmdmod_T;
     static mut p_uc: i64;
     static mut p_dir: *mut c_char;
     static mut p_shm: *mut c_char;
     static mut p_verbose: i64;
-    static mut need_wait_return: bool;
-    static mut no_wait_return: c_int;
-    static mut msg_silent: c_int;
     static mut msg_ext_skip_flush: bool;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut recoverymode: bool;
-    static mut got_int: bool;
-    static mut did_check_timestamps: bool;
-    static mut need_check_timestamps: bool;
-    static mut inhibit_delete_count: c_int;
-    static mut allbuf_lock: c_int;
-    static mut swap_exists_action: c_int;
     static mut NameBuff: [c_char; MAXPATHL];
     static no_lines_msg: [c_char; 1];
     static mut Versions: [*mut c_char; 1];

@@ -14,6 +14,7 @@
     clippy::while_immutable_condition
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -386,33 +387,9 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: c_void;
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
 
-    static mut Ins: InsState;
-    static mut State: c_int;
-    static mut RedrawingDisabled: c_int;
-    static mut mapped_ctrl_c: c_int;
-    static mut restart_edit: c_int;
-    static mut must_redraw: c_int;
-    static mut clear_cmdline: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_mode: bool;
-    static mut mod_mask: c_int;
-    static mut got_int: bool;
-    static mut exiting: bool;
-    static mut did_check_timestamps: bool;
-    static mut need_check_timestamps: bool;
     static mut tpf_flags: c_uint;
     static mut p_bg: *mut c_char;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
-    static mut mouse_grid: c_int;
-    static mut vgetc_char: c_int;
-    static mut vgetc_mod_mask: c_int;
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn apply_autocmds_group(

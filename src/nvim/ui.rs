@@ -11,22 +11,21 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::size_of;
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{api_clear_error, arena_array, arena_dict, cstr_as_string};
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::{GridView, ScreenGrid, tabpage_T, win_T};
+use crate::api::tabpage::{GridView, ScreenGrid};
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array};
 use crate::drawscreen::{conceal_check_cursor_line, screen_resize};
-use crate::eval::deprecated::buf_T;
 use crate::eval::vars::LuaRef;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_put_event,
@@ -153,25 +152,11 @@ unsafe extern "C" {
     static mut p_mouse: *mut c_char;
     static mut bo_flags: c_uint;
     static mut rdb_flags: c_uint;
-    static mut emsg_silent: c_int;
-    static mut in_assert_fails: bool;
-    static mut did_beep_silent: c_int;
-    static mut did_beep: c_int;
     static mut ui_client_channel_id: u64;
     static mut ui_refresh_cmdheight: bool;
     static mut ui_event_ns_id: u32;
     static mut ui_ext_names: [*const c_char; kUIExtCount];
-    static mut first_tabpage: *mut tabpage_T;
     static mut updating_screen: bool;
-    static mut starting: c_int;
-    static mut exiting: bool;
-    static mut full_screen: bool;
-    static mut State: c_int;
-    static mut Visual: VisualState;
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut textlock: c_int;
-    static mut expr_map_lock: c_int;
     static mut msg_ext_fast: bool;
     static mut normal_fg: c_int;
     static mut normal_bg: c_int;

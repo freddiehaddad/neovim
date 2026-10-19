@@ -15,6 +15,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -240,35 +241,10 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut current_sctx: sctx_T;
-    static mut sandbox: c_int;
-    static mut want_garbage_collect: bool;
     static mut p_mfd: OptInt;
     static mut p_verbose: OptInt;
     static mut p_ic: c_int;
-    static mut ex_nesting_level: c_int;
-    static mut debug_tick: c_int;
-    static mut debug_backtrace_level: c_int;
     static mut EVALARG_EVALUATE: evalarg_T;
-    static mut RedrawingDisabled: c_int;
-    static mut no_wait_return: c_int;
-    static mut need_wait_return: bool;
-    static mut emsg_off: c_int;
-    static mut emsg_skip: c_int;
-    static mut emsg_severe: bool;
-    static mut do_profiling: c_int;
-    static mut did_emsg: c_int;
-    static mut did_throw: bool;
-    static mut trylevel: c_int;
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut KeyTyped: bool;
-    static mut msg_scroll: c_int;
-    static mut lines_left: c_int;
-    static mut Rows: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut got_int: bool;
     static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

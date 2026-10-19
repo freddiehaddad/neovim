@@ -23,6 +23,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -418,11 +419,6 @@ unsafe extern "system" {
 unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut curbuf: *mut buf_T;
-    static mut lastbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
     static mut p_magic: c_int;
     static mut p_cpo: *mut c_char;
     static mut p_verbose: i64;
@@ -434,51 +430,14 @@ unsafe extern "C" {
     static mut p_ws: c_int;
     static mut p_enc: *mut c_char;
     static mut empty_string_option: [c_char; 1];
-    static mut emsg_off: c_int;
-    static mut did_emsg: c_int;
-    static mut called_emsg: c_int;
-    static mut need_clr_eos: bool;
-    static mut vgetc_busy: c_int;
-    static mut msg_silent: c_int;
-    static mut emsg_silent: c_int;
-    static mut emsg_noredir: bool;
-    static mut redir_off: bool;
-    static mut capture_ga: *mut garray_T;
-    static mut msg_col: c_int;
-    static mut msg_row: c_int;
-    static mut lines_left: c_int;
-    static mut msg_scroll: bool;
-    static mut cmdline_row: c_int;
-    static mut mouse_row: c_int;
-    static mut cmdline_star: c_int;
-    static mut want_garbage_collect: bool;
-    static mut garbage_collect_at_exit: bool;
-    static mut vim_ignored: c_int;
-    static mut virtual_op: TriState;
     static mut main_loop: u8;
-    static mut got_int: bool;
-    static mut starting: c_int;
-    static mut stdin_isatty: bool;
-    static mut stdout_isatty: bool;
-    static mut skip_update_topline: bool;
-    static mut typebuf: typebuf_T;
-    static mut autocmd_busy: c_int;
-    static mut msg_scrolled: c_int;
-    static mut reg_executing: c_int;
-    static mut reg_recording: c_int;
-    static mut reg_recorded: c_int;
-    static mut provider_call_nesting: c_int;
-    static mut provider_caller_scope: caller_scope;
-    static mut current_sctx: sctx_T;
+    static mut autocmd_busy: bool;
     static mut autocmd_fname: *mut c_char;
     static mut autocmd_match: *mut c_char;
     static mut autocmd_fname_full: bool;
     static mut autocmd_bufnr: c_int;
     static mut on_print: Callback;
-    static mut Rows: c_int;
-    static mut State: c_int;
-    static mut wild_menu_showing: c_int;
-    static windowsVersion: [c_char; 0];
+    static mut windowsVersion: [c_char; 20];
     static mut EVALARG_EVALUATE: evalarg_T;
     static eval_has_list: [*const c_char; 0];
 
@@ -4541,7 +4500,7 @@ pub unsafe extern "C" fn f_inputlist(
         msg_start();
         msg_row = Rows - 1;
         lines_left = Rows;
-        msg_scroll = true;
+        msg_scroll = 1;
         msg_clr_eos();
 
         let l = (*argvars).vval.v_list;
@@ -6311,7 +6270,7 @@ pub unsafe extern "C" fn f_state(
         if op_pending() {
             may_add_state_char(&raw mut ga, include, b'o');
         }
-        if autocmd_busy != 0 {
+        if autocmd_busy {
             may_add_state_char(&raw mut ga, include, b'x');
         }
         if ins_compl_active() {
@@ -10137,7 +10096,7 @@ pub unsafe extern "C" fn f_windowsversion(
 ) {
     unsafe {
         (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval.v_string = xstrdup(windowsVersion.as_ptr());
+        (*rettv).vval.v_string = xstrdup((&raw const windowsVersion).cast());
     }
 }
 

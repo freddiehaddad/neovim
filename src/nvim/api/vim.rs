@@ -10,11 +10,12 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::buffer::{
-    KeyDict_keymap, KeyDict_keymap_del, VisualState, api_buf_ensure_loaded, nvim_buf_del_keymap,
+    KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
 use crate::api::deprecated::{KeyDict_empty, buffer_del_line, buffer_get_line, buffer_set_line};
 use crate::api::extmark::NS;
@@ -81,7 +82,6 @@ use crate::msgpack_rpc::channel::{
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
-use crate::os::fs::NvimStats;
 use crate::os::input::{input_blocking, input_enqueue_mouse, input_enqueue_raw};
 use crate::os::proc::os_proc_children;
 #[cfg(windows)]
@@ -334,19 +334,7 @@ pub struct KeyDict_redraw {
 
 pub use crate::api::private::helpers::TryState;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct typebuf_T {
-    pub tb_buf: *mut c_char,
-    pub tb_noremap: *mut c_char,
-    pub tb_buflen: c_int,
-    pub tb_off: c_int,
-    pub tb_len: c_int,
-    pub tb_maplen: c_int,
-    pub tb_silent: c_int,
-    pub tb_no_abbr_cnt: c_int,
-    pub tb_change_cnt: c_int,
-}
+pub use crate::mapping::typebuf_T;
 
 pub use crate::api::private::helpers::HlMessageChunk;
 
@@ -372,43 +360,14 @@ struct RuntimeCookie {
 static mut PASTE_CANCELLED: bool = false;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut current_sctx: sctx_T;
     static mut ns_hl_global: NS;
     static mut ns_hl_fast: NS;
-    static mut typebuf: typebuf_T;
-    static mut vgetc_busy: c_int;
-    static mut typebuf_was_filled: bool;
-    static mut msg_scroll: c_int;
-    static mut ex_normal_busy: c_int;
     static mut p_cpo: *mut c_char;
-    static mut need_wait_return: bool;
-    static mut no_wait_return: c_int;
-    static mut lines_left: c_int;
-    static mut msg_didany: bool;
-    static mut msg_no_more: bool;
-    static mut msg_silent: c_int;
-    static mut did_emsg: c_int;
-    static mut textlock: c_int;
-    static mut Visual: VisualState;
-    static mut cmdwin_type: c_int;
-    static mut cmdwin_buf: *mut buf_T;
-    static mut g_stats: NvimStats;
     static mut arena_alloc_count: usize;
     static mut tslua_query_parse_count: u64;
     static mut default_grid: ScreenGrid;
     static mut pum_grid: ScreenGrid;
-    static mut must_redraw: c_int;
-    static mut Columns: c_int;
-    static mut redraw_tabline: bool;
-    static mut RedrawingDisabled: c_int;
     static mut p_lz: c_int;
-    static mut cmdpreview: bool;
 
     fn try_enter(tstate: *mut TryState);
     fn try_leave(tstate: *const TryState, err: *mut Error);

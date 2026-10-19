@@ -15,6 +15,7 @@
     clippy::collapsible_if
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -298,9 +299,6 @@ static mut urls: Set<cstr_t> = Set {
 unsafe extern "C" {
     static mut main_loop: u8;
     static mut nvim_testing: bool;
-    static mut t_colors: c_int;
-    #[cfg(unix)]
-    static mut stdin_isatty: bool;
     static mut ui_client_channel_id: u64;
     static mut ui_client_exit_status: c_int;
     static mut ui_client_error_exit: c_int;

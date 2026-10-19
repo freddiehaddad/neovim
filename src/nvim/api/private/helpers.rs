@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -99,19 +100,6 @@ pub struct HlMessageChunk {
 pub type HlMessage = KVec<HlMessageChunk>;
 
 unsafe extern "C" {
-    static mut current_exception: *mut except_T;
-    static mut msg_list: *mut *mut msglist_T;
-    static mut got_int: bool;
-    static mut did_throw: bool;
-    static mut need_rethrow: bool;
-    static mut did_emsg: c_int;
-    static mut force_abort: bool;
-    static mut trylevel: c_int;
-
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut current_sctx: sctx_T;
 
     static mut buffer_handles: Map<c_int, *mut c_void>;
     static mut window_handles: Map<c_int, *mut c_void>;

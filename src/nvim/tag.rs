@@ -12,6 +12,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -364,27 +365,6 @@ static mut DO_TAG_MATCHES: *mut *mut c_char = ptr::null_mut();
 static mut DO_TAG_FLAGS: c_int = 0;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut cmdmod: cmdmod_T;
-    static mut Search: SearchState;
-    static mut KeyTyped: bool;
-    static mut got_int: bool;
-    static mut State: c_int;
-    static mut RedrawingDisabled: c_int;
-    static mut secure: c_int;
-    static mut sandbox: c_int;
-    static mut emsg_off: c_int;
-    static mut msg_scroll: c_int;
-    static mut msg_scrolled: c_int;
-    static mut msg_silent: c_int;
-    static mut vim_ignored: c_int;
-    static mut postponed_split: c_int;
-    static mut postponed_split_flags: c_int;
-    static mut g_do_tagpreview: c_int;
-    static mut g_tag_at_cursor: bool;
-    static mut keep_help_flag: bool;
     static mut IObuff: [c_char; IOSIZE];
 
     static mut p_tfu: Callback;

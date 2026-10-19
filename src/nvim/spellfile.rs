@@ -21,6 +21,7 @@ use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
     hash_lookup, hashitem_T, hashitem_empty, hashtab_T,
@@ -340,14 +341,9 @@ struct spellinfo_T {
 }
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut got_int: bool;
     static mut p_verbose: i64;
     static mut p_enc: *mut c_char;
     static mut p_msm: *mut c_char;
-    static mut msg_didout: bool;
-    static mut msg_col: c_int;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
 

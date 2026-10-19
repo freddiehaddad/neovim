@@ -10,12 +10,11 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
-use crate::api::command::cmdmod_T;
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{getdigits_int, getwhitecols_curline, skipwhite};
 use crate::cursor::{
@@ -31,13 +30,12 @@ use crate::indent::{
 };
 use crate::mark::{free_fmark, mark_adjust, mark_col_adjust, mark_view_make};
 use crate::marktree::{kMTMetaInline, kMTMetaLines};
-use crate::r#match::SearchState;
 use crate::mcursor::mc_replaying;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xstrdup};
 use crate::os::time::os_time;
 use crate::plines::{colnr_T, getvcol, linenr_T, linetabsize_eol, win_chartabsize};
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::textformat::{InsState, comp_textwidth, has_format_option, oparg_T};
+use crate::textformat::{comp_textwidth, has_format_option, oparg_T};
 
 pub type GraphemeState = i32;
 pub type ExtmarkOp = c_int;
@@ -115,35 +113,9 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
 };
 
 unsafe extern "C" {
-    static mut Rows: c_int;
-    static mut State: c_int;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut Visual: VisualState;
-    static mut Search: SearchState;
-    static mut Ins: InsState;
-    static mut cmdmod: cmdmod_T;
     static mut autocmd_busy: bool;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
-    static mut msg_silent: c_int;
-    static mut emsg_silent: c_int;
-    static mut silent_mode: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_tabline: bool;
     static mut redraw_not_allowed: bool;
-    static mut need_maketitle: bool;
-    static mut need_wait_return: bool;
-    static mut in_assert_fails: bool;
-    static mut msg_scroll: c_int;
-    static mut restart_edit: c_int;
-    static mut orig_line_count: linenr_T;
-    static mut vr_lines_changed: c_int;
     static mut curbuf_splice_pending: c_int;
-    static mut inhibit_delete_count: c_int;
     static mut search_hl_has_cursor_lnum: linenr_T;
     static mut last_cursormoved_win: *mut win_T;
     static mut last_cursormoved: pos_T;

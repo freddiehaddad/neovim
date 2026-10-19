@@ -14,9 +14,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
+use crate::api::command::cmdmod_T;
 use crate::api::command::regmatch_T;
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
@@ -45,7 +47,6 @@ use crate::cmdexpand::{
     EXPAND_STRING_SETTING, EXPAND_UNSUCCESSFUL, XP_BS_COMMA, XP_BS_ONE, XP_BS_THREE, XP_PREFIX_INV,
     XP_PREFIX_NO, cmdidx_T, exarg_T,
 };
-use crate::cmdhist::cmdmod_Prefix;
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
 use crate::decoration_provider::get_decor_provider;
@@ -658,36 +659,8 @@ const SHELL_RULES: [ShellRule; 2] = [
 ];
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut topframe: *mut frame_T;
 
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut cmdline_row: c_int;
-    static mut starting: c_int;
-    static mut full_screen: bool;
     static mut updating_screen: bool;
-    static mut clear_cmdline: bool;
-    static mut need_maketitle: bool;
-    static mut redraw_tabline: bool;
-    static mut readonlymode: bool;
-    static mut sandbox: c_int;
-    static mut secure: c_int;
-    static mut silent_mode: bool;
-    static mut info_message: bool;
-    static mut no_wait_return: c_int;
-    static mut got_int: bool;
-    static mut State: c_int;
-    static mut t_colors: c_int;
-    static mut current_sctx: sctx_T;
-    static mut cmdmod: cmdmod_Prefix;
-    static mut fenc_default: *mut c_char;
-    static mut escape_chars: *const c_char;
     static mut empty_string_option: [c_char; 1];
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];

@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -18,7 +19,6 @@ use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
 use crate::charset::{char2cells, getdigits_int, skiptowhite, skipwhite};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
-use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::indent::EvalFuncData;
 use crate::keycodes::K_BS;
@@ -1609,18 +1609,9 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 ];
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
     static mut p_dg: c_int;
     static mut p_enc: *mut c_char;
     static mut p_cpo: *mut c_char;
-    static mut no_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut cmdline_star: c_int;
-    static mut msg_col: c_int;
-    static mut Columns: c_int;
-    static mut got_int: bool;
-    static mut emsg_skip: c_int;
 
     fn plain_vgetc() -> c_int;
     fn putcmdline(c: c_char, shift: bool);

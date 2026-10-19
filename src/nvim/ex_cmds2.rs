@@ -11,10 +11,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::command::{cmdidx_T, cmdmod_T, exarg_T};
+use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::{UIExtension, bufref_T};
@@ -86,27 +87,7 @@ unsafe extern "C" {
     static mut p_awa: c_int;
     static mut p_write: c_int;
     static mut p_confirm: c_int;
-    static mut firstbuf: *mut buf_T;
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut prevwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut cmdmod: cmdmod_T;
-    static mut exiting: bool;
-    static mut vgetc_busy: c_int;
-    static mut msg_row: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_col: c_int;
-    static mut msg_didout: bool;
-    static mut msg_didany: bool;
-    static mut no_wait_return: c_int;
     static mut msg_listdo_overwrite: c_int;
-    static mut listcmd_busy: bool;
-    static mut got_int: bool;
-    static mut no_check_timestamps: c_int;
-    static mut emsg_off: c_int;
 
     fn bt_dontwrite(buf: *const buf_T) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);

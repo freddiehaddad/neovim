@@ -11,11 +11,10 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
-use crate::api::private::converter::sctx_T;
 use crate::api::tabpage::win_T;
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
 use crate::clipboard::typval_T;
@@ -144,11 +143,6 @@ pub struct ff_search_ctx_T {
 static mut ff_expand_buffer: NvimString = NULL_STRING;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut Visual: VisualState;
-    static mut current_sctx: sctx_T;
-    static mut got_int: bool;
     static mut p_cpo: *mut c_char;
     static mut p_fic: c_int;
     static mut p_path: *mut c_char;

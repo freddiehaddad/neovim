@@ -12,6 +12,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -131,9 +132,6 @@ pub struct memfile_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut firstbuf: *mut buf_T;
-    static mut got_int: bool;
-    static mut did_swapwrite_msg: bool;
     static mut main_loop: u8;
 
     fn emsg(s: *const c_char) -> bool;

@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::eval::deprecated::Callback;
@@ -45,20 +46,6 @@ pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut State: c_int;
-    static mut no_wait_return: c_int;
-    static mut need_wait_return: bool;
-    static mut msg_scrolled: c_int;
-    static mut keep_msg: *mut c_char;
-    static mut keep_msg_hl_id: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut no_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut silent_mode: bool;
-    static mut msg_silent: c_int;
-    static mut msg_didout: bool;
-    static mut msg_didany: bool;
 
     fn ui_has(ext: c_int) -> bool;
     fn ui_mouse_has(mode: c_int) -> bool;

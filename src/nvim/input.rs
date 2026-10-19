@@ -12,19 +12,19 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::private::validate::{Array, Error, ErrorType};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::api::vim::nvim_paste;
 use crate::charset::skipwhite;
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{setcursor, showmode, unshowmode, update_screen};
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::deprecated::EvalFuncData;
 use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
 use crate::extmark::TriState;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
@@ -221,33 +221,7 @@ pub struct tasave_T {
     pub save_readbuf2: StuffBuf,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct InsState {
-    pub start: pos_T,
-    pub start_orig: pos_T,
-    pub start_textlen: colnr_T,
-    pub start_blank_vcol: colnr_T,
-    pub moved: c_int,
-    pub stop_insert_mode: bool,
-    pub can_cindent: bool,
-    pub need_undo: bool,
-    pub did_ai: bool,
-    pub ai_col: colnr_T,
-    pub end_comment_pending: c_int,
-    pub did_si: bool,
-    pub can_si: bool,
-    pub can_si_back: bool,
-    pub update_start_orig: bool,
-    pub new_insert_skip: c_int,
-    pub did_restart_edit: c_int,
-    pub revins_on: bool,
-    pub revins_chars: c_int,
-    pub revins_legal: c_int,
-    pub revins_scol: c_int,
-    pub dont_sync_undo: TriState,
-    pub o_lnum: linenr_T,
-}
+pub use crate::textformat::InsState;
 
 #[derive(Clone, Copy)]
 struct gotchars_state_T {
@@ -334,64 +308,10 @@ static mut VGETORPEEK_TC: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut Visual: VisualState;
-    static mut Ins: InsState;
-    static mut typebuf: typebuf_T;
-    static mut typebuf_was_filled: bool;
-    static mut typebuf_was_empty: bool;
-    static mut cmd_silent: bool;
-    static mut emsg_silent: c_int;
-    static mut msg_silent: c_int;
-    static mut msg_scroll: c_int;
-    static mut msg_didout: bool;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
-    static mut cmdline_row: c_int;
-    static mut cmdline_star: c_int;
-    static mut cmdwin_type: c_char;
-    static mut restart_edit: c_int;
-    static mut finish_op: bool;
     static mut add_last_insert: c_int;
     static mut last_insert_ga: garray_T;
-    static mut reg_recording: c_int;
-    static mut reg_executing: c_int;
-    static mut pending_end_reg_executing: bool;
-    static mut debug_did_msg: bool;
-    static mut maptick: c_int;
-    static mut State: c_int;
-    static mut ignore_script: bool;
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut may_garbage_collect: bool;
-    static mut want_garbage_collect: bool;
-    static mut scriptout: *mut FILE;
-    static mut mod_mask: c_int;
-    static mut vgetc_mod_mask: c_int;
-    static mut vgetc_char: c_int;
-    static mut vgetc_busy: c_int;
-    static mut ex_normal_busy: c_int;
-    static mut no_mapping: c_int;
-    static mut no_zero_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut KeyTyped: bool;
-    static mut KeyStuffed: c_int;
-    static mut mouse_grid: c_int;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
     static mut test_disable_char_avail: bool;
-    static mut called_emsg: c_int;
-    static mut did_emsg: c_int;
-    static mut got_int: bool;
-    static mut mapped_ctrl_c: c_int;
-    static mut ctrl_c_interrupts: bool;
-    static mut mode_displayed: bool;
-    static mut must_redraw: c_int;
-    static mut need_wait_return: bool;
-    static mut redraw_cmdline: bool;
-    static mut did_outofmem_msg: bool;
-    static mut did_swapwrite_msg: bool;
     static mut repeat_luamap: c_int;
     static mut langmap_mapchar: [u8; 256];
 

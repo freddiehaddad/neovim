@@ -9,7 +9,6 @@
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
-use crate::api::buffer::VisualState;
 use crate::api::tabpage::win_T;
 use crate::change::inserted_bytes;
 use crate::charset::{getdigits_int, skiptowhite, skipwhite};
@@ -19,6 +18,7 @@ use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
     hash_lookup, hashitem_empty, hashtab_T,
@@ -328,13 +328,6 @@ static mut sps_flags: c_int = SPS_BEST;
 static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut Visual: VisualState;
-    static mut got_int: bool;
-    static mut Rows: c_int;
-    static mut lines_left: c_int;
-    static mut msg_scroll: c_int;
     static mut p_sps: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;

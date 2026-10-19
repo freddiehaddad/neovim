@@ -13,6 +13,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -231,25 +232,11 @@ static E_ILLEGAL_MAP_MODE_STRING_STR: &CStr = c"E1276: Illegal map mode string: 
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstbuf: *mut buf_T;
-    static mut current_sctx: sctx_T;
     static mut exestack: garray_T;
-    static mut got_int: bool;
-    static mut msg_col: c_int;
-    static mut msg_row: c_int;
-    static mut msg_silent: c_int;
     static mut p_verbose: i64;
     static mut p_cpo: *mut c_char;
     static mut p_langmap: *mut c_char;
     static mut langmap_mapchar: [u8; 256];
-    static mut mapped_ctrl_c: c_int;
-    static mut no_abbr: bool;
-    static mut typebuf: typebuf_T;
-    static mut State: c_int;
-    static mut expr_map_lock: c_int;
-    static mut secure: c_int;
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

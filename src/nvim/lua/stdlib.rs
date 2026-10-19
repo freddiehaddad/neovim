@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -141,9 +142,7 @@ unsafe extern "C-unwind" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
     static mut g_min_log_level: c_int;
-    static mut cmdmod: cmdmod_T;
 
     fn find_buffer_by_handle(buffer: handle_T, err: *mut Error) -> *mut buf_T;
     fn find_window_by_handle(window: handle_T, err: *mut Error) -> *mut win_T;

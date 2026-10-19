@@ -10,6 +10,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -70,8 +71,6 @@ pub struct KeyDict_win_resize {
 }
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
 
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

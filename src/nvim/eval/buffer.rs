@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -57,18 +58,6 @@ struct cob_T {
 }
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut Visual: VisualState;
-    static mut u_sync_once: c_int;
-    static mut did_emsg: c_int;
-    static mut emsg_off: c_int;
-    static mut got_int: bool;
-    static mut swap_exists_action: c_int;
 
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn buflist_findname_exp(ffname: *mut c_char) -> *mut buf_T;

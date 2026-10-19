@@ -10,11 +10,11 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
-use crate::api::tabpage::{ScreenGrid, frame_T, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{ScreenGrid, pos_T, tabpage_T, win_T};
 use crate::charset::vim_iswordc;
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cursor::{coladvance, get_cursor_pos_ptr};
@@ -153,29 +153,6 @@ static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut mod_mask: c_int;
-    static mut redraw_cmdline: bool;
-    static mut mode_displayed: bool;
-    static mut mouse_grid: c_int;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
-    static mut mouse_past_bottom: bool;
-    static mut mouse_past_eol: bool;
-    static mut mouse_dragging: c_int;
-    static mut firstwin: *mut win_T;
-    static mut curwin: *mut win_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut curtab: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut topframe: *mut frame_T;
-    static mut Visual: VisualState;
-    static mut where_paste_started: pos_T;
-    static mut State: c_int;
-    static mut restart_edit: c_int;
-    static mut msg_silent: c_int;
-    static mut KeyStuffed: c_int;
     static mut p_ch: i64;
     static mut p_mousem: *mut c_char;
     static mut p_mousescroll_vert: i64;

@@ -9,7 +9,7 @@
     clippy::too_many_arguments
 )]
 use crate::api::autocmd::kCallbackNone;
-use crate::api::tabpage::{lpos_T, win_T};
+use crate::api::tabpage::lpos_T;
 use crate::charset::{
     getdigits_int, getwhitecols_curline, skiptowhite, skipwhite, vim_isIDc, vim_iswordc,
     vim_iswordp, vim_strsize,
@@ -17,6 +17,7 @@ use crate::charset::{
 use crate::clipboard::typval_T;
 use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T};
 use crate::eval::deprecated::{buf_T, pos_T};
+use crate::globals::*;
 use crate::indent::{
     EvalFuncData, fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value,
 };
@@ -70,10 +71,7 @@ struct cpp_baseclass_cache_T {
     lpos: lpos_T,
 }
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
     static mut p_paste: c_int;
-    static mut State: c_int;
     fn findmatchlimit(oap: *mut oparg_T, initc: c_int, flags: c_int, maxtravel: i64) -> *mut pos_T;
     fn ml_get(lnum: linenr_T) -> *mut c_char;
     fn ml_get_pos(pos: *const pos_T) -> *mut c_char;

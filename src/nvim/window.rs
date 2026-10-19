@@ -18,6 +18,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
 use std::ptr;
@@ -306,57 +307,13 @@ static mut tabclosedpre_recursive: bool = false;
 static mut win_scrolled_resized_recursive: bool = false;
 
 unsafe extern "C" {
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
-    static mut sc_col: c_int;
-    static mut msg_scrolled: c_int;
-    static mut full_screen: bool;
     static mut updating_screen: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_tabline: bool;
-    static mut exiting: bool;
-    static mut starting: c_int;
     static mut autocmd_busy: bool;
     static mut au_pending_free_win: *mut win_T;
-    static mut got_int: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut no_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut postponed_split: c_int;
-    static mut postponed_split_tab: c_int;
-    static mut g_do_tagpreview: c_int;
-    static mut prevwin: *mut win_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut lastused_tabpage: *mut tabpage_T;
-    static mut topframe: *mut frame_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut cmdline_win: *mut win_T;
-    static mut cmdwin_type: c_int;
-    static mut cmdwin_buf: *mut buf_T;
-    static mut globaldir: *mut c_char;
-    static mut last_chdir_reason: *mut c_char;
-    static mut skip_win_fix_scroll: bool;
-    static mut skip_update_topline: bool;
     static mut diff_need_scrollbind: bool;
-    static mut restart_edit: c_int;
-    static mut mode_displayed: bool;
-    static mut clear_cmdline: bool;
-    static mut State: c_int;
-    static mut Ins: InsState;
-    static mut Visual: VisualState;
-    static mut cmdmod: cmdmod_T;
     static mut default_grid: ScreenGrid;
     static mut default_gridview: GridView;
     static mut msg_grid_adj: GridView;
-    static mut global_alist: alist_T;
     static mut tabpage_move_disallowed: c_int;
     static mut window_handles: Map<c_int, ptr_t>;
     static mut tabpage_handles: Map<c_int, ptr_t>;
@@ -388,9 +345,6 @@ unsafe extern "C" {
     static mut empty_string_option: [c_char; 1];
     static mut p_langmap: *mut c_char;
     static mut p_lrm: c_int;
-    static mut vgetc_busy: c_int;
-    static mut KeyTyped: bool;
-    static mut KeyStuffed: c_int;
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

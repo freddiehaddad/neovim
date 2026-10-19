@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
@@ -57,7 +58,6 @@ static mut isi_chartab: [u64; 4] = [0; 4];
 static mut transchar_charbuf: [u8; 11] = [0; 11];
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
     static mut p_isf: *mut c_char;
     static mut p_isi: *mut c_char;
     static mut dy_flags: c_uint;

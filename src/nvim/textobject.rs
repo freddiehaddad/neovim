@@ -10,11 +10,11 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::api::buffer::VisualState;
 use crate::api::tabpage::win_T;
 use crate::charset::skipwhite;
 use crate::clipboard::typval_T;
@@ -22,7 +22,7 @@ use crate::cursor::{
     coladvance, colnr_T, dec_cursor, gchar_cursor, get_cursor_line_ptr, get_cursor_pos_ptr,
     inc_cursor, linenr_T,
 };
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::deprecated::pos_T;
 use crate::memory::{xfree, xmalloc};
 use crate::textformat::{MotionType, oparg_T};
 
@@ -46,15 +46,11 @@ const kMTLineWise: MotionType = 1;
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut Visual: VisualState;
     static mut p_cpo: *mut c_char;
     static mut p_sections: *mut c_char;
     static mut p_para: *mut c_char;
     static mut p_sel: *mut c_char;
     static mut p_ws: c_int;
-    static mut redraw_cmdline: bool;
 
     fn incl(lp: *mut pos_T) -> c_int;
     fn decl(lp: *mut pos_T) -> c_int;

@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -274,7 +275,6 @@ unsafe extern "C" {
     static mut ui_client_attached: bool;
     static mut ui_client_channel_id: u64;
     static mut ui_client_error_exit: c_int;
-    static mut exiting: bool;
 
     fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_strerror(err: c_int) -> *const c_char;

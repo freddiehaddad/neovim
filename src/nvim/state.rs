@@ -9,10 +9,10 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::tabpage::win_T;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, buf_T};
@@ -124,22 +124,7 @@ pub struct save_v_event_T {
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut typebuf: typebuf_T;
-    static mut must_redraw: c_int;
-    static mut need_wait_return: bool;
-    static mut State: c_int;
-    static mut mod_mask: c_int;
-    static mut got_int: bool;
-    static mut virtual_op: TriState;
-    static mut Visual: VisualState;
-    static mut finish_op: bool;
-    static mut exmode_active: bool;
-    static mut motion_force: c_int;
-    static mut curbuf: *mut buf_T;
-    static mut restart_edit: c_int;
     static mut last_mode: [c_char; MODE_MAX_LENGTH];
-    static mut global_busy: c_int;
-    static mut debug_mode: bool;
     static mut g_min_log_level: c_int;
 
     fn uv_loop_size() -> usize;

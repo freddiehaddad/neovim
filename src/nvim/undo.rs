@@ -12,13 +12,13 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::command::exarg_T;
 use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{tabpage_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer_updates::{buf_updates_changedtick, buf_updates_unload};
 use crate::change::{
@@ -211,18 +211,6 @@ static mut undo_undoes: bool = false;
 static mut lastmark: c_int = 0;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut firstbuf: *mut buf_T;
-    static mut Visual: VisualState;
-    static mut KeyTyped: bool;
-    static mut got_int: bool;
-    static mut sandbox: c_int;
-    static mut textlock: c_int;
-    static mut no_u_sync: c_int;
-    static mut global_busy: c_int;
     static mut IObuff: [c_char; IOSIZE];
 
     static mut p_ul: OptInt;

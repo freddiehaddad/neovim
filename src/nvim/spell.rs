@@ -27,6 +27,7 @@ use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
     hashitem_empty,
@@ -184,17 +185,9 @@ pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut got_int: bool;
-    static mut starting: c_int;
     static mut p_ws: c_int;
     static mut p_ic: c_int;
     static mut p_enc: *mut c_char;
-    static mut sub_nsubs: i64;
-    static mut sub_nlines: linenr_T;
     static mut decor_state: DecorState;
     static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;

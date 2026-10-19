@@ -11,10 +11,10 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::tabpage::win_T;
 use crate::eval::deprecated::buf_T;
 use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
@@ -115,20 +115,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut State: c_int;
-    static mut sandbox: c_int;
-    static mut secure: c_int;
-    static mut cmdline_row: c_int;
-    static mut Rows: c_int;
-    static mut emsg_silent: c_int;
-    static mut do_profiling: c_int;
-    static mut no_check_timestamps: c_int;
-    static mut msg_no_more: bool;
-    static mut lines_left: c_int;
-    static mut got_int: bool;
-    static mut no_wait_return: c_int;
 
     static mut p_sh: *mut c_char;
     static mut p_shcf: *mut c_char;

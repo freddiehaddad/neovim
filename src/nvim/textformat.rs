@@ -10,19 +10,18 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::cmdmod_T;
-use crate::api::private::converter::sctx_T;
 use crate::api::tabpage::win_T;
 use crate::cursor::{
     check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
     linenr_T, pchar_cursor,
 };
-use crate::eval::deprecated::{Callback, buf_T, pos_T};
+use crate::eval::deprecated::{Callback, pos_T};
 use crate::memory::xfree;
 
 const NUL: c_char = 0;
@@ -144,19 +143,8 @@ pub struct InsState {
 static mut did_add_space: bool = false;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstwin: *mut win_T;
     static mut p_paste: c_int;
     static mut p_smd: c_int;
-    static mut State: c_int;
-    static mut got_int: bool;
-    static mut Ins: InsState;
-    static mut replace_offset: c_int;
-    static mut old_indent: c_int;
-    static mut saved_cursor: pos_T;
-    static mut cmdmod: cmdmod_T;
-    static mut current_sctx: sctx_T;
 
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;

@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -112,21 +113,11 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 };
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut prevwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
     static mut empty_string_option: [c_char; 1];
     static mut p_ls: OptInt;
     static mut p_ch: OptInt;
     static mut p_pvp: *mut c_char;
     static mut p_winborder: *mut c_char;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
-    static mut mouse_grid: c_int;
 
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

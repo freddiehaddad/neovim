@@ -15,13 +15,13 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::regmatch_T;
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, frame_T, pos_T, win_T};
+use crate::api::tabpage::{GridView, pos_T, win_T};
 use crate::charset::{
     backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
     transchar_byte, vim_isfilec_or_wc, vim_strsize,
@@ -30,7 +30,7 @@ use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
+use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear_strings, ga_concat_len, ga_grow, ga_init, garray_T,
@@ -43,7 +43,7 @@ use crate::help::{cleanup_help_tags, find_help_tags};
 use crate::input::{char_avail, vpeekc};
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::map_glyph_cache::NvimString;
-use crate::r#match::{SearchState, regprog_T};
+use crate::r#match::regprog_T;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
@@ -1000,34 +1000,10 @@ static mut ARG1_LUA_LAST_XP_LINE: *mut c_char = ptr::null_mut();
 static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut lastwin: *mut win_T;
-    static mut topframe: *mut frame_T;
-    static mut cmdline_win: *mut win_T;
-    static mut Search: SearchState;
     static mut pum_want: PumWant;
     static mut msg_grid_adj: GridView;
     static mut default_gridview: GridView;
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut current_sctx: sctx_T;
-
-    static mut Columns: c_int;
-    static mut Rows: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
-    static mut msg_scrolled: c_int;
-    static mut msg_didany: bool;
-    static mut msg_silent: c_int;
-    static mut emsg_off: c_int;
-    static mut cmd_silent: bool;
-    static mut got_int: bool;
-    static mut KeyTyped: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut wild_menu_showing: c_int;
-    static mut save_p_ls: c_int;
-    static mut save_p_wmh: c_int;
 
     static mut wop_flags: c_uint;
     static mut p_wic: c_int;

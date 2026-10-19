@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
@@ -19,12 +20,11 @@ use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
     Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::{ScreenGrid, win_T};
+use crate::api::tabpage::ScreenGrid;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration_provider::decor_provider_invalidate_hl;
-use crate::eval::deprecated::buf_T;
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::grid::UIExtension;
@@ -331,33 +331,19 @@ const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 unsafe extern "C" {
     static mut p_bg: *mut c_char;
     static mut p_verbose: OptInt;
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut current_sctx: sctx_T;
     static mut exestack: garray_T;
-    static mut t_colors: c_int;
     static mut cterm_normal_fg_color: c_int;
     static mut cterm_normal_bg_color: c_int;
     static mut normal_fg: RgbValue;
     static mut normal_bg: RgbValue;
     static mut normal_sp: RgbValue;
     static mut updating_screen: bool;
-    static mut need_highlight_changed: bool;
-    static mut got_int: bool;
-    static mut starting: c_int;
-    static mut msg_col: c_int;
-    static mut msg_silent: c_int;
-    static mut Columns: c_int;
-    static mut clear_cmdline: bool;
     static mut msg_grid: ScreenGrid;
     static mut hlf_names: [*const c_char; HLF_COUNT];
     static mut highlight_attr: [c_int; HLF_COUNT];
     static mut highlight_attr_last: [c_int; HLF_COUNT];
     static mut highlight_user: [c_int; 9];
     static mut highlight_stlnc: [c_int; 9];
-    static mut include_none: c_int;
-    static mut include_default: c_int;
-    static mut include_link: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

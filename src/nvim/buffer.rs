@@ -17,6 +17,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -330,53 +331,14 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut lastbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut cmdwin_buf: *mut buf_T;
     static mut au_pending_free_buf: *mut buf_T;
     static mut au_new_curbuf: bufref_T;
     static mut buffer_handles: Map<c_int, ptr_t>;
 
-    static mut readonlymode: bool;
-    static mut v_dying: OptInt;
-    static mut got_int: bool;
     static mut updating_screen: bool;
-    static mut textlock: c_int;
-    static mut exiting: bool;
     static mut autocmd_busy: bool;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
-    static mut swap_exists_action: c_int;
-    static mut swap_exists_did_quit: bool;
-    static mut msg_scroll: c_int;
-    static mut msg_scrolled: c_int;
-    static mut msg_silent: c_int;
-    static mut msg_col: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut need_fileinfo: bool;
-    static mut need_wait_return: bool;
-    static mut need_maketitle: bool;
-    static mut restart_edit: c_int;
-    static mut starting: c_int;
-    static mut last_chdir_reason: *const c_char;
-    static mut emsg_silent: c_int;
-    static mut in_assert_fails: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut State: c_int;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut stl_syntax: c_int;
-    static mut secure: c_int;
-    static mut current_sctx: sctx_T;
-    static mut Visual: VisualState;
-    static mut cmdmod: cmdmod_T;
 
     static mut p_cpo: *mut c_char;
     static mut p_report: OptInt;
@@ -2437,7 +2399,7 @@ pub unsafe extern "C" fn do_autochdir() {
             && !(*curbuf).b_ffname.is_null()
             && vim_chdirfile((*curbuf).b_ffname, kCdCauseAuto) == OK
         {
-            last_chdir_reason = c"autochdir".as_ptr();
+            last_chdir_reason = c"autochdir".as_ptr().cast_mut();
             shorten_fnames(true);
         }
     }

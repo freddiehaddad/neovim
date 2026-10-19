@@ -13,11 +13,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
-use crate::api::command::{cmdmod_T, regmatch_T};
+use crate::api::command::regmatch_T;
 use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::change::get_leader_len;
@@ -43,7 +43,7 @@ use crate::indent_c::check_linecomment;
 use crate::input::char_avail;
 use crate::input_cmdatom::cmdarg_T;
 use crate::mark::setpcmark;
-use crate::r#match::{SearchState, regmmatch_T, regprog_T};
+use crate::r#match::{regmmatch_T, regprog_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_head_off, utf_iscomposing_first,
@@ -272,30 +272,7 @@ static mut stat_lastpatlen: usize = 0;
 static mut stat_lbuf: *mut buf_T = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut State: c_int;
-    static mut Visual: VisualState;
-    static mut Search: SearchState;
-    static mut cmdmod: cmdmod_T;
-    static mut got_int: bool;
-    static mut KeyTyped: bool;
-    static mut KeyStuffed: c_int;
-    static mut rc_did_emsg: bool;
-    static mut called_emsg: c_int;
-    static mut emsg_off: c_int;
-    static mut cmd_silent: bool;
-    static mut msg_silent: c_int;
-    static mut msg_scrolled: c_int;
-    static mut msg_row: c_int;
-    static mut sc_col: c_int;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut msg_nowait: bool;
     static mut msg_ext_overwrite: bool;
-    static mut msg_hist_off: bool;
-    static mut dollar_vcol: colnr_T;
-    static mut g_do_tagpreview: c_int;
     static mut fdo_flags: c_uint;
     static mut p_hls: c_int;
     static mut p_ic: c_int;

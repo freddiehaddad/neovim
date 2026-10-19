@@ -13,6 +13,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -115,10 +116,6 @@ static mut EXPAND_RECURSIVE: bool = false;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut got_int: bool;
-    static mut emsg_silent: c_int;
-    static mut emsg_off: c_int;
     static mut NameBuff: [c_char; MAXPATHL];
 
     static mut p_fic: c_int;

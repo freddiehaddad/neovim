@@ -9,10 +9,10 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::deprecated::{DecorInline, DecorVirtText, VirtTextPos};
 use crate::api::extmark::ns_in_win;
 use crate::api::tabpage::{pos_T, win_T};
@@ -87,13 +87,10 @@ pub struct ClusterInfo {
 }
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut State: c_int;
-    static mut Visual: VisualState;
     static mut p_sel: *mut c_char;
     static mut dy_escape_width: c_int;
     static utf8len_tab: [u8; 256];
-    static breakat_flags: [bool; 256];
+    static breakat_flags: [c_char; 256];
 
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
     fn ptr2cells(p: *const c_char) -> c_int;
@@ -180,7 +177,7 @@ const fn mt_decor(key: MTKey) -> DecorInline {
 
 #[inline]
 unsafe fn vim_isbreak(c: c_int) -> bool {
-    unsafe { breakat_flags[(c as u8) as usize] }
+    unsafe { breakat_flags[(c as u8) as usize] != 0 }
 }
 
 #[inline]

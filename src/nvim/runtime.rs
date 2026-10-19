@@ -14,6 +14,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
@@ -290,9 +291,6 @@ static mut APP_BOTH: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut current_sctx: sctx_T;
-    static mut got_int: bool;
     static mut p_verbose: i64;
     static mut p_rtp: *mut c_char;
     static mut p_pp: *mut c_char;
@@ -303,19 +301,9 @@ unsafe extern "C" {
     static mut p_ic: c_int;
     #[cfg(windows)]
     static mut p_ffs: *mut c_char;
-    static mut did_source_packages: bool;
     static mut default_lib_dir: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut cmdmod: cmdmod_T;
-    static mut global_busy: c_int;
-    static mut listcmd_busy: bool;
-    static mut debug_break_level: c_int;
-    static mut debug_tick: c_int;
-    static mut ex_nesting_level: c_int;
-    static mut do_profiling: c_int;
-    static mut time_fd: *mut FILE;
-    static mut msg_col: c_int;
     #[cfg(windows)]
     static mut hl_attr_active: *mut c_int;
 

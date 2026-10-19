@@ -12,11 +12,11 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::VisualState;
 use crate::api::deprecated::{
     DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
 };
@@ -54,8 +54,7 @@ use crate::indent::{get_breakindent_win, tabstop_padding};
 use crate::kvec::KVec;
 use crate::marktree::kMTMetaInline;
 use crate::r#match::{
-    SearchState, get_prevcol_hl_flag, get_search_match_hl, match_T, prepare_search_hl_line,
-    update_search_hl,
+    get_prevcol_hl_flag, get_search_match_hl, match_T, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
     mb_charlen, mb_off_next, mb_ptr2char_adv, mb_string2cells, utf_head_off, utf_ptr2cells,
@@ -229,10 +228,6 @@ static mut stc_prev_lnum: linenr_T = 0;
 static mut stc_prev_tick: disptick_T = 0;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut State: c_int;
-    static mut Visual: VisualState;
-    static mut Search: SearchState;
     static mut screen_search_hl: match_T;
     static mut decor_state: DecorState;
     static mut win_extmark_arr: KVec<WinExtmark>;
@@ -244,15 +239,11 @@ unsafe extern "C" {
     static mut ns_hl_fast: NS;
     static mut normal_bg: i32;
     static mut cterm_normal_bg_color: c_int;
-    static mut display_tick: disptick_T;
-    static mut did_emsg: c_int;
-    static mut dollar_vcol: colnr_T;
     static mut dy_flags: c_uint;
     static mut dy_escape_width: c_int;
     static mut p_cpo: *mut c_char;
     static mut p_sel: *mut c_char;
-    static mut spell_redraw_lnum: linenr_T;
-    static breakat_flags: [bool; 256];
+    static breakat_flags: [c_char; 256];
 
     fn gchar_pos(pos: *const pos_T) -> c_int;
     fn get_foldtext(
@@ -285,7 +276,7 @@ unsafe extern "C" {
 
 #[inline]
 unsafe fn vim_isbreak(c: c_int) -> bool {
-    unsafe { breakat_flags[(c as u8) as usize] }
+    unsafe { breakat_flags[(c as u8) as usize] != 0 }
 }
 
 #[inline]

@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -470,9 +471,6 @@ pub struct KeyDict_tabpage_config {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curtab: *mut tabpage_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
 

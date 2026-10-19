@@ -10,10 +10,10 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::tabpage::win_T;
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::memory::xmallocz;
@@ -41,11 +41,6 @@ const kOptVeFlagAll: c_uint = 0x04;
 const kOptVeFlagOnemore: c_uint = 0x08;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut State: c_int;
-    static mut restart_edit: c_int;
-    static mut Visual: VisualState;
     static mut p_sel: *mut c_char;
     static utf8len_tab: [u8; 256];
 

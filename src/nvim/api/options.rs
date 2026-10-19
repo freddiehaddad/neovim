@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -127,9 +128,6 @@ pub struct KeyDict_option {
 }
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut current_sctx: sctx_T;
 
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

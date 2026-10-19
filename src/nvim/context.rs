@@ -9,10 +9,10 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
 use crate::api::private::converter::object_to_vim;
@@ -172,16 +172,7 @@ unsafe extern "C" {
     static mut ctx_win_vec: KVec<CtxWin>;
     static mut buffer_handles: Map<c_int, ptr_t>;
     static mut window_handles: Map<c_int, ptr_t>;
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut prevwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut globaldir: *mut c_char;
     static mut p_acd: c_int;
-    static mut Visual: VisualState;
 
     fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool;
     fn extmark_set_pos(

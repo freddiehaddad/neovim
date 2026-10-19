@@ -12,11 +12,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
-use crate::api::command::{cmdmod_T, exarg_T};
+use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
@@ -179,24 +179,7 @@ static mut textyankpost_recursive: bool = false;
 static mut put_autocmd_recursive: bool = false;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut Visual: VisualState;
-    static mut State: c_int;
-    static mut Columns: c_int;
-    static mut got_int: bool;
-    static mut must_redraw: c_int;
-    static mut textlock: c_int;
-    static mut reg_recording: c_int;
-    static mut reg_recorded: c_int;
-    static mut reg_executing: c_int;
-    static mut pending_end_reg_executing: bool;
-    static mut restart_edit: c_int;
-    static mut last_cmdline: *mut c_char;
-    static mut new_last_cmdline: *mut c_char;
-    static mut redir_reg: c_int;
     static mut msg_ext_skip_flush: bool;
-    static mut cmdmod: cmdmod_T;
     static mut last_insert_ga: garray_T;
     static mut add_last_insert: c_int;
     static mut p_ch: OptInt;

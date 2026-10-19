@@ -20,6 +20,7 @@
 )]
 
 use crate::errors::*;
+pub(super) use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{offset_of, size_of, zeroed};
 use std::ptr;
@@ -945,15 +946,6 @@ unsafe extern "C" {
     pub(super) static mut p_re: OptInt;
     pub(super) static mut p_mmp: OptInt;
     pub(super) static mut p_verbose: OptInt;
-    pub(super) static mut curbuf: *mut buf_T;
-    pub(super) static mut curwin: *mut win_T;
-    pub(super) static mut Visual: VisualState;
-    pub(super) static mut got_int: bool;
-    pub(super) static mut called_emsg: c_int;
-    pub(super) static mut rc_did_emsg: bool;
-    pub(super) static mut reg_do_extmatch: c_int;
-    pub(super) static mut re_extmatch_in: *mut reg_extmatch_T;
-    pub(super) static mut re_extmatch_out: *mut reg_extmatch_T;
 
     pub(super) fn gettext(msgid: *const c_char) -> *mut c_char;
     pub(super) fn emsg(s: *const c_char) -> bool;

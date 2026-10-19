@@ -11,12 +11,12 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
-use crate::api::private::converter::sctx_T;
+use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::charset::{char2cells, getdigits, getwhitecols_curline, skipwhite, vim_strsize};
@@ -35,7 +35,7 @@ use crate::plines::{
     init_charsize_arg, utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, win_charsize,
     win_chartabsize,
 };
-use crate::textformat::{InsState, has_format_option, oparg_T};
+use crate::textformat::{has_format_option, oparg_T};
 
 pub type OptInt = i64;
 pub type OptIndex = c_int;
@@ -113,13 +113,6 @@ static mut PREV_DY_UHEX: c_uint = 0;
 static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut State: c_int;
-    static mut got_int: bool;
-    static mut trylevel: c_int;
-    static mut did_throw: bool;
-    static mut textlock: c_int;
     static mut curbuf_splice_pending: c_int;
     static mut dy_escape_width: c_int;
     static mut dy_flags: c_uint;
@@ -127,11 +120,6 @@ unsafe extern "C" {
     static mut p_paste: c_int;
     static mut p_debug: *mut c_char;
     static mut p_lispwords: *mut c_char;
-    static mut old_indent: c_int;
-    static mut saved_cursor: pos_T;
-    static mut Ins: InsState;
-    static mut cmdmod: cmdmod_T;
-    static mut current_sctx: sctx_T;
     static mut IObuff: [c_char; IOSIZE];
 
     fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;

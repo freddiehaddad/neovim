@@ -12,7 +12,7 @@
 )]
 
 use crate::api::command::{exarg_T, regmatch_T};
-use crate::api::tabpage::{lpos_T, tabpage_T, win_T};
+use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 use crate::charset::{
     check_isopt, getdigits_int, getdigits_int32, parse_isopt, skiptowhite, skipwhite, vim_isprintc,
@@ -26,6 +26,7 @@ use crate::eval::deprecated::{buf_T, pos_T, syn_time_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 use crate::fold::foldmethodIsSyntax;
 use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
+use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_find, hash_hash, hash_init, hash_lock, hash_lookup,
     hash_remove, hash_unlock, hashitem_T, hashitem_empty, hashtab_T,
@@ -372,24 +373,8 @@ static mut last_matchgroup: c_int = 0;
 static mut expand_what: c_int = EXP_SUBCMD;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut got_int: bool;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut msg_col: c_int;
-    static mut emsg_skip: c_int;
-    static mut display_tick: disptick_T;
     static mut empty_string_option: [c_char; 1];
     static mut p_cpo: *mut c_char;
-    static mut include_none: c_int;
-    static mut include_default: c_int;
-    static mut include_link: c_int;
-    static mut reg_do_extmatch: c_int;
-    static mut re_extmatch_in: *mut reg_extmatch_T;
-    static mut re_extmatch_out: *mut reg_extmatch_T;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

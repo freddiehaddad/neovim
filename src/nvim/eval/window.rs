@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
@@ -66,16 +67,6 @@ pub struct viewstate_T {
 }
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut prevwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut lastused_tabpage: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut Visual: VisualState;
-    static mut cmdwin_type: c_int;
 
     fn tv_get_number(tv: *const typval_T) -> varnumber_T;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;

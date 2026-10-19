@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -70,9 +71,7 @@ static mut rejecting_deadly: bool = false;
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-    static mut curbuf: *mut buf_T;
     static mut IObuff: [c_char; IOSIZE];
-    static mut v_dying: c_int;
     static mut p_awa: c_int;
 
     fn set_vim_var_nr(idx: c_int, val: i64);

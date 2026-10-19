@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
 use crate::api::private::converter::sctx_T;
@@ -1895,7 +1896,6 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut current_sctx: sctx_T;
 
     fn utf_char2len(c: c_int) -> c_int;
     fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;

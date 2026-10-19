@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use crate::api::private::converter::sctx_T;
@@ -469,7 +470,6 @@ pub struct buf_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut firstbuf: *mut buf_T;
 
     fn check_secure() -> bool;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;

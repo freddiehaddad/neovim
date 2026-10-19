@@ -10,6 +10,7 @@
     clippy::needless_range_loop
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::private::converter::sctx_T;
@@ -17,6 +18,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_conflict,
     api_err_exp, api_err_invalid, api_err_required, check_string_array,
 };
+use crate::api::tabpage::win_T;
 use crate::eval::deprecated::{Callback, buf_T};
 use crate::kvec::KVecWithInit;
 use crate::lua::converter::LuaRef;
@@ -164,9 +166,6 @@ static mut NEXT_AUTOCMD_ID: i64 = 1;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut c_void;
-    static mut current_sctx: sctx_T;
 
     fn event_name2nr_str(str: NvimString) -> event_T;
     fn event_nr2name(event: event_T) -> *const c_char;
@@ -216,7 +215,7 @@ unsafe extern "C" {
         force: bool,
         group: c_int,
         buf: *mut buf_T,
-        win: *mut c_void,
+        win: *mut win_T,
         eap: *mut c_void,
         data: *mut Object,
         buflocal_only: bool,

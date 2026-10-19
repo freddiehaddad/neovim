@@ -11,10 +11,11 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::tabpage::{ScreenGrid, tabpage_T, win_T};
+use crate::api::tabpage::ScreenGrid;
 use crate::api::win_config::UIExtension;
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
@@ -79,11 +80,6 @@ static mut dbghl_recompose: c_int = 0;
 unsafe extern "C" {
     static mut default_grid: ScreenGrid;
     static mut msg_grid: ScreenGrid;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
     static mut rdb_flags: c_uint;
     static mut p_wd: OptInt;
     static mut hl_attr_active: *mut c_int;

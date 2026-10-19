@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 use crate::api::autocmd::TryState;
@@ -82,17 +83,7 @@ static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut msg_silent: c_int;
-    static mut redir_off: bool;
-    static mut capture_ga: *mut garray_T;
-    static mut msg_col: c_int;
-    static mut current_sctx: sctx_T;
-    static mut force_abort: bool;
-    static mut suppress_errthrow: bool;
-    static mut did_throw: bool;
-    static mut did_emsg: c_int;
     static mut EVALARG_EVALUATE: evalarg_T;
-    static mut curwin: *mut win_T;
 
     fn do_source_str(cmd: *const c_char, traceback_name: *const c_char) -> c_int;
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;

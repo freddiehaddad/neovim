@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -181,13 +182,8 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 };
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut cmdline_win: *mut win_T;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
-    static mut textlock: c_int;
     static mut p_spr: c_int;
     static mut p_sb: c_int;
     static mut p_winborder: *mut c_char;

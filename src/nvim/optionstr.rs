@@ -16,14 +16,14 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::command::regmatch_T;
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{WinConfig, fcs_chars_T, lcs_chars_T, lpos_T, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{WinConfig, fcs_chars_T, lcs_chars_T, lpos_T, pos_T, win_T};
 use crate::api::win_config::parse_winborder;
 use crate::autocmd::{check_ei, get_event_name_no_group};
 use crate::charset::{
@@ -780,26 +780,9 @@ static PVP_TABLE: [KeySetLink; 4] = [
 ];
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut firstbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut Visual: VisualState;
     static mut empty_string_option: [c_char; 1];
     static mut IObuff: [c_char; IOSIZE];
     static mut wim_flags: [u8; 4];
-
-    static mut secure: c_int;
-    static mut emsg_silent: c_int;
-    static mut suppress_errthrow: bool;
-    static mut didset_vim: bool;
-    static mut didset_vimruntime: bool;
-    static mut cmdpreview: bool;
-    static mut km_stopsel: bool;
-    static mut km_startsel: bool;
-    static mut ru_wid: c_int;
-    static mut stl_syntax: c_int;
 
     static mut p_bg: *mut c_char;
     static mut p_bkc: *mut c_char;

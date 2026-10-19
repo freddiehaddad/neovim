@@ -10,14 +10,14 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::extmark::NS;
 use crate::api::options::CharBuf;
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, ScreenGrid, frame_T, tabpage_T, win_T};
+use crate::api::tabpage::{GridView, ScreenGrid, win_T};
 use crate::charset::{getdigits_int, skipdigits, trans_characters, transstr_buf};
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
@@ -225,32 +225,13 @@ pub struct statuscol_T {
 static mut did_show_ext_ruler: bool = false;
 
 unsafe extern "C" {
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut State: c_int;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut topframe: *mut frame_T;
-    static mut Visual: VisualState;
     static mut default_grid: ScreenGrid;
     static mut default_gridview: GridView;
     static mut msg_grid_adj: GridView;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
-    static mut wild_menu_showing: c_int;
-    static mut redraw_cmdline: bool;
-    static mut redraw_tabline: bool;
     static mut updating_screen: bool;
     static mut redraw_not_allowed: bool;
-    static mut KeyTyped: bool;
-    static mut did_emsg: c_int;
-    static mut ru_col: c_int;
-    static mut t_colors: c_int;
-    static mut edit_submode: *mut c_char;
     static mut p_ch: i64;
     static mut p_tal: *mut c_char;
     static mut p_wbr: *mut c_char;

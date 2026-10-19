@@ -14,6 +14,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -109,13 +110,6 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
 
 unsafe extern "C" {
     static mut main_loop: Loop;
-    static mut current_ui: u64;
-    static mut t_colors: c_int;
-    static mut starting: c_int;
-    static mut stdin_fd: c_int;
-    static mut stdin_isatty: bool;
-    static mut stdout_isatty: bool;
-    static mut Columns: c_int;
     static mut p_bg: *mut c_char;
     static mut ui_ext_names: [*const c_char; kUIExtCount];
 

@@ -19,6 +19,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -302,60 +303,16 @@ static mut pc_col: c_int = 0;
 static mut ins_esc_disabled_redraw: bool = false;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut first_tabpage: *mut tabpage_T;
     static mut default_grid: ScreenGrid;
     static mut hl_attr_active: *mut c_int;
-    static mut State: c_int;
-    static mut Ins: InsState;
-    static mut Visual: VisualState;
-    static mut cmdmod: cmdmod_T;
     static mut pum_want: PumWant;
 
-    static mut restart_edit: c_int;
-    static mut force_restart_edit: bool;
-    static mut ex_normal_busy: c_int;
-    static mut sandbox: c_int;
-    static mut textlock: c_int;
-    static mut need_highlight_changed: bool;
-    static mut where_paste_started: pos_T;
-    static mut orig_line_count: linenr_T;
-    static mut vr_lines_changed: c_int;
-    static mut ins_at_eol: bool;
-    static mut need_start_insertmode: bool;
-    static mut old_indent: c_int;
     static mut did_cursorhold: bool;
-    static mut did_check_timestamps: bool;
-    static mut need_check_timestamps: bool;
-    static mut msg_scroll: c_int;
-    static mut msg_silent: c_int;
     static mut fdo_flags: c_uint;
-    static mut no_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut mod_mask: c_int;
-    static mut got_int: bool;
-    static mut edit_submode_extra: *mut c_char;
     static mut disable_fold_update: c_int;
     static mut last_cursormoved_win: *mut win_T;
     static mut last_cursormoved: pos_T;
-    static mut must_redraw: c_int;
-    static mut clear_cmdline: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_mode: bool;
-    static mut emsg_on_display: bool;
     static mut test_disable_char_avail: bool;
-    static mut no_abbr: bool;
-    static mut spell_redraw_lnum: linenr_T;
-    static mut dollar_vcol: colnr_T;
-    static mut replace_offset: c_int;
-    static mut no_u_sync: c_int;
-    static mut u_sync_once: c_int;
-    static mut RedrawingDisabled: c_int;
-    static mut reg_recording: c_int;
-    static mut km_startsel: bool;
-    static mut KeyTyped: bool;
-    static mut KeyStuffed: c_int;
 
     static mut p_ri: c_int;
     static mut p_smd: c_int;

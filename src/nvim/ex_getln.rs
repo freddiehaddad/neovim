@@ -17,6 +17,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -24,9 +25,8 @@ use crate::api::autocmd::event_T;
 use crate::api::command::{cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::api::vim::nvim_create_buf;
 use crate::autocmd::{
     EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE, EVENT_CMDLINELEAVEPRE,
@@ -91,7 +91,6 @@ use crate::lua::converter::Boolean;
 use crate::map::{Set, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
 use crate::map_glyph_cache::{MHPutStatus, NvimString};
 use crate::mark::setpcmark;
-use crate::r#match::SearchState;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_cptr2char_adv, mb_get_class, mb_off_next, mb_prevptr, mb_tolower, utf_char2bytes,
@@ -121,7 +120,7 @@ use crate::search::{
 };
 use crate::state::{
     MODE_CMDLINE, MODE_LANGMAP, VimState, may_trigger_modechanged, may_trigger_safestate,
-    save_v_event_T, state_enter, state_handle_k_event, typebuf_T,
+    save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::undo::{UndoCheckpoint, u_checkpoint, u_rollback, u_sync};
 use crate::usercmd::{cmdcomplete_type_to_str, parse_compl_arg};
@@ -379,86 +378,31 @@ static mut prev_prompt_id: c_uint = c_uint::MAX;
 static mut prev_prompt_errors: c_int = 0;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut Search: SearchState;
     static mut p_is: c_int;
-    static mut cmd_silent: bool;
-    static mut emsg_off: c_int;
     static mut p_magic: c_int;
     static mut p_hls: c_int;
-    static mut got_int: bool;
     static mut p_ru: c_int;
     static mut p_ic: c_int;
     static mut p_scs: c_int;
-    static mut cmdline_was_last_drawn: bool;
-    static mut cmdpreview: bool;
-    static mut msg_scroll: c_int;
-    static mut State: c_int;
     static mut p_icm: *mut c_char;
-    static mut cmdmsg_rl: bool;
-    static mut redir_off: bool;
-    static mut did_emsg: c_int;
     static mut p_stl: *mut c_char;
     static mut p_wbr: *mut c_char;
     static mut p_tal: *mut c_char;
-    static mut redraw_tabline: bool;
-    static mut new_last_cmdline: *mut c_char;
     static mut p_ch: OptInt;
-    static mut need_wait_return: bool;
-    static mut quit_more: bool;
-    static mut ex_normal_busy: c_int;
-    static mut typebuf: typebuf_T;
-    static mut no_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut KeyTyped: bool;
-    static mut cmdline_star: c_int;
-    static mut textlock: c_int;
-    static mut emsg_on_display: bool;
     static mut p_wmnu: c_int;
     static mut wim_flags: [u8; 4];
     static mut p_wc: OptInt;
     static mut p_wcm: OptInt;
     static mut pum_want: PumWant;
-    static mut KeyStuffed: c_int;
-    static mut global_busy: c_int;
-    static mut wild_menu_showing: c_int;
     static mut p_cpo: *mut c_char;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
-    static mut emsg_silent: c_int;
-    static mut cmdline_row: c_int;
-    static mut redraw_cmdline: bool;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
-    static mut Columns: c_int;
-    static mut Rows: c_int;
-    static mut mod_mask: c_int;
     static mut p_ari: c_int;
     static mut IObuff: [c_char; IOSIZE];
     static mut p_cwh: OptInt;
-    static mut cmdmod: cmdmod_T;
-    static mut msg_silent: c_int;
-    static mut RedrawingDisabled: c_int;
-    static mut current_sctx: sctx_T;
     static mut p_arshape: c_int;
     static mut p_tbidi: c_int;
-    static mut msg_scrolled: c_int;
-    static mut allbuf_lock: c_int;
-    static mut cmdline_win: *mut win_T;
-    static mut exec_from_reg: bool;
-    static mut msg_no_more: bool;
-    static mut redrawing_cmdline: bool;
-    static mut skip_redraw: bool;
-    static mut lines_left: c_int;
     static mut p_paste: c_int;
-    static mut no_abbr: bool;
     static mut p_cedit: *mut c_char;
-    static mut cmdwin_buf: *mut buf_T;
     static mut main_loop: Loop;
-    static mut msg_didout: bool;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

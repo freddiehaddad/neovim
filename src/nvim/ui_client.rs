@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -81,11 +82,6 @@ unsafe extern "C" {
     static mut grid_line_buf_size: usize;
     static mut grid_line_buf_char: *mut schar_T;
     static mut grid_line_buf_attr: *mut sattr_T;
-    static mut t_colors: c_int;
-    static mut stdin_isatty: bool;
-    static mut stdout_isatty: bool;
-    static mut stderr_isatty: bool;
-    static mut time_fd: *mut libc_FILE;
 
     fn api_metadata() -> Object;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
@@ -113,10 +109,7 @@ unsafe extern "C" {
     fn dup(oldfd: c_int) -> c_int;
 }
 
-#[repr(C)]
-struct libc_FILE {
-    _unused: [u8; 0],
-}
+pub type FILE = c_void;
 
 unsafe extern "C-unwind" fn highlight_get_field_cb(
     str_: *const c_char,

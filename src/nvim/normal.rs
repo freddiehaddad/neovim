@@ -13,15 +13,15 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::command::exarg_T;
 use crate::api::extmark::NS;
 use crate::api::options::CharBuf;
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{GridView, pos_T, win_T};
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::change::{
     changed_lines, del_chars, deleted_lines, get_leader_len, ins_char, ins_char_bytes, open_line,
@@ -87,7 +87,6 @@ use crate::mark::{
     checkpcmark, get_changelist, get_jumplist, getnextmark, mark_get, mark_mb_adjustpos,
     mark_move_to, pos_to_mark, setmark, setpcmark,
 };
-use crate::r#match::SearchState;
 use crate::math::{FAIL, OK, vim_append_digit_int};
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_charlen, mb_check_adjust_col, mb_get_class, mb_prevptr,
@@ -139,7 +138,7 @@ use crate::statusline::{OptIndex, draw_tabline, win_redr_status};
 use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
 use crate::terminal::terminal_check_refresh;
-use crate::textformat::{InsState, MotionType, auto_format, has_format_option, oparg_T};
+use crate::textformat::{MotionType, auto_format, has_format_option, oparg_T};
 use crate::textobject::{
     bck_word, bckend_word, current_block, current_line, current_par, current_quote, current_sent,
     current_tagblock, current_word, end_word, findpar, findsent, fwd_word,
@@ -407,104 +406,38 @@ static mut do_check_scrollbind_old_buf: *mut buf_T = ptr::null_mut();
 static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut cmdwin_buf: *mut buf_T;
 
-    static mut opcount: c_int;
-    static mut finish_op: bool;
-    static mut State: c_int;
-    static mut km_stopsel: bool;
-    static mut km_startsel: bool;
-    static mut mod_mask: c_int;
-    static mut reg_recording: c_int;
-    static mut reg_executing: c_int;
     static mut p_smd: c_int;
-    static mut msg_silent: c_int;
-    static mut restart_edit: c_int;
-    static mut Visual: VisualState;
-    static mut clear_cmdline: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_mode: bool;
-    static mut redraw_tabline: bool;
-    static mut msg_didout: bool;
-    static mut msg_didany: bool;
-    static mut msg_scroll: c_int;
-    static mut msg_nowait: bool;
-    static mut KeyTyped: bool;
-    static mut KeyStuffed: c_int;
-    static mut emsg_on_display: bool;
-    static mut emsg_silent: c_int;
-    static mut emsg_off: c_int;
-    static mut in_assert_fails: bool;
-    static mut did_wait_return: bool;
-    static mut need_wait_return: bool;
-    static mut must_redraw: c_int;
-    static mut keep_msg: *mut c_char;
-    static mut keep_msg_hl_id: c_int;
-    static mut no_mapping: c_int;
-    static mut allow_keys: c_int;
-    static mut no_zero_mapping: c_int;
-    static mut no_u_sync: c_int;
     static mut did_cursorhold: bool;
     static mut p_cpo: *mut c_char;
     static mut p_ttm: OptInt;
     static mut p_tm: OptInt;
-    static mut vgetc_char: c_int;
-    static mut vgetc_mod_mask: c_int;
-    static mut vgetc_busy: c_int;
-    static mut msg_col: c_int;
-    static mut did_check_timestamps: bool;
-    static mut need_check_timestamps: bool;
-    static mut got_int: bool;
-    static mut quit_more: bool;
     static mut last_cursormoved_win: *mut win_T;
     static mut last_cursormoved: pos_T;
     static mut fdo_flags: c_uint;
-    static mut msg_hist_off: bool;
-    static mut need_fileinfo: bool;
-    static mut did_emsg: c_int;
-    static mut did_throw: bool;
-    static mut ex_normal_busy: c_int;
-    static mut skip_redraw: bool;
-    static mut do_redraw: bool;
     static mut diff_need_scrollbind: bool;
-    static mut time_fd: *mut c_void;
-    static mut may_garbage_collect: bool;
-    static mut motion_force: c_int;
-    static mut mode_displayed: bool;
     static mut p_sc: c_int;
     static mut p_sbr: *mut c_char;
     static mut empty_string_option: [c_char; 1];
     static mut p_sel: *mut c_char;
     static mut p_sloc: *mut c_char;
     static mut p_ch: OptInt;
-    static mut Rows: c_int;
-    static mut sc_col: c_int;
     static mut msg_grid_adj: GridView;
-    static mut did_syncbind: bool;
     static mut p_sbo: *mut c_char;
     static mut p_ws: c_int;
     static mut p_scs: c_int;
     static mut p_kp: *mut c_char;
-    static mut Search: SearchState;
     static mut p_magic: c_int;
-    static mut g_tag_at_cursor: bool;
     static mut p_ww: *mut c_char;
     static mut p_hls: c_int;
     static mut p_sta: c_int;
     static mut jop_flags: c_uint;
     static mut p_slm: *mut c_char;
-    static mut Ins: InsState;
     static mut p_to: c_int;
-    static mut ins_at_eol: bool;
     static mut cb_flags: c_uint;
     static mut p_langmap: *mut c_char;
     static mut p_lrm: c_int;
     static mut langmap_mapchar: [u8; 256];
-    static mut mouse_dragging: c_int;
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
     static mut hl_attr_active: *mut c_int;
     static mut ns_hl_fast: NS;

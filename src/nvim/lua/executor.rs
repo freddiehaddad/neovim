@@ -15,6 +15,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -311,25 +312,9 @@ unsafe extern "C" {
     static mut ui_event_ns_id: u32;
     static mut ui_refresh_cmdheight: bool;
     static mut ui_ext_names: [*const c_char; kUIGlobalCount];
-    static mut expr_map_lock: c_int;
-    static mut textlock: c_int;
-    static mut got_int: bool;
-    static mut msg_scroll: bool;
-    static mut need_wait_return: bool;
-    static mut no_wait_return: c_int;
-    static mut time_fd: *mut FILE;
     static mut on_print: Callback;
     static mut IObuff: [c_char; IOSIZE];
-    static mut force_abort: bool;
-    static mut suppress_errthrow: bool;
-    static mut did_throw: bool;
-    static mut did_emsg: bool;
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut current_sctx: sctx_T;
-    static mut mod_mask: c_int;
     static mut p_verbose: i64;
-    static mut cmdmod: cmdmod_T;
 
     static main_exitfree: bool;
 
@@ -1151,7 +1136,7 @@ unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> c_int {
             getline: nlua_ref_global(lstate, 1),
             got_line: false,
         };
-        msg_scroll = true;
+        msg_scroll = 1;
         need_wait_return = false;
         no_wait_return += 1;
         do_cmdline(
@@ -1930,7 +1915,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             force_abort = false;
             suppress_errthrow = false;
             did_throw = false;
-            did_emsg = false;
+            did_emsg = 0;
 
             let mut rettv: typval_T = zeroed();
             let mut funcexe: funcexe_T = zeroed();
@@ -2032,13 +2017,13 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
                     arena_mem_free(res_mem);
                 }
             } else if !rpc_send_event(chan_id, name, args) {
-                let mut msg_buf = [0u8; 64];
-                let _ = write!(&mut msg_buf[..], "Invalid channel: {chan_id}\0");
+                let mut mbuf = [0u8; 64];
+                let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
                 api_set_error(
                     &raw mut err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
-                    msg_buf.as_ptr().cast::<c_char>(),
+                    mbuf.as_ptr().cast::<c_char>(),
                 );
             }
         }

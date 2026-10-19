@@ -12,6 +12,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -129,19 +130,8 @@ static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
 static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
     static mut namedfm: [xfmark_T; NGLOBALMARKS];
-    static mut global_busy: c_int;
-    static mut listcmd_busy: bool;
-    static mut got_int: bool;
-    static mut cmdmod: cmdmod_T;
     static mut jop_flags: c_uint;
-    static mut Columns: c_int;
-    static mut saved_cursor: pos_T;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut IObuff: [c_char; IOSIZE];
 

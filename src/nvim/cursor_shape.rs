@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
@@ -73,13 +74,8 @@ pub struct cursorentry_T {
 
 unsafe impl Sync for cursorentry_T {}
 
+pub use crate::api::buffer::VisualState;
 pub use crate::eval::deprecated::pos_T;
-
-#[repr(C)]
-pub struct VisualStatePrefix {
-    pub start: pos_T,
-    pub active: bool,
-}
 
 const fn entry(
     full_name: &'static CStr,
@@ -130,9 +126,6 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
 unsafe extern "C" {
     static mut p_guicursor: *mut c_char;
     static mut p_sel: *mut c_char;
-    static mut State: c_int;
-    static mut finish_op: bool;
-    static mut Visual: VisualStatePrefix;
 
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;

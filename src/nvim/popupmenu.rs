@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -201,16 +202,6 @@ unsafe extern "C" {
     static mut pum_grid: ScreenGrid;
     static mut pum_want: PumWant;
     static mut default_grid: ScreenGrid;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut cmdline_win: *mut win_T;
-    static mut cmdwin_buf: *mut buf_T;
-    static mut State: c_int;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut cmdline_row: c_int;
     static mut p_ph: OptInt;
     static mut p_pw: OptInt;
     static mut p_pmw: OptInt;
@@ -224,14 +215,6 @@ unsafe extern "C" {
     static mut ns_hl_fast: c_int;
     static mut linebuf_char: *mut schar_T;
     static mut linebuf_attr: *mut sattr_T;
-    static mut must_redraw_pum: bool;
-    static mut textlock: c_int;
-    static mut RedrawingDisabled: c_int;
-    static mut no_u_sync: c_int;
-    static mut g_do_tagpreview: c_int;
-    static mut mouse_grid: c_int;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
 
     fn validate_cheight(wp: *mut win_T);
     fn validate_cursor_col(wp: *mut win_T);

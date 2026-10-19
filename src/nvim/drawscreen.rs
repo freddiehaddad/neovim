@@ -10,11 +10,11 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::VisualState;
 use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTextChunk};
 use crate::api::extmark::{DecorState, NS};
 use crate::api::tabpage::{GridView, ScreenGrid, Window, frame_T, tabpage_T, win_T};
@@ -44,8 +44,7 @@ use crate::highlight_group::highlight_changed;
 use crate::kvec::KVec;
 use crate::marktree::{DECOR_PRIORITY_BASE, kMTMetaSignText};
 use crate::r#match::{
-    SearchState, init_search_hl, match_T, matchitem_T, prepare_search_hl, regmmatch_T, regprog_T,
-    varnumber_T,
+    init_search_hl, match_T, matchitem_T, prepare_search_hl, regmmatch_T, regprog_T, varnumber_T,
 };
 use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
 use crate::mouse::StlClickDefinition;
@@ -202,74 +201,24 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
 };
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
     static mut default_grid: ScreenGrid;
     static mut default_gridview: GridView;
     static mut msg_grid: ScreenGrid;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut starting: c_int;
-    static mut exiting: bool;
-    static mut State: c_int;
     static mut updating_screen: bool;
     static mut redraw_not_allowed: bool;
     static mut resizing_screen: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut KeyTyped: bool;
-    static mut do_redraw: bool;
-    static mut must_redraw: c_int;
-    static mut must_redraw_pum: bool;
     static mut need_diff_redraw: bool;
-    static mut need_highlight_changed: bool;
-    static mut need_wait_return: bool;
-    static mut need_maketitle: bool;
-    static mut display_tick: disptick_T;
-    static mut msg_did_scroll: bool;
-    static mut msg_scrolled: c_int;
     static mut msg_scrolled_at_flush: c_int;
     static mut msg_grid_scroll_discount: c_int;
-    static mut clear_cmdline: bool;
-    static mut mode_displayed: bool;
-    static mut cmdline_was_last_drawn: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_tabline: bool;
-    static mut redraw_mode: bool;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
-    static mut msg_didany: bool;
-    static mut msg_didout: bool;
-    static mut msg_silent: c_int;
-    static mut msg_no_more: bool;
-    static mut lines_left: c_int;
-    static mut global_busy: c_int;
-    static mut reg_recording: c_int;
-    static mut restart_edit: c_int;
-    static mut got_int: bool;
-    static mut dollar_vcol: colnr_T;
-    static mut sc_col: c_int;
-    static mut ru_col: c_int;
-    static mut ru_wid: c_int;
-    static mut stl_syntax: c_int;
     static mut ns_hl_fast: NS;
     static mut hl_attr_active: *mut c_int;
     static mut screen_search_hl: match_T;
     static mut search_hl_has_cursor_lnum: linenr_T;
-    static mut Search: SearchState;
-    static mut Visual: VisualState;
     static mut decor_state: DecorState;
     static mut win_extmark_arr: KVec<WinExtmark>;
     static mut tab_page_click_defs: *mut StlClickDefinition;
     static mut tab_page_click_defs_size: usize;
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut edit_submode: *mut c_char;
-    static mut edit_submode_pre: *mut c_char;
-    static mut edit_submode_extra: *mut c_char;
-    static mut edit_submode_highl: hlf_T;
     static mut p_ch: OptInt;
     static mut p_lines: OptInt;
     static mut p_columns: OptInt;

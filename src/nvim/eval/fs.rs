@@ -12,6 +12,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -225,11 +226,6 @@ unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
 }
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut globaldir: *mut c_char;
-    static mut current_sctx: sctx_T;
 
     static mut p_fic: c_int;
     static mut p_fs: c_int;

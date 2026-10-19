@@ -11,11 +11,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
-use crate::api::tabpage::{ScreenGrid, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{ScreenGrid, pos_T, win_T};
 use crate::clipboard::typval_T;
 use crate::cursor::{check_cursor, check_cursor_lnum, coladvance};
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
@@ -74,19 +74,7 @@ struct lineoff_T {
 }
 
 unsafe extern "C" {
-    static mut Rows: c_int;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut Visual: VisualState;
     static mut default_grid: ScreenGrid;
-    static mut dollar_vcol: colnr_T;
-    static mut skip_update_topline: bool;
-    static mut mouse_dragging: c_int;
-    static mut restart_edit: c_int;
     static mut p_cpo: *mut c_char;
     static mut p_so: OptInt;
     static mut p_sj: OptInt;

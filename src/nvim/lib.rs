@@ -40,6 +40,7 @@ pub mod fileio;
 pub mod fold;
 pub mod fuzzy;
 pub mod garray;
+pub mod globals;
 pub mod grid;
 pub mod hashtab;
 pub mod help;

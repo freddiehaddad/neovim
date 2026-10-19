@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -107,13 +108,11 @@ unsafe extern "C" {
     static mut linebuf_attr: *mut sattr_T;
     static mut linebuf_vcol: *mut colnr_T;
     static mut linebuf_scratch: *mut c_char;
-    static mut full_screen: bool;
     static mut rdb_flags: c_uint;
     static mut p_arshape: c_int;
     static mut p_tbidi: c_int;
     static mut dy_escape_width: c_int;
     static mut hl_attr_active: *mut c_int;
-    static mut firstwin: *mut win_T;
     static utf8len_tab: [u8; 256];
 
     fn decor_check_invalid_glyphs();

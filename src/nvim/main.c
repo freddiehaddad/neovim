@@ -58,7 +58,6 @@
 #include "nvim/fold.h"
 #include "nvim/garray.h"
 #include "nvim/gettext_defs.h"
-#include "nvim/globals.h"
 #include "nvim/grid.h"
 #include "nvim/hashtab.h"
 #include "nvim/highlight.h"

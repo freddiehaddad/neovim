@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -321,13 +322,7 @@ unsafe extern "C-unwind" {
 }
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
     static mut ucmds: garray_T;
-    static mut msg_silent: c_int;
-    static mut redir_off: bool;
-    static mut capture_ga: *mut garray_T;
-    static mut msg_col: c_int;
-    static mut current_sctx: sctx_T;
 
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;

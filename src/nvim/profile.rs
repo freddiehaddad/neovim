@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
@@ -147,9 +148,6 @@ pub struct funccall_T {
 unsafe extern "C" {
     static mut script_items: garray_T;
     static mut exestack: garray_T;
-    static mut current_sctx: sctx_T;
-    static mut do_profiling: c_int;
-    static mut time_fd: *mut FILE;
 
     fn func_tbl_get() -> *mut hashtab_T;
     fn get_current_funccal() -> *mut funccall_T;

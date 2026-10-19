@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
@@ -116,74 +117,15 @@ pub struct exarg_Full {
     pub line2: i32,
 }
 
-#[repr(C)]
-pub struct buf_Prefix {
-    pub b_fnum: handle_T,
-    pub b_ml: memline_T,
-    pub b_next: *mut c_void,
-    pub b_prev: *mut c_void,
-    pub b_nwindows: c_int,
-    pub b_flags: c_int,
-    pub b_locked: c_int,
-    pub b_locked_split: c_int,
-    pub b_ro_locked: c_int,
-    pub b_ffname: *mut c_char,
-}
-
-#[repr(C)]
-pub struct win_Prefix {
-    pub handle: handle_T,
-    pub w_buffer: *mut buf_Prefix,
-    pub w_s: *mut c_void,
-    pub w_ns_hl: c_int,
-    pub w_ns_hl_winhl: c_int,
-    pub w_ns_hl_active: c_int,
-    pub w_ns_hl_attr: *mut c_int,
-    pub w_ns_set: Set<u32>,
-    pub w_hl_id_normal: c_int,
-    pub w_hl_attr_normal: c_int,
-    pub w_hl_attr_normalnc: c_int,
-    pub w_hl_needs_update: c_int,
-    pub w_prev: *mut c_void,
-    pub w_next: *mut c_void,
-    pub w_locked: c_int,
-    pub w_frame: *mut c_void,
-    pub w_cursor: pos_T,
-}
-
+pub use crate::api::tabpage::win_T;
+pub use crate::eval::deprecated::buf_T;
 pub use crate::input::tasave_T;
 
 pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut msg_scroll: c_int;
-    static mut State: c_int;
-    static mut did_emsg: c_int;
-    static mut cmd_silent: bool;
-    static mut msg_silent: c_int;
-    static mut emsg_silent: c_int;
-    static mut redir_off: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut no_wait_return: c_int;
-    static mut need_wait_return: bool;
-    static mut debug_mode: bool;
-    static mut debug_did_msg: bool;
-    static mut ex_normal_busy: c_int;
-    static mut ignore_script: bool;
-    static mut debug_break_level: c_int;
-    static mut ex_nesting_level: c_int;
-    static mut debug_backtrace_level: c_int;
-    static mut debug_tick: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut got_int: bool;
-    static mut lines_left: c_int;
-    static mut Rows: c_int;
-    static mut emsg_off: c_int;
     static mut exestack: garray_T;
-    static mut curbuf: *mut buf_Prefix;
-    static mut curwin: *mut win_Prefix;
 
     fn estack_sfile(which: c_int) -> *mut c_char;
     fn save_typeahead(tp: *mut tasave_T);

@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -41,8 +42,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
 };
 
 unsafe extern "C" {
-    static mut textlock: c_int;
-    static mut display_tick: u64;
     static mut ns_hl_active: NS;
     static mut decor_state: DecorState;
 

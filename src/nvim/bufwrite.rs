@@ -14,6 +14,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -195,15 +196,7 @@ struct bw_info {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut cmdmod: cmdmod_T;
     static mut IObuff: [c_char; IOSIZE];
-    static mut msg_scroll: c_int;
-    static mut msg_silent: c_int;
-    static mut no_wait_return: c_int;
-    static mut got_int: bool;
-    static mut exiting: bool;
-    static mut need_maketitle: bool;
 
     static mut p_cpo: *mut c_char;
     static mut p_bex: *mut c_char;

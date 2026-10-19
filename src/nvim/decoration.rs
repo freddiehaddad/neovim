@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -22,7 +23,7 @@ use crate::api::extmark::{
     DecorState, colnr_T, linenr_T, ns_in_win, virt_text_to_array,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{lpos_T, tabpage_T, win_T};
+use crate::api::tabpage::{lpos_T, win_T};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::eval::deprecated::buf_T;
 use crate::extmark::{TriState, extmark_set};
@@ -142,10 +143,6 @@ unsafe extern "C" {
     static mut decor_items: KVec<DecorSignHighlight>;
     static virt_text_pos_str: [*const c_char; 6];
     static hl_mode_str: [*const c_char; 4];
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
 
     fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool);
     fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T);

@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -57,20 +58,12 @@ pub struct histentry_T {
     pub additional_data: *mut c_void,
 }
 
-#[repr(C)]
-pub struct cmdmod_Prefix {
-    pub cmod_flags: c_int,
-}
-
+pub use crate::api::command::cmdmod_T;
 pub use crate::api::command::regmatch_T;
 
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut p_hi: i64;
-    static mut cmdmod: cmdmod_Prefix;
-    static mut maptick: c_int;
-    static mut got_int: bool;
-    static mut Columns: c_int;
 
     fn get_cmdline_firstc() -> c_int;
     fn get_list_range(str_ptr: *mut *mut c_char, num1: *mut c_int, num2: *mut c_int) -> c_int;

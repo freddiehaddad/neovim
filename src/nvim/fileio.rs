@@ -15,6 +15,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -262,50 +263,15 @@ pub use crate::api::command::regmatch_T;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut firstbuf: *mut buf_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut cmdmod: cmdmod_T;
 
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
 
-    static mut msg_col: c_int;
-    static mut msg_silent: c_int;
-    static mut msg_scroll: c_int;
-    static mut msg_scrolled: c_int;
-    static mut msg_scrolled_ign: bool;
     static mut msg_listdo_overwrite: c_int;
-    static mut keep_msg: *mut c_char;
-    static mut need_fileinfo: bool;
-    static mut no_wait_return: c_int;
-    static mut need_wait_return: bool;
-    static mut emsg_silent: c_int;
-    static mut in_assert_fails: bool;
-    static mut redraw_cmdline: bool;
-    static mut redraw_tabline: bool;
 
-    static mut stdin_fd: c_int;
-    static mut vim_ignored: c_int;
-    static mut swap_exists_action: c_int;
-    static mut restart_edit: c_int;
-    static mut State: c_int;
-
-    static mut readonlymode: bool;
-    static mut recoverymode: bool;
-    static mut exiting: bool;
-    static mut got_int: bool;
     static mut nvim_testing: bool;
 
-    static mut no_check_timestamps: c_int;
-    static mut did_check_timestamps: bool;
-    static mut need_check_timestamps: bool;
-    static mut global_busy: c_int;
     static mut autocmd_busy: bool;
-    static mut allbuf_lock: c_int;
 
     static mut p_verbose: OptInt;
     static mut p_cpo: *mut c_char;

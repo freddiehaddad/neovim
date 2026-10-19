@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -133,7 +134,6 @@ pub struct u_header_T {
 }
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
     static mut curbuf_splice_pending: c_int;
 
     fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_header_T;

@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -105,23 +106,7 @@ unsafe extern "C" {
     static mut main_loop: [u8; 0];
     static mut ch_before_blocking_events: *mut MultiQueue;
 
-    static mut State: c_int;
-    static mut curbuf: *mut buf_T;
     static mut did_cursorhold: bool;
-    static mut mapped_ctrl_c: c_int;
-    static mut ctrl_c_interrupts: bool;
-    static mut silent_mode: bool;
-    static mut got_int: bool;
-    static mut typebuf_was_filled: bool;
-    static mut typebuf: typebuf_T;
-    static mut current_ui: u64;
-    static mut do_profiling: c_int;
-
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut mouse_grid: c_int;
-    static mut mouse_row: c_int;
-    static mut mouse_col: c_int;
 
     static mut p_ut: OptInt;
     static mut p_acl: OptInt;

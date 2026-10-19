@@ -22,6 +22,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
@@ -540,26 +541,6 @@ static mut did_bufnr_emsg: bool = false;
 static mut set_qf_ll_recursive: c_int = 0;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut prevwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut cmdmod: cmdmod_T;
-    static mut got_int: bool;
-    static mut KeyTyped: bool;
-    static mut must_redraw: c_int;
-    static mut Columns: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_col: c_int;
-    static mut msg_scrolled: c_int;
-    static mut msg_scroll: c_int;
-    static mut msg_didout: bool;
-    static mut msg_nowait: bool;
-    static mut restart_edit: c_int;
-    static mut textlock: c_int;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
     static mut empty_string_option: [c_char; 0];

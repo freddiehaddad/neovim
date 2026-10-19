@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -82,8 +83,6 @@ static mut DID_INIT_LOCALES: bool = false;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut time_fd: *mut c_void;
 
     #[cfg(target_os = "linux")]
     static mut _nl_msg_cat_cntr: c_int;

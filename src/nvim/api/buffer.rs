@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -20,7 +21,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_invalid,
     check_string_array,
 };
-use crate::api::tabpage::{Buffer, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, pos_T, win_T};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::eval::decode::dict_T;
@@ -150,14 +151,6 @@ pub struct VisualState {
 pub use crate::extmark::u_header_T;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut firstwin: *mut win_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut Visual: VisualState;
-    static mut State: c_int;
-    static mut RedrawingDisabled: c_int;
     static mut p_acd: c_int;
 
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

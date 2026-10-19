@@ -20,13 +20,13 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
-use crate::api::tabpage::{lpos_T, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::arglist::{check_arg_idx, do_argfile};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFENTER, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, EVENT_BUFLEAVE,
@@ -83,7 +83,7 @@ use crate::keycodes::{CAR, ESC, NL, TAB};
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::{mark_adjust, mark_adjust_nofold, set_last_cursor, setpcmark};
-use crate::r#match::{SearchState, regmmatch_T, regprog_T};
+use crate::r#match::{regmmatch_T, regprog_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     utf_char2bytes, utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -368,83 +368,37 @@ static mut subflags: subflags_T = subflags_T {
 static mut pre_hl_id: c_int = 0;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut lastbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut curtab: *mut tabpage_T;
-    static mut Visual: VisualState;
-    static mut Search: SearchState;
 
     static mut IObuff: [c_char; IOSIZE];
     static mut msg_buf: [c_char; MSG_BUF_LEN];
-    static mut got_int: bool;
     static mut p_ic: c_int;
     static mut p_report: OptInt;
-    static mut global_busy: c_int;
-    static mut cmdmod: cmdmod_T;
     static mut disable_fold_update: c_int;
-    static mut msg_scroll: c_int;
-    static mut bangredo: bool;
     static mut p_shq: *mut c_char;
-    static mut msg_row: c_int;
-    static mut msg_col: c_int;
     static mut p_stmp: c_int;
-    static mut no_wait_return: c_int;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut did_check_timestamps: bool;
-    static mut need_check_timestamps: bool;
     static mut p_cpo: *mut c_char;
     static mut p_warn: c_int;
     static mut autocmd_busy: bool;
-    static mut msg_silent: c_int;
-    static mut msg_didout: bool;
     static mut p_sh: *mut c_char;
     static mut p_srr: *mut c_char;
-    static mut silent_mode: bool;
-    static mut info_message: bool;
-    static mut redraw_tabline: bool;
     static mut p_wa: c_int;
     static mut p_confirm: c_int;
-    static mut emsg_silent: c_int;
     static mut p_dir: *mut c_char;
-    static mut exiting: bool;
     static mut p_write: c_int;
     static mut p_so: OptInt;
     static mut p_awa: c_int;
     static mut au_new_curbuf: bufref_T;
-    static mut RedrawingDisabled: c_int;
-    static mut keep_help_flag: bool;
     static mut p_ur: OptInt;
-    static mut swap_exists_action: c_int;
     static mut p_sol: c_int;
-    static mut msg_listdo_overwrite: bool;
+    static mut msg_listdo_overwrite: c_int;
     static mut p_verbose: OptInt;
-    static mut msg_scrolled_ign: bool;
-    static mut skip_redraw: bool;
-    static mut State: c_int;
-    static mut need_wait_return: bool;
-    static mut lines_left: c_int;
     static mut p_window: OptInt;
-    static mut secure: c_int;
-    static mut sandbox: c_int;
-    static mut sub_nsubs: c_int;
-    static mut sub_nlines: linenr_T;
     static mut p_magic: c_int;
     static mut p_gd: c_int;
     static mut p_cwh: OptInt;
-    static mut no_u_sync: c_int;
     static mut p_lz: c_int;
-    static mut textlock: c_int;
     static mut p_ch: OptInt;
     static mut p_icm: *mut c_char;
-    static mut KeyTyped: bool;
-    static mut msg_scrolled: c_int;
-    static mut g_do_tagpreview: c_int;
     static mut p_shm: *mut c_char;
     static mut p_rdt: OptInt;
 
@@ -3718,7 +3672,8 @@ pub unsafe extern "C" fn do_ecmd(
             if oldbuf && !auto_buf {
                 let msg_scroll_save = msg_scroll;
 
-                if shortmess(kShmOverall) && !msg_listdo_overwrite && !exiting && p_verbose == 0 {
+                if shortmess(kShmOverall) && msg_listdo_overwrite == 0 && !exiting && p_verbose == 0
+                {
                     msg_scroll = 0;
                 }
                 if msg_scroll == 0 {

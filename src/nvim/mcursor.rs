@@ -11,11 +11,11 @@
     clippy::deref_addrof
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
 use crate::api::buffer::{VisualState, nvim_buf_set_text};
-use crate::api::command::cmdmod_T;
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
@@ -243,19 +243,6 @@ static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut Visual: VisualState;
-    static mut State: c_int;
-    static mut Ins: InsState;
-    static mut got_int: bool;
-    static mut exiting: bool;
-    static mut did_beep: u64;
-    static mut did_beep_silent: u64;
-    static mut emsg_silent: c_int;
-    static mut msg_silent: c_int;
-    static mut cmdmod: cmdmod_T;
-    static mut virtual_op: TriState;
     static mut p_sel: *mut c_char;
     static mut p_ww: *mut c_char;
     static mut g_min_log_level: c_int;

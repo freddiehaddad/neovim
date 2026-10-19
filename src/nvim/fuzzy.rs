@@ -9,6 +9,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -73,7 +74,6 @@ struct MatchStruct {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
     static mut p_ws: c_int;
 
     fn mb_charlen(str_ptr: *const c_char) -> c_int;

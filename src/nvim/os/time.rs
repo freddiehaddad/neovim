@@ -2,6 +2,7 @@
 
 #![allow(dead_code, unused_imports)]
 
+use crate::globals::*;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
@@ -32,7 +33,6 @@ static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: c_void;
-    static mut got_int: bool;
 
     fn uv_hrtime() -> u64;
     fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;

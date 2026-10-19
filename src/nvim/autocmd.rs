@@ -16,6 +16,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -1296,30 +1297,11 @@ unsafe extern "C" {
     static mut autocmd_match: *mut c_char;
     static mut did_cursorhold: bool;
 
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstbuf: *mut buf_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-
-    static mut got_int: bool;
-    static mut msg_col: c_int;
     static mut p_verbose: i64;
     static mut p_ei: *mut c_char;
     static mut p_fic: c_int;
-    static mut last_mode: [c_char; 7];
-    static mut current_sctx: sctx_T;
+    static mut last_mode: [c_char; 4];
     static mut exestack: garray_T;
-    static mut reg_recording: c_int;
-    static mut typebuf: typebuf_T;
-    static mut KeyTyped: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut do_profiling: c_int;
-    static mut did_emsg: c_int;
-    static mut need_maketitle: bool;
-    static mut starting: c_int;
-    static mut secure: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn cstr_as_string(str_: *const c_char) -> NvimString;
@@ -1956,7 +1938,7 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                 let handler_str = aucmd_handler_to_string(ac);
                 if !(*ac).desc.is_null() {
                     let msglen = 100usize;
-                    let msg_buf = xmallocz(msglen).cast::<c_char>();
+                    let mbuf = xmallocz(msglen).cast::<c_char>();
                     let desc_str = CStr::from_ptr((*ac).desc).to_string_lossy();
                     let formatted = if !(*ac).handler_cmd.is_null() {
                         let h_str = CStr::from_ptr(handler_str).to_string_lossy();
@@ -1966,14 +1948,10 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
                         format!(" [{desc_str}]")
                     };
                     let copy_len = formatted.len().min(msglen - 1);
-                    ptr::copy_nonoverlapping(
-                        formatted.as_ptr().cast::<c_char>(),
-                        msg_buf,
-                        copy_len,
-                    );
-                    *msg_buf.add(copy_len) = NUL;
-                    msg_outtrans(msg_buf, 0, false);
-                    xfree(msg_buf.cast());
+                    ptr::copy_nonoverlapping(formatted.as_ptr().cast::<c_char>(), mbuf, copy_len);
+                    *mbuf.add(copy_len) = NUL;
+                    msg_outtrans(mbuf, 0, false);
+                    xfree(mbuf.cast());
                 } else if !(*ac).handler_cmd.is_null() {
                     msg_outtrans(handler_str, 0, false);
                 } else {

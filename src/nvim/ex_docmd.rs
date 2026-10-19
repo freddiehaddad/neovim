@@ -13,16 +13,15 @@
     clippy::needless_range_loop
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::buffer::VisualState;
 use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::{frame_T, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::ui::{remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others};
 use crate::api::win_config::bufref_T;
 use crate::arglist::alist_T;
@@ -97,7 +96,6 @@ use crate::map_glyph_cache::NvimString;
 use crate::mark::{
     checkpcmark, mark_check, mark_get, mark_get_visual, mark_move_to, setmark, setpcmark,
 };
-use crate::r#match::SearchState;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memfile::memfile_T;
@@ -106,7 +104,7 @@ use crate::memory::{
     ArenaMem, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat,
     xstrlcpy,
 };
-use crate::menu::{save_state_T, typebuf_T};
+use crate::menu::save_state_T;
 use crate::message::{
     emsg, emsg_multiline, iemsg, msg, msg_ext_set_kind, msg_make, msg_outtrans, msg_putchar,
     msg_puts, msg_start, redirecting, verbose_enter_scroll, verbose_leave_scroll, wait_return,
@@ -174,7 +172,7 @@ use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{concat_str, del_trailing_spaces, strrep, vim_strchr, vim_strsave_escaped};
 use crate::tag::do_tag;
-use crate::textformat::{InsState, oparg_T};
+use crate::textformat::oparg_T;
 use crate::ui::{ui_active, ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has};
 use crate::undo::{
     bufIsChanged, curbufIsChanged, u_clearline, u_compute_hash, u_header_T, u_read_undo, u_redo,
@@ -716,103 +714,14 @@ const CMDMODS: [CmdModInfo; 24] = [
 ];
 
 unsafe extern "C" {
-    static mut trylevel: c_int;
-    static mut force_abort: bool;
-    static mut caught_stack: *mut except_T;
-    static mut did_emsg: c_int;
-    static mut got_int: bool;
-    static mut did_throw: bool;
-    static mut need_rethrow: bool;
-    static mut check_cstack: bool;
-    static mut current_exception: *mut except_T;
-    static mut suppress_errthrow: bool;
 
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut lastwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut lastused_tabpage: *mut tabpage_T;
-    static mut topframe: *mut frame_T;
-    static mut firstbuf: *mut buf_T;
-    static mut lastbuf: *mut buf_T;
-
-    static mut no_wait_return: c_int;
-    static mut msg_silent: c_int;
-    static mut msg_list: *mut *mut msglist_T;
-    static mut ex_nesting_level: c_int;
-    static mut do_profiling: c_int;
-    static mut debug_tick: c_int;
-    static mut debug_break_level: c_int;
-    static mut KeyTyped: bool;
-    static mut last_cmdline: *mut c_char;
-    static mut new_last_cmdline: *mut c_char;
-    static mut repeat_cmdline: *mut c_char;
-    static mut msg_didout: bool;
-    static mut msg_didany: bool;
-    static mut msg_scroll: c_int;
-    static mut msg_col: c_int;
-    static mut need_wait_return: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut did_endif: bool;
-    static mut did_emsg_syntax: bool;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut emsg_silent: c_int;
-    static mut emsg_skip: c_int;
-    static mut emsg_off: c_int;
-    static mut cmdmod: cmdmod_T;
-    static mut global_busy: c_int;
-    static mut reg_executing: c_int;
-    static mut pending_end_reg_executing: bool;
-    static mut exiting: bool;
-    static mut sandbox: c_int;
-    static mut silent_mode: bool;
-    static mut Search: SearchState;
-    static mut secure: c_int;
-    static mut arg_had_last: bool;
-    static mut ex_normal_busy: c_int;
-    static mut globaldir: *mut c_char;
-    static mut last_chdir_reason: *mut c_char;
-    static mut current_ui: u64;
-    static mut must_redraw: c_int;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
-    static mut recoverymode: bool;
-    static mut current_sctx: sctx_T;
-    static mut textlock: c_int;
-    static mut readonlymode: bool;
-    static mut did_syncbind: bool;
     static mut main_loop: Loop;
-    static mut postponed_split: c_int;
-    static mut postponed_split_flags: c_int;
-    static mut postponed_split_tab: c_int;
-    static mut virtual_op: TriState;
-    static mut Visual: VisualState;
-    static mut typebuf: typebuf_T;
-    static mut exec_from_reg: bool;
-    static mut redir_fd: *mut FILE;
-    static mut redir_reg: c_int;
-    static mut redir_vname: bool;
-    static mut redir_off: bool;
-    static mut cmdpreview: bool;
-    static mut redraw_cmdline: bool;
-    static mut need_maketitle: bool;
-    static mut State: c_int;
-    static mut restart_edit: c_int;
-    static mut force_restart_edit: bool;
-    static mut finish_op: bool;
-    static mut opcount: c_int;
-    static mut expr_map_lock: c_int;
-    static mut Ins: InsState;
-    static mut g_do_tagpreview: c_int;
     static mut autocmd_fname: *mut c_char;
     static mut autocmd_fname_full: bool;
     static mut autocmd_bufnr: c_int;
     static mut autocmd_match: *mut c_char;
-    #[cfg(not(windows))]
-    static mut escape_chars: *mut c_char;
 
     static mut p_mfd: OptInt;
     static mut p_verbose: OptInt;

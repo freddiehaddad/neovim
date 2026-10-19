@@ -13,6 +13,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -171,30 +172,11 @@ use crate::profile::estack_T;
 static mut cause_abort: bool = false;
 
 unsafe extern "C" {
-    static mut did_emsg: c_int;
-    static mut got_int: bool;
-    static mut did_throw: bool;
-    static mut need_rethrow: bool;
-    static mut force_abort: bool;
-    static mut trylevel: c_int;
-    static mut emsg_silent: c_int;
-    static mut emsg_off: c_int;
-    static mut msg_silent: c_int;
-    static mut suppress_errthrow: bool;
-    static mut current_exception: *mut except_T;
-    static mut caught_stack: *mut except_T;
-    static mut msg_list: *mut *mut msglist_T;
     static mut exestack: garray_T;
     static mut p_verbose: OptInt;
     static mut p_vfile: *mut c_char;
     static mut p_cpo: *mut c_char;
     static mut empty_string_option: [c_char; 1];
-    static mut debug_break_level: c_int;
-    static mut no_wait_return: c_int;
-    static mut msg_scroll: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut did_endif: bool;
     static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

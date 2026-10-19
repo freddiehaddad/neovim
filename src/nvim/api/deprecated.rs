@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -115,13 +116,6 @@ pub struct KeyDict_empty {
 pub type ApiDispatchWrapper = unsafe extern "C" fn(u64, Array, *mut Arena, *mut Error) -> Object;
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut current_sctx: sctx_T;
-    static mut msg_silent: c_int;
-    static mut msg_didout: bool;
-    static mut no_wait_return: c_int;
-    static mut got_int: bool;
 
     fn nlua_exec(
         str: NvimString,

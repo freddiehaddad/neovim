@@ -14,12 +14,11 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::VisualState;
-use crate::api::command::cmdmod_T;
 use crate::api::tabpage::{pos_T, win_T};
 use crate::change::{
     appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
@@ -74,7 +73,7 @@ use crate::register::{
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG};
 use crate::textformat::{
-    InsState, MotionType, auto_format, has_format_option, op_format, op_formatexpr, oparg_T,
+    MotionType, auto_format, has_format_option, op_format, op_formatexpr, oparg_T,
 };
 use crate::undo::{u_clearline, u_save, u_save_cursor};
 
@@ -217,23 +216,8 @@ const OPCHARS: [[u8; 3]; 31] = [
 static mut addsub_hexupper: bool = false;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut State: c_int;
-    static mut Visual: VisualState;
-    static mut Ins: InsState;
-    static mut cmdmod: cmdmod_T;
-    static mut got_int: bool;
-    static mut KeyTyped: bool;
-    static mut virtual_op: TriState;
-    static mut finish_op: bool;
-    static mut motion_force: c_int;
-    static mut bangredo: bool;
-    static mut restart_edit: c_int;
     static mut disable_fold_update: c_int;
     static mut curbuf_splice_pending: c_int;
-    static mut mouse_dragging: c_int;
-    static mut msg_scroll: c_int;
     static mut p_sr: c_int;
     static mut p_ri: c_int;
     static mut p_js: c_int;

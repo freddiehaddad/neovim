@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
@@ -86,8 +87,6 @@ static mut exit_need_delay: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-    static mut got_int: bool;
-    static mut exiting: bool;
     static mut ui_client_channel_id: u64;
     static mut ui_client_exit_status: c_int;
 

@@ -14,12 +14,13 @@
     clippy::unnecessary_cast
 )]
 
+use crate::globals::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, tabpage_T, win_T, xfmark_T};
+use crate::api::tabpage::{pos_T, win_T, xfmark_T};
 use crate::arglist::alist_T;
 use crate::clipboard::{MotionType, TypvalVval, VarType, list_T, typval_T, yankreg_T};
 use crate::cmdhist::{
@@ -44,7 +45,6 @@ use crate::mark::{
     cleanup_jumplist, free_fmark, free_xfmark, mark_buffer_iter, mark_get, mark_global_iter,
     mark_jumplist_iter, mark_set_global, mark_set_local, set_last_cursor, setpcmark,
 };
-use crate::r#match::SearchState;
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
@@ -627,14 +627,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
 static mut default_shada_file: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
     static mut namedfm: [xfmark_T; NGLOBALMARKS];
-    static mut Search: SearchState;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut p_fs: c_int;
     static mut p_verbose: OptInt;

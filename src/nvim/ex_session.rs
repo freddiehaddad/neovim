@@ -11,6 +11,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -22,7 +23,6 @@ use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{buf_T, fmark_T};
 use crate::garray::garray_T;
 use crate::hashtab::hashitem_empty;
-use crate::r#match::SearchState;
 use crate::memory::{xfree, xmalloc, xmemcpyz};
 
 pub type FILE = c_void;
@@ -79,25 +79,13 @@ static mut did_lcd: bool = false;
 unsafe extern "C" {
     static mut ssop_flags: c_uint;
     static mut vop_flags: c_uint;
-    static mut topframe: *mut frame_T;
-    static mut Rows: c_int;
-    static mut Columns: c_int;
     static mut p_acd: c_int;
-    static mut p_stal: c_int;
+    static mut p_stal: i64;
     static mut p_wh: i64;
     static mut p_wiw: i64;
     static mut p_shm: *mut c_char;
     static mut p_vdir: *mut c_char;
     static mut p_hls: c_int;
-    static mut global_alist: alist_T;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut globaldir: *mut c_char;
-    static mut Search: SearchState;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

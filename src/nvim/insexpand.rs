@@ -18,6 +18,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -105,7 +106,7 @@ use crate::spell::{
 };
 use crate::state::{MODE_INSERT, REPLACE_FLAG, may_trigger_modechanged};
 use crate::tag::find_tags;
-use crate::textformat::{InsState, auto_format};
+use crate::textformat::auto_format;
 use crate::undo::undo_allowed;
 use crate::winfloat::{WinKind, win_float_find};
 
@@ -544,40 +545,10 @@ struct cpt_source_T {
 use crate::state::save_v_event_T;
 
 unsafe extern "C" {
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut Ins: InsState;
     static mut pum_want: PumWant;
 
-    static mut State: c_int;
-    static mut Columns: c_int;
-    static mut sc_col: c_int;
-    static mut dollar_vcol: colnr_T;
-    static mut textlock: c_int;
-    static mut sandbox: c_int;
-    static mut got_int: bool;
-    static mut did_emsg: c_int;
-    static mut emsg_off: c_int;
-    static mut emsg_silent: c_int;
-    static mut msg_silent: c_int;
-    static mut msg_hist_off: bool;
-    static mut in_assert_fails: bool;
-    static mut redraw_mode: bool;
-    static mut redraw_cmdline: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut ex_normal_busy: c_int;
-    static mut reg_executing: c_int;
-    static mut global_busy: c_int;
-    static mut KeyTyped: bool;
     static mut test_disable_char_avail: bool;
-    static mut g_tag_at_cursor: bool;
 
-    static mut edit_submode: *const c_char;
-    static mut edit_submode_pre: *const c_char;
-    static mut edit_submode_extra: *mut c_char;
-    static mut edit_submode_highl: hlf_T;
     static mut IObuff: [c_char; IOSIZE];
 
     static mut cot_flags: c_uint;

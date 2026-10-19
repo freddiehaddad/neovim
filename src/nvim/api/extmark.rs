@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -22,7 +23,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
     api_err_invalid,
 };
-use crate::api::tabpage::{Buffer, Window, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Window, win_T};
 use crate::eval::deprecated::buf_T;
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, LuaRef};
@@ -342,9 +343,6 @@ unsafe extern "C" {
     static mut namespace_localscope: Set<u32>;
     static mut next_namespace_id: handle_T;
     static mut decor_state: DecorState;
-    static mut curtab: *mut tabpage_T;
-    static mut firstwin: *mut win_T;
-    static mut first_tabpage: *mut tabpage_T;
 
     fn copy_string(str: NvimString, arena: *mut Arena) -> NvimString;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;

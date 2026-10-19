@@ -12,6 +12,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr;
@@ -54,7 +55,6 @@ static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
-    static mut g_stats: NvimStats;
     static mut ui_client_channel_id: u64;
 
     fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int);

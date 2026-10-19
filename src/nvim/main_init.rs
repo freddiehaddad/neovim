@@ -13,6 +13,7 @@
 )]
 
 use crate::errors::*;
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -247,51 +248,9 @@ unsafe extern "system" {
 unsafe extern "C" {
     static mut main_loop: Loop;
     static mut resize_events: *mut MultiQueue;
-    static mut global_alist: alist_T;
-    static mut arg_had_last: bool;
-    static mut curwin: *mut win_T;
-    static mut firstwin: *mut win_T;
-    static mut curtab: *mut tabpage_T;
-    static mut first_tabpage: *mut tabpage_T;
-    static mut curbuf: *mut buf_T;
-    static mut firstbuf: *mut buf_T;
-    static mut current_sctx: sctx_T;
 
-    static mut time_fd: *mut FILE;
-    static mut scriptout: *mut FILE;
-    static mut starting: c_int;
-    static mut exiting: bool;
-    static mut full_screen: bool;
-    static mut silent_mode: bool;
-    static mut headless_mode: bool;
-    static mut embedded_mode: bool;
-    static mut exmode_active: c_int;
-    static mut ex_exitval: c_int;
-    static mut readonlymode: bool;
-    static mut recoverymode: c_int;
-    static mut swap_exists_action: c_int;
-    static mut swap_exists_did_quit: bool;
-    static mut RedrawingDisabled: c_int;
-    static mut Rows: c_int;
-    static mut cmdline_row: c_int;
-    static mut msg_row: c_int;
-    static mut msg_scroll: bool;
-    static mut msg_didout: bool;
-    static mut msg_didany: bool;
-    static mut no_wait_return: bool;
-    static mut info_message: bool;
-    static mut did_emsg: bool;
-    static mut got_int: bool;
-    static mut v_dying: c_int;
-    static mut garbage_collect_at_exit: bool;
-    static mut debug_break_level: c_int;
-    static mut restart_edit: c_int;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
-    static mut stdin_fd: c_int;
-    static mut stdin_isatty: bool;
-    static mut stdout_isatty: bool;
-    static mut stderr_isatty: bool;
     static mut ui_client_channel_id: u64;
     static mut ui_client_exit_status: c_int;
     static mut ui_client_forward_stdin: bool;
@@ -724,7 +683,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
             fname = get_fname(&raw mut params);
         }
 
-        if recoverymode != 0 && fname.is_null() {
+        if recoverymode && fname.is_null() {
             headless_mode = true;
         }
 
@@ -806,8 +765,8 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
         set_init_2(headless_mode);
         time_msg_if_enabled(c"inits 2".as_ptr());
 
-        msg_scroll = true;
-        no_wait_return = true;
+        msg_scroll = 1;
+        no_wait_return += 1;
 
         init_highlight(true, false);
         ui_comp_syn_init();
@@ -891,7 +850,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
 
         set_window_layout(&raw mut params);
 
-        if recoverymode != 0 && fname.is_null() {
+        if recoverymode && fname.is_null() {
             let mut items_tv: crate::clipboard::typval_T = zeroed();
             tv_list_alloc_ret(&raw mut items_tv, 0);
             recover_names(ptr::null_mut(), false, items_tv.vval.v_list);
@@ -928,10 +887,10 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
         handle_quickfix(&raw mut params);
 
         starting = NO_BUFFERS;
-        no_wait_return = false;
-        msg_scroll = false;
+        no_wait_return = 0;
+        msg_scroll = 0;
 
-        if params.edit_type == EDIT_STDIN && recoverymode == 0 {
+        if params.edit_type == EDIT_STDIN && !recoverymode {
             read_stdin();
         }
 
@@ -939,7 +898,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
 
         redraw_later(curwin, UPD_VALID);
 
-        no_wait_return = true;
+        no_wait_return += 1;
 
         create_windows(&raw mut params);
         time_msg_if_enabled(c"opening buffers".as_ptr());
@@ -989,7 +948,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
 
         RedrawingDisabled = 0;
         redraw_all_later(UPD_NOT_VALID);
-        no_wait_return = false;
+        no_wait_return = 0;
 
         do_autochdir();
 
@@ -1032,7 +991,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
         }
 
         if !params.luaf.is_null() {
-            msg_scroll = true;
+            msg_scroll = 1;
             logmsg_str(
                 LOGLVL_DBG,
                 ptr::null(),
@@ -1049,8 +1008,8 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
             }
             getout(if lua_ok { 0 } else { 1 });
         } else if silent_mode {
-            msg_scroll = true;
-            no_wait_return = true;
+            msg_scroll = 1;
+            no_wait_return += 1;
             if !params.input_istext && !stdin_isatty {
                 logmsg_str(
                     LOGLVL_DBG,
@@ -1165,7 +1124,7 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
 
         time_finish();
 
-        if exmode_active != 0 {
+        if exmode_active {
             exitval += ex_exitval;
         }
 
@@ -1267,8 +1226,8 @@ pub unsafe extern "C" fn getout(mut exitval: c_int) -> ! {
 
         profile_dump();
 
-        if did_emsg {
-            no_wait_return = false;
+        if did_emsg != 0 {
+            no_wait_return = 0;
             wait_return(0);
         }
 
@@ -1622,7 +1581,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     0 => {
                         if (*parmp).exmode {
                             silent_mode = true;
-                            exmode_active = 1;
+                            exmode_active = true;
                             (*parmp).no_swap_file = 1;
                         } else {
                             if (*parmp).edit_type > EDIT_STDIN {
@@ -1763,12 +1722,12 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         p_uc = 10000;
                     }
                     b'r' | b'L' => {
-                        recoverymode = 1;
+                        recoverymode = true;
                     }
                     b's' => {
                         if (*parmp).exmode {
                             silent_mode = true;
-                            exmode_active = 1;
+                            exmode_active = true;
                             (*parmp).no_swap_file = 1;
                             if p_shadafile.is_null() || *p_shadafile == NUL {
                                 set_option_value_give_err(
@@ -2252,7 +2211,7 @@ unsafe fn read_stdin() {
     #[cfg(not(test))]
     unsafe {
         swap_exists_action = SEA_DIALOG;
-        no_wait_return = true;
+        no_wait_return = 1;
         let save_msg_didany = msg_didany;
 
         if !(*curbuf).b_ffname.is_null() {
@@ -2305,7 +2264,7 @@ unsafe fn read_stdin() {
             }
         }
 
-        no_wait_return = false;
+        no_wait_return = 0;
         msg_didany = save_msg_didany;
         time_msg_if_enabled(c"reading stdin".as_ptr());
         check_swap_exists_action();
@@ -2339,8 +2298,8 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
             (*parmp).window_count = 1;
         }
 
-        if recoverymode != 0 {
-            msg_scroll = true;
+        if recoverymode {
+            msg_scroll = 1;
             ml_recover(true);
             if (*curbuf).b_ml.ml_mfp.is_null() {
                 getout(1);
@@ -2384,7 +2343,7 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
 
                     if swap_exists_action == SEA_QUIT {
                         if got_int || only_one_window() {
-                            did_emsg = false;
+                            did_emsg = 0;
                             ui_call_error_exit(1);
                             getout(1);
                         }
@@ -2483,7 +2442,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
                 );
                 if swap_exists_did_quit {
                     if got_int || only_one_window() {
-                        did_emsg = false;
+                        did_emsg = 0;
                         ui_call_error_exit(1);
                         getout(1);
                     }
@@ -2565,7 +2524,7 @@ unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
 unsafe fn exe_commands(parmp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
-        msg_scroll = true;
+        msg_scroll = 1;
         if (*parmp).tagname.is_null() && (*curwin).w_cursor.lnum <= 1 {
             (*curwin).w_cursor.lnum = 0;
         }
@@ -2584,7 +2543,7 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
             (*curwin).w_cursor.lnum = 1;
         }
 
-        msg_scroll = false;
+        msg_scroll = 0;
 
         if (*parmp).edit_type == EDIT_QF {
             qf_jump(ptr::null_mut(), 0, 0, 0);
