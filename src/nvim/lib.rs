@@ -54,6 +54,8 @@ pub mod keycodes;
 pub mod kvec;
 pub mod linematch;
 pub mod log;
+#[path = "../lpeg/mod.rs"]
+pub mod lpeg;
 pub mod lua;
 pub mod main_init;
 pub mod map;

@@ -389,10 +389,10 @@ file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
 file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
-file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../klib/*.c ../lpeg/*.c)
+file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../klib/*.c)
 file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/*.h ../klib/*.h ../lpeg/*.h)
 
-file(GLOB NLUA0_SOURCES CONFIGURE_DEPENDS ../lpeg/*.c)
+set(NLUA0_SOURCES)
 
 if(PREFER_LUA)
   # luajit not used, use a vendored copy of the bit module
@@ -784,6 +784,7 @@ set(NVIM_RUST_LIB
 file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/*.rs"
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
+  "${PROJECT_SOURCE_DIR}/src/lpeg/*.rs"
   "${PROJECT_SOURCE_DIR}/src/mpack/*.rs"
   "${PROJECT_SOURCE_DIR}/src/xdiff/*.rs")
 
