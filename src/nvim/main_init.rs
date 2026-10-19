@@ -322,8 +322,6 @@ unsafe extern "C" {
     fn printf(format: *const c_char, ...) -> c_int;
     fn setbuf(stream: *mut FILE, buffer: *mut c_char);
 
-    fn main_get_stdout() -> *mut FILE;
-
     #[cfg_attr(windows, link_name = "_dup2")]
     fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
     #[cfg_attr(windows, link_name = "_close")]
@@ -684,7 +682,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
         }
         RedrawingDisabled += 1;
 
-        setbuf(main_get_stdout(), ptr::null_mut());
+        setbuf(crate::log::log_get_stdout(), ptr::null_mut());
 
         full_screen = !silent_mode;
 

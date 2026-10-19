@@ -353,7 +353,6 @@ unsafe extern "C" {
     fn uv_thread_self() -> uv_thread_t;
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
-    fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
@@ -3232,28 +3231,28 @@ pub unsafe extern "C" fn nlua_funcref_str(
                     && ar.linedefined >= 0
                 {
                     let src = home_replace_save(ptr::null_mut(), ar.source.add(1));
-                    let str_ = if show_ref {
-                        arena_printf(
-                            arena,
-                            c"<Lua %d: %s:%d>".as_ptr(),
-                            ref_,
-                            src,
-                            ar.linedefined,
-                        )
+                    let src_s = CStr::from_ptr(src).to_string_lossy();
+                    let formatted = if show_ref {
+                        format!("<Lua {ref_}: {src_s}:{}>", ar.linedefined)
                     } else {
-                        arena_printf(arena, c"<Lua %s:%d>".as_ptr(), src, ar.linedefined)
+                        format!("<Lua {src_s}:{}>", ar.linedefined)
                     };
                     xfree(src.cast());
-                    return str_.data;
+                    return crate::memory::arena_memdupz(
+                        arena,
+                        formatted.as_ptr().cast(),
+                        formatted.len(),
+                    );
                 }
             }
         }
 
-        if show_ref {
-            arena_printf(arena, c"<Lua %d>".as_ptr(), ref_).data
+        let formatted = if show_ref {
+            format!("<Lua {ref_}>")
         } else {
-            arena_printf(arena, c"<Lua>".as_ptr()).data
-        }
+            "<Lua>".to_string()
+        };
+        crate::memory::arena_memdupz(arena, formatted.as_ptr().cast(), formatted.len())
     }
     #[cfg(test)]
     {

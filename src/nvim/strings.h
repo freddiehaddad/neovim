@@ -150,5 +150,3 @@ static inline char *strappend(char *const dst, const char *const src)
 #  define STRNICMP(d, s, n) vim_strnicmp((char *)(d), (char *)(s), (n))
 # endif
 #endif
-
-#define kv_printf(v, ...) kv_do_printf(&(v), __VA_ARGS__)

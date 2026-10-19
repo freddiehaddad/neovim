@@ -113,6 +113,26 @@ unsafe extern "C" {
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn log_get_stdout() -> *mut FILE {
+    #[cfg(all(not(test), windows))]
+    unsafe {
+        __acrt_iob_func(1)
+    }
+    #[cfg(all(not(test), target_os = "linux"))]
+    unsafe {
+        c_stdout
+    }
+    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
+    unsafe {
+        __stdoutp
+    }
+    #[cfg(test)]
+    {
+        ptr::null_mut()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn log_get_stderr() -> *mut FILE {
     #[cfg(all(not(test), windows))]
     unsafe {

@@ -127,8 +127,6 @@ unsafe extern "C" {
     fn mpack_unpack_uint(t: mpack_token_t) -> u64;
     fn mpack_unpack_sint(t: mpack_token_t) -> i64;
     fn mpack_unpack_float_fast(t: mpack_token_t) -> f64;
-
-    fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
 }
 
 #[inline]
@@ -1105,18 +1103,23 @@ pub unsafe extern "C-unwind" fn unpack_keydict(
         let map_size = tok.length as usize;
         let hashy_fn = hashy.unwrap();
 
+        let alloc_key_error = |key: NvimString, suffix: &[u8]| -> *mut c_char {
+            let key_bytes = std::slice::from_raw_parts(key.data.cast::<u8>(), key.size);
+            let mut out = Vec::with_capacity(4 + key.size + suffix.len());
+            out.extend_from_slice(b"has ");
+            out.extend_from_slice(key_bytes);
+            out.extend_from_slice(suffix);
+            crate::memory::xmemdupz(out.as_ptr().cast(), out.len()).cast()
+        };
+
         for _ in 0..map_size {
             let item_start = *data;
             let key = unpack_string(data, size);
             if key.data.is_null() {
-                *error = arena_printf(
-                    std::ptr::null_mut(),
-                    c"has key value which is not a string".as_ptr(),
-                )
-                .data;
+                *error = xstrdup(c"has key value which is not a string".as_ptr());
                 return false;
             } else if key.size == 0 {
-                *error = arena_printf(std::ptr::null_mut(), c"has empty key".as_ptr()).data;
+                *error = xstrdup(c"has empty key".as_ptr());
                 return false;
             }
             let field_ptr = hashy_fn(key.data, key.size);
@@ -1145,13 +1148,7 @@ pub unsafe extern "C-unwind" fn unpack_keydict(
             if field.key_type == (ObjectType::kObjectTypeBoolean as c_int) {
                 let cur_byte = if *size > 0 { **data as u8 } else { 0 };
                 if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
-                    *error = arena_printf(
-                        std::ptr::null_mut(),
-                        c"has %.*s key value which is not a boolean".as_ptr(),
-                        key.size as c_int,
-                        key.data,
-                    )
-                    .data;
+                    *error = alloc_key_error(key, b" key value which is not a boolean");
                     return false;
                 }
                 *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0;
@@ -1159,38 +1156,20 @@ pub unsafe extern "C-unwind" fn unpack_keydict(
                 *size -= 1;
             } else if field.key_type == (ObjectType::kObjectTypeInteger as c_int) {
                 if !unpack_integer(data, size, mem.cast::<Integer>()) {
-                    *error = arena_printf(
-                        std::ptr::null_mut(),
-                        c"has %.*s key value which is not an integer".as_ptr(),
-                        key.size as c_int,
-                        key.data,
-                    )
-                    .data;
+                    *error = alloc_key_error(key, b" key value which is not an integer");
                     return false;
                 }
             } else if field.key_type == (ObjectType::kObjectTypeString as c_int) {
                 let val = unpack_string(data, size);
                 if val.data.is_null() {
-                    *error = arena_printf(
-                        std::ptr::null_mut(),
-                        c"has %.*s key value which is not a binary".as_ptr(),
-                        key.size as c_int,
-                        key.data,
-                    )
-                    .data;
+                    *error = alloc_key_error(key, b" key value which is not a binary");
                     return false;
                 }
                 *mem.cast::<NvimString>() = val;
             } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
                 let len = unpack_array(data, size);
                 if len < 0 {
-                    *error = arena_printf(
-                        std::ptr::null_mut(),
-                        c"has %.*s key with non-array value".as_ptr(),
-                        key.size as c_int,
-                        key.data,
-                    )
-                    .data;
+                    *error = alloc_key_error(key, b" key with non-array value");
                     return false;
                 }
                 let a = &mut *mem.cast::<StringArray>();
@@ -1198,13 +1177,7 @@ pub unsafe extern "C-unwind" fn unpack_keydict(
                 for _ in 0..(len as usize) {
                     let item = unpack_string(data, size);
                     if item.data.is_null() {
-                        *error = arena_printf(
-                            std::ptr::null_mut(),
-                            c"has %.*s array with non-binary value".as_ptr(),
-                            key.size as c_int,
-                            key.data,
-                        )
-                        .data;
+                        *error = alloc_key_error(key, b" array with non-binary value");
                         return false;
                     }
                     a.push(item);

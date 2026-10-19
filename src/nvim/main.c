@@ -43,11 +43,6 @@ const bool main_exitfree = true;
 const bool main_exitfree = false;
 #endif
 
-FILE *main_get_stdout(void)
-{
-  return stdout;
-}
-
 #ifndef MAKE_LIB
 int main(int argc, char **argv)
 {

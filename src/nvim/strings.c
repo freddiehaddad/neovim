@@ -1,18 +1,11 @@
-#include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "auto/config.h"
-#include "nvim/api/private/defs.h"
-#include "nvim/api/private/helpers.h"
 #include "nvim/ascii_defs.h"
 #include "nvim/eval/typval_defs.h"
-#include "nvim/macros_defs.h"
-#include "nvim/memory.h"
-#include "nvim/memory_defs.h"
 #include "nvim/strings.h"
 #include "nvim/types_defs.h"
 
@@ -191,75 +184,4 @@ int vim_vsnprintf_typval(char *str, size_t str_m, const char *fmt, va_list ap_st
   va_end(va.ap);
   va_end(va.ap_start);
   return ret;
-}
-
-int kv_do_printf(StringBuilder *str, const char *fmt, ...)
-  FUNC_ATTR_PRINTF(2, 3)
-{
-  size_t remaining = str->capacity - str->size;
-
-  va_list ap;
-  va_start(ap, fmt);
-  int printed = vsnprintf(str->items ? str->items + str->size : NULL, remaining, fmt, ap);
-  va_end(ap);
-
-  if (printed < 0) {
-    return -1;
-  }
-
-  // printed string didn't fit, resize and try again
-  if ((size_t)printed >= remaining) {
-    kv_ensure_space(*str, (size_t)printed + 1);  // include space for NUL terminator at the end
-    assert(str->items != NULL);
-    va_start(ap, fmt);
-    printed = vsnprintf(str->items + str->size, str->capacity - str->size, fmt, ap);
-    va_end(ap);
-    if (printed < 0) {
-      return -1;
-    }
-  }
-
-  str->size += (size_t)printed;
-  return printed;
-}
-
-String arena_printf(Arena *arena, const char *fmt, ...)
-  FUNC_ATTR_PRINTF(2, 3)
-{
-  size_t remaining = 0;
-  char *buf = NULL;
-  if (arena) {
-    if (!arena->cur_blk) {
-      arena_alloc_block(arena);
-    }
-
-    // happy case, we can fit the printed string in the rest of the current
-    // block (one pass):
-    remaining = arena->size - arena->pos;
-    buf = arena->cur_blk + arena->pos;
-  }
-
-  va_list ap;
-  va_start(ap, fmt);
-  int printed = vsnprintf(buf, remaining, fmt, ap);
-  va_end(ap);
-
-  if (printed < 0) {
-    return (String)STRING_INIT;
-  }
-
-  // printed string didn't fit, allocate and try again
-  if ((size_t)printed >= remaining) {
-    buf = arena_alloc(arena, (size_t)printed + 1, false);
-    va_start(ap, fmt);
-    printed = vsnprintf(buf, (size_t)printed + 1, fmt, ap);
-    va_end(ap);
-    if (printed < 0) {
-      return (String)STRING_INIT;
-    }
-  } else {
-    arena->pos += (size_t)printed + 1;
-  }
-
-  return cbuf_as_string(buf, (size_t)printed);
 }
