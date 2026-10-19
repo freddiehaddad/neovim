@@ -84,7 +84,7 @@ const SEEK_END: c_int = 2;
 const STDOUT_FILENO: c_int = 1;
 const STDERR_FILENO: c_int = 2;
 
-const MODE_EXTERNCMD: c_int = 0x20;
+const MODE_EXTERNCMD: c_int = 0x5000;
 const PROF_YES: c_int = 1;
 const VV_SHELL_ERROR: c_int = 6;
 const kUIMessages: c_int = 4;

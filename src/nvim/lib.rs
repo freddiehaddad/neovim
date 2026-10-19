@@ -66,6 +66,7 @@ pub mod memfile;
 pub mod memline;
 pub mod memory;
 pub mod menu;
+pub mod message;
 pub mod mouse;
 pub mod r#move;
 pub mod msgpack_rpc;

@@ -116,7 +116,7 @@ pub const kRetMultiStack: LuaRetMode = 4;
 const NUL: c_char = 0;
 const IOSIZE: usize = 1025;
 const MAX_FUNC_ARGS: c_int = 20;
-const MB_MAXBYTES: usize = 4;
+const MB_MAXBYTES: usize = 30;
 
 const LUA_MULTRET: c_int = -1;
 const LUA_REGISTRYINDEX: c_int = -10000;
@@ -151,12 +151,12 @@ const VAR_FIXED: c_int = 2;
 const kUICmdline: c_int = 0;
 const kUIGlobalCount: usize = 5;
 
+const WSP_VERT: c_int = 0x02;
+const WSP_HOR: c_int = 0x04;
 const WSP_TOP: c_int = 0x08;
 const WSP_BOT: c_int = 0x10;
-const WSP_ABOVE: c_int = 0x20;
 const WSP_BELOW: c_int = 0x40;
-const WSP_VERT: c_int = 0x04;
-const WSP_HOR: c_int = 0x80;
+const WSP_ABOVE: c_int = 0x80;
 
 const CMOD_SANDBOX: c_int = 0x0001;
 const CMOD_SILENT: c_int = 0x0002;
@@ -173,13 +173,13 @@ const CMOD_LOCKMARKS: c_int = 0x0800;
 const CMOD_KEEPPATTERNS: c_int = 0x1000;
 const CMOD_NOSWAPFILE: c_int = 0x2000;
 
-const EX_EXTRA: u32 = 0x00000010;
-const EX_NOSPC: u32 = 0x00000400;
-const EX_NEEDARG: u32 = 0x00000800;
-const EX_ARGSPACE: u32 = 0x10000000;
+const EX_EXTRA: u32 = 0x00000004;
+const EX_NOSPC: u32 = 0x00000010;
+const EX_NEEDARG: u32 = 0x00000080;
+const EX_ARGSPACE: u32 = 0x40000000;
 
-const CMD_equal: c_int = 299;
-const CMD_SIZE: c_int = 300;
+const CMD_equal: c_int = 559;
+const CMD_SIZE: c_int = 564;
 const CMD_USER: c_int = -1;
 const CMD_USER_BUF: c_int = -2;
 

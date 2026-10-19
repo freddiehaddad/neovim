@@ -51,7 +51,7 @@ const MB_MAXCHAR: usize = 6;
 const NUMBUFLEN: usize = 65;
 
 const HLF_8: c_int = 1;
-const HLF_CM: c_int = 10;
+const HLF_CM: c_int = 11;
 
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;

@@ -35,8 +35,8 @@ const kUIMessages: UIExtension = 4;
 const kUIMultigrid: UIExtension = 6;
 const kShmIntro: c_int = b'I' as c_int;
 const kRetObject: c_int = 0;
-const HLF_8: usize = 0;
-const HLF_COUNT: usize = 47;
+const HLF_8: usize = 1;
+const HLF_COUNT: usize = 76;
 
 static VIM_VERSIONS: [c_int; 5] = [801, 802, 900, 901, 902];
 static NUM_PATCHES: [usize; 5] = [2409, 4049, 1650, 1726, 823];

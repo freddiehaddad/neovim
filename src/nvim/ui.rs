@@ -67,19 +67,20 @@ const kUIExtCount: usize = 10;
 const kLineFlagWrap: c_int = 1;
 const kLineFlagInvalid: c_int = 2;
 
-const kOptBoFlagAll: c_uint = 0x2000;
-const kOptRdbFlagLine: c_uint = 0x04;
+const kOptBoFlagAll: c_uint = 0x01;
+const kOptRdbFlagLine: c_uint = 0x10;
 const kOptRdbFlagFlush: c_uint = 0x20;
 const kOptCmdheight: c_int = 44;
 
-const HLF_W: c_int = 39;
+const HLF_W: c_int = 26;
 
+const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
 const MODE_CMDLINE: c_int = 0x08;
-const MODE_HITRETURN: c_int = 0x40;
-const MODE_ASKMORE: c_int = 0x80;
-const MODE_SETWSIZE: c_int = 0x100;
-const MODE_EXTERNCMD: c_int = 0x04;
+const MODE_HITRETURN: c_int = 0x2000 | MODE_NORMAL;
+const MODE_ASKMORE: c_int = 0x3000;
+const MODE_SETWSIZE: c_int = 0x4000;
+const MODE_EXTERNCMD: c_int = 0x5000;
 
 const kMouseNormal: c_int = b'n' as c_int;
 const kMouseVisual: c_int = b'v' as c_int;

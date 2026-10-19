@@ -55,9 +55,9 @@ const DI_FLAGS_RO: u8 = 1;
 const DI_FLAGS_FIX: u8 = 4;
 const DI_FLAGS_LOCK: u8 = 8;
 
-const HLF_E: c_int = 7;
+const HLF_E: c_int = 6;
 
-const SID_API_CLIENT: scid_T = -3;
+const SID_API_CLIENT: scid_T = -9;
 const SID_LUA: scid_T = -8;
 const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
 const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
