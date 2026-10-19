@@ -19,6 +19,7 @@ use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::window::find_win_by_nr_or_id;
+use crate::ex_docmd::{ex_errmsg, find_nextcmd};
 use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 
@@ -210,8 +211,6 @@ unsafe extern "C" {
     fn skiptowhite(p: *const c_char) -> *mut c_char;
     fn skipwhite(q: *const c_char) -> *mut c_char;
     fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
-    fn ex_errmsg(msg: *const c_char, ...) -> *mut c_char;
-    fn find_nextcmd(p: *const c_char) -> *mut c_char;
 }
 
 #[inline]

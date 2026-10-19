@@ -52,6 +52,7 @@ use crate::eval::deprecated::{
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::ex_cmds2::{autowrite, dialog_changed};
+use crate::ex_docmd::ex_errmsg;
 use crate::ex_eval::{cleanup_T, enter_cleanup, leave_cleanup};
 use crate::extmark::extmark_free_all;
 use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse};
@@ -425,7 +426,6 @@ unsafe extern "C" {
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;
     fn smsg(attr: c_int, fmt: *const c_char, ...) -> c_int;
-    fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char;
     fn msg_start();
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_puts(s: *const c_char);

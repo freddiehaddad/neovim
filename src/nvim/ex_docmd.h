@@ -136,7 +136,6 @@ DLLEXPORT void set_no_hlsearch(bool flag);
 DLLEXPORT bool is_loclist_cmd(int cmdidx) FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT;
 DLLEXPORT void verify_command(char *cmd);
 DLLEXPORT bool is_map_cmd(cmdidx_T cmdidx);
+DLLEXPORT char *ex_errmsg(const char *const msg, const char *arg);
 
 #include "nvim/func_attr.h"
-
-#include "ex_docmd.h.generated.h"

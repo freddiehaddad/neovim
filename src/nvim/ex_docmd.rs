@@ -851,7 +851,6 @@ unsafe extern "C" {
         fmt: *const c_char,
         ...
     ) -> bool;
-    fn ex_errmsg(msg: *const c_char, ...) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn fclose(stream: *mut FILE) -> c_int;
     fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
@@ -13395,6 +13394,18 @@ unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
         } else {
             let _ = semsg(gettext(e_invarg2.as_ptr()), arg);
         }
+    }
+}
+
+const MSG_BUF_LEN: usize = 480;
+static mut EX_ERROR_BUF: [c_char; MSG_BUF_LEN] = [0; MSG_BUF_LEN];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
+    unsafe {
+        let buf = (&raw mut EX_ERROR_BUF).cast::<c_char>();
+        let _ = vim_snprintf(buf, MSG_BUF_LEN, gettext(msg), arg);
+        buf
     }
 }
 
