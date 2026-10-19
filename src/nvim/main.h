@@ -5,7 +5,9 @@
 
 #include "nvim/api/private/defs.h"
 #include "nvim/api/private/dispatch.h"
+#include "nvim/eval/funcs.h"
 #include "nvim/eval/typval_defs.h"
+#include "nvim/option.h"
 #include "nvim/types_defs.h"
 
 // Maximum number of commands from + or -c arguments.

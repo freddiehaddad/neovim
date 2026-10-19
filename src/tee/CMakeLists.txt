@@ -1,12 +1,22 @@
-add_executable(tee tee.c)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR NOT CMAKE_BUILD_TYPE)
+  set(TEE_RUST_PROFILE_DIR "debug")
+else()
+  set(TEE_RUST_PROFILE_DIR "release")
+endif()
 
-# tee has to be in the same directory as the nvim executable
-set_target_properties(tee PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
+set(TEE_CARGO_BIN "${PROJECT_BINARY_DIR}/cargo/${TEE_RUST_PROFILE_DIR}/tee${CMAKE_EXECUTABLE_SUFFIX}")
+set(TEE_OUT_BIN "${CMAKE_BINARY_DIR}/bin/tee${CMAKE_EXECUTABLE_SUFFIX}")
+
+add_custom_command(
+  OUTPUT "${TEE_OUT_BIN}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
+  COMMAND ${CMAKE_COMMAND} -E copy "${TEE_CARGO_BIN}" "${TEE_OUT_BIN}"
+  DEPENDS nvim_rs_build "${PROJECT_SOURCE_DIR}/src/tee/main.rs")
+
+add_custom_target(tee ALL DEPENDS "${TEE_OUT_BIN}")
 
 if(WIN32)
-  install(TARGETS tee
-    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  install(PROGRAMS "${TEE_OUT_BIN}"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
   )
 endif()

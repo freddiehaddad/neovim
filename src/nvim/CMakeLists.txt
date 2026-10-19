@@ -440,7 +440,6 @@ list(SORT NVIM_HEADERS)
 
 list(APPEND UNCRUSTIFY_NVIM_SOURCES ${NVIM_SOURCES} ${NVIM_HEADERS})
 list(APPEND UNCRUSTIFY_NVIM_SOURCES
-  ${PROJECT_SOURCE_DIR}/src/tee/tee.c
   ${PROJECT_SOURCE_DIR}/src/xxd/xxd.c
   ${PROJECT_SOURCE_DIR}/src/wasm/wasm_stubs.c
   ${PROJECT_SOURCE_DIR}/src/static_ts_registry.c
@@ -477,7 +476,6 @@ endforeach()
 
 list(APPEND LINT_NVIM_SOURCES ${NVIM_SOURCES} ${NVIM_HEADERS})
 list(APPEND LINT_NVIM_SOURCES
-  ${PROJECT_SOURCE_DIR}/src/tee/tee.c
   ${PROJECT_SOURCE_DIR}/src/xxd/xxd.c
 )
 
@@ -787,6 +785,7 @@ file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
   "${PROJECT_SOURCE_DIR}/src/lpeg/*.rs"
   "${PROJECT_SOURCE_DIR}/src/mpack/*.rs"
+  "${PROJECT_SOURCE_DIR}/src/tee/*.rs"
   "${PROJECT_SOURCE_DIR}/src/xdiff/*.rs")
 
 add_custom_command(

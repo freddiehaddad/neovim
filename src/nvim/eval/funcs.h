@@ -68,7 +68,8 @@ DLLEXPORT void f_jobstop(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
 DLLEXPORT int do_searchpair(const char *spat, const char *mpat, const char *epat, int dir,
                             const typval_T *skip, int flags, pos_T *match_pos, linenr_T lnum_stop,
                             int64_t time_limit) FUNC_ATTR_NONNULL_ARG(1, 2, 3);
+DLLEXPORT const EvalFuncDef *eval_func_def_at(int idx);
 
 #include "nvim/func_attr.h"
 
-#include "eval/funcs.h.generated.h"
+#include "eval/funcs.h.inline.generated.h"

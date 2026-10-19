@@ -190,7 +190,10 @@ DLLEXPORT int64_t get_sidescrolloff_value(win_T *wp);
 DLLEXPORT Dict get_option_info(String name, int opt_flags, buf_T *buf, win_T *win, Arena *arena,
                                Error *err);
 DLLEXPORT Dict get_all_options_info(Arena *arena);
+DLLEXPORT OptIndex find_option_len(const char *const name, size_t len)
+  FUNC_ATTR_NONNULL_ALL;
+DLLEXPORT vimoption_T *get_option(OptIndex opt_idx);
 
 #include "nvim/func_attr.h"
 
-#include "option.h.generated.h"
+#include "option.h.inline.generated.h"

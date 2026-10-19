@@ -8,6 +8,10 @@ name = "nvim_rs"
 path = "src/nvim/lib.rs"
 crate-type = ["staticlib", "rlib"]
 
+[[bin]]
+name = "tee"
+path = "src/tee/main.rs"
+
 [features]
 vendor-bit = []
 
