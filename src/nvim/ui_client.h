@@ -32,6 +32,36 @@ EXTERN bool ui_client_attached INIT( = false);
 EXTERN bool ui_client_forward_stdin INIT( = false);
 
 #define UI_CLIENT_STDIN_FD 3
+
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT uint64_t ui_client_start_server(const char *exepath, size_t argc, char **argv);
+DLLEXPORT void ui_client_attach(int width, int height, char *term, bool rgb);
+DLLEXPORT void ui_client_detach(void);
+DLLEXPORT void ui_client_run(void) FUNC_ATTR_NORETURN;
+DLLEXPORT void ui_client_stop(void);
+DLLEXPORT void ui_client_set_size(int width, int height);
+DLLEXPORT Object handle_ui_client_redraw(uint64_t channel_id, Array args, Arena *arena,
+                                         Error *error);
+DLLEXPORT void ui_client_event_grid_resize(Array args);
+DLLEXPORT void ui_client_event_grid_line(Array args) FUNC_ATTR_NORETURN;
+DLLEXPORT void ui_client_event_raw_line(GridLineEvent *g);
+DLLEXPORT void ui_client_event_connect(Array args);
+DLLEXPORT void ui_client_event_restart(Array args);
+DLLEXPORT void ui_client_event__set_restart_on_crash_exit(Array args);
+DLLEXPORT void ui_client_attach_to_restarted_server(bool error_restart);
+DLLEXPORT void ui_client_event_error_exit(Array args);
+DLLEXPORT void ui_client_free_all_mem(void);
+
 // uncrustify:off
 # include "ui_client.h.generated.h"
 # include "ui_events_client.h.generated.h"
