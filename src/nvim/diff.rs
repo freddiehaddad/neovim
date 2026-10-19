@@ -10,7 +10,7 @@
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
-use crate::api::autocmd::{OptionalKeys, kCallbackNone};
+use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
@@ -31,7 +31,6 @@ use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::keycodes::scid_T;
 use crate::linematch::{linematch_nbuffers, mmfile_t};
-use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::{mark_adjust, setpcmark};
 use crate::mbyte::{
@@ -43,11 +42,12 @@ use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
     invalidate_botline_win, validate_cursor,
 };
-use crate::msgpack_rpc::packer::Integer;
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 use crate::undo::{u_save, u_sync};
+use crate::xdiff::xdiffi::xdl_diff;
+use crate::xdiff::{xdemitcb_t, xdemitconf_t, xpparam_t};
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
 pub type TriState = c_int;
@@ -203,86 +203,7 @@ struct linemap_entry_T {
     num_bytes: colnr_T,
     lineoff: c_int,
 }
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct OptKeyDict_dip {
-    is_set__dip_: OptionalKeys,
-    filler: Boolean,
-    anchor: Boolean,
-    context: Integer,
-    iblank: Boolean,
-    icase: Boolean,
-    iwhite: Boolean,
-    iwhiteall: Boolean,
-    iwhiteeol: Boolean,
-    horizontal: Boolean,
-    vertical: Boolean,
-    closeoff: Boolean,
-    hiddenoff: Boolean,
-    foldcolumn: Integer,
-    followwrap: Boolean,
-    internal: Boolean,
-    indent_heuristic: Boolean,
-    algorithm: [c_char; 10],
-    inline_: [c_char; 7],
-    linematch: Integer,
-}
-#[repr(C)]
-struct mmbuffer_t {
-    ptr: *mut c_char,
-    size: c_int,
-}
-#[repr(C)]
-struct xpparam_t {
-    flags: c_ulong,
-    anchors: *mut *mut c_char,
-    anchors_nr: usize,
-}
-#[repr(C)]
-struct xdemitcb_t {
-    priv_data: *mut c_void,
-    out_hunk: Option<
-        unsafe extern "C" fn(
-            priv_data: *mut c_void,
-            old_begin: c_long,
-            old_nr: c_long,
-            new_begin: c_long,
-            new_nr: c_long,
-            func: *const c_char,
-            funclen: c_long,
-        ) -> c_int,
-    >,
-    out_line: Option<
-        unsafe extern "C" fn(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int,
-    >,
-}
-type find_func_t = Option<
-    unsafe extern "C" fn(
-        line: *const c_char,
-        line_len: c_long,
-        buffer: *mut c_char,
-        buffer_size: c_long,
-        priv_data: *mut c_void,
-    ) -> c_long,
->;
-type xdl_emit_hunk_consume_func_t = Option<
-    unsafe extern "C" fn(
-        start_a: c_int,
-        count_a: c_int,
-        start_b: c_int,
-        count_b: c_int,
-        cb_data: *mut c_void,
-    ) -> c_int,
->;
-#[repr(C)]
-struct xdemitconf_t {
-    ctxlen: c_long,
-    interhunkctxlen: c_long,
-    flags: c_ulong,
-    find_func: find_func_t,
-    find_func_priv: *mut c_void,
-    hunk_func: xdl_emit_hunk_consume_func_t,
-}
+pub use crate::optionstr::OptKeyDict_dip;
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;
 static mut diff_flags: c_int =
@@ -412,13 +333,6 @@ unsafe extern "C" {
     fn newFoldLevel();
     fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
     fn foldUpdateAll(win: *mut win_T);
-    fn xdl_diff(
-        mf1: *mut mmfile_t,
-        mf2: *mut mmfile_t,
-        xpp: *const xpparam_t,
-        xecfg: *const xdemitconf_t,
-        ecb: *mut xdemitcb_t,
-    ) -> c_int;
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;
     fn strlen(s: *const c_char) -> usize;

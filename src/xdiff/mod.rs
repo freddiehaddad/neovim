@@ -47,7 +47,7 @@ pub const XDL_EMIT_NO_HUNK_HDR: c_ulong = 1 << 1;
 pub const XDL_EMIT_FUNCCONTEXT: c_ulong = 1 << 2;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct mmfile_t {
     pub ptr: *mut c_char,
     pub size: c_int,

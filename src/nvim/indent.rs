@@ -13,7 +13,7 @@
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
-use crate::api::autocmd::{OptionalKeys, kCallbackNone};
+use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
@@ -25,7 +25,6 @@ use crate::cursor::{
 };
 use crate::eval::deprecated::{Callback, buf_T, pos_T};
 use crate::extmark::extmark_splice_cols;
-use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
 use crate::msgpack_rpc::packer::Integer;
@@ -44,29 +43,8 @@ pub type ExtmarkOp = c_int;
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct CharBuf {
-    pub data: *mut c_char,
-    pub size: usize,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct EvalFuncData {
-    pub data: *mut c_void,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct OptKeyDict_briopt {
-    pub is_set__briopt_: OptionalKeys,
-    pub shift: Integer,
-    pub min: Integer,
-    pub sbr: Boolean,
-    pub list: Integer,
-    pub column: Integer,
-}
+pub use crate::eval::deprecated::EvalFuncData;
+pub use crate::optionstr::{CharBuf, OptKeyDict_briopt};
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;

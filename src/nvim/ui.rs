@@ -37,7 +37,7 @@ use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::memory::{Arena, arena_finish, arena_mem_free, entered_free_all_mem, xcalloc, xfree};
-use crate::msgpack_rpc::packer::{Integer, PackerBuffer, handle_T};
+use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::os::time::{os_hrtime, os_sleep};
 use crate::ui_compositor::{
     ui_comp_attach, ui_comp_detach, ui_comp_get_grid_at_coord, ui_comp_init, ui_comp_should_draw,
@@ -92,42 +92,7 @@ const MOUSE_A: &CStr = c"nvich";
 
 const kRetNilBool: c_int = 1;
 
-#[repr(C)]
-pub struct RemoteUI {
-    pub rgb: bool,
-    pub r#override: bool,
-    pub composed: bool,
-    pub ui_ext: [bool; kUIExtCount],
-    pub width: c_int,
-    pub height: c_int,
-    pub pum_nlines: c_int,
-    pub pum_pos: bool,
-    pub pum_row: f64,
-    pub pum_col: f64,
-    pub pum_height: f64,
-    pub pum_width: f64,
-    pub term_name: *mut c_char,
-    pub term_background: *mut c_char,
-    pub term_colors: c_int,
-    pub stdin_tty: bool,
-    pub stdout_tty: bool,
-    pub channel_id: u64,
-    pub packer: PackerBuffer,
-    pub cur_event: *const c_char,
-    pub nevents_pos: *mut c_char,
-    pub ncalls_pos: *mut c_char,
-    pub nevents: u32,
-    pub ncalls: u32,
-    pub flushed_events: bool,
-    pub incomplete_event: bool,
-    pub ncells_pending: usize,
-    pub hl_id: c_int,
-    pub cursor_row: Integer,
-    pub cursor_col: Integer,
-    pub client_row: Integer,
-    pub client_col: Integer,
-    pub wildmenu_active: bool,
-}
+pub use crate::msgpack_rpc::channel::RemoteUI;
 
 #[repr(C)]
 struct UIEventCallback {

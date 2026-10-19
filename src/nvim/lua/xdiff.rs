@@ -17,6 +17,8 @@ use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers, mmfile_t};
 use crate::lua::base64::lua_State;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{strequal, xfree};
+use crate::xdiff::xdiffi::xdl_diff;
+use crate::xdiff::{mmbuffer_t, xdemitcb_t, xdemitconf_t, xpparam_t};
 
 const COMPARED_BUFFER0: c_int = 1 << 0;
 const COMPARED_BUFFER1: c_int = 1 << 1;
@@ -48,68 +50,6 @@ enum NluaXdiffMode {
     Unified,
     OnHunkCb,
     Locations,
-}
-
-#[repr(C)]
-struct mmbuffer_t {
-    ptr: *mut c_char,
-    size: c_int,
-}
-
-#[repr(C)]
-struct xpparam_t {
-    flags: c_ulong,
-    anchors: *mut *mut c_char,
-    anchors_nr: usize,
-}
-
-#[repr(C)]
-struct xdemitcb_t {
-    priv_data: *mut c_void,
-    out_hunk: Option<
-        unsafe extern "C" fn(
-            priv_data: *mut c_void,
-            old_begin: c_long,
-            old_nr: c_long,
-            new_begin: c_long,
-            new_nr: c_long,
-            func: *const c_char,
-            funclen: c_long,
-        ) -> c_int,
-    >,
-    out_line: Option<
-        unsafe extern "C" fn(priv_data: *mut c_void, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int,
-    >,
-}
-
-type find_func_t = Option<
-    unsafe extern "C" fn(
-        line: *const c_char,
-        line_len: c_long,
-        buffer: *mut c_char,
-        buffer_size: c_long,
-        priv_data: *mut c_void,
-    ) -> c_long,
->;
-
-type xdl_emit_hunk_consume_func_t = Option<
-    unsafe extern "C" fn(
-        start_a: c_int,
-        count_a: c_int,
-        start_b: c_int,
-        count_b: c_int,
-        cb_data: *mut c_void,
-    ) -> c_int,
->;
-
-#[repr(C)]
-struct xdemitconf_t {
-    ctxlen: c_long,
-    interhunkctxlen: c_long,
-    flags: c_ulong,
-    find_func: find_func_t,
-    find_func_priv: *mut c_void,
-    hunk_func: xdl_emit_hunk_consume_func_t,
 }
 
 #[repr(C)]
@@ -213,13 +153,6 @@ unsafe extern "C" {
     fn api_free_luaref(ref_id: c_int);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_clear_error(value: *mut Error);
-    fn xdl_diff(
-        mf1: *mut mmfile_t,
-        mf2: *mut mmfile_t,
-        xpp: *const xpparam_t,
-        xecfg: *const xdemitconf_t,
-        ecb: *mut xdemitcb_t,
-    ) -> c_int;
 }
 
 #[cfg(not(test))]

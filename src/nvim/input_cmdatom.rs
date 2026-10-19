@@ -39,13 +39,7 @@ pub type Timestamp = u64;
 
 const MAX_SCHAR_SIZE: usize = 32;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct bufref_T {
-    pub br_buf: *mut buf_T,
-    pub br_fnum: c_int,
-    pub br_buf_free_count: c_int,
-}
+pub use crate::api::options::bufref_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

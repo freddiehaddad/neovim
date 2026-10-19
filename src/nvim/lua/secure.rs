@@ -16,10 +16,7 @@ use crate::memory::{xcalloc, xfree, xmemdupz};
 
 const LUA_GLOBALSINDEX: c_int = -10002;
 
-#[repr(C)]
-pub struct exarg_T {
-    pub arg: *mut c_char,
-}
+pub use crate::api::command::exarg_T;
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {

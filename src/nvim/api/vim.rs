@@ -332,17 +332,7 @@ pub struct KeyDict_redraw {
     pub buf: Buffer,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct TryState {
-    pub current_exception: *mut c_void,
-    pub private_msg_list: *mut c_void,
-    pub msg_list: *const *const c_void,
-    pub got_int: c_int,
-    pub did_throw: bool,
-    pub need_rethrow: c_int,
-    pub did_emsg: c_int,
-}
+pub use crate::api::private::helpers::TryState;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

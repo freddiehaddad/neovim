@@ -37,12 +37,7 @@ const kOptRdbFlagInvalid: c_uint = 0x04;
 
 const HLF_MSGSEP: usize = 61;
 
-#[repr(C)]
-pub struct RemoteUI {
-    pub rgb: bool,
-    pub override_: bool,
-    pub composed: bool,
-}
+pub use crate::msgpack_rpc::channel::RemoteUI;
 
 #[inline]
 const fn schar_from_ascii(c: u8) -> schar_T {

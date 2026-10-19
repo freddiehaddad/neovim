@@ -10,7 +10,7 @@
     clippy::too_many_arguments
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::autocmd::TryState;
@@ -76,47 +76,9 @@ const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
-#[repr(C)]
-pub struct memfile_T {
-    pub mf_fname: *mut c_char,
-    pub mf_ffname: *mut c_char,
-    pub mf_fd: c_int,
-    pub mf_flags: c_int,
-    pub mf_reopen: bool,
-    pub mf_free_first: *mut c_void,
-}
-
-#[repr(C)]
-pub struct memline_T {
-    pub ml_line_count: linenr_T,
-    pub ml_mfp: *mut memfile_T,
-    pub ml_stack: *mut c_void,
-    pub ml_stack_top: c_int,
-    pub ml_stack_size: c_int,
-    pub ml_flags: c_int,
-    pub ml_line_textlen: colnr_T,
-    pub ml_line_lnum: linenr_T,
-    pub ml_line_ptr: *mut c_char,
-    pub ml_line_offset: usize,
-    pub ml_line_offset_ff: c_int,
-    pub ml_locked: *mut c_void,
-    pub ml_locked_low: linenr_T,
-    pub ml_locked_high: linenr_T,
-    pub ml_locked_lineadd: c_int,
-    pub ml_chunksize: *mut c_void,
-    pub ml_numchunks: c_int,
-    pub ml_usedchunks: c_int,
-}
-
-#[repr(C)]
-pub struct buf_T {
-    pub handle: handle_T,
-    pub b_ml: memline_T,
-    pub b_next: *mut buf_T,
-    pub b_prev: *mut buf_T,
-    pub b_nwindows: c_int,
-    pub b_flags: c_int,
-}
+pub use crate::eval::deprecated::{buf_T, memline_T};
+pub use crate::memfile::memfile_T;
+pub use crate::optionstr::{CharBuf, OptSetPrep, optset_T, vimoption_T};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -153,37 +115,6 @@ pub struct CtxSwitch {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub struct CharBuf {
-    pub data: *mut c_char,
-    pub size: usize,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union OptSetPrep {
-    pub ptr: *mut c_void,
-    pub flags: c_uint,
-}
-
-#[repr(C)]
-pub struct optset_T {
-    pub os_varp: *mut c_void,
-    pub os_idx: OptIndex,
-    pub os_flags: c_int,
-    pub os_oldval: Object,
-    pub os_newval: Object,
-    pub os_prep: OptSetPrep,
-    pub os_prep_free: Option<unsafe extern "C" fn(*mut c_void)>,
-    pub os_value_checked: bool,
-    pub os_value_changed: bool,
-    pub os_restore_chartab: bool,
-    pub os_errbuf: *const CharBuf,
-    pub os_win: *mut win_T,
-    pub os_buf: *mut buf_T,
-}
-
-#[repr(C)]
 pub struct KeyDict_option {
     pub is_set__option_: OptionalKeys,
     pub scope: NvimString,
@@ -193,11 +124,6 @@ pub struct KeyDict_option {
     pub filetype: NvimString,
     pub operation: NvimString,
     pub dry_run: Boolean,
-}
-
-#[repr(C)]
-pub struct vimoption_T {
-    _private: [u8; 0],
 }
 
 unsafe extern "C" {
@@ -577,7 +503,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
             OPT_LOCAL,
             SID_NONE,
         );
-        assert!((*(*ftbuf).b_ml.ml_mfp).mf_fd < 0);
+        assert!((*(*ftbuf).b_ml.ml_mfp.cast::<memfile_T>()).mf_fd < 0);
         *(get_option_varp_scope_from(kOptSwapfile, OPT_LOCAL, ftbuf, ptr::null_mut())
             as *mut c_int) = 0;
         *(get_option_varp_scope_from(kOptModeline, OPT_LOCAL, ftbuf, ptr::null_mut())

@@ -1,6 +1,6 @@
 //! Diff `linematch` dynamic-programming alignment algorithm (`src/nvim/linematch.c`).
 
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 
 use crate::memory::xmalloc;
 
@@ -11,13 +11,7 @@ const MATCH_CHAR_MAX_LEN: usize = 800;
 #[allow(non_camel_case_types)]
 pub type linenr_T = i32;
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
-pub struct mmfile_t {
-    pub ptr: *mut c_char,
-    pub size: c_int,
-}
+pub use crate::xdiff::mmfile_t;
 
 struct DiffCmpPath {
     df_lev_score: c_int,
@@ -423,7 +417,7 @@ pub unsafe extern "C" fn linematch_nbuffers(
 mod tests {
     use super::*;
     use crate::memory::xfree;
-    use std::ffi::c_void;
+    use std::ffi::{c_char, c_void};
 
     #[test]
     fn fastforward_and_two_buffer_linematch() {
