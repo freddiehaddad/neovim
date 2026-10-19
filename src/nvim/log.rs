@@ -13,6 +13,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::msg_schedule_semsg;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr;
@@ -84,7 +85,6 @@ unsafe extern "C" {
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn os_get_pid() -> i64;
     fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int;
-    fn msg_schedule_semsg(fmt: *const c_char, ...);
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fclose(stream: *mut FILE) -> c_int;
@@ -391,7 +391,7 @@ pub unsafe extern "C" fn logmsg_str(
         if RECURSIVE {
             if !DID_MSG {
                 DID_MSG = true;
-                msg_schedule_semsg(
+                msg_schedule_semsg!(
                     c"E5430: %s:%d: recursive log!".as_ptr(),
                     if !func_name.is_null() {
                         func_name

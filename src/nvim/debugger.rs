@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -182,9 +183,7 @@ unsafe extern "C" {
 
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_starthere();
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 #[inline]
@@ -271,7 +270,7 @@ unsafe fn do_checkbacktracelevel() {
             let max = get_maxbacktrace_level(sname);
             if debug_backtrace_level > max {
                 debug_backtrace_level = max;
-                smsg(0, c"frame at highest level: %d".as_ptr(), max);
+                smsg!(0, c"frame at highest level: %d".as_ptr(), max);
             }
             xfree(sname.cast::<c_void>());
         }
@@ -306,9 +305,9 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
                     *cur.add(off) = 0;
                 }
                 if i == max - debug_backtrace_level {
-                    smsg(0, c"->%d %s".as_ptr(), max - i, cur);
+                    smsg!(0, c"->%d %s".as_ptr(), max - i, cur);
                 } else {
-                    smsg(0, c"  %d %s".as_ptr(), max - i, cur);
+                    smsg!(0, c"  %d %s".as_ptr(), max - i, cur);
                 }
                 i += 1;
                 if let Some(off) = next_off {
@@ -324,9 +323,9 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
         let slnum = sourcing_lnum();
         if slnum != 0 {
             let line_msg = format!("line {slnum}: %s\0");
-            smsg(0, line_msg.as_ptr().cast::<c_char>(), cmd);
+            smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
         } else {
-            smsg(0, c"cmd: %s".as_ptr(), cmd);
+            smsg!(0, c"cmd: %s".as_ptr(), cmd);
         }
     }
 }
@@ -369,12 +368,12 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
             );
         }
         if !DEBUG_OLDVAL.is_null() {
-            smsg(0, c"Oldval = \"%s\"".as_ptr(), DEBUG_OLDVAL);
+            smsg!(0, c"Oldval = \"%s\"".as_ptr(), DEBUG_OLDVAL);
             xfree(DEBUG_OLDVAL.cast::<c_void>());
             DEBUG_OLDVAL = std::ptr::null_mut();
         }
         if !DEBUG_NEWVAL.is_null() {
-            smsg(0, c"Newval = \"%s\"".as_ptr(), DEBUG_NEWVAL);
+            smsg!(0, c"Newval = \"%s\"".as_ptr(), DEBUG_NEWVAL);
             xfree(DEBUG_NEWVAL.cast::<c_void>());
             DEBUG_NEWVAL = std::ptr::null_mut();
         }
@@ -386,9 +385,9 @@ pub unsafe extern "C" fn do_debug(cmd: *mut c_char) {
         let slnum = sourcing_lnum();
         if slnum != 0 {
             let line_msg = format!("line {slnum}: %s\0");
-            smsg(0, line_msg.as_ptr().cast::<c_char>(), cmd);
+            smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
         } else {
-            smsg(0, c"cmd: %s".as_ptr(), cmd);
+            smsg!(0, c"cmd: %s".as_ptr(), cmd);
         }
 
         loop {
@@ -598,7 +597,7 @@ pub unsafe extern "C" fn dbg_check_breakpoint(eap: *mut exarg_Full) {
                 };
                 let lnum = DEBUG_BREAKPOINT_LNUM.load(Ordering::Relaxed);
                 let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
-                smsg(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
+                smsg!(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
                 DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
                 do_debug(eap.cmd);
             } else {
@@ -686,7 +685,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
         } else if !is_prof && p_bytes.starts_with(b"expr") {
             bp.dbg_type = DBG_EXPR;
         } else {
-            semsg(c"E475: Invalid argument: %s".as_ptr(), p);
+            semsg!(c"E475: Invalid argument: %s".as_ptr(), p);
             return FAIL;
         }
         p = skipwhite(p.add(4));
@@ -705,7 +704,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
         {
-            semsg(c"E475: Invalid argument: %s".as_ptr(), arg);
+            semsg!(c"E475: Invalid argument: %s".as_ptr(), arg);
             return FAIL;
         }
 
@@ -872,7 +871,7 @@ pub unsafe extern "C" fn ex_breakdel(eap: *mut exarg_Full) {
         }
 
         if todel < 0 {
-            semsg(c"E161: Breakpoint not found: %s".as_ptr(), eap.arg);
+            semsg!(c"E161: Breakpoint not found: %s".as_ptr(), eap.arg);
             return;
         }
 
@@ -944,9 +943,9 @@ pub unsafe extern "C" fn ex_breaklist(_eap: *mut exarg_Full) {
                 };
                 let lnum = bp.dbg_lnum;
                 let fmt_str = format!("%3d  %s %s  line {lnum}\0");
-                smsg(0, fmt_str.as_ptr().cast::<c_char>(), bp.dbg_nr, kind, name);
+                smsg!(0, fmt_str.as_ptr().cast::<c_char>(), bp.dbg_nr, kind, name);
             } else {
-                smsg(0, c"%3d  expr %s".as_ptr(), bp.dbg_nr, bp.dbg_name);
+                smsg!(0, c"%3d  expr %s".as_ptr(), bp.dbg_nr, bp.dbg_name);
             }
         }
     }

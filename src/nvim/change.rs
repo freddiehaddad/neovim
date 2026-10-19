@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::siemsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -192,7 +193,6 @@ unsafe extern "C" {
     fn replace_push(str: *mut c_char, len: usize);
     fn ins_compl_active() -> bool;
     fn showmatch(c: c_int);
-    fn siemsg(fmt: *const c_char, ...);
     fn get_ve_flags(wp: *mut win_T) -> c_uint;
     fn u_clearline(buf: *mut buf_T);
     fn u_save_cursor() -> c_int;
@@ -1083,7 +1083,7 @@ pub unsafe extern "C" fn del_bytes(
             return OK;
         }
         if count < 1 {
-            siemsg(
+            siemsg!(
                 c"E292: Invalid count for del_bytes(): %ld".as_ptr(),
                 i64::from(count),
             );

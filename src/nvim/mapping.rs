@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, semsg_multiline, swmsg};
 use crate::option_vars::*;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -245,10 +246,7 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn semsg_multiline(kind: *const c_char, fmt: *const c_char, ...) -> bool;
     fn iemsg(s: *const c_char);
-    fn swmsg(hl: bool, fmt: *const c_char, ...);
     fn message_filtered(msg: *const c_char) -> bool;
     fn msg_putchar(c: c_int);
     fn msg_puts(s: *const c_char);
@@ -2091,7 +2089,7 @@ pub unsafe extern "C" fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_
             }
             api_free_object(ret);
             if err.err_type != ErrorType::kErrorTypeNone {
-                semsg_multiline(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+                semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
                 api_clear_error(&mut err);
             }
         } else {
@@ -2832,7 +2830,7 @@ pub unsafe extern "C" fn f_mapset(
         };
         let mode = get_map_mode_string(which, is_abbr != 0);
         if mode == 0 {
-            semsg(gettext(E_ILLEGAL_MAP_MODE_STRING_STR.as_ptr()), which);
+            semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR.as_ptr()), which);
             return;
         }
 
@@ -3220,7 +3218,7 @@ pub unsafe extern "C" fn did_set_langmap(args: *mut optset_T) -> *const c_char {
                     langmap_set_entry(from, to);
                 } else {
                     if to > UCHAR_MAX {
-                        swmsg(
+                        swmsg!(
                             true,
                             c"'langmap': Mapping from %.*s to %.*s will not work properly".as_ptr(),
                             utf_ptr2len(from_ptr),
@@ -3286,7 +3284,7 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
                     });
                 }
                 5 => {
-                    semsg(
+                    semsg!(
                         if isabbrev {
                             gettext(E_ABBREVIATION_ALREADY_EXISTS_FOR_STR.as_ptr())
                         } else {
@@ -3296,7 +3294,7 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
                     );
                 }
                 6 => {
-                    semsg(
+                    semsg!(
                         if isabbrev {
                             gettext(E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR.as_ptr())
                         } else {

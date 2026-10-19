@@ -15,6 +15,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::{semsg, siemsg, smsg};
 use crate::option_vars::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -638,9 +639,6 @@ unsafe extern "C" {
     fn var_flavour(varname: *mut c_char) -> var_flavour_T;
     fn var_set_global(name: *const c_char, vartv: typval_T);
 
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(attr: c_int, fmt: *const c_char, ...) -> c_int;
-    fn siemsg(fmt: *const c_char, ...);
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn verbose_enter();
     fn verbose_leave();
@@ -998,7 +996,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
     unsafe {
         let skip_bytes = file_skip(sd_reader, offset);
         if skip_bytes < 0 {
-            semsg(
+            semsg!(
                 gettext(c"E886: System error while skipping in ShaDa file: %s".as_ptr()),
                 os_strerror(skip_bytes as c_int),
             );
@@ -1006,7 +1004,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
         } else if skip_bytes != (offset as isize) {
             assert!(skip_bytes < (offset as isize));
             if file_eof(sd_reader) {
-                semsg(
+                semsg!(
                     gettext(
                         c"E576: Reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier"
                             .as_ptr(),
@@ -1014,7 +1012,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
                     offset as u64,
                 );
             } else {
-                semsg(
+                semsg!(
                     gettext(c"E886: System error while skipping in ShaDa file: %s".as_ptr()),
                     gettext(c"too few bytes read".as_ptr()),
                 );
@@ -1029,7 +1027,7 @@ unsafe fn close_file(cookie: *mut FileDescriptor) {
     unsafe {
         let error = file_close(cookie, p_fs != 0);
         if error != 0 {
-            semsg(
+            semsg!(
                 gettext(c"E886: System error while closing ShaDa file: %s".as_ptr()),
                 os_strerror(error),
             );
@@ -1050,7 +1048,7 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
         if p_verbose > 1 {
             verbose_enter();
             let empty = c"".as_ptr();
-            smsg(
+            smsg!(
                 0,
                 gettext(c"Reading ShaDa file \"%s\"%s%s%s%s".as_ptr()),
                 fname,
@@ -1080,7 +1078,7 @@ unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
 
         if of_ret != 0 {
             if of_ret != UV_ENOENT || (flags & kShaDaMissingError) != 0 {
-                semsg(
+                semsg!(
                     gettext(
                         c"E886: System error while opening ShaDa file %s for reading: %s".as_ptr(),
                     ),
@@ -1877,7 +1875,7 @@ unsafe fn shada_pack_entry(
                 ) == FAIL
                 {
                     ret = ShaDaWriteResult::kSDWriteIgnError;
-                    semsg(
+                    semsg!(
                         gettext(c"E574: Failed to write variable %s".as_ptr()),
                         entry.data.global_var.name,
                     );
@@ -2104,7 +2102,7 @@ unsafe fn shada_check_status(
         match status {
             MPACK_OK => {
                 if remaining != 0 {
-                    semsg(
+                    semsg!(
                         gettext(
                             c"E576: Failed to parse ShaDa file: extra bytes in msgpack string at position %llu"
                                 .as_ptr(),
@@ -2116,7 +2114,7 @@ unsafe fn shada_check_status(
                 ShaDaReadResult::kSDReadStatusSuccess
             }
             MPACK_EOF => {
-                semsg(
+                semsg!(
                     gettext(
                         c"E576: Failed to parse ShaDa file: incomplete msgpack string at position %llu"
                             .as_ptr(),
@@ -2126,7 +2124,7 @@ unsafe fn shada_check_status(
                 ShaDaReadResult::kSDReadStatusNotShaDa
             }
             _ => {
-                semsg(
+                semsg!(
                     gettext(
                         c"E576: Failed to parse ShaDa file due to a msgpack parser error at position %llu"
                             .as_ptr(),
@@ -3294,7 +3292,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
             let mut error = file_open(&mut sd_reader, fname, K_FILE_READ_ONLY, 0);
             if error != 0 {
                 if error != UV_ENOENT {
-                    semsg(
+                    semsg!(
                         gettext(
                             c"E886: System error while opening ShaDa file %s for reading to merge before writing it: %s"
                                 .as_ptr(),
@@ -3328,7 +3326,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                                 let wp =
                                     tempname.add(CStr::from_ptr(tempname).to_bytes().len() - 1);
                                 if *wp == (b'z' as c_char) {
-                                    semsg(
+                                    semsg!(
                                         gettext(
                                             c"E138: All %s.tmp.X files exist, cannot write ShaDa file!"
                                                 .as_ptr(),
@@ -3345,7 +3343,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                                 *wp += 1;
                                 continue;
                             } else {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E886: System error while opening temporary ShaDa file %s for writing: %s"
                                             .as_ptr(),
@@ -3372,7 +3370,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                     let mut failed_dir: *mut c_char = ptr::null_mut();
                     let ret = os_mkdir_recurse(fname, 0o700, &mut failed_dir, ptr::null_mut());
                     if ret != 0 {
-                        semsg(
+                        semsg!(
                             gettext(
                                 c"E886: Failed to create directory %s for writing ShaDa file: %s"
                                     .as_ptr(),
@@ -3394,7 +3392,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                 0o600,
             );
             if error != 0 {
-                semsg(
+                semsg!(
                     gettext(
                         c"E886: System error while opening ShaDa file %s for writing: %s".as_ptr(),
                     ),
@@ -3417,7 +3415,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
 
         if p_verbose > 1 {
             verbose_enter();
-            smsg(0, gettext(c"Writing ShaDa file \"%s\"".as_ptr()), fname);
+            smsg!(0, gettext(c"Writing ShaDa file \"%s\"".as_ptr()), fname);
             verbose_leave();
         }
 
@@ -3460,7 +3458,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                     || is_dir
                     || unix_not_writable(&old_info)
                 {
-                    semsg(
+                    semsg!(
                         gettext(c"E137: ShaDa file is not writable: %s".as_ptr()),
                         fname,
                     );
@@ -3477,7 +3475,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                             let old_gid = old_info.stat.st_gid as u32;
                             let fchown_ret = os_fchown(file_fd(&sd_writer), old_uid, old_gid);
                             if fchown_ret != 0 {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E136: Failed setting uid and gid for file %s: %s"
                                             .as_ptr(),
@@ -3491,7 +3489,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                     }
                     if chown_ok {
                         if vim_rename(tempname, fname) == -1 {
-                            semsg(
+                            semsg!(
                                 gettext(c"E136: Can't rename ShaDa file from %s to %s!".as_ptr()),
                                 tempname,
                                 fname,
@@ -3503,7 +3501,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                     }
                 }
             } else if sw_ret == ShaDaWriteResult::kSDWriteReadNotShada {
-                semsg(
+                semsg!(
                     gettext(
                         c"E136: Did not rename %s because %s does not look like a ShaDa file"
                             .as_ptr(),
@@ -3512,7 +3510,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                     fname,
                 );
             } else {
-                semsg(
+                semsg!(
                     gettext(
                         c"E136: Did not rename %s to %s because there were errors during writing it"
                             .as_ptr(),
@@ -3522,7 +3520,7 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                 );
             }
             if !did_remove {
-                semsg(
+                semsg!(
                     gettext(
                         c"E136: Do not forget to remove %s or rename it manually to %s.".as_ptr(),
                     ),
@@ -3627,14 +3625,14 @@ unsafe fn fread_len(
     unsafe {
         let read_bytes = file_read(sd_reader, buffer, length);
         if read_bytes < 0 {
-            semsg(
+            semsg!(
                 gettext(c"E886: System error while reading ShaDa file: %s".as_ptr()),
                 os_strerror(read_bytes as c_int),
             );
             return ShaDaReadResult::kSDReadStatusReadError;
         }
         if read_bytes != (length as isize) {
-            semsg(
+            semsg!(
                 gettext(
                     c"E576: Error while reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier"
                         .as_ptr(),
@@ -3657,7 +3655,7 @@ unsafe fn msgpack_read_uint64(
         let mut ret: u8 = 0;
         let read_bytes = file_read(sd_reader, (&raw mut ret).cast::<c_char>(), 1);
         if read_bytes < 0 {
-            semsg(
+            semsg!(
                 gettext(c"E886: System error while reading integer from ShaDa file: %s".as_ptr()),
                 os_strerror(read_bytes as c_int),
             );
@@ -3666,7 +3664,7 @@ unsafe fn msgpack_read_uint64(
             if allow_eof && file_eof(sd_reader) {
                 return ShaDaReadResult::kSDReadStatusFinished;
             }
-            semsg(
+            semsg!(
                 gettext(
                     c"E576: Error while reading ShaDa file: expected positive integer at position %llu, but got nothing"
                         .as_ptr(),
@@ -3685,7 +3683,7 @@ unsafe fn msgpack_read_uint64(
                 0xCE => 4usize,
                 0xCF => 8usize,
                 _ => {
-                    semsg(
+                    semsg!(
                         gettext(
                             c"E576: Error while reading ShaDa file: expected positive integer at position %llu"
                                 .as_ptr(),
@@ -3748,7 +3746,7 @@ unsafe fn shada_read_next_item(
             }
 
             if length_u64 > (isize::MAX as u64) {
-                semsg(
+                semsg!(
                     gettext(
                         c"E576: Error while reading ShaDa file: there is an item at position %llu that is stated to be too long"
                             .as_ptr(),
@@ -3763,7 +3761,7 @@ unsafe fn shada_read_next_item(
             (*entry).can_free_entry = true;
 
             if type_u64 == 0 {
-                semsg(
+                semsg!(
                     gettext(
                         c"E576: Error while reading ShaDa file: there is an item at position %llu that must not be there: Missing items are for internal uses only"
                             .as_ptr(),
@@ -3872,7 +3870,7 @@ unsafe fn shada_read_next_item(
                             &mut read_size,
                             &mut error_alloc,
                         ) {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: search pattern entry at position %llu %s"
                                         .as_ptr(),
@@ -3890,7 +3888,7 @@ unsafe fn shada_read_next_item(
                             & (1u64 << KEYSET_OPTIDX__shada_search_pat__sp))
                             == 0
                         {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: search pattern entry at position %llu has no pattern"
                                         .as_ptr(),
@@ -3915,7 +3913,7 @@ unsafe fn shada_read_next_item(
                             &mut read_size,
                             &mut error_alloc,
                         ) {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu %s"
                                         .as_ptr(),
@@ -3929,7 +3927,7 @@ unsafe fn shada_read_next_item(
                             if entry_type == ShadaEntryType::kSDItemJump
                                 || entry_type == ShadaEntryType::kSDItemChange
                             {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: mark entry at position %llu has n key which is only valid for local and global mark entries"
                                             .as_ptr(),
@@ -3952,7 +3950,7 @@ unsafe fn shada_read_next_item(
                             path_to_slash((*entry).data.filemark.fname);
                         }
                         if (*entry).data.filemark.fname.is_null() {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu is missing file name"
                                         .as_ptr(),
@@ -3962,7 +3960,7 @@ unsafe fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         if (*entry).data.filemark.mark.lnum <= 0 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu has invalid line number"
                                         .as_ptr(),
@@ -3972,7 +3970,7 @@ unsafe fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         if (*entry).data.filemark.mark.col < 0 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu has invalid column number"
                                         .as_ptr(),
@@ -3992,7 +3990,7 @@ unsafe fn shada_read_next_item(
                             &mut read_size,
                             &mut error_alloc,
                         ) {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: register entry at position %llu %s"
                                         .as_ptr(),
@@ -4004,7 +4002,7 @@ unsafe fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         if it.rc.size == 0 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: register entry at position %llu has rc key with missing or empty array"
                                         .as_ptr(),
@@ -4051,7 +4049,7 @@ unsafe fn shada_read_next_item(
                     ShadaEntryType::kSDItemHistoryEntry => {
                         let len = unpack_array(&mut read_ptr, &mut read_size);
                         if len < 2 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu is not an array with enough elements"
                                         .as_ptr(),
@@ -4062,7 +4060,7 @@ unsafe fn shada_read_next_item(
                         }
                         let mut hist_type: Integer = 0;
                         if !unpack_integer(&mut read_ptr, &mut read_size, &mut hist_type) {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu has wrong history type type"
                                         .as_ptr(),
@@ -4073,7 +4071,7 @@ unsafe fn shada_read_next_item(
                         }
                         let item = unpack_string(&mut read_ptr, &mut read_size);
                         if item.data.is_null() {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu has wrong history string type"
                                         .as_ptr(),
@@ -4085,7 +4083,7 @@ unsafe fn shada_read_next_item(
                         let item_slice =
                             std::slice::from_raw_parts(item.data.cast::<u8>(), item.size);
                         if item_slice.contains(&0) {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu contains string with zero byte inside"
                                         .as_ptr(),
@@ -4099,7 +4097,7 @@ unsafe fn shada_read_next_item(
                             ((*entry).data.history_item.histtype as c_int) == HIST_SEARCH;
                         if is_hist_search {
                             if len < 3 {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: search history entry at position %llu does not have separator character"
                                             .as_ptr(),
@@ -4110,7 +4108,7 @@ unsafe fn shada_read_next_item(
                             }
                             let mut sep_type: Integer = 0;
                             if !unpack_integer(&mut read_ptr, &mut read_size, &mut sep_type) {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: search history entry at position %llu has wrong history separator type"
                                             .as_ptr(),
@@ -4133,7 +4131,7 @@ unsafe fn shada_read_next_item(
                     ShadaEntryType::kSDItemVariable => {
                         let len = unpack_array(&mut read_ptr, &mut read_size);
                         if len < 2 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: variable entry at position %llu is not an array with enough elements"
                                         .as_ptr(),
@@ -4144,7 +4142,7 @@ unsafe fn shada_read_next_item(
                         }
                         let name = unpack_string(&mut read_ptr, &mut read_size);
                         if name.data.is_null() {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: variable entry at position %llu has wrong variable name type"
                                         .as_ptr(),
@@ -4162,7 +4160,7 @@ unsafe fn shada_read_next_item(
                                 if !unpack_integer(&mut read_ptr, &mut read_size, &mut vtype)
                                     || vtype != VAR_TYPE_BLOB
                                 {
-                                    semsg(
+                                    semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: variable entry at position %llu has wrong variable type"
                                                 .as_ptr(),
@@ -4182,7 +4180,7 @@ unsafe fn shada_read_next_item(
                                 &raw mut (*entry).data.global_var.value,
                             );
                             if status != MPACK_OK {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: variable entry at position %llu has value that cannot be converted to the Vimscript value"
                                             .as_ptr(),
@@ -4197,7 +4195,7 @@ unsafe fn shada_read_next_item(
                     ShadaEntryType::kSDItemSubString => {
                         let len = unpack_array(&mut read_ptr, &mut read_size);
                         if len < 1 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: sub string entry at position %llu is not an array with enough elements"
                                         .as_ptr(),
@@ -4208,7 +4206,7 @@ unsafe fn shada_read_next_item(
                         }
                         let sub = unpack_string(&mut read_ptr, &mut read_size);
                         if sub.data.is_null() {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: sub string entry at position %llu has wrong sub string type"
                                         .as_ptr(),
@@ -4223,7 +4221,7 @@ unsafe fn shada_read_next_item(
                     ShadaEntryType::kSDItemBufferList => {
                         let len = unpack_array(&mut read_ptr, &mut read_size);
                         if len < 0 {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: buffer list entry at position %llu is not an array"
                                         .as_ptr(),
@@ -4249,7 +4247,7 @@ unsafe fn shada_read_next_item(
                                     &mut read_size,
                                     &mut error_alloc,
                                 ) {
-                                    semsg(
+                                    semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that %s"
                                                 .as_ptr(),
@@ -4284,7 +4282,7 @@ unsafe fn shada_read_next_item(
                                     path_to_slash(e.fname);
                                 }
                                 if e.pos.lnum <= 0 {
-                                    semsg(
+                                    semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry with invalid line number"
                                                 .as_ptr(),
@@ -4294,7 +4292,7 @@ unsafe fn shada_read_next_item(
                                     break 'parse_item false;
                                 }
                                 if e.pos.col < 0 {
-                                    semsg(
+                                    semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry with invalid column number"
                                                 .as_ptr(),
@@ -4304,7 +4302,7 @@ unsafe fn shada_read_next_item(
                                     break 'parse_item false;
                                 }
                                 if e.fname.is_null() {
-                                    semsg(
+                                    semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that does not have a file name"
                                                 .as_ptr(),
@@ -4335,7 +4333,7 @@ unsafe fn shada_read_next_item(
                 }
 
                 if read_size != 0 {
-                    semsg(
+                    semsg!(
                         gettext(
                             c"E575: Error while reading ShaDa file: item entry at position %llu additional bytes"
                                 .as_ptr(),
@@ -4407,7 +4405,7 @@ unsafe fn shada_init_jumps(jumps: *mut ShadaEntry, removable_bufs: *mut Set<ptr_
             let mut fm = std::mem::zeroed::<xfmark_T>();
             jump_iter = mark_jumplist_iter(jump_iter, curwin, &mut fm);
             if fm.fmark.mark.lnum == 0 {
-                siemsg(
+                siemsg!(
                     c"ShaDa: mark lnum zero (ji:%p, js:%p, len:%i)".as_ptr(),
                     jump_iter,
                     (&raw mut (*curwin).w_jumplist).cast::<c_void>(),

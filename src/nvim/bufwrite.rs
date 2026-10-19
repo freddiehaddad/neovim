@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -201,7 +202,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
     fn msg_progress(
@@ -831,7 +831,7 @@ unsafe fn buf_write_do_autocmds(
             no_wait_return -= 1;
             msg_scroll = msg_save;
             if nofile_err {
-                let _ = semsg(
+                let _ = semsg!(
                     gettext(c"E676: No matching autocommands for buftype=%s buffer".as_ptr()),
                     (*curbuf).b_p_bt,
                 );
@@ -1183,7 +1183,7 @@ pub unsafe extern "C" fn buf_get_backup_name(
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let ret = os_mkdir_recurse(iobuf, 0o755, &raw mut failed_dir, ptr::null_mut());
             if ret != 0 {
-                let _ = semsg(
+                let _ = semsg!(
                     gettext(
                         c"E303: Unable to create directory \"%s\" for backup file: %s".as_ptr(),
                     ),

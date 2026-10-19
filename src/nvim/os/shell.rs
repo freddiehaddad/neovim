@@ -13,6 +13,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::mbyte::utf8len_tab_zero;
+use crate::message::{msg_schedule_semsg, semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -120,8 +121,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(attr: c_int, fmt: *const c_char, ...) -> c_int;
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_start();
     fn msg_end() -> bool;
@@ -140,7 +139,6 @@ unsafe extern "C" {
         hist: bool,
         need_clear: *mut bool,
     );
-    fn msg_schedule_semsg(fmt: *const c_char, ...);
     fn verbose_enter();
     fn verbose_leave();
 
@@ -540,7 +538,7 @@ pub unsafe extern "C" fn os_expand_wildcards(
         fclose(fd);
         os_remove(tempname);
         if readlen != len {
-            semsg(gettext(e_cant_read_file_str.as_ptr()), tempname);
+            semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
             xfree(tempname.cast());
             xfree(buffer.cast());
             return FAIL;
@@ -851,7 +849,7 @@ pub unsafe extern "C" fn call_shell(
 
         if p_verbose > 3 {
             verbose_enter();
-            smsg(
+            smsg!(
                 0,
                 gettext(c"Executing command: \"%s\"".as_ptr()),
                 if cmd.is_null() { p_sh } else { cmd },
@@ -920,7 +918,7 @@ pub unsafe extern "C" fn get_cmd_output(
 
         'done: {
             if fd.is_null() || fseek(fd, 0, SEEK_END) == -1 {
-                semsg(gettext(e_cannot_read_from_str_2.as_ptr()), tempname);
+                semsg!(gettext(e_cannot_read_from_str_2.as_ptr()), tempname);
                 if !fd.is_null() {
                     fclose(fd);
                 }
@@ -928,7 +926,7 @@ pub unsafe extern "C" fn get_cmd_output(
             }
             let len_l = ftell(fd);
             if len_l == -1 || fseek(fd, 0, SEEK_SET) == -1 {
-                semsg(gettext(e_cannot_read_from_str_2.as_ptr()), tempname);
+                semsg!(gettext(e_cannot_read_from_str_2.as_ptr()), tempname);
                 fclose(fd);
                 break 'done;
             }
@@ -938,7 +936,7 @@ pub unsafe extern "C" fn get_cmd_output(
             let i = fread(buffer.cast(), 1, len, fd);
             fclose(fd);
             if i != len {
-                semsg(gettext(e_cant_read_file_str.as_ptr()), tempname);
+                semsg!(gettext(e_cant_read_file_str.as_ptr()), tempname);
                 xfree(buffer.cast());
                 buffer = ptr::null_mut();
             } else if ret_len.is_null() {
@@ -1423,7 +1421,7 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
 unsafe extern "C" fn shell_write_cb(stream: *mut Stream, _data: *mut c_void, status: c_int) {
     unsafe {
         if status != 0 {
-            msg_schedule_semsg(
+            msg_schedule_semsg!(
                 gettext(c"E5677: Error writing input to shell-command: %s".as_ptr()),
                 uv_err_name(status),
             );

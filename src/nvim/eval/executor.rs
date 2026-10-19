@@ -4,6 +4,7 @@
 #![allow(dead_code, unused_imports, clippy::missing_safety_doc)]
 
 use crate::errors::*;
+use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -32,7 +33,6 @@ unsafe extern "C" {
     fn grow_string_tv(tv: *mut typval_T, s: *const c_char) -> c_int;
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
     fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
@@ -262,7 +262,7 @@ pub unsafe extern "C" fn eexe_mod_op(
     {
         #[cfg(not(test))]
         unsafe {
-            semsg(e_letwrong.as_ptr(), op);
+            semsg!(e_letwrong.as_ptr(), op);
         }
         return FAIL;
     }
@@ -285,7 +285,7 @@ pub unsafe extern "C" fn eexe_mod_op(
     if retval != OK {
         #[cfg(not(test))]
         unsafe {
-            semsg(e_letwrong.as_ptr(), op);
+            semsg!(e_letwrong.as_ptr(), op);
         }
     }
 

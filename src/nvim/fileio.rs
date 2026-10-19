@@ -17,6 +17,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::message::{msg_schedule_semsg, semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -300,13 +301,10 @@ unsafe extern "C" {
     fn msg_trunc(s: *mut c_char, a: bool, keep_last: c_int) -> *mut c_char;
     fn set_keep_msg(s: *const c_char, hl_id: c_int);
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn msg_puts(s: *const c_char);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn msg_schedule_semsg(fmt: *const c_char, ...);
     fn ui_flush();
     fn ui_has(ext: c_int) -> bool;
 
@@ -3887,7 +3885,7 @@ pub unsafe extern "C" fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_op
                 || buf != curbuf
                 || move_lines(buf, savebuf) == FAIL
             {
-                semsg(
+                semsg!(
                     tr(c"E462: Could not prepare for reloading \"%s\"".as_ptr()),
                     (*buf).b_fname,
                 );
@@ -3910,7 +3908,7 @@ pub unsafe extern "C" fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_op
             ) != OK
             {
                 if !aborting() {
-                    semsg(
+                    semsg!(
                         tr(c"E321: Could not reload \"%s\"".as_ptr()),
                         (*buf).b_fname,
                     );
@@ -4175,7 +4173,7 @@ pub unsafe extern "C" fn readdir_core(
 
         let mut dir: Directory = std::mem::zeroed();
         if !os_scandir(&raw mut dir, path) {
-            smsg(0, tr(e_notopen.as_ptr()), path);
+            smsg!(0, tr(e_notopen.as_ptr()), path);
             return FAIL;
         }
 
@@ -4326,7 +4324,10 @@ pub unsafe extern "C" fn vim_gettempdir() -> *mut c_char {
                     );
                 }
                 if NOTFOUND > 1 {
-                    msg_schedule_semsg(c"E5431: tempdir disappeared (%d times)".as_ptr(), NOTFOUND);
+                    msg_schedule_semsg!(
+                        c"E5431: tempdir disappeared (%d times)".as_ptr(),
+                        NOTFOUND
+                    );
                 }
                 xfree(VIM_TEMPDIR.cast());
                 VIM_TEMPDIR = ptr::null_mut();

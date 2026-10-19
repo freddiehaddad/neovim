@@ -40,6 +40,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memory::{memchrsub, strequal, xcalloc, xfree, xmalloc, xstrdup};
+use crate::message::semsg;
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
     invalidate_botline_win, validate_cursor,
@@ -235,7 +236,6 @@ static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn buf_valid(buf: *mut buf_T) -> bool;
     fn buf_is_empty(buf: *mut buf_T) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
@@ -452,7 +452,7 @@ pub unsafe extern "C" fn diff_buf_add(buf: *mut buf_T) {
                 return;
             }
         }
-        semsg(
+        semsg!(
             gettext(c"E96: Cannot diff more than %d buffers".as_ptr()),
             DB_COUNT as c_int,
         );
@@ -2533,7 +2533,7 @@ unsafe fn parse_diffanchors(
             i += 1;
         }
         if i == MAX_DIFF_ANCHORS && *dia != NUL {
-            semsg(
+            semsg!(
                 gettext((&raw const e_cannot_have_more_than_nr_diff_anchors).cast()),
                 MAX_DIFF_ANCHORS as c_int,
             );
@@ -3521,7 +3521,7 @@ pub unsafe extern "C" fn ex_diffgetput(eap: *mut exarg_T) {
             };
             let buf = buflist_findnr(bufnr);
             if buf.is_null() {
-                semsg(
+                semsg!(
                     gettext(c"E102: Can't find buffer \"%s\"".as_ptr()),
                     (*eap).arg,
                 );
@@ -3532,7 +3532,7 @@ pub unsafe extern "C" fn ex_diffgetput(eap: *mut exarg_T) {
             }
             let idx_o = diff_buf_idx(buf, curtab);
             if idx_o == DB_COUNT as c_int {
-                semsg(
+                semsg!(
                     gettext(c"E103: Buffer \"%s\" is not in diff mode".as_ptr()),
                     (*eap).arg,
                 );

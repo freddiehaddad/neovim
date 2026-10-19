@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::semsg;
 use crate::runtime::exestack;
 use crate::runtime::script_items;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -158,7 +159,6 @@ unsafe extern "C" {
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn uv_err_name(err: c_int) -> *const c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fclose(stream: *mut FILE) -> c_int;
@@ -1000,7 +1000,7 @@ pub unsafe extern "C" fn profile_dump() {
 
         let fd = os_fopen(PROFILE_FNAME, c"w".as_ptr());
         if fd.is_null() {
-            semsg(c"E484: Can't open file %s".as_ptr(), PROFILE_FNAME);
+            semsg!(c"E484: Can't open file %s".as_ptr(), PROFILE_FNAME);
         } else {
             script_dump_profile(fd);
             func_dump_profile(fd);

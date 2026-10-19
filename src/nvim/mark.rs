@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -156,7 +157,6 @@ unsafe extern "C" {
     fn tagstack_clear_entry(item: *mut taggy_T);
     fn mc_replaying() -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn beginline(flags: c_int);
     fn set_topline(wp: *mut win_T, lnum: linenr_T);
@@ -1263,7 +1263,7 @@ pub unsafe extern "C" fn ex_delmarks(eap: *mut exarg_T) {
                             ascii_isupper(to)
                         };
                         if !valid_to || to < from {
-                            semsg(gettext(e_invarg2.as_ptr()), p);
+                            semsg!(gettext(e_invarg2.as_ptr()), p);
                             return;
                         }
                         p = p.add(2);
@@ -1347,7 +1347,7 @@ pub unsafe extern "C" fn ex_delmarks(eap: *mut exarg_T) {
                         }
                         b' ' => {}
                         _ => {
-                            semsg(gettext(e_invarg2.as_ptr()), p);
+                            semsg!(gettext(e_invarg2.as_ptr()), p);
                             return;
                         }
                     }

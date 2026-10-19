@@ -10,6 +10,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -115,7 +116,6 @@ unsafe extern "C" {
     fn reverse_text(s: *mut c_char) -> *mut c_char;
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 #[inline]
@@ -580,7 +580,7 @@ unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: Fi
             arg0.v_type,
             VarType::VAR_BLOB | VarType::VAR_LIST | VarType::VAR_DICT | VarType::VAR_STRING
         ) {
-            semsg(
+            semsg!(
                 c"E1250: Argument of %s must be a List, String, Dictionary or Blob".as_ptr(),
                 func_name,
             );
@@ -784,7 +784,7 @@ unsafe fn count_list(l: *mut list_T, needle: *mut typval_T, idx: i64, ic: bool) 
         }
         let mut li = tv_list_find(l, idx as c_int);
         if li.is_null() {
-            semsg(e_list_index_out_of_range_nr.as_ptr(), idx);
+            semsg!(e_list_index_out_of_range_nr.as_ptr(), idx);
             return 0;
         }
         let mut n: i64 = 0;
@@ -867,7 +867,7 @@ pub unsafe extern "C" fn f_count(
                 }
             }
         } else if !error {
-            semsg(
+            semsg!(
                 c"E706: Argument of %s must be a List, String or Dictionary".as_ptr(),
                 c"count()".as_ptr(),
             );
@@ -919,7 +919,7 @@ unsafe fn extend_dict(
                     if is_new {
                         tv_dict_unref(d1);
                     }
-                    semsg(c"E475: Invalid argument: %s".as_ptr(), action);
+                    semsg!(c"E475: Invalid argument: %s".as_ptr(), action);
                     return;
                 }
             }
@@ -977,7 +977,7 @@ unsafe fn extend_list(
                 if before != tv_list_len(l1) {
                     item = tv_list_find(l1, before);
                     if item.is_null() {
-                        semsg(e_list_index_out_of_range_nr.as_ptr(), before as i64);
+                        semsg!(e_list_index_out_of_range_nr.as_ptr(), before as i64);
                         if is_new {
                             tv_list_unref(l1);
                         }
@@ -1015,7 +1015,7 @@ unsafe fn extend_impl(
         } else if t0 == VarType::VAR_DICT && t1 == VarType::VAR_DICT {
             extend_dict(argvars, arg_errmsg, is_new, rettv);
         } else {
-            semsg(
+            semsg!(
                 c"E712: Argument of %s must be a List or Dictionary".as_ptr(),
                 if is_new {
                     c"extendnew()".as_ptr()
@@ -1093,7 +1093,7 @@ pub unsafe extern "C" fn f_insert(
                     return;
                 }
                 if before < 0 || before > len {
-                    semsg(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg2));
+                    semsg!(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg2));
                     return;
                 }
             }
@@ -1102,7 +1102,7 @@ pub unsafe extern "C" fn f_insert(
                 return;
             }
             if !(0..=255).contains(&val) {
-                semsg(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg1));
+                semsg!(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg1));
                 return;
             }
 
@@ -1118,7 +1118,7 @@ pub unsafe extern "C" fn f_insert(
 
             tv_copy(argvars, rettv);
         } else if arg0.v_type != VarType::VAR_LIST {
-            semsg(
+            semsg!(
                 c"E899: Argument of %s must be a List or Blob".as_ptr(),
                 c"insert()".as_ptr(),
             );
@@ -1144,7 +1144,7 @@ pub unsafe extern "C" fn f_insert(
             if before != (tv_list_len(l) as i64) {
                 item = tv_list_find(l, before as c_int);
                 if item.is_null() {
-                    semsg(e_list_index_out_of_range_nr.as_ptr(), before);
+                    semsg!(e_list_index_out_of_range_nr.as_ptr(), before);
                     l = std::ptr::null_mut();
                 }
             }
@@ -1174,7 +1174,7 @@ pub unsafe extern "C" fn f_remove(
             VarType::VAR_BLOB => tv_blob_remove(argvars, rettv, arg_errmsg),
             VarType::VAR_LIST => tv_list_remove(argvars, rettv, arg_errmsg),
             _ => {
-                semsg(
+                semsg!(
                     c"E896: Argument of %s must be a List, Dictionary or Blob".as_ptr(),
                     c"remove()".as_ptr(),
                 );

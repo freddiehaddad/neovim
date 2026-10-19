@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -116,7 +117,6 @@ static mut arglist_locked: bool = false;
 unsafe extern "C" {
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn expand_wildcards(
         num_pat: c_int,
@@ -610,7 +610,7 @@ unsafe fn arglist_del_files(alist_ga: *mut garray_T) {
             vim_regfree(regmatch.regprog);
             xfree(p.cast());
             if !didone {
-                semsg(gettext((&raw const e_nomatch2).cast()), orig_p);
+                semsg!(gettext((&raw const e_nomatch2).cast()), orig_p);
             }
             i += 1;
         }

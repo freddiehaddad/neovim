@@ -12,6 +12,7 @@
 
 use crate::globals::*;
 use crate::mbyte::utf8len_tab;
+use crate::message::siemsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -223,7 +224,6 @@ unsafe extern "C" {
     fn set_can_cindent(val: bool);
     fn pagescroll(dir: Direction, count: c_int, half: bool) -> c_int;
     fn nv_scroll_line(cap: *mut cmdarg_T);
-    fn siemsg(fmt: *const c_char, ...);
     fn stl_connected(wp: *mut win_T) -> bool;
     fn win_fdccol_count(wp: *mut win_T) -> c_int;
     fn win_enter(wp: *mut win_T, undo_sync: bool);
@@ -1371,7 +1371,7 @@ pub unsafe extern "C" fn ins_mousescroll(dir: c_int) {
             MSCR_DOWN => cap.cmdchar = K_MOUSEDOWN,
             MSCR_LEFT => cap.cmdchar = K_MOUSELEFT,
             MSCR_RIGHT => cap.cmdchar = K_MOUSERIGHT,
-            _ => siemsg(c"Invalid ins_mousescroll() argument: %d".as_ptr(), dir),
+            _ => siemsg!(c"Invalid ins_mousescroll() argument: %d".as_ptr(), dir),
         }
 
         let old_curwin = curwin;

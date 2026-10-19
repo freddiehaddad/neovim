@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -105,7 +106,6 @@ unsafe extern "C" {
     fn buf_hide(buf: *const buf_T) -> bool;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn channel_job_running(id: u64) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
     fn buf_spname(buf: *mut buf_T) -> *mut c_char;
     fn ui_has(ext: UIExtension) -> bool;
@@ -569,13 +569,13 @@ pub unsafe extern "C" fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 let shown = if !(*buf).terminal.is_null()
                     && channel_job_running((*buf).b_p_channel as u64)
                 {
-                    semsg(
+                    semsg!(
                         gettext(c"E947: Job still running in buffer \"%s\"".as_ptr()),
                         (*buf).b_fname,
                     )
                 } else {
                     let sp = buf_spname(buf);
-                    semsg(
+                    semsg!(
                         gettext(c"E162: No write since last change for buffer \"%s\"".as_ptr()),
                         if !sp.is_null() { sp } else { (*buf).b_fname },
                     )
@@ -953,7 +953,7 @@ pub unsafe extern "C" fn ex_compiler(eap: *mut exarg_T) {
 
         vim_snprintf(buf, bufsize, c"compiler/%s.*".as_ptr(), (*eap).arg);
         if source_runtime_vim_lua(buf, DIP_ALL) == FAIL {
-            semsg(gettext(E_COMPILER_NOT_SUPPORTED_STR.as_ptr()), (*eap).arg);
+            semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR.as_ptr()), (*eap).arg);
         }
         xfree(buf.cast());
 

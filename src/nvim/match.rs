@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -117,7 +118,6 @@ pub struct SearchState {
 
 unsafe extern "C" {
 
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
@@ -260,7 +260,7 @@ unsafe fn match_add(
             return -1;
         }
         if id < -1 || id == 0 {
-            semsg(
+            semsg!(
                 gettext(c"E799: Invalid ID: %lld (must be greater than or equal to 1)".as_ptr()),
                 i64::from(id),
             );
@@ -273,7 +273,7 @@ unsafe fn match_add(
             let mut cur = (*wp).w_match_head.cast::<matchitem_T>();
             while !cur.is_null() {
                 if (*cur).mit_id == id {
-                    semsg(
+                    semsg!(
                         gettext(c"E801: ID already taken: %lld".as_ptr()),
                         i64::from(id),
                     );
@@ -295,7 +295,7 @@ unsafe fn match_add(
         if !pat.is_null() {
             regprog = vim_regcomp(pat, RE_MAGIC);
             if regprog.is_null() {
-                semsg(gettext((&raw const e_invarg2).cast()), pat);
+                semsg!(gettext((&raw const e_invarg2).cast()), pat);
                 return -1;
             }
         }
@@ -340,7 +340,7 @@ unsafe fn match_add(
                     let subl = (*li).li_tv.vval.v_list;
                     let mut subli = tv_list_first(subl);
                     if subli.is_null() {
-                        semsg(
+                        semsg!(
                             gettext(c"E5030: Empty list at position %d".as_ptr()),
                             tv_list_idx_of_item(pos_list, li),
                         );
@@ -394,7 +394,7 @@ unsafe fn match_add(
                     (*(*m).mit_pos_array.add(i)).col = 0;
                     (*(*m).mit_pos_array.add(i)).len = 0;
                 } else {
-                    semsg(
+                    semsg!(
                         gettext(c"E5031: List or number required at position %d".as_ptr()),
                         tv_list_idx_of_item(pos_list, li),
                     );
@@ -454,7 +454,7 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
 
         if id < 1 {
             if perr {
-                semsg(
+                semsg!(
                     gettext(
                         c"E802: Invalid ID: %lld (must be greater than or equal to 1)".as_ptr(),
                     ),
@@ -469,7 +469,7 @@ unsafe fn match_delete(wp: *mut win_T, id: c_int, perr: bool) -> c_int {
         }
         if cur.is_null() {
             if perr {
-                semsg(gettext(c"E803: ID not found: %lld".as_ptr()), i64::from(id));
+                semsg!(gettext(c"E803: ID not found: %lld".as_ptr()), i64::from(id));
             }
             return -1;
         }
@@ -1197,7 +1197,7 @@ pub unsafe extern "C" fn f_setmatches(
         let mut li = tv_list_first(l);
         while !li.is_null() {
             if (*li).li_tv.v_type != VarType::VAR_DICT || (*li).li_tv.vval.v_dict.is_null() {
-                semsg(
+                semsg!(
                     gettext(
                         c"E474: List item %d is either not a dictionary or an empty one".as_ptr(),
                     ),
@@ -1212,7 +1212,7 @@ pub unsafe extern "C" fn f_setmatches(
                 || tv_dict_find(d, c"priority".as_ptr(), 8).is_null()
                 || tv_dict_find(d, c"id".as_ptr(), 2).is_null()
             {
-                semsg(
+                semsg!(
                     gettext(c"E474: List item %d is missing one of the required keys".as_ptr()),
                     li_idx,
                 );
@@ -1322,7 +1322,7 @@ pub unsafe extern "C" fn f_matchadd(
             return;
         }
         if (1..=3).contains(&id) {
-            semsg(
+            semsg!(
                 gettext(c"E798: ID is reserved for \":match\": %d".as_ptr()),
                 id,
             );
@@ -1351,7 +1351,7 @@ pub unsafe extern "C" fn f_matchaddpos(
         }
 
         if (*argvars.add(1)).v_type != VarType::VAR_LIST {
-            semsg(
+            semsg!(
                 gettext((&raw const e_listarg).cast()),
                 c"matchaddpos()".as_ptr(),
             );
@@ -1386,7 +1386,7 @@ pub unsafe extern "C" fn f_matchaddpos(
         }
 
         if id == 1 || id == 2 {
-            semsg(
+            semsg!(
                 gettext(c"E798: ID is reserved for \"match\": %d".as_ptr()),
                 id,
             );
@@ -1476,7 +1476,7 @@ pub unsafe extern "C" fn ex_match(eap: *mut exarg_T) {
                 p = skipwhite(p);
                 if *p == NUL {
                     xfree(g.cast());
-                    semsg(gettext((&raw const e_invarg2).cast()), arg);
+                    semsg!(gettext((&raw const e_invarg2).cast()), arg);
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
@@ -1488,7 +1488,7 @@ pub unsafe extern "C" fn ex_match(eap: *mut exarg_T) {
                     }
                     if *end != *p {
                         xfree(g.cast());
-                        semsg(gettext((&raw const e_invarg2).cast()), p);
+                        semsg!(gettext((&raw const e_invarg2).cast()), p);
                         return;
                     }
 

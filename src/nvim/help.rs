@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -74,8 +75,6 @@ unsafe extern "C" {
     );
     fn tv_clear(tv: *mut typval_T);
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn FreeWild(count: c_int, files: *mut *mut c_char);
     fn bt_help(buf: *const buf_T) -> bool;
@@ -278,9 +277,9 @@ pub unsafe extern "C" fn ex_help(eap: *mut exarg_T) {
         }
         if i >= num_matches || n == FAIL {
             if !lang.is_null() {
-                semsg(gettext(c"E661: No '%s' help for %s".as_ptr()), lang, arg);
+                semsg!(gettext(c"E661: No '%s' help for %s".as_ptr()), lang, arg);
             } else {
-                semsg(gettext(c"E149: No help for %s".as_ptr()), arg);
+                semsg!(gettext(c"E149: No help for %s".as_ptr()), arg);
             }
             if n != FAIL {
                 FreeWild(num_matches, matches);
@@ -317,7 +316,7 @@ pub unsafe extern "C" fn ex_help(eap: *mut exarg_T) {
             } else {
                 let helpfd = os_fopen(p_hf, c"rb".as_ptr());
                 if helpfd.is_null() {
-                    smsg(0, gettext(c"Help file \"%s\" not found".as_ptr()), p_hf);
+                    smsg!(0, gettext(c"Help file \"%s\" not found".as_ptr()), p_hf);
                     early_ret = true;
                 } else {
                     fclose(helpfd);

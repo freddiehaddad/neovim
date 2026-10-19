@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
@@ -133,7 +134,6 @@ unsafe extern "C" {
     fn changed_window_setting(wp: *mut win_T);
     fn check_topfill(wp: *mut win_T, down: bool);
     fn update_curswant();
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 }
@@ -471,7 +471,7 @@ unsafe fn get_winnr(tp: *mut tabpage_T, argvar: *mut typval_T) -> c_int {
             }
 
             if invalid_arg {
-                semsg(gettext((&raw const e_invexpr2).cast()), arg);
+                semsg!(gettext((&raw const e_invexpr2).cast()), arg);
                 nr = 0;
             }
         } else if !win_has_winnr(twin, tp) {
@@ -754,7 +754,7 @@ pub unsafe extern "C" fn f_tabpagenr(
                         0
                     };
                 } else {
-                    semsg(gettext((&raw const e_invexpr2).cast()), arg);
+                    semsg!(gettext((&raw const e_invexpr2).cast()), arg);
                 }
             }
         } else {

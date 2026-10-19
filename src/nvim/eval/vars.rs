@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -540,7 +541,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn internal_error(where_str: *const c_char);
     fn message_filtered(msg: *const c_char) -> bool;
     fn msg_ext_set_kind(msg_kind: *const c_char);
@@ -1381,7 +1381,7 @@ pub unsafe extern "C" fn eval_one_expr_in_str(
         let mut block_end = block_start;
 
         if *block_start == NUL {
-            semsg(gettext(e_missing_close_curly_str.as_ptr()), p);
+            semsg!(gettext(e_missing_close_curly_str.as_ptr()), p);
             return ptr::null_mut();
         }
         if skip_expr(&raw mut block_end, ptr::null_mut()) == FAIL {
@@ -1389,7 +1389,7 @@ pub unsafe extern "C" fn eval_one_expr_in_str(
         }
         block_end = skipwhite(block_end);
         if *block_end != b'}' as c_char {
-            semsg(gettext(e_missing_close_curly_str.as_ptr()), p);
+            semsg!(gettext(e_missing_close_curly_str.as_ptr()), p);
             return ptr::null_mut();
         }
         if evaluate {
@@ -1426,7 +1426,7 @@ unsafe fn eval_all_expr_in_str(str_arg: *mut c_char) -> *mut c_char {
                 p = p.add(1);
                 escaped_brace = true;
             } else if *p == b'}' as c_char {
-                semsg(gettext(e_stray_closing_curly_str.as_ptr()), str_arg);
+                semsg!(gettext(e_stray_closing_curly_str.as_ptr()), str_arg);
                 ga_clear(&raw mut ga);
                 return ptr::null_mut();
             }
@@ -1512,7 +1512,7 @@ pub unsafe extern "C" fn heredoc_get(
             marker = skipwhite(cmd);
             let p = skiptowhite(marker);
             if *skipwhite(p) != NUL && *skipwhite(p) != comment_char {
-                semsg(gettext(e_trailing_arg.as_ptr()), p);
+                semsg!(gettext(e_trailing_arg.as_ptr()), p);
                 return ptr::null_mut();
             }
             *p = NUL;
@@ -1538,7 +1538,7 @@ pub unsafe extern "C" fn heredoc_get(
             if heredoc_in_string {
                 if *line_arg == NUL {
                     if !script_get {
-                        semsg(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);
+                        semsg!(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);
                     }
                     break;
                 }
@@ -1560,7 +1560,7 @@ pub unsafe extern "C" fn heredoc_get(
                 };
                 if theline.is_null() {
                     if !script_get {
-                        semsg(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);
+                        semsg!(gettext(E_MISSING_END_MARKER_STR.as_ptr()), marker);
                     }
                     break;
                 }
@@ -1843,7 +1843,7 @@ pub unsafe extern "C" fn skip_var_list(
                 let s = skip_var_one(p);
                 if s == p {
                     if !silent {
-                        semsg(gettext(e_invarg2.as_ptr()), p);
+                        semsg!(gettext(e_invarg2.as_ptr()), p);
                     }
                     return ptr::null();
                 }
@@ -1862,7 +1862,7 @@ pub unsafe extern "C" fn skip_var_list(
                     *semicolon = 1;
                 } else if *p != b',' as c_char {
                     if !silent {
-                        semsg(gettext(e_invarg2.as_ptr()), p);
+                        semsg!(gettext(e_invarg2.as_ptr()), p);
                     }
                     return ptr::null();
                 }
@@ -1992,7 +1992,7 @@ unsafe fn list_arg_vars(
                 );
                 if !ascii_iswhite(*arg as c_int) && ends_excmd(*arg as c_int) == 0 {
                     emsg_severe = true;
-                    semsg(gettext(e_trailing_arg.as_ptr()), arg);
+                    semsg!(gettext(e_trailing_arg.as_ptr()), arg);
                     break;
                 }
             } else {
@@ -2003,7 +2003,7 @@ unsafe fn list_arg_vars(
                 if len <= 0 {
                     if len < 0 && !aborting() {
                         emsg_severe = true;
-                        semsg(gettext(e_invarg2.as_ptr()), arg);
+                        semsg!(gettext(e_invarg2.as_ptr()), arg);
                         xfree(tofree.cast());
                         break;
                     }
@@ -2035,7 +2035,7 @@ unsafe fn list_arg_vars(
                                     b's' => list_script_vars(first),
                                     b'l' => list_func_vars(first),
                                     _ => {
-                                        semsg(
+                                        semsg!(
                                             gettext(c"E738: Can't list variables for %s".as_ptr()),
                                             name,
                                         );
@@ -2098,9 +2098,9 @@ unsafe fn ex_let_env(
         let len = get_env_len(&raw mut arg_const) as usize;
         arg = arg_const.cast_mut();
         if len == 0 {
-            semsg(gettext(e_invarg2.as_ptr()), name.sub(1));
+            semsg!(gettext(e_invarg2.as_ptr()), name.sub(1));
         } else if !op.is_null() && !vim_strchr(c"+-*/%".as_ptr(), *op as u8 as c_int).is_null() {
-            semsg(gettext(e_letwrong.as_ptr()), op);
+            semsg!(gettext(e_letwrong.as_ptr()), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg) as u8 as c_int).is_null()
         {
@@ -2172,7 +2172,7 @@ unsafe fn ex_let_option(
         let mut newval = nil_obj();
 
         if curval.obj_type == ObjectType::kObjectTypeNil {
-            semsg(gettext(e_unknown_option2.as_ptr()), arg_name);
+            semsg!(gettext(e_unknown_option2.as_ptr()), arg_name);
             *p = c1;
             optval_free(curval);
             optval_free(newval);
@@ -2183,7 +2183,7 @@ unsafe fn ex_let_option(
             && ((curval.obj_type != ObjectType::kObjectTypeString && *op == b'.' as c_char)
                 || (curval.obj_type == ObjectType::kObjectTypeString && *op != b'.' as c_char))
         {
-            semsg(gettext(e_letwrong.as_ptr()), op);
+            semsg!(gettext(e_letwrong.as_ptr()), op);
             *p = c1;
             optval_free(curval);
             optval_free(newval);
@@ -2274,7 +2274,7 @@ unsafe fn ex_let_register(
         let mut arg_end: *mut c_char = ptr::null_mut();
         arg = arg.add(1);
         if !op.is_null() && !vim_strchr(c"+-*/%".as_ptr(), *op as u8 as c_int).is_null() {
-            semsg(gettext(e_letwrong.as_ptr()), op);
+            semsg!(gettext(e_letwrong.as_ptr()), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg.add(1)) as u8 as c_int).is_null()
         {
@@ -2343,7 +2343,7 @@ unsafe fn ex_let_one(
             }
             clear_lval(&raw mut lv);
         } else {
-            semsg(gettext(e_invarg2.as_ptr()), arg);
+            semsg!(gettext(e_invarg2.as_ptr()), arg);
         }
 
         arg_end
@@ -2403,7 +2403,7 @@ unsafe fn ex_unletlock(
                 arg = arg.add(1);
                 let mut arg_const: *const c_char = arg;
                 if get_env_len(&raw mut arg_const) == 0 {
-                    semsg(gettext(e_invarg2.as_ptr()), arg.sub(1));
+                    semsg!(gettext(e_invarg2.as_ptr()), arg.sub(1));
                     return;
                 }
                 arg = arg_const.cast_mut();
@@ -2429,7 +2429,7 @@ unsafe fn ex_unletlock(
                 {
                     if !name_end.is_null() {
                         emsg_severe = true;
-                        semsg(gettext(e_trailing_arg.as_ptr()), name_end);
+                        semsg!(gettext(e_trailing_arg.as_ptr()), name_end);
                     }
                     if !((*eap).skip != 0 || error) {
                         clear_lval(&raw mut lv);
@@ -2608,7 +2608,7 @@ pub unsafe extern "C" fn do_unlet(name: *const c_char, name_len: usize, forceit:
         if forceit {
             return OK;
         }
-        semsg(gettext(c"E108: No such variable: \"%s\"".as_ptr()), name);
+        semsg!(gettext(c"E108: No such variable: \"%s\"".as_ptr()), name);
         FAIL
     }
 }
@@ -2626,7 +2626,7 @@ unsafe extern "C" fn do_lock_var(
 
         if (*lp).ll_tv.is_null() {
             if *(*lp).ll_name == b'$' as c_char {
-                semsg(gettext(E_LOCK_UNLOCK.as_ptr()), (*lp).ll_name);
+                semsg!(gettext(E_LOCK_UNLOCK.as_ptr()), (*lp).ll_name);
                 ret = FAIL;
             } else {
                 let di = find_var((*lp).ll_name, (*lp).ll_name_len, ptr::null_mut(), 1);
@@ -2636,7 +2636,7 @@ unsafe extern "C" fn do_lock_var(
                     && (*di).di_tv.v_type != VarType::VAR_DICT
                     && (*di).di_tv.v_type != VarType::VAR_LIST
                 {
-                    semsg(gettext(E_LOCK_UNLOCK.as_ptr()), (*lp).ll_name);
+                    semsg!(gettext(E_LOCK_UNLOCK.as_ptr()), (*lp).ll_name);
                     ret = FAIL;
                 } else {
                     if lock {
@@ -3203,7 +3203,7 @@ pub unsafe extern "C" fn eval_variable(
 
         if tv.is_null() {
             if !rettv.is_null() && verbose {
-                semsg(
+                semsg!(
                     gettext(c"E121: Undefined variable: %.*s".as_ptr()),
                     len,
                     name,
@@ -3670,7 +3670,7 @@ pub unsafe extern "C" fn set_var_const(
         let watched = tv_dict_is_watched(dict);
 
         if ht.is_null() || *varname == NUL {
-            semsg(gettext(e_illvar.as_ptr()), name);
+            semsg!(gettext(e_illvar.as_ptr()), name);
             return;
         }
         let varname_len = name_len - (varname.offset_from(name) as usize);
@@ -3703,7 +3703,7 @@ pub unsafe extern "C" fn set_var_const(
                 && !before_set_vvar(varname, di, tv, copy, watched, &raw mut type_error)
             {
                 if type_error {
-                    semsg(
+                    semsg!(
                         gettext(E_SETTING_V_STR_TO_VALUE_WITH_WRONG_TYPE.as_ptr()),
                         varname,
                     );
@@ -3717,7 +3717,7 @@ pub unsafe extern "C" fn set_var_const(
             tv_clear(&raw mut (*di).di_tv);
         } else {
             if ptr::eq(ht, &raw mut vimvardict.dv_hashtab) || ht == get_funccal_args_ht() {
-                semsg(gettext(e_illvar.as_ptr()), name);
+                semsg!(gettext(e_illvar.as_ptr()), name);
                 return;
             }
 
@@ -3790,7 +3790,7 @@ pub unsafe extern "C" fn var_check_ro(
             name_len = c_strlen(name);
         }
 
-        semsg(gettext(error_message), name_len as c_int, name);
+        semsg!(gettext(error_message), name_len as c_int, name);
         true
     }
 }
@@ -3814,7 +3814,7 @@ pub unsafe extern "C" fn var_check_lock(
             name_len = c_strlen(name);
         }
 
-        semsg(
+        semsg!(
             gettext(c"E1122: Variable is locked: %.*s".as_ptr()),
             name_len as c_int,
             name,
@@ -3838,7 +3838,7 @@ pub unsafe extern "C" fn var_check_fixed(
             } else if name_len == TV_CSTRING {
                 name_len = c_strlen(name);
             }
-            semsg(
+            semsg!(
                 gettext(e_cannot_delete_variable_str.as_ptr()),
                 name_len as c_int,
                 name,
@@ -3863,14 +3863,14 @@ pub unsafe extern "C" fn var_wrong_func_name(name: *const c_char, new_var: bool)
             && !ascii_isupper(first_after_scope)
             && vim_strchr(name, b'#' as c_int).is_null()
         {
-            semsg(
+            semsg!(
                 gettext(c"E704: Funcref variable name must start with a capital: %s".as_ptr()),
                 name,
             );
             return true;
         }
         if new_var && function_exists(name, false) {
-            semsg(
+            semsg!(
                 gettext(c"E705: Variable name conflicts with existing function: %s".as_ptr()),
                 name,
             );
@@ -3890,7 +3890,7 @@ pub unsafe extern "C" fn valid_varname(varname: *const c_char) -> bool {
                 && (p == varname || !ascii_isdigit(*p as c_int))
                 && *p != AUTOLOAD_CHAR
             {
-                semsg(gettext(e_illvar.as_ptr()), varname);
+                semsg!(gettext(e_illvar.as_ptr()), varname);
                 return false;
             }
             p = p.add(1);
@@ -4052,7 +4052,7 @@ unsafe fn opt_from_tv(
                 }
                 if idx == 0 || *(*tv).vval.v_string.add(idx) != NUL {
                     err = true;
-                    semsg(
+                    semsg!(
                         gettext(c"E521: Number required: &%s = '%s'".as_ptr()),
                         option,
                         if (*tv).vval.v_string.is_null() {
@@ -4151,7 +4151,7 @@ unsafe fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
     unsafe {
         let opt_idx = find_option(varname);
         if opt_idx == kOptInvalid {
-            semsg(gettext(e_unknown_option2.as_ptr()), varname);
+            semsg!(gettext(e_unknown_option2.as_ptr()), varname);
             return;
         }
 
@@ -4312,9 +4312,9 @@ pub unsafe extern "C" fn var_redir_start(name: *mut c_char, append: bool) -> c_i
         if redir_endp.is_null() || (*redir_lval).ll_name.is_null() || *redir_endp != NUL {
             clear_lval(redir_lval);
             if !redir_endp.is_null() && *redir_endp != NUL {
-                semsg(gettext(e_trailing_arg.as_ptr()), redir_endp);
+                semsg!(gettext(e_trailing_arg.as_ptr()), redir_endp);
             } else {
-                semsg(gettext(e_invarg2.as_ptr()), name);
+                semsg!(gettext(e_invarg2.as_ptr()), name);
             }
             redir_endp = ptr::null_mut();
             var_redir_stop();

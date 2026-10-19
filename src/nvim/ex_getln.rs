@@ -18,6 +18,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::smsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -383,7 +384,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_putchar(c: c_int);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
@@ -4167,7 +4167,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 if tv.v_type != VarType::VAR_LIST {
                     msg_scroll = 1;
                     msg_putchar(b'\n' as c_int);
-                    smsg(
+                    smsg!(
                         HLF_E,
                         c"%s".as_ptr(),
                         gettext(c"E5400: Callback should return list".as_ptr()),
@@ -4195,7 +4195,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
-                        smsg(
+                        smsg!(
                             HLF_E,
                             gettext(c"E5401: List item %i is not a List".as_ptr()),
                             i,
@@ -4210,7 +4210,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
-                        smsg(
+                        smsg!(
                             HLF_E,
                             gettext(c"E5402: List item %i has incorrect length: %d /= 3".as_ptr()),
                             i,
@@ -4235,7 +4235,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
-                        smsg(
+                        smsg!(
                             HLF_E,
                             gettext(c"E5403: Chunk %i start %lld not in range [%lld, %i)".as_ptr()),
                             i,
@@ -4254,7 +4254,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
-                        smsg(
+                        smsg!(
                             HLF_E,
                             gettext(
                                 c"E5405: Chunk %i start %lld splits multibyte character".as_ptr(),
@@ -4285,7 +4285,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
-                        smsg(
+                        smsg!(
                             HLF_E,
                             gettext(c"E5404: Chunk %i end %lld not in range (%lld, %i]".as_ptr()),
                             i,
@@ -4305,7 +4305,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         (*ccline_colors).colors.items = kv_colors.items;
                         msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
-                        smsg(
+                        smsg!(
                             HLF_E,
                             gettext(
                                 c"E5406: Chunk %i end %lld splits multibyte character".as_ptr(),
@@ -4351,7 +4351,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             if error_set(&err) {
                 msg_scroll = 1;
                 msg_putchar(b'\n' as c_int);
-                smsg(HLF_E, gettext(err_errmsg), err.msg);
+                smsg!(HLF_E, gettext(err_errmsg), err.msg);
                 printed_errmsg = true;
                 api_clear_error(&raw mut err);
             }

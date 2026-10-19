@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -81,7 +82,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn bt_nofilename(buf: *const buf_T) -> bool;
     fn bt_help(buf: *const buf_T) -> bool;
     fn bt_terminal(buf: *const buf_T) -> bool;
@@ -1110,7 +1110,7 @@ pub unsafe extern "C" fn ex_loadview(eap: *mut exarg_T) {
         }
 
         if do_source(fname, false, DOSO_NONE, ptr::null_mut()) == FAIL {
-            semsg(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
         }
         xfree(fname.cast());
     }

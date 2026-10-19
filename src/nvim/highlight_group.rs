@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long};
@@ -333,7 +334,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn get_var_value(name: *const c_char) -> *mut c_char;
     fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
     fn nlua_set_sctx(current: *mut sctx_T);
@@ -1345,7 +1345,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
         if !doclear && !dolink && ends_excmd(c_int::from(*linep as u8)) != 0 {
             let id = syn_name2id_len(line, word_len);
             if id == 0 {
-                semsg(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR.as_ptr()), line);
+                semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR.as_ptr()), line);
             } else {
                 msg_ext_set_kind(c"list_cmd".as_ptr());
                 highlight_list_one(id);
@@ -1362,7 +1362,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
             if ends_excmd(c_int::from(*from_start as u8)) != 0
                 || ends_excmd(c_int::from(*to_start as u8)) != 0
             {
-                semsg(
+                semsg!(
                     gettext(c"E412: Not enough arguments: \":highlight link %s\"".as_ptr()),
                     from_start,
                 );
@@ -1370,7 +1370,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
             }
 
             if ends_excmd(c_int::from(*skipwhite(to_end) as u8)) == 0 {
-                semsg(
+                semsg!(
                     gettext(c"E413: Too many arguments: \":highlight link %s\"".as_ptr()),
                     from_start,
                 );
@@ -1470,7 +1470,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
             while ends_excmd(c_int::from(*linep as u8)) == 0 {
                 let key_start = linep;
                 if *linep == b'=' as c_char {
-                    semsg(gettext(E_UNEXPECTED_EQUAL_SIGN_STR.as_ptr()), key_start);
+                    semsg!(gettext(E_UNEXPECTED_EQUAL_SIGN_STR.as_ptr()), key_start);
                     error = true;
                     break;
                 }
@@ -1500,7 +1500,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
                 }
 
                 if *linep != b'=' as c_char {
-                    semsg(gettext(E_MISSING_EQUAL_SIGN_STR_2.as_ptr()), key_start);
+                    semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2.as_ptr()), key_start);
                     error = true;
                     break;
                 }
@@ -1513,7 +1513,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
                     arg_start = linep;
                     linep = strchr(linep, c_int::from(b'\''));
                     if linep.is_null() {
-                        semsg(gettext(e_invarg2.as_ptr()), key_start);
+                        semsg!(gettext(e_invarg2.as_ptr()), key_start);
                         error = true;
                         break;
                     }
@@ -1522,7 +1522,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
                     linep = skiptowhite(linep);
                 }
                 if ptr::eq(linep, arg_start) {
-                    semsg(gettext(E_MISSING_ARGUMENT_STR.as_ptr()), key_start);
+                    semsg!(gettext(E_MISSING_ARGUMENT_STR.as_ptr()), key_start);
                     error = true;
                     break;
                 }
@@ -1558,7 +1558,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
                             i -= 1;
                         }
                         if i < 0 {
-                            semsg(gettext(c"E418: Illegal value: %s".as_ptr()), arg.as_ptr());
+                            semsg!(gettext(c"E418: Illegal value: %s".as_ptr()), arg.as_ptr());
                             error = true;
                             break;
                         }
@@ -1641,7 +1641,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
                                 i -= 1;
                             }
                             if i < 0 {
-                                semsg(
+                                semsg!(
                                     gettext(
                                         c"E421: Color name or number not recognized: %s".as_ptr(),
                                     ),
@@ -1745,7 +1745,7 @@ pub unsafe extern "C" fn do_highlight(mut line: *const c_char, forceit: bool, in
                         (*hl_table().add(idx as usize)).sg_blend = -1;
                     }
                 } else {
-                    semsg(gettext(c"E423: Illegal argument: %s".as_ptr()), key_start);
+                    semsg!(gettext(c"E423: Illegal argument: %s".as_ptr()), key_start);
                     error = true;
                     break;
                 }

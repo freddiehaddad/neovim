@@ -19,6 +19,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
@@ -311,7 +312,6 @@ unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn iemsg(s: *const c_char);
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn internal_error(where_: *const c_char);
@@ -779,7 +779,7 @@ pub unsafe extern "C" fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xcha
                     if Prenum == 0 {
                         emsg(gettext(e_noalt.as_ptr()));
                     } else {
-                        semsg(gettext(e_buffer_nr_not_found.as_ptr()), i64::from(Prenum));
+                        semsg!(gettext(e_buffer_nr_not_found.as_ptr()), i64::from(Prenum));
                     }
                     return;
                 }

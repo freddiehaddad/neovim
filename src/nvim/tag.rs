@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -369,9 +370,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn give_warning(message: *const c_char, hl: bool, with_source: bool);
     fn msg_delay(msec: i64, ignoreinput: bool);
     fn msg_putchar(c: c_int);
@@ -1014,7 +1013,7 @@ pub unsafe extern "C" fn do_tag(
 
                 if DO_TAG_NUM_MATCHES <= 0 {
                     if verbose {
-                        semsg(gettext(E_TAG_NOT_FOUND_STR.as_ptr()), name);
+                        semsg!(gettext(E_TAG_NOT_FOUND_STR.as_ptr()), name);
                     }
                     g_do_tagpreview = 0;
                 } else {
@@ -1080,7 +1079,7 @@ pub unsafe extern "C" fn do_tag(
                     }
 
                     if !nofile_fname.is_null() && error_cur_match != cur_match {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"File \"%s\" does not exist".as_ptr()),
                             nofile_fname,
@@ -1156,7 +1155,7 @@ pub unsafe extern "C" fn do_tag(
                             }
                             continue;
                         }
-                        semsg(
+                        semsg!(
                             gettext(c"E429: File \"%s\" does not exist".as_ptr()),
                             nofile_fname,
                         );
@@ -2478,11 +2477,11 @@ unsafe fn findtags_get_all_tags(
                 break;
             }
             if retval == tagmatch_status_T::TAG_MATCH_FAIL {
-                semsg(
+                semsg!(
                     gettext(c"E431: Format error in tags file \"%s\"".as_ptr()),
                     (*st).tag_fname,
                 );
-                semsg(
+                semsg!(
                     gettext(c"Before byte %lld".as_ptr()),
                     vim_ftell((*st).fp) as i64,
                 );
@@ -2517,7 +2516,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
 
         if p_verbose >= 5 {
             verbose_enter();
-            smsg(
+            smsg!(
                 0,
                 gettext(c"Searching tags file %s".as_ptr()),
                 (*st).tag_fname,
@@ -2538,7 +2537,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
         }
 
         if margs.sort_error {
-            semsg(
+            semsg!(
                 gettext(c"E432: Tags file not sorted: %s".as_ptr()),
                 (*st).tag_fname,
             );
@@ -3550,7 +3549,7 @@ unsafe fn add_tag_field(
         if !tv_dict_find(dict, field_name, -1).is_null() {
             if p_verbose > 0 {
                 verbose_enter();
-                smsg(0, gettext(c"Duplicate field name: %s".as_ptr()), field_name);
+                smsg!(0, gettext(c"Duplicate field name: %s".as_ptr()), field_name);
                 verbose_leave();
             }
             return FAIL;

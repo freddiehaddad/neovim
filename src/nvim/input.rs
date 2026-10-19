@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, semsg_multiline};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
@@ -314,8 +315,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn semsg_multiline(kind: *const c_char, fmt: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
     fn vim_beep(val: c_uint);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -1694,7 +1693,7 @@ pub unsafe extern "C" fn openscript(name: *mut c_char, directly: bool) {
             .add(curscript as usize);
         let error = file_open(scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
-            semsg(
+            semsg!(
                 gettext((&raw const e_notopen_2).cast()),
                 name,
                 uv_strerror(error),
@@ -2170,7 +2169,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
             if allow_number {
                 allow_number = tv_dict_get_bool(d, c"number".as_ptr(), 1) != 0;
             } else if tv_dict_has_key(d, c"number".as_ptr()) {
-                semsg(gettext((&raw const e_invarg2).cast()), c"number".as_ptr());
+                semsg!(gettext((&raw const e_invarg2).cast()), c"number".as_ptr());
             }
 
             simplify = tv_dict_get_bool(d, c"simplify".as_ptr(), 1) != 0;
@@ -2181,7 +2180,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
                     && strcmp(cursor_str, c"keep".as_ptr()) != 0
                     && strcmp(cursor_str, c"msg".as_ptr()) != 0
                 {
-                    semsg(
+                    semsg!(
                         gettext((&raw const e_invargNval).cast()),
                         c"cursor".as_ptr(),
                         cursor_str,
@@ -3638,7 +3637,7 @@ pub unsafe extern "C" fn map_execute_lua(may_repeat: bool, discard: bool) -> boo
             &raw mut err,
         );
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+            semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
             api_clear_error(&raw mut err);
         }
 

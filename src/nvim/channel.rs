@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -145,7 +146,6 @@ unsafe extern "C" {
     static mut main_loop: u8;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn api_free_luaref(luaref: LuaRef);
@@ -735,7 +735,7 @@ pub unsafe extern "C" fn channel_job_start(
             if detach {
                 #[cfg(not(test))]
                 {
-                    semsg(
+                    semsg!(
                         gettext(e_invarg2.as_ptr()),
                         c"terminal/pty job cannot be detached".as_ptr(),
                     );
@@ -824,7 +824,7 @@ pub unsafe extern "C" fn channel_job_start(
         if status != 0 {
             #[cfg(not(test))]
             {
-                semsg(gettext(e_jobspawn.as_ptr()), uv_strerror(status), cmd);
+                semsg!(gettext(e_jobspawn.as_ptr()), uv_strerror(status), cmd);
                 if !(*ph).env.is_null() {
                     tv_dict_free((*ph).env);
                 }
@@ -1254,7 +1254,7 @@ pub unsafe extern "C" fn channel_reader_callbacks(chan: *mut Channel, reader: *m
                             data,
                         );
                     } else {
-                        semsg(
+                        semsg!(
                             gettext(e_streamkey.as_ptr()),
                             (*reader).reader_type,
                             (*channel_prefix(chan)).id,

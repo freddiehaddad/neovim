@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::io::Write;
@@ -289,7 +290,6 @@ unsafe extern "C" {
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn msg_putchar(c: c_int);
     fn wait_return(redraw: c_int);
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
@@ -1579,7 +1579,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             let written_bytes =
                                 os_write(STDOUT_FILENO, data.data, data.size, false);
                             if written_bytes < 0 {
-                                semsg(
+                                semsg!(
                                     gettext(c"E5420: Failed to write to file: %s".as_ptr()),
                                     uv_strerror(written_bytes as c_int),
                                 );
@@ -2187,7 +2187,7 @@ unsafe fn read_stdin() {
         if !(*curbuf).b_ffname.is_null() {
             let stdin_buf = buflist_new(ptr::null_mut(), ptr::null_mut(), 0, BLN_LISTED);
             if stdin_buf.is_null() {
-                semsg(c"Failed to create buffer for stdin".as_ptr());
+                semsg!(c"Failed to create buffer for stdin".as_ptr());
                 return;
             }
 
@@ -2606,7 +2606,7 @@ unsafe fn do_user_initialization() -> bool {
             && do_source(init_lua_path, true, DOSO_VIMRC, ptr::null_mut()) != 0
         {
             if os_path_exists(user_vimrc) {
-                semsg(
+                semsg!(
                     (&raw const e_conflicting_configs).cast(),
                     init_lua_path,
                     user_vimrc,
@@ -2687,7 +2687,7 @@ unsafe fn do_user_initialization() -> bool {
                     && do_source(init_lua.cast(), true, DOSO_VIMRC, ptr::null_mut()) != 0
                 {
                     if os_path_exists(init_vim.cast()) {
-                        semsg(
+                        semsg!(
                             (&raw const e_conflicting_configs).cast(),
                             init_lua,
                             init_vim,
@@ -2758,7 +2758,7 @@ unsafe fn source_startup_scripts(parmp: *const mparm_T) {
             {
                 // Do nothing.
             } else if do_source((*parmp).use_vimrc, false, DOSO_NONE, ptr::null_mut()) != OK {
-                semsg(
+                semsg!(
                     gettext((&raw const e_cannot_read_from_str_2).cast()),
                     (*parmp).use_vimrc,
                 );

@@ -1,5 +1,7 @@
 //! Handling of a hashtable with Vim-specific properties (`src/nvim/hashtab.c`).
 
+#[cfg(not(test))]
+use crate::message::siemsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 use crate::math::{FAIL, OK};
@@ -53,11 +55,6 @@ pub fn hi_key_removed() -> *mut c_char {
 #[inline]
 pub fn hashitem_empty(hi: &hashitem_T) -> bool {
     hi.hi_key.is_null() || std::ptr::eq(hi.hi_key, &raw const hash_removed)
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn siemsg(fmt: *const c_char, ...);
 }
 
 #[inline]
@@ -220,7 +217,7 @@ pub unsafe extern "C" fn hash_add(ht: *mut hashtab_T, key: *mut c_char) -> c_int
     if unsafe { !hashitem_empty(&*hi) } {
         #[cfg(not(test))]
         unsafe {
-            siemsg(
+            siemsg!(
                 c"E685: Internal error: hash_add(): duplicate key \"%s\"".as_ptr(),
                 key,
             );

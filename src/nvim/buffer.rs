@@ -18,6 +18,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -336,8 +337,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(attr: c_int, fmt: *const c_char, ...) -> c_int;
     fn msg_start();
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_puts(s: *const c_char);
@@ -1005,7 +1004,7 @@ unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
             } else {
                 (*buf).b_ffname
             };
-            semsg(
+            semsg!(
                 gettext(E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR.as_ptr()),
                 if !fname.is_null() {
                     fname
@@ -1667,7 +1666,7 @@ pub unsafe extern "C" fn do_bufdel(
                 errormsg = iobuff_ptr;
             } else if i64::from(deleted) >= p_report {
                 if command == DOBUF_UNLOAD {
-                    smsg(
+                    smsg!(
                         0,
                         ngettext(
                             c"%d buffer unloaded".as_ptr(),
@@ -1677,7 +1676,7 @@ pub unsafe extern "C" fn do_bufdel(
                         deleted,
                     );
                 } else if command == DOBUF_DEL {
-                    smsg(
+                    smsg!(
                         0,
                         ngettext(
                             c"%d buffer deleted".as_ptr(),
@@ -1687,7 +1686,7 @@ pub unsafe extern "C" fn do_bufdel(
                         deleted,
                     );
                 } else {
-                    smsg(
+                    smsg!(
                         0,
                         ngettext(
                             c"%d buffer wiped out".as_ptr(),
@@ -1845,7 +1844,7 @@ unsafe fn do_buffer_ext(
         if buf.is_null() {
             if start == DOBUF_FIRST {
                 if !unload {
-                    semsg(gettext(e_nobufnr.as_ptr()), i64::from(count));
+                    semsg!(gettext(e_nobufnr.as_ptr()), i64::from(count));
                 }
             } else if dir == FORWARD {
                 emsg(gettext(c"E87: Cannot go beyond last buffer".as_ptr()));
@@ -1863,7 +1862,7 @@ unsafe fn do_buffer_ext(
         }
 
         if (action == DOBUF_GOTO || action == DOBUF_SPLIT) && ((*buf).b_flags & BF_DUMMY) != 0 {
-            semsg(gettext(e_nobufnr.as_ptr()), count);
+            semsg!(gettext(e_nobufnr.as_ptr()), count);
             return FAIL;
         }
 
@@ -1888,7 +1887,7 @@ unsafe fn do_buffer_ext(
                         return FAIL;
                     }
                 } else {
-                    semsg(
+                    semsg!(
                         gettext(
                             e_no_write_since_last_change_for_buffer_nr_add_bang_to_override
                                 .as_ptr(),
@@ -1908,7 +1907,7 @@ unsafe fn do_buffer_ext(
                         return FAIL;
                     }
                 } else {
-                    semsg(
+                    semsg!(
                         gettext(c"E89: %s will be killed (add ! to override)".as_ptr()),
                         (*buf).b_fname,
                     );
@@ -2375,7 +2374,7 @@ pub unsafe extern "C" fn no_write_message_buf(buf: *mut buf_T) {
                 e_job_still_running_add_bang_to_end_the_job.as_ptr(),
             ));
         } else {
-            semsg(
+            semsg!(
                 gettext(e_no_write_since_last_change_for_buffer_nr_add_bang_to_override.as_ptr()),
                 (*buf).b_fnum,
             );
@@ -2741,7 +2740,7 @@ pub unsafe extern "C" fn buflist_getfile(
             if (options & GETF_ALT) != 0 && n == 0 {
                 emsg(gettext(e_noalt.as_ptr()));
             } else {
-                semsg(gettext(e_buffer_nr_not_found.as_ptr()), n);
+                semsg!(gettext(e_buffer_nr_not_found.as_ptr()), n);
             }
             return FAIL;
         }
@@ -2989,12 +2988,12 @@ pub unsafe extern "C" fn buflist_findpat(
         }
 
         if match_fnum == -2 {
-            semsg(
+            semsg!(
                 gettext(c"E93: More than one match for %s".as_ptr()),
                 pattern,
             );
         } else if match_fnum < 0 {
-            semsg(gettext(c"E94: No matching buffer for %s".as_ptr()), pattern);
+            semsg!(gettext(c"E94: No matching buffer for %s".as_ptr()), pattern);
         }
         match_fnum
     }

@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -1618,7 +1619,6 @@ unsafe extern "C" {
     fn utf_iscomposing_first(c: c_int) -> bool;
     fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn msg_putchar(c: c_int);
     fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
@@ -1848,7 +1848,7 @@ pub unsafe extern "C" fn check_digraph_chars_valid(char1: c_int, char2: c_int) -
             let mut msg = [0 as c_char; MB_MAXCHAR + 1];
             let len = utf_char2bytes(char1, msg.as_mut_ptr()) as usize;
             msg[len] = NUL;
-            semsg(
+            semsg!(
                 gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
                 msg.as_ptr(),
             );
@@ -2077,7 +2077,7 @@ unsafe fn get_digraph_chars(arg: *const typval_T, char1: *mut c_int, char2: *mut
                 }
             }
         }
-        semsg(
+        semsg!(
             gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
             chars,
         );
@@ -2101,7 +2101,7 @@ unsafe fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typva
         let mut p = digraph;
         let n = mb_cptr2char_adv(&raw mut p);
         if *p != NUL {
-            semsg(
+            semsg!(
                 gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR.as_ptr()),
                 digraph,
             );
@@ -2129,7 +2129,7 @@ pub unsafe extern "C" fn f_digraph_get(
             return;
         }
         if CStr::from_ptr(digraphs).to_bytes().len() != 2 {
-            semsg(
+            semsg!(
                 gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR.as_ptr()),
                 digraphs,
             );

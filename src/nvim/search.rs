@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
@@ -301,8 +302,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn iemsg(s: *const c_char);
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn give_warning(message: *const c_char, hl: bool, with_source: bool);
     fn messaging() -> bool;
@@ -965,7 +964,7 @@ pub unsafe extern "C" fn searchit(
         ) == FAIL
         {
             if (options & SEARCH_MSG) != 0 && !rc_did_emsg {
-                semsg(tr(c"E383: Invalid search string: %s".as_ptr()), mr_pattern);
+                semsg!(tr(c"E383: Invalid search string: %s".as_ptr()), mr_pattern);
             }
             return FAIL;
         }
@@ -1318,14 +1317,14 @@ pub unsafe extern "C" fn searchit(
                 emsg(tr(e_interr.as_ptr()));
             } else if (options & SEARCH_MSG) == SEARCH_MSG {
                 if p_ws != 0 {
-                    semsg(tr(e_patnotf2.as_ptr()), mr_pattern);
+                    semsg!(tr(e_patnotf2.as_ptr()), mr_pattern);
                 } else if lnum == 0 {
-                    semsg(
+                    semsg!(
                         tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR.as_ptr()),
                         mr_pattern,
                     );
                 } else {
-                    semsg(
+                    semsg!(
                         tr(E_SEARCH_HIT_BOTTOM_WITHOUT_MATCH_FOR_STR.as_ptr()),
                         mr_pattern,
                     );
@@ -3305,11 +3304,11 @@ pub unsafe extern "C" fn f_searchcount(
             di = tv_dict_find(dict, c"pos".as_ptr(), -1);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VAR_LIST {
-                    semsg(tr(e_invarg2.as_ptr()), c"pos".as_ptr());
+                    semsg!(tr(e_invarg2.as_ptr()), c"pos".as_ptr());
                     return;
                 }
                 if tv_list_len((*di).di_tv.vval.v_list) != 3 {
-                    semsg(
+                    semsg!(
                         tr(e_invarg2.as_ptr()),
                         c"List format should be [lnum, col, off]".as_ptr(),
                     );
@@ -3703,7 +3702,7 @@ pub unsafe extern "C" fn find_pattern_in_path(
                             msg_trunc(iobuff_ptr, true, HLF_R);
                         } else if p_verbose >= 5 {
                             verbose_enter();
-                            smsg(0, tr(c"Searching included file %s".as_ptr()), new_fname);
+                            smsg!(0, tr(c"Searching included file %s".as_ptr()), new_fname);
                             verbose_leave();
                         }
                     }

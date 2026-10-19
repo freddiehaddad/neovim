@@ -12,6 +12,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -103,8 +104,6 @@ unsafe extern "C" {
     fn strtok_r(str_: *mut c_char, delim: *const c_char, saveptr: *mut *mut c_char) -> *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn smsg(attr: c_int, s: *const c_char, ...) -> c_int;
-    fn semsg(s: *const c_char, ...) -> bool;
 
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
@@ -281,7 +280,7 @@ pub unsafe extern "C" fn ex_language(eap: *mut exarg_T) {
             if p_val.is_null() || *p_val == NUL {
                 p_val = c"Unknown".as_ptr().cast_mut();
             }
-            let _ = smsg(
+            let _ = smsg!(
                 0,
                 gettext(c"Current %slanguage: \"%s\"".as_ptr()),
                 whatstr,
@@ -304,7 +303,7 @@ pub unsafe extern "C" fn ex_language(eap: *mut exarg_T) {
             };
 
             if loc.is_null() {
-                let _ = semsg(
+                let _ = semsg!(
                     gettext(c"E197: Cannot set language to \"%s\"".as_ptr()),
                     name,
                 );

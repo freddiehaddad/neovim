@@ -12,6 +12,7 @@
 
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::message::msg_schedule_semsg_multiline;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -45,7 +46,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
 unsafe extern "C" {
 
     fn describe_ns(ns_id: NS, fail: *const c_char) -> *const c_char;
-    fn msg_schedule_semsg_multiline(fmt: *const c_char, ...);
     fn nlua_call_ref(
         ref_: LuaRef,
         name: *const c_char,
@@ -160,7 +160,7 @@ unsafe fn decor_provider_error(
             ns,
             msg,
         );
-        msg_schedule_semsg_multiline(
+        msg_schedule_semsg_multiline!(
             c"Decoration provider \"%s\" (ns=%s):\n%s".as_ptr(),
             name,
             ns,

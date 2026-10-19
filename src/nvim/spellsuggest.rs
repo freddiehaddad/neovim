@@ -31,6 +31,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
@@ -331,9 +332,7 @@ static mut expr_busy: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, fmt: *const c_char, ...) -> bool;
     fn msg_ext_set_kind(msg_kind: *const c_char);
     fn internal_error(where_: *const c_char);
     fn option_next_keyval(
@@ -892,7 +891,7 @@ pub unsafe extern "C" fn spell_suggest(count: c_int) {
             } else if count > 0 {
                 if count > sug.su_ga.ga_len {
                     msg_ext_set_kind(c"wmsg".as_ptr());
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Only %lld suggestions".as_ptr()),
                         sug.su_ga.ga_len as i64,
@@ -1169,7 +1168,7 @@ unsafe fn spell_suggest_file(su: *mut suginfo_T, fname: *mut c_char) {
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext((&raw const e_notopen).cast()), fname);
             return;
         }
         while !vim_fgets((&raw mut line).cast(), (MAXWLEN * 2) as c_int, fd) && !got_int {

@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -954,7 +955,6 @@ unsafe extern "C" {
     fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn beep_flush();
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
     fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
@@ -3844,7 +3844,7 @@ pub unsafe extern "C" fn f_setcellwidths(
             while !li.is_null() {
                 let li_tv = &(*li).li_tv;
                 if li_tv.v_type != VarType::VAR_LIST || li_tv.vval.v_list.is_null() {
-                    semsg(E_LIST_ITEM_NR_IS_NOT_LIST.as_ptr(), item);
+                    semsg!(E_LIST_ITEM_NR_IS_NOT_LIST.as_ptr(), item);
                     return;
                 }
 
@@ -3865,10 +3865,10 @@ pub unsafe extern "C" fn f_setcellwidths(
                             return;
                         }
                     } else if i == 1 && lili_tv.vval.v_number < n1 {
-                        semsg(E_LIST_ITEM_NR_RANGE_INVALID.as_ptr(), item);
+                        semsg!(E_LIST_ITEM_NR_RANGE_INVALID.as_ptr(), item);
                         return;
                     } else if i == 2 && (lili_tv.vval.v_number < 1 || lili_tv.vval.v_number > 2) {
-                        semsg(E_LIST_ITEM_NR_CELL_WIDTH_INVALID.as_ptr(), item);
+                        semsg!(E_LIST_ITEM_NR_CELL_WIDTH_INVALID.as_ptr(), item);
                         return;
                     }
                     lili = (*lili).li_next;
@@ -3876,7 +3876,7 @@ pub unsafe extern "C" fn f_setcellwidths(
                 }
 
                 if i != 3 {
-                    semsg(E_LIST_ITEM_NR_DOES_NOT_CONTAIN_3_NUMBERS.as_ptr(), item);
+                    semsg!(E_LIST_ITEM_NR_DOES_NOT_CONTAIN_3_NUMBERS.as_ptr(), item);
                     return;
                 }
 
@@ -3891,7 +3891,7 @@ pub unsafe extern "C" fn f_setcellwidths(
                 let lili0 = tv_list_first(li_l);
                 let n1 = (*lili0).li_tv.vval.v_number;
                 if idx > 0 && n1 <= (*table.add(idx - 1)).last {
-                    semsg(E_OVERLAPPING_RANGES_FOR_NR.as_ptr(), n1 as usize);
+                    semsg!(E_OVERLAPPING_RANGES_FOR_NR.as_ptr(), n1 as usize);
                     xfree(table.cast());
                     return;
                 }

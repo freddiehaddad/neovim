@@ -24,6 +24,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, semsg_multiline};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
@@ -615,8 +616,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
-    fn semsg_multiline(context: *const c_char, fmt: *const c_char, ...);
     fn emsg_funcname(ermsg: *const c_char, name: *const c_char);
     fn internal_error(where_: *const c_char);
     fn verb_msg(s: *const c_char) -> c_int;
@@ -1012,7 +1011,7 @@ unsafe fn tv_get_float_chk(tv: *const typval_T, ret_f: *mut float_T) -> bool {
             *ret_f = (*tv).vval.v_number as float_T;
             return true;
         }
-        semsg(
+        semsg!(
             c"%s".as_ptr(),
             gettext(c"E808: Number or Float required".as_ptr()),
         );
@@ -1156,9 +1155,9 @@ pub unsafe extern "C" fn check_internal_func(fdef: *const EvalFuncDef, argcount:
 
         let name = (*fdef).name;
         if res == FCERR_TOOMANY {
-            semsg(gettext(e_toomanyarg.as_ptr()), name);
+            semsg!(gettext(e_toomanyarg.as_ptr()), name);
         } else {
-            semsg(gettext(e_toofewarg.as_ptr()), name);
+            semsg!(gettext(e_toofewarg.as_ptr()), name);
         }
         -1
     }
@@ -1309,7 +1308,7 @@ pub unsafe extern "C" fn api_wrapper(
         let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &raw mut arena, &raw mut err);
 
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg);
+            semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg);
         } else {
             object_to_vim_take_luaref(&raw mut result, rettv, true, &raw mut err);
         }
@@ -1374,7 +1373,7 @@ pub unsafe extern "C" fn lua_wrapper(
         );
 
         if err.err_type != ErrorType::kErrorTypeNone {
-            semsg_multiline(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg);
+            semsg_multiline!(c"emsg".as_ptr(), e_api_error.as_ptr(), err.msg);
         } else {
             object_to_vim_take_luaref(&raw mut result, rettv, true, &raw mut err);
         }
@@ -1515,7 +1514,7 @@ pub unsafe extern "C" fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T {
         let buf = tv_get_buf(arg, 0);
         emsg_off -= 1;
         if buf.is_null() {
-            semsg(
+            semsg!(
                 gettext(c"E158: Invalid buffer name: %s".as_ptr()),
                 tv_get_string(arg),
             );
@@ -1654,7 +1653,7 @@ pub unsafe extern "C" fn f_chanclose(
             } else if strcmp(stream, c"rpc".as_ptr()) == 0 {
                 part = kChannelPartRpc;
             } else {
-                semsg(gettext(c"Invalid channel stream \"%s\"".as_ptr()), stream);
+                semsg!(gettext(c"Invalid channel stream \"%s\"".as_ptr()), stream);
                 return;
             }
         }
@@ -1937,7 +1936,7 @@ unsafe fn set_cursorpos(argvars: *mut typval_T, rettv: *mut typval_T, charcol: b
         {
             let mut ln = tv_get_lnum(argvars);
             if ln < 0 {
-                semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
+                semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
             } else if ln == 0 {
                 ln = (*curwin).w_cursor.lnum;
             }
@@ -2058,12 +2057,12 @@ pub unsafe extern "C" fn f_dictwatcheradd(
             return;
         }
         if (*argvars).v_type != VarType::VAR_DICT {
-            semsg(gettext(e_invarg2.as_ptr()), c"dict".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"dict".as_ptr());
             return;
         } else if (*argvars).vval.v_dict.is_null() {
             let arg_errmsg = gettext(c"dictwatcheradd() argument".as_ptr());
             let arg_errmsg_len = strlen(arg_errmsg);
-            semsg(
+            semsg!(
                 gettext(e_cannot_change_readonly_variable_str.as_ptr()),
                 arg_errmsg_len as c_int,
                 arg_errmsg,
@@ -2074,7 +2073,7 @@ pub unsafe extern "C" fn f_dictwatcheradd(
         if (*argvars.add(1)).v_type != VarType::VAR_STRING
             && (*argvars.add(1)).v_type != VarType::VAR_NUMBER
         {
-            semsg(gettext(e_invarg2.as_ptr()), c"key".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"key".as_ptr());
             return;
         }
 
@@ -2089,7 +2088,7 @@ pub unsafe extern "C" fn f_dictwatcheradd(
             cb_type: kCallbackNone,
         };
         if !callback_from_typval(&raw mut callback, argvars.add(2)) {
-            semsg(gettext(e_invarg2.as_ptr()), c"funcref".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"funcref".as_ptr());
             return;
         }
 
@@ -2114,13 +2113,13 @@ pub unsafe extern "C" fn f_dictwatcherdel(
             return;
         }
         if (*argvars).v_type != VarType::VAR_DICT {
-            semsg(gettext(e_invarg2.as_ptr()), c"dict".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"dict".as_ptr());
             return;
         }
         if (*argvars.add(2)).v_type != VarType::VAR_FUNC
             && (*argvars.add(2)).v_type != VarType::VAR_STRING
         {
-            semsg(gettext(e_invarg2.as_ptr()), c"funcref".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"funcref".as_ptr());
             return;
         }
 
@@ -2254,13 +2253,13 @@ pub unsafe extern "C" fn f_eval(argvars: *mut typval_T, rettv: *mut typval_T, _f
         let expr_start = s;
         if s.is_null() || eval1(&raw mut s, rettv, &raw mut EVALARG_EVALUATE) == FAIL {
             if !expr_start.is_null() && !aborting() {
-                semsg(gettext(e_invexpr2.as_ptr()), expr_start);
+                semsg!(gettext(e_invexpr2.as_ptr()), expr_start);
             }
             need_clr_eos = false;
             (*rettv).v_type = VarType::VAR_NUMBER;
             (*rettv).vval.v_number = 0;
         } else if *s != NUL {
-            semsg(gettext(e_trailing_arg.as_ptr()), s);
+            semsg!(gettext(e_trailing_arg.as_ptr()), s);
         }
     }
 }
@@ -2617,7 +2616,7 @@ unsafe fn flatten_common(argvars: *mut typval_T, rettv: *mut typval_T, make_copy
     unsafe {
         let mut error = false;
         if (*argvars).v_type != VarType::VAR_LIST {
-            semsg(gettext(e_listarg.as_ptr()), c"flatten()".as_ptr());
+            semsg!(gettext(e_listarg.as_ptr()), c"flatten()".as_ptr());
             return;
         }
 
@@ -2811,7 +2810,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                 || (use_string && ascii_isdigit(*s))
                 || (is_funcref && trans_name.is_null())
             {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     if use_string {
                         tv_get_string(argvars)
@@ -2826,7 +2825,7 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                     !translated_function_exists(trans_name)
                 }
             {
-                semsg(gettext(c"E700: Unknown function: %s".as_ptr()), s);
+                semsg!(gettext(c"E700: Unknown function: %s".as_ptr()), s);
             } else {
                 let mut dict_idx: usize = 0;
                 let mut arg_idx: usize = 0;
@@ -3092,7 +3091,7 @@ pub unsafe extern "C" fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                         if varargs { kBoolVarTrue } else { kBoolVarFalse },
                     );
                 } else {
-                    semsg(gettext(e_invarg2.as_ptr()), what);
+                    semsg!(gettext(e_invarg2.as_ptr()), what);
                 }
 
                 if !what_is_dict {
@@ -3100,7 +3099,7 @@ pub unsafe extern "C" fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                 }
             }
         } else {
-            semsg(gettext(e_listdictblobarg.as_ptr()), c"get()".as_ptr());
+            semsg!(gettext(e_listdictblobarg.as_ptr()), c"get()".as_ptr());
         }
 
         if tv.is_null() {
@@ -3535,13 +3534,13 @@ unsafe fn getregionpos(
             if *p != NUL {
                 block_width = getdigits_int(&raw mut p, false, 0);
                 if block_width <= 0 || *p != NUL {
-                    semsg(gettext(e_invargNval.as_ptr()), c"type".as_ptr(), type_str);
+                    semsg!(gettext(e_invargNval.as_ptr()), c"type".as_ptr(), type_str);
                     return FAIL;
                 }
             }
             *region_type = kMTBlockWise;
         } else {
-            semsg(gettext(e_invargNval.as_ptr()), c"type".as_ptr(), type_str);
+            semsg!(gettext(e_invargNval.as_ptr()), c"type".as_ptr(), type_str);
             return FAIL;
         }
 
@@ -3556,24 +3555,24 @@ unsafe fn getregionpos(
         }
 
         if (*p1).lnum < 1 || (*p1).lnum > (*findbuf).b_ml.ml_line_count {
-            semsg(gettext(e_invalid_line_number_nr.as_ptr()), (*p1).lnum);
+            semsg!(gettext(e_invalid_line_number_nr.as_ptr()), (*p1).lnum);
             return FAIL;
         }
         if (*p1).col == MAXCOL {
             (*p1).col = ml_get_buf_len(findbuf, (*p1).lnum) + 1;
         } else if (*p1).col < 1 || (*p1).col > ml_get_buf_len(findbuf, (*p1).lnum) + 1 {
-            semsg(gettext(e_invalid_column_number_nr.as_ptr()), (*p1).col);
+            semsg!(gettext(e_invalid_column_number_nr.as_ptr()), (*p1).col);
             return FAIL;
         }
 
         if (*p2).lnum < 1 || (*p2).lnum > (*findbuf).b_ml.ml_line_count {
-            semsg(gettext(e_invalid_line_number_nr.as_ptr()), (*p2).lnum);
+            semsg!(gettext(e_invalid_line_number_nr.as_ptr()), (*p2).lnum);
             return FAIL;
         }
         if (*p2).col == MAXCOL {
             (*p2).col = ml_get_buf_len(findbuf, (*p2).lnum) + 1;
         } else if (*p2).col < 1 || (*p2).col > ml_get_buf_len(findbuf, (*p2).lnum) + 1 {
-            semsg(gettext(e_invalid_column_number_nr.as_ptr()), (*p2).col);
+            semsg!(gettext(e_invalid_column_number_nr.as_ptr()), (*p2).col);
             return FAIL;
         }
 
@@ -3969,7 +3968,7 @@ pub unsafe extern "C" fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _f
         (*rettv).vval.v_number = -1;
 
         if (*argvars).v_type != VarType::VAR_NUMBER {
-            semsg(gettext(e_invargval.as_ptr()), c"1".as_ptr());
+            semsg!(gettext(e_invargval.as_ptr()), c"1".as_ptr());
             return;
         }
         if ((*argvars.add(2)).v_type != VarType::VAR_NUMBER
@@ -3977,7 +3976,7 @@ pub unsafe extern "C" fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _f
             || ((*argvars.add(2)).v_type == VarType::VAR_NUMBER
                 && (*argvars.add(2)).vval.v_number <= 0)
         {
-            semsg(gettext(e_invargval.as_ptr()), c"3".as_ptr());
+            semsg!(gettext(e_invargval.as_ptr()), c"3".as_ptr());
             return;
         }
 
@@ -4475,7 +4474,7 @@ pub unsafe extern "C" fn f_inputlist(
 ) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
-            semsg(gettext(e_listarg.as_ptr()), c"inputlist()".as_ptr());
+            semsg!(gettext(e_listarg.as_ptr()), c"inputlist()".as_ptr());
             return;
         }
 
@@ -4604,7 +4603,7 @@ pub unsafe extern "C" fn f_islocked(
         );
         if !end.is_null() && !lv.ll_name.is_null() {
             if *end != NUL {
-                semsg(
+                semsg!(
                     gettext(if lv.ll_name_len == 0 {
                         e_invarg2.as_ptr()
                     } else {
@@ -4623,7 +4622,7 @@ pub unsafe extern "C" fn f_islocked(
             } else if lv.ll_range {
                 emsg(gettext(c"E786: Range not allowed".as_ptr()));
             } else if !lv.ll_newkey.is_null() {
-                semsg(gettext(e_dictkey.as_ptr()), lv.ll_newkey);
+                semsg!(gettext(e_dictkey.as_ptr()), lv.ll_newkey);
             } else if !lv.ll_list.is_null() {
                 (*rettv).vval.v_number =
                     varnumber_T::from(tv_islocked(&raw const (*lv.ll_li).li_tv));
@@ -4899,7 +4898,7 @@ pub unsafe extern "C" fn f_jobstart(
         if (*argvars.add(1)).v_type != VarType::VAR_DICT
             && (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
         {
-            semsg(gettext(e_invarg2.as_ptr()), c"expected dictionary".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"expected dictionary".as_ptr());
             shell_free_argv(argv);
             return;
         }
@@ -4938,13 +4937,13 @@ pub unsafe extern "C" fn f_jobstart(
                 } else if strncmp(s, c"pipe".as_ptr(), NUMBUFLEN) == 0 {
                     // default
                 } else {
-                    semsg(gettext(e_invargNval.as_ptr()), c"stdin".as_ptr(), s);
+                    semsg!(gettext(e_invargNval.as_ptr()), c"stdin".as_ptr(), s);
                 }
             }
 
             let job_term = tv_dict_find(job_opts, c"term".as_ptr(), 4);
             if !job_term.is_null() && (*job_term).di_tv.v_type != VarType::VAR_BOOL {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     c"'term' must be Boolean".as_ptr(),
                 );
@@ -4953,7 +4952,7 @@ pub unsafe extern "C" fn f_jobstart(
             }
 
             if pty && rpc {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     c"job cannot have both 'pty' and 'rpc' options set".as_ptr(),
                 );
@@ -4963,7 +4962,7 @@ pub unsafe extern "C" fn f_jobstart(
 
             #[cfg(windows)]
             if pty && overlapped {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     c"job cannot have both 'pty' and 'overlapped' options set".as_ptr(),
                 );
@@ -4975,7 +4974,7 @@ pub unsafe extern "C" fn f_jobstart(
             if !new_cwd.is_null() && *new_cwd != NUL {
                 cwd = new_cwd;
                 if !os_isdir(cwd) {
-                    semsg(
+                    semsg!(
                         gettext(e_invarg2.as_ptr()),
                         c"expected valid directory".as_ptr(),
                     );
@@ -4986,7 +4985,7 @@ pub unsafe extern "C" fn f_jobstart(
 
             job_env = tv_dict_find(job_opts, c"env".as_ptr(), 3);
             if !job_env.is_null() && (*job_env).di_tv.v_type != VarType::VAR_DICT {
-                semsg(gettext(e_invarg2.as_ptr()), c"env".as_ptr());
+                semsg!(gettext(e_invarg2.as_ptr()), c"env".as_ptr());
                 shell_free_argv(argv);
                 return;
             }
@@ -5021,7 +5020,7 @@ pub unsafe extern "C" fn f_jobstart(
             }
             if !(*curbuf).terminal.is_null() {
                 if terminal_running((*curbuf).terminal) {
-                    semsg(
+                    semsg!(
                         gettext(c"Terminal already connected to buffer %d".as_ptr()),
                         (*curbuf).b_fnum,
                     );
@@ -5385,7 +5384,7 @@ pub unsafe extern "C" fn f_json_decode(
             }
         }
         if json_decode_string(s, len, rettv) == FAIL {
-            semsg(
+            semsg!(
                 gettext(c"E474: Failed to parse %.*s".as_ptr()),
                 len as c_int,
                 s,
@@ -5495,7 +5494,7 @@ unsafe fn libcall_common(argvars: *mut typval_T, rettv: *mut typval_T, out_type:
 
         let success = os_libcall(libname, funcname, str_in, int_in, str_out, &raw mut int_out);
         if !success {
-            semsg(gettext(e_libcall.as_ptr()), funcname);
+            semsg!(gettext(e_libcall.as_ptr()), funcname);
             return;
         }
         if out_type == VarType::VAR_NUMBER {
@@ -5916,7 +5915,7 @@ pub unsafe extern "C" fn f_matchbufline(
         let buf = tv_get_buf(argvars, 0);
         if buf.is_null() {
             if did_emsg == prev_did_emsg {
-                semsg(
+                semsg!(
                     gettext(e_invalid_buffer_name_str.as_ptr()),
                     tv_get_string(argvars),
                 );
@@ -5937,7 +5936,7 @@ pub unsafe extern "C" fn f_matchbufline(
             return;
         }
         if slnum < 1 {
-            semsg(gettext(e_invargval.as_ptr()), c"lnum".as_ptr());
+            semsg!(gettext(e_invargval.as_ptr()), c"lnum".as_ptr());
             return;
         }
 
@@ -5946,7 +5945,7 @@ pub unsafe extern "C" fn f_matchbufline(
             return;
         }
         if elnum < 1 || elnum < slnum {
-            semsg(gettext(e_invargval.as_ptr()), c"end_lnum".as_ptr());
+            semsg!(gettext(e_invargval.as_ptr()), c"end_lnum".as_ptr());
             return;
         }
 
@@ -5961,7 +5960,7 @@ pub unsafe extern "C" fn f_matchbufline(
                 let di = tv_dict_find(d, c"submatches".as_ptr(), 10);
                 if !di.is_null() {
                     if (*di).di_tv.v_type != VarType::VAR_BOOL {
-                        semsg(gettext(e_invargval.as_ptr()), c"submatches".as_ptr());
+                        semsg!(gettext(e_invargval.as_ptr()), c"submatches".as_ptr());
                         return;
                     }
                     submatches = tv_get_bool(&raw const (*di).di_tv) != 0;
@@ -6084,7 +6083,7 @@ pub unsafe extern "C" fn f_matchstrlist(
                         let di = tv_dict_find(d, c"submatches".as_ptr(), 10);
                         if !di.is_null() {
                             if (*di).di_tv.v_type != VarType::VAR_BOOL {
-                                semsg(gettext(e_invargval.as_ptr()), c"submatches".as_ptr());
+                                semsg!(gettext(e_invargval.as_ptr()), c"submatches".as_ptr());
                                 break 'cleanup;
                             }
                             submatches = tv_get_bool(&raw const (*di).di_tv) != 0;
@@ -6174,7 +6173,7 @@ unsafe fn max_min(tv: *const typval_T, rettv: *mut typval_T, domax: bool) {
                 hi = hi.add(1);
             }
         } else {
-            semsg(
+            semsg!(
                 gettext(e_listdictarg.as_ptr()),
                 if domax {
                     c"max()".as_ptr()
@@ -6284,7 +6283,7 @@ pub unsafe extern "C" fn f_msgpackdump(
 ) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
-            semsg(gettext(e_listarg.as_ptr()), c"msgpackdump()".as_ptr());
+            semsg!(gettext(e_listarg.as_ptr()), c"msgpackdump()".as_ptr());
             return;
         }
         let list = (*argvars).vval.v_list;
@@ -6325,19 +6324,19 @@ unsafe fn emsg_mpack_error(status: c_int) {
     unsafe {
         match status {
             MPACK_ERROR => {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     c"Failed to parse msgpack string".as_ptr(),
                 );
             }
             MPACK_EOF => {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     c"Incomplete msgpack string".as_ptr(),
                 );
             }
             MPACK_NOMEM => {
-                semsg(
+                semsg!(
                     gettext(e_invarg2.as_ptr()),
                     c"object was too deep to unpack".as_ptr(),
                 );
@@ -6353,7 +6352,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
             return;
         }
         if (*tv_list_first(list)).li_tv.v_type != VarType::VAR_STRING {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 c"List item is not a string".as_ptr(),
             );
@@ -6379,7 +6378,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
                     &raw mut read_bytes,
                 );
                 if rlret == FAIL {
-                    semsg(
+                    semsg!(
                         gettext(e_invarg2.as_ptr()),
                         c"List item is not a string".as_ptr(),
                     );
@@ -6451,7 +6450,7 @@ pub unsafe extern "C" fn f_msgpackparse(
 ) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST && (*argvars).v_type != VarType::VAR_BLOB {
-            semsg(gettext(e_listblobarg.as_ptr()), c"msgpackparse()".as_ptr());
+            semsg!(gettext(e_listblobarg.as_ptr()), c"msgpackparse()".as_ptr());
             return;
         }
         let ret_list = tv_list_alloc_ret(rettv, kListLenMayKnow);
@@ -6509,7 +6508,7 @@ pub unsafe extern "C" fn f_nr2char(
             return;
         }
         if num > varnumber_T::from(c_int::MAX) {
-            semsg(
+            semsg!(
                 gettext(c"E5071: Character number must not be greater than INT_MAX (%i)".as_ptr()),
                 c_int::MAX,
             );
@@ -6702,7 +6701,7 @@ pub unsafe extern "C" fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _f
         } else if (*argvars).v_type == VarType::VAR_LIST {
             let l = (*argvars).vval.v_list;
             if tv_list_len(l) != 4 {
-                semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
+                semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
                 (*rettv).v_type = VarType::VAR_NUMBER;
                 (*rettv).vval.v_number = -1;
                 return;
@@ -6717,7 +6716,7 @@ pub unsafe extern "C" fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _f
                 || (*tvz).v_type != VarType::VAR_NUMBER
                 || (*tvw).v_type != VarType::VAR_NUMBER
             {
-                semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
+                semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
                 (*rettv).v_type = VarType::VAR_NUMBER;
                 (*rettv).vval.v_number = -1;
                 return;
@@ -6734,7 +6733,7 @@ pub unsafe extern "C" fn f_rand(argvars: *mut typval_T, rettv: *mut typval_T, _f
             (*tvz).vval.v_number = varnumber_T::from(z);
             (*tvw).vval.v_number = varnumber_T::from(w);
         } else {
-            semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
+            semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars));
             (*rettv).v_type = VarType::VAR_NUMBER;
             (*rettv).vval.v_number = -1;
             return;
@@ -7160,7 +7159,7 @@ unsafe fn reduce_list(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut t
         let mut li: *const listitem_T;
         if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
             if tv_list_len(l) == 0 {
-                semsg(
+                semsg!(
                     gettext(e_reduce_of_an_empty_str_with_no_initial_value.as_ptr()),
                     c"List".as_ptr(),
                 );
@@ -7206,7 +7205,7 @@ unsafe fn reduce_string(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut
 
         if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
             if *p == NUL {
-                semsg(
+                semsg!(
                     gettext(e_reduce_of_an_empty_str_with_no_initial_value.as_ptr()),
                     c"String".as_ptr(),
                 );
@@ -7260,7 +7259,7 @@ unsafe fn reduce_blob(argvars: *mut typval_T, expr: *mut typval_T, rettv: *mut t
         let mut i: c_int;
         if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
             if tv_blob_len(b) == 0 {
-                semsg(
+                semsg!(
                     gettext(e_reduce_of_an_empty_str_with_no_initial_value.as_ptr()),
                     c"Blob".as_ptr(),
                 );
@@ -7372,7 +7371,7 @@ unsafe fn get_search_arg(varp: *mut typval_T, flagsp: *mut c_int) -> c_int {
                         };
                     }
                     if mask == 0 {
-                        semsg(gettext(e_invarg2.as_ptr()), flags);
+                        semsg!(gettext(e_invarg2.as_ptr()), flags);
                         dir = 0;
                     } else {
                         *flagsp |= mask;
@@ -7435,7 +7434,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
             if ((flags & (SP_REPEAT | SP_RETCOUNT)) != 0)
                 || ((flags & SP_NOMOVE) != 0 && (flags & SP_SETPCMARK) != 0)
             {
-                semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(1)));
+                semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(1)));
                 break 'theend;
             }
 
@@ -7548,14 +7547,14 @@ pub unsafe extern "C" fn f_rpcnotify(
             return;
         }
         if (*argvars).v_type != VarType::VAR_NUMBER || (*argvars).vval.v_number < 0 {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 c"Channel id must be a positive integer".as_ptr(),
             );
             return;
         }
         if (*argvars.add(1)).v_type != VarType::VAR_STRING {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 c"Event type must be a string".as_ptr(),
             );
@@ -7593,7 +7592,7 @@ pub unsafe extern "C" fn f_rpcnotify(
         arena_mem_free(arena_finish(&raw mut arena));
 
         if !ok {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 c"Channel doesn't exist".as_ptr(),
             );
@@ -7619,14 +7618,14 @@ pub unsafe extern "C" fn f_rpcrequest(
             return;
         }
         if (*argvars).v_type != VarType::VAR_NUMBER || (*argvars).vval.v_number <= 0 {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 c"Channel id must be a positive integer".as_ptr(),
             );
             return;
         }
         if (*argvars.add(1)).v_type != VarType::VAR_STRING {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 c"Method name must be a string".as_ptr(),
             );
@@ -7716,7 +7715,7 @@ pub unsafe extern "C" fn f_rpcrequest(
                 name = get_client_info(chan, c"name".as_ptr());
             }
             if !name.is_null() {
-                semsg_multiline(
+                semsg_multiline!(
                     c"rpc_error".as_ptr(),
                     c"Invoking '%s' on channel %llu (%s):\n%s".as_ptr(),
                     method,
@@ -7725,7 +7724,7 @@ pub unsafe extern "C" fn f_rpcrequest(
                     err.msg,
                 );
             } else {
-                semsg_multiline(
+                semsg_multiline!(
                     c"rpc_error".as_ptr(),
                     c"Invoking '%s' on channel %llu:\n%s".as_ptr(),
                     method,
@@ -7966,7 +7965,7 @@ unsafe fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int
             if ((flags & (SP_END | SP_SUBPAT)) != 0)
                 || ((flags & SP_NOMOVE) != 0 && (flags & SP_SETPCMARK) != 0)
             {
-                semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(3)));
+                semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(3)));
                 break 'theend;
             }
 
@@ -7983,13 +7982,13 @@ unsafe fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int
                 if (*argvars.add(5)).v_type != VarType::VAR_UNKNOWN {
                     lnum_stop = tv_get_number_chk(argvars.add(5), ptr::null_mut()) as linenr_T;
                     if lnum_stop < 0 {
-                        semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(5)));
+                        semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(5)));
                         break 'theend;
                     }
                     if (*argvars.add(6)).v_type != VarType::VAR_UNKNOWN {
                         time_limit = tv_get_number_chk(argvars.add(6), ptr::null_mut());
                         if time_limit < 0 {
-                            semsg(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(6)));
+                            semsg!(gettext(e_invarg2.as_ptr()), tv_get_string(argvars.add(6)));
                             break 'theend;
                         }
                     }
@@ -8341,7 +8340,7 @@ pub unsafe extern "C" fn f_serverstart(
         xfree(address.cast());
 
         if result != 0 {
-            semsg(
+            semsg!(
                 c"Failed to start server: %s".as_ptr(),
                 if result > 0 {
                     c"Unknown system error".as_ptr()
@@ -8552,7 +8551,7 @@ pub unsafe extern "C" fn f_setfperm(
             return;
         }
         if strlen(mode_str) != 9 {
-            semsg(gettext(e_invarg2.as_ptr()), mode_str);
+            semsg!(gettext(e_invarg2.as_ptr()), mode_str);
             return;
         }
 
@@ -8658,7 +8657,7 @@ pub unsafe extern "C" fn f_setreg(
                 let ret = get_yank_type(&raw mut stropt, &raw mut yank_type, &raw mut block_len);
                 stropt = stropt.add(1);
                 if ret == FAIL || *stropt != NUL {
-                    semsg(gettext(e_invargval.as_ptr()), c"value".as_ptr());
+                    semsg!(gettext(e_invargval.as_ptr()), c"value".as_ptr());
                     return;
                 }
             }
@@ -8679,7 +8678,7 @@ pub unsafe extern "C" fn f_setreg(
         let mut set_unnamed = false;
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             if yank_type != crate::clipboard::MotionType::kMTUnknown {
-                semsg(gettext(e_toomanyarg.as_ptr()), c"setreg".as_ptr());
+                semsg!(gettext(e_toomanyarg.as_ptr()), c"setreg".as_ptr());
                 return;
             }
 
@@ -8802,7 +8801,7 @@ pub unsafe extern "C" fn f_settagstack(
             {
                 action = *actstr;
             } else {
-                semsg(gettext(E_INVACT2.as_ptr()), actstr);
+                semsg!(gettext(E_INVACT2.as_ptr()), actstr);
                 return;
             }
         }
@@ -8898,7 +8897,7 @@ pub unsafe extern "C" fn f_sockconnect(
         if (*argvars.add(2)).v_type != VarType::VAR_DICT
             && (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
         {
-            semsg(gettext(e_invarg2.as_ptr()), c"expected dictionary".as_ptr());
+            semsg!(gettext(e_invarg2.as_ptr()), c"expected dictionary".as_ptr());
             return;
         }
 
@@ -8911,7 +8910,7 @@ pub unsafe extern "C" fn f_sockconnect(
             } else if strcmp(mode, c"pipe".as_ptr()) == 0 {
                 false
             } else {
-                semsg(gettext(e_invarg2.as_ptr()), c"invalid mode".as_ptr());
+                semsg!(gettext(e_invarg2.as_ptr()), c"invalid mode".as_ptr());
                 break 'cleanup;
             };
 
@@ -8933,7 +8932,7 @@ pub unsafe extern "C" fn f_sockconnect(
             let mut error: *const c_char = ptr::null();
             let id = channel_connect(tcp, address, rpc, on_data, 50, &raw mut error);
             if !error.is_null() {
-                semsg(gettext(c"connection failed: %s".as_ptr()), error);
+                semsg!(gettext(c"connection failed: %s".as_ptr()), error);
             }
 
             (*rettv).vval.v_number = id as varnumber_T;
@@ -8976,7 +8975,7 @@ pub unsafe extern "C" fn f_stdioopen(
         let mut error: *const c_char = ptr::null();
         let id = channel_from_stdio(rpc, on_stdin, &raw mut error);
         if id == 0 {
-            semsg(e_stdiochan2.as_ptr(), error);
+            semsg!(e_stdiochan2.as_ptr(), error);
         }
 
         (*rettv).vval.v_number = id as varnumber_T;
@@ -9290,7 +9289,7 @@ pub unsafe extern "C" fn f_stdpath(
         } else if strequal(p, c"data_dirs".as_ptr()) {
             get_xdg_var_list(XDGVarType::kXDGDataDirs, rettv);
         } else {
-            semsg(gettext(c"E6100: \"%s\" is not a valid stdpath".as_ptr()), p);
+            semsg!(gettext(c"E6100: \"%s\" is not a valid stdpath".as_ptr()), p);
         }
     }
 }
@@ -9418,7 +9417,7 @@ pub unsafe extern "C" fn f_submatch(
             return;
         }
         if no < 0 || (no as usize) >= NSUBEXP {
-            semsg(gettext(E_INVALID_SUBMATCH_NUMBER_NR.as_ptr()), no);
+            semsg!(gettext(E_INVALID_SUBMATCH_NUMBER_NR.as_ptr()), no);
             return;
         }
         let mut ret_list: c_int = 0;

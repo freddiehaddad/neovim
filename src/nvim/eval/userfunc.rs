@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg, swmsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -245,11 +246,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn iemsg(s: *const c_char);
-    fn siemsg(fmt: *const c_char, ...);
-    fn smsg(attr: c_int, fmt: *const c_char, ...) -> c_int;
-    fn swmsg(always: bool, fmt: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
 
     fn eval0(
@@ -557,7 +554,7 @@ unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool)
             || (len == 8 && strncmp(arg, c"lastline".as_ptr(), 8) == 0)
         {
             if !skip {
-                semsg(gettext(c"E125: Illegal argument: %s".as_ptr()), arg);
+                semsg!(gettext(c"E125: Illegal argument: %s".as_ptr()), arg);
             }
             return arg;
         }
@@ -575,7 +572,7 @@ unsafe fn one_function_arg(arg: *mut c_char, newargs: *mut garray_T, skip: bool)
                     arg_copy,
                 ) == 0
                 {
-                    semsg(
+                    semsg!(
                         gettext(c"E853: Duplicate argument name: %s".as_ptr()),
                         arg_copy,
                     );
@@ -666,7 +663,7 @@ unsafe fn get_function_args(
 
                 if ascii_iswhite(*p as c_int) && *skipwhite(p) == b',' as c_char {
                     if !skip {
-                        semsg(
+                        semsg!(
                             gettext(E_NO_WHITE_SPACE_ALLOWED_BEFORE_STR_STR.as_ptr()),
                             c",".as_ptr(),
                             p,
@@ -690,7 +687,7 @@ unsafe fn get_function_args(
             p = skipwhite(p);
             if mustend && *p != endchar {
                 if !skip {
-                    semsg(gettext(e_invarg2.as_ptr()), *argp);
+                    semsg!(gettext(e_invarg2.as_ptr()), *argp);
                 }
                 break;
             }
@@ -857,7 +854,7 @@ pub unsafe extern "C" fn get_lambda_tv(
 
         *arg = skipwhite(*arg);
         if **arg != b'}' as c_char {
-            semsg(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
+            semsg!(gettext(c"E451: Expected }: %s".as_ptr()), *arg);
             ga_clear_strings(&raw mut newargs);
             xfree(pt.cast());
             if !evalarg.is_null() && (*evalarg).eval_tofree.is_null() {
@@ -1002,7 +999,7 @@ pub unsafe extern "C" fn emsg_funcname(errmsg: *const c_char, name: *const c_cha
             p = concat_str(c"<SNR>".as_ptr(), name.add(3));
         }
 
-        semsg(gettext(errmsg), p);
+        semsg!(gettext(errmsg), p);
 
         if p.cast_const() != name {
             xfree(p.cast());
@@ -1727,7 +1724,7 @@ pub unsafe extern "C" fn call_user_func(
             no_wait_return += 1;
             verbose_enter_scroll();
 
-            smsg(0, gettext(c"calling %s".as_ptr()), sourcing_name());
+            smsg!(0, gettext(c"calling %s".as_ptr()), sourcing_name());
             if p_verbose >= 14 {
                 msg_puts(c"(".as_ptr());
                 for i in 0..argcount {
@@ -1844,9 +1841,9 @@ pub unsafe extern "C" fn call_user_func(
             verbose_enter_scroll();
 
             if aborting() {
-                smsg(0, gettext(c"%s aborted".as_ptr()), sourcing_name());
+                smsg!(0, gettext(c"%s aborted".as_ptr()), sourcing_name());
             } else if (*(*fc).fc_rettv).v_type == VarType::VAR_NUMBER {
-                smsg(
+                smsg!(
                     0,
                     gettext(c"%s returning #%lld".as_ptr()),
                     sourcing_name(),
@@ -1863,7 +1860,7 @@ pub unsafe extern "C" fn call_user_func(
                         trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
                         s = buf.as_mut_ptr();
                     }
-                    smsg(0, gettext(c"%s returning %s".as_ptr()), sourcing_name(), s);
+                    smsg!(0, gettext(c"%s returning %s".as_ptr()), sourcing_name(), s);
                     xfree(tofree.cast());
                 }
             }
@@ -1887,7 +1884,7 @@ pub unsafe extern "C" fn call_user_func(
             no_wait_return += 1;
             verbose_enter_scroll();
 
-            smsg(0, gettext(c"continuing in %s".as_ptr()), sourcing_name());
+            smsg!(0, gettext(c"continuing in %s".as_ptr()), sourcing_name());
             msg_puts(c"\n".as_ptr());
 
             verbose_leave_scroll();
@@ -2167,7 +2164,7 @@ unsafe fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
         match error {
             FCERR_UNKNOWN => {
                 if found_var {
-                    semsg(gettext(e_not_callable_type_str.as_ptr()), name);
+                    semsg!(gettext(e_not_callable_type_str.as_ptr()), name);
                 } else {
                     emsg_funcname(e_unknown_function_str.as_ptr(), name);
                 }
@@ -2610,7 +2607,7 @@ pub unsafe extern "C" fn trans_function_name(
         if end.is_null() || (!lv.ll_tv.is_null() && (lead > 2 || lv.ll_range)) {
             if !aborting() {
                 if !end.is_null() {
-                    semsg(gettext(e_invarg2.as_ptr()), start);
+                    semsg!(gettext(e_invarg2.as_ptr()), start);
                 }
             } else {
                 *pp = find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR);
@@ -2636,7 +2633,7 @@ pub unsafe extern "C" fn trans_function_name(
                 if is_luafunc(pt) && *end == b'.' as c_char {
                     len = check_luafunc_name(end.add(1), true);
                     if len == 0 {
-                        semsg(e_invexpr2.as_ptr(), c"v:lua".as_ptr());
+                        semsg!(e_invexpr2.as_ptr(), c"v:lua".as_ptr());
                         clear_lval(&raw mut lv);
                         return name;
                     }
@@ -2754,7 +2751,7 @@ pub unsafe extern "C" fn trans_function_name(
                 lead += sid_buflen as c_int;
             }
         } else if (flags & TFN_INT) == 0 && builtin_function(lv.ll_name, lv.ll_name_len as c_int) {
-            semsg(
+            semsg!(
                 gettext(c"E128: Function name must start with a capital or \"s:\": %s".as_ptr()),
                 start,
             );
@@ -2765,7 +2762,7 @@ pub unsafe extern "C" fn trans_function_name(
         if !skip && (flags & TFN_QUIET) == 0 && (flags & TFN_NO_DEREF) == 0 {
             let cp = xmemrchr(lv.ll_name.cast(), b':', lv.ll_name_len).cast::<c_char>();
             if !cp.is_null() && cp.cast_const() < end {
-                semsg(
+                semsg!(
                     gettext(c"E884: Function name cannot contain a colon: %s".as_ptr()),
                     start,
                 );
@@ -2926,7 +2923,7 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
 unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
     unsafe {
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
-            semsg(gettext(e_trailing_arg.as_ptr()), p);
+            semsg!(gettext(e_trailing_arg.as_ptr()), p);
             return ptr::null_mut();
         }
 
@@ -3046,7 +3043,7 @@ unsafe fn get_function_body(
             }
             if theline.is_null() {
                 if !skip_until.is_null() {
-                    semsg(
+                    semsg!(
                         gettext(E_MISSING_HEREDOC_END_MARKER_STR.as_ptr()),
                         skip_until,
                     );
@@ -3116,7 +3113,7 @@ unsafe fn get_function_body(
                         } else if !line_arg.is_null() && *skipwhite(line_arg) != NUL {
                             nextcmd = line_arg;
                         } else if *p != NUL && *p != b'"' as c_char && p_verbose > 0 {
-                            swmsg(
+                            swmsg!(
                                 true,
                                 gettext(c"W22: Text found after :endfunction: %s".as_ptr()),
                                 p,
@@ -3331,7 +3328,7 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
         if name.is_null() && (fudi.fd_dict.is_null() || !paren) && (*eap).skip == 0 {
             if !aborting() {
                 if !fudi.fd_newkey.is_null() {
-                    semsg(gettext(e_dictkey.as_ptr()), fudi.fd_newkey);
+                    semsg!(gettext(e_dictkey.as_ptr()), fudi.fd_newkey);
                 }
                 xfree(fudi.fd_newkey.cast());
                 return;
@@ -3403,7 +3400,7 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
         p = skipwhite(p);
         if *p != b'(' as c_char {
             if (*eap).skip == 0 {
-                semsg(gettext(c"E124: Missing '(': %s".as_ptr()), (*eap).arg);
+                semsg!(gettext(c"E124: Missing '(': %s".as_ptr()), (*eap).arg);
                 ret_free!();
             }
             let open_paren = vim_strchr(p, b'(' as c_int);
@@ -3509,7 +3506,7 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
         if *p == b'\n' as c_char {
             line_arg = p.add(1);
         } else if *p != NUL && *p != b'"' as c_char && (*eap).skip == 0 && did_emsg == 0 {
-            semsg(gettext(e_trailing_arg.as_ptr()), p);
+            semsg!(gettext(e_trailing_arg.as_ptr()), p);
         }
 
         if KeyTyped {
@@ -3627,7 +3624,7 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
                     xfree(scriptname.cast());
                 }
                 if j == FAIL {
-                    semsg(
+                    semsg!(
                         gettext(
                             c"E746: Function name does not match script file name: %s".as_ptr(),
                         ),
@@ -3829,7 +3826,7 @@ pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
         }
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
             xfree(name.cast());
-            semsg(gettext(e_trailing_arg.as_ptr()), p);
+            semsg!(gettext(e_trailing_arg.as_ptr()), p);
             return;
         }
         (*eap).nextcmd = check_nextcmd(p);
@@ -3839,7 +3836,7 @@ pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
 
         if (*name as u8).is_ascii_digit() && fudi.fd_dict.is_null() {
             if (*eap).skip == 0 {
-                semsg(gettext(e_invarg2.as_ptr()), (*eap).arg);
+                semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
             }
             xfree(name.cast());
             return;
@@ -3852,19 +3849,19 @@ pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
         if (*eap).skip == 0 {
             if fp.is_null() {
                 if (*eap).forceit == 0 {
-                    semsg(gettext(E_NOFUNC.as_ptr()), (*eap).arg);
+                    semsg!(gettext(E_NOFUNC.as_ptr()), (*eap).arg);
                 }
                 return;
             }
             if (*fp).uf_calls > 0 {
-                semsg(
+                semsg!(
                     gettext(c"E131: Cannot delete function %s: It is in use".as_ptr()),
                     (*eap).arg,
                 );
                 return;
             }
             if (*fp).uf_refcount > 2 {
-                semsg(
+                semsg!(
                     gettext(c"Cannot delete function %s: It is being used internally".as_ptr()),
                     (*eap).arg,
                 );
@@ -4094,7 +4091,7 @@ unsafe fn ex_defer_inner(
         let mut argcount = 0;
 
         if current_funccal.is_null() {
-            semsg(
+            semsg!(
                 gettext(e_str_not_inside_function.as_ptr()),
                 c"defer".as_ptr(),
             );
@@ -4164,7 +4161,7 @@ unsafe fn ex_defer_inner(
 pub unsafe extern "C" fn can_add_defer() -> bool {
     unsafe {
         if get_current_funccal().is_null() {
-            semsg(
+            semsg!(
                 gettext(e_str_not_inside_function.as_ptr()),
                 c"defer".as_ptr(),
             );
@@ -4302,7 +4299,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
             &raw mut partial,
         );
         if !fudi.fd_newkey.is_null() {
-            semsg(gettext(e_dictkey.as_ptr()), fudi.fd_newkey);
+            semsg!(gettext(e_dictkey.as_ptr()), fudi.fd_newkey);
             xfree(fudi.fd_newkey.cast());
         }
         if tofree.is_null() {
@@ -4330,7 +4327,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
         let startarg = skipwhite(arg);
 
         if *startarg != b'(' as c_char {
-            semsg(gettext(e_missingparen.as_ptr()), (*eap).arg);
+            semsg!(gettext(e_missingparen.as_ptr()), (*eap).arg);
             tv_dict_unref(fudi.fd_dict);
             xfree(tofree.cast());
             return;
@@ -4363,7 +4360,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
             if ends_excmd(*arg as c_int) == 0 {
                 if !failed && !aborting() {
                     emsg_severe = true;
-                    semsg(gettext(e_trailing_arg.as_ptr()), arg);
+                    semsg!(gettext(e_trailing_arg.as_ptr()), arg);
                 }
             } else {
                 (*eap).nextcmd = check_nextcmd(arg);

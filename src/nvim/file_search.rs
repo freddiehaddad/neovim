@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -147,7 +148,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
@@ -415,7 +415,7 @@ pub unsafe extern "C" fn vim_findfile_init(
                     }
                     wc_part = errpt;
                     if *wc_part != NUL && !vim_ispathsep(c_int::from(*wc_part as u8)) {
-                        semsg(
+                        semsg!(
                             tr(c"E343: Invalid path: '**[number]' must be at the end of the path or be followed by '%s'."
                                 .as_ptr()),
                             PATHSEPSTR_C.as_ptr(),
@@ -1584,20 +1584,20 @@ pub unsafe extern "C" fn find_file_in_path_option(
         if file_name.is_null() && (options & FNAME_MESS) != 0 {
             if first == c_int::from(true) {
                 if find_what == FINDFILE_DIR {
-                    semsg(
+                    semsg!(
                         tr(e_cant_find_directory_str_in_cdpath.as_ptr()),
                         *file_to_find,
                     );
                 } else {
-                    semsg(tr(e_cant_find_file_str_in_path.as_ptr()), *file_to_find);
+                    semsg!(tr(e_cant_find_file_str_in_path.as_ptr()), *file_to_find);
                 }
             } else if find_what == FINDFILE_DIR {
-                semsg(
+                semsg!(
                     tr(e_no_more_directory_str_found_in_cdpath.as_ptr()),
                     *file_to_find,
                 );
             } else {
-                semsg(tr(e_no_more_file_str_found_in_path.as_ptr()), *file_to_find);
+                semsg!(tr(e_no_more_file_str_found_in_path.as_ptr()), *file_to_find);
             }
         }
 
@@ -1848,7 +1848,7 @@ pub unsafe extern "C" fn find_file_name_in_path(
             if file_name.is_null() && (options & FNAME_MESS) != 0 {
                 let c = *ptr.add(len);
                 *ptr.add(len) = NUL;
-                semsg(tr(c"E447: Can't find file \"%s\" in path".as_ptr()), ptr);
+                semsg!(tr(c"E447: Can't find file \"%s\" in path".as_ptr()), ptr);
                 *ptr.add(len) = c;
             }
 

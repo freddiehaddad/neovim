@@ -35,6 +35,7 @@ pub mod window;
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, semsg_multiline, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_void};
 use std::mem::offset_of;
@@ -513,14 +514,11 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
-    fn semsg_multiline(context: *const c_char, s: *const c_char, ...);
     fn emsg_multiline(s: *const c_char, kind: *const c_char, hl_id: c_int, multiline: bool)
     -> bool;
     fn iemsg(s: *const c_char);
     fn internal_error(where_: *const c_char);
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
     fn verb_msg(s: *const c_char) -> c_int;
     fn msg_puts(s: *const c_char);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
@@ -1075,7 +1073,7 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
             && did_emsg == did_emsg_before
             && called_emsg == called_emsg_before
         {
-            semsg(gettext((&raw const e_invexpr2).cast()), start);
+            semsg!(gettext((&raw const e_invexpr2).cast()), start);
         }
         clear_evalarg(&raw mut evalarg, eap);
         ret
@@ -1184,7 +1182,7 @@ unsafe fn eval_expr_string(expr: *const typval_T, rettv: *mut typval_T) -> c_int
         if *skipwhite(s) != NUL {
             tv_clear(rettv);
             #[cfg(not(test))]
-            semsg(gettext((&raw const e_invexpr2).cast()), s);
+            semsg!(gettext((&raw const e_invexpr2).cast()), s);
             return FAIL;
         }
 
@@ -1824,7 +1822,7 @@ unsafe fn get_lval_dict_item(
             && rettv.is_null()
         {
             #[cfg(not(test))]
-            semsg((&raw const e_illvar).cast(), c"v:['lua']".as_ptr());
+            semsg!((&raw const e_illvar).cast(), c"v:['lua']".as_ptr());
             return GLV_FAIL;
         }
 
@@ -1833,14 +1831,14 @@ unsafe fn get_lval_dict_item(
                 || ptr::eq(&raw mut (*(*lp).ll_dict).dv_hashtab, get_funccal_args_ht())
             {
                 #[cfg(not(test))]
-                semsg(gettext((&raw const e_illvar).cast()), name);
+                semsg!(gettext((&raw const e_illvar).cast()), name);
                 return GLV_FAIL;
             }
 
             if *p == b'[' as c_char || *p == b'.' as c_char || unlet {
                 if !quiet {
                     #[cfg(not(test))]
-                    semsg(gettext((&raw const e_dictkey).cast()), key);
+                    semsg!(gettext((&raw const e_dictkey).cast()), key);
                 }
                 return GLV_FAIL;
             }
@@ -1975,7 +1973,7 @@ unsafe fn get_lval_subscript(
             if *p == b'.' as c_char && (*(*lp).ll_tv).v_type != VarType::VAR_DICT {
                 if !quiet {
                     #[cfg(not(test))]
-                    semsg(
+                    semsg!(
                         gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR.as_ptr()),
                         name,
                     );
@@ -2199,7 +2197,7 @@ pub unsafe extern "C" fn get_lval(
                 && *p != b'.' as c_char
             {
                 #[cfg(not(test))]
-                semsg(gettext((&raw const e_trailing_arg).cast()), p);
+                semsg!(gettext((&raw const e_trailing_arg).cast()), p);
                 return ptr::null_mut();
             }
 
@@ -2211,7 +2209,7 @@ pub unsafe extern "C" fn get_lval(
                     #[cfg(not(test))]
                     {
                         emsg_severe = true;
-                        semsg(gettext((&raw const e_invarg2).cast()), name);
+                        semsg!(gettext((&raw const e_invarg2).cast()), name);
                     }
                     return ptr::null_mut();
                 }
@@ -2242,7 +2240,7 @@ pub unsafe extern "C" fn get_lval(
         );
         if v.is_null() && !quiet {
             #[cfg(not(test))]
-            semsg(
+            semsg!(
                 gettext(c"E121: Undefined variable: %.*s".as_ptr()),
                 (*lp).ll_name_len as c_int,
                 (*lp).ll_name,
@@ -2294,7 +2292,7 @@ pub unsafe extern "C" fn set_var_lval(
             if !(*lp).ll_blob.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
                     #[cfg(not(test))]
-                    semsg(gettext((&raw const e_letwrong).cast()), op);
+                    semsg!(gettext((&raw const e_letwrong).cast()), op);
                     *endp = cc;
                     return;
                 }
@@ -2324,7 +2322,7 @@ pub unsafe extern "C" fn set_var_lval(
                     if !error {
                         if !(0..=255).contains(&val) {
                             #[cfg(not(test))]
-                            semsg(
+                            semsg!(
                                 gettext((&raw const e_invalid_value_for_blob_nr).cast()),
                                 val,
                             );
@@ -2407,7 +2405,7 @@ pub unsafe extern "C" fn set_var_lval(
             if !(*lp).ll_newkey.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
                     #[cfg(not(test))]
-                    semsg(gettext((&raw const e_dictkey).cast()), (*lp).ll_newkey);
+                    semsg!(gettext((&raw const e_dictkey).cast()), (*lp).ll_newkey);
                     return;
                 }
                 if tv_dict_wrong_func_name((*(*lp).ll_tv).vval.v_dict, rettv, (*lp).ll_newkey) != 0
@@ -2904,9 +2902,9 @@ pub unsafe extern "C" fn eval0(
             #[cfg(not(test))]
             if !aborting() && did_emsg == did_emsg_before && called_emsg == called_emsg_before {
                 if end_error {
-                    semsg(gettext((&raw const e_trailing_arg).cast()), p);
+                    semsg!(gettext((&raw const e_trailing_arg).cast()), p);
                 } else {
-                    semsg(gettext((&raw const e_invexpr2).cast()), arg);
+                    semsg!(gettext((&raw const e_invexpr2).cast()), arg);
                 }
             }
 
@@ -3681,7 +3679,7 @@ unsafe fn eval7(
 
         if EVAL7_RECURSE == MAX_EVAL7_RECURSE {
             #[cfg(not(test))]
-            semsg(gettext(E_EXPRESSION_TOO_RECURSIVE_STR.as_ptr()), *arg);
+            semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR.as_ptr()), *arg);
             return FAIL;
         }
         EVAL7_RECURSE += 1;
@@ -3969,7 +3967,7 @@ unsafe fn eval_lambda(
                     emsg(gettext(E_NOWHITESPACE.as_ptr()));
                 } else {
                     #[cfg(not(test))]
-                    semsg(
+                    semsg!(
                         gettext((&raw const e_missingparen).cast()),
                         c"lambda".as_ptr(),
                     );
@@ -4037,7 +4035,7 @@ unsafe fn eval_method(
                     emsg(gettext(c"E260: Missing name after ->".as_ptr()));
                 } else {
                     #[cfg(not(test))]
-                    semsg(gettext((&raw const e_invexpr2).cast()), name);
+                    semsg!(gettext((&raw const e_invexpr2).cast()), name);
                 }
             }
             ret = FAIL;
@@ -4058,7 +4056,7 @@ unsafe fn eval_method(
                 } else if *skipwhite(*arg) != NUL {
                     if verbose {
                         #[cfg(not(test))]
-                        semsg(gettext((&raw const e_trailing_arg).cast()), *arg);
+                        semsg!(gettext((&raw const e_trailing_arg).cast()), *arg);
                     }
                     ret = FAIL;
                 } else if ref_tv.v_type == VarType::VAR_FUNC && !ref_tv.vval.v_string.is_null() {
@@ -4089,7 +4087,7 @@ unsafe fn eval_method(
                 } else {
                     if verbose {
                         #[cfg(not(test))]
-                        semsg(gettext((&raw const e_not_callable_type_str).cast()), name);
+                        semsg!(gettext((&raw const e_not_callable_type_str).cast()), name);
                     }
                     ret = FAIL;
                 }
@@ -4101,7 +4099,7 @@ unsafe fn eval_method(
                 if **arg != b'(' as c_char {
                     if verbose {
                         #[cfg(not(test))]
-                        semsg(gettext((&raw const e_missingparen).cast()), name);
+                        semsg!(gettext((&raw const e_missingparen).cast()), name);
                     }
                     ret = FAIL;
                 } else if ascii_iswhite(*(*arg).sub(1)) {
@@ -4442,9 +4440,9 @@ unsafe fn eval_index_inner(
                 if item.is_null() && verbose {
                     #[cfg(not(test))]
                     if keylen > 0 {
-                        semsg(gettext((&raw const e_dictkey_len).cast()), keylen, key);
+                        semsg!(gettext((&raw const e_dictkey_len).cast()), keylen, key);
                     } else {
-                        semsg(gettext((&raw const e_dictkey).cast()), key);
+                        semsg!(gettext((&raw const e_dictkey).cast()), key);
                     }
                 }
                 if item.is_null() || tv_is_luafunc(&raw mut (*item).di_tv) {
@@ -4478,7 +4476,7 @@ pub unsafe extern "C" fn eval_option(
         if option_end.is_null() {
             if !rettv.is_null() {
                 #[cfg(not(test))]
-                semsg(gettext(c"E112: Option name missing: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E112: Option name missing: %s".as_ptr()), *arg);
             }
             return FAIL;
         }
@@ -4498,7 +4496,7 @@ pub unsafe extern "C" fn eval_option(
 
             if opt_idx == kOptInvalid && !is_tty_opt {
                 if !rettv.is_null() {
-                    semsg(gettext(c"E113: Unknown option: %s".as_ptr()), *arg);
+                    semsg!(gettext(c"E113: Unknown option: %s".as_ptr()), *arg);
                 }
 
                 ret = FAIL;
@@ -4613,7 +4611,7 @@ unsafe fn eval_number(
             if len == 0 {
                 if evaluate {
                     #[cfg(not(test))]
-                    semsg(gettext((&raw const e_invexpr2).cast()), *arg);
+                    semsg!(gettext((&raw const e_invexpr2).cast()), *arg);
                 }
                 return FAIL;
             }
@@ -4673,7 +4671,7 @@ unsafe fn eval_string(
                 p = p.add(1);
                 if *p.sub(1) == b'}' as c_char && *p != b'}' as c_char {
                     #[cfg(not(test))]
-                    semsg(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
+                    semsg!(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
                     return FAIL;
                 }
                 extra -= 1;
@@ -4683,7 +4681,7 @@ unsafe fn eval_string(
 
         if *p != b'"' as c_char && !(interpolate && *p == b'{' as c_char) {
             #[cfg(not(test))]
-            semsg(gettext(c"E114: Missing quote: %s".as_ptr()), *arg);
+            semsg!(gettext(c"E114: Missing quote: %s".as_ptr()), *arg);
             return FAIL;
         }
 
@@ -4856,7 +4854,7 @@ unsafe fn eval_lit_string(
                     p = p.add(1);
                     if *p != b'}' as c_char {
                         #[cfg(not(test))]
-                        semsg(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
+                        semsg!(gettext((&raw const e_stray_closing_curly_str).cast()), *arg);
                         return FAIL;
                     }
                     reduce += 1;
@@ -4867,7 +4865,7 @@ unsafe fn eval_lit_string(
 
         if *p != b'\'' as c_char && !(interpolate && *p == b'{' as c_char) {
             #[cfg(not(test))]
-            semsg(gettext(c"E115: Missing quote: %s".as_ptr()), *arg);
+            semsg!(gettext(c"E115: Missing quote: %s".as_ptr()), *arg);
             return FAIL;
         }
 
@@ -5049,7 +5047,7 @@ unsafe fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
 
             if !had_comma {
                 #[cfg(not(test))]
-                semsg(gettext(c"E696: Missing comma in List: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E696: Missing comma in List: %s".as_ptr()), *arg);
                 if evaluate {
                     tv_list_free(l);
                 }
@@ -5059,7 +5057,7 @@ unsafe fn eval_list(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut e
 
         if **arg != b']' as c_char {
             #[cfg(not(test))]
-            semsg(gettext(E_LIST_END.as_ptr()), *arg);
+            semsg!(gettext(E_LIST_END.as_ptr()), *arg);
             if evaluate {
                 tv_list_free(l);
             }
@@ -5730,7 +5728,7 @@ unsafe fn eval_dict(
             }
             if **arg != b':' as c_char {
                 #[cfg(not(test))]
-                semsg(
+                semsg!(
                     gettext(c"E720: Missing colon in Dictionary: %s".as_ptr()),
                     *arg,
                 );
@@ -5763,7 +5761,7 @@ unsafe fn eval_dict(
                 let mut item = tv_dict_find(d, key, -1);
                 if !item.is_null() {
                     #[cfg(not(test))]
-                    semsg(
+                    semsg!(
                         gettext(c"E721: Duplicate key in Dictionary: \"%s\"".as_ptr()),
                         key,
                     );
@@ -5793,7 +5791,7 @@ unsafe fn eval_dict(
             }
             if !had_comma {
                 #[cfg(not(test))]
-                semsg(
+                semsg!(
                     gettext(c"E722: Missing comma in Dictionary: %s".as_ptr()),
                     *arg,
                 );
@@ -5806,7 +5804,7 @@ unsafe fn eval_dict(
 
         if **arg != b'}' as c_char {
             #[cfg(not(test))]
-            semsg(
+            semsg!(
                 gettext(c"E723: Missing end of Dictionary '}': %s".as_ptr()),
                 *arg,
             );
@@ -5927,7 +5925,7 @@ pub unsafe extern "C" fn tv_to_argv(
 
         if (*cmd_tv).v_type != VarType::VAR_LIST {
             #[cfg(not(test))]
-            semsg(
+            semsg!(
                 gettext((&raw const e_invarg2).cast()),
                 c"expected String or List".as_ptr(),
             );
@@ -5954,7 +5952,7 @@ pub unsafe extern "C" fn tv_to_argv(
                     arg0,
                 );
                 #[cfg(not(test))]
-                semsg(
+                semsg!(
                     gettext((&raw const e_invargNval).cast()),
                     c"cmd".as_ptr(),
                     buf.as_ptr(),
@@ -6041,7 +6039,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
         if p_verbose > 3 {
             let cmdstr = shell_argv_to_str(argv);
             verbose_enter_scroll();
-            smsg(0, gettext(c"Executing command: \"%s\"".as_ptr()), cmdstr);
+            smsg!(0, gettext(c"Executing command: \"%s\"".as_ptr()), cmdstr);
             msg_puts(c"\n\n".as_ptr());
             verbose_leave_scroll();
             xfree(cmdstr.cast());
@@ -6276,7 +6274,7 @@ pub unsafe extern "C" fn callback_call(
                     callback_depth -= 1;
                     let ok = err.err_type == ErrorType::kErrorTypeNone;
                     if !ok {
-                        semsg_multiline(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
+                        semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg);
                         api_clear_error(&raw mut err);
                     } else {
                         object_to_vim(result, rettv, ptr::null_mut());
@@ -6640,7 +6638,7 @@ pub unsafe extern "C" fn save_tv_as_string(
                 }
             } else {
                 #[cfg(not(test))]
-                semsg(gettext((&raw const e_nobufnr).cast()), (*tv).vval.v_number);
+                semsg!(gettext((&raw const e_nobufnr).cast()), (*tv).vval.v_number);
                 *len = -1;
                 return ptr::null_mut();
             }
@@ -7118,7 +7116,7 @@ pub unsafe extern "C" fn get_name_len(
         len += get_id_len(arg);
         if len == 0 && verbose && **arg != NUL {
             #[cfg(not(test))]
-            semsg(gettext((&raw const e_invexpr2).cast()), *arg);
+            semsg!(gettext((&raw const e_invexpr2).cast()), *arg);
         }
 
         len
@@ -7678,7 +7676,7 @@ pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
                         && did_emsg == did_emsg_before
                         && called_emsg == called_emsg_before
                     {
-                        semsg(gettext((&raw const e_invexpr2).cast()), p);
+                        semsg!(gettext((&raw const e_invexpr2).cast()), p);
                     }
                     need_clr_eos = false;
                     break;
@@ -8160,7 +8158,7 @@ pub unsafe extern "C" fn eval_call_provider(
     unsafe {
         if !eval_has_provider(provider, false) {
             #[cfg(not(test))]
-            semsg(
+            semsg!(
                 c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"".as_ptr(),
                 provider,
             );
@@ -8278,7 +8276,7 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
 
         #[cfg(not(test))]
         if throw_if_fast && !nlua_is_deferred_safe() {
-            semsg(
+            semsg!(
                 (&raw const e_fast_api_disabled).cast(),
                 c"Vimscript function".as_ptr(),
             );
@@ -8321,7 +8319,7 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
                 );
                 #[cfg(not(test))]
                 if !find_func(buf.as_ptr()).is_null() && p_lpl != 0 {
-                    semsg(
+                    semsg!(
                         c"provider: %s: missing required variable g:loaded_%s_provider".as_ptr(),
                         name.as_ptr(),
                         name.as_ptr(),
@@ -8342,7 +8340,7 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
             );
             if find_func(buf.as_ptr()).is_null() {
                 #[cfg(not(test))]
-                semsg(
+                semsg!(
                     c"provider: %s: g:loaded_%s_provider=2 but %s is not defined".as_ptr(),
                     name.as_ptr(),
                     name.as_ptr(),

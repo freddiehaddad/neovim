@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use crate::api::private::converter::sctx_T;
@@ -501,7 +502,6 @@ unsafe extern "C" {
     fn f_jobstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData);
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 #[inline]
@@ -572,7 +572,7 @@ pub unsafe extern "C" fn f_rpcstart(
             };
             while !li.is_null() {
                 if (*li).li_tv.v_type != VarType::VAR_STRING {
-                    semsg(
+                    semsg!(
                         c"E5010: List item %d of the second argument is not a string".as_ptr(),
                         i,
                     );
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn f_termopen(
         }
 
         if arg1.v_type != VarType::VAR_DICT {
-            semsg(
+            semsg!(
                 c"E475: Invalid argument: %s".as_ptr(),
                 c"expected dictionary".as_ptr(),
             );

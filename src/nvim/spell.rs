@@ -38,6 +38,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use crate::os::fs::os_remove;
 use crate::os::input::line_breakcheck;
@@ -188,8 +189,6 @@ static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, fmt: *const c_char, ...) -> bool;
     fn give_warning(message: *const c_char, hl: bool, with_source: bool);
     fn msg_ext_set_kind(msg_kind: *const c_char);
     fn msg_start();
@@ -1494,7 +1493,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
                 );
                 do_cmdline_cmd((&raw const autocmd_buf).cast());
             } else {
-                smsg(
+                smsg!(
                     0,
                     gettext(
                         c"Warning: Cannot find word list \"%s.%s.spl\" or \"%s.ascii.spl\""
@@ -1958,7 +1957,7 @@ pub unsafe extern "C" fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                                         region_mask = 0;
                                     }
                                 } else {
-                                    smsg(
+                                    smsg!(
                                         0,
                                         gettext(c"Warning: region %s not supported".as_ptr()),
                                         region,
@@ -2526,7 +2525,7 @@ pub unsafe extern "C" fn ex_spellrepall(_eap: *mut exarg_T) {
         (*curwin).w_cursor = pos;
         xfree(frompat.cast());
         if sub_nsubs == 0 {
-            semsg(gettext(c"E753: Not found: %s".as_ptr()), repl_from);
+            semsg!(gettext(c"E753: Not found: %s".as_ptr()), repl_from);
         } else {
             do_sub_msg(false);
         }

@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -311,8 +312,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn verbose_enter();
     fn verbose_leave();
     fn msg_ext_ui_flush();
@@ -1038,7 +1037,7 @@ pub unsafe extern "C" fn do_in_path(
             if p_verbose > 10 && !name.is_null() {
                 verbose_enter();
                 if *prefix != NUL {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Searching for \"%s\" under \"%s\" in \"%s\"".as_ptr()),
                         name,
@@ -1046,7 +1045,7 @@ pub unsafe extern "C" fn do_in_path(
                         path,
                     );
                 } else {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Searching for \"%s\" in \"%s\"".as_ptr()),
                         name,
@@ -1093,7 +1092,7 @@ pub unsafe extern "C" fn do_in_path(
 
                             if p_verbose > 10 {
                                 verbose_enter();
-                                smsg(0, gettext(c"Searching for \"%s\"".as_ptr()), buf);
+                                smsg!(0, gettext(c"Searching for \"%s\"".as_ptr()), buf);
                                 verbose_leave();
                             }
 
@@ -1125,10 +1124,10 @@ pub unsafe extern "C" fn do_in_path(
             };
 
             if (flags & DIP_ERR) != 0 {
-                semsg(gettext(e_dirnotf.as_ptr()), basepath, name);
+                semsg!(gettext(e_dirnotf.as_ptr()), basepath, name);
             } else if p_verbose > 1 {
                 verbose_enter();
-                smsg(
+                smsg!(
                     0,
                     gettext(c"not found in '%s': \"%s\"".as_ptr()),
                     basepath,
@@ -1202,7 +1201,7 @@ unsafe fn do_in_cached_path(
 
         if p_verbose > 10 && !name.is_null() {
             verbose_enter();
-            smsg(
+            smsg!(
                 0,
                 gettext(c"Searching for \"%s\" in runtime path".as_ptr()),
                 name,
@@ -1245,7 +1244,7 @@ unsafe fn do_in_cached_path(
 
                     if p_verbose > 10 {
                         verbose_enter();
-                        smsg(0, gettext(c"Searching for \"%s\"".as_ptr()), buf.as_ptr());
+                        smsg!(0, gettext(c"Searching for \"%s\"".as_ptr()), buf.as_ptr());
                         verbose_leave();
                     }
 
@@ -1274,10 +1273,10 @@ unsafe fn do_in_cached_path(
 
         if !did_one && !name.is_null() {
             if (flags & DIP_ERR) != 0 {
-                semsg(gettext(e_dirnotf.as_ptr()), c"runtime path".as_ptr(), name);
+                semsg!(gettext(e_dirnotf.as_ptr()), c"runtime path".as_ptr(), name);
             } else if p_verbose > 1 {
                 verbose_enter();
-                smsg(
+                smsg!(
                     0,
                     gettext(c"not found in runtime path: \"%s\"".as_ptr()),
                     name,
@@ -3075,7 +3074,7 @@ unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
                     || (*(*eap).cstack.cast::<cstack_T>()).cs_idx >= 0,
             );
         } else if do_source(fname, false, DOSO_NONE, ptr::null_mut()) == FAIL {
-            semsg(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
         }
     }
 }
@@ -3365,7 +3364,7 @@ unsafe fn do_source_ext(
                 return retval;
             }
             if os_isdir(fname_exp) {
-                smsg(
+                smsg!(
                     0,
                     gettext(c"Cannot source a directory: \"%s\"".as_ptr()),
                     fname,
@@ -3423,9 +3422,9 @@ unsafe fn do_source_ext(
                 if p_verbose > 1 {
                     verbose_enter();
                     if sourcing_name().is_null() {
-                        smsg(0, gettext(c"could not source \"%s\"".as_ptr()), fname);
+                        smsg!(0, gettext(c"could not source \"%s\"".as_ptr()), fname);
                     } else {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"line %lld: could not source \"%s\"".as_ptr()),
                             i64::from(sourcing_lnum()),
@@ -3440,9 +3439,9 @@ unsafe fn do_source_ext(
             if p_verbose > 1 {
                 verbose_enter();
                 if sourcing_name().is_null() {
-                    smsg(0, gettext(c"sourcing \"%s\"".as_ptr()), fname);
+                    smsg!(0, gettext(c"sourcing \"%s\"".as_ptr()), fname);
                 } else {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"line %lld: sourcing \"%s\"".as_ptr()),
                         i64::from(sourcing_lnum()),
@@ -3630,10 +3629,10 @@ unsafe fn do_source_ext(
             estack_pop();
             if p_verbose > 1 {
                 verbose_enter();
-                smsg(0, gettext(c"finished sourcing %s".as_ptr()), fname);
+                smsg!(0, gettext(c"finished sourcing %s".as_ptr()), fname);
                 let sname = sourcing_name();
                 if !sname.is_null() {
-                    smsg(0, gettext(c"continuing in %s".as_ptr()), sname);
+                    smsg!(0, gettext(c"continuing in %s".as_ptr()), sname);
                 }
                 verbose_leave();
             }
@@ -3927,7 +3926,7 @@ pub unsafe extern "C" fn f_getscriptinfo(
                     return;
                 }
                 if sid <= 0 {
-                    semsg(
+                    semsg!(
                         gettext(e_invargNval.as_ptr()),
                         c"sid".as_ptr(),
                         tv_get_string(&(*sid_di).di_tv),

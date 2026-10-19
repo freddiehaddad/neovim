@@ -401,7 +401,7 @@ static inline bool tv_get_float_chk(const typval_T *const tv, float_T *const ret
     *ret_f = (float_T)tv->vval.v_number;
     return true;
   }
-  semsg("%s", _("E808: Number or Float required"));
+  emsg(_("E808: Number or Float required"));
   return false;
 }
 

@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -136,7 +137,6 @@ unsafe extern "C" {
 
     fn emsg(s: *const c_char) -> bool;
     fn iemsg(s: *const c_char);
-    fn semsg(s: *const c_char, ...) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn strerror(errnum: c_int) -> *mut c_char;
 
@@ -205,7 +205,7 @@ unsafe fn perror_msg(msg: *const c_char) {
     #[cfg(not(test))]
     unsafe {
         let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-        let _ = semsg(c"%s: %s".as_ptr(), gettext(msg), strerror(err));
+        let _ = semsg!(c"%s: %s".as_ptr(), gettext(msg), strerror(err));
     }
     #[cfg(test)]
     let _ = msg;

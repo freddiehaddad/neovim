@@ -21,6 +21,7 @@
 
 use crate::errors::*;
 pub(super) use crate::globals::*;
+pub(super) use crate::message::semsg;
 pub(super) use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{offset_of, size_of, zeroed};
@@ -946,8 +947,6 @@ unsafe extern "C" {
     pub(super) fn gettext(msgid: *const c_char) -> *mut c_char;
     pub(super) fn emsg(s: *const c_char) -> bool;
     pub(super) fn iemsg(s: *const c_char);
-    pub(super) fn semsg(fmt: *const c_char, ...) -> bool;
-    pub(super) fn siemsg(fmt: *const c_char, ...);
     pub(super) fn internal_error(where_: *const c_char);
     pub(super) fn verbose_enter();
     pub(super) fn verbose_leave();
@@ -1363,7 +1362,7 @@ pub unsafe extern "C" fn skip_regexp_err(
     unsafe {
         let p = skip_regexp(startp, delim, magic);
         if *p as u8 as c_int != delim {
-            semsg(
+            semsg!(
                 tr(e_missing_delimiter_after_search_pattern_str.as_ptr()),
                 startp,
             );
@@ -1721,7 +1720,7 @@ pub(super) unsafe fn read_limits(minval: *mut c_int, maxval: *mut c_int) -> c_in
             regparse = regparse.add(1);
         }
         if *regparse != b'}' as c_char {
-            semsg(
+            semsg!(
                 tr(c"E554: Syntax error in %s{...}".as_ptr()),
                 if reg_magic == MAGIC_ALL {
                     c"".as_ptr()
@@ -2094,7 +2093,7 @@ pub(super) unsafe fn match_with_backref(
 pub(super) unsafe fn re_mult_next(what: *const c_char) -> bool {
     unsafe {
         if re_multi_type(peekchr()) == MULTI_MULT {
-            semsg(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what);
+            semsg!(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what);
             rc_did_emsg = true;
             return false;
         }

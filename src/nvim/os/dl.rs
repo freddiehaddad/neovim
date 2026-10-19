@@ -1,5 +1,7 @@
 //! Functions for calling external native shared libraries (`src/nvim/os/dl.c`).
 
+#[cfg(not(test))]
+use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::memory::xstrdup;
@@ -15,7 +17,6 @@ unsafe extern "C" {
     fn uv_dlclose(lib: *mut UvLib);
     fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
     fn uv_dlerror(lib: *const UvLib) -> *const c_char;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 /// Call a function in a dynamically loadable library (`os_libcall`).
@@ -58,14 +59,14 @@ pub unsafe extern "C" fn os_libcall(
         };
 
         if uv_dlopen(libname, &mut lib) != 0 {
-            semsg(c"dlerror = \"%s\"".as_ptr(), uv_dlerror(&lib));
+            semsg!(c"dlerror = \"%s\"".as_ptr(), uv_dlerror(&lib));
             uv_dlclose(&mut lib);
             return false;
         }
 
         let mut fn_ptr: *mut c_void = std::ptr::null_mut();
         if uv_dlsym(&mut lib, funcname, &mut fn_ptr) != 0 {
-            semsg(c"dlerror = \"%s\"".as_ptr(), uv_dlerror(&lib));
+            semsg!(c"dlerror = \"%s\"".as_ptr(), uv_dlerror(&lib));
             uv_dlclose(&mut lib);
             return false;
         }

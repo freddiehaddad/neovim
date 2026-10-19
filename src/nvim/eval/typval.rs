@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -271,7 +272,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(windows)]
@@ -1030,7 +1030,7 @@ pub unsafe extern "C" fn tv_list_check_range_index_one(
         }
 
         if !quiet {
-            semsg(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n1));
+            semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n1));
         }
         ptr::null_mut()
     }
@@ -1051,7 +1051,7 @@ pub unsafe extern "C" fn tv_list_check_range_index_two(
             let ni = tv_list_find(l, *n2);
             if ni.is_null() {
                 if !quiet {
-                    semsg(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n2));
+                    semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n2));
                 }
                 return FAIL;
             }
@@ -1063,7 +1063,7 @@ pub unsafe extern "C" fn tv_list_check_range_index_two(
         }
         if *n2 < *n1 {
             if !quiet {
-                semsg(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n2));
+                semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(*n2));
             }
             return FAIL;
         }
@@ -1365,7 +1365,7 @@ pub unsafe extern "C" fn tv_list_slice_or_index(
         if n1 < 0 || n1 >= len {
             if !range {
                 if verbose {
-                    semsg(tr(e_list_index_out_of_range_nr.as_ptr()), n1_arg);
+                    semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), n1_arg);
                 }
                 return FAIL;
             }
@@ -1583,7 +1583,7 @@ pub unsafe extern "C" fn tv_list_remove(
         }
         let item = tv_list_find(l, idx as c_int);
         if item.is_null() {
-            semsg(tr(e_list_index_out_of_range_nr.as_ptr()), idx);
+            semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), idx);
         } else if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
             tv_list_drop_items(l, item, item);
             *rettv = (*item).li_tv;
@@ -1595,7 +1595,7 @@ pub unsafe extern "C" fn tv_list_remove(
             }
             let item2 = tv_list_find(l, end as c_int);
             if item2.is_null() {
-                semsg(tr(e_list_index_out_of_range_nr.as_ptr()), end);
+                semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), end);
             } else {
                 let mut cnt: c_int = 0;
                 let mut li = item;
@@ -2059,7 +2059,7 @@ unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: *mut sortinfo_T) ->
 unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool) {
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
-            semsg(
+            semsg!(
                 tr(e_listarg.as_ptr()),
                 if sort {
                     c"sort()".as_ptr()
@@ -2243,7 +2243,7 @@ pub unsafe extern "C" fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_
     unsafe {
         let li = tv_list_find(l, n);
         if li.is_null() {
-            semsg(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(n));
+            semsg!(tr(e_list_index_out_of_range_nr.as_ptr()), i64::from(n));
             return ptr::null();
         }
         tv_get_string(&raw const (*li).li_tv)
@@ -2678,7 +2678,7 @@ pub unsafe extern "C" fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dicti
         let hi = hash_find(&raw const (*dict).dv_hashtab, key_ptr);
         if hashitem_empty(&*hi) {
             #[cfg(not(test))]
-            semsg(tr(e_intern2.as_ptr()), c"tv_dict_item_remove()".as_ptr());
+            semsg!(tr(e_intern2.as_ptr()), c"tv_dict_item_remove()".as_ptr());
         } else {
             hash_remove(&raw mut (*dict).dv_hashtab, hi);
         }
@@ -3306,7 +3306,7 @@ pub unsafe extern "C" fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action
                         }
                     }
                 } else if *action == b'e' as c_char {
-                    semsg(tr(c"E737: Key already exists: %s".as_ptr()), key2);
+                    semsg!(tr(c"E737: Key already exists: %s".as_ptr()), key2);
                     break;
                 } else if *action == b'f' as c_char && di2 != di1 {
                     if value_check_lock((*di1).di_tv.v_lock, arg_errmsg, arg_errmsg_len)
@@ -3601,7 +3601,7 @@ unsafe fn tv_blob_index(
             (*rettv).v_type = VarType::VAR_NUMBER;
             (*rettv).vval.v_number = v;
         } else {
-            semsg(tr(e_blobidx.as_ptr()), idx);
+            semsg!(tr(e_blobidx.as_ptr()), idx);
             return FAIL;
         }
 
@@ -3640,7 +3640,7 @@ pub unsafe extern "C" fn tv_blob_check_index(
     unsafe {
         if n1 < 0 || n1 > i64::from(bloblen) {
             if !quiet {
-                semsg(tr(e_blobidx.as_ptr()), n1);
+                semsg!(tr(e_blobidx.as_ptr()), n1);
             }
             return FAIL;
         }
@@ -3660,7 +3660,7 @@ pub unsafe extern "C" fn tv_blob_check_range(
     unsafe {
         if n2 < 0 || n2 >= i64::from(bloblen) || n2 < n1 {
             if !quiet {
-                semsg(tr(e_blobidx.as_ptr()), n2);
+                semsg!(tr(e_blobidx.as_ptr()), n2);
             }
             return FAIL;
         }
@@ -3730,7 +3730,7 @@ pub unsafe extern "C" fn tv_blob_remove(
                 idx += len;
             }
             if idx < 0 || idx >= len {
-                semsg(tr(e_blobidx.as_ptr()), idx);
+                semsg!(tr(e_blobidx.as_ptr()), idx);
                 return;
             }
             if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
@@ -3751,7 +3751,7 @@ pub unsafe extern "C" fn tv_blob_remove(
                     end += len;
                 }
                 if end >= len || idx > end {
-                    semsg(tr(e_blobidx.as_ptr()), end);
+                    semsg!(tr(e_blobidx.as_ptr()), end);
                     return;
                 }
                 let blob = tv_blob_alloc();
@@ -3831,7 +3831,7 @@ pub unsafe extern "C" fn f_list2blob(
             let n = tv_get_number_chk(&raw const (*li).li_tv, &raw mut error);
             if error || !(0..=255).contains(&n) {
                 if !error {
-                    semsg(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
+                    semsg!(tr(e_invalid_value_for_blob_nr.as_ptr()), n as c_int);
                 }
                 ga_clear(&raw mut (*blob).bv_ga);
                 return;
@@ -3936,7 +3936,7 @@ pub unsafe extern "C" fn f_items(
             VarType::VAR_BLOB => tv_blob2items(argvars, rettv),
             VarType::VAR_DICT => tv_dict2items(argvars, rettv),
             _ => {
-                semsg(
+                semsg!(
                     tr(E_LIST_DICT_BLOB_OR_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                     1,
                 );
@@ -4000,7 +4000,7 @@ pub unsafe extern "C" fn tv_dict_remove(
 ) {
     unsafe {
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
-            semsg(tr(e_toomanyarg.as_ptr()), c"remove()".as_ptr());
+            semsg!(tr(e_toomanyarg.as_ptr()), c"remove()".as_ptr());
         } else {
             let d = (*argvars).vval.v_dict;
             if !d.is_null() && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -4008,7 +4008,7 @@ pub unsafe extern "C" fn tv_dict_remove(
                 if !key.is_null() {
                     let di = tv_dict_find(d, key, -1);
                     if di.is_null() {
-                        semsg(tr(e_dictkey.as_ptr()), key);
+                        semsg!(tr(e_dictkey.as_ptr()), key);
                     } else if !var_check_fixed(
                         c_int::from((*di).di_flags),
                         arg_errmsg,
@@ -4577,7 +4577,7 @@ pub unsafe extern "C" fn tv_copy(from: *const typval_T, to: *mut typval_T) {
             }
             VarType::VAR_UNKNOWN => {
                 #[cfg(not(test))]
-                semsg(tr(e_intern2.as_ptr()), c"tv_copy(UNKNOWN)".as_ptr());
+                semsg!(tr(e_intern2.as_ptr()), c"tv_copy(UNKNOWN)".as_ptr());
             }
         }
     }
@@ -4735,7 +4735,7 @@ pub unsafe extern "C" fn value_check_lock(
                     } else if name_len == TV_CSTRING {
                         name_len = c_strlen(name);
                     }
-                    semsg(tr(error_message), name_len as c_int, name);
+                    semsg!(tr(error_message), name_len as c_int, name);
                 }
             }
             #[cfg(not(test))]
@@ -4754,7 +4754,7 @@ pub unsafe extern "C" fn value_check_lock(
                     } else if name_len == TV_CSTRING {
                         name_len = c_strlen(name);
                     }
-                    semsg(tr(error_message), name_len as c_int, name);
+                    semsg!(tr(error_message), name_len as c_int, name);
                 }
             }
             _ => {
@@ -4873,7 +4873,7 @@ pub unsafe extern "C" fn tv_check_str_or_nr(tv: *const typval_T) -> bool {
                 false
             }
             VarType::VAR_UNKNOWN => {
-                semsg(
+                semsg!(
                     tr(e_intern2.as_ptr()),
                     c"tv_check_str_or_nr(UNKNOWN)".as_ptr(),
                 );
@@ -5004,7 +5004,7 @@ pub unsafe extern "C" fn tv_get_number_chk(
             VarType::VAR_SPECIAL => return 0,
             VarType::VAR_UNKNOWN => {
                 #[cfg(not(test))]
-                semsg(tr(e_intern2.as_ptr()), c"tv_get_number(UNKNOWN)".as_ptr());
+                semsg!(tr(e_intern2.as_ptr()), c"tv_get_number(UNKNOWN)".as_ptr());
             }
         }
         if !ret_error.is_null() {
@@ -5103,7 +5103,7 @@ pub unsafe extern "C" fn tv_get_float(tv: *const typval_T) -> float_T {
             }
             VarType::VAR_UNKNOWN => {
                 #[cfg(not(test))]
-                semsg(tr(e_intern2.as_ptr()), c"tv_get_float(UNKNOWN)".as_ptr());
+                semsg!(tr(e_intern2.as_ptr()), c"tv_get_float(UNKNOWN)".as_ptr());
                 0.0
             }
         }
@@ -5116,7 +5116,7 @@ pub unsafe extern "C" fn tv_get_float(tv: *const typval_T) -> float_T {
 pub unsafe extern "C" fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_STRING {
-            semsg(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+            semsg!(tr(E_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
             return FAIL;
         }
         OK
@@ -5136,7 +5136,7 @@ pub unsafe extern "C" fn tv_check_for_nonempty_string_arg(
         }
         let s = (*args.offset(idx as isize)).vval.v_string;
         if s.is_null() || *s == NUL {
-            semsg(
+            semsg!(
                 tr(E_NON_EMPTY_STRING_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5167,7 +5167,7 @@ pub unsafe extern "C" fn tv_check_for_opt_string_arg(args: *const typval_T, idx:
 pub unsafe extern "C" fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_NUMBER {
-            semsg(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+            semsg!(tr(E_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
             return FAIL;
         }
         OK
@@ -5196,7 +5196,7 @@ pub unsafe extern "C" fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_FLOAT && vt != VarType::VAR_NUMBER {
-            semsg(
+            semsg!(
                 tr(E_FLOAT_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5216,7 +5216,7 @@ pub unsafe extern "C" fn tv_check_for_bool_arg(args: *const typval_T, idx: c_int
             && !(arg.v_type == VarType::VAR_NUMBER
                 && (arg.vval.v_number == 0 || arg.vval.v_number == 1))
         {
-            semsg(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+            semsg!(tr(E_BOOL_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
             return FAIL;
         }
         OK
@@ -5241,7 +5241,7 @@ pub unsafe extern "C" fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c
 pub unsafe extern "C" fn tv_check_for_blob_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_BLOB {
-            semsg(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+            semsg!(tr(E_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
             return FAIL;
         }
         OK
@@ -5254,7 +5254,7 @@ pub unsafe extern "C" fn tv_check_for_blob_arg(args: *const typval_T, idx: c_int
 pub unsafe extern "C" fn tv_check_for_list_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_LIST {
-            semsg(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+            semsg!(tr(E_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
             return FAIL;
         }
         OK
@@ -5267,7 +5267,7 @@ pub unsafe extern "C" fn tv_check_for_list_arg(args: *const typval_T, idx: c_int
 pub unsafe extern "C" fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int {
     unsafe {
         if (*args.offset(idx as isize)).v_type != VarType::VAR_DICT {
-            semsg(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
+            semsg!(tr(E_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()), idx + 1);
             return FAIL;
         }
         OK
@@ -5283,7 +5283,7 @@ pub unsafe extern "C" fn tv_check_for_nonnull_dict_arg(args: *const typval_T, id
             return FAIL;
         }
         if (*args.offset(idx as isize)).vval.v_dict.is_null() {
-            semsg(
+            semsg!(
                 tr(E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5318,7 +5318,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_number_arg(
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_STRING && vt != VarType::VAR_NUMBER {
-            semsg(
+            semsg!(
                 tr(E_STRING_OR_NUMBER_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5352,7 +5352,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_list_arg(
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST {
-            semsg(
+            semsg!(
                 tr(E_STRING_OR_LIST_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5372,7 +5372,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_list_or_blob_arg(
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_STRING && vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
-            semsg(
+            semsg!(
                 tr(E_STRING_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5410,7 +5410,7 @@ pub unsafe extern "C" fn tv_check_for_string_or_func_arg(
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_PARTIAL && vt != VarType::VAR_FUNC && vt != VarType::VAR_STRING {
-            semsg(
+            semsg!(
                 tr(E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5427,7 +5427,7 @@ pub unsafe extern "C" fn tv_check_for_list_or_blob_arg(args: *const typval_T, id
     unsafe {
         let vt = (*args.offset(idx as isize)).v_type;
         if vt != VarType::VAR_LIST && vt != VarType::VAR_BLOB {
-            semsg(
+            semsg!(
                 tr(E_LIST_OR_BLOB_REQUIRED_FOR_ARGUMENT_NR.as_ptr()),
                 idx + 1,
             );
@@ -5558,7 +5558,7 @@ pub unsafe extern "C" fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -
 
         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         vim_snprintf(buf.as_mut_ptr(), buf.len(), c"%lld".as_ptr(), n);
-        semsg(tr(e_val_too_large.as_ptr()), buf.as_ptr());
+        semsg!(tr(e_val_too_large.as_ptr()), buf.as_ptr());
         FAIL
     }
 }

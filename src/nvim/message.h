@@ -187,8 +187,6 @@ DLLEXPORT void msg_check_for_delay(bool check_msg_scroll);
 
 #include "nvim/func_attr.h"
 
-#include "message.h.generated.h"
-
 // Prefer using semsg(), because perror() may send the output to the wrong
 // destination and mess up the screen.
 #define PERROR(msg) (void)semsg("%s: %s", (msg), strerror(errno))

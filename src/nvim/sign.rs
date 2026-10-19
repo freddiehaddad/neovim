@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -179,8 +180,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn msg_puts_title(s: *const c_char);
     fn msg_putchar(c: c_int);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
@@ -735,7 +734,7 @@ pub unsafe extern "C" fn init_sign_text(
 
         if s != endp || cells > SIGN_WIDTH {
             if !sp.is_null() {
-                semsg(gettext(c"E239: Invalid sign text: %s".as_ptr()), text);
+                semsg!(gettext(c"E239: Invalid sign text: %s".as_ptr()), text);
             }
             return FAIL;
         }
@@ -832,7 +831,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
         let sp = map_del_cstr_t_ptr_t(&raw mut sign_map, name, ptr::null_mut()).cast::<sign_T>();
         if sp.is_null() {
-            semsg(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
+            semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;
         }
 
@@ -845,7 +844,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
 
 unsafe fn sign_list_defined(sp: *mut sign_T) {
     unsafe {
-        smsg(0, c"sign %s".as_ptr(), (*sp).sn_name);
+        smsg!(0, c"sign %s".as_ptr(), (*sp).sn_name);
         if !(*sp).sn_icon.is_null() {
             msg_puts(c" icon=".as_ptr());
             msg_outtrans((*sp).sn_icon, 0, false);
@@ -895,7 +894,7 @@ unsafe fn sign_list_by_name(name: *mut c_char) {
         if !sp.is_null() {
             sign_list_defined(sp);
         } else {
-            semsg(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
+            semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
         }
     }
 }
@@ -915,7 +914,7 @@ unsafe fn sign_place(
 
         let sp = pmap_get_sign(name);
         if sp.is_null() {
-            semsg(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
+            semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;
         }
 
@@ -933,7 +932,7 @@ unsafe fn sign_place(
             lnum = buf_mod_sign(buf, id, group, prio, sp);
         }
         if lnum <= 0 {
-            semsg(
+            semsg!(
                 gettext(c"E885: Not possible to change sign %s".as_ptr()),
                 name,
             );
@@ -992,7 +991,7 @@ unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T 
     unsafe {
         let lnum = buf_findsign(buf, id, group);
         if lnum <= 0 {
-            semsg(gettext(c"E157: Invalid sign ID: %d".as_ptr()), id);
+            semsg!(gettext(c"E157: Invalid sign ID: %d".as_ptr()), id);
             return -1;
         }
 
@@ -1058,7 +1057,7 @@ unsafe fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
             } else if strncmp(arg, c"priority=".as_ptr(), 9) == 0 {
                 prio = atoi(arg.add(9));
             } else {
-                semsg(gettext(e_invarg2.as_ptr()), arg);
+                semsg!(gettext(e_invarg2.as_ptr()), arg);
                 return;
             }
             if *cmdline == NUL {
@@ -1216,7 +1215,7 @@ unsafe fn parse_sign_cmd_args(
                 filename = arg;
                 *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
                 if *skipwhite(arg) != NUL {
-                    semsg(gettext(e_trailing_arg.as_ptr()), arg);
+                    semsg!(gettext(e_trailing_arg.as_ptr()), arg);
                 }
                 break;
             } else {
@@ -1227,7 +1226,7 @@ unsafe fn parse_sign_cmd_args(
         }
 
         if !filename.is_null() && (*buf).is_null() {
-            semsg(gettext(e_invalid_buffer_name_str.as_ptr()), filename);
+            semsg!(gettext(e_invalid_buffer_name_str.as_ptr()), filename);
             return FAIL;
         }
 
@@ -1246,7 +1245,7 @@ pub unsafe extern "C" fn ex_sign(eap: *mut exarg_T) {
         let mut p = skiptowhite(arg);
         let idx = sign_cmd_idx(arg, p);
         if idx == SIGNCMD_LAST {
-            semsg(gettext(c"E160: Unknown sign command: %s".as_ptr()), arg);
+            semsg!(gettext(c"E160: Unknown sign command: %s".as_ptr()), arg);
             return;
         }
         arg = skipwhite(p);

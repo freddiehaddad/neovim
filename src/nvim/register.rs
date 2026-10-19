@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
@@ -185,8 +186,6 @@ unsafe extern "C" {
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn emsg_invreg(name: c_int);
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msgmore(n: linenr_T);
     fn msg_ext_set_kind(msg_kind: *const c_char);
@@ -1528,7 +1527,7 @@ pub unsafe extern "C" fn op_yank_reg(
                 const LINE_PLURAL: &CStr = c"%ld lines yanked%s";
 
                 if yank_type == MotionType::kMTBlockWise {
-                    smsg(
+                    smsg!(
                         0,
                         ngettext(
                             BLOCK_SINGLE.as_ptr(),
@@ -1539,7 +1538,7 @@ pub unsafe extern "C" fn op_yank_reg(
                         namebuf.as_ptr(),
                     );
                 } else {
-                    smsg(
+                    smsg!(
                         0,
                         ngettext(
                             LINE_SINGLE.as_ptr(),
@@ -2062,7 +2061,7 @@ pub unsafe extern "C" fn do_put(
             }
 
             if y_size == 0 || y_array.is_null() {
-                semsg(
+                semsg!(
                     gettext(c"E353: Nothing in register %s".as_ptr()),
                     if regname == 0 {
                         c"\"".as_ptr()
@@ -3225,7 +3224,7 @@ pub unsafe extern "C" fn write_reg_contents_lst(
             let s = if (*strings).is_null() {
                 c"".as_ptr()
             } else if !(*strings.add(1)).is_null() {
-                semsg(
+                semsg!(
                     gettext(E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES.as_ptr()),
                     name,
                 );
@@ -3281,7 +3280,7 @@ pub unsafe extern "C" fn write_reg_contents_ex(
                 let num = atoi(str_);
                 let b = buflist_findnr(num);
                 if b.is_null() {
-                    semsg(gettext(e_nobufnr.as_ptr()), i64::from(num));
+                    semsg!(gettext(e_nobufnr.as_ptr()), i64::from(num));
                 }
                 b
             } else {

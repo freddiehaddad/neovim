@@ -34,6 +34,7 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
@@ -345,8 +346,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(hl_id: c_int, fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_start();
     fn msg_puts(s: *const c_char);
@@ -603,10 +602,10 @@ pub unsafe extern "C" fn spell_load_file(
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
             if !silent {
-                semsg(gettext((&raw const e_notopen).cast()), fname);
+                semsg!(gettext((&raw const e_notopen).cast()), fname);
             } else if p_verbose > 2 {
                 verbose_enter();
-                smsg(0, (&raw const e_notopen).cast(), fname);
+                smsg!(0, (&raw const e_notopen).cast(), fname);
                 verbose_leave();
             }
             if !lang.is_null() {
@@ -616,7 +615,7 @@ pub unsafe extern "C" fn spell_load_file(
         }
         if p_verbose > 2 {
             verbose_enter();
-            smsg(0, gettext(c"Reading spell file \"%s\"".as_ptr()), fname);
+            smsg!(0, gettext(c"Reading spell file \"%s\"".as_ptr()), fname);
             verbose_leave();
         }
 
@@ -636,14 +635,14 @@ pub unsafe extern "C" fn spell_load_file(
         let scms_ret = spell_check_magic_string(fd);
         match scms_ret {
             SP_FORMERROR | SP_TRUNCERROR => {
-                semsg(
+                semsg!(
                     c"%s".as_ptr(),
                     gettext(c"E757: This does not look like a spell file".as_ptr()),
                 );
                 fail = true;
             }
             SP_OTHERERROR => {
-                semsg(
+                semsg!(
                     gettext(c"E5042: Failed to read spell file %s: %s".as_ptr()),
                     fname,
                     strerror(ferror(fd)),
@@ -939,7 +938,7 @@ pub unsafe extern "C" fn suggest_load_files() {
                         buf[i] = fgetc(fd) as c_char;
                     }
                     if strncmp(buf.as_ptr(), VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL) != 0 {
-                        semsg(
+                        semsg!(
                             gettext(c"E778: This does not look like a .sug file: %s".as_ptr()),
                             (*slang).sl_fname,
                         );
@@ -948,13 +947,13 @@ pub unsafe extern "C" fn suggest_load_files() {
                     if ok {
                         let c = fgetc(fd);
                         if c < VIMSUGVERSION {
-                            semsg(
+                            semsg!(
                                 gettext(c"E779: Old .sug file, needs to be updated: %s".as_ptr()),
                                 (*slang).sl_fname,
                             );
                             ok = false;
                         } else if c > VIMSUGVERSION {
-                            semsg(
+                            semsg!(
                                 gettext(
                                     c"E780: .sug file is for newer version of Vim: %s".as_ptr(),
                                 ),
@@ -967,7 +966,7 @@ pub unsafe extern "C" fn suggest_load_files() {
                     if ok {
                         let timestamp = get8ctime(fd);
                         if timestamp != (*slang).sl_sugtime {
-                            semsg(
+                            semsg!(
                                 gettext(c"E781: .sug file doesn't match .spl file: %s".as_ptr()),
                                 (*slang).sl_fname,
                             );
@@ -1032,7 +1031,7 @@ pub unsafe extern "C" fn suggest_load_files() {
                         }
 
                         if someerror {
-                            semsg(
+                            semsg!(
                                 gettext(e_error_while_reading_sug_file_str),
                                 (*slang).sl_fname,
                             );
@@ -1952,7 +1951,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext((&raw const e_notopen).cast()), fname);
             return ptr::null_mut();
         }
 
@@ -1990,7 +1989,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     ptr::null_mut(),
                 );
                 if pc.is_null() {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
                         fname,
@@ -2041,7 +2040,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     if (*spin).si_ascii == 0
                         && convert_setup(&raw mut (*spin).si_conv, (*aff).af_enc, p_enc) == FAIL
                     {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
                             fname,
@@ -2060,7 +2059,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     } else if strcmp(items[1], c"caplong".as_ptr()) == 0 {
                         (*aff).af_flagtype = AFT_CAPLONG;
                     } else {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Invalid value for FLAG in %s line %d: %s".as_ptr()),
                             fname,
@@ -2080,7 +2079,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         || (*aff).af_suff.ht_used > 0
                         || (*aff).af_pref.ht_used > 0
                     {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"FLAG after using flags in %s line %d: %s".as_ptr()),
                             fname,
@@ -2159,7 +2158,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     (*aff).af_compforbid = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
                     if (*aff).af_pref.ht_used > 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(
                                 c"Defining COMPOUNDFORBIDFLAG after PFX item may give wrong results in %s line %d"
@@ -2178,7 +2177,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     (*aff).af_comppermit = affitem2flag((*aff).af_flagtype, items[1], fname, lnum);
                     if (*aff).af_pref.ht_used > 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(
                                 c"Defining COMPOUNDPERMITFLAG after PFX item may give wrong results in %s line %d"
@@ -2197,7 +2196,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     compflags = p_cf;
                 } else if is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"COMPOUNDRULES".as_ptr(), 2) {
                     if atoi(items[1]) == 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Wrong COMPOUNDRULES value in %s line %d: %s".as_ptr()),
                             fname,
@@ -2228,7 +2227,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     compmax = atoi(items[1]);
                     if compmax == 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Wrong COMPOUNDWORDMAX value in %s line %d: %s".as_ptr()),
                             fname,
@@ -2241,7 +2240,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     compminlen = atoi(items[1]);
                     if compminlen == 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Wrong COMPOUNDMIN value in %s line %d: %s".as_ptr()),
                             fname,
@@ -2254,7 +2253,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                 {
                     compsylmax = atoi(items[1]);
                     if compsylmax == 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Wrong COMPOUNDSYLMAX value in %s line %d: %s".as_ptr()),
                             fname,
@@ -2297,7 +2296,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     2,
                 ) {
                     if atoi(items[1]) == 0 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Wrong CHECKCOMPOUNDPATTERN value in %s line %d: %s".as_ptr()),
                             fname,
@@ -2366,7 +2365,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     if !hi_empty(hi) {
                         cur_aff = hi2ah(hi);
                         if (*cur_aff).ah_combine != c_int::from(*items[2] == b'Y' as c_char) {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(
                                     c"Different combining flag in continued affix block in %s line %d: %s"
@@ -2378,7 +2377,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             );
                         }
                         if (*cur_aff).ah_follows == 0 {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(c"Duplicate affix in %s line %d: %s".as_ptr()),
                                 fname,
@@ -2402,7 +2401,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             || (*cur_aff).ah_flag == (*aff).af_needcomp
                             || (*cur_aff).ah_flag == (*aff).af_comproot
                         {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(
                                     c"Affix also used for BAD/RARE/KEEPCASE/NEEDAFFIX/NEEDCOMPOUND/NOSUGGEST in %s line %d: %s"
@@ -2427,12 +2426,12 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
                     if itemcnt > lasti && !(*aff).af_ignoreextra && *items[lasti] != b'#' as c_char
                     {
-                        smsg(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
+                        smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
                     }
 
                     if strcmp(items[2], c"Y".as_ptr()) != 0 && strcmp(items[2], c"N".as_ptr()) != 0
                     {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Expected Y or N in %s line %d: %s".as_ptr()),
                             fname,
@@ -2464,7 +2463,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         && *items[lasti] != b'#' as c_char
                         && (strcmp(items[lasti], c"-".as_ptr()) != 0 || itemcnt != lasti + 1)
                     {
-                        smsg(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
+                        smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
                     }
 
                     aff_todo -= 1;
@@ -2507,7 +2506,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                             (*aff_entry).ae_prog =
                                 vim_regcomp(buf.as_ptr(), RE_MAGIC + RE_STRING + RE_STRICT);
                             if (*aff_entry).ae_prog.is_null() {
-                                smsg(
+                                smsg!(
                                     0,
                                     gettext(c"Broken condition in %s line %d: %s".as_ptr()),
                                     fname,
@@ -2645,7 +2644,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     || is_aff_rule(items.as_mut_ptr(), itemcnt_i, c"REPSAL".as_ptr(), 2)
                 {
                     if !(*items[1] as u8).is_ascii_digit() {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Expected REP(SAL) count in %s line %d".as_ptr()),
                             fname,
@@ -2657,7 +2656,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     && itemcnt >= 3
                 {
                     if itemcnt > 3 && *items[3] != b'#' as c_char {
-                        smsg(0, gettext(e_afftrailing), fname, lnum, items[3]);
+                        smsg!(0, gettext(e_afftrailing), fname, lnum, items[3]);
                     }
                     let is_repsal = *items[0].add(3) == b'S' as c_char;
                     if if is_repsal { do_repsal } else { do_rep } {
@@ -2690,7 +2689,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     if !found_map {
                         found_map = true;
                         if !(*items[1] as u8).is_ascii_digit() {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(c"Expected MAP count in %s line %d".as_ptr()),
                                 fname,
@@ -2705,7 +2704,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                                 && !vim_strchr((*spin).si_map.ga_data.cast(), c).is_null())
                                 || !vim_strchr(p_m, c).is_null()
                             {
-                                smsg(
+                                smsg!(
                                     0,
                                     gettext(c"Duplicate character in MAP in %s line %d".as_ptr()),
                                     fname,
@@ -2749,7 +2748,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         }
                     }
                 } else {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Unrecognized or duplicate item in %s line %d: %s".as_ptr()),
                         fname,
@@ -2782,7 +2781,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
         if compsylmax != 0 {
             if syllable.is_null() {
-                smsg(
+                smsg!(
                     0,
                     c"%s".as_ptr(),
                     gettext(c"COMPOUNDSYLMAX used without SYLLABLE".as_ptr()),
@@ -2829,7 +2828,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
 
         if !sofofrom.is_null() || !sofoto.is_null() {
             if sofofrom.is_null() || sofoto.is_null() {
-                smsg(
+                smsg!(
                     0,
                     gettext(c"Missing SOFO%s line in %s".as_ptr()),
                     if sofofrom.is_null() {
@@ -2840,7 +2839,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                     fname,
                 );
             } else if !ga_empty(&raw const (*spin).si_sal) {
-                smsg(0, gettext(c"Both SAL and SOFO lines in %s".as_ptr()), fname);
+                smsg!(0, gettext(c"Both SAL and SOFO lines in %s".as_ptr()), fname);
             } else {
                 aff_check_string((*spin).si_sofofr, sofofrom, c"SOFOFROM".as_ptr());
                 aff_check_string((*spin).si_sofoto, sofoto, c"SOFOTO".as_ptr());
@@ -2924,7 +2923,7 @@ unsafe fn affitem2flag(
         let res = get_affitem(flagtype, &raw mut p);
         if res == 0 {
             if flagtype == AFT_NUM {
-                smsg(
+                smsg!(
                     0,
                     gettext(c"Flag is not a number in %s line %d: %s".as_ptr()),
                     fname,
@@ -2932,7 +2931,7 @@ unsafe fn affitem2flag(
                     item,
                 );
             } else {
-                smsg(
+                smsg!(
                     0,
                     gettext(c"Illegal flag in %s line %d: %s".as_ptr()),
                     fname,
@@ -2942,7 +2941,7 @@ unsafe fn affitem2flag(
             }
         }
         if *p != NUL {
-            smsg(0, gettext(e_affname), fname, lnum, item);
+            smsg!(0, gettext(e_affname), fname, lnum, item);
             return 0;
         }
         res
@@ -3113,7 +3112,7 @@ unsafe fn flag_in_afflist(flagtype: c_int, afflist: *mut c_char, flag: c_uint) -
 unsafe fn aff_check_number(spinval: c_int, affval: c_int, name: *const c_char) {
     unsafe {
         if spinval != 0 && spinval != affval {
-            smsg(
+            smsg!(
                 0,
                 gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
                 name,
@@ -3125,7 +3124,7 @@ unsafe fn aff_check_number(spinval: c_int, affval: c_int, name: *const c_char) {
 unsafe fn aff_check_string(spinval: *const c_char, affval: *const c_char, name: *const c_char) {
     unsafe {
         if !spinval.is_null() && strcmp(spinval, affval) != 0 {
-            smsg(
+            smsg!(
                 0,
                 gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
                 name,
@@ -3225,7 +3224,7 @@ unsafe fn spell_read_dic(
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext((&raw const e_notopen).cast()), fname);
             return FAIL;
         }
 
@@ -3244,7 +3243,7 @@ unsafe fn spell_read_dic(
         if vim_fgets(line.as_mut_ptr(), MAXLINELEN as c_int, fd)
             || !ascii_isdigit(*skipwhite(line.as_ptr()) as c_int)
         {
-            semsg(gettext(c"E760: No word count in %s".as_ptr()), fname);
+            semsg!(gettext(c"E760: No word count in %s".as_ptr()), fname);
         }
 
         while !vim_fgets(line.as_mut_ptr(), MAXLINELEN as c_int, fd) && !got_int {
@@ -3270,7 +3269,7 @@ unsafe fn spell_read_dic(
                     ptr::null_mut(),
                 );
                 if pc.is_null() {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
                         fname,
@@ -3338,7 +3337,7 @@ unsafe fn spell_read_dic(
             let hi = hash_lookup(&raw const ht, dw, strlen(dw), hash);
             if !hi_empty(hi) {
                 if p_verbose > 0 {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Duplicate word in %s line %d: %s".as_ptr()),
                         fname,
@@ -3346,7 +3345,7 @@ unsafe fn spell_read_dic(
                         dw,
                     );
                 } else if duplicate == 0 {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"First duplicate word in %s line %d: %s".as_ptr()),
                         fname,
@@ -3444,7 +3443,7 @@ unsafe fn spell_read_dic(
         }
 
         if duplicate > 0 {
-            smsg(
+            smsg!(
                 0,
                 gettext(c"%d duplicate word(s) in %s".as_ptr()),
                 duplicate,
@@ -3452,7 +3451,7 @@ unsafe fn spell_read_dic(
             );
         }
         if (*spin).si_ascii != 0 && non_ascii > 0 {
-            smsg(
+            smsg!(
                 0,
                 gettext(c"Ignored %d word(s) with non-ASCII characters in %s".as_ptr()),
                 non_ascii,
@@ -3885,7 +3884,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
 
         let fd = os_fopen(fname, c"r".as_ptr());
         if fd.is_null() {
-            semsg(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext((&raw const e_notopen).cast()), fname);
             return FAIL;
         }
 
@@ -3922,7 +3921,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                     ptr::null_mut(),
                 );
                 if pc.is_null() {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s".as_ptr()),
                         fname,
@@ -3941,7 +3940,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                 line = line.add(1);
                 if strncmp(line, c"encoding=".as_ptr(), 9) == 0 {
                     if (*spin).si_conv.vc_type != CONV_NONE {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(
                                 c"Duplicate /encoding= line ignored in %s line %d: %s".as_ptr(),
@@ -3951,7 +3950,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                             line.sub(1),
                         );
                     } else if did_word {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(
                                 c"/encoding= line after word ignored in %s line %d: %s".as_ptr(),
@@ -3966,7 +3965,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         if (*spin).si_ascii == 0
                             && convert_setup(&raw mut (*spin).si_conv, enc, p_enc) == FAIL
                         {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(c"Conversion in %s not supported: from %s to %s".as_ptr()),
                                 fname,
@@ -3982,7 +3981,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
 
                 if strncmp(line, c"regions=".as_ptr(), 8) == 0 {
                     if (*spin).si_region_count > 1 {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Duplicate /regions= line ignored in %s line %d: %s".as_ptr()),
                             fname,
@@ -3992,7 +3991,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                     } else {
                         line = line.add(8);
                         if strlen(line) > MAXREGIONS * 2 {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(c"Too many regions in %s line %d: %s".as_ptr()),
                                 fname,
@@ -4008,7 +4007,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                     continue;
                 }
 
-                smsg(
+                smsg!(
                     0,
                     gettext(c"/ line ignored in %s line %d: %s".as_ptr()),
                     fname,
@@ -4040,7 +4039,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
 
                         let r = (*p as u8 - b'0') as c_int;
                         if r == 0 || r > (*spin).si_region_count {
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(c"Invalid region nr in %s line %d: %s".as_ptr()),
                                 fname,
@@ -4051,7 +4050,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         }
                         regionmask |= 1 << (r - 1);
                     } else {
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Unrecognized flags in %s line %d: %s".as_ptr()),
                             fname,
@@ -4552,7 +4551,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
 
         let fd = os_fopen(fname, c"w".as_ptr());
         if fd.is_null() {
-            semsg(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext((&raw const e_notopen).cast()), fname);
             return FAIL;
         }
 
@@ -5038,7 +5037,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
 
         spell_message(spin, gettext(c"Performing soundfolding...".as_ptr()));
         if sug_filltree(spin, slang) != FAIL && sug_maketable(spin) != FAIL {
-            smsg(
+            smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld".as_ptr()),
                 (*(*spin).si_spellbuf).b_ml.ml_line_count as i64,
@@ -5136,7 +5135,7 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
             }
         }
 
-        smsg(
+        smsg!(
             0,
             gettext(c"Total number of words: %d".as_ptr()),
             words_done,
@@ -5268,7 +5267,7 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
     unsafe {
         let fd = os_fopen(fname, c"w".as_ptr());
         if fd.is_null() {
-            semsg(gettext((&raw const e_notopen).cast()), fname);
+            semsg!(gettext((&raw const e_notopen).cast()), fname);
             return;
         }
 
@@ -5422,14 +5421,14 @@ unsafe fn mkspell(
                 c"E751: Output file name must not have region name".as_ptr(),
             ));
         } else if incount > MAXREGIONS as c_int {
-            semsg(
+            semsg!(
                 gettext(c"E754: Only up to %d regions supported".as_ptr()),
                 MAXREGIONS as c_int,
             );
         } else if !over_write && os_path_exists(wfname) {
             emsg(gettext((&raw const e_exists).cast()));
         } else if os_isdir(wfname) {
-            semsg(gettext((&raw const e_isadir2).cast()), wfname);
+            semsg!(gettext((&raw const e_isadir2).cast()), wfname);
         } else {
             fname = xmalloc(MAXPATHL).cast::<c_char>();
 
@@ -5441,7 +5440,7 @@ unsafe fn mkspell(
                     let in_i = *innames.add(i);
                     let len = strlen(in_i);
                     if strlen(path_tail(in_i)) < 5 || *in_i.add(len - 3) != b'_' as c_char {
-                        semsg(gettext(c"E755: Invalid region in %s".as_ptr()), in_i);
+                        semsg!(gettext(c"E755: Invalid region in %s".as_ptr()), in_i);
                         region_ok = false;
                         break;
                     }
@@ -5630,7 +5629,7 @@ pub unsafe extern "C" fn spell_add_word(
             }
 
             if *(*win_s(curwin)).b_p_spf == NUL {
-                semsg(gettext((&raw const e_notset).cast()), c"spellfile".as_ptr());
+                semsg!(gettext((&raw const e_notset).cast()), c"spellfile".as_ptr());
                 return;
             }
             fnamebuf = xmalloc(MAXPATHL).cast::<c_char>();
@@ -5643,7 +5642,7 @@ pub unsafe extern "C" fn spell_add_word(
                     break;
                 }
                 if *spf == NUL {
-                    semsg(
+                    semsg!(
                         gettext(c"E765: 'spellfile' does not have %d entries".as_ptr()),
                         idx,
                     );
@@ -5697,7 +5696,7 @@ pub unsafe extern "C" fn spell_add_word(
                                     MAXPATHL,
                                     true,
                                 );
-                                smsg(
+                                smsg!(
                                     0,
                                     gettext(c"Word '%.*s' removed from %s".as_ptr()),
                                     len,
@@ -5708,7 +5707,7 @@ pub unsafe extern "C" fn spell_add_word(
                         }
                         if fseek(fd, fpos_next, SEEK_SET) != 0 {
                             let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-                            semsg(
+                            semsg!(
                                 c"%s: %s".as_ptr(),
                                 gettext(c"Seek error in spellfile".as_ptr()),
                                 strerror(err),
@@ -5737,7 +5736,7 @@ pub unsafe extern "C" fn spell_add_word(
             }
 
             if fd.is_null() {
-                semsg(gettext((&raw const e_notopen).cast()), fname);
+                semsg!(gettext((&raw const e_notopen).cast()), fname);
             } else {
                 let wlen = (0..(len as usize))
                     .take_while(|&i| *word.add(i) != NUL)
@@ -5759,7 +5758,7 @@ pub unsafe extern "C" fn spell_add_word(
                     MAXPATHL,
                     true,
                 );
-                smsg(
+                smsg!(
                     0,
                     gettext(c"Word '%.*s' added to %s".as_ptr()),
                     len,

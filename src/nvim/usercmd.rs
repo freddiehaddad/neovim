@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -311,7 +312,6 @@ unsafe extern "C" {
     fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) -> c_int;
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) -> *mut c_char;
     fn last_set_msg(script_ctx: sctx_T);
@@ -1021,7 +1021,7 @@ pub unsafe extern "C" fn parse_addr_type_arg(
             i += 1;
         }
         *err.add(i) = NUL;
-        semsg(
+        semsg!(
             gettext(c"E180: Invalid address type value: %s".as_ptr()),
             err,
         );
@@ -1073,7 +1073,7 @@ pub unsafe extern "C" fn parse_compl_arg(
         }
 
         if !matched {
-            semsg(gettext(c"E180: Invalid complete value: %s".as_ptr()), value);
+            semsg!(gettext(c"E180: Invalid complete value: %s".as_ptr()), value);
             return FAIL;
         }
 
@@ -1204,7 +1204,7 @@ unsafe fn uc_scan_attr(
                 }
             } else if vim_strnicmp_asc(attr, c"complete".as_ptr(), attrlen) == 0 {
                 if val.is_null() {
-                    semsg(
+                    semsg!(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
                         c"-complete".as_ptr(),
                     );
@@ -1217,7 +1217,7 @@ unsafe fn uc_scan_attr(
             } else if vim_strnicmp_asc(attr, c"addr".as_ptr(), attrlen) == 0 {
                 *argt |= EX_RANGE;
                 if val.is_null() {
-                    semsg(
+                    semsg!(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
                         c"-addr".as_ptr(),
                     );
@@ -1232,7 +1232,7 @@ unsafe fn uc_scan_attr(
             } else {
                 let ch = *attr.add(len);
                 *attr.add(len) = NUL;
-                semsg(gettext(c"E181: Invalid attribute: %s".as_ptr()), attr);
+                semsg!(gettext(c"E181: Invalid attribute: %s".as_ptr()), attr);
                 *attr.add(len) = ch;
                 return FAIL;
             }
@@ -1322,7 +1322,7 @@ pub unsafe extern "C" fn uc_add_command(
                     && ((*cmd).uc_script_ctx.sc_sid != current_sctx.sc_sid
                         || (*cmd).uc_script_ctx.sc_seq == current_sctx.sc_seq)
                 {
-                    semsg(
+                    semsg!(
                         gettext(c"E174: Command already exists: add ! to replace it: %s".as_ptr()),
                         name,
                     );
@@ -1535,7 +1535,7 @@ pub unsafe extern "C" fn ex_delcommand(eap: *mut exarg_T) {
 
         if res != 0 {
             let _ = &mut i;
-            semsg(
+            semsg!(
                 gettext(if buffer_only {
                     E_NO_SUCH_USER_DEFINED_COMMAND_IN_CURRENT_BUFFER_STR.as_ptr()
                 } else {

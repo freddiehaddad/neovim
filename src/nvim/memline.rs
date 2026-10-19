@@ -17,6 +17,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::{semsg, siemsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
@@ -300,11 +301,8 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn iemsg(s: *const c_char);
-    fn siemsg(fmt: *const c_char, ...);
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn verb_msg(s: *const c_char) -> c_int;
     fn msg_start();
     fn msg_end() -> bool;
@@ -810,7 +808,7 @@ pub unsafe extern "C" fn ml_open_file(buf: *mut buf_T) {
             need_wait_return = true;
             no_wait_return += 1;
             let sp = buf_spname(buf);
-            semsg(
+            semsg!(
                 tr(c"E303: Unable to open swap file for \"%s\", recovery impossible"),
                 if !sp.is_null() { sp } else { (*buf).b_fname },
             );
@@ -1068,7 +1066,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
 
             if n_swaps == 0 {
                 tv_clear(&raw mut items_tv);
-                semsg(tr(c"E305: No swap file found for %s"), fname);
+                semsg!(tr(c"E305: No swap file found for %s"), fname);
                 ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
                 return;
             }
@@ -1108,7 +1106,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
         mfp = mf_open(fname_used, O_RDONLY);
         fname_used = p;
         if mfp.is_null() || (*mfp).mf_fd < 0 {
-            semsg(tr(c"E306: Cannot open %s"), fname_used);
+            semsg!(tr(c"E306: Cannot open %s"), fname_used);
             ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
             return;
         }
@@ -1152,7 +1150,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
             return;
         }
         if !ml_check_b0_id(b0p) {
-            semsg(
+            semsg!(
                 tr(c"E307: %s does not look like a Nvim swap file"),
                 (*mfp).mf_fname,
             );
@@ -1231,7 +1229,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
             MAXPATHL,
             true,
         );
-        smsg(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
+        smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
         let sp = buf_spname(curbuf);
         if !sp.is_null() {
@@ -1246,7 +1244,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
             );
         }
         msg_putchar(b'\n' as c_int);
-        smsg(0, tr(c"Original file \"%s\""), namebuff_ptr);
+        smsg!(0, tr(c"Original file \"%s\""), namebuff_ptr);
         msg_putchar(b'\n' as c_int);
         msg_ext_skip_flush = false;
 
@@ -1329,7 +1327,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
             hp = mf_get(mfp, bnum, page_count);
             if hp.is_null() {
                 if bnum == 1 {
-                    semsg(tr(c"E309: Unable to read block 1 from %s"), (*mfp).mf_fname);
+                    semsg!(tr(c"E309: Unable to read block 1 from %s"), (*mfp).mf_fname);
                     ml_recover_theend(fname_used, mfp, hp, buf, serious_error, called_from_main);
                     return;
                 }
@@ -1432,7 +1430,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
                     let dp = (*hp).bh_data.cast::<DataBlock>();
                     if (*dp).db_id != DATA_ID {
                         if bnum == 1 {
-                            semsg(
+                            semsg!(
                                 tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
                                 (*mfp).mf_fname,
                             );
@@ -2367,7 +2365,7 @@ unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool
         if lnum > (*buf).b_ml.ml_line_count {
             if ml_get_recursive == 0 {
                 ml_get_recursive += 1;
-                siemsg(tr(e_ml_get_invalid_lnum_nr), i64::from(lnum));
+                siemsg!(tr(e_ml_get_invalid_lnum_nr), i64::from(lnum));
                 ml_get_recursive -= 1;
             }
             ml_flush_line(buf, false);
@@ -2385,7 +2383,7 @@ unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool
                     get_trans_bufname(buf);
                     let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
                     shorten_dir(namebuff_ptr);
-                    siemsg(
+                    siemsg!(
                         tr(e_ml_get_cannot_find_line_nr_in_buffer_nr_str),
                         i64::from(lnum),
                         (*buf).b_fnum,
@@ -3289,7 +3287,7 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
 
             let hp = ml_find_line(buf, lnum, ML_FIND);
             if hp.is_null() {
-                siemsg(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
+                siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
             } else {
                 let dp = (*hp).bh_data.cast::<DataBlock>();
                 let idx = (lnum - (*buf).b_ml.ml_locked_low) as usize;
@@ -3506,12 +3504,12 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
             }
             if idx >= c_int::from((*pp).pb_count) {
                 if lnum > (*buf).b_ml.ml_line_count {
-                    siemsg(
+                    siemsg!(
                         tr(e_line_number_out_of_range_nr_past_the_end),
                         i64::from(lnum - (*buf).b_ml.ml_line_count),
                     );
                 } else {
-                    siemsg(tr(e_line_count_wrong_in_block_nr), bnum);
+                    siemsg!(tr(e_line_count_wrong_in_block_nr), bnum);
                 }
                 mf_put(mfp, hp, false, false);
                 return ml_find_line_error_noblock(buf, action);
@@ -3595,7 +3593,7 @@ pub unsafe extern "C" fn resolve_symlink(fname: *const c_char, buf: *mut c_char)
         loop {
             depth += 1;
             if depth == 100 {
-                semsg(tr(c"E773: Symlink loop for \"%s\""), fname);
+                semsg!(tr(c"E773: Symlink loop for \"%s\""), fname);
                 return FAIL;
             }
 
@@ -4042,7 +4040,7 @@ unsafe fn findswapname(
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let ret = os_mkdir_recurse(dir_name, 0o755, &raw mut failed_dir, ptr::null_mut());
             if ret != 0 {
-                semsg(
+                semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
                     failed_dir,
                     os_strerror(ret),

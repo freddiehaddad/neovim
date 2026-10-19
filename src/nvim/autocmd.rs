@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
@@ -1309,9 +1310,7 @@ unsafe extern "C" {
     fn verbose_leave();
     fn verbose_enter_scroll();
     fn verbose_leave_scroll();
-    fn smsg(attr: c_int, fmt: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn give_warning(message: *const c_char, hl: bool, with_source: bool);
 
     fn vim_regfree(prog: *mut c_void);
@@ -2054,7 +2053,7 @@ pub unsafe extern "C" fn aubuflocal_remove(buf: *mut buf_T) {
 
                 if p_verbose >= 6 {
                     verbose_enter();
-                    smsg(
+                    smsg!(
                         0,
                         tr(c"auto-removing autocommand: %s <buffer=%d>"),
                         event_nr2name(event),
@@ -2103,7 +2102,7 @@ pub unsafe extern "C" fn augroup_del_by_id(id: c_int) {
             augroup_name(id)
         };
         if name.is_null() {
-            semsg(tr(c"E367: No such group id: %d"), id);
+            semsg!(tr(c"E367: No such group id: %d"), id);
         } else {
             augroup_del(name, id, false);
         }
@@ -2120,9 +2119,9 @@ pub unsafe extern "C" fn augroup_del(
         let group = augroup_find(name);
         if group == AUGROUP_ERROR {
             if id_for_error > 0 {
-                semsg(tr(c"E367: No such group id: %d \"%s\""), id_for_error, name);
+                semsg!(tr(c"E367: No such group id: %d \"%s\""), id_for_error, name);
             } else {
-                semsg(tr(c"E367: No such group: \"%s\""), name);
+                semsg!(tr(c"E367: No such group: \"%s\""), name);
             }
             return;
         } else if group == current_augroup {
@@ -2573,7 +2572,7 @@ pub unsafe extern "C" fn do_autocmd_event(
             if is_buflocal {
                 let buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
                 if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
-                    semsg(
+                    semsg!(
                         tr(CStr::from_ptr(
                             (&raw const e_buffer_nr_invalid_buffer_number).cast(),
                         )),
@@ -2664,7 +2663,7 @@ pub unsafe extern "C" fn autocmd_register(
         if is_buflocal {
             buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
             if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
-                semsg(
+                semsg!(
                     tr(CStr::from_ptr(
                         (&raw const e_buffer_nr_invalid_buffer_number).cast(),
                     )),
@@ -2867,7 +2866,7 @@ pub unsafe extern "C" fn do_doautocmd(
         }
 
         if nothing_done && do_msg && !aborting() {
-            smsg(0, tr(c"No matching autocommands: %s"), arg_start);
+            smsg!(0, tr(c"No matching autocommands: %s"), arg_start);
         }
         if !did_something.is_null() {
             *did_something = !nothing_done;
@@ -3708,7 +3707,7 @@ unsafe fn aucmd_next(apc: *mut AutoPatCmd) {
                 let namep = xmemdupz(formatted.as_ptr().cast(), formatted.len()).cast::<c_char>();
                 if p_verbose >= 8 {
                     verbose_enter();
-                    smsg(0, tr(c"Executing %s"), namep);
+                    smsg!(0, tr(c"Executing %s"), namep);
                     verbose_leave();
                 }
 
@@ -3853,7 +3852,7 @@ pub unsafe extern "C" fn getnextac(
         if p_verbose >= 9 {
             verbose_enter_scroll();
             let handler_str = aucmd_handler_to_string(ac);
-            smsg(0, tr(c"autocommand %s"), handler_str);
+            smsg!(0, tr(c"autocommand %s"), handler_str);
             msg_puts(c"\n".as_ptr());
             xfree(handler_str.cast());
             verbose_leave_scroll();
@@ -4224,7 +4223,7 @@ unsafe fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
 
         if *arg == b'*' as c_char {
             if *arg.add(1) != NUL && !ascii_iswhite(*arg.add(1)) {
-                semsg(tr(c"E215: Illegal character after *: %s"), arg);
+                semsg!(tr(c"E215: Illegal character after *: %s"), arg);
                 return ptr::null_mut();
             }
             pat = arg.add(1);
@@ -4233,9 +4232,9 @@ unsafe fn arg_event_skip(arg: *mut c_char, have_group: bool) -> *mut c_char {
             while *pat != NUL && *pat != b'|' as c_char && !ascii_iswhite(*pat) {
                 if (event_name2nr(pat, &raw mut p) as usize) >= NUM_EVENTS {
                     if have_group {
-                        semsg(tr(c"E216: No such event: %s"), pat);
+                        semsg!(tr(c"E216: No such event: %s"), pat);
                     } else {
-                        semsg(tr(c"E216: No such group or event: %s"), pat);
+                        semsg!(tr(c"E216: No such group or event: %s"), pat);
                     }
                     return ptr::null_mut();
                 }
@@ -4280,7 +4279,7 @@ unsafe fn arg_autocmd_flag_get(
         let pat_slice = std::slice::from_raw_parts(pattern.cast::<u8>(), len as usize);
         if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(*(*cmd_ptr).add(len as usize)) {
             if *flag {
-                semsg(tr(CStr::from_ptr((&raw const e_duparg2).cast())), pattern);
+                semsg!(tr(CStr::from_ptr((&raw const e_duparg2).cast())), pattern);
                 return true;
             }
             *flag = true;

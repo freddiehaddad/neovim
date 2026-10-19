@@ -1,5 +1,6 @@
 //! Backtracking regular expression engine (`src/nvim/regexp.c`).
 
+use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_uint};
 use std::mem::{offset_of, size_of, zeroed};
 use std::ptr;
@@ -939,7 +940,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 return ret;
             } else if c == Magic(b'(' as c_int) {
                 if one_exactly {
-                    semsg(
+                    semsg!(
                         tr(e_invalid_item_in_str_brackets.as_ptr()),
                         if reg_magic == MAGIC_ALL {
                             c"".as_ptr()
@@ -962,7 +963,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 || c == Magic(b')' as c_int)
             {
                 if one_exactly {
-                    semsg(
+                    semsg!(
                         tr(e_invalid_item_in_str_brackets.as_ptr()),
                         if reg_magic == MAGIC_ALL {
                             c"".as_ptr()
@@ -989,7 +990,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 } else {
                     reg_magic == MAGIC_ALL
                 };
-                semsg(
+                semsg!(
                     tr(c"E64: %s%c follows nothing".as_ptr()),
                     if magic_cond {
                         c"".as_ptr()
@@ -1037,7 +1038,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             return ptr::null_mut();
                         }
                         if one_exactly {
-                            semsg(
+                            semsg!(
                                 tr(e_invalid_item_in_str_brackets.as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1091,7 +1092,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 match c as u8 {
                     b'(' => {
                         if one_exactly {
-                            semsg(
+                            semsg!(
                                 tr(e_invalid_item_in_str_brackets.as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1116,7 +1117,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             && (*regparse.add(1) as u8) >= 48
                             && (*regparse.add(1) as u8) <= 50
                         {
-                            semsg(
+                            semsg!(
                                 tr(e_atom_engine_must_be_at_start_of_pattern.as_ptr()),
                                 *regparse.add(1) as c_int,
                             );
@@ -1128,7 +1129,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                     b'C' => return regnode(RE_COMPOSING),
                     b'[' => {
                         if one_exactly {
-                            semsg(
+                            semsg!(
                                 tr(e_invalid_item_in_str_brackets.as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1147,7 +1148,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                 break;
                             }
                             if c == NUL as c_int {
-                                semsg(
+                                semsg!(
                                     tr(e_missing_sb.as_ptr()),
                                     if reg_magic == MAGIC_ALL {
                                         c"".as_ptr()
@@ -1176,7 +1177,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             }
                         }
                         if ret.is_null() {
-                            semsg(
+                            semsg!(
                                 tr(e_empty_sb.as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1218,7 +1219,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             _ => -1,
                         };
                         if i < 0 || i > i64::from(c_int::MAX) {
-                            semsg(
+                            semsg!(
                                 tr(c"E678: Invalid character after %s%%[dxouU]".as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1284,7 +1285,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                 && (cur || got_digit)
                             {
                                 if cur && n != 0 {
-                                    semsg(
+                                    semsg!(
                                         tr(e_regexp_number_after_dot_pos_search_chr.as_ptr()),
                                         no_Magic(c),
                                     );
@@ -1330,7 +1331,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                 return ret;
                             }
                         }
-                        semsg(
+                        semsg!(
                             tr(c"E71: Invalid character after %s%%".as_ptr()),
                             if reg_magic == MAGIC_ALL {
                                 c"".as_ptr()
@@ -1612,7 +1613,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;
             } else if reg_strict != 0 {
-                semsg(
+                semsg!(
                     tr(e_missingbracket.as_ptr()),
                     if reg_magic > MAGIC_OFF {
                         c"".as_ptr()
@@ -1717,7 +1718,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                 _ => {}
             }
             if lop == END {
-                semsg(
+                semsg!(
                     tr(e_invalid_character_after_str_at.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -1756,7 +1757,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                 reginsert_limits(BRACE_LIMITS, i64::from(minval), i64::from(maxval), ret);
             } else {
                 if num_complex_braces >= 10 {
-                    semsg(
+                    semsg!(
                         tr(c"E60: Too many complex %s{...}s".as_ptr()),
                         if reg_magic == MAGIC_ALL {
                             c"".as_ptr()
@@ -1780,7 +1781,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
 
         if re_multi_type(peekchr()) != NOT_MULTI {
             if peekchr() == Magic(b'*' as c_int) {
-                semsg(
+                semsg!(
                     tr(c"E61: Nested %s*".as_ptr()),
                     if reg_magic >= MAGIC_ON {
                         c"".as_ptr()
@@ -1791,7 +1792,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                 rc_did_emsg = true;
                 return ptr::null_mut();
             }
-            semsg(
+            semsg!(
                 tr(c"E62: Nested %s%c".as_ptr()),
                 if reg_magic == MAGIC_ALL {
                     c"".as_ptr()
@@ -1926,7 +1927,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
             ret = regnode(ZOPEN + parno);
         } else if paren == REG_PAREN {
             if regnpar >= NSUBEXP as c_int {
-                semsg(
+                semsg!(
                     tr(c"E51: Too many %s(".as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -2002,7 +2003,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
             if paren == REG_ZPAREN {
                 emsg(tr(e_unmatched_z.as_ptr()));
             } else if paren == REG_NPAREN {
-                semsg(
+                semsg!(
                     tr(e_unmatched_str_percent_open.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -2011,7 +2012,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
                     },
                 );
             } else {
-                semsg(
+                semsg!(
                     tr(e_unmatched_str_open.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -2025,7 +2026,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
             return ptr::null_mut();
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
             if curchr == Magic(b')' as c_int) {
-                semsg(
+                semsg!(
                     tr(e_unmatched_str_close.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()

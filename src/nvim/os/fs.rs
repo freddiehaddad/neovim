@@ -16,6 +16,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -264,8 +265,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
-    fn smsg(attr: c_int, s: *const c_char, ...) -> c_int;
     fn verbose_enter();
     fn verbose_leave();
     fn ui_call_chdir(path: NvimString);
@@ -590,7 +589,7 @@ pub unsafe extern "C" fn os_chdir(path: *const c_char) -> c_int {
     unsafe {
         if p_verbose >= 5 {
             verbose_enter();
-            let _ = smsg(0, c"chdir(%s)".as_ptr(), path);
+            let _ = smsg!(0, c"chdir(%s)".as_ptr(), path);
             verbose_leave();
         }
         let err = uv_chdir(path);
@@ -1738,7 +1737,7 @@ pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             let mut failed_dir: *mut c_char = ptr::null_mut();
             let r = os_mkdir_recurse(fname, mode, &raw mut failed_dir, ptr::null_mut());
             if r < 0 {
-                let _ = semsg(gettext(e_mkdir.as_ptr()), failed_dir, uv_strerror(r));
+                let _ = semsg!(gettext(e_mkdir.as_ptr()), failed_dir, uv_strerror(r));
                 xfree(failed_dir.cast());
             }
             *tail = c;
@@ -2128,7 +2127,7 @@ pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_cha
             let mut p: *mut u16 = ptr::null_mut();
             let r = utf8_to_utf16(fname, -1, &raw mut p);
             if r != 0 {
-                semsg(c"utf8_to_utf16 failed: %d".as_ptr(), r);
+                semsg!(c"utf8_to_utf16 failed: %d".as_ptr(), r);
             } else if !p.is_null() {
                 let hr2 = ((*(*pslw).lp_vtbl).query_interface)(
                     pslw,
@@ -2150,7 +2149,7 @@ pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_cha
                         if hr4 == 0 && wsz[0] != 0 {
                             let r2 = utf16_to_utf8(wsz.as_ptr(), -1, &raw mut rfname);
                             if r2 != 0 {
-                                semsg(c"utf16_to_utf8 failed: %d".as_ptr(), r2);
+                                semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), r2);
                             }
                         }
                     }
@@ -2184,7 +2183,7 @@ pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> boo
         let mut utf16_path: *mut u16 = ptr::null_mut();
         let r = utf8_to_utf16(path, -1, &raw mut utf16_path);
         if r != 0 {
-            semsg(c"utf8_to_utf16 failed: %d".as_ptr(), r);
+            semsg!(c"utf8_to_utf16 failed: %d".as_ptr(), r);
             return false;
         }
 

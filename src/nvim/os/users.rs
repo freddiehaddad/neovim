@@ -2,6 +2,8 @@
 
 #![cfg_attr(test, allow(dead_code, unused_imports))]
 
+#[cfg(windows)]
+use crate::message::semsg;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -108,7 +110,6 @@ unsafe extern "system" {
 #[cfg(all(target_os = "windows", not(test)))]
 unsafe extern "C" {
     fn utf16_to_utf8(str_utf16: *const u16, str_len: c_int, out: *mut *mut c_char) -> c_int;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 unsafe fn add_user(users: *mut garray_T, user: *mut c_char, need_copy: bool) {
@@ -208,7 +209,7 @@ pub unsafe extern "C" fn os_get_usernames(users: *mut garray_T) -> c_int {
                 let mut user: *mut c_char = std::ptr::null_mut();
                 let res = utf16_to_utf8((*uinfo.add(i)).usri0_name, -1, &mut user);
                 if res != 0 {
-                    semsg(c"utf16_to_utf8 failed: %d".as_ptr(), res);
+                    semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), res);
                     break;
                 }
                 add_user(users, user, false);

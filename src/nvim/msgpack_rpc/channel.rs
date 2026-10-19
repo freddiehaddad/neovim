@@ -13,6 +13,7 @@
 
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -309,7 +310,6 @@ unsafe extern "C" {
     fn remote_ui_disconnect(channel_id: u64, arena: *mut Arena, do_free: bool);
     fn remote_ui_flush_pending_data(ui: *mut RemoteUI);
     fn exit_on_closed_chan(status: c_int);
-    fn semsg(s: *const c_char, ...) -> bool;
 
     #[cfg(windows)]
     fn os_detach_ui_console(stdio_chan: bool);
@@ -1220,7 +1220,7 @@ pub unsafe extern "C" fn serialize_response(
             if is_paste {
                 #[cfg(not(test))]
                 {
-                    semsg(c"paste: %s".as_ptr(), (*err).msg);
+                    semsg!(c"paste: %s".as_ptr(), (*err).msg);
                     api_clear_error(err);
                 }
             } else {

@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
@@ -125,7 +126,6 @@ unsafe extern "C" {
     fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T);
     fn tv_list_find(l: *mut list_T, n: c_int) -> *mut listitem_T;
 
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn qsort(
         base: *mut c_void,
         num: usize,
@@ -725,7 +725,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
         let arg2 = &*argvars.add(2);
 
         if arg0.v_type != VarType::VAR_LIST || arg0.vval.v_list.is_null() {
-            semsg(
+            semsg!(
                 c"E686: Argument of %s must be a List".as_ptr(),
                 if retmatchpos {
                     c"matchfuzzypos()".as_ptr()
@@ -736,7 +736,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
             return;
         }
         if arg1.v_type != VarType::VAR_STRING || arg1.vval.v_string.is_null() {
-            semsg(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg1));
+            semsg!(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg1));
             return;
         }
 
@@ -760,7 +760,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
                     || (*di_key).di_tv.vval.v_string.is_null()
                     || *(*di_key).di_tv.vval.v_string == 0
                 {
-                    semsg(
+                    semsg!(
                         c"E475: Invalid value for argument %s: %s".as_ptr(),
                         c"key".as_ptr(),
                         tv_get_string(&(*di_key).di_tv),
@@ -769,7 +769,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
                 }
                 key = tv_get_string(&(*di_key).di_tv);
             } else if !tv_dict_get_callback(d, c"text_cb".as_ptr(), -1, &mut cb) {
-                semsg(
+                semsg!(
                     c"E475: Invalid value for argument %s".as_ptr(),
                     c"text_cb".as_ptr(),
                 );
@@ -780,7 +780,7 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: *mut typval_T, retmatch
             if !di_limit.is_null() {
                 if (*di_limit).di_tv.v_type != VarType::VAR_NUMBER {
                     callback_free(&mut cb);
-                    semsg(
+                    semsg!(
                         c"E475: Invalid value for argument %s".as_ptr(),
                         c"limit".as_ptr(),
                     );

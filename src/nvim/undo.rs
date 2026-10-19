@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg, smsg_keep};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
@@ -216,12 +217,9 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn iemsg(s: *const c_char);
     fn internal_error(where_: *const c_char);
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
-    fn smsg_keep(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn verb_msg(s: *const c_char) -> c_int;
     fn give_warning(message: *const c_char, hl: bool, with_source: bool);
     fn messaging() -> bool;
@@ -800,7 +798,7 @@ pub unsafe extern "C" fn u_get_undo_file_name(
                         ptr::null_mut(),
                     );
                     if ret != 0 {
-                        semsg(
+                        semsg!(
                             gettext(
                                 c"E5003: Unable to create directory \"%s\" for undo file: %s"
                                     .as_ptr(),
@@ -851,7 +849,7 @@ pub unsafe extern "C" fn u_get_undo_file_name(
 
 unsafe fn corruption_error(mesg: *const c_char, file_name: *const c_char) {
     unsafe {
-        semsg(
+        semsg!(
             gettext(c"E825: Corrupted undo file (%s): %s".as_ptr()),
             mesg,
             file_name,
@@ -1262,7 +1260,7 @@ pub unsafe extern "C" fn u_write_undo(
             if f.is_null() {
                 if p_verbose > 0 {
                     verbose_enter();
-                    smsg(
+                    smsg!(
                         0,
                         c"%s".as_ptr(),
                         gettext(c"Cannot write undo file in any directory in 'undodir'".as_ptr()),
@@ -1294,7 +1292,7 @@ pub unsafe extern "C" fn u_write_undo(
                             if name.is_null() {
                                 verbose_enter();
                             }
-                            smsg(
+                            smsg!(
                                 0,
                                 gettext(
                                     c"Will not overwrite with undo file, cannot read: %s".as_ptr(),
@@ -1321,7 +1319,7 @@ pub unsafe extern "C" fn u_write_undo(
                                 if name.is_null() {
                                     verbose_enter();
                                 }
-                                smsg(
+                                smsg!(
                                     0,
                                     gettext(
                                         c"Will not overwrite, this is not an undo file: %s"
@@ -1351,13 +1349,13 @@ pub unsafe extern "C" fn u_write_undo(
 
             let fd = os_open(file_name, O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW, perm);
             if fd < 0 {
-                semsg(gettext(E_NOT_OPEN.as_ptr()), file_name);
+                semsg!(gettext(E_NOT_OPEN.as_ptr()), file_name);
                 break 'theend;
             }
             os_setperm(file_name, perm);
             if p_verbose > 0 {
                 verbose_enter();
-                smsg(0, gettext(c"Writing undo file: %s".as_ptr()), file_name);
+                smsg!(0, gettext(c"Writing undo file: %s".as_ptr()), file_name);
                 verbose_leave();
             }
 
@@ -1381,7 +1379,7 @@ pub unsafe extern "C" fn u_write_undo(
 
             let fp = c_fdopen(fd, c"w".as_ptr());
             if fp.is_null() {
-                semsg(gettext(E_NOT_OPEN.as_ptr()), file_name);
+                semsg!(gettext(E_NOT_OPEN.as_ptr()), file_name);
                 os_close(fd);
                 os_remove(file_name);
                 break 'theend;
@@ -1446,7 +1444,7 @@ pub unsafe extern "C" fn u_write_undo(
 
             fclose(fp);
             if !write_ok {
-                semsg(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR.as_ptr()), file_name);
+                semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR.as_ptr()), file_name);
             }
 
             if !(*buf).b_ffname.is_null() {
@@ -1525,7 +1523,7 @@ pub unsafe extern "C" fn u_read_undo(
                 {
                     if p_verbose > 0 {
                         verbose_enter();
-                        smsg(
+                        smsg!(
                             0,
                             gettext(c"Not reading undo file, owner differs: %s".as_ptr()),
                             f,
@@ -1543,7 +1541,7 @@ pub unsafe extern "C" fn u_read_undo(
 
         if p_verbose > 0 {
             verbose_enter();
-            smsg(0, gettext(c"Reading undo file: %s".as_ptr()), file_name);
+            smsg!(0, gettext(c"Reading undo file: %s".as_ptr()), file_name);
             verbose_leave();
         }
 
@@ -1552,7 +1550,7 @@ pub unsafe extern "C" fn u_read_undo(
             'error: {
                 if fp.is_null() {
                     if !name.is_null() || p_verbose > 0 {
-                        semsg(
+                        semsg!(
                             gettext(c"E822: Cannot open undo file for reading: %s".as_ptr()),
                             file_name,
                         );
@@ -1580,12 +1578,12 @@ pub unsafe extern "C" fn u_read_undo(
                         UF_START_MAGIC_LEN,
                     ) != 0
                 {
-                    semsg(gettext(c"E823: Not an undo file: %s".as_ptr()), file_name);
+                    semsg!(gettext(c"E823: Not an undo file: %s".as_ptr()), file_name);
                     break 'error;
                 }
                 let version = get2c(fp);
                 if version != UF_VERSION {
-                    semsg(
+                    semsg!(
                         gettext(c"E824: Incompatible undo file: %s".as_ptr()),
                         file_name,
                     );
@@ -1791,7 +1789,7 @@ pub unsafe extern "C" fn u_read_undo(
                 xfree(uhp_table.cast());
 
                 if !name.is_null() {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Finished reading undo file %s".as_ptr()),
                         file_name,
@@ -2207,7 +2205,7 @@ pub unsafe extern "C" fn undo_time(step: c_int, sec: bool, file: bool, absolute:
                 }
 
                 if absolute {
-                    semsg(
+                    semsg!(
                         gettext(c"E830: Undo number %lld not found".as_ptr()),
                         step as i64,
                     );
@@ -2663,7 +2661,7 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
             check_pos(curbuf, &raw mut Visual.start);
         }
 
-        smsg_keep(
+        smsg_keep!(
             0,
             gettext(c"%lld %s; %s #%lld  %s".as_ptr()),
             if u_oldcount < 0 {

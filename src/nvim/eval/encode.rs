@@ -10,6 +10,7 @@
 )]
 
 use crate::eval::vars::eval_msgpack_type_lists;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -145,7 +146,6 @@ unsafe extern "C" {
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
 }
 
@@ -548,7 +548,7 @@ unsafe fn conv_error(
             ga_append(&mut msg_ga, 0);
             msg_ga.ga_data.cast::<c_char>()
         };
-        semsg(msg, objname, path_ptr);
+        semsg!(msg, objname, path_ptr);
         ga_clear(&mut msg_ga);
         FAIL
     }
@@ -604,7 +604,7 @@ unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: us
                 _ => {
                     if ch > 0x7F && shift == 1 {
                         let start = i - shift;
-                        semsg(
+                        semsg!(
                             c"E474: String \"%.*s\" contains byte that does not start any UTF-8 character"
                                 .as_ptr(),
                             (len - start) as c_int,
@@ -615,7 +615,7 @@ unsafe fn convert_to_json_string(gap: *mut garray_T, buf: *const c_char, len: us
                         || (SURROGATE_LO_START..=SURROGATE_LO_END).contains(&ch)
                     {
                         let start = i - shift;
-                        semsg(
+                        semsg!(
                             c"E474: UTF-8 string contains code point which belongs to a surrogate pair: %.*s"
                                 .as_ptr(),
                             (len - start) as c_int,

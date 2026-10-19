@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg_multiline;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
@@ -324,7 +325,6 @@ unsafe extern "C" {
 
     fn get_command_name(xp: *mut expand_T, idx: c_int) -> *const c_char;
     fn msg_ext_no_fast();
-    fn semsg_multiline(context: *const c_char, fmt: *const c_char, ...);
     fn do_cmdline(
         cmdline: *mut c_char,
         fgetline: LineGetter,
@@ -713,7 +713,7 @@ pub unsafe extern "C" fn nlua_error(lstate: *mut lua_State, msg: *const c_char) 
         let mut len: usize = 0;
         let str_ = nlua_get_error(lstate, &raw mut len);
         msg_ext_no_fast();
-        semsg_multiline(c"lua_error".as_ptr(), msg, len as c_int, str_);
+        semsg_multiline!(c"lua_error".as_ptr(), msg, len as c_int, str_);
         lua_pop(lstate, 1);
     }
     #[cfg(test)]
@@ -781,13 +781,13 @@ unsafe extern "C" fn nlua_luv_error_event(argv: *mut *mut c_void) {
         match err_type {
             kCallback => {
                 msg_ext_no_fast();
-                semsg_multiline(c"lua_error".as_ptr(), c"Lua callback:\n%s".as_ptr(), error);
+                semsg_multiline!(c"lua_error".as_ptr(), c"Lua callback:\n%s".as_ptr(), error);
             }
             kThread => {
-                semsg_multiline(c"lua_error".as_ptr(), c"Luv thread:\n%s".as_ptr(), error);
+                semsg_multiline!(c"lua_error".as_ptr(), c"Luv thread:\n%s".as_ptr(), error);
             }
             kThreadCallback => {
-                semsg_multiline(
+                semsg_multiline!(
                     c"lua_error".as_ptr(),
                     c"Luv callback, thread:\n%s".as_ptr(),
                     error,

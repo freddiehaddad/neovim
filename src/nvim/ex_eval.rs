@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -177,8 +178,6 @@ unsafe extern "C" {
     fn estack_sfile(which: c_int) -> *mut c_char;
     fn stacktrace_create() -> *mut list_T;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
-    fn smsg(attr: c_int, s: *const c_char, ...) -> c_int;
     fn msg_puts(s: *const c_char);
     fn internal_error(where_: *const c_char);
     fn verbose_enter();
@@ -585,7 +584,7 @@ unsafe fn throw_exception(
             if debug_break_level > 0 || *p_vfile == NUL {
                 msg_scroll = 1;
             }
-            smsg(0, gettext(c"Exception thrown: %s".as_ptr()), (*excp).value);
+            smsg!(0, gettext(c"Exception thrown: %s".as_ptr()), (*excp).value);
             msg_puts(c"\n".as_ptr());
 
             if debug_break_level > 0 || *p_vfile == NUL {
@@ -631,7 +630,7 @@ unsafe fn discard_exception(excp: *mut except_T, was_finished: bool) {
             } else {
                 gettext(c"Exception discarded: %s".as_ptr())
             };
-            smsg(0, fmt, (*excp).value);
+            smsg!(0, fmt, (*excp).value);
             msg_puts(c"\n".as_ptr());
             if debug_break_level > 0 || *p_vfile == NUL {
                 cmdline_row = msg_row;
@@ -712,7 +711,7 @@ unsafe fn catch_exception(excp: *mut except_T) {
             if debug_break_level > 0 || *p_vfile == NUL {
                 msg_scroll = 1;
             }
-            smsg(0, gettext(c"Exception caught: %s".as_ptr()), (*excp).value);
+            smsg!(0, gettext(c"Exception caught: %s".as_ptr()), (*excp).value);
             msg_puts(c"\n".as_ptr());
 
             if debug_break_level > 0 || *p_vfile == NUL {
@@ -850,7 +849,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: *mut c_void) {
         }
         no_wait_return += 1;
         msg_scroll = 1;
-        smsg(0, mesg, s);
+        smsg!(0, mesg, s);
         msg_puts(c"\n".as_ptr());
         cmdline_row = msg_row;
         no_wait_return -= 1;
@@ -1020,7 +1019,7 @@ pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
                 && *(*eap).arg != b'"' as c_char
                 && ends_excmd(c_int::from(*(*eap).arg as u8)) != 0
             {
-                semsg(gettext(E_INVEXPR2.as_ptr()), (*eap).arg);
+                semsg!(gettext(E_INVEXPR2.as_ptr()), (*eap).arg);
             } else {
                 result = eval_to_bool((*eap).arg, &mut error, eap, skip, false);
             }
@@ -1331,7 +1330,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
                     && *end != NUL
                     && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
-                    semsg(gettext(E_TRAILING_ARG.as_ptr()), end);
+                    semsg!(gettext(E_TRAILING_ARG.as_ptr()), end);
                     return;
                 }
 
@@ -1353,7 +1352,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
                     }
                     p_cpo = save_cpo;
                     if regmatch.regprog.is_null() {
-                        semsg(gettext(E_INVARG2.as_ptr()), pat);
+                        semsg!(gettext(E_INVARG2.as_ptr()), pat);
                     } else {
                         let prev_got_int = got_int;
                         got_int = false;
@@ -1787,7 +1786,7 @@ pub unsafe extern "C" fn rewind_conditionals(
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_endfunction(_eap: *mut exarg_T) {
     unsafe {
-        semsg(
+        semsg!(
             gettext(E_STR_NOT_INSIDE_FUNCTION.as_ptr()),
             c":endfunction".as_ptr(),
         );

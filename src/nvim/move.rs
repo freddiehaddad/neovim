@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
@@ -77,7 +78,6 @@ struct lineoff_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn redrawing() -> bool;
     fn win_cursorline_standout(wp: *const win_T) -> bool;
     fn redraw_later(wp: *mut win_T, type_: c_int);
@@ -1359,7 +1359,7 @@ pub unsafe extern "C" fn f_screenpos(
             coladd: 0,
         };
         if pos.lnum > (*(*wp).w_buffer).b_ml.ml_line_count {
-            semsg(tr(e_invalid_line_number_nr.as_ptr()), pos.lnum);
+            semsg!(tr(e_invalid_line_number_nr.as_ptr()), pos.lnum);
             return;
         }
         let mut row: c_int = 0;

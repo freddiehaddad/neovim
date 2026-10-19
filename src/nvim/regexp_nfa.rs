@@ -1,5 +1,6 @@
 //! NFA regular expression engine (`src/nvim/regexp.c`).
 
+use crate::message::{semsg, siemsg};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::{offset_of, size_of, zeroed};
 use std::ptr;
@@ -919,11 +920,11 @@ unsafe fn nfa_regatom() -> c_int {
                 let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
-                        semsg(tr(e_ill_char_class.as_ptr()), i64::from(c));
+                        semsg!(tr(e_ill_char_class.as_ptr()), i64::from(c));
                         rc_did_emsg = true;
                         return FAIL;
                     }
-                    siemsg(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
+                    siemsg!(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
                     return FAIL;
                 }
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
@@ -977,11 +978,11 @@ unsafe fn nfa_regatom() -> c_int {
                 let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
-                        semsg(tr(e_ill_char_class.as_ptr()), i64::from(c));
+                        semsg!(tr(e_ill_char_class.as_ptr()), i64::from(c));
                         rc_did_emsg = true;
                         return FAIL;
                     }
-                    siemsg(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
+                    siemsg!(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
                     return FAIL;
                 }
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
@@ -1021,7 +1022,7 @@ unsafe fn nfa_regatom() -> c_int {
                 || c == Magic(b'*' as c_int)
                 || c == Magic(b'{' as c_int)
             {
-                semsg(tr(e_misplaced.as_ptr()), no_Magic(c));
+                semsg!(tr(e_misplaced.as_ptr()), no_Magic(c));
                 return FAIL;
             } else if c == Magic(b'~' as c_int) {
                 if reg_prev_sub.is_null() {
@@ -1087,7 +1088,7 @@ unsafe fn nfa_regatom() -> c_int {
                         return OK;
                     }
                     _ => {
-                        semsg(
+                        semsg!(
                             tr(c"E867: (NFA) Unknown operator '\\z%c'".as_ptr()),
                             no_Magic(c),
                         );
@@ -1114,7 +1115,7 @@ unsafe fn nfa_regatom() -> c_int {
                             _ => -1,
                         };
                         if nr < 0 || nr > i64::from(c_int::MAX) {
-                            semsg(
+                            semsg!(
                                 tr(c"E678: Invalid character after %s%%[dxouU]".as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1141,7 +1142,7 @@ unsafe fn nfa_regatom() -> c_int {
                             && (*regparse.add(1) as u8) >= 48
                             && (*regparse.add(1) as u8) <= 50
                         {
-                            semsg(
+                            semsg!(
                                 tr(e_atom_engine_must_be_at_start_of_pattern.as_ptr()),
                                 *regparse.add(1) as c_int,
                             );
@@ -1166,7 +1167,7 @@ unsafe fn nfa_regatom() -> c_int {
                                 break;
                             }
                             if c == NUL as c_int {
-                                semsg(
+                                semsg!(
                                     tr(e_missing_sb.as_ptr()),
                                     if reg_magic == MAGIC_ALL {
                                         c"".as_ptr()
@@ -1184,7 +1185,7 @@ unsafe fn nfa_regatom() -> c_int {
                         }
                         let _ = getchr();
                         if n == 0 {
-                            semsg(
+                            semsg!(
                                 tr(e_empty_sb.as_ptr()),
                                 if reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
@@ -1215,7 +1216,7 @@ unsafe fn nfa_regatom() -> c_int {
                         }
                         while ascii_isdigit(c) {
                             if cur {
-                                semsg(
+                                semsg!(
                                     tr(e_regexp_number_after_dot_pos_search_chr.as_ptr()),
                                     no_Magic(c),
                                 );
@@ -1232,7 +1233,7 @@ unsafe fn nfa_regatom() -> c_int {
                         if c == b'l' as c_int || c == b'c' as c_int || c == b'v' as c_int {
                             let mut limit = i32::MAX;
                             if !cur && !got_digit {
-                                semsg(tr(e_nfa_regexp_missing_value_in_chr.as_ptr()), no_Magic(c));
+                                semsg!(tr(e_nfa_regexp_missing_value_in_chr.as_ptr()), no_Magic(c));
                                 return FAIL;
                             }
                             if c == b'l' as c_int {
@@ -1300,7 +1301,7 @@ unsafe fn nfa_regatom() -> c_int {
                             EMIT(getchr());
                             return OK;
                         }
-                        semsg(
+                        semsg!(
                             tr(c"E867: (NFA) Unknown operator '\\%%%c'".as_ptr()),
                             no_Magic(c),
                         );
@@ -1621,7 +1622,7 @@ unsafe fn nfa_regpiece() -> c_int {
                 _ => {}
             }
             if i == 0 {
-                semsg(tr(c"E869: (NFA) Unknown operator '\\@%c'".as_ptr()), op2);
+                semsg!(tr(c"E869: (NFA) Unknown operator '\\@%c'".as_ptr()), op2);
                 return FAIL;
             }
             EMIT(i);
@@ -1838,7 +1839,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
 
         if paren != REG_NOPAREN && getchr() != Magic(b')' as c_int) {
             if paren == REG_NPAREN {
-                semsg(
+                semsg!(
                     tr(e_unmatched_str_percent_open.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -1847,7 +1848,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
                     },
                 );
             } else {
-                semsg(
+                semsg!(
                     tr(e_unmatched_str_open.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -1861,7 +1862,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
             return FAIL;
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
             if peekchr() == Magic(b')' as c_int) {
-                semsg(
+                semsg!(
                     tr(e_unmatched_str_close.as_ptr()),
                     if reg_magic == MAGIC_ALL {
                         c"".as_ptr()
@@ -3164,7 +3165,7 @@ unsafe fn check_char_class(cls: c_int, c: c_int) -> c_int {
                 }
             }
             _ => {
-                siemsg(tr(e_ill_char_class.as_ptr()), i64::from(cls));
+                siemsg!(tr(e_ill_char_class.as_ptr()), i64::from(cls));
                 return FAIL;
             }
         }

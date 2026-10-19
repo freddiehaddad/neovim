@@ -286,9 +286,8 @@ unsafe extern "C" {
         rettv: *mut typval_T,
     ) -> bool;
 
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn siemsg(fmt: *const c_char, ...);
-    fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
+    #[doc(hidden)]
+    pub fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn printf(format: *const c_char, ...) -> c_int;
@@ -331,6 +330,188 @@ unsafe extern "C" {
     fn ui_call_msg_showmode(content: Array);
     fn ui_call_msg_history_show(entries: Array, prev_cmd: Boolean);
 }
+
+#[macro_export]
+macro_rules! smsg {
+    ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let hl = $hl_id;
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        #[cfg(not(test))]
+        {
+            $crate::message::vim_snprintf(
+                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                1025,
+                fmt_ptr
+                $(, $arg)*
+            );
+            $crate::message::msg(
+                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                hl,
+            )
+        }
+        #[cfg(test)]
+        {
+            let _ = (hl, fmt_ptr $(, $arg)*);
+            false
+        }
+    }};
+}
+pub use smsg;
+
+#[macro_export]
+macro_rules! smsg_keep {
+    ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let hl = $hl_id;
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        #[cfg(not(test))]
+        {
+            $crate::message::vim_snprintf(
+                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                1025,
+                fmt_ptr
+                $(, $arg)*
+            );
+            $crate::message::msg_keep(
+                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                hl,
+                true,
+                false,
+            )
+        }
+        #[cfg(test)]
+        {
+            let _ = (hl, fmt_ptr $(, $arg)*);
+            false
+        }
+    }};
+}
+pub use smsg_keep;
+
+#[macro_export]
+macro_rules! semsg {
+    ($fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        if $crate::message::emsg_not_now() {
+            let _ = (fmt_ptr $(, $arg)*);
+            true
+        } else {
+            let mut errbuf = [0 as std::ffi::c_char; 1025];
+            #[cfg(not(test))]
+            $crate::message::vim_snprintf(
+                (&raw mut errbuf).cast::<std::ffi::c_char>(),
+                errbuf.len(),
+                fmt_ptr
+                $(, $arg)*
+            );
+            #[cfg(test)]
+            let _ = (&raw mut errbuf, fmt_ptr $(, $arg)*);
+            $crate::message::emsg(errbuf.as_ptr())
+        }
+    }};
+}
+pub use semsg;
+
+#[macro_export]
+macro_rules! semsg_multiline {
+    ($kind:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let kind_ptr: *const std::ffi::c_char = $kind;
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        if $crate::message::emsg_not_now() {
+            let _ = (kind_ptr, fmt_ptr $(, $arg)*);
+            true
+        } else {
+            let mut errbuf = [0 as std::ffi::c_char; 8192];
+            #[cfg(not(test))]
+            $crate::message::vim_snprintf(
+                (&raw mut errbuf).cast::<std::ffi::c_char>(),
+                errbuf.len(),
+                fmt_ptr
+                $(, $arg)*
+            );
+            #[cfg(test)]
+            let _ = (&raw mut errbuf, fmt_ptr $(, $arg)*);
+            $crate::message::emsg_multiline(errbuf.as_ptr(), kind_ptr, 6, true)
+        }
+    }};
+}
+pub use semsg_multiline;
+
+#[macro_export]
+macro_rules! siemsg {
+    ($fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let _ = $crate::message::semsg!($fmt $(, $arg)*);
+    }};
+}
+pub use siemsg;
+
+#[macro_export]
+macro_rules! msg_schedule_semsg {
+    ($fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        #[cfg(not(test))]
+        {
+            $crate::message::vim_snprintf(
+                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                1025,
+                fmt_ptr
+                $(, $arg)*
+            );
+            $crate::message::msg_schedule_semsg_cstr(
+                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+            );
+        }
+        #[cfg(test)]
+        let _ = (fmt_ptr $(, $arg)*);
+    }};
+}
+pub use msg_schedule_semsg;
+
+#[macro_export]
+macro_rules! msg_schedule_semsg_multiline {
+    ($fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        #[cfg(not(test))]
+        {
+            $crate::message::vim_snprintf(
+                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                1025,
+                fmt_ptr
+                $(, $arg)*
+            );
+            $crate::message::msg_schedule_semsg_multiline_cstr(
+                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+            );
+        }
+        #[cfg(test)]
+        let _ = (fmt_ptr $(, $arg)*);
+    }};
+}
+pub use msg_schedule_semsg_multiline;
+
+#[macro_export]
+macro_rules! swmsg {
+    ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
+        let hl_val: bool = $hl;
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        #[cfg(not(test))]
+        {
+            $crate::message::vim_snprintf(
+                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                1025,
+                fmt_ptr
+                $(, $arg)*
+            );
+            $crate::message::give_warning(
+                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                hl_val,
+                true,
+            );
+        }
+        #[cfg(test)]
+        let _ = (hl_val, fmt_ptr $(, $arg)*);
+    }};
+}
+pub use swmsg;
 
 #[inline]
 unsafe fn hl_attr(n: c_int) -> c_int {
@@ -1274,7 +1455,7 @@ pub unsafe extern "C" fn emsg(s: *const c_char) -> bool {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn emsg_invreg(name: c_int) {
     unsafe {
-        semsg(
+        semsg!(
             gettext(c"E354: Invalid register name: '%s'".as_ptr()),
             transchar_buf(ptr::null(), name),
         );
@@ -1298,7 +1479,7 @@ pub unsafe extern "C" fn iemsg(s: *const c_char) {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn internal_error(where_: *const c_char) {
     unsafe {
-        siemsg(gettext(e_intern2.as_ptr()), where_);
+        siemsg!(gettext(e_intern2.as_ptr()), where_);
     }
 }
 
@@ -4355,7 +4536,7 @@ pub unsafe extern "C" fn verbose_open() -> c_int {
 
             verbose_fd = os_fopen(p_vfile, c"a".as_ptr());
             if verbose_fd.is_null() {
-                semsg(gettext(e_notopen.as_ptr()), p_vfile);
+                semsg!(gettext(e_notopen.as_ptr()), p_vfile);
                 return FAIL;
             }
         }

@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -177,7 +178,6 @@ unsafe extern "C" {
 unsafe extern "C" {
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn utfc_ptr2len(p: *const c_char) -> c_int;
     fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
@@ -420,7 +420,7 @@ pub unsafe extern "C" fn ex_menu(eap: *mut exarg_T) {
 
         let mut menu_path = arg;
         if *menu_path == b'.' as c_char {
-            semsg(gettext(e_invarg2.as_ptr()), menu_path);
+            semsg!(gettext(e_invarg2.as_ptr()), menu_path);
             return;
         }
 
@@ -430,7 +430,7 @@ pub unsafe extern "C" fn ex_menu(eap: *mut exarg_T) {
             show_menus(menu_path, modes);
             return;
         } else if *map_to != NUL && (unmenu || enable != kNone) {
-            semsg(gettext(e_trailing_arg.as_ptr()), map_to);
+            semsg!(gettext(e_trailing_arg.as_ptr()), map_to);
             return;
         }
 
@@ -757,7 +757,7 @@ unsafe fn menu_enable_recurse(
             menu = (*menu).next;
         }
         if *name != NUL && *name != b'*' as c_char && menu.is_null() {
-            semsg(gettext(E_NOMENU.as_ptr()), name);
+            semsg!(gettext(E_NOMENU.as_ptr()), name);
             return FAIL;
         }
 
@@ -822,7 +822,7 @@ unsafe fn remove_menu(
         if *name != NUL {
             if menu.is_null() {
                 if !silent {
-                    semsg(gettext(E_NOMENU.as_ptr()), name);
+                    semsg!(gettext(E_NOMENU.as_ptr()), name);
                 }
                 return FAIL;
             }
@@ -1048,7 +1048,7 @@ unsafe fn find_menu(
             }
 
             if menu.is_null() {
-                semsg(gettext(E_NOMENU.as_ptr()), name);
+                semsg!(gettext(E_NOMENU.as_ptr()), name);
                 break;
             }
             name = p;
@@ -1772,7 +1772,7 @@ pub unsafe extern "C" fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T,
                 MENU_INDEX_CMDLINE => c"Cmdline",
                 _ => c"Normal",
             };
-            semsg(
+            semsg!(
                 gettext(c"E335: Menu not defined for %s mode".as_ptr()),
                 mode.as_ptr(),
             );
@@ -1815,7 +1815,7 @@ unsafe fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
         xfree(saved_name.cast());
         if menu.is_null() {
             if !gave_emsg {
-                semsg(gettext(c"E334: Menu not found: %s".as_ptr()), name_arg);
+                semsg!(gettext(c"E334: Menu not found: %s".as_ptr()), name_arg);
             }
             return ptr::null_mut();
         }
@@ -1841,7 +1841,7 @@ pub unsafe extern "C" fn ex_emenu(eap: *mut exarg_T) {
                 b'i' => mode_idx = MENU_INDEX_INSERT,
                 b'c' => mode_idx = MENU_INDEX_CMDLINE,
                 _ => {
-                    semsg(gettext(e_invarg2.as_ptr()), arg);
+                    semsg!(gettext(e_invarg2.as_ptr()), arg);
                     return;
                 }
             }

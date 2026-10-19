@@ -15,6 +15,7 @@
 
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -721,9 +722,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_long) -> *mut c_char;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn siemsg(fmt: *const c_char, ...);
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn fclose(stream: *mut FILE) -> c_int;
@@ -5372,9 +5370,9 @@ unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
         verbose_enter_scroll();
 
         if lnum == 0 {
-            let _ = smsg(0, gettext(c"Executing: %s".as_ptr()), cmd);
+            let _ = smsg!(0, gettext(c"Executing: %s".as_ptr()), cmd);
         } else {
-            let _ = smsg(0, gettext(c"line %d: %s".as_ptr()), lnum as c_int, cmd);
+            let _ = smsg!(0, gettext(c"line %d: %s".as_ptr()), lnum as c_int, cmd);
         }
         if msg_silent == 0 {
             msg_puts(c"\n".as_ptr());
@@ -9540,7 +9538,7 @@ unsafe fn check_more(message: bool, forceit: bool) -> c_int {
                     }
                     return FAIL;
                 }
-                let _ = semsg(
+                let _ = semsg!(
                     ngettext(
                         c"E173: %d more file to edit".as_ptr(),
                         c"E173: %d more files to edit".as_ptr(),
@@ -9583,7 +9581,7 @@ unsafe extern "C" fn ex_colorscheme(eap: *mut exarg_T) {
                 let _ = msg(c"default".as_ptr(), 0);
             }
         } else if load_colors((*eap).arg) == FAIL {
-            let _ = semsg(
+            let _ = semsg!(
                 gettext(c"E185: Cannot find color scheme '%s'".as_ptr()),
                 (*eap).arg,
             );
@@ -9829,7 +9827,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
                     c"".as_ptr().cast_mut()
                 };
             } else {
-                let _ = semsg(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
+                let _ = semsg!(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
                 return;
             }
         }
@@ -10010,7 +10008,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
         if channel.is_null() {
             let _ = emsg(c"cannot create a channel job".as_ptr());
             if server_stopped && server_start(listen_arg) != 0 {
-                let _ = semsg(c"couldn't resume listening on %s".as_ptr(), listen_arg);
+                let _ = semsg!(c"couldn't resume listening on %s".as_ptr(), listen_arg);
             }
             xfree(listen_arg.cast());
             return;
@@ -10183,7 +10181,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
                 let _ = emsg(err.msg);
                 api_clear_error(&raw mut err);
             } else if !exiting {
-                let _ = semsg(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
+                let _ = semsg!(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
             }
             xfree(quit_cmd_copy.cast());
         }
@@ -10222,7 +10220,7 @@ unsafe extern "C" fn ex_restart(eap: *mut exarg_T) {
         }
 
         if server_stopped && server_start(listen_arg) != 0 {
-            let _ = semsg(c"couldn't resume listening on %s".as_ptr(), listen_arg);
+            let _ = semsg!(c"couldn't resume listening on %s".as_ptr(), listen_arg);
         }
         xfree(listen_arg.cast());
     }
@@ -10696,9 +10694,9 @@ unsafe fn findfunc_find_file(
         };
 
         if fname_count == 0 {
-            let _ = semsg(gettext(e_cant_find_file_str_in_path.as_ptr()), findarg);
+            let _ = semsg!(gettext(e_cant_find_file_str_in_path.as_ptr()), findarg);
         } else if count > fname_count {
-            let _ = semsg(gettext(e_no_more_file_str_found_in_path.as_ptr()), findarg);
+            let _ = semsg!(gettext(e_no_more_file_str_found_in_path.as_ptr()), findarg);
         } else {
             let li = tv_list_find(fname_list, count - 1);
             if !li.is_null() {
@@ -11032,7 +11030,7 @@ unsafe extern "C" fn ex_detach(eap: *mut exarg_T) {
             if n == 0 {
                 let _ = msg(gettext(c"No other UIs are attached".as_ptr()), 0);
             } else {
-                let _ = smsg(
+                let _ = smsg!(
                     0,
                     gettext(c"Detached %d non-current UIs".as_ptr()),
                     n as c_int,
@@ -11458,7 +11456,7 @@ unsafe extern "C" fn ex_read(eap: *mut exarg_T) {
         };
         if i != OK {
             if !aborting() {
-                let _ = semsg(gettext(e_notopen.as_ptr()), (*eap).arg);
+                let _ = semsg!(gettext(e_notopen.as_ptr()), (*eap).arg);
             }
         } else {
             redraw_curbuf_later(UPD_VALID);
@@ -11685,7 +11683,7 @@ unsafe extern "C" fn ex_pwd(_eap: *mut exarg_T) {
                 } else {
                     c"global".as_ptr()
                 };
-                let _ = smsg(
+                let _ = smsg!(
                     0,
                     c"[%s] %s".as_ptr(),
                     context,
@@ -11706,7 +11704,7 @@ unsafe extern "C" fn ex_equal(eap: *mut exarg_T) {
             ex_lua(eap);
         } else {
             (*eap).nextcmd = find_nextcmd((*eap).arg);
-            let _ = smsg(0, c"%lld".as_ptr(), i64::from((*eap).line2));
+            let _ = smsg!(0, c"%lld".as_ptr(), i64::from((*eap).line2));
         }
     }
 }
@@ -11722,7 +11720,7 @@ unsafe extern "C" fn ex_sleep(eap: *mut exarg_T) {
             b'm' => {}
             0 => len *= 1000,
             _ => {
-                let _ = semsg(gettext(e_invarg2.as_ptr()), (*eap).arg);
+                let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
                 return;
             }
         }
@@ -11775,7 +11773,7 @@ unsafe extern "C" fn ex_winsize(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
         if !ascii_isdigit_c(*arg) {
-            let _ = semsg(gettext(e_invarg2.as_ptr()), arg);
+            let _ = semsg!(gettext(e_invarg2.as_ptr()), arg);
             return;
         }
         let w = getdigits_int(&raw mut arg, false, 10);
@@ -12140,7 +12138,7 @@ unsafe extern "C" fn ex_later(eap: *mut exarg_T) {
         }
 
         if *p != NUL {
-            let _ = semsg(gettext(e_invarg2.as_ptr()), (*eap).arg);
+            let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
         } else {
             undo_time(
                 if (*eap).cmdidx == cmdidx_T::CMD_earlier as c_int {
@@ -12200,7 +12198,7 @@ unsafe extern "C" fn ex_redir(eap: *mut exarg_T) {
             }
             if *arg != NUL {
                 redir_reg = 0;
-                let _ = semsg(gettext(e_invarg2.as_ptr()), (*eap).arg);
+                let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
             }
         } else if *arg == b'=' as c_char && *arg.add(1) == b'>' as c_char {
             close_redir();
@@ -12216,7 +12214,7 @@ unsafe extern "C" fn ex_redir(eap: *mut exarg_T) {
                 redir_vname = true;
             }
         } else {
-            let _ = semsg(gettext(e_invarg2.as_ptr()), (*eap).arg);
+            let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
         }
 
         if !redir_fd.is_null() || redir_reg != 0 || redir_vname {
@@ -12323,7 +12321,7 @@ pub unsafe extern "C" fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_i
     unsafe {
         let ret = os_mkdir(name, prot);
         if ret != 0 {
-            let _ = semsg(gettext(e_mkdir.as_ptr()), name, uv_strerror(ret));
+            let _ = semsg!(gettext(e_mkdir.as_ptr()), name, uv_strerror(ret));
             return FAIL;
         }
         OK
@@ -12339,12 +12337,12 @@ pub unsafe extern "C" fn open_exfile(
     unsafe {
         #[cfg(unix)]
         if os_isdir(fname) {
-            let _ = semsg(gettext(e_isadir2.as_ptr()), fname);
+            let _ = semsg!(gettext(e_isadir2.as_ptr()), fname);
             return ptr::null_mut();
         }
 
         if forceit == 0 && *mode != b'a' as c_char && os_path_exists(fname) {
-            let _ = semsg(
+            let _ = semsg!(
                 gettext(c"E189: \"%s\" exists (add ! to override)".as_ptr()),
                 fname,
             );
@@ -12353,7 +12351,7 @@ pub unsafe extern "C" fn open_exfile(
 
         let fd = os_fopen(fname, mode);
         if fd.is_null() {
-            let _ = semsg(
+            let _ = semsg!(
                 gettext(c"E190: Cannot open \"%s\" for writing".as_ptr()),
                 fname,
             );
@@ -12369,7 +12367,7 @@ unsafe extern "C" fn ex_mark(eap: *mut exarg_T) {
             return;
         }
         if *(*eap).arg.add(1) != NUL {
-            let _ = semsg(gettext(e_trailing_arg.as_ptr()), (*eap).arg);
+            let _ = semsg!(gettext(e_trailing_arg.as_ptr()), (*eap).arg);
             return;
         }
 
@@ -13182,7 +13180,7 @@ unsafe extern "C" fn ex_shada(eap: *mut exarg_T) {
 unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
-            let _ = smsg(
+            let _ = smsg!(
                 0,
                 c"filetype detection:%s  plugin:%s  indent:%s".as_ptr(),
                 if filetype_detect == kTrue {
@@ -13266,7 +13264,7 @@ unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
                 filetype_detect = kFalse;
             }
         } else {
-            let _ = semsg(gettext(e_invarg2.as_ptr()), arg);
+            let _ = semsg!(gettext(e_invarg2.as_ptr()), arg);
         }
     }
 }
@@ -13441,7 +13439,7 @@ unsafe extern "C" fn ex_checkhealth(eap: *mut exarg_T) {
         } else {
             let rtp_ok = !strstr(p_rtp, vimruntime_env).is_null();
             if rtp_ok {
-                let _ = semsg(
+                let _ = semsg!(
                     gettext(c"E5009: Invalid $VIMRUNTIME: %s".as_ptr()),
                     vimruntime_env,
                 );

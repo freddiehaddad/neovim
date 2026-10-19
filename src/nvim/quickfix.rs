@@ -23,6 +23,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
@@ -545,8 +546,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn smsg(attr: c_int, s: *const c_char, ...) -> c_int;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_keep(s: *const c_char, hl_id: c_int, keep: bool, multiline: bool) -> bool;
     fn msg_ext_set_kind(msg_kind: *const c_char);
@@ -1028,7 +1027,7 @@ unsafe fn efmpat_to_regpat(
 ) -> *mut c_char {
     unsafe {
         if (*efminfo).addr[idx] != 0 {
-            semsg(
+            semsg!(
                 gettext(c"E372: Too many %%%c in format string".as_ptr()),
                 c_int::from(*efmpat),
             );
@@ -1040,7 +1039,7 @@ unsafe fn efmpat_to_regpat(
             || (idx == FMT_PATTERN_R
                 && vim_strchr(c"OPQ".as_ptr(), c_int::from((*efminfo).prefix as u8)).is_null())
         {
-            semsg(
+            semsg!(
                 gettext(c"E373: Unexpected %%%c in format string".as_ptr()),
                 c_int::from(*efmpat),
             );
@@ -1130,7 +1129,7 @@ unsafe fn scanf_fmt_to_regpat(
             *regpat = b'+' as c_char;
             regpat = regpat.add(1);
         } else {
-            semsg(
+            semsg!(
                 gettext(c"E375: Unsupported %%%c in format string".as_ptr()),
                 c_int::from(*efmp),
             );
@@ -1151,7 +1150,7 @@ unsafe fn efm_analyze_prefix(mut efmp: *const c_char, efminfo: *mut efm_T) -> *c
         if !vim_strchr(c"DXAEWINCZGOPQ".as_ptr(), c_int::from(*efmp as u8)).is_null() {
             (*efminfo).prefix = *efmp;
         } else {
-            semsg(
+            semsg!(
                 gettext(c"E376: Invalid %%%c in format string prefix".as_ptr()),
                 c_int::from(*efmp),
             );
@@ -1210,7 +1209,7 @@ unsafe fn efm_to_regpat(
                         return FAIL;
                     }
                 } else {
-                    semsg(
+                    semsg!(
                         gettext(c"E377: Invalid %%%c in format string".as_ptr()),
                         c_int::from(*efmp),
                     );
@@ -1716,7 +1715,7 @@ unsafe fn qf_setup_state(
                 os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
             };
             if (*pstate).fd.is_null() {
-                semsg(gettext((&raw const e_openerrf).cast()), efile);
+                semsg!(gettext((&raw const e_openerrf).cast()), efile);
                 return FAIL;
             }
         }
@@ -2495,7 +2494,7 @@ unsafe fn decr_quickfix_busy() {
 pub unsafe extern "C" fn check_quickfix_busy() {
     unsafe {
         if quickfix_busy != 0 {
-            semsg(
+            semsg!(
                 c"quickfix_busy not zero on exit: %lld".as_ptr(),
                 c_longlong::from(quickfix_busy),
             );
@@ -4009,7 +4008,7 @@ pub unsafe extern "C" fn qf_list(eap: *mut exarg_T) {
         let mut idx1: c_int = 1;
         let mut idx2: c_int = -1;
         if get_list_range(&raw mut arg, &raw mut idx1, &raw mut idx2) == FAIL || *arg != NUL {
-            semsg(gettext((&raw const e_trailing_arg).cast()), arg);
+            semsg!(gettext((&raw const e_trailing_arg).cast()), arg);
             return;
         }
         let qfl = qf_get_curlist(qi);
@@ -6342,7 +6341,7 @@ unsafe fn vgr_process_files(
 
             if buf.is_null() {
                 if !got_int {
-                    smsg(0, gettext(c"Cannot open file \"%s\"".as_ptr()), fname);
+                    smsg!(0, gettext(c"Cannot open file \"%s\"".as_ptr()), fname);
                 }
             } else {
                 let found_match = vgr_match_buflines(
@@ -6495,7 +6494,7 @@ pub unsafe extern "C" fn ex_vimgrep(eap: *mut exarg_T) {
                             );
                         }
                     } else {
-                        semsg(gettext((&raw const e_nomatch2).cast()), args.spat);
+                        semsg!(gettext((&raw const e_nomatch2).cast()), args.spat);
                     }
 
                     decr_quickfix_busy();
@@ -7236,7 +7235,7 @@ unsafe fn qf_add_entry_from_dict(
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             if !did_bufnr_emsg {
                 did_bufnr_emsg = true;
-                semsg(gettext(c"E92: Buffer %d not found".as_ptr()), bufnum);
+                semsg!(gettext(c"E92: Buffer %d not found".as_ptr()), bufnum);
             }
             valid = false;
             bufnum = 0;
@@ -7766,7 +7765,7 @@ pub unsafe extern "C" fn set_errorlist(
         }
 
         if !list.is_null() && tv_list_len(list) != 0 && !what.is_null() {
-            semsg(
+            semsg!(
                 gettext((&raw const e_invarg2).cast()),
                 gettext(c"cannot have both a list and a \"what\" argument".as_ptr()),
             );
@@ -8340,7 +8339,7 @@ pub unsafe extern "C" fn ex_helpgrep(eap: *mut exarg_T) {
         if !qf_list_empty(qf_get_curlist(qi)) {
             qf_jump(qi, 0, 0, 0);
         } else {
-            semsg(gettext((&raw const e_nomatch2).cast()), (*eap).arg);
+            semsg!(gettext((&raw const e_nomatch2).cast()), (*eap).arg);
         }
 
         decr_quickfix_busy();
@@ -8459,7 +8458,7 @@ unsafe fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: *mut typval
             {
                 action = *act;
             } else {
-                semsg(gettext(E_INVACT.as_ptr()), act);
+                semsg!(gettext(E_INVACT.as_ptr()), act);
                 return;
             }
 

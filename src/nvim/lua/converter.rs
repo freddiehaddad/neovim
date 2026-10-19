@@ -11,6 +11,7 @@
 
 use crate::eval::vars::eval_msgpack_type_lists;
 use crate::globals::*;
+use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -224,7 +225,6 @@ unsafe extern "C" {
     fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
 }
 
@@ -358,7 +358,7 @@ unsafe fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
         };
 
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-            semsg(
+            semsg!(
                 c"E1502: Lua failed to grow stack to %i".as_ptr(),
                 lua_gettop(lstate) + 2,
             );
@@ -501,7 +501,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 
         while ret && !stack.is_empty() {
             if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-                semsg(
+                semsg!(
                     c"E1502: Lua failed to grow stack to %i".as_ptr(),
                     lua_gettop(lstate) + 3,
                 );
@@ -784,7 +784,7 @@ unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
 unsafe fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-            semsg(
+            semsg!(
                 c"E5102: Lua failed to grow stack to %i".as_ptr(),
                 lua_gettop(lstate) + 3,
             );
@@ -801,7 +801,7 @@ unsafe fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
 unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-            semsg(
+            semsg!(
                 c"E5102: Lua failed to grow stack to %i".as_ptr(),
                 lua_gettop(lstate) + 3,
             );
@@ -1351,7 +1351,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
         let initial_size = lua_gettop(lstate);
 
         if lua_checkstack(lstate, initial_size + 2) == 0 {
-            semsg(
+            semsg!(
                 c"E1502: Lua failed to grow stack to %i".as_ptr(),
                 initial_size + 4,
             );

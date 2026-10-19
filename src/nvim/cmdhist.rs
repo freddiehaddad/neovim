@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -86,7 +87,6 @@ unsafe extern "C" {
     fn msg_putchar(c: c_int);
     fn msg_outtrans(str_ptr: *const c_char, hl_id: c_int, hist: bool) -> c_int;
     fn message_filtered(msg: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 #[inline]
@@ -780,7 +780,7 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {
-                    semsg(c"E488: Trailing characters: %s".as_ptr(), arg);
+                    semsg!(c"E488: Trailing characters: %s".as_ptr(), arg);
                     return;
                 }
             } else {
@@ -790,9 +790,9 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
 
         if get_list_range(&mut end, &mut hisidx1, &mut hisidx2) == 0 || *end != 0 {
             if *end != 0 {
-                semsg(c"E488: Trailing characters: %s".as_ptr(), end);
+                semsg!(c"E488: Trailing characters: %s".as_ptr(), end);
             } else {
-                semsg(c"E1510: Value too large: %s".as_ptr(), arg);
+                semsg!(c"E1510: Value too large: %s".as_ptr(), arg);
             }
             return;
         }

@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::message::{semsg, smsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::lua::base64::lua_State;
@@ -36,8 +37,6 @@ unsafe extern "C" {
     fn get_global_lstate() -> *mut lua_State;
     fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, nresults: c_int) -> c_int;
     fn nlua_error(lstate: *mut lua_State, msg: *const c_char);
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 }
 
 #[inline]
@@ -132,14 +131,14 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
             if success {
                 let action_bytes = CStr::from_ptr(action).to_bytes();
                 if action_bytes == b"allow" {
-                    smsg(0, c"Allowed in trust database: \"%s\"".as_ptr(), msg);
+                    smsg!(0, c"Allowed in trust database: \"%s\"".as_ptr(), msg);
                 } else if action_bytes == b"deny" {
-                    smsg(0, c"Denied in trust database: \"%s\"".as_ptr(), msg);
+                    smsg!(0, c"Denied in trust database: \"%s\"".as_ptr(), msg);
                 } else if action_bytes == b"remove" {
-                    smsg(0, c"Removed from trust database: \"%s\"".as_ptr(), msg);
+                    smsg!(0, c"Removed from trust database: \"%s\"".as_ptr(), msg);
                 }
             } else {
-                semsg(c"E5570: Cannot update trust file: %s".as_ptr(), msg);
+                semsg!(c"E5570: Cannot update trust file: %s".as_ptr(), msg);
             }
         }
 
@@ -169,7 +168,7 @@ pub unsafe extern "C-unwind" fn ex_trust(eap: *mut exarg_T) {
         } else if arg1_bytes == b"++remove" {
             action = c"remove".as_ptr();
         } else if !arg1_bytes.is_empty() {
-            semsg(c"E475: Invalid argument: %s".as_ptr(), arg1);
+            semsg!(c"E475: Invalid argument: %s".as_ptr(), arg1);
             xfree(arg1.cast::<c_void>());
             return;
         }

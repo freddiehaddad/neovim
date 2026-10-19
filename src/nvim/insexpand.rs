@@ -19,6 +19,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -549,7 +550,6 @@ unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_clr_cmdline();
@@ -5452,7 +5452,7 @@ unsafe fn advance_cpt_sources_index_safe() -> c_int {
             cpt_sources_index += 1;
             return OK;
         }
-        semsg(
+        semsg!(
             gettext((&raw const e_list_index_out_of_range_nr).cast()),
             i64::from(cpt_sources_index),
         );
@@ -6561,7 +6561,7 @@ unsafe fn get_userdefined_compl_info(
         if !is_cpt_function {
             cb = get_insert_callback(ctrl_x_mode);
             if (*cb).cb_type == kCallbackNone {
-                semsg(
+                semsg!(
                     gettext((&raw const e_notset).cast()),
                     if ctrl_x_mode_function() {
                         c"completefunc".as_ptr()

@@ -12,6 +12,7 @@
 )]
 
 use crate::errors::*;
+use crate::message::{semsg, siemsg};
 use crate::option_vars::*;
 use std::ffi::{
     CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
@@ -96,8 +97,6 @@ unsafe extern "C" {
     fn fish_like_shell() -> bool;
     fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
-    fn siemsg(fmt: *const c_char, ...);
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
@@ -988,7 +987,7 @@ unsafe fn adjust_types(
     #[cfg(not(test))]
     unsafe {
         if arg <= 0 {
-            semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), type_);
+            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), type_);
             return FAIL;
         }
 
@@ -1017,7 +1016,7 @@ unsafe fn adjust_types(
                     pt = prev;
                 }
                 if *pt != b'*' as c_char && !matches!(*pt as u8, b'd' | b'i') {
-                    semsg(
+                    semsg!(
                         gettext(E_POSITIONAL_FIELD_SPEC_REUSED.as_ptr()),
                         arg,
                         format_typename(prev),
@@ -1026,7 +1025,7 @@ unsafe fn adjust_types(
                     return FAIL;
                 }
             } else if format_typeof(type_) != format_typeof(prev) {
-                semsg(
+                semsg!(
                     gettext(E_POSITIONAL_TYPE_INCONSISTENT.as_ptr()),
                     arg,
                     format_typename(type_),
@@ -1054,7 +1053,7 @@ pub unsafe extern "C" fn format_overflow_error(pstart: *const c_char) {
         while ascii_isdigit(*p) {
             p = p.add(1);
         }
-        semsg(
+        semsg!(
             gettext((&raw const e_val_too_large_len).cast()),
             p.offset_from(pstart) as c_int,
             pstart,
@@ -1113,7 +1112,7 @@ pub unsafe extern "C" fn parse_fmt_types(
         macro_rules! check_pos_arg {
             () => {
                 if any_pos && any_arg {
-                    semsg(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
+                    semsg!(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
                     xfree((*ap_types).cast());
                     *ap_types = ptr::null_mut();
                     *num_posarg = 0;
@@ -1149,7 +1148,7 @@ pub unsafe extern "C" fn parse_fmt_types(
 
                 if *ptype == b'$' as c_char {
                     if *p == b'0' as c_char {
-                        semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
                         fail!();
                     }
                     let mut uj: c_uint = 0;
@@ -1177,7 +1176,7 @@ pub unsafe extern "C" fn parse_fmt_types(
                             fail!();
                         }
                         if *p != b'$' as c_char {
-                            semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
                             fail!();
                         }
                         p = p.add(1);
@@ -1197,7 +1196,7 @@ pub unsafe extern "C" fn parse_fmt_types(
                         fail!();
                     }
                     if *p == b'$' as c_char {
-                        semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                        semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
                         fail!();
                     }
                 }
@@ -1222,7 +1221,7 @@ pub unsafe extern "C" fn parse_fmt_types(
                                     fail!();
                                 }
                             } else {
-                                semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                                semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
                                 fail!();
                             }
                         } else {
@@ -1238,7 +1237,7 @@ pub unsafe extern "C" fn parse_fmt_types(
                             fail!();
                         }
                         if *p == b'$' as c_char {
-                            semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                            semsg!(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
                             fail!();
                         }
                     }
@@ -1273,7 +1272,7 @@ pub unsafe extern "C" fn parse_fmt_types(
                     }
                     _ => {
                         if pos_arg != -1 {
-                            semsg(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
+                            semsg!(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
                             fail!();
                         }
                     }
@@ -1287,7 +1286,7 @@ pub unsafe extern "C" fn parse_fmt_types(
 
         for arg_idx in 0..(*num_posarg as usize) {
             if (*(*ap_types).add(arg_idx)).is_null() {
-                semsg(
+                semsg!(
                     gettext(E_FMT_ARG_NR_UNUSED.as_ptr()),
                     (arg_idx + 1) as c_int,
                     fmt,
@@ -1295,7 +1294,7 @@ pub unsafe extern "C" fn parse_fmt_types(
                 fail!();
             }
             if !tvs.is_null() && (*tvs.add(arg_idx)).v_type == VarType::VAR_UNKNOWN {
-                semsg(
+                semsg!(
                     gettext(E_POSITIONAL_OUT_OF_BOUNDS.as_ptr()),
                     (arg_idx + 1) as c_int,
                     fmt,
@@ -1344,7 +1343,7 @@ unsafe fn skip_to_arg(
         *arg_cur = arg_min;
         while *arg_cur < *arg_idx - 1 {
             if ap_types.is_null() || (*ap_types.add(*arg_cur as usize)).is_null() {
-                siemsg(E_APTYPES_IS_NULL_NR_STR.as_ptr(), fmt, *arg_cur);
+                siemsg!(E_APTYPES_IS_NULL_NR_STR.as_ptr(), fmt, *arg_cur);
                 return;
             }
 
@@ -2420,7 +2419,7 @@ unsafe fn byteidx_common(argvars: *mut typval_T, rettv: *mut typval_T, comp: boo
                 return;
             }
             if !(0..=1).contains(&utf16idx) {
-                semsg(
+                semsg!(
                     gettext((&raw const e_using_number_as_bool_nr).cast()),
                     utf16idx,
                 );
@@ -2806,7 +2805,7 @@ pub unsafe extern "C" fn f_strchars(
                 return;
             }
             if !(0..=1).contains(&skipcc) {
-                semsg(
+                semsg!(
                     gettext((&raw const e_using_number_as_bool_nr).cast()),
                     skipcc,
                 );
@@ -2927,7 +2926,7 @@ pub unsafe extern "C" fn f_strcharpart(
                     return;
                 }
                 if !(0..=1).contains(&skipcc) {
-                    semsg(
+                    semsg!(
                         gettext((&raw const e_using_number_as_bool_nr).cast()),
                         skipcc,
                     );
@@ -3282,7 +3281,7 @@ pub unsafe extern "C" fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                         tp = tp.add(tolen);
                     }
                     if *tp == NUL {
-                        semsg(gettext((&raw const e_invarg2).cast()), fromstr);
+                        semsg!(gettext((&raw const e_invarg2).cast()), fromstr);
                         ga_clear(&raw mut ga);
                         return;
                     }
@@ -3301,7 +3300,7 @@ pub unsafe extern "C" fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                     tp = tp.add(tolen);
                 }
                 if idx != 0 {
-                    semsg(gettext((&raw const e_invarg2).cast()), fromstr);
+                    semsg!(gettext((&raw const e_invarg2).cast()), fromstr);
                     ga_clear(&raw mut ga);
                     return;
                 }
@@ -3360,7 +3359,7 @@ pub unsafe extern "C" fn f_trim(argvars: *mut typval_T, rettv: *mut typval_T, _f
                     return;
                 }
                 if !(0..=2).contains(&dir) {
-                    semsg(
+                    semsg!(
                         gettext((&raw const e_invarg2).cast()),
                         tv_get_string(argvars.add(2)),
                     );

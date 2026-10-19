@@ -40,6 +40,7 @@ use crate::r#match::regmmatch_T;
 use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::message::semsg;
 use crate::option_vars::*;
 use crate::optionstr::clear_string_option;
 use crate::os::env::expand_T;
@@ -377,7 +378,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_puts(s: *const c_char);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
@@ -2883,7 +2883,7 @@ unsafe fn syn_cmd_conceal(eap: *mut exarg_T, _syncing: c_int) {
         } else if strnicmp_c(arg, c"off".as_ptr(), 3) == 0 && next.offset_from(arg) == 3 {
             (*win_s(curwin)).b_syn_conceal = 0;
         } else {
-            semsg(gettext(e_illegal_arg), arg);
+            semsg!(gettext(e_illegal_arg), arg);
         }
     }
 }
@@ -2908,7 +2908,7 @@ unsafe fn syn_cmd_case(eap: *mut exarg_T, _syncing: c_int) {
         } else if strnicmp_c(arg, c"ignore".as_ptr(), 6) == 0 && next.offset_from(arg) == 6 {
             (*win_s(curwin)).b_syn_ic = 1;
         } else {
-            semsg(gettext(e_illegal_arg), arg);
+            semsg!(gettext(e_illegal_arg), arg);
         }
     }
 }
@@ -2940,13 +2940,13 @@ unsafe fn syn_cmd_foldlevel(eap: *mut exarg_T, _syncing: c_int) {
         } else if strnicmp_c(arg, c"minimum".as_ptr(), 7) == 0 && arg_end.offset_from(arg) == 7 {
             (*win_s(curwin)).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
-            semsg(gettext(e_illegal_arg), arg);
+            semsg!(gettext(e_illegal_arg), arg);
             return;
         }
 
         arg = skipwhite(arg_end);
         if *arg != NUL {
-            semsg(gettext(e_illegal_arg), arg);
+            semsg!(gettext(e_illegal_arg), arg);
         }
     }
 }
@@ -2975,7 +2975,7 @@ unsafe fn syn_cmd_spell(eap: *mut exarg_T, _syncing: c_int) {
         } else if strnicmp_c(arg, c"default".as_ptr(), 7) == 0 && next.offset_from(arg) == 7 {
             (*win_s(curwin)).b_syn_spell = SYNSPL_DEFAULT;
         } else {
-            semsg(gettext(e_illegal_arg), arg);
+            semsg!(gettext(e_illegal_arg), arg);
             return;
         }
 
@@ -3176,7 +3176,7 @@ unsafe fn syn_cmd_clear(eap: *mut exarg_T, syncing: c_int) {
                 if *arg == b'@' as c_char {
                     let id = syn_scl_namen2id(arg.add(1), arg_end.offset_from(arg) as c_int - 1);
                     if id == 0 {
-                        semsg(gettext(c"E391: No such syntax cluster: %s".as_ptr()), arg);
+                        semsg!(gettext(c"E391: No such syntax cluster: %s".as_ptr()), arg);
                         break;
                     }
                     let scl_id = id - SYNID_CLUSTER as c_int;
@@ -3186,7 +3186,7 @@ unsafe fn syn_cmd_clear(eap: *mut exarg_T, syncing: c_int) {
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg(gettext((&raw const e_nogroup).cast()), arg);
+                        semsg!(gettext((&raw const e_nogroup).cast()), arg);
                         break;
                     }
                     syn_clear_one(id, syncing != 0);
@@ -3336,14 +3336,14 @@ unsafe fn syn_cmd_list(eap: *mut exarg_T, syncing: c_int) {
                 if *arg == b'@' as c_char {
                     let id = syn_scl_namen2id(arg.add(1), arg_end.offset_from(arg) as c_int - 1);
                     if id == 0 {
-                        semsg(gettext(c"E392: No such syntax cluster: %s".as_ptr()), arg);
+                        semsg!(gettext(c"E392: No such syntax cluster: %s".as_ptr()), arg);
                     } else {
                         syn_list_cluster(id - SYNID_CLUSTER as c_int);
                     }
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg(gettext((&raw const e_nogroup).cast()), arg);
+                        semsg!(gettext((&raw const e_nogroup).cast()), arg);
                     } else {
                         syn_list_one(id, false, true);
                     }
@@ -3993,7 +3993,7 @@ unsafe fn get_syn_options(
                             i -= 1;
                         }
                         if i < 0 {
-                            semsg(
+                            semsg!(
                                 gettext(c"E394: Didn't find region item for %s".as_ptr()),
                                 gname,
                             );
@@ -4091,7 +4091,7 @@ unsafe fn syn_cmd_include(eap: *mut exarg_T, _syncing: c_int) {
             source_runtime((*eap).arg, DIP_ALL)
         };
         if res == FAIL {
-            semsg(gettext((&raw const e_notopen).cast()), (*eap).arg);
+            semsg!(gettext((&raw const e_notopen).cast()), (*eap).arg);
         }
         (*win_s(curwin)).b_syn_topgrp = prev_toplvl_grp;
         current_syn_inc_tag = prev_syn_inc_tag;
@@ -4181,12 +4181,16 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                                 break;
                             }
                             if *p.add(1) == NUL {
-                                semsg(gettext(c"E789: Missing ']': %s".as_ptr()), kw);
+                                semsg!(gettext(c"E789: Missing ']': %s".as_ptr()), kw);
                                 break 'kw_loop;
                             }
                             if *p.add(1) == b']' as c_char {
                                 if *p.add(2) != NUL {
-                                    semsg(gettext(e_trailing_char_after_rsb_str_str), kw, p.add(2));
+                                    semsg!(
+                                        gettext(e_trailing_char_after_rsb_str_str),
+                                        kw,
+                                        p.add(2)
+                                    );
                                     break 'kw_loop;
                                 }
                                 kw = p.add(1);
@@ -4210,7 +4214,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
         if !rest.is_null() {
             (*eap).nextcmd = check_nextcmd(rest);
         } else {
-            semsg(gettext((&raw const e_invarg2).cast()), arg);
+            semsg!(gettext((&raw const e_invarg2).cast()), arg);
         }
 
         redraw_curbuf_later(UPD_SOME_VALID);
@@ -4309,7 +4313,7 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
         xfree(syn_opt_arg.next_list.cast());
 
         if rest.is_null() {
-            semsg(gettext((&raw const e_invarg2).cast()), arg);
+            semsg!(gettext((&raw const e_invarg2).cast()), arg);
         }
     }
 }
@@ -4376,7 +4380,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             rest = skipwhite(key_end);
             if *rest != b'=' as c_char {
                 rest = ptr::null_mut();
-                semsg(gettext(c"E398: Missing '=': %s".as_ptr()), arg);
+                semsg!(gettext(c"E398: Missing '=': %s".as_ptr()), arg);
                 break;
             }
             rest = skipwhite(rest.add(1));
@@ -4503,12 +4507,12 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             xfree(syn_opt_arg.cont_in_list.cast());
             xfree(syn_opt_arg.next_list.cast());
             if not_enough {
-                semsg(
+                semsg!(
                     gettext(c"E399: Not enough arguments: syntax region %s".as_ptr()),
                     arg,
                 );
             } else if illegal || rest.is_null() {
-                semsg(gettext((&raw const e_invarg2).cast()), arg);
+                semsg!(gettext((&raw const e_invarg2).cast()), arg);
             }
         }
     }
@@ -4748,7 +4752,7 @@ unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
                     (*eap).skip != 0,
                 ) == FAIL
                 {
-                    semsg(gettext((&raw const e_invarg2).cast()), rest);
+                    semsg!(gettext((&raw const e_invarg2).cast()), rest);
                     break;
                 }
                 if scl_id >= 0 {
@@ -4770,7 +4774,7 @@ unsafe fn syn_cmd_cluster(eap: *mut exarg_T, _syncing: c_int) {
             emsg(gettext(c"E400: No cluster specified".as_ptr()));
         }
         if rest.is_null() || ends_excmd(*rest as c_int) == 0 {
-            semsg(gettext((&raw const e_invarg2).cast()), arg);
+            semsg!(gettext((&raw const e_invarg2).cast()), arg);
         }
     }
 }
@@ -4790,7 +4794,7 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
 
         let mut end = skip_regexp(arg.add(1), *arg as c_int, 1);
         if *end != *arg {
-            semsg(
+            semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s".as_ptr()),
                 arg,
             );
@@ -4860,7 +4864,7 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
         }
 
         if ends_excmd(*end as c_int) == 0 && !ascii_iswhite(*end) {
-            semsg(gettext(c"E402: Garbage after pattern: %s".as_ptr()), arg);
+            semsg!(gettext(c"E402: Garbage after pattern: %s".as_ptr()), arg);
             return ptr::null_mut();
         }
         skipwhite(end)
@@ -4986,7 +4990,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
         }
         xfree(key.cast());
         if illegal {
-            semsg(gettext(c"E404: Illegal arguments: %s".as_ptr()), arg_start);
+            semsg!(gettext(c"E404: Illegal arguments: %s".as_ptr()), arg_start);
         } else if !finished {
             (*eap).nextcmd = check_nextcmd(arg_start);
             redraw_curbuf_later(UPD_SOME_VALID);
@@ -5012,12 +5016,12 @@ unsafe fn get_id_list(
         while round <= 2 {
             p = skipwhite((*arg).offset(keylen as isize));
             if *p != b'=' as c_char {
-                semsg(gettext(c"E405: Missing equal sign: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E405: Missing equal sign: %s".as_ptr()), *arg);
                 break;
             }
             p = skipwhite(p.add(1));
             if ends_excmd(*p as c_int) != 0 {
-                semsg(gettext(c"E406: Empty argument: %s".as_ptr()), *arg);
+                semsg!(gettext(c"E406: Empty argument: %s".as_ptr()), *arg);
                 break;
             }
 
@@ -5036,13 +5040,13 @@ unsafe fn get_id_list(
                     || strcmp(name.add(1), c"CONTAINED".as_ptr()) == 0
                 {
                     if toupper_asc(**arg) != b'C' {
-                        semsg(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
+                        semsg!(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
                         failed = true;
                         xfree(name.cast());
                         break;
                     }
                     if count != 0 {
-                        semsg(
+                        semsg!(
                             gettext(c"E408: %s must be first in contains list".as_ptr()),
                             name.add(1),
                         );
@@ -5099,7 +5103,7 @@ unsafe fn get_id_list(
                 }
                 xfree(name.cast());
                 if id == 0 {
-                    semsg(gettext(c"E409: Unknown group name: %s".as_ptr()), p);
+                    semsg!(gettext(c"E409: Unknown group name: %s".as_ptr()), p);
                     failed = true;
                     break;
                 }
@@ -5472,7 +5476,7 @@ pub unsafe extern "C" fn ex_syntax(eap: *mut exarg_T) {
         }
 
         if !found {
-            semsg(
+            semsg!(
                 gettext(c"E410: Invalid :syntax subcommand: %s".as_ptr()),
                 subcmd_name,
             );
@@ -5809,7 +5813,7 @@ pub unsafe extern "C" fn ex_syntime(eap: *mut exarg_T) {
         } else if strcmp((*eap).arg, c"report".as_ptr()) == 0 {
             syntime_report();
         } else {
-            semsg(gettext((&raw const e_invarg2).cast()), (*eap).arg);
+            semsg!(gettext((&raw const e_invarg2).cast()), (*eap).arg);
         }
     }
 }

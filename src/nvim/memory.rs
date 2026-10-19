@@ -8,6 +8,8 @@ use crate::errors::*;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
+use crate::message::semsg;
+#[cfg(not(test))]
 use crate::option_vars::*;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -75,7 +77,6 @@ unsafe extern "C" {
 
     fn clear_sb_text(all: bool);
     fn mf_release_all() -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn preserve_exit(errmsg: *const c_char) -> !;
 }
 
@@ -138,7 +139,7 @@ unsafe fn do_outofmem_msg(size: usize) {
         }
         emsg_silent = 0;
         did_outofmem_msg = true;
-        semsg(
+        semsg!(
             c"E342: Out of memory!  (allocating %llu bytes)".as_ptr(),
             size as u64,
         );

@@ -21,6 +21,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
 use std::ptr;
@@ -373,9 +374,7 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn msg_start();
     fn msg_end() -> bool;
     fn msg_sb_eol();
@@ -1131,7 +1130,7 @@ pub unsafe extern "C" fn ex_sort(eap: *mut exarg_T) {
                     p = s;
                     regmatch.rm_ic = p_ic != 0;
                 } else {
-                    semsg(gettext(e_invarg2.as_ptr()), p);
+                    semsg!(gettext(e_invarg2.as_ptr()), p);
                     break 'sortend;
                 }
                 p = p.add(1);
@@ -1407,7 +1406,7 @@ pub unsafe extern "C" fn ex_uniq(eap: *mut exarg_T) {
                     p = s;
                     regmatch.rm_ic = p_ic != 0;
                 } else {
-                    semsg(gettext(e_invarg2.as_ptr()), p);
+                    semsg!(gettext(e_invarg2.as_ptr()), p);
                     break 'uniqend;
                 }
                 p = p.add(1);
@@ -1688,7 +1687,7 @@ pub unsafe extern "C" fn do_move(line1: linenr_T, line2: linenr_T, mut dest: lin
             ml_delete_flags(line1 + extra, ML_DEL_MESSAGE);
         }
         if global_busy == 0 && (num_lines as OptInt) > p_report {
-            smsg(
+            smsg!(
                 0,
                 ngettext(
                     c"%lld line moved".as_ptr(),
@@ -2016,7 +2015,7 @@ unsafe fn do_filter(
                 }
                 no_wait_return -= 1;
                 if !aborting() {
-                    semsg(gettext(c"E482: Can't create file %s".as_ptr()), itmp);
+                    semsg!(gettext(c"E482: Can't create file %s".as_ptr()), itmp);
                 }
                 break 'filterend;
             }
@@ -2065,7 +2064,7 @@ unsafe fn do_filter(
                         {
                             if !aborting() {
                                 msg_putchar(b'\n' as c_int);
-                                semsg(gettext(e_cant_read_file_str.as_ptr()), otmp);
+                                semsg!(gettext(e_cant_read_file_str.as_ptr()), otmp);
                             }
                             break 'error;
                         }
@@ -2559,7 +2558,7 @@ pub unsafe extern "C" fn ex_write(eap: *mut exarg_T) {
 unsafe fn check_writable(fname: *const c_char) -> c_int {
     unsafe {
         if os_nodetype(fname) == NODE_OTHER {
-            semsg(
+            semsg!(
                 gettext(c"E503: \"%s\" is not a file or writable device".as_ptr()),
                 fname,
             );
@@ -2795,7 +2794,7 @@ pub unsafe extern "C" fn check_overwrite(
         {
             if (*eap).forceit == 0 && (*eap).append == 0 {
                 if os_isdir(ffname) {
-                    semsg(gettext(e_isadir2.as_ptr()), ffname);
+                    semsg!(gettext(e_isadir2.as_ptr()), ffname);
                     return FAIL;
                 }
                 if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -2847,7 +2846,7 @@ pub unsafe extern "C" fn check_overwrite(
                         }
                         (*eap).forceit = 1;
                     } else {
-                        semsg(
+                        semsg!(
                             gettext(c"E768: Swap file exists: %s (:silent! overrides)".as_ptr()),
                             swapname,
                         );
@@ -2917,7 +2916,7 @@ pub unsafe extern "C" fn do_wqall(eap: *mut exarg_T) {
                 break;
             }
             if (*buf).b_ffname.is_null() {
-                semsg(
+                semsg!(
                     gettext(c"E141: No file name for buffer %lld".as_ptr()),
                     (*buf).b_fnum as i64,
                 );
@@ -3015,7 +3014,7 @@ unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
             } else if (*buf).b_p_ro != 0 {
                 emsg(gettext(e_readonly.as_ptr()));
             } else {
-                semsg(
+                semsg!(
                     gettext(c"E505: \"%s\" is read-only (add ! to override)".as_ptr()),
                     (*buf).b_fname,
                 );
@@ -3713,7 +3712,7 @@ unsafe extern "C" {
 
 unsafe fn delbuf_msg(name: *mut c_char) {
     unsafe {
-        semsg(
+        semsg!(
             gettext(c"E143: Autocommands unexpectedly deleted new buffer %s".as_ptr()),
             if name.is_null() { c"".as_ptr() } else { name },
         );
@@ -4455,7 +4454,7 @@ unsafe fn do_sub(
                 xfree(sub.cast::<c_void>());
                 return 0;
             } else if i == c_int::MAX {
-                semsg(
+                semsg!(
                     gettext(e_val_too_large_len.as_ptr()),
                     cmd.offset_from(count_arg) as c_int,
                     count_arg,
@@ -4472,7 +4471,7 @@ unsafe fn do_sub(
         if *cmd != NUL && *cmd != b'"' as c_char {
             (*eap).nextcmd = check_nextcmd(cmd);
             if (*eap).nextcmd.is_null() {
-                semsg(gettext(e_trailing_arg.as_ptr()), cmd);
+                semsg!(gettext(e_trailing_arg.as_ptr()), cmd);
                 xfree(sub.cast::<c_void>());
                 return 0;
             }
@@ -5194,7 +5193,7 @@ unsafe fn do_sub(
                     msg(c"".as_ptr(), 0);
                 }
             } else if subflags.do_error {
-                semsg(gettext(e_patnotf2.as_ptr()), get_search_pat());
+                semsg!(gettext(e_patnotf2.as_ptr()), get_search_pat());
             }
         }
 
@@ -5440,13 +5439,13 @@ pub unsafe extern "C" fn ex_global(eap: *mut exarg_T) {
                 msg(gettext(e_interr.as_ptr()), 0);
             } else if ndone == 0 {
                 if type_char == b'v' as c_int {
-                    smsg(
+                    smsg!(
                         0,
                         gettext(c"Pattern found in every line: %s".as_ptr()),
                         used_pat,
                     );
                 } else {
-                    smsg(0, gettext(c"Pattern not found: %s".as_ptr()), used_pat);
+                    smsg!(0, gettext(c"Pattern not found: %s".as_ptr()), used_pat);
                 }
             } else {
                 global_exe(cmd);

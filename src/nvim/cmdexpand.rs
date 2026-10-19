@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -1004,7 +1005,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
     fn beep_flush();
     fn vim_beep(val: c_uint);
 
@@ -2221,11 +2221,11 @@ unsafe fn ExpandOne_start(
         {
             #[cfg(windows)]
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
-                semsg(gettext(e_nomatch2.as_ptr()), str_arg);
+                semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
             }
         } else if (*xp).xp_numfiles == 0 {
             if (options & WILD_SILENT) == 0 {
-                semsg(gettext(e_nomatch2.as_ptr()), str_arg);
+                semsg!(gettext(e_nomatch2.as_ptr()), str_arg);
             }
         } else {
             ExpandEscape(xp, str_arg, (*xp).xp_numfiles, (*xp).xp_files, options);
@@ -5863,19 +5863,19 @@ pub unsafe extern "C" fn f_getcompletion(
             xpc.xp_context = cmdcomplete_str_to_type(type_str);
             match xpc.xp_context {
                 EXPAND_NOTHING => {
-                    semsg(gettext(e_invarg2.as_ptr()), type_str);
+                    semsg!(gettext(e_invarg2.as_ptr()), type_str);
                     return;
                 }
                 EXPAND_USER_DEFINED => {
                     if c_strncmp(type_str, c"custom,".as_ptr(), 7) != 0 {
-                        semsg(gettext(e_invarg2.as_ptr()), type_str);
+                        semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(7).cast_mut();
                 }
                 EXPAND_USER_LIST => {
                     if c_strncmp(type_str, c"customlist,".as_ptr(), 11) != 0 {
-                        semsg(gettext(e_invarg2.as_ptr()), type_str);
+                        semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(11).cast_mut();

@@ -13,6 +13,7 @@
 )]
 
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -143,7 +144,6 @@ unsafe extern "C" {
     fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(s: *const c_char, ...) -> bool;
     fn internal_error(where_: *const c_char);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
@@ -532,7 +532,7 @@ pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
                 let mut utf8_str: *mut c_char = ptr::null_mut();
                 let conversion_result = utf16_to_utf8(p, -1, &raw mut utf8_str);
                 if conversion_result != 0 {
-                    semsg(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
+                    semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
                     break;
                 }
                 let start_off = usize::from(*utf8_str == b'=' as c_char);
@@ -618,7 +618,7 @@ pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
         if GetComputerNameW(host_utf16.as_mut_ptr(), &raw mut host_wsize) == 0 {
             *hostname = NUL;
             let err = GetLastError();
-            semsg(c"GetComputerNameW failed: %d".as_ptr(), err);
+            semsg!(c"GetComputerNameW failed: %d".as_ptr(), err);
             return;
         }
         host_utf16[host_wsize as usize] = 0;
@@ -626,7 +626,7 @@ pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
         let mut host_utf8: *mut c_char = ptr::null_mut();
         let conversion_result = utf16_to_utf8(host_utf16.as_ptr(), -1, &raw mut host_utf8);
         if conversion_result != 0 {
-            semsg(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
+            semsg!(c"utf16_to_utf8 failed: %d".as_ptr(), conversion_result);
             return;
         }
         xstrlcpy(hostname, host_utf8, size);

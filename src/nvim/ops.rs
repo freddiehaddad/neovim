@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::smsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
@@ -222,7 +223,6 @@ unsafe extern "C" {
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn internal_error(where_: *const c_char);
     fn emsg(s: *const c_char) -> bool;
-    fn smsg(hl_id: c_int, fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_keep(s: *const c_char, attr: c_int, keep: bool, multiline: bool) -> bool;
     fn msg_start();
@@ -1711,7 +1711,7 @@ pub unsafe extern "C" fn op_tilde(oap: *mut oparg_T) {
         }
 
         if i64::from((*oap).line_count) > p_report {
-            smsg(
+            smsg!(
                 0,
                 ngettext(
                     c"%lld line changed".as_ptr(),
@@ -2852,7 +2852,7 @@ pub unsafe extern "C" fn op_addsub(oap: *mut oparg_T, Prenum1: linenr_T, g_cmd: 
             }
 
             if (change_cnt as i64) > p_report {
-                smsg(
+                smsg!(
                     0,
                     ngettext(
                         c"%lld lines changed".as_ptr(),

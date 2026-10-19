@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -230,7 +231,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn semsg(fmt: *const c_char, ...) -> bool;
 
     fn expand_env_save(src: *mut c_char) -> *mut c_char;
     fn home_replace(
@@ -818,7 +818,7 @@ pub unsafe extern "C" fn f_chdir(
             } else if s_bytes == b"buffer" {
                 scope = kCdScopeBuffer;
             } else {
-                semsg(gettext(e_invargNval.as_ptr()), c"scope".as_ptr(), s);
+                semsg!(gettext(e_invargNval.as_ptr()), c"scope".as_ptr(), s);
                 return;
             }
         } else if !(*curbuf).b_localdir.is_null() {
@@ -874,7 +874,7 @@ pub unsafe extern "C" fn f_delete(
             // delete a directory recursively
             (*rettv).vval.v_number = varnumber_T::from(delete_recursive(name));
         } else {
-            semsg(gettext(e_invexpr2.as_ptr()), flags);
+            semsg!(gettext(e_invexpr2.as_ptr()), flags);
         }
     }
 }
@@ -1736,7 +1736,7 @@ pub unsafe extern "C" fn f_mkdir(
                     },
                 );
                 if ret != 0 {
-                    semsg(gettext(e_mkdir.as_ptr()), failed_dir, uv_strerror(ret));
+                    semsg!(gettext(e_mkdir.as_ptr()), failed_dir, uv_strerror(ret));
                     xfree(failed_dir.cast());
                     (*rettv).vval.v_number = varnumber_T::from(FAIL);
                     return;
@@ -1980,22 +1980,22 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: *mut typval_T, always
         let fname = tv_get_string(argvars);
 
         if os_isdir(fname) {
-            semsg(gettext(e_isadir2.as_ptr()), fname);
+            semsg!(gettext(e_isadir2.as_ptr()), fname);
             return;
         }
         if *fname == NUL {
-            semsg(gettext(e_notopen.as_ptr()), gettext(c"<empty>".as_ptr()));
+            semsg!(gettext(e_notopen.as_ptr()), gettext(c"<empty>".as_ptr()));
             return;
         }
         let fd = os_fopen(fname, c"rb".as_ptr());
         if fd.is_null() {
-            semsg(gettext(e_notopen.as_ptr()), fname);
+            semsg!(gettext(e_notopen.as_ptr()), fname);
             return;
         }
 
         if blob {
             if read_blob(fd, rettv, offset, size) == FAIL {
-                semsg(gettext(e_cant_read_file_str.as_ptr()), fname);
+                semsg!(gettext(e_cant_read_file_str.as_ptr()), fname);
             }
             fclose(fd);
             return;
@@ -2469,7 +2469,7 @@ unsafe fn write_list(fp: *mut FileDescriptor, list: *const list_T, binary: bool)
                 return true;
             }
         }
-        semsg(
+        semsg!(
             gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
             uv_strerror(error),
         );
@@ -2484,7 +2484,7 @@ unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -
             let written = file_write(fp, data, len);
             if written < len as isize {
                 let error = written as c_int;
-                semsg(
+                semsg!(
                     gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
                     uv_strerror(error),
                 );
@@ -2493,7 +2493,7 @@ unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -
         }
         let error = file_flush(fp);
         if error != 0 {
-            semsg(
+            semsg!(
                 gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
                 uv_strerror(error),
             );
@@ -2537,7 +2537,7 @@ pub unsafe extern "C" fn f_writefile(
             && !((*argvars).v_type == VarType::VAR_STRING
                 && (script_is_lua(current_sctx.sc_sid) || current_sctx.sc_sid == SID_API_CLIENT))
         {
-            semsg(
+            semsg!(
                 gettext(e_invarg2.as_ptr()),
                 gettext(c"writefile() first argument must be a List or a Blob".as_ptr()),
             );
@@ -2564,7 +2564,7 @@ pub unsafe extern "C" fn f_writefile(
                     b'S' => do_fsync = false,
                     b'p' => mkdir_p = true,
                     _ => {
-                        semsg(gettext(c"E5060: Unknown flag: %s".as_ptr()), p);
+                        semsg!(gettext(c"E5060: Unknown flag: %s".as_ptr()), p);
                         return;
                     }
                 }
@@ -2599,7 +2599,7 @@ pub unsafe extern "C" fn f_writefile(
             }) | K_FILE_CREATE;
             let mut error = file_open(&raw mut fp, fname, open_flags, 0o666);
             if error != 0 {
-                semsg(
+                semsg!(
                     gettext(c"E482: Can't open file %s for writing: %s".as_ptr()),
                     fname,
                     uv_strerror(error),
@@ -2629,7 +2629,7 @@ pub unsafe extern "C" fn f_writefile(
                 }
                 error = file_close(&raw mut fp, do_fsync);
                 if error != 0 {
-                    semsg(
+                    semsg!(
                         gettext(c"E80: Error when closing file %s: %s".as_ptr()),
                         fname,
                         uv_strerror(error),

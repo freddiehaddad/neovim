@@ -14,6 +14,7 @@
 use crate::cursor_shape::shape_table;
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::message::{msg_schedule_semsg, msg_schedule_semsg_multiline};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::size_of;
@@ -162,8 +163,6 @@ unsafe extern "C" {
     fn msg_ext_ui_flush();
     fn msg_source(attr: c_int);
     fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_schedule_semsg(fmt: *const c_char, ...);
-    fn msg_schedule_semsg_multiline(fmt: *const c_char, ...);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_free_luaref(luaref: LuaRef);
     fn nlua_call_ref_ctx(
@@ -1135,7 +1134,7 @@ unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
             ns,
             msg,
         );
-        msg_schedule_semsg_multiline(
+        msg_schedule_semsg_multiline!(
             c"Error in \"%s\" UI event handler (ns=%s):\n%s".as_ptr(),
             name,
             ns,
@@ -1271,7 +1270,7 @@ pub unsafe extern "C" fn ui_remove_cb(ns_id: u32, checkerr: bool) {
             ui_refresh();
             if checkerr {
                 let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)".as_ptr());
-                msg_schedule_semsg(
+                msg_schedule_semsg!(
                     c"Excessive errors in vim.ui_attach() callback (ns=%s)".as_ptr(),
                     ns,
                 );
