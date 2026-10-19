@@ -7,6 +7,7 @@ pub mod extmark;
 pub mod options;
 pub mod private;
 pub mod tabpage;
+pub mod ui;
 pub mod vim;
 pub mod vimscript;
 pub mod win_config;
