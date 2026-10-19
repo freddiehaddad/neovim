@@ -173,7 +173,6 @@ size_t ui_detach_others(uint64_t keep_chan)
   return detached;
 }
 
-#ifdef EXITFREE
 void remote_ui_free_all_mem(void)
 {
   RemoteUI *ui;
@@ -182,7 +181,6 @@ void remote_ui_free_all_mem(void)
   });
   map_destroy(uint64_t, &connected_uis);
 }
-#endif
 
 /// Wait until UI has connected.
 void remote_ui_wait_for_attach(void)

@@ -6240,14 +6240,11 @@ static void ex_read(exarg_T *eap)
 
 static char *prev_dir = NULL;
 
-#ifdef EXITFREE
 void free_cd_dir(void)
 {
   XFREE_CLEAR(prev_dir);
   XFREE_CLEAR(globaldir);
 }
-
-#endif
 
 /// Gets the previous-directory slot for the given chdir scope.
 static char **get_prevdir(CdScope scope)

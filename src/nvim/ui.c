@@ -125,7 +125,6 @@ void ui_init(void)
   ui_comp_init();
 }
 
-#ifdef EXITFREE
 void ui_free_all_mem(void)
 {
   UIEventCallback *event_cb;
@@ -136,7 +135,6 @@ void ui_free_all_mem(void)
 
   multiqueue_free(resize_events);
 }
-#endif
 
 /// Returns true if any `rgb=true` UI is attached.
 bool ui_rgb_attached(void)

@@ -422,11 +422,9 @@ void ui_client_event_error_exit(Array args)
   ui_client_error_exit = (int)args.items[0].data.integer;
 }
 
-#ifdef EXITFREE
 void ui_client_free_all_mem(void)
 {
   tui_free_all_mem(tui);
   xfree(grid_line_buf_char);
   xfree(grid_line_buf_attr);
 }
-#endif

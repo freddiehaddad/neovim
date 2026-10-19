@@ -9,6 +9,17 @@
 #include "nvim/macros_defs.h"
 #include "nvim/memory_defs.h"  // IWYU pragma: keep
 
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
 /// `malloc()` function signature
 typedef void *(*MemMalloc)(size_t);
 
@@ -91,8 +102,7 @@ void arena_mem_free(ArenaMem mem);
 char *arena_allocz(Arena *arena, size_t size);
 char *arena_memdupz(Arena *arena, const char *buf, size_t size);
 char *arena_strdup(Arena *arena, const char *str);
-
-#include "memory.h.generated.h"
+void free_all_mem(void);
 
 #define XFREE_CLEAR(ptr) \
   do { \

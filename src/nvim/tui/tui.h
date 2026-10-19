@@ -29,9 +29,7 @@ DLLEXPORT void tui_set_key_encoding(TUIData *tui) FUNC_ATTR_NONNULL_ALL;
 DLLEXPORT void tui_query_bg_color(TUIData *tui) FUNC_ATTR_NONNULL_ALL;
 DLLEXPORT void tui_stop(TUIData *tui) FUNC_ATTR_NONNULL_ALL;
 DLLEXPORT bool tui_is_stopped(TUIData *tui);
-#ifdef EXITFREE
 DLLEXPORT void tui_free_all_mem(TUIData *tui);
-#endif
 DLLEXPORT void tui_grid_resize(TUIData *tui, Integer g, Integer width, Integer height);
 DLLEXPORT void tui_grid_clear(TUIData *tui, Integer g);
 DLLEXPORT void tui_grid_cursor_goto(TUIData *tui, Integer grid, Integer row, Integer col);

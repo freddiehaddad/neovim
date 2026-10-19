@@ -93,9 +93,7 @@ DLLEXPORT void op_addsub(oparg_T *oap, linenr_T Prenum1, bool g_cmd);
 DLLEXPORT bool do_addsub(int op_type, pos_T *pos, int length, linenr_T Prenum1);
 DLLEXPORT void clear_oparg(oparg_T *oap);
 DLLEXPORT void cursor_pos_info(dict_T *dict);
-#ifdef EXITFREE
 DLLEXPORT void free_operatorfunc_option(void);
-#endif
 DLLEXPORT bool set_ref_in_opfunc(int copyID);
 DLLEXPORT bool op_self_select(const cmdarg_T *cap);
 DLLEXPORT void do_pending_operator(cmdarg_T *cap, int old_col, bool gui_yank);

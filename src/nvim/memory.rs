@@ -875,6 +875,246 @@ pub unsafe extern "C" fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char)
     unsafe { arena_memdupz(arena, str_ptr, len) }
 }
 
+/// Free everything that we allocated (`free_all_mem`).
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn free_all_mem() {
+    use crate::api::command::exarg_T;
+    use crate::api::extmark::api_extmark_free_all_mem;
+    use crate::api::tabpage::{tabpage_T, win_T};
+    use crate::arglist::{alist_T, alist_clear};
+    use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};
+    use crate::buffer::{
+        DOBUF_WIPE, bufref_T, bufref_valid, close_buffer, free_titles, set_bufref,
+    };
+    use crate::channel::channel_free_all_mem;
+    use crate::cmdhist::init_history;
+    use crate::decoration_provider::decor_free_all_mem;
+    use crate::diff::diff_clear;
+    use crate::drawline::drawline_free_all_mem;
+    use crate::eval::deprecated::buf_T;
+    use crate::eval::eval_clear;
+    use crate::ex_cmds::free_old_sub;
+    use crate::file_search::free_findfile;
+    use crate::grid::grid_free_all_mem;
+    use crate::highlight::clear_hl_tables;
+    use crate::highlight_group::free_highlight;
+    use crate::input::redo_free_all;
+    use crate::input_cmdatom::atom_free_all;
+    use crate::insert::free_last_insert;
+    use crate::insexpand::free_insexpand_stuff;
+    use crate::map::{Map, Set};
+    use crate::map_glyph_cache::MapHash;
+    use crate::mapping::map_clear_mode;
+    use crate::mark::free_all_marks;
+    use crate::mcursor::mc_free_all;
+    use crate::mouse::StlClickDefinition;
+    use crate::msgpack_rpc::channel::rpc_free_all_mem;
+    use crate::os::env::free_homedir;
+    use crate::os::users::free_users;
+    use crate::quickfix::{check_quickfix_busy, free_quickfix};
+    use crate::regexp::free_regexp_stuff;
+    use crate::register::clear_registers;
+    use crate::search::free_search_patterns;
+    use crate::sign::free_signs;
+    use crate::spell::spell_free_all;
+    use crate::state::MAP_ALL_MODES;
+    use crate::statusline::stl_clear_click_defs;
+    use crate::tag::free_tag_stuff;
+    use crate::ui_compositor::ui_comp_free_all_mem;
+    use crate::usercmd::ex_comclear;
+    use crate::window::{free_tabpage, win_free_all};
+
+    unsafe extern "C" {
+        static mut p_ea: c_int;
+        static mut p_hi: i64;
+        static mut p_acd: c_int;
+        static mut first_tabpage: *mut tabpage_T;
+        static mut curtab: *mut tabpage_T;
+        static mut curwin: *mut win_T;
+        static mut curbuf: *mut buf_T;
+        static mut firstbuf: *mut buf_T;
+        static mut global_alist: alist_T;
+        static mut last_cmdline: *mut c_char;
+        static mut new_last_cmdline: *mut c_char;
+        static mut buffer_handles: Map<c_int, *mut c_void>;
+        static mut window_handles: Map<c_int, *mut c_void>;
+        static mut tabpage_handles: Map<c_int, *mut c_void>;
+        static mut tab_page_click_defs: *mut StlClickDefinition;
+        static mut tab_page_click_defs_size: usize;
+        static mut ui_client_channel_id: u64;
+
+        fn nlua_free_all_mem();
+        fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
+        fn free_prev_shellcmd();
+        fn free_cd_dir();
+        fn set_expr_line(new_line: *mut c_char);
+        fn set_keep_msg(s: *const c_char, attr: c_int);
+        fn close_all_scripts();
+        fn free_all_options();
+        fn buf_free_callbacks(buf: *mut buf_T);
+        fn reset_last_sourcing();
+        fn msg_hist_clear(number: c_int);
+        fn ui_client_free_all_mem();
+        fn remote_ui_free_all_mem();
+        fn ui_free_all_mem();
+    }
+
+    unsafe fn destroy_int_pmap(map: *mut Map<c_int, *mut c_void>) {
+        unsafe {
+            xfree((*map).set.keys.cast());
+            xfree((*map).set.h.hash.cast());
+            (*map).set = Set {
+                h: MapHash {
+                    n_buckets: 0,
+                    size: 0,
+                    n_occupied: 0,
+                    upper_bound: 0,
+                    n_keys: 0,
+                    keys_capacity: 0,
+                    hash: std::ptr::null_mut(),
+                },
+                keys: std::ptr::null_mut(),
+            };
+            xfree((*map).values.cast());
+            (*map).values = std::ptr::null_mut();
+        }
+    }
+
+    unsafe {
+        if entered_free_all_mem {
+            nlua_free_all_mem();
+            return;
+        }
+        entered_free_all_mem = true;
+        block_autocmds();
+
+        p_ea = 0;
+        if !first_tabpage.is_null() && !(*first_tabpage).tp_next.is_null() {
+            do_cmdline_cmd(c"tabonly!".as_ptr());
+        }
+
+        spell_free_all();
+        ex_comclear(std::ptr::null_mut::<exarg_T>());
+
+        if !curbuf.is_null() {
+            do_cmdline_cmd(c"aunmenu *".as_ptr());
+            do_cmdline_cmd(c"tlunmenu *".as_ptr());
+            do_cmdline_cmd(c"menutranslate clear".as_ptr());
+
+            map_clear_mode(curbuf, MAP_ALL_MODES, false, false);
+            map_clear_mode(curbuf, MAP_ALL_MODES, false, true);
+            do_cmdline_cmd(c"breakdel *".as_ptr());
+            do_cmdline_cmd(c"profdel *".as_ptr());
+            do_cmdline_cmd(c"set keymap=".as_ptr());
+        }
+
+        free_titles();
+        free_findfile();
+
+        free_all_autocmds();
+        free_all_marks();
+        alist_clear(&raw mut global_alist);
+        free_homedir();
+        free_users();
+        free_search_patterns();
+        free_old_sub();
+        free_last_insert();
+        free_insexpand_stuff();
+        free_prev_shellcmd();
+        free_regexp_stuff();
+        free_tag_stuff();
+        free_cd_dir();
+        free_signs();
+        set_expr_line(std::ptr::null_mut());
+        if !curtab.is_null() {
+            diff_clear(curtab);
+        }
+        clear_sb_text(true);
+
+        xfree(last_cmdline.cast());
+        xfree(new_last_cmdline.cast());
+        set_keep_msg(std::ptr::null(), 0);
+
+        p_hi = 0;
+        init_history();
+
+        free_quickfix();
+        close_all_scripts();
+
+        if !curwin.is_null() {
+            win_free_all();
+        }
+
+        free_all_options();
+
+        p_acd = 0;
+        let mut buf = firstbuf;
+        while !buf.is_null() {
+            let mut bufref = bufref_T {
+                br_buf: std::ptr::null_mut(),
+                br_fnum: 0,
+                br_buf_free_count: 0,
+            };
+            set_bufref(&raw mut bufref, buf);
+            let nextbuf = (*buf).b_next;
+            (*buf).b_nwindows = 0;
+
+            buf_free_callbacks(buf);
+            close_buffer(std::ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
+            buf = if bufref_valid(&raw mut bufref) {
+                nextbuf
+            } else {
+                firstbuf
+            };
+        }
+
+        clear_registers();
+        redo_free_all();
+        free_highlight();
+        reset_last_sourcing();
+
+        if !first_tabpage.is_null() {
+            free_tabpage(first_tabpage);
+            first_tabpage = std::ptr::null_mut();
+        }
+
+        msg_hist_clear(0);
+
+        channel_free_all_mem();
+        eval_clear();
+        api_extmark_free_all_mem();
+        atom_free_all();
+        mc_free_all();
+
+        destroy_int_pmap(&raw mut buffer_handles);
+        destroy_int_pmap(&raw mut window_handles);
+        destroy_int_pmap(&raw mut tabpage_handles);
+
+        grid_free_all_mem();
+        stl_clear_click_defs(tab_page_click_defs, tab_page_click_defs_size);
+        xfree(tab_page_click_defs.cast());
+
+        clear_hl_tables(false);
+        check_quickfix_busy();
+        decor_free_all_mem();
+        drawline_free_all_mem();
+
+        if ui_client_channel_id != 0 {
+            ui_client_free_all_mem();
+        }
+
+        remote_ui_free_all_mem();
+        ui_free_all_mem();
+        ui_comp_free_all_mem();
+        nlua_free_all_mem();
+        rpc_free_all_mem();
+        autocmd_free_all_mem();
+
+        arena_free_reuse_blks();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

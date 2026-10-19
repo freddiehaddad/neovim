@@ -585,7 +585,6 @@ static const char *find_dup_item(const char *origval, const char *newval, const 
   return NULL;
 }
 
-#ifdef EXITFREE
 /// Free all options.
 void free_all_options(void)
 {
@@ -611,7 +610,6 @@ void free_all_options(void)
   XFREE_CLEAR(p_term);
   XFREE_CLEAR(p_ttytype);
 }
-#endif
 
 /// Initialize the options, part two: After getting Rows and Columns.
 void set_init_2(bool headless)
