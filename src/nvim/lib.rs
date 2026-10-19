@@ -76,6 +76,7 @@ pub mod plines;
 pub mod popupmenu;
 pub mod profile;
 pub mod quickfix;
+pub mod regexp;
 pub mod register;
 pub mod runtime;
 pub mod search;

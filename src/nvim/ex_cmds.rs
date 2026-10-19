@@ -568,7 +568,7 @@ unsafe extern "C" {
         flags: c_int,
     ) -> c_int;
     fn regtilde(source: *const c_char, magic: c_int, preview: bool) -> *mut c_char;
-    fn re_multiline(prog: *const regprog_T) -> bool;
+    fn re_multiline(prog: *const regprog_T) -> c_int;
     fn vim_regfree(prog: *mut regprog_T);
 
     fn nlua_call_excmd(
@@ -5100,7 +5100,7 @@ unsafe fn do_sub(
                         || !(subflags.do_all || do_again)
                         || (*sub_firstline.data.add(matchcol as usize) == NUL
                             && nmatch <= 1
-                            && !re_multiline(regmatch.regprog));
+                            && re_multiline(regmatch.regprog) == 0);
                     nmatch = -1;
 
                     if lastone
