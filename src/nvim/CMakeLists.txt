@@ -389,7 +389,7 @@ file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
 file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
-file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../xdiff/*.c ../mpack/*.c ../cjson/*.c ../klib/*.c ../lpeg/*.c)
+file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../mpack/*.c ../cjson/*.c ../klib/*.c ../lpeg/*.c)
 file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/*.h ../klib/*.h ../lpeg/*.h)
 
 file(GLOB NLUA0_SOURCES CONFIGURE_DEPENDS ../mpack/*.c ../lpeg/*.c)
@@ -782,7 +782,8 @@ set(NVIM_RUST_LIB
   "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}nvim_rs${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_LIST_DIR}/*.rs")
+  "${CMAKE_CURRENT_LIST_DIR}/*.rs"
+  "${PROJECT_SOURCE_DIR}/src/xdiff/*.rs")
 
 add_custom_command(
   OUTPUT "${NVIM_RUST_LIB}"

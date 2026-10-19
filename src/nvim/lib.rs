@@ -111,3 +111,5 @@ pub mod viml;
 pub mod vterm;
 pub mod window;
 pub mod winfloat;
+#[path = "../xdiff/mod.rs"]
+pub mod xdiff;
