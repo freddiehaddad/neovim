@@ -12,6 +12,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -309,15 +310,6 @@ unsafe extern "C" {
     fn remote_ui_flush_pending_data(ui: *mut RemoteUI);
     fn exit_on_closed_chan(status: c_int);
     fn semsg(s: *const c_char, ...) -> bool;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 
     #[cfg(windows)]
     fn os_detach_ui_console(stdio_chan: bool);
@@ -1128,7 +1120,7 @@ pub unsafe extern "C" fn rpc_free(channel: *mut Channel) {
 unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel: c_int) {
     unsafe {
         #[cfg(not(test))]
-        logmsg(
+        logmsg!(
             loglevel,
             c"RPC: ".as_ptr(),
             ptr::null(),
@@ -1160,7 +1152,7 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
         #[cfg(not(test))]
         {
             channel_close((*cp).id, kChannelPartRpc, ptr::null_mut());
-            logmsg(
+            logmsg!(
                 loglevel,
                 ptr::null(),
                 c"chan_close_on_err".as_ptr(),

@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -716,15 +717,6 @@ unsafe extern "C" {
     fn api_new_luaref(luaref: LuaRef) -> LuaRef;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 
     pub fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
     pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex;
@@ -1466,7 +1458,7 @@ pub unsafe extern "C" fn free_all_options() {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_init_2(_headless: bool) {
     unsafe {
-        logmsg(
+        logmsg!(
             1,
             ptr::null(),
             c"set_init_2".as_ptr(),

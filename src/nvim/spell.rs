@@ -31,6 +31,7 @@ use crate::hashtab::{
     hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
     hashitem_empty,
 };
+use crate::log::logmsg;
 use crate::mbyte::{
     mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr2char_adv,
     mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold, utf_head_off,
@@ -195,15 +196,6 @@ unsafe extern "C" {
     fn msg_puts(s: *const c_char);
     fn msg_putchar(c: c_int);
     fn msg_end() -> bool;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
     fn bufref_valid(bufref: *mut bufref_T) -> bool;
     fn buf_is_empty(buf: *mut buf_T) -> bool;
@@ -2248,7 +2240,7 @@ pub unsafe extern "C" fn open_spellbuf() -> *mut buf_T {
         (*buf).b_spell = true;
         (*buf).b_p_swf = 1;
         if ml_open(buf) == FAIL {
-            let _ = logmsg(
+            let _ = logmsg!(
                 3,
                 ptr::null(),
                 c"open_spellbuf".as_ptr(),

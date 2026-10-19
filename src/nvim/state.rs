@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -168,15 +169,6 @@ unsafe extern "C" {
     ) -> bool;
     fn stuff_empty() -> bool;
     fn using_script() -> c_int;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }
@@ -239,7 +231,7 @@ pub unsafe extern "C" fn state_enter(s: *mut VimState) {
                     } else {
                         get_special_key_name(key, mod_mask).cast_const()
                     };
-                    logmsg(
+                    logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
                         c"state_enter".as_ptr(),
@@ -491,7 +483,7 @@ pub unsafe extern "C" fn may_trigger_safestate(safe: bool) {
             } else {
                 c"SafeState: Stop triggering"
             };
-            logmsg(
+            logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
                 c"may_trigger_safestate".as_ptr(),
@@ -518,7 +510,7 @@ pub unsafe extern "C" fn may_trigger_safestate(safe: bool) {
 pub unsafe extern "C" fn state_no_longer_safe(reason: *const c_char) {
     unsafe {
         if was_safe && !reason.is_null() && g_min_log_level <= LOGLVL_DBG {
-            logmsg(
+            logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
                 c"state_no_longer_safe".as_ptr(),

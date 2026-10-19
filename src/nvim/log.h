@@ -76,9 +76,13 @@ DLLEXPORT bool logmsg_str(int log_level, const char *context, const char *func_n
                           bool eol, const char *msg);
 DLLEXPORT void log_uv_handles(void *loop);
 DLLEXPORT FILE *open_log_file(void);
+DLLEXPORT FILE *log_get_stderr(void);
+DLLEXPORT bool log_is_std_stream(FILE *fp);
 #ifndef MSWIN
 DLLEXPORT void log_callstack_to_file_trace(FILE *log_file, const char *func_name, int line_num,
                                            void *const *trace, int trace_size);
 #endif
-
-#include "log.h.generated.h"
+#ifdef HAVE_EXECINFO_BACKTRACE
+DLLEXPORT void log_callstack_to_file(FILE *log_file, const char *func_name, int line_num);
+DLLEXPORT void log_callstack(const char *func_name, int line_num);
+#endif

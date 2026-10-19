@@ -99,10 +99,120 @@ unsafe extern "C" {
     fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;
     #[cfg(unix)]
     fn pclose(stream: *mut FILE) -> c_int;
+    #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+    fn backtrace(buffer: *mut *mut c_void, size: c_int) -> c_int;
 
-    fn log_get_stderr() -> *mut FILE;
-    fn log_is_std_stream(fp: *mut FILE) -> bool;
+    #[cfg(windows)]
+    fn __acrt_iob_func(ix: u32) -> *mut FILE;
+    #[cfg(target_os = "linux")]
+    #[link_name = "stderr"]
+    static mut c_stderr: *mut FILE;
+    #[cfg(target_os = "linux")]
+    #[link_name = "stdout"]
+    static mut c_stdout: *mut FILE;
+    #[cfg(not(any(windows, target_os = "linux")))]
+    static mut __stderrp: *mut FILE;
+    #[cfg(not(any(windows, target_os = "linux")))]
+    static mut __stdoutp: *mut FILE;
+
+    #[doc(hidden)]
+    pub fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn log_get_stderr() -> *mut FILE {
+    #[cfg(all(not(test), windows))]
+    unsafe {
+        __acrt_iob_func(2)
+    }
+    #[cfg(all(not(test), target_os = "linux"))]
+    unsafe {
+        c_stderr
+    }
+    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
+    unsafe {
+        __stderrp
+    }
+    #[cfg(test)]
+    {
+        ptr::null_mut()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn log_is_std_stream(fp: *mut FILE) -> bool {
+    #[cfg(all(not(test), windows))]
+    unsafe {
+        fp == __acrt_iob_func(2) || fp == __acrt_iob_func(1)
+    }
+    #[cfg(all(not(test), target_os = "linux"))]
+    unsafe {
+        fp == c_stderr || fp == c_stdout
+    }
+    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
+    unsafe {
+        fp == __stderrp || fp == __stdoutp
+    }
+    #[cfg(test)]
+    {
+        let _ = fp;
+        false
+    }
+}
+
+#[macro_export]
+macro_rules! logmsg {
+    ($log_level:expr, $context:expr, $func_name:expr, $line_num:expr, $eol:expr, $fmt:expr $(,)?) => {{
+        $crate::log::logmsg_str($log_level, $context, $func_name, $line_num, $eol, $fmt)
+    }};
+    ($log_level:expr, $context:expr, $func_name:expr, $line_num:expr, $eol:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
+        let lvl = $log_level;
+        if !$crate::log::log_should_log(lvl) {
+            false
+        } else {
+            let fmt_ptr: *const std::ffi::c_char = $fmt;
+            let mut stack_buf = [0 as std::ffi::c_char; 1024];
+            #[cfg(not(test))]
+            let len = $crate::log::snprintf(
+                (&raw mut stack_buf).cast::<std::ffi::c_char>(),
+                stack_buf.len(),
+                fmt_ptr,
+                $($arg),+
+            );
+            #[cfg(test)]
+            let len = {
+                let _ = (&raw mut stack_buf, fmt_ptr, $($arg),+);
+                0
+            };
+            if len >= stack_buf.len() as std::ffi::c_int {
+                let cap = (len as usize) + 1;
+                let heap_buf = $crate::memory::xmalloc(cap).cast::<std::ffi::c_char>();
+                #[cfg(not(test))]
+                $crate::log::snprintf(heap_buf, cap, fmt_ptr, $($arg),+);
+                let ret = $crate::log::logmsg_str(
+                    lvl,
+                    $context,
+                    $func_name,
+                    $line_num,
+                    $eol,
+                    heap_buf,
+                );
+                $crate::memory::xfree(heap_buf.cast());
+                ret
+            } else {
+                $crate::log::logmsg_str(
+                    lvl,
+                    $context,
+                    $func_name,
+                    $line_num,
+                    $eol,
+                    stack_buf.as_ptr(),
+                )
+            }
+        }
+    }};
+}
+pub use logmsg;
 
 unsafe fn log_try_create(fname: *const c_char) -> bool {
     unsafe {
@@ -425,6 +535,41 @@ pub unsafe extern "C" fn log_callstack_to_file_trace(
     #[cfg(test)]
     {
         let _ = (log_file, func_name, line_num, trace, trace_size);
+    }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn log_callstack_to_file(
+    log_file: *mut FILE,
+    func_name: *const c_char,
+    line_num: c_int,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut trace: [*mut c_void; 100] = [ptr::null_mut(); 100];
+        let trace_size = backtrace(trace.as_mut_ptr(), trace.len() as c_int);
+        log_callstack_to_file_trace(log_file, func_name, line_num, trace.as_ptr(), trace_size);
+    }
+    #[cfg(test)]
+    {
+        let _ = (log_file, func_name, line_num);
+    }
+}
+
+#[cfg(any(target_os = "linux", target_vendor = "apple"))]
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn log_callstack(func_name: *const c_char, line_num: c_int) {
+    #[cfg(not(test))]
+    unsafe {
+        log_lock();
+        let log_file = open_log_file();
+        log_callstack_to_file(log_file, func_name, line_num);
+        log_unlock();
+    }
+    #[cfg(test)]
+    {
+        let _ = (func_name, line_num);
     }
 }
 

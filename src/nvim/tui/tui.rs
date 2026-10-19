@@ -16,6 +16,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -358,15 +359,6 @@ unsafe extern "C" {
     #[cfg(unix)]
     fn kill(pid: c_int, sig: c_int) -> c_int;
 
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 #[cfg(windows)]
@@ -596,7 +588,7 @@ pub unsafe extern "C" fn tui_handle_term_mode(
         match state {
             kTermModeNotRecognized | kTermModePermanentlyReset => {
                 if !nvim_testing && g_min_log_level <= LOGLVL_WRN {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_WRN,
                         ptr::null(),
                         c"tui_handle_term_mode".as_ptr(),
@@ -613,7 +605,7 @@ pub unsafe extern "C" fn tui_handle_term_mode(
                     is_set = true;
                 }
                 if !nvim_testing && g_min_log_level <= LOGLVL_WRN {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_WRN,
                         ptr::null(),
                         c"tui_handle_term_mode".as_ptr(),
@@ -1164,7 +1156,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         if (*tui).out_isatty {
             let ret = uv_tty_init(write_loop, output_handle.cast(), (*tui).out_fd, 0);
             if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"terminfo_start".as_ptr(),
@@ -1187,7 +1179,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
                     }
                 }
                 if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"terminfo_start".as_ptr(),
@@ -1201,7 +1193,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         } else {
             let ret = uv_pipe_init(write_loop, output_handle.cast(), 0);
             if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"terminfo_start".as_ptr(),
@@ -1213,7 +1205,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
             }
             let ret = uv_pipe_open(output_handle.cast(), (*tui).out_fd);
             if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"terminfo_start".as_ptr(),
@@ -1332,7 +1324,7 @@ pub unsafe extern "C" fn tui_stop(tui: *mut TUIData) {
     unsafe {
         if uv_is_closing(tui_output_handle(tui)) != 0 {
             if g_min_log_level <= LOGLVL_ERR {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"tui_stop".as_ptr(),
@@ -1373,7 +1365,7 @@ pub unsafe extern "C" fn tui_stop(tui: *mut TUIData) {
         }
         if !(*tui).stopped && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS {
             if g_min_log_level <= LOGLVL_WRN {
-                logmsg(
+                logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
                     c"tui_stop".as_ptr(),
@@ -2035,7 +2027,7 @@ unsafe fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
             CursorShape::SHAPE_HOR
         } else {
             if g_min_log_level <= LOGLVL_WRN {
-                logmsg(
+                logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
                     c"tui_cursor_decode_shape".as_ptr(),
@@ -2201,7 +2193,7 @@ pub unsafe extern "C" fn tui_mode_change(tui: *mut TUIData, _mode: NvimString, m
         if (*tui).out_isatty && (*tui).is_starting && !stdin_isatty {
             let ret = uv_tty_set_mode(tui_output_handle(tui).cast(), UV_TTY_MODE_NORMAL);
             if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"tui_mode_change".as_ptr(),
@@ -2213,7 +2205,7 @@ pub unsafe extern "C" fn tui_mode_change(tui: *mut TUIData, _mode: NvimString, m
             }
             let ret = uv_tty_set_mode(tui_output_handle(tui).cast(), UV_TTY_MODE_IO);
             if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"tui_mode_change".as_ptr(),
@@ -2400,7 +2392,7 @@ pub unsafe extern "C" fn tui_ui_send(tui: *mut TUIData, content: NvimString) {
             None,
         );
         if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"tui_ui_send".as_ptr(),
@@ -2420,7 +2412,7 @@ pub unsafe extern "C" fn tui_flush(tui: *mut TUIData) {
         let nrevents = loop_size((*tui).loop_);
         if nrevents > TOO_MANY_EVENTS {
             if g_min_log_level <= LOGLVL_WRN {
-                logmsg(
+                logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
                     c"tui_flush".as_ptr(),
@@ -2571,7 +2563,7 @@ pub unsafe extern "C" fn tui_set_title(tui: *mut TUIData, title: NvimString) {
 
         let too_long = title.size > 4096;
         if too_long && g_min_log_level <= LOGLVL_ERR {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"tui_set_title".as_ptr(),
@@ -2683,7 +2675,7 @@ pub unsafe extern "C" fn tui_chdir(_tui: *mut TUIData, path: NvimString) {
     unsafe {
         let err = uv_chdir(path.data);
         if err != 0 && g_min_log_level <= LOGLVL_ERR {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"tui_chdir".as_ptr(),
@@ -3438,7 +3430,7 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
                     None,
                 );
                 if ret != 0 && g_min_log_level <= LOGLVL_ERR {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"flush_buf".as_ptr(),
@@ -3465,7 +3457,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
                 stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
                 stty_erase_buf[1] = NUL;
                 if g_min_log_level <= LOGLVL_DBG {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
                         c"tui_get_stty_erase".as_ptr(),
@@ -3512,7 +3504,7 @@ unsafe extern "C" fn tui_tk_ti_getstr(
 
         if strequal(name, c"key_backspace".as_ptr()) {
             if g_min_log_level <= LOGLVL_DBG {
-                logmsg(
+                logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
                     c"tui_tk_ti_getstr".as_ptr(),
@@ -3527,7 +3519,7 @@ unsafe extern "C" fn tui_tk_ti_getstr(
             }
         } else if strequal(name, c"key_dc".as_ptr()) {
             if g_min_log_level <= LOGLVL_DBG {
-                logmsg(
+                logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
                     c"tui_tk_ti_getstr".as_ptr(),
@@ -3549,7 +3541,7 @@ unsafe extern "C" fn tui_tk_ti_getstr(
             }
         } else if strequal(name, c"key_mouse".as_ptr()) {
             if g_min_log_level <= LOGLVL_DBG {
-                logmsg(
+                logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
                     c"tui_tk_ti_getstr".as_ptr(),

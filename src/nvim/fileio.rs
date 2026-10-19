@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -350,15 +351,6 @@ unsafe extern "C" {
     fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int;
     fn save_file_ff(buf: *mut buf_T);
     fn set_fileformat(e: c_int, opt_flags: c_int);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn stuff_empty() -> bool;
     fn sort_strings(files: *mut *mut c_char, count: c_int);
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
@@ -3412,7 +3404,7 @@ unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
                         return 0;
                     }
                     if os_rename(tempname.as_ptr(), from) != OK {
-                        logmsg(
+                        logmsg!(
                             LOG_ERR,
                             ptr::null(),
                             c"rename_with_tmp".as_ptr(),
@@ -4040,7 +4032,7 @@ unsafe fn vim_mktempdir() {
             if !os_isdir(tmp.as_ptr()) {
                 if strequal(c"$TMPDIR".as_ptr(), temp_dir.as_ptr()) {
                     if !os_env_exists(c"TMPDIR".as_ptr(), true) {
-                        logmsg(
+                        logmsg!(
                             LOG_DEBUG,
                             ptr::null(),
                             c"vim_mktempdir".as_ptr(),
@@ -4049,7 +4041,7 @@ unsafe fn vim_mktempdir() {
                             c"$TMPDIR is unset".as_ptr(),
                         );
                     } else {
-                        logmsg(
+                        logmsg!(
                             LOG_WARN,
                             ptr::null(),
                             c"vim_mktempdir".as_ptr(),
@@ -4100,7 +4092,7 @@ unsafe fn vim_mktempdir() {
                 }
             } else {
                 if !owned {
-                    logmsg(
+                    logmsg!(
                         LOG_ERR,
                         ptr::null(),
                         c"vim_mktempdir".as_ptr(),
@@ -4111,7 +4103,7 @@ unsafe fn vim_mktempdir() {
                         tmp.as_ptr(),
                     );
                 } else if !isdir {
-                    logmsg(
+                    logmsg!(
                         LOG_ERR,
                         ptr::null(),
                         c"vim_mktempdir".as_ptr(),
@@ -4123,7 +4115,7 @@ unsafe fn vim_mktempdir() {
                 }
                 #[cfg(unix)]
                 if 0o700 != (perm & 0o777) {
-                    logmsg(
+                    logmsg!(
                         LOG_ERR,
                         ptr::null(),
                         c"vim_mktempdir".as_ptr(),
@@ -4147,7 +4139,7 @@ unsafe fn vim_mktempdir() {
             let _ = tmplen;
             let r = os_mkdtemp(tmp.as_ptr(), path.as_mut_ptr());
             if r != 0 {
-                logmsg(
+                logmsg!(
                     LOG_WARN,
                     ptr::null(),
                     c"vim_mktempdir".as_ptr(),
@@ -4323,7 +4315,7 @@ pub unsafe extern "C" fn vim_gettempdir() -> *mut c_char {
             if !VIM_TEMPDIR.is_null() {
                 NOTFOUND += 1;
                 if NOTFOUND == 1 {
-                    logmsg(
+                    logmsg!(
                         LOG_ERR,
                         ptr::null(),
                         c"vim_gettempdir".as_ptr(),

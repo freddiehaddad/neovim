@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -470,15 +471,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn strerror(errnum: c_int) -> *const c_char;
     #[cfg(not(windows))]
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     #[cfg(not(windows))]
     fn getuid() -> u32;
 
@@ -999,7 +991,7 @@ pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
         let fdflags = fcntl(fd, F_GETFD);
         if fdflags < 0 {
             let e = *errno_ptr();
-            let _ = logmsg(
+            let _ = logmsg!(
                 4,
                 ptr::null(),
                 c"os_set_cloexec".as_ptr(),
@@ -1014,7 +1006,7 @@ pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
         }
         if (fdflags & FD_CLOEXEC) == 0 && fcntl(fd, F_SETFD, fdflags | FD_CLOEXEC) == -1 {
             let e = *errno_ptr();
-            let _ = logmsg(
+            let _ = logmsg!(
                 4,
                 ptr::null(),
                 c"os_set_cloexec".as_ptr(),

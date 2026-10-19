@@ -13,6 +13,7 @@
 
 use crate::cursor_shape::shape_table;
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::size_of;
@@ -163,15 +164,6 @@ unsafe extern "C" {
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_schedule_semsg(fmt: *const c_char, ...);
     fn msg_schedule_semsg_multiline(fmt: *const c_char, ...);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_free_luaref(luaref: LuaRef);
     fn nlua_call_ref_ctx(
@@ -1132,7 +1124,7 @@ pub unsafe extern "C" fn ui_grid_resize(
 unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
     unsafe {
         let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)".as_ptr());
-        logmsg(
+        logmsg!(
             LOGLVL_ERR,
             ptr::null(),
             c"ui_attach_error".as_ptr(),
@@ -1304,7 +1296,7 @@ pub unsafe extern "C" fn ui_log(funname: *const c_char) {
             UILOG_SEEN += 1;
         } else {
             if UILOG_SEEN > 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_DBG,
                     c"UI: ".as_ptr(),
                     ptr::null(),
@@ -1315,7 +1307,7 @@ pub unsafe extern "C" fn ui_log(funname: *const c_char) {
                     UILOG_SEEN,
                 );
             }
-            logmsg(
+            logmsg!(
                 LOGLVL_DBG,
                 c"UI: ".as_ptr(),
                 ptr::null(),

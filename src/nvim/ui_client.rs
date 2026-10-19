@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -79,15 +80,6 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn KeyDict_highlight_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
     fn uv_os_getpid() -> c_int;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn os_exit(r: c_int) -> !;
     #[cfg(windows)]
     fn os_open_conin_fd() -> c_int;
@@ -348,7 +340,7 @@ pub unsafe extern "C" fn ui_client_run() -> ! {
         ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
 
         if os_env_exists(c"NVIM_LOG_FILE".as_ptr(), true) {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"ui_client_run".as_ptr(),
@@ -458,7 +450,7 @@ pub unsafe extern "C" fn ui_client_event_grid_resize(args: Array) {
             || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
             || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
         {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"ui_client_event_grid_resize".as_ptr(),
@@ -520,7 +512,7 @@ pub unsafe extern "C" fn ui_client_event_raw_line(g: *mut GridLineEvent) {
 pub unsafe extern "C" fn ui_client_event_connect(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"ui_client_event_connect".as_ptr(),
@@ -556,7 +548,7 @@ unsafe extern "C" fn channel_connect_event(argv: *mut *mut c_void) {
         let chan = channel_connect(is_tcp, server_addr, true, on_data, 50, &raw mut err);
 
         if !strequal(err, c"".as_ptr()) {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"channel_connect_event".as_ptr(),
@@ -574,7 +566,7 @@ unsafe extern "C" fn channel_connect_event(argv: *mut *mut c_void) {
         ui_client_channel_id = chan;
         ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
 
-        logmsg(
+        logmsg!(
             LOGLVL_INF,
             ptr::null(),
             c"channel_connect_event".as_ptr(),
@@ -630,7 +622,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
         };
 
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"ui_client_attach_to_restarted_server".as_ptr(),
@@ -645,7 +637,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
         let first_arg = (*args.items).data.string.data;
         let chan_id = if start_server {
             if args.size < 2 || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeArray {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"ui_client_attach_to_restarted_server".as_ptr(),
@@ -677,7 +669,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
             let on_data: CallbackReader = zeroed();
             let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &raw mut err);
             if !err.is_null() {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"ui_client_attach_to_restarted_server".as_ptr(),
@@ -705,7 +697,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
         ui_client_channel_id = chan_id;
         ui_client_attach(tui_width, tui_height, tui_term, tui_rgb);
 
-        logmsg(
+        logmsg!(
             LOGLVL_INF,
             ptr::null(),
             c"ui_client_attach_to_restarted_server".as_ptr(),
@@ -723,7 +715,7 @@ pub unsafe extern "C" fn ui_client_attach_to_restarted_server(error_restart: boo
 pub unsafe extern "C" fn ui_client_event_error_exit(args: Array) {
     unsafe {
         if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"ui_client_event_error_exit".as_ptr(),
@@ -806,7 +798,7 @@ unsafe extern "C" {
 
 unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
     unsafe {
-        logmsg(
+        logmsg!(
             LOGLVL_ERR,
             ptr::null(),
             func_name,

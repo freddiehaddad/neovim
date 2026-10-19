@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 
@@ -134,15 +135,6 @@ unsafe extern "C" {
     fn ui_mode_info_set();
     fn cmdline_at_end() -> bool;
     fn cmdline_overstrike() -> bool;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 #[inline]
@@ -575,7 +567,7 @@ pub unsafe extern "C" fn cursor_mode_str2int(mode: *const c_char) -> c_int {
     }
     #[cfg(not(test))]
     unsafe {
-        logmsg(
+        logmsg!(
             LOGLVL_WRN,
             std::ptr::null(),
             c"cursor_mode_str2int".as_ptr(),

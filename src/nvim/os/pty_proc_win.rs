@@ -11,6 +11,7 @@
     clippy::upper_case_acronyms
 )]
 
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -170,15 +171,6 @@ mod win_impl {
         fn os_shell_is_cmdexe(sh: *const c_char) -> bool;
         fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool;
         fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
-        fn logmsg(
-            log_level: c_int,
-            context: *const c_char,
-            func_name: *const c_char,
-            line_num: c_int,
-            eol: bool,
-            fmt: *const c_char,
-            ...
-        ) -> bool;
         fn wcslen(s: *const u16) -> usize;
     }
 
@@ -413,7 +405,7 @@ mod win_impl {
             }
 
             if status != 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"pty_proc_spawn".as_ptr(),

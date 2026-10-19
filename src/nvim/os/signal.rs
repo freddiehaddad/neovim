@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -84,15 +85,6 @@ unsafe extern "C" {
     ) -> bool;
     #[cfg(target_os = "linux")]
     fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     #[cfg(unix)]
@@ -111,7 +103,7 @@ pub unsafe extern "C" fn signal_init() {
             let mut mask = [0u64; 16];
             sigemptyset((&raw mut mask).cast());
             if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), ptr::null_mut()) != 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"signal_init".as_ptr(),
@@ -323,7 +315,7 @@ unsafe extern "C" fn on_signal(_handle: *mut SignalWatcher, signum: c_int, _data
                 );
             }
             _ => {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"on_signal".as_ptr(),

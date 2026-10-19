@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::api::private::validate::{Error, Object, ObjectType, api_err_exp};
@@ -22,15 +23,6 @@ unsafe extern "C" {
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn do_termresponse_autocmd(termresponse: NvimString, channel_id: u64);
     fn api_typename(t: ObjectType) -> *const c_char;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 /// Emitted on the client channel if an async API request responds with an error (`nvim_error_event`).
@@ -46,7 +38,7 @@ pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: Nvim
         } else {
             c"".as_ptr()
         };
-        logmsg(
+        logmsg!(
             LOGLVL_ERR,
             std::ptr::null(),
             c"nvim_error_event".as_ptr(),

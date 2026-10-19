@@ -12,6 +12,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -324,15 +325,6 @@ unsafe extern "C" {
     fn set_no_hlsearch(flag: bool);
     fn redraw_all_later(r#type: c_int);
     fn set_option_value_give_err(opt_idx: c_int, val: Object, opt_flags: c_int);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
@@ -1090,7 +1082,7 @@ unsafe fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimStri
         );
         if err.err_type != ErrorType::kErrorTypeNone {
             if g_min_log_level <= LOGLVL_DBG {
-                logmsg(
+                logmsg!(
                     LOGLVL_DBG,
                     ptr::null(),
                     c"mc_ins_preview_replace".as_ptr(),

@@ -9,7 +9,8 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{c_char, c_int, c_void};
+use crate::log::logmsg;
+use std::ffi::{c_int, c_void};
 use std::ptr;
 
 use crate::event::multiqueue::{
@@ -100,15 +101,6 @@ unsafe extern "C" {
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
     fn log_uv_handles(loop_: *mut c_void);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 #[inline]
@@ -358,7 +350,7 @@ pub unsafe extern "C" fn loop_close(loop_: *mut Loop, wait: bool) -> bool {
             let elapsed_s = (os_hrtime() - start) / NS_PER_SEC;
             if elapsed_s >= 2 {
                 rv = false;
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"loop_close".as_ptr(),

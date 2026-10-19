@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 #[cfg(windows)]
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 
@@ -148,15 +149,6 @@ unsafe extern "C" {
     fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
     fn os_path_exists(path: *const c_char) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn uv_tty_set_vterm_state(state: c_int);
 }
 
@@ -259,7 +251,7 @@ pub unsafe extern "C" fn os_attach_parent_console() {
             !GetConsoleWindow().is_null() || AttachConsole(ATTACH_PARENT_PROCESS) != 0;
         if !CONSOLE_INHERITED {
             #[cfg(not(test))]
-            logmsg(
+            logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
                 c"os_attach_parent_console".as_ptr(),
@@ -320,7 +312,7 @@ pub unsafe extern "C" fn os_icon_init() {
             let namebuff = std::ptr::addr_of_mut!(NameBuff).cast::<c_char>();
             vim_snprintf(namebuff, MAXPATHL, c"%s/neovim.ico".as_ptr(), vimruntime);
             if !os_path_exists(namebuff) {
-                logmsg(
+                logmsg!(
                     LOGLVL_WRN,
                     std::ptr::null(),
                     c"os_icon_init".as_ptr(),

@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -84,15 +85,6 @@ unsafe extern "C" {
     fn uv_err_name(err: c_int) -> *const c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 #[inline]
@@ -219,7 +211,7 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
             } else {
                 if g_min_log_level <= LOGLVL_DBG {
                     let err_code = cnt as c_int;
-                    logmsg(
+                    logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
                         c"read_cb".as_ptr(),

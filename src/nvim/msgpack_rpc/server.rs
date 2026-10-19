@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -86,16 +87,6 @@ unsafe extern "C" {
     fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int, cb: socket_cb) -> c_int;
     fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close_cb);
     fn channel_from_connection(watcher: *mut SocketWatcher);
-
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -197,7 +188,7 @@ pub unsafe extern "C" fn server_init(mut listen_addr: *const c_char) -> bool {
         let rv = server_start(listen_addr);
 
         if os_env_exists(ENV_TEST_LOG.as_ptr(), false) {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"server_init".as_ptr(),
@@ -314,7 +305,7 @@ pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char 
         };
 
         if (r as usize) >= fmt.len() {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"server_address_new".as_ptr(),
@@ -352,7 +343,7 @@ pub unsafe extern "C" fn server_owns_pipe_address(address: *const c_char) -> boo
 pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
     unsafe {
         if addr.is_null() || *addr == 0 {
-            logmsg(
+            logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
                 c"server_start".as_ptr(),
@@ -385,7 +376,7 @@ pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
         for i in 0..watchers.ga_len {
             let existing = *data.add(i as usize);
             if strcmp(watcher_addr(watcher), watcher_addr(existing)) == 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"server_start".as_ptr(),
@@ -404,7 +395,7 @@ pub unsafe extern "C" fn server_start(addr: *const c_char) -> c_int {
 
         result = socket_watcher_start(watcher, MAX_CONNECTIONS, Some(connection_cb));
         if result < 0 {
-            logmsg(
+            logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
                 c"server_start".as_ptr(),
@@ -453,7 +444,7 @@ pub unsafe extern "C" fn server_stop(endpoint: *const c_char, keep_vservername: 
         }
 
         if !watcher_found {
-            logmsg(
+            logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
                 c"server_stop".as_ptr(),
@@ -505,7 +496,7 @@ pub unsafe extern "C" fn server_address_list(size: *mut usize) -> *mut *mut c_ch
 unsafe extern "C" fn connection_cb(watcher: *mut SocketWatcher, result: c_int, _data: *mut c_void) {
     unsafe {
         if result != 0 {
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"connection_cb".as_ptr(),

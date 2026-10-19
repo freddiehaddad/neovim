@@ -10,6 +10,7 @@
     clippy::upper_case_acronyms
 )]
 
+use crate::log::logmsg;
 #[cfg(windows)]
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
@@ -203,15 +204,6 @@ unsafe extern "C" {
     fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
     fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
     fn os_get_pid() -> i64;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 #[cfg(windows)]
@@ -240,7 +232,7 @@ pub unsafe extern "C" fn os_dyn_conpty_init() -> TriState {
         };
 
         if uv_dlopen(c"conpty.dll".as_ptr(), &mut conpty_lib) == 0 {
-            logmsg(
+            logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
                 c"os_dyn_conpty_init".as_ptr(),
@@ -254,7 +246,7 @@ pub unsafe extern "C" fn os_dyn_conpty_init() -> TriState {
                 uv_dlclose(&mut conpty_lib);
                 return kFalse;
             }
-            logmsg(
+            logmsg!(
                 LOGLVL_INF,
                 std::ptr::null(),
                 c"os_dyn_conpty_init".as_ptr(),
@@ -411,7 +403,7 @@ pub unsafe extern "C" fn os_conpty_init(
             return conpty_object;
         }
 
-        logmsg(
+        logmsg!(
             LOGLVL_ERR,
             std::ptr::null(),
             c"os_conpty_init".as_ptr(),
@@ -482,7 +474,7 @@ pub unsafe extern "C" fn os_conpty_set_size(conpty_object: *mut conpty_t, width:
         };
         if (pResizePseudoConsole.unwrap_unchecked())((*conpty_object).pty, size) != S_OK {
             #[cfg(not(test))]
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 std::ptr::null(),
                 c"os_conpty_set_size".as_ptr(),

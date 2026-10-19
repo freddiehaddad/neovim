@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -44,15 +45,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
 unsafe extern "C" {
 
     fn describe_ns(ns_id: NS, fail: *const c_char) -> *const c_char;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn msg_schedule_semsg_multiline(fmt: *const c_char, ...);
     fn nlua_call_ref(
         ref_: LuaRef,
@@ -157,7 +149,7 @@ unsafe fn decor_provider_error(
 ) {
     unsafe {
         let ns = describe_ns((*provider).ns_id, c"(UNKNOWN PLUGIN)".as_ptr());
-        logmsg(
+        logmsg!(
             LOGLVL_ERR,
             ptr::null(),
             c"decor_provider_error".as_ptr(),

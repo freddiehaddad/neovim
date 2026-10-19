@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -179,15 +180,6 @@ unsafe extern "C" {
     fn os_path_exists(path: *const c_char) -> bool;
     fn path_tail(fname: *const c_char) -> *mut c_char;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
 }
@@ -321,7 +313,7 @@ pub unsafe extern "C" fn socket_watcher_init(
 
             let ok = try_getdigits(&raw mut port_scan, &raw mut iport);
             if !ok || iport < 0 || iport > i64::from(u16::MAX) {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"socket_watcher_init".as_ptr(),
@@ -358,7 +350,7 @@ pub unsafe extern "C" fn socket_watcher_init(
                 &raw const hints,
             );
             if retval != 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"socket_watcher_init".as_ptr(),
@@ -480,7 +472,7 @@ pub unsafe extern "C" fn socket_watcher_start(
                     let rm_result = os_remove(addr);
 
                     if rm_result != 0 {
-                        logmsg(
+                        logmsg!(
                             LOGLVL_WRN,
                             ptr::null(),
                             c"socket_watcher_start".as_ptr(),
@@ -508,7 +500,7 @@ pub unsafe extern "C" fn socket_watcher_start(
                             uv_pipe_bind2(uv_ptr.cast(), addr, c_strlen(addr), UV_PIPE_NO_TRUNCATE);
                     }
                 } else {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"socket_watcher_start".as_ptr(),

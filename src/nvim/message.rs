@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::mem::{offset_of, size_of};
@@ -298,15 +299,6 @@ unsafe extern "C" {
     fn strnlen(s: *const c_char, maxlen: usize) -> usize;
 
     fn log_get_stderr() -> *mut FILE;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 
     fn ui_call_msg_set_pos(
         grid: Integer,
@@ -1183,7 +1175,7 @@ pub unsafe extern "C" fn emsg_multiline(
 
                 // Log (silent) errors as debug messages.
                 if !sname.is_null() && slnum != 0 {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
                         c"emsg_multiline".as_ptr(),
@@ -1195,7 +1187,7 @@ pub unsafe extern "C" fn emsg_multiline(
                         slnum,
                     );
                 } else {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_DBG,
                         ptr::null(),
                         c"emsg_multiline".as_ptr(),
@@ -1211,7 +1203,7 @@ pub unsafe extern "C" fn emsg_multiline(
 
             // Log editor errors as INFO.
             if !sname.is_null() && slnum != 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
                     c"emsg_multiline".as_ptr(),
@@ -1223,7 +1215,7 @@ pub unsafe extern "C" fn emsg_multiline(
                     slnum,
                 );
             } else {
-                logmsg(
+                logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
                     c"emsg_multiline".as_ptr(),
@@ -4450,7 +4442,7 @@ pub unsafe extern "C" fn msg_delay(mut ms: u64, ignoreinput: bool) {
             ms = 100;
         }
 
-        logmsg(
+        logmsg!(
             LOGLVL_DBG,
             ptr::null(),
             c"msg_delay".as_ptr(),

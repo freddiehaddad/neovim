@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -58,15 +59,6 @@ unsafe extern "C" {
         codeunits: *mut usize,
     ) -> usize;
     fn api_free_luaref(ref_id: LuaRef);
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 const NIL: Object = Object {
@@ -386,7 +378,7 @@ pub unsafe extern "C" fn buf_updates_send_changes(
         }
 
         if badchannelid != 0 {
-            logmsg(
+            logmsg!(
                 LOG_ERROR,
                 ptr::null(),
                 c"buf_updates_send_changes".as_ptr(),

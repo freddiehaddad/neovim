@@ -10,6 +10,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_ulong, c_ushort, c_void};
 use std::ptr;
 
@@ -264,15 +265,6 @@ mod unix_impl {
 
         fn os_set_cloexec(fd: c_int) -> c_int;
         fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
-        fn logmsg(
-            log_level: c_int,
-            context: *const c_char,
-            func_name: *const c_char,
-            line_num: c_int,
-            eol: bool,
-            fmt: *const c_char,
-            ...
-        ) -> bool;
 
         fn forkpty(
             amaster: *mut c_int,
@@ -374,7 +366,7 @@ mod unix_impl {
             if pid < 0 {
                 let err = get_errno();
                 let status = -err;
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"pty_proc_spawn".as_ptr(),
@@ -394,7 +386,7 @@ mod unix_impl {
                 if master_status_flags == -1 {
                     let err = get_errno();
                     status = -err;
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"pty_proc_spawn".as_ptr(),
@@ -408,7 +400,7 @@ mod unix_impl {
                 if fcntl(master, F_SETFL, master_status_flags | O_NONBLOCK) == -1 {
                     let err = get_errno();
                     status = -err;
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"pty_proc_spawn".as_ptr(),
@@ -422,7 +414,7 @@ mod unix_impl {
 
                 if os_set_cloexec(master) == -1 {
                     status = -get_errno();
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"pty_proc_spawn".as_ptr(),
@@ -555,7 +547,7 @@ mod unix_impl {
             if !(*hdr).cwd.is_null() {
                 let err = uv_chdir((*hdr).cwd);
                 if err != 0 {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"init_child".as_ptr(),
@@ -582,7 +574,7 @@ mod unix_impl {
             }
             execvp(prog, (*hdr).argv.cast_const());
             let err = get_errno();
-            logmsg(
+            logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"init_child".as_ptr(),
@@ -629,7 +621,7 @@ mod unix_impl {
             let fd_dup = dup(fd);
             if fd_dup < 0 {
                 let err = get_errno();
-                logmsg(
+                logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
                     c"set_duplicating_descriptor".as_ptr(),
@@ -646,7 +638,7 @@ mod unix_impl {
             'error: {
                 if os_set_cloexec(fd_dup) == -1 {
                     status = -get_errno();
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"set_duplicating_descriptor".as_ptr(),
@@ -659,7 +651,7 @@ mod unix_impl {
 
                 status = uv_pipe_open(pipe, fd_dup);
                 if status != 0 {
-                    logmsg(
+                    logmsg!(
                         LOGLVL_ERR,
                         ptr::null(),
                         c"set_duplicating_descriptor".as_ptr(),

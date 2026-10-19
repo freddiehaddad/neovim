@@ -14,6 +14,7 @@
 )]
 
 use crate::globals::*;
+use crate::log::logmsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -724,15 +725,6 @@ unsafe extern "C" {
     fn siemsg(fmt: *const c_char, ...);
     fn smsg(hl_id: c_int, s: *const c_char, ...) -> c_int;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn fclose(stream: *mut FILE) -> c_int;
     fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
@@ -11047,7 +11039,7 @@ unsafe extern "C" fn ex_detach(eap: *mut exarg_T) {
                 );
             }
             if log_should_log(LOGLVL_INF) {
-                logmsg(
+                logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
                     c"ex_detach".as_ptr(),
@@ -11067,7 +11059,7 @@ unsafe extern "C" fn ex_detach(eap: *mut exarg_T) {
                 return;
             }
             if log_should_log(LOGLVL_INF) {
-                logmsg(
+                logmsg!(
                     LOGLVL_INF,
                     ptr::null(),
                     c"ex_detach".as_ptr(),

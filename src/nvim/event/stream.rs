@@ -9,7 +9,8 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{c_char, c_int, c_void};
+use crate::log::logmsg;
+use std::ffi::{c_int, c_void};
 use std::ptr;
 
 use crate::event::multiqueue::MultiQueue;
@@ -84,15 +85,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn uv_tty_set_mode(tty: *mut uv_tty_t, mode: c_int) -> c_int;
 
-    fn logmsg(
-        log_level: c_int,
-        context: *const c_char,
-        func_name: *const c_char,
-        line_num: c_int,
-        eol: bool,
-        fmt: *const c_char,
-        ...
-    ) -> bool;
 }
 
 #[cfg(windows)]
@@ -246,7 +238,7 @@ pub unsafe extern "C" fn stream_may_close(stream: *mut Stream) {
             return;
         }
         if g_min_log_level <= LOGLVL_DBG {
-            logmsg(
+            logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
                 c"stream_may_close".as_ptr(),
@@ -279,7 +271,7 @@ pub unsafe extern "C" fn stream_close_handle(stream: *mut Stream) {
         let handle: *mut uv_handle_t = if !(*fields).uvstream.is_null() {
             let queued = uv_stream_get_write_queue_size((*fields).uvstream);
             if queued > 0 {
-                logmsg(
+                logmsg!(
                     LOGLVL_WRN,
                     ptr::null(),
                     c"stream_close_handle".as_ptr(),
