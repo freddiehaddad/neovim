@@ -26,6 +26,8 @@ use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::runtime::get_scriptname;
 use crate::runtime::script_items;
+#[allow(unused_imports)]
+use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
@@ -40,7 +42,7 @@ use crate::memory::{xcalloc, xfree, xmalloc};
 use crate::os::time::os_hrtime;
 
 pub type proftime_T = u64;
-pub type FILE = c_void;
+pub use crate::fileio::FILE;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
 const PROF_NONE: c_int = 0;
@@ -166,12 +168,6 @@ unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        num: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
 }
 
 #[inline]

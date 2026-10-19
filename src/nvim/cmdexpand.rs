@@ -111,6 +111,8 @@ use crate::search::ignorecase;
 #[allow(unused_imports)]
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 #[allow(unused_imports)]
+use crate::strings::{gettext, qsort};
+#[allow(unused_imports)]
 use crate::strings::{sort_strings, strcase_save, vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::syntax::{
@@ -179,15 +181,15 @@ use crate::statusline::fillchar_status;
 use crate::tag::expand_tags;
 use crate::usercmd::{cmdcomplete_str_to_type, cmdcomplete_type_to_str};
 
-pub type hlf_T = c_int;
-pub type OptInt = i64;
-pub type UIExtension = c_int;
+pub use crate::api::win_config::UIExtension;
+pub use crate::ex_getln::hlf_T;
+pub use crate::option::OptInt;
 pub type xp_prefix_T = c_int;
 pub type CompleteListItemGetter = Option<unsafe extern "C" fn(*mut expand_T, c_int) -> *mut c_char>;
 type user_expand_func_T = unsafe extern "C" fn(*const c_char, c_int, *mut typval_T) -> *mut c_void;
 pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
 pub type cmd_addr_T = c_int;
-pub type LuaRetMode = c_int;
+pub use crate::lua::executor::LuaRetMode;
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1065,14 +1067,6 @@ static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 

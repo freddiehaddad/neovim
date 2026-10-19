@@ -48,6 +48,8 @@ use crate::plines::{plines_m_win, win_max_displaywidth};
 #[allow(unused_imports)]
 use crate::strings::concat_str;
 #[allow(unused_imports)]
+use crate::strings::{gettext, qsort};
+#[allow(unused_imports)]
 use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::window::{
@@ -70,12 +72,12 @@ use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xrealloc, xstrdup};
 
-pub type WinKind = c_int;
-pub type OptIndex = c_int;
-pub type OptScope = c_int;
-pub type OptInt = i64;
-pub type scid_T = i32;
-pub type linenr_T = i32;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::vars::scid_T;
+pub use crate::option::OptInt;
+pub use crate::option::OptScope;
+pub use crate::optionstr::OptIndex;
+pub use crate::window::WinKind;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -151,17 +153,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
     hide: false,
     _cmdline_offset: c_int::MAX,
 };
-
-unsafe extern "C" {
-
-    fn qsort(
-        base: *mut c_void,
-        num: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 const fn error_init() -> Error {

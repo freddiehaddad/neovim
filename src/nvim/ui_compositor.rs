@@ -38,10 +38,10 @@ use crate::memory::{xfree, xmalloc, xrealloc};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::os::time::os_sleep;
 
-pub type schar_T = u32;
-pub type sattr_T = i32;
-pub type LineFlags = c_int;
-pub type OptInt = i64;
+pub use crate::grid::sattr_T;
+pub use crate::grid::schar_T;
+pub use crate::option::OptInt;
+pub use crate::tui::tui::LineFlags;
 
 const kUIMultigrid: UIExtension = 6;
 const kLineFlagWrap: LineFlags = 1;

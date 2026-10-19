@@ -27,6 +27,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::runtime::estack_sfile;
 #[allow(unused_imports)]
+use crate::strings::{gettext, ngettext};
+#[allow(unused_imports)]
 use crate::ui::{
     ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll, ui_call_msg_showmode,
 };
@@ -112,7 +114,7 @@ use crate::ui::{
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
 
 pub type MsgID = Object;
-pub type OptInt = i64;
+pub use crate::option::OptInt;
 
 const NUL: c_char = 0;
 const BELL: c_int = 0x07;
@@ -287,9 +289,6 @@ use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 
 unsafe extern "C" {
     static mut main_loop: Loop;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn printf(format: *const c_char, ...) -> c_int;

@@ -19,6 +19,8 @@ use crate::os::fs::{os_path_exists, os_remove};
 #[allow(unused_imports)]
 use crate::path::path_tail;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -72,14 +74,14 @@ const UV_ENOENT: c_int = -2;
 const LOGLVL_WRN: c_int = 3;
 const LOGLVL_ERR: c_int = 4;
 
-pub type Loop = c_void;
+pub use crate::event::r#loop::Loop;
 pub type SocketWatcher = c_void;
-pub type RStream = c_void;
-pub type uv_loop_t = c_void;
-pub type uv_stream_t = c_void;
+pub use crate::event::r#loop::uv_loop_t;
+pub use crate::event::rstream::RStream;
+pub use crate::event::stream::uv_stream_t;
 pub type uv_tcp_t = c_void;
-pub type uv_pipe_t = c_void;
-pub type uv_handle_t = c_void;
+pub use crate::event::r#loop::uv_handle_t;
+pub use crate::event::stream::uv_pipe_t;
 pub type uv_connect_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 
@@ -183,7 +185,6 @@ unsafe extern "C" {
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
 }
 

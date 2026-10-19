@@ -78,6 +78,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::ui::{
@@ -188,12 +190,12 @@ use crate::winfloat::{
     win_float_find_altwin, win_float_update_statusline, win_new_float, win_reconfig_floats,
 };
 
-pub type OptInt = i64;
-pub type OptIndex = c_int;
+pub use crate::option::OptInt;
+pub use crate::optionstr::OptIndex;
 pub type WinKind = c_int;
-pub type CdCause = c_int;
-pub type CdScope = c_int;
-pub type scid_T = i32;
+pub use crate::context::CdCause;
+pub use crate::eval::vars::scid_T;
+pub use crate::ex_docmd::CdScope;
 
 pub const WSP_ROOM: c_int = 0x01;
 pub const WSP_VERT: c_int = 0x02;
@@ -376,12 +378,6 @@ static mut did_initial_scroll_size_snapshot: bool = false;
 static mut winclosed_recursive: bool = false;
 static mut tabclosedpre_recursive: bool = false;
 static mut win_scrolled_resized_recursive: bool = false;
-
-unsafe extern "C" {
-
-    fn gettext(str: *const c_char) -> *mut c_char;
-
-}
 
 const ERROR_INIT: Error = Error {
     err_type: ErrorType::kErrorTypeNone,

@@ -23,7 +23,7 @@ use crate::map::{
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdup, xrealloc};
 
-pub type colnr_T = i32;
+pub use crate::cursor::colnr_T;
 
 pub const MT_MAX_DEPTH: usize = 20;
 pub const MT_BRANCH_FACTOR: usize = 10;

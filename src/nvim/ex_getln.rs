@@ -84,6 +84,8 @@ use crate::register::get_expr_register;
 #[allow(unused_imports)]
 use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcmp, strcpy, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{
@@ -210,13 +212,13 @@ use crate::viml::parser::parser::{
     ParserPosition, ParserState, parser_simple_get_line, vimconv_T, viml_parser_destroy,
 };
 
-pub type OptInt = i64;
-pub type UIExtension = c_int;
-pub type magic_T = c_int;
+pub use crate::api::win_config::UIExtension;
+pub use crate::option::OptInt;
+pub use crate::regexp::magic_T;
 pub type hlf_T = c_int;
 pub type disptick_T = u64;
-pub type BoolVarValue = c_int;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::eval::typval::BoolVarValue;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
@@ -460,14 +462,8 @@ static mut prev_prompt_errors: c_int = 0;
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
     #[cfg(not(windows))]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strlen(s: *const c_char) -> usize;
     fn strrchr(s: *const c_char, c: c_int) -> *const c_char;
 }
 

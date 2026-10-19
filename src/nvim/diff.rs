@@ -10,6 +10,7 @@
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
+pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{cmd_addr_T, cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
@@ -29,6 +30,7 @@ use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::redraw_later;
 use crate::errors::*;
+pub use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::fs::FileInfo;
 #[allow(unused_imports)]
@@ -45,7 +47,11 @@ use crate::ex_cmds::ex_file;
 use crate::ex_docmd::do_cmdline_cmd;
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_exedit, get_address};
+pub use crate::ex_getln::hlf_T;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::extmark::TriState;
 use crate::extmark::extmark_adjust;
+pub use crate::fileio::FILE;
 #[allow(unused_imports)]
 use crate::fileio::{buf_check_timestamp, shorten_fnames, vim_fgets, vim_gettempdir, vim_tempname};
 #[allow(unused_imports)]
@@ -72,9 +78,11 @@ use crate::r#move::{
 };
 #[allow(unused_imports)]
 use crate::normal::check_scrollbind;
+pub use crate::option::OptScope;
 #[allow(unused_imports)]
 use crate::option::{set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
+pub use crate::optionstr::OptIndex;
 #[allow(unused_imports)]
 use crate::optionstr::{free_string_option, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
@@ -82,6 +90,8 @@ use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
+use crate::strings::{atol, gettext, strcat, strcmp, strcpy, strlen, strncmp};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
 #[allow(unused_imports)]
@@ -94,16 +104,8 @@ use crate::window::{
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{xdemitcb_t, xdemitconf_t, xpparam_t};
-use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
-pub type TriState = c_int;
-pub type OptIndex = c_int;
-pub type OptScope = c_int;
-pub type event_T = c_int;
-pub type ExtmarkOp = c_int;
-pub type varnumber_T = i64;
-pub type hlf_T = c_int;
-pub type FILE = c_void;
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
 const FAIL: c_int = 0;
@@ -276,15 +278,8 @@ static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn atol(s: *const c_char) -> c_long;
     fn tolower(c: c_int) -> c_int;
 }
 #[inline]

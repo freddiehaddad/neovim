@@ -31,6 +31,8 @@ use crate::message::emsg;
 #[allow(unused_imports)]
 use crate::r#move::{update_topline, validate_cursor};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::window::{
     win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
     win_setheight_win, win_setwidth_win,
@@ -53,9 +55,9 @@ use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
 use crate::plines::{win_get_fill, win_text_height};
 
-pub type linenr_T = i32;
-pub type colnr_T = c_int;
-pub type LuaRetMode = c_int;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::lua::executor::LuaRetMode;
 
 const MAXCOL: i64 = 0x7fffffff;
 const UPD_VALID: c_int = 10;
@@ -90,11 +92,6 @@ pub struct KeyDict_win_text_height {
 pub struct KeyDict_win_resize {
     pub is_set__win_resize_: OptionalKeys,
     pub anchor: NvimString,
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 const NIL: Object = Object {

@@ -69,6 +69,8 @@ use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
+use crate::strings::{gettext, strchr, strcmp, strlen, strncmp, strstr};
+#[allow(unused_imports)]
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -121,12 +123,12 @@ use crate::profile::{
 use crate::runtime::{autoload_name, estack_pop, estack_push_ufunc, exestack, script_items};
 use crate::search::{restore_search_patterns, save_search_patterns};
 
-pub type OptInt = i64;
+pub use crate::option::OptInt;
 pub type FnameTransError = c_int;
 pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
 pub type ArgvFunc =
     Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
 
 pub const FC_ABORT: c_int = 0x01;
 pub const FC_RANGE: c_int = 0x02;
@@ -284,19 +286,8 @@ const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
     c"E1300: Cannot use a partial with dictionary for :defer";
 
 unsafe extern "C" {
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
 }
 
 #[inline]

@@ -50,6 +50,8 @@ use crate::os::pty_proc::{
     pty_proc_close_master, pty_proc_resize, pty_proc_resume, pty_proc_tty_name,
 };
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
     terminal_set_state,
@@ -105,9 +107,9 @@ use crate::os::shell::shell_free_argv;
 use crate::state::save_v_event_T;
 
 pub type ChannelStdinMode = c_int;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::option::OptInt;
 pub use crate::terminal::Terminal;
-pub type OptInt = i64;
-pub type varnumber_T = i64;
 
 const CHAN_STDIO: u64 = 1;
 const CHAN_STDERR: u64 = 2;
@@ -183,7 +185,6 @@ pub struct TerminalOptions {
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;

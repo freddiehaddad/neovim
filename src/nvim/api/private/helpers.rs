@@ -39,7 +39,6 @@ use crate::ex_eval::{
 };
 use crate::garray::garray_T;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
-use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, OptKeySet};
 use crate::map::{Map, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
@@ -97,7 +96,7 @@ pub struct HlMessageChunk {
     pub hl_id: c_int,
 }
 
-pub type HlMessage = KVec<HlMessageChunk>;
+pub use crate::api::vim::HlMessage;
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn api_set_error_str(

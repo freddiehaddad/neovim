@@ -49,6 +49,8 @@ use crate::runtime::{cmd_source_buffer, new_script_item};
 #[allow(unused_imports)]
 use crate::runtime::{runtime_get_named_thread, runtime_search_path_validate};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
@@ -113,7 +115,7 @@ use crate::undo::u_save;
 use crate::usercmd::{uc_mods, uc_split_args_iter};
 
 pub type LuaRetMode = c_int;
-pub type HlMessage = KVec<HlMessageChunk>;
+pub use crate::api::vim::HlMessage;
 type uv_thread_t = usize;
 
 type luv_CFpcall = Option<
@@ -355,7 +357,6 @@ unsafe extern "C" {
     fn uv_thread_self() -> uv_thread_t;
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
 
     #[cfg(unix)]

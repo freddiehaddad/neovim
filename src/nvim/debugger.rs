@@ -136,7 +136,7 @@ pub use crate::api::tabpage::win_T;
 pub use crate::eval::deprecated::buf_T;
 pub use crate::input::tasave_T;
 
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
 
 #[inline]
 unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {

@@ -47,6 +47,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::{re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
@@ -54,7 +56,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::{ScopeDictDictItem, win_T};
+use crate::api::tabpage::win_T;
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::window::find_win_by_nr_or_id;
@@ -62,12 +64,12 @@ use crate::ex_docmd::{ex_errmsg, find_nextcmd};
 use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 
-pub type colnr_T = i32;
-pub type linenr_T = i32;
-pub type varnumber_T = i64;
-pub type OptInt = i64;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::eval::window::dictitem_T;
+pub use crate::option::OptInt;
 pub use crate::regexp::{regmmatch_T, regprog_T};
-pub type dictitem_T = ScopeDictDictItem;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -138,11 +140,6 @@ pub struct SearchState {
     pub no_smartcase: bool,
     pub cmdlen: c_int,
     pub no_hlsearch: bool,
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 #[inline]

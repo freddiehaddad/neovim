@@ -59,6 +59,8 @@ use crate::option::set_option_value_give_err;
 use crate::option::{get_fileformat, set_fileformat};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
@@ -345,8 +347,6 @@ static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer bloc
 
 unsafe extern "C" {
     static mut Versions: [*mut c_char; 1];
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn close(fd: c_int) -> c_int;
     fn uv_uptime(uptime: *mut f64) -> c_int;

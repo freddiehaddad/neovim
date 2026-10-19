@@ -45,9 +45,9 @@ use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 pub type schar_T = u32;
 pub type sattr_T = i32;
 pub type sscratch_T = i32;
-pub type BorderTextType = c_int;
-pub type AlignTextPos = c_int;
-pub type UIExtension = c_int;
+pub use crate::api::win_config::AlignTextPos;
+pub use crate::api::win_config::BorderTextType;
+pub use crate::api::win_config::UIExtension;
 
 const NUL: c_char = 0;
 const MAX_SCHAR_SIZE: usize = 32;

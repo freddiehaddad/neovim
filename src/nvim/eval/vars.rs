@@ -79,6 +79,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::runtime::{new_script_item, script_autoload};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
 use crate::version::{highest_patch, min_vim_version};
@@ -128,15 +130,15 @@ use crate::runtime::{script_items, scriptvar_T};
 use crate::search::set_search_direction;
 
 pub type VimVarIndex = c_int;
-pub type BoolVarValue = c_int;
-pub type SpecialVarValue = c_int;
-pub type VarLockStatus = c_int;
+pub use crate::eval::funcs::SpecialVarValue;
+pub use crate::eval::typval::BoolVarValue;
+pub use crate::eval::typval::VarLockStatus;
 pub type ScopeType = c_int;
 pub type scid_T = c_int;
-pub type OptIndex = c_int;
-pub type OptInt = i64;
-pub type LuaRef = c_int;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::lua::converter::LuaRef;
+pub use crate::option::OptInt;
+pub use crate::optionstr::OptIndex;
 type ex_unletlock_callback =
     unsafe extern "C" fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
 
@@ -594,8 +596,6 @@ static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 

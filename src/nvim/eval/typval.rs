@@ -34,6 +34,8 @@ use crate::message::{emsg, internal_error};
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_stricmp;
+#[allow(unused_imports)]
+use crate::strings::{gettext, qsort, strcmp, strncmp};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -68,7 +70,7 @@ use crate::memory::{
 };
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 
-pub type varnumber_T = i64;
+pub use crate::eval::buffer::varnumber_T;
 pub type float_T = f64;
 pub type VarLockStatus = c_int;
 pub type BoolVarValue = c_int;
@@ -274,20 +276,11 @@ static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
 
 unsafe extern "C" {
     fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> f64;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
 }
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 

@@ -61,6 +61,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::quickfix::qf_view_result;
 #[allow(unused_imports)]
+use crate::strings::{gettext, qsort, strcat, strchr, strcmp, strcpy, strlen};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::ui_has;
@@ -464,20 +466,8 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    fn strlen(s: *const c_char) -> usize;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn snprintf(buf: *mut c_char, size: usize, fmt: *const c_char, ...) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        num: usize,
-        size: usize,
-        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
-    );
     fn time(tloc: *mut i64) -> i64;
-    fn gettext(msgid: *const c_char) -> *const c_char;
 }
 
 #[inline]
@@ -1815,12 +1805,7 @@ pub unsafe extern "C" fn init_normal_cmds() {
             *idx_ptr.add(i as usize) = i;
         }
 
-        qsort(
-            idx_ptr.cast(),
-            NV_CMDS_SIZE,
-            size_of::<i16>(),
-            Some(nv_compare),
-        );
+        qsort(idx_ptr.cast(), NV_CMDS_SIZE, size_of::<i16>(), nv_compare);
 
         let mut i: i16 = 0;
         while (i as usize) < NV_CMDS_SIZE {

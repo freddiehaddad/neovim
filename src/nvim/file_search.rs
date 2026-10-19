@@ -51,6 +51,8 @@ use crate::path::{
     path_to_slash, path_with_url, simplify_filename, vim_FullName, vim_isAbsName, vim_ispathsep,
 };
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
@@ -66,10 +68,10 @@ use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrd
 use crate::plines::linenr_T;
 use crate::state::save_v_event_T;
 
-pub type CdScope = c_int;
-pub type event_T = c_int;
-pub type OptIndex = c_int;
-pub type PathCmpFlags = c_int;
+pub use crate::api::autocmd::event_T;
+pub use crate::ex_docmd::CdScope;
+pub use crate::optionstr::OptIndex;
+pub use crate::path::PathCmpFlags;
 
 pub const FINDFILE_FILE: c_int = 0;
 pub const FINDFILE_DIR: c_int = 1;
@@ -178,11 +180,6 @@ pub struct ff_search_ctx_T {
 }
 
 static mut ff_expand_buffer: NvimString = NULL_STRING;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

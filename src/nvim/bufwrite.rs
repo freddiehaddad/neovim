@@ -61,6 +61,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::path::{after_pathsep, path_equal, path_tail};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_add};
@@ -94,8 +96,8 @@ use crate::os::time::os_hrtime;
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 
 pub type iconv_t = isize;
-pub type varnumber_T = i64;
-pub type PathCmpFlags = c_int;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::path::PathCmpFlags;
 
 const NUL: c_char = 0;
 const NL: u32 = b'\n' as u32;
@@ -250,7 +252,6 @@ struct bw_info {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
     #[cfg(windows)]

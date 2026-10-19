@@ -61,6 +61,8 @@ use crate::path::{path_equal, path_shorten_fname, vim_ispathsep_nocolon};
 #[allow(unused_imports)]
 use crate::quickfix::qf_mark_adjust;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::xstrnsave;
 #[allow(unused_imports)]
 use crate::tag::tagstack_clear_entry;
@@ -89,8 +91,8 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
-pub type ExtmarkOp = c_int;
-pub type PathCmpFlags = c_int;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::path::PathCmpFlags;
 
 #[repr(C)]
 pub struct WinInfo {
@@ -180,11 +182,6 @@ const INIT_XFMARK: xfmark_T = xfmark_T {
 
 static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
 static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 const fn ascii_islower(c: c_int) -> bool {

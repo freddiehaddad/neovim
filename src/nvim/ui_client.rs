@@ -108,7 +108,7 @@ unsafe extern "C" {
     fn dup(oldfd: c_int) -> c_int;
 }
 
-pub type FILE = c_void;
+pub use crate::fileio::FILE;
 
 unsafe extern "C-unwind" fn highlight_get_field_cb(
     str_: *const c_char,

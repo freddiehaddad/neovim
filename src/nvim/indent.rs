@@ -58,6 +58,8 @@ use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::search::{findmatch, linewhite};
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
@@ -86,11 +88,11 @@ use crate::plines::{
 };
 use crate::textformat::{has_format_option, oparg_T};
 
-pub type OptInt = i64;
-pub type OptIndex = c_int;
-pub type varnumber_T = i64;
-pub type handle_T = c_int;
-pub type ExtmarkOp = c_int;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::msgpack_rpc::packer::handle_T;
+pub use crate::option::OptInt;
+pub use crate::optionstr::OptIndex;
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
@@ -160,15 +162,6 @@ static mut PREV_LISTOPT: c_int = 0;
 static mut PREV_NO_TS: bool = false;
 static mut PREV_DY_UHEX: c_uint = 0;
 static mut PREV_FLP: *mut c_char = ptr::null_mut();
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn atoi(s: *const c_char) -> c_int;
-}
 
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {

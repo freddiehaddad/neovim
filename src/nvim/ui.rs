@@ -46,6 +46,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcmp};
+#[allow(unused_imports)]
 use crate::ui_compositor::ui_comp_msg_set_pos;
 #[allow(unused_imports)]
 use crate::ui_compositor::ui_comp_raw_line;
@@ -180,9 +182,7 @@ static mut ui_flush_cursor_was_obscured: bool = false;
 
 unsafe extern "C" {
 
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
 }
 

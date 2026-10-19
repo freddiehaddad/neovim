@@ -51,6 +51,8 @@ use crate::search::last_pat_prog;
 #[allow(unused_imports)]
 use crate::spell::spell_check_window;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::syntax::{
@@ -255,11 +257,6 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
     },
     next: ptr::null_mut(),
 };
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 const fn schar_from_ascii(c: u8) -> schar_T {

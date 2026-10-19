@@ -86,6 +86,8 @@ use crate::search::{restore_search_patterns, save_search_patterns};
 #[allow(unused_imports)]
 use crate::state::get_mode;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::window::{
     check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
     use_tabpage,
@@ -1356,8 +1358,6 @@ static mut ft_recursive: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
 }
 

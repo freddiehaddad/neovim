@@ -60,12 +60,14 @@ use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi,
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{atol, gettext, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{reverse_text, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
 #[allow(unused_imports)]
 use crate::window::{win_enter, win_split, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::regmatch_T;
@@ -115,10 +117,10 @@ use crate::state::MODE_SHOWMATCH;
 use crate::textformat::{MotionType, oparg_T};
 
 pub type Direction = c_int;
-pub type magic_T = c_int;
-pub type OptInt = i64;
-pub type UIExtension = c_int;
-pub type FILE = c_void;
+pub use crate::api::win_config::UIExtension;
+pub use crate::fileio::FILE;
+pub use crate::option::OptInt;
+pub use crate::regexp::magic_T;
 pub type AdditionalData = c_void;
 
 const NUL: c_char = 0;
@@ -324,10 +326,7 @@ static mut stat_lbuf: *mut buf_T = ptr::null_mut();
 
 unsafe extern "C" {
 
-    fn atol(s: *const c_char) -> c_long;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 #[inline]

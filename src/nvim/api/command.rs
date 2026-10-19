@@ -71,11 +71,11 @@ use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 
-pub type linenr_T = i32;
-pub type colnr_T = c_int;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
 pub type cmdidx_T = c_int;
-pub type cmd_addr_T = c_int;
-pub type event_T = c_int;
+pub use crate::api::autocmd::event_T;
+pub use crate::cmdexpand::cmd_addr_T;
 
 const OK: c_int = 1;
 const FAIL: c_int = 0;

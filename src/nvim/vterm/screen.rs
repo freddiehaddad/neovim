@@ -26,7 +26,7 @@ use crate::vterm::vterm::{
     vterm_allocator_free, vterm_allocator_malloc, vterm_get_size, vterm_scroll_rect,
 };
 
-pub type schar_T = u32;
+pub use crate::grid::schar_T;
 pub type VTermDamageSize = c_int;
 
 const BUFIDX_PRIMARY: usize = 0;

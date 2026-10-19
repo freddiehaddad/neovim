@@ -39,6 +39,8 @@ use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::runtime::source_runtime_vim_lua;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strchr, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_memcpy_up, vim_strup};
 #[allow(unused_imports)]
 use crate::ui::{
@@ -362,10 +364,6 @@ const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn atoi(s: *const c_char) -> c_int;
     fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long;
 }
 

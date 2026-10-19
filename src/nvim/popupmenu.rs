@@ -56,6 +56,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::reverse_text;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strchr, strcmp};
+#[allow(unused_imports)]
 use crate::ui::ui_call_win_float_pos;
 #[allow(unused_imports)]
 use crate::ui::{
@@ -100,9 +102,9 @@ use crate::winfloat::{
     WinKind, win_config_float, win_float_close, win_float_find, win_float_special,
 };
 
-pub type hlf_T = c_int;
-pub type OptInt = i64;
-pub type OptIndex = c_int;
+pub use crate::ex_getln::hlf_T;
+pub use crate::option::OptInt;
+pub use crate::optionstr::OptIndex;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -251,9 +253,6 @@ static mut PUM_INVALID: bool = false;
 unsafe extern "C" {
     static opt_winborder_values: [*const c_char; 9];
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 }
 
 #[inline]

@@ -8,8 +8,7 @@ const LN_MAX_BUFS: usize = 8;
 const LN_DECISION_MAX: usize = (1 << LN_MAX_BUFS) - 1;
 const MATCH_CHAR_MAX_LEN: usize = 800;
 
-#[allow(non_camel_case_types)]
-pub type linenr_T = i32;
+pub use crate::cursor::linenr_T;
 
 pub use crate::xdiff::mmfile_t;
 

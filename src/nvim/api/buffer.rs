@@ -73,14 +73,14 @@ use crate::marktree::kMTMetaLines;
 use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
 
-pub type linenr_T = i32;
-pub type colnr_T = c_int;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
 pub type bcount_t = isize;
-pub type ExtmarkOp = c_int;
-pub type MarkAdjustMode = c_int;
-pub type MarkGet = c_int;
-pub type Direction = c_int;
-pub type LuaRetMode = c_int;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::lua::executor::LuaRetMode;
+pub use crate::mark::MarkAdjustMode;
+pub use crate::mark::MarkGet;
+pub use crate::search::Direction;
 
 const OK: c_int = 1;
 const FAIL: c_int = 0;

@@ -64,11 +64,11 @@ use crate::msgpack_rpc::unpacker::{
 };
 use crate::os::input::input_blocking;
 
-pub type Channel = c_void;
+pub use crate::eval::deprecated::Channel;
 pub type ClientType = c_int;
 pub type ChannelStreamType = c_int;
 pub type ChannelPart = c_int;
-pub type event_T = c_int;
+pub use crate::api::autocmd::event_T;
 
 const UV_PROCESS: c_int = 10;
 

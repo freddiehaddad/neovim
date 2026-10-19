@@ -72,6 +72,8 @@ use crate::regexp::vim_regexec_multi;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::{atoi, atol, gettext};
+#[allow(unused_imports)]
 use crate::strings::{has_non_ascii, vim_strchr};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
@@ -160,13 +162,13 @@ use crate::path::{
 use crate::search::{do_search, last_search_pat};
 use crate::undo::u_clearallandblockfree;
 
-pub type bcount_t = isize;
-pub type Direction = c_int;
-pub type event_T = c_int;
-pub type ExtmarkOp = c_int;
-pub type scid_T = c_int;
-pub type time_t = i64;
-pub type FILE = c_void;
+pub use crate::api::autocmd::event_T;
+pub use crate::api::buffer::bcount_t;
+pub use crate::eval::vars::scid_T;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::fileio::FILE;
+pub use crate::os::time::time_t;
+pub use crate::search::Direction;
 
 pub const VGR_GLOBAL: c_int = 1;
 pub const VGR_NOJUMP: c_int = 2;
@@ -601,13 +603,9 @@ static mut set_qf_ll_recursive: c_int = 0;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;
     fn ferror(stream: *mut FILE) -> c_int;
-    fn atol(s: *const c_char) -> c_long;
-    fn atoi(s: *const c_char) -> c_int;
     fn time(tloc: *mut time_t) -> time_t;
 
     #[cfg(windows)]

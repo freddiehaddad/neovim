@@ -80,7 +80,7 @@ use crate::tui::ugrid::{
     ugrid_goto, ugrid_init, ugrid_resize, ugrid_scroll,
 };
 
-pub type Integer = i64;
+pub use crate::msgpack_rpc::packer::Integer;
 pub type TermMode = c_int;
 pub type TermModeState = c_int;
 pub type ModeShape = c_int;

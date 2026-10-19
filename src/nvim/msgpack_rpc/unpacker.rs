@@ -46,8 +46,8 @@ const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
 pub type AdditionalDataBuilder = KVec<c_char>;
 pub type StringArray = KVec<NvimString>;
-pub type schar_T = u32;
-pub type sattr_T = c_int;
+pub use crate::grid::sattr_T;
+pub use crate::grid::schar_T;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

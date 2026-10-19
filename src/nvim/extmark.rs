@@ -22,14 +22,14 @@ use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 use crate::memline::ml_find_line_or_offset;
 #[allow(unused_imports)]
 use crate::undo::u_force_get_undo_header;
-use std::ffi::{c_int, c_void};
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{ExtmarkInfoArray, ExtmarkType};
 use crate::api::private::validate::Error;
 use crate::buffer_updates::buf_updates_send_splice;
-use crate::eval::deprecated::{buf_T, fmark_T, pos_T};
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::kvec::KVec;
 use crate::map::{
     Map, map_del_uint32_t_uint32_t, map_put_ref_uint32_t_uint32_t, map_ref_uint32_t_uint32_t,
@@ -46,9 +46,9 @@ use crate::marktree::{
 };
 use crate::memory::{xfree, xrealloc};
 
-pub type colnr_T = i32;
-pub type linenr_T = i32;
-pub type bcount_t = isize;
+pub use crate::api::buffer::bcount_t;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
 pub type ExtmarkOp = c_int;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
@@ -126,23 +126,7 @@ pub struct ExtmarkUndoObject {
     pub data: ExtmarkUndoData,
 }
 
-#[repr(C)]
-pub struct u_header_T {
-    pub uh_next: *mut u_header_T,
-    pub uh_prev: *mut u_header_T,
-    pub uh_alt_next: *mut u_header_T,
-    pub uh_alt_prev: *mut u_header_T,
-    pub uh_seq: c_int,
-    pub uh_walk: c_int,
-    pub uh_entry: *mut c_void,
-    pub uh_getbot_entry: *mut c_void,
-    pub uh_cursor: pos_T,
-    pub uh_cursor_after: pos_T,
-    pub uh_cursor_vcol: colnr_T,
-    pub uh_flags: c_int,
-    pub uh_namedm: [fmark_T; NMARKS],
-    pub uh_extmark: extmark_undo_vec_t,
-}
+pub use crate::undo::u_header_T;
 
 #[inline]
 const fn mt_lookup_id(ns: u32, id: u32, enda: bool) -> u64 {

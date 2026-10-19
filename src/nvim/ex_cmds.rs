@@ -90,6 +90,10 @@ use crate::regexp::{regtilde, vim_regsub_multi};
 #[allow(unused_imports)]
 use crate::strings::vim_stricmp;
 #[allow(unused_imports)]
+use crate::strings::{
+    atoi, atol, gettext, ngettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp,
+};
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_add, vim_snprintf_safelen};
@@ -101,7 +105,7 @@ use crate::window::update_cwd;
 use crate::window::{
     check_can_set_curbuf_forceit, check_lnums, curwin_init, win_enter, win_split, win_valid,
 };
-use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::command::{exarg_T, regmatch_T};
@@ -200,12 +204,12 @@ use crate::undo::{
 };
 use crate::winfloat::{win_float_anchor_preview, win_float_special, win_float_update_preview};
 
-pub type OptInt = i64;
-pub type UIExtension = c_int;
-pub type float_T = c_double;
-pub type ExtmarkOp = c_int;
-pub type magic_T = c_int;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::api::win_config::UIExtension;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::eval::typval::float_T;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::option::OptInt;
+pub use crate::regexp::magic_T;
 
 const NUL: c_char = 0;
 
@@ -448,29 +452,12 @@ static mut pre_hl_id: c_int = 0;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
-    fn atoi(s: *const c_char) -> c_int;
-    fn atol(s: *const c_char) -> c_long;
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strchr(s: *const c_char, c: c_int) -> *const c_char;
-    fn strlen(s: *const c_char) -> usize;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
     fn time(tloc: *mut time_t) -> time_t;
     fn isalpha(c: c_int) -> c_int;
 }

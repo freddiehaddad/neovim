@@ -21,6 +21,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strchr, strstr};
+#[allow(unused_imports)]
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -3773,12 +3775,8 @@ unsafe extern "C" {
     static mut default_vim_dir: *mut c_char;
     static mut default_vimruntime_dir: *mut c_char;
 
-    fn atoi(s: *const c_char) -> c_int;
-    fn strchr(s: *const c_char, c: c_int) -> *const c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *const c_char;
     fn memchr(s: *const c_char, c: c_int, n: usize) -> *mut c_char;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 #[inline]

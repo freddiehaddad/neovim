@@ -52,7 +52,7 @@ const SIGTERM: c_int = 15;
 pub type Proc = c_void;
 pub type LibuvProc = c_void;
 pub type PtyProc = c_void;
-pub type uv_timer_t = c_void;
+pub use crate::event::r#loop::uv_timer_t;
 
 pub type proc_exit_cb =
     Option<unsafe extern "C" fn(proc_: *mut Proc, status: c_int, data: *mut c_void)>;

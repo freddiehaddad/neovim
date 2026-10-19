@@ -52,10 +52,10 @@ use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_memdupz, xfree, xstrndup};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 
-pub type Buffer = handle_T;
+pub use crate::api::tabpage::Buffer;
 pub type event_T = c_int;
-pub type OptionalKeys = u64;
-pub type ArrayBuilder = KVecWithInit<Object, 16>;
+pub use crate::api::private::helpers::ArrayBuilder;
+pub use crate::highlight::OptionalKeys;
 
 const AUCMD_MAX_PATTERNS: usize = 256;
 const NUM_EVENTS: usize = 150;

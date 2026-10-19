@@ -41,6 +41,8 @@ use crate::os::fs::os_fopen;
 #[allow(unused_imports)]
 use crate::path::FreeWild;
 #[allow(unused_imports)]
+use crate::strings::{gettext, qsort};
+#[allow(unused_imports)]
 use crate::tag::do_tag;
 #[allow(unused_imports)]
 use crate::tag::find_tags;
@@ -56,11 +58,11 @@ use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xstrdup};
 
-pub type colnr_T = i32;
-pub type linenr_T = i32;
-pub type OptIndex = c_int;
-pub type OptInt = i64;
-pub type scid_T = i32;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::vars::scid_T;
+pub use crate::option::OptInt;
+pub use crate::optionstr::OptIndex;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -98,14 +100,7 @@ const kSpecialVarNull: i64 = 0;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fclose(stream: *mut c_void) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        num: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
 }
 
 #[inline]

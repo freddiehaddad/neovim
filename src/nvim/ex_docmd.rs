@@ -147,6 +147,10 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{
+    atoi, atol, gettext, ngettext, strcat, strcmp, strlen, strncmp, strpbrk, strstr,
+};
+#[allow(unused_imports)]
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 #[allow(unused_imports)]
 use crate::tag::do_tags;
@@ -330,19 +334,19 @@ use crate::window::{
 };
 use crate::winfloat::{win_float_close, win_float_remove};
 
-pub type cmd_addr_T = c_int;
-pub type OptInt = i64;
-pub type varnumber_T = i64;
-pub type BoolVarValue = c_int;
-pub type TriState = c_int;
+pub use crate::cmdexpand::cmd_addr_T;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::eval::typval::BoolVarValue;
+pub use crate::extmark::TriState;
+pub use crate::option::OptInt;
 pub type CdScope = c_int;
-pub type CdCause = c_int;
-pub type MarkGet = c_int;
-pub type event_T = c_int;
-pub type FILE = c_void;
+pub use crate::api::autocmd::event_T;
+pub use crate::context::CdCause;
+pub use crate::fileio::FILE;
+pub use crate::mark::MarkGet;
 pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -860,19 +864,9 @@ unsafe extern "C" {
 
     static mut main_loop: Loop;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_long) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn atoi(s: *const c_char) -> c_int;
-    fn atol(s: *const c_char) -> c_long;
     #[cfg(windows)]
     #[link_name = "_stricmp"]
     fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int;

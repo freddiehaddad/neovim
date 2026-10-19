@@ -38,6 +38,8 @@ use crate::path::{
     vim_ispathsep_nocolon,
 };
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::ui::ui_call_chdir;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -283,8 +285,6 @@ struct IPersistFile {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn uv_req_size(r_type: c_int) -> usize;
     fn uv_chdir(dir: *const c_char) -> c_int;

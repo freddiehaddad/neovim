@@ -27,6 +27,8 @@ use crate::os::fs::{
 };
 #[allow(unused_imports)]
 use crate::path::FullName_save;
+#[allow(unused_imports)]
+use crate::strings::gettext;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -44,7 +46,7 @@ use crate::os::input::{os_breakcheck, os_char_avail};
 
 pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;
-pub type off_T = i64;
+pub use crate::fileio::off_T;
 
 const OK: c_int = 1;
 const FAIL: c_int = 0;
@@ -148,7 +150,6 @@ pub struct memfile_T {
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn strerror(errnum: c_int) -> *mut c_char;
 
     #[cfg(windows)]

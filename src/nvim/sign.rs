@@ -53,6 +53,8 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strcmp, strncmp};
+#[allow(unused_imports)]
 use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
@@ -188,14 +190,6 @@ const CMDS: [*const c_char; 7] = [
     c"jump".as_ptr(),
     ptr::null(),
 ];
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn atoi(s: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-}
 
 #[inline]
 const fn schar_from_ascii(x: u8) -> schar_T {

@@ -55,6 +55,8 @@ use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
 #[allow(unused_imports)]
 use crate::runtime::do_source;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_strsave_escaped;
 #[allow(unused_imports)]
 use crate::window::tabpage_index;
@@ -71,7 +73,7 @@ use crate::garray::garray_T;
 use crate::hashtab::hashitem_empty;
 use crate::memory::{xfree, xmalloc, xmemcpyz};
 
-pub type FILE = c_void;
+pub use crate::fileio::FILE;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -124,7 +126,6 @@ static mut did_lcd: bool = false;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fwrite(ptr: *const c_void, size: usize, count: usize, stream: *mut FILE) -> usize;

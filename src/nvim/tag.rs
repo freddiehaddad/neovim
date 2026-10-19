@@ -76,6 +76,8 @@ use crate::search::do_search;
 #[allow(unused_imports)]
 use crate::search::{ignorecase, ignorecase_opt};
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strcmp, strcpy, strlen, strncmp, strpbrk, strstr};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
@@ -113,13 +115,13 @@ use crate::path::{
 };
 use crate::state::MODE_INSERT;
 
-pub type varnumber_T = i64;
-pub type BoolVarValue = c_int;
-pub type SpecialVarValue = c_int;
-pub type VarLockStatus = c_int;
-pub type OptInt = i64;
-pub type off_T = i64;
-pub type FILE = c_void;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::eval::funcs::SpecialVarValue;
+pub use crate::eval::typval::BoolVarValue;
+pub use crate::eval::typval::VarLockStatus;
+pub use crate::fileio::FILE;
+pub use crate::fileio::off_T;
+pub use crate::option::OptInt;
 pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
@@ -410,8 +412,6 @@ static mut DO_TAG_FLAGS: c_int = 0;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
     fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
     fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
@@ -422,13 +422,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn ftello(stream: *mut FILE) -> off_T;
 
-    fn atoi(s: *const c_char) -> c_int;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }
 
 #[inline]

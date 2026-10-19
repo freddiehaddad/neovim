@@ -80,8 +80,8 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 
 pub type NS = handle_T;
 pub type HLGroupID = Integer;
-pub type colnr_T = c_int;
-pub type linenr_T = i32;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
 pub type DecorPriority = u16;
 pub type ExtmarkType = c_int;
 pub type ExtmarkInfoArray = KVec<MTPair>;

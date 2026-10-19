@@ -84,7 +84,7 @@ use crate::window::{
     find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
     win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
 use crate::api::tabpage::{pos_T, win_T};
@@ -113,8 +113,8 @@ use crate::popupmenu::pum_visible;
 use crate::textformat::{MotionType, oparg_T};
 use crate::ui_compositor::ui_comp_mouse_focus;
 
-pub type EvalFuncData = *mut c_void;
-pub type Direction = c_int;
+pub use crate::eval::deprecated::EvalFuncData;
+pub use crate::search::Direction;
 
 pub const IN_UNKNOWN: c_int = 0;
 pub const IN_BUFFER: c_int = 1;

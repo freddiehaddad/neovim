@@ -62,6 +62,8 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strcmp, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
@@ -119,10 +121,10 @@ use crate::state::{
 use crate::textformat::oparg_T;
 use crate::undo::u_sync;
 
-pub type varnumber_T = i64;
-pub type OptInt = i64;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::option::OptInt;
 pub type flush_buffers_T = c_int;
-pub type FILE = c_void;
+pub use crate::fileio::FILE;
 
 const NUL: c_int = 0;
 const FAIL: c_int = 0;
@@ -358,14 +360,9 @@ unsafe extern "C" {
     static mut main_loop: u8;
 
     fn uv_loop_size() -> usize;
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    fn atoi(s: *const c_char) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
 }
 
 #[inline]

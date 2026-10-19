@@ -36,6 +36,8 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -96,17 +98,6 @@ struct MatchStruct {
     lower_needle: [c_int; MATCH_MAX_LEN],
     lower_haystack: [c_int; MATCH_MAX_LEN],
     match_bonus: [f64; MATCH_MAX_LEN],
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn qsort(
-        base: *mut c_void,
-        num: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
 }
 
 #[inline]

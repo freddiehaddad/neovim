@@ -30,6 +30,7 @@ use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::ex_cmds::do_sub_msg;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
+pub use crate::ex_getln::hlf_T;
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -83,18 +84,19 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr};
+#[allow(unused_imports)]
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
 #[allow(unused_imports)]
 use crate::window::win_valid_any_tab;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
-pub type hlf_T = c_int;
 pub type smt_T = c_int;
-pub type Direction = c_int;
-pub type OptIndex = c_int;
-pub type event_T = c_int;
+pub use crate::api::autocmd::event_T;
+pub use crate::optionstr::OptIndex;
 pub use crate::regexp::regprog_T;
+pub use crate::search::Direction;
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const FAIL: c_int = 0;
@@ -224,15 +226,6 @@ pub static mut repl_from: *mut c_char = ptr::null_mut();
 pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
-unsafe extern "C" {
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn strlen(s: *const c_char) -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *const c_char;
-}
 #[inline]
 const fn ascii_isdigit(c: c_int) -> bool {
     c >= b'0' as c_int && c <= b'9' as c_int

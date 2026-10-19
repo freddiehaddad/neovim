@@ -26,7 +26,7 @@ use crate::tui::termkey::driver_ti::{
 };
 
 pub type unibi_term = c_void;
-pub type StringBuilder = KVec<c_char>;
+pub use crate::api::deprecated::StringBuilder;
 
 const NUL: c_char = 0;
 

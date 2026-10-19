@@ -68,6 +68,8 @@ use crate::spellfile::suggest_load_files;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 use crate::tag::BoolVarValue;
 #[allow(unused_imports)]
@@ -77,10 +79,10 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 pub type idx_T = c_int;
 pub type salfirst_T = c_int;
-pub type hlf_T = c_int;
-pub type smt_T = c_int;
-pub type varnumber_T = i64;
-pub type FILE = c_void;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::ex_getln::hlf_T;
+pub use crate::fileio::FILE;
+pub use crate::spell::smt_T;
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const NUL: c_char = 0;
@@ -364,21 +366,8 @@ static mut sps_flags: c_int = SPS_BEST;
 static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
-    fn strlen(s: *const c_char) -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn atoi(s: *const c_char) -> c_int;
 }
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {

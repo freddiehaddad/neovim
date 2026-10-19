@@ -16,11 +16,11 @@ use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiq
 const UV_HANDLE: c_int = 5;
 const UV_SIGNAL: c_int = 16;
 
-pub type Loop = c_void;
+pub use crate::event::r#loop::Loop;
 pub type SignalWatcher = c_void;
-pub type uv_loop_t = c_void;
-pub type uv_signal_t = c_void;
-pub type uv_handle_t = c_void;
+pub use crate::event::r#loop::uv_handle_t;
+pub use crate::event::r#loop::uv_loop_t;
+pub use crate::event::r#loop::uv_signal_t;
 
 pub type signal_cb =
     Option<unsafe extern "C" fn(watcher: *mut SignalWatcher, signum: c_int, data: *mut c_void)>;

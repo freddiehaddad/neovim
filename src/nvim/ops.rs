@@ -62,8 +62,10 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{gettext, ngettext};
+#[allow(unused_imports)]
 use crate::ui::vim_beep;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
@@ -125,8 +127,8 @@ use crate::textformat::{
 };
 use crate::undo::{u_clearline, u_save, u_save_cursor};
 
-pub type OptInt = i64;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::option::OptInt;
 
 pub const OP_NOP: c_int = 0;
 pub const OP_DELETE: c_int = 1;
@@ -262,12 +264,6 @@ const OPCHARS: [[u8; 3]; 31] = [
 ];
 
 static mut addsub_hexupper: bool = false;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

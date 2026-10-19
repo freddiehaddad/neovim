@@ -85,6 +85,8 @@ use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strstr};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
 use crate::usercmd::add_win_cmd_modifiers;
@@ -149,19 +151,12 @@ use crate::profile::{
 };
 use crate::sign::expand_T;
 
-pub type scid_T = c_int;
+pub use crate::eval::vars::scid_T;
 pub type etype_T = c_int;
 pub type estack_arg_T = c_int;
-pub type TriState = c_int;
-pub type varnumber_T = i64;
-pub type LineGetter = Option<
-    unsafe extern "C" fn(
-        c: c_int,
-        cookie: *mut c_void,
-        indent: c_int,
-        do_concat: bool,
-    ) -> *mut c_char,
->;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::extmark::TriState;
 pub type DoInRuntimepathCB = Option<
     unsafe extern "C" fn(
         num_fnames: c_int,
@@ -365,7 +360,6 @@ static mut APP_BOTH: c_int = 0;
 unsafe extern "C" {
     static mut default_lib_dir: *mut c_char;
 
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
@@ -378,8 +372,6 @@ unsafe extern "C" {
     fn __errno_location() -> *mut c_int;
     #[cfg(all(not(windows), not(target_os = "linux")))]
     fn __error() -> *mut c_int;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
 }
 

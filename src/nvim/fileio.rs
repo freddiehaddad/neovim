@@ -57,6 +57,8 @@ use crate::shada::check_marks_read;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{gettext, ngettext};
+#[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
@@ -139,13 +141,13 @@ use crate::undo::{
     u_savecommon, u_sync, u_unchanged, u_write_undo,
 };
 
-pub type varnumber_T = i64;
-pub type OptInt = i64;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::option::OptInt;
 pub type off_T = i64;
 pub type iconv_t = isize;
 pub type FILE = c_void;
+pub use crate::eval::fs::CheckItem;
 pub use crate::regexp::regprog_T;
-pub type CheckItem = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> varnumber_T>;
 
 pub const READ_NEW: c_int = 0x01;
 pub const READ_FILTER: c_int = 0x02;
@@ -311,8 +313,6 @@ pub use crate::api::command::regmatch_T;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;

@@ -43,9 +43,9 @@ use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
 use crate::state::get_real_state;
 
-pub type OptInt = i64;
-pub type varnumber_T = i64;
-pub type Loop = c_void;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::event::r#loop::Loop;
+pub use crate::option::OptInt;
 
 const READ_BUFFER_SIZE: usize = 0xfff;
 const MAX_KEY_CODE_LEN: usize = 6;

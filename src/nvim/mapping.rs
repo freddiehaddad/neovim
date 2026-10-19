@@ -64,6 +64,8 @@ use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strpbrk, strstr};
+#[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -105,9 +107,9 @@ use crate::option::opt_error;
 use crate::profile::estack_T;
 use crate::sign::expand_T;
 
-pub type scid_T = c_int;
-pub type linenr_T = i32;
-pub type TriState = c_int;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::vars::scid_T;
+pub use crate::extmark::TriState;
 
 pub const MAXMAPLEN: usize = 50;
 pub const MAX_MAPHASH: usize = 256;
@@ -283,13 +285,8 @@ static E_ILLEGAL_MAP_MODE_STRING_STR: &CStr = c"E1276: Illegal map mode string: 
 
 unsafe extern "C" {
 
-    fn atoi(s: *const c_char) -> c_int;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
 }
 

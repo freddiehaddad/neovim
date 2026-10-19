@@ -66,6 +66,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::search::{last_search_pat, set_last_search_pat};
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, ngettext, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped_ext};
@@ -236,14 +238,6 @@ static mut empty_reg: yankreg_T = EMPTY_YANKREG;
 static mut do_record_regname: c_int = 0;
 static mut textyankpost_recursive: bool = false;
 static mut put_autocmd_recursive: bool = false;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn atoi(s: *const c_char) -> c_int;
-}
 
 #[inline]
 const fn ascii_iswhite(c: u8) -> bool {

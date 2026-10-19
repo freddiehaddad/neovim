@@ -45,6 +45,8 @@ use crate::r#move::{
 #[allow(unused_imports)]
 use crate::normal::end_visual_mode;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::window::{
     check_split_disallowed, find_tabpage, goto_tabpage_win, tabpage_index, valid_tabpage,
     win_drag_status_line, win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor,
@@ -65,9 +67,9 @@ use crate::garray::{ga_append, ga_concat_len, ga_init, garray_T};
 use crate::memory::{xmallocz, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 
-pub type varnumber_T = i64;
-pub type colnr_T = i32;
-pub type linenr_T = i32;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::buffer::varnumber_T;
 pub type dictitem_T = ScopeDictDictItem;
 
 const NUL: c_char = 0;
@@ -102,11 +104,6 @@ pub struct viewstate_T {
     pub vs_topfill: c_int,
     pub vs_botline: linenr_T,
     pub vs_empty_rows: c_int,
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 #[inline]

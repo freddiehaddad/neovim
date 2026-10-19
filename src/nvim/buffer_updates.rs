@@ -36,10 +36,10 @@ const ARENA_EMPTY: Arena = Arena {
     size: 0,
 };
 
-pub type linenr_T = i32;
-pub type colnr_T = c_int;
-pub type bcount_t = isize;
-pub type LuaRetMode = c_int;
+pub use crate::api::buffer::bcount_t;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::lua::executor::LuaRetMode;
 
 const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
 const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;

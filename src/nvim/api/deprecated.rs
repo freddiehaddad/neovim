@@ -62,8 +62,8 @@ use crate::marktree::{
 use crate::memory::{Arena, xmalloc, xrealloc};
 use crate::msgpack_rpc::packer::Integer;
 
-pub type colnr_T = c_int;
-pub type LuaRetMode = c_int;
+pub use crate::cursor::colnr_T;
+pub use crate::lua::executor::LuaRetMode;
 pub type VirtTextPos = c_int;
 pub type VirtLineOverflow = c_int;
 pub type StringBuilder = KVec<c_char>;

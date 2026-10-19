@@ -34,6 +34,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::popupmenu::pum_drawn;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::ui::ui_call_hl_attr_define;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -57,7 +59,7 @@ use crate::msgpack_rpc::packer::Integer;
 
 pub type RgbValue = i32;
 pub type OptionalKeys = u64;
-pub type HLGroupID = Integer;
+pub use crate::api::extmark::HLGroupID;
 pub use crate::msgpack_rpc::channel::RemoteUI;
 pub type HlKind = c_int;
 
@@ -281,11 +283,6 @@ static mut ns_hl_attr: Map<c_int, ptr_t> = Map {
 
 static mut get_attr_entry_recursive: bool = false;
 static mut ns_get_hl_recursive: c_int = 0;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 unsafe fn is_none_str(s: *const c_char) -> bool {

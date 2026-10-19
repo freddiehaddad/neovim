@@ -48,6 +48,8 @@ use crate::path::{add_pathsep, path_has_wildcard, path_tail};
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcat, strcpy, strstr};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[allow(unused_imports)]
 use crate::tag::tag_freematch;
@@ -71,7 +73,6 @@ use crate::event::stream::{Stream, stream_fields, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
-use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
@@ -79,12 +80,12 @@ use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
 use crate::os::time::{os_delay, os_hrtime};
 use crate::profile::{prof_child_enter, prof_child_exit};
 
-pub type FILE = c_void;
-pub type OptInt = i64;
-pub type proftime_T = u64;
-pub type linenr_T = i32;
-pub type varnumber_T = i64;
-pub type StringBuilder = KVec<c_char>;
+pub use crate::api::deprecated::StringBuilder;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::fileio::FILE;
+pub use crate::option::OptInt;
+pub use crate::profile::proftime_T;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
@@ -158,8 +159,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
     fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_err_name(err: c_int) -> *const c_char;
 
@@ -168,9 +167,6 @@ unsafe extern "C" {
     fn ftell(stream: *mut FILE) -> c_long;
     fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn strcat(dest: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcpy(dest: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
 }
 
 #[cfg(windows)]

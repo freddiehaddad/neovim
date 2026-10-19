@@ -59,9 +59,9 @@ use crate::tui::termkey::termkey::{
 pub use crate::tui::tui::TUIData;
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
-pub type TermMode = c_int;
-pub type TermModeState = c_int;
-pub type OptInt = i64;
+pub use crate::option::OptInt;
+pub use crate::tui::tui::TermMode;
+pub use crate::tui::tui::TermModeState;
 
 type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
 type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;

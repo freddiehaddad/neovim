@@ -55,6 +55,8 @@ use crate::path::{path_tail, shorten_dir};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
 use crate::ui::ui_call_tabline_update;
@@ -94,10 +96,10 @@ use crate::mouse::StlClickDefinition;
 use crate::plines::{colnr_T, linenr_T};
 use crate::sign::describe_sign_text;
 
-pub type OptIndex = c_int;
-pub type hlf_T = c_int;
+pub use crate::ex_getln::hlf_T;
+pub use crate::optionstr::OptIndex;
 pub type StlFlag = c_int;
-pub type UIExtension = c_int;
+pub use crate::api::win_config::UIExtension;
 
 const NUL: c_char = 0;
 const NL: c_int = 0x0a;
@@ -281,8 +283,6 @@ static mut did_show_ext_ruler: bool = false;
 unsafe extern "C" {
 
     fn toupper(c: c_int) -> c_int;
-    fn atoi(s: *const c_char) -> c_int;
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 #[inline]

@@ -165,16 +165,9 @@ use crate::vterm::vterm::{
     vterm_set_utf8,
 };
 
-pub type VTermKey = c_int;
-pub type StringBuilder = KVec<c_char>;
-pub type LineGetter = Option<
-    unsafe extern "C" fn(
-        c: c_int,
-        cookie: *mut c_void,
-        indent: c_int,
-        do_concat: bool,
-    ) -> *mut c_char,
->;
+pub use crate::api::deprecated::StringBuilder;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::vterm::keyboard::VTermKey;
 
 const NUL: c_char = 0;
 const REFRESH_DELAY: u64 = 10;

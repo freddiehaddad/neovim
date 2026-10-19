@@ -46,6 +46,8 @@ use crate::runtime::{do_finish, stacktrace_create};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, xstrnsave};
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcat, strcpy, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -57,7 +59,7 @@ use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;
 use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
 
-pub type OptInt = i64;
+pub use crate::option::OptInt;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -199,12 +201,6 @@ static mut cause_abort: bool = false;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn strlen(s: *const c_char) -> usize;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 

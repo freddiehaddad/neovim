@@ -88,6 +88,8 @@ use crate::quickfix::qf_stack_get_bufnr;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::{gettext, ngettext, qsort, strcmp, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
@@ -193,8 +195,8 @@ use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
 use crate::usercmd::uc_clear;
 use crate::winfloat::win_float_update_preview;
 
-pub type OptInt = i64;
-pub type OptIndex = c_int;
+pub use crate::option::OptInt;
+pub use crate::optionstr::OptIndex;
 pub type MetaIndex = usize;
 
 pub const GETF_SETMARK: c_int = 0x01;
@@ -408,25 +410,6 @@ static mut modelines_entered: c_int = 0;
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
-
-unsafe extern "C" {
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
-
-}
 
 #[inline]
 const fn ascii_isdigit(c: c_int) -> bool {

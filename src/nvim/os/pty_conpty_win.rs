@@ -31,7 +31,7 @@ pub type BOOL = c_int;
 pub type HRESULT = c_long;
 
 #[cfg(windows)]
-pub type TriState = c_int;
+pub use crate::extmark::TriState;
 #[cfg(windows)]
 pub const kNone: TriState = -1;
 #[cfg(windows)]

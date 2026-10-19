@@ -43,8 +43,10 @@ use crate::os::input::fast_breakcheck;
 #[allow(unused_imports)]
 use crate::runtime::{getsourceline, source_runtime};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::exarg_T;
@@ -57,8 +59,8 @@ use crate::keycodes::K_BS;
 use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
 
 pub type result_T = c_int;
-pub type varnumber_T = i64;
-pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
+pub use crate::cmdexpand::LineGetter;
+pub use crate::eval::buffer::varnumber_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -1639,11 +1641,6 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
         dg_header: None,
     },
 ];
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 const fn is_special(c: c_int) -> bool {

@@ -76,6 +76,8 @@ use crate::runtime::{do_source, source_runtime};
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp, strpbrk};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
 #[allow(unused_imports)]
 use crate::strings::{vim_stricmp, vim_strnicmp};
@@ -83,7 +85,7 @@ use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
-pub type disptick_T = u64;
+pub use crate::ex_getln::disptick_T;
 pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
@@ -402,8 +404,6 @@ static mut expand_what: c_int = EXP_SUBCMD;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
@@ -412,19 +412,6 @@ unsafe extern "C" {
     fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
-    );
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strchr(s: *const c_char, c: c_int) -> *const c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strlen(s: *const c_char) -> usize;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
 }
 
 #[inline]
@@ -4533,18 +4520,8 @@ unsafe fn syn_combine_list(clstr1: *mut *mut i16, clstr2: *mut *mut i16, list_op
             g2 = g2.add(1);
         }
 
-        qsort(
-            (*clstr1).cast(),
-            count1,
-            size_of::<i16>(),
-            Some(syn_compare_stub),
-        );
-        qsort(
-            (*clstr2).cast(),
-            count2,
-            size_of::<i16>(),
-            Some(syn_compare_stub),
-        );
+        qsort((*clstr1).cast(), count1, size_of::<i16>(), syn_compare_stub);
+        qsort((*clstr2).cast(), count2, size_of::<i16>(), syn_compare_stub);
 
         for round in 1..=2 {
             g1 = *clstr1;
@@ -5238,12 +5215,7 @@ unsafe fn idl_get_entry(mut list: *mut i16) -> *mut idl_entry_T {
         }
         ga_clear(&raw mut seen);
         if ga.ga_len > 0 {
-            qsort(
-                ga.ga_data,
-                ga.ga_len as usize,
-                size_of::<i16>(),
-                Some(idl_id_cmp),
-            );
+            qsort(ga.ga_data, ga.ga_len as usize, size_of::<i16>(), idl_id_cmp);
             (*e).idl_ids = ga.ga_data.cast::<i16>();
             (*e).idl_count = ga.ga_len;
         } else {
@@ -5863,7 +5835,7 @@ unsafe fn syntime_report() {
                 ga.ga_data,
                 ga.ga_len as usize,
                 size_of::<time_entry_T>(),
-                Some(syn_compare_syntime),
+                syn_compare_syntime,
             );
         }
 

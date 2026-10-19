@@ -38,18 +38,17 @@ use crate::os::input::{input_available, input_get, os_breakcheck};
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{strcmp, strcpy};
+#[allow(unused_imports)]
 use crate::ui::ui_flush;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::tabpage::win_T;
-use crate::eval::deprecated::Callback;
 use crate::event::multiqueue::{Event, MultiQueue, multiqueue_empty, multiqueue_get};
 use crate::extmark::TriState;
 use crate::hashtab::hashtab_T;
 use crate::keycodes::{KE_EVENT, KS_EXTRA, get_special_key_name, termcap2key};
-use crate::kvec::KVec;
-use crate::sign::expand_T;
 
 const kNone: TriState = -1;
 
@@ -101,50 +100,6 @@ pub struct VimState {
 pub use crate::mapping::typebuf_T;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub struct CmdlineColorChunk {
-    pub start: c_int,
-    pub end: c_int,
-    pub hl_id: c_int,
-}
-
-#[repr(C)]
-pub struct ColoredCmdline {
-    pub prompt_id: c_uint,
-    pub cmdbuff: *mut c_char,
-    pub colors: KVec<CmdlineColorChunk>,
-}
-
-#[repr(C)]
-pub struct CmdlineInfo {
-    pub cmdbuff: *mut c_char,
-    pub cmdbufflen: c_int,
-    pub cmdlen: c_int,
-    pub cmdpos: c_int,
-    pub cmdspos: c_int,
-    pub cmdfirstc: c_int,
-    pub cmdindent: c_int,
-    pub cmdprompt: *mut c_char,
-    pub hl_id: c_int,
-    pub overstrike: c_int,
-    pub xpc: *mut expand_T,
-    pub xp_context: c_int,
-    pub xp_arg: *mut c_char,
-    pub input_fn: c_int,
-    pub cmdbuff_replaced: bool,
-    pub prompt_id: c_uint,
-    pub highlight_callback: Callback,
-    pub last_colors: ColoredCmdline,
-    pub level: c_int,
-    pub prev_ccline: *mut CmdlineInfo,
-    pub special_char: c_char,
-    pub special_shift: bool,
-    pub redraw_state: c_int,
-    pub one_key: bool,
-    pub mouse_used: *mut bool,
-}
-
-#[repr(C)]
 pub struct save_v_event_T {
     pub sve_did_save: bool,
     pub sve_hashtab: hashtab_T,
@@ -154,8 +109,6 @@ unsafe extern "C" {
     static mut main_loop: u8;
 
     fn uv_loop_size() -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }
 
 static mut was_safe: bool = false;

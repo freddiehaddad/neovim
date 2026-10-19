@@ -15,6 +15,8 @@ use crate::globals::*;
 use crate::message::emsg;
 #[allow(unused_imports)]
 use crate::spell::{parse_spelllang, spell_check};
+#[allow(unused_imports)]
+use crate::strings::gettext;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -22,7 +24,7 @@ use crate::eval::deprecated::synblock_T;
 use crate::lua::base64::{lua_State, luaL_Reg};
 use crate::lua::converter::lua_Integer;
 
-pub type hlf_T = c_int;
+pub use crate::ex_getln::hlf_T;
 
 const NUL: c_char = 0;
 const LUA_TSTRING: c_int = 4;
@@ -45,11 +47,6 @@ unsafe extern "C-unwind" {
     fn lua_pushinteger(lstate: *mut lua_State, n: lua_Integer);
     fn lua_rawseti(lstate: *mut lua_State, idx: c_int, n: c_int);
     fn luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 /// Check spelling in `str` (`nlua_spell_check`).

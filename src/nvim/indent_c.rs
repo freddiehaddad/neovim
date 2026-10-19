@@ -39,6 +39,8 @@ use crate::plines::getvcol;
 use crate::search::{findmatchlimit, linewhite};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 const NUL: c_char = 0;
@@ -83,11 +85,6 @@ struct cpp_baseclass_cache_T {
     lpos: lpos_T,
 }
 unsafe extern "C" {
-    fn strlen(s: *const c_char) -> usize;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *const c_char;
-    fn atoi(s: *const c_char) -> c_int;
     fn tolower(c: c_int) -> c_int;
 }
 static mut comment_pos_copy: pos_T = pos_T {

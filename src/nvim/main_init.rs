@@ -70,6 +70,8 @@ use crate::register::get_default_register_name;
 #[allow(unused_imports)]
 use crate::runtime::{do_source, load_plugins};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::syntax::syn_maybe_enable;
@@ -313,8 +315,6 @@ unsafe extern "C" {
 
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn uv_guess_handle(file: c_int) -> c_int;
     fn uv_strerror(err: c_int) -> *const c_char;

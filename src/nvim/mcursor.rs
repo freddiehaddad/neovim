@@ -66,6 +66,8 @@ use crate::register::{
 #[allow(unused_imports)]
 use crate::search::{restore_search_patterns, save_search_patterns};
 #[allow(unused_imports)]
+use crate::strings::{strchr, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::undo::{u_forget_unchanged, u_save};
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -295,9 +297,6 @@ static mut ns_session: u32 = 0;
 unsafe extern "C" {
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strchr(s: *const c_char, c: c_int) -> *const c_char;
     fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
 }
 

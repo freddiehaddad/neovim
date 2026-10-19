@@ -34,14 +34,14 @@ const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
 const LOGLVL_DBG: c_int = 1;
 const LOGLVL_WRN: c_int = 3;
 
-pub type Loop = c_void;
+pub use crate::event::r#loop::Loop;
 pub type Stream = c_void;
-pub type uv_loop_t = c_void;
+pub use crate::event::r#loop::uv_loop_t;
 pub type uv_stream_t = c_void;
 pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
 pub type uv_tty_t = c_void;
-pub type uv_handle_t = c_void;
+pub use crate::event::r#loop::uv_handle_t;
 
 pub type stream_close_cb = Option<unsafe extern "C" fn(stream: *mut Stream, data: *mut c_void)>;
 pub type stream_write_cb =

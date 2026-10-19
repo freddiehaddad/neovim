@@ -50,6 +50,8 @@ use crate::os::env::expand_env;
 #[allow(unused_imports)]
 use crate::regexp::regtilde;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -118,11 +120,11 @@ use crate::search::{
     set_search_pattern, set_substitute_pattern,
 };
 
-pub type AdditionalData = c_void;
-pub type OptInt = i64;
-pub type OptionalKeys = u64;
+pub use crate::highlight::OptionalKeys;
+pub use crate::option::OptInt;
+pub use crate::search::AdditionalData;
 pub type ShaDaReadFileFlags = c_int;
-pub type var_flavour_T = c_int;
+pub use crate::eval::var_flavour_T;
 
 const VAR_FLAVOUR_DEFAULT: var_flavour_T = 1;
 const VAR_FLAVOUR_SESSION: var_flavour_T = 2;
@@ -670,7 +672,6 @@ unsafe extern "C" {
     fn KeyDict__shada_register_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
     fn KeyDict__shada_search_pat_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     #[link_name = "uv_strerror"]
     fn os_strerror(err: c_int) -> *const c_char;
 

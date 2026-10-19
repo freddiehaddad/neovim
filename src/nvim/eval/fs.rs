@@ -77,6 +77,8 @@ use crate::path::{
 #[allow(unused_imports)]
 use crate::runtime::script_is_lua;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_shellescape, xstrnsave};
 #[allow(unused_imports)]
 use crate::window::find_tabpage;
@@ -102,8 +104,8 @@ use crate::os::fileio::{
 };
 use crate::sign::expand_T;
 
-pub type varnumber_T = i64;
-pub type off_T = i64;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::fileio::off_T;
 pub type CheckItem =
     Option<unsafe extern "C" fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
 
@@ -153,7 +155,7 @@ const S_IFSOCK_VAL: u64 = 0xC000;
 
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
 
-pub type FILE = c_void;
+pub use crate::fileio::FILE;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -293,8 +295,6 @@ unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
 }
 
 unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn uv_strerror(err: c_int) -> *const c_char;
 

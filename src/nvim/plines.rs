@@ -56,8 +56,8 @@ use crate::marktree::{
     marktree_itr_next_filter,
 };
 
-pub type linenr_T = i32;
-pub type colnr_T = c_int;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
 pub type CSType = bool;
 
 const NUL: c_char = 0;

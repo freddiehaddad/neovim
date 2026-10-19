@@ -49,7 +49,7 @@ use crate::eval::deprecated::pos_T;
 use crate::memory::{xfree, xmalloc};
 use crate::textformat::{MotionType, oparg_T};
 
-pub type Direction = c_int;
+pub use crate::search::Direction;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;

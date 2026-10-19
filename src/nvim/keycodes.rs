@@ -32,7 +32,7 @@ use crate::api::private::converter::sctx_T;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xmalloc, xrealloc};
 
-pub type scid_T = i32;
+pub use crate::eval::vars::scid_T;
 
 pub const NUL: u8 = 0;
 pub const BS: c_int = 0x08;

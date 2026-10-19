@@ -29,6 +29,8 @@ use crate::os::stdpaths::get_appname;
 use crate::path::fix_fname;
 #[allow(unused_imports)]
 use crate::path::{path_to_slash, path_to_slash_save};
+#[allow(unused_imports)]
+use crate::strings::{strcmp, strlen, strstr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -58,13 +60,10 @@ const kTrue: TriState = 1;
 const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
-pub type Loop = c_void;
-pub type SocketWatcher = c_void;
-pub type uv_handle_t = c_void;
-pub type socket_cb =
-    Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, result: c_int, data: *mut c_void)>;
-pub type socket_close_cb =
-    Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, data: *mut c_void)>;
+pub use crate::event::r#loop::Loop;
+pub use crate::event::r#loop::uv_handle_t;
+pub use crate::event::socket::SocketWatcher;
+pub use crate::event::socket::{socket_cb, socket_close_cb};
 
 static mut watchers: garray_T = garray_T {
     ga_len: 0,
@@ -84,9 +83,6 @@ unsafe extern "C" {
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *const c_char;
 }
 
 #[inline]

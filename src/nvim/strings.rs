@@ -105,11 +105,248 @@ pub struct keyvalue_T {
 #[cfg_attr(all(test, windows), link(name = "legacy_stdio_definitions"))]
 unsafe extern "C" {
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
+    #[link_name = "qsort"]
+    fn c_qsort(
+        base: *mut c_void,
+        nmemb: usize,
+        size: usize,
+        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
+    );
 }
 
-#[cfg(test)]
-unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
-    msgid.cast_mut()
+#[inline]
+pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
+    #[cfg(not(test))]
+    unsafe {
+        unsafe extern "C" {
+            #[link_name = "gettext"]
+            fn c_gettext(msgid: *const c_char) -> *mut c_char;
+        }
+        c_gettext(msgid)
+    }
+    #[cfg(test)]
+    {
+        msgid.cast_mut()
+    }
+}
+
+pub trait IntoNgettextCount {
+    fn into_ngettext_count(self) -> c_ulong;
+}
+
+impl IntoNgettextCount for u32 {
+    #[inline]
+    fn into_ngettext_count(self) -> c_ulong {
+        self as c_ulong
+    }
+}
+
+impl IntoNgettextCount for u64 {
+    #[inline]
+    fn into_ngettext_count(self) -> c_ulong {
+        self as c_ulong
+    }
+}
+
+impl IntoNgettextCount for usize {
+    #[inline]
+    fn into_ngettext_count(self) -> c_ulong {
+        self as c_ulong
+    }
+}
+
+impl IntoNgettextCount for i32 {
+    #[inline]
+    fn into_ngettext_count(self) -> c_ulong {
+        self as c_ulong
+    }
+}
+
+impl IntoNgettextCount for i64 {
+    #[inline]
+    fn into_ngettext_count(self) -> c_ulong {
+        self as c_ulong
+    }
+}
+
+impl IntoNgettextCount for isize {
+    #[inline]
+    fn into_ngettext_count(self) -> c_ulong {
+        self as c_ulong
+    }
+}
+
+#[inline]
+pub unsafe fn ngettext<N: IntoNgettextCount>(
+    msgid1: *const c_char,
+    msgid2: *const c_char,
+    n: N,
+) -> *mut c_char {
+    let count = n.into_ngettext_count();
+    #[cfg(not(test))]
+    unsafe {
+        unsafe extern "C" {
+            #[link_name = "ngettext"]
+            fn c_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
+        }
+        c_ngettext(msgid1, msgid2, count)
+    }
+    #[cfg(test)]
+    {
+        if count == 1 {
+            msgid1.cast_mut()
+        } else {
+            msgid2.cast_mut()
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn strlen(s: *const c_char) -> usize {
+    unsafe { CStr::from_ptr(s).to_bytes().len() }
+}
+
+#[inline]
+pub unsafe fn strcmp(mut s1: *const c_char, mut s2: *const c_char) -> c_int {
+    unsafe {
+        loop {
+            let b1 = *s1 as u8;
+            let b2 = *s2 as u8;
+            if b1 != b2 || b1 == 0 {
+                return c_int::from(b1) - c_int::from(b2);
+            }
+            s1 = s1.add(1);
+            s2 = s2.add(1);
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn strncmp(mut s1: *const c_char, mut s2: *const c_char, mut n: usize) -> c_int {
+    unsafe {
+        while n > 0 {
+            let b1 = *s1 as u8;
+            let b2 = *s2 as u8;
+            if b1 != b2 || b1 == 0 {
+                return c_int::from(b1) - c_int::from(b2);
+            }
+            s1 = s1.add(1);
+            s2 = s2.add(1);
+            n -= 1;
+        }
+        0
+    }
+}
+
+#[inline]
+pub unsafe fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char {
+    unsafe {
+        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
+        ptr::copy_nonoverlapping(src, dst, len);
+        dst
+    }
+}
+
+#[inline]
+pub unsafe fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char {
+    unsafe {
+        let dst_len = CStr::from_ptr(dst).to_bytes().len();
+        let src_len = CStr::from_ptr(src).to_bytes_with_nul().len();
+        ptr::copy_nonoverlapping(src, dst.add(dst_len), src_len);
+        dst
+    }
+}
+
+#[inline]
+pub unsafe fn strchr(mut s: *const c_char, c: c_int) -> *mut c_char {
+    unsafe {
+        let target = c as c_char;
+        loop {
+            let cur = *s;
+            if cur == target {
+                return s.cast_mut();
+            }
+            if cur == NUL {
+                return ptr::null_mut();
+            }
+            s = s.add(1);
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char {
+    unsafe {
+        let n_bytes = CStr::from_ptr(needle).to_bytes();
+        if n_bytes.is_empty() {
+            return haystack.cast_mut();
+        }
+        let h_bytes = CStr::from_ptr(haystack).to_bytes();
+        match h_bytes.windows(n_bytes.len()).position(|w| w == n_bytes) {
+            Some(pos) => haystack.add(pos).cast_mut(),
+            None => ptr::null_mut(),
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn strpbrk(mut s: *const c_char, accept: *const c_char) -> *mut c_char {
+    unsafe {
+        while *s != NUL {
+            let mut a = accept;
+            while *a != NUL {
+                if *s == *a {
+                    return s.cast_mut();
+                }
+                a = a.add(1);
+            }
+            s = s.add(1);
+        }
+        ptr::null_mut()
+    }
+}
+
+#[inline]
+pub unsafe fn atol(mut s: *const c_char) -> c_long {
+    unsafe {
+        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = s.add(1);
+        }
+        let neg = if *s == b'-' as c_char {
+            s = s.add(1);
+            true
+        } else {
+            if *s == b'+' as c_char {
+                s = s.add(1);
+            }
+            false
+        };
+        let mut acc: c_long = 0;
+        while (*s as u8).is_ascii_digit() {
+            acc = acc
+                .wrapping_mul(10)
+                .wrapping_add(c_long::from((*s as u8) - b'0'));
+            s = s.add(1);
+        }
+        if neg { acc.wrapping_neg() } else { acc }
+    }
+}
+
+#[inline]
+pub unsafe fn atoi(s: *const c_char) -> c_int {
+    unsafe { atol(s) as c_int }
+}
+
+#[inline]
+pub unsafe fn qsort(
+    base: *mut c_void,
+    nmemb: usize,
+    size: usize,
+    compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
+) {
+    unsafe {
+        c_qsort(base, nmemb, size, Some(compar));
+    }
 }
 
 #[cfg(test)]
@@ -117,8 +354,6 @@ unsafe fn va_report_null_string() {}
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn va_state_reset(va_ptr: *mut c_void);
     fn va_state_int(va_ptr: *mut c_void) -> c_int;
@@ -134,17 +369,7 @@ unsafe extern "C" {
     fn va_state_double(va_ptr: *mut c_void) -> c_double;
     fn va_report_null_string();
 
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
-    );
 
     #[cfg_attr(windows, link_name = "_stricmp")]
     #[cfg_attr(not(windows), link_name = "strcasecmp")]
@@ -713,7 +938,7 @@ pub unsafe extern "C" fn sort_strings(files: *mut *mut c_char, count: c_int) {
                 files.cast(),
                 count as usize,
                 size_of::<*mut c_char>(),
-                Some(sort_compare),
+                sort_compare,
             );
         }
     }
@@ -3781,39 +4006,19 @@ pub unsafe extern "C" fn f_trim(argvars: *mut typval_T, rettv: *mut typval_T, _f
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn cmp_keyvalue_value(a: *const c_void, b: *const c_void) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let kv1 = a.cast::<keyvalue_T>();
         let kv2 = b.cast::<keyvalue_T>();
         strcmp((*kv1).value, (*kv2).value)
     }
-    #[cfg(test)]
-    unsafe {
-        let kv1 = a.cast::<keyvalue_T>();
-        let kv2 = b.cast::<keyvalue_T>();
-        match CStr::from_ptr((*kv1).value)
-            .to_bytes()
-            .cmp(CStr::from_ptr((*kv2).value).to_bytes())
-        {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        }
-    }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn cmp_keyvalue_value_n(a: *const c_void, b: *const c_void) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let kv1 = a.cast::<keyvalue_T>();
         let kv2 = b.cast::<keyvalue_T>();
         strncmp((*kv1).value, (*kv2).value, (*kv1).length.max((*kv2).length))
-    }
-    #[cfg(test)]
-    {
-        let _ = (a, b);
-        0
     }
 }
 
@@ -3870,6 +4075,16 @@ mod tests {
             assert!(!has_non_ascii(c"ascii".as_ptr()));
             assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
             assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
+
+            assert_eq!(strlen(c"hello".as_ptr()), 5);
+            assert_eq!(strcmp(c"abc".as_ptr(), c"abc".as_ptr()), 0);
+            assert!(strcmp(c"abc".as_ptr(), c"abd".as_ptr()) < 0);
+            assert_eq!(strncmp(c"abcdef".as_ptr(), c"abcxyz".as_ptr(), 3), 0);
+            assert_eq!(atoi(c"  -1234px".as_ptr()), -1234);
+            assert_eq!(atol(c" +56789".as_ptr()), 56789);
+            assert!(!strchr(c"hello".as_ptr(), b'e' as c_int).is_null());
+            assert!(!strstr(c"hello world".as_ptr(), c"world".as_ptr()).is_null());
+            assert!(!strpbrk(c"hello".as_ptr(), c"xyzl".as_ptr()).is_null());
         }
     }
 

@@ -74,6 +74,8 @@ use crate::quickfix::{ex_cc, ex_cnext, qf_get_cur_idx, qf_get_valid_size};
 #[allow(unused_imports)]
 use crate::runtime::source_runtime_vim_lua;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::ui::ui_has;
@@ -95,9 +97,9 @@ use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
 use crate::eval::deprecated::buf_T;
 use crate::memory::{xfree, xmalloc, xstrdup};
 
-pub type linenr_T = i32;
-pub type varnumber_T = i64;
-pub type event_T = c_int;
+pub use crate::api::autocmd::event_T;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::buffer::varnumber_T;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -151,11 +153,6 @@ const VV_SWAPCOMMAND: c_int = 49;
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
 use crate::arglist::{aentry_T, alist_T};
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {

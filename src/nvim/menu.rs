@@ -50,6 +50,8 @@ use crate::state::get_real_state;
 #[allow(unused_imports)]
 use crate::strings::vim_stricmp;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcat, strcmp, strcpy, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::ui_call_update_menu;
@@ -207,15 +209,6 @@ static mut MENUTRANS_GA: garray_T = garray_T {
 #[cfg(not(windows))]
 unsafe extern "C" {
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }
 
 #[inline]

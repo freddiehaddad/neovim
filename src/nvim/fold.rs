@@ -39,6 +39,8 @@ use crate::search::linewhite;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strstr};
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
 use crate::syntax::syn_get_foldlevel;
@@ -76,9 +78,9 @@ use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
 use crate::statusline::foldinfo_T;
 
-pub type TriState = c_int;
-pub type varnumber_T = i64;
-pub type ExtmarkOp = c_int;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::extmark::TriState;
 
 pub const FOLD_TEXT_LEN: usize = 51;
 const MAX_LEVEL: c_int = 20;
@@ -166,30 +168,12 @@ static E_NOFOLD: &CStr = c"E490: No fold found";
 
 unsafe extern "C" {
 
-    fn atoi(s: *const c_char) -> c_int;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    #[cfg(not(windows))]
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    #[cfg(windows)]
-    fn libintl_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-
 }
 
 #[inline]
 unsafe fn ngettext_wrap(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char {
-    unsafe {
-        #[cfg(windows)]
-        {
-            libintl_ngettext(msgid1, msgid2, n)
-        }
-        #[cfg(not(windows))]
-        {
-            ngettext(msgid1, msgid2, n)
-        }
-    }
+    unsafe { crate::strings::ngettext(msgid1, msgid2, n) }
 }
 
 #[inline]

@@ -15,7 +15,7 @@ use crate::math::xctz;
 use crate::tui::termkey::termkey::fill_utf8;
 use crate::vterm::vterm::vterm_push_output_ctrl_bytes;
 
-pub type VTermModifier = c_int;
+pub use crate::vterm::keyboard::VTermModifier;
 
 const C1_CSI: u8 = 0x9b;
 const CSI_ARGS_MAX: usize = 32;

@@ -76,6 +76,8 @@ use crate::spellsuggest::{fromto_T, idx_T, langp_T, salfirst_T, salitem_T, slang
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strstr};
+#[allow(unused_imports)]
 use crate::strings::{has_non_ascii, vim_strchr};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
@@ -86,10 +88,10 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type SpellAddType = c_int;
-pub type OptIndex = c_int;
+pub use crate::fileio::FILE;
+pub use crate::optionstr::OptIndex;
+pub use crate::os::time::time_t;
 pub use crate::regexp::regprog_T;
-pub type FILE = c_void;
-pub type time_t = i64;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
 pub const SPELL_ADD_BAD: SpellAddType = 1;
@@ -373,9 +375,6 @@ struct spellinfo_T {
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn atoi(s: *const c_char) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
     fn feof(stream: *mut FILE) -> c_int;
     fn ferror(stream: *mut FILE) -> c_int;
@@ -390,21 +389,9 @@ unsafe extern "C" {
     fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
-    );
     fn snprintf(str: *mut c_char, size: usize, format: *const c_char, ...) -> c_int;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strerror(errnum: c_int) -> *mut c_char;
-    fn strlen(s: *const c_char) -> usize;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn time(tloc: *mut time_t) -> time_t;
     fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
 }
@@ -4638,7 +4625,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
                     (*gap).ga_data,
                     (*gap).ga_len as usize,
                     size_of::<fromto_T>(),
-                    Some(rep_compare),
+                    rep_compare,
                 );
             }
 

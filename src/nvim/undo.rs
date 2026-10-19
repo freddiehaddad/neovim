@@ -59,6 +59,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::spell::spell_check_window;
 #[allow(unused_imports)]
+use crate::strings::{gettext, ngettext, qsort, strcmp, strlen};
+#[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_add};
@@ -106,10 +108,10 @@ use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_is
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 use crate::state::virtual_active;
 
-pub type varnumber_T = i64;
-pub type OptInt = i64;
-pub type off_T = i64;
-pub type FILE = c_void;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::fileio::FILE;
+pub use crate::fileio::off_T;
+pub use crate::option::OptInt;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -259,9 +261,6 @@ static mut lastmark: c_int = 0;
 
 unsafe extern "C" {
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-
     fn uv_strerror(err: c_int) -> *const c_char;
 
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
@@ -290,14 +289,6 @@ unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
     fn fgetc(stream: *mut FILE) -> c_int;
     fn feof(stream: *mut FILE) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
     fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
 }
 

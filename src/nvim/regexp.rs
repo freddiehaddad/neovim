@@ -56,11 +56,9 @@ use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
 
 pub(super) mod libc {
-    use std::ffi::{c_char, c_int};
+    pub use crate::strings::{strcpy, strlen, strncmp};
+    use std::ffi::c_char;
     unsafe extern "C" {
-        pub fn strlen(s: *const c_char) -> usize;
-        pub fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-        pub fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
         pub fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
     }
 }
@@ -73,7 +71,7 @@ mod nfa;
 use self::bt::*;
 use self::nfa::*;
 
-pub type OptInt = i64;
+pub use crate::option::OptInt;
 pub type magic_T = c_int;
 pub type reg_getline_flags_T = c_uint;
 
@@ -942,32 +940,13 @@ pub(super) fn nfa_regengine_ptr() -> *mut regengine_T {
 
 static mut regexp_engine: c_int = 0;
 
-unsafe extern "C" {
-
-    pub(super) fn gettext(msgid: *const c_char) -> *mut c_char;
-    pub(super) fn emsg(s: *const c_char) -> bool;
-    pub(super) fn iemsg(s: *const c_char);
-    pub(super) fn internal_error(where_: *const c_char);
-    pub(super) fn verbose_enter();
-    pub(super) fn verbose_leave();
-    pub(super) fn msg_puts(s: *const c_char) -> c_int;
-
-    pub(super) fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    pub(super) fn vim_strsave_escaped(
-        string: *const c_char,
-        esc_chars: *const c_char,
-    ) -> *mut c_char;
-    pub(super) fn tv_get_string_buf_chk(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    pub(super) fn partial_name(pt: *mut partial_T) -> *mut c_char;
-    pub(super) fn call_func(
-        funcname: *const c_char,
-        len: c_int,
-        rettv: *mut typval_T,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        funcexe: *mut funcexe_T,
-    ) -> c_int;
-}
+pub(super) use crate::eval::partial_name;
+pub(super) use crate::eval::typval::tv_get_string_buf_chk;
+pub(super) use crate::eval::userfunc::call_func;
+pub(super) use crate::message::{
+    emsg, iemsg, internal_error, msg_puts, verbose_enter, verbose_leave,
+};
+pub(super) use crate::strings::{gettext, vim_strchr, vim_strsave_escaped};
 
 #[inline]
 pub(super) unsafe fn tr(s: *const c_char) -> *mut c_char {

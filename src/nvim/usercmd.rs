@@ -42,6 +42,8 @@ use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::runtime::exestack;
 #[allow(unused_imports)]
+use crate::strings::{gettext, strcat, strchr, strcmp, strcpy, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
 #[allow(unused_imports)]
 use crate::window::{prevwin_curwin, tabpage_index};
@@ -310,16 +312,6 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
         shortname: None,
     },
 ];
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn strchr(s: *const c_char, c: c_int) -> *const c_char;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 const fn ascii_iswhite(c: c_char) -> bool {

@@ -56,6 +56,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
 #[allow(unused_imports)]
+use crate::strings::{gettext, strchr, strcmp, strncmp, strstr};
+#[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
 use crate::ui::ui_call_option_set;
@@ -186,7 +188,7 @@ pub type OptInt = i64;
 pub type OptScope = c_int;
 pub type set_op_T = c_int;
 pub type set_prefix_T = c_int;
-pub type TriState = c_int;
+pub use crate::extmark::TriState;
 
 const NUL: c_char = 0;
 const IOSIZE: usize = 1025;
@@ -712,7 +714,6 @@ unsafe extern "C" {
 
     static buf_opt_idx: [OptIndex; 93];
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     #[cfg(windows)]
     fn libintl_bind_textdomain_codeset(
         domainname: *const c_char,
@@ -726,10 +727,6 @@ unsafe extern "C" {
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 
     pub fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
     pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex;

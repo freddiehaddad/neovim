@@ -144,6 +144,8 @@ use crate::search::{
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strcmp, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{mb_strup_buf, vim_snprintf_typval_only};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
@@ -287,13 +289,13 @@ use crate::ui_compositor::ui_comp_get_grid_at_coord;
 use crate::version::{has_nvim_version, has_vim_patch};
 use crate::window::find_tabpage;
 
-pub type float_T = c_double;
-pub type TriState = c_int;
-pub type VarLockStatus = c_int;
-pub type BoolVarValue = c_int;
+pub use crate::eval::typval::BoolVarValue;
+pub use crate::eval::typval::VarLockStatus;
+pub use crate::eval::typval::float_T;
+pub use crate::extmark::TriState;
 pub type SpecialVarValue = c_int;
-pub type ChannelStdinMode = c_int;
-pub type hlf_T = c_int;
+pub use crate::channel::ChannelStdinMode;
+pub use crate::ex_getln::hlf_T;
 
 const NUL: c_char = 0;
 const BASE_NONE: u8 = 0;
@@ -552,11 +554,7 @@ unsafe extern "C" {
     #[cfg_attr(not(target_os = "windows"), link_name = "strncasecmp")]
     fn c_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 
-    fn strlen(s: *const c_char) -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulong;
-    fn atoi(nptr: *const c_char) -> c_int;
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
@@ -582,8 +580,6 @@ unsafe extern "C" {
 
     fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef;
     fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32);
 }

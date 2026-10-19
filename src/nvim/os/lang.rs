@@ -25,6 +25,8 @@ use crate::message::{semsg, smsg};
 use crate::option::set_helplang_default;
 #[allow(unused_imports)]
 use crate::path::{path_tail, path_tail_with_sep};
+#[allow(unused_imports)]
+use crate::strings::gettext;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -114,8 +116,6 @@ unsafe extern "C" {
 
     #[cfg(not(windows))]
     fn strtok_r(str_: *mut c_char, delim: *const c_char, saveptr: *mut *mut c_char) -> *mut c_char;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
 }
 

@@ -55,6 +55,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
 #[allow(unused_imports)]
+use crate::strings::strncmp;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::textobject::startPS;
@@ -137,7 +139,7 @@ const VV_CHAR: c_int = 50;
 
 pub type MotionType = c_int;
 pub type InsArrow = c_int;
-pub type TriState = c_int;
+pub use crate::extmark::TriState;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -193,11 +195,6 @@ pub struct InsState {
 }
 
 static mut did_add_space: bool = false;
-
-unsafe extern "C" {
-
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-}
 
 #[inline]
 const fn ascii_iswhite(c: c_int) -> bool {

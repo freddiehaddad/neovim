@@ -82,8 +82,8 @@ pub type WinSplit = c_int;
 pub type WinStyle = c_int;
 pub type AlignTextPos = c_int;
 pub type BorderTextType = c_int;
-pub type event_T = c_int;
-pub type cmdidx_T = c_int;
+pub use crate::api::autocmd::event_T;
+pub use crate::api::command::cmdidx_T;
 pub type UIExtension = c_int;
 
 const NUL: c_char = 0;

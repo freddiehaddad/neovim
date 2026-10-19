@@ -25,8 +25,8 @@ use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
 
-pub type float_T = f64;
-pub type uvarnumber_T = u64;
+pub use crate::charset::uvarnumber_T;
+pub use crate::eval::typval::float_T;
 
 const NUL: u8 = 0;
 const BS: u8 = 0x08;

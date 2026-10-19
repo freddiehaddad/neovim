@@ -72,6 +72,8 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_flush, ui_has, vim_beep};
@@ -168,9 +170,9 @@ use crate::textformat::auto_format;
 use crate::undo::undo_allowed;
 use crate::winfloat::{WinKind, win_float_find};
 
-pub type hlf_T = c_int;
-pub type OptInt = i64;
-pub type UIExtension = c_int;
+pub use crate::api::win_config::UIExtension;
+pub use crate::ex_getln::hlf_T;
+pub use crate::option::OptInt;
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -604,27 +606,13 @@ use crate::state::save_v_event_T;
 
 unsafe extern "C" {
 
-    fn gettext(str: *const c_char) -> *mut c_char;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 
-    fn strlen(s: *const c_char) -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
     fn tolower(c: c_int) -> c_int;
-    fn atoi(s: *const c_char) -> c_int;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
-    );
     fn fclose(stream: *mut crate::fileio::FILE) -> c_int;
 }
 
@@ -4744,7 +4732,7 @@ unsafe fn get_next_filename_completion() {
                     fuzzy_indices_data.cast(),
                     fuzzy_indices.ga_len as usize,
                     size_of::<c_int>(),
-                    Some(compare_scores),
+                    compare_scores,
                 );
 
                 for i in 0..(fuzzy_indices.ga_len as usize) {

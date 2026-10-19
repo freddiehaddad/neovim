@@ -49,6 +49,8 @@ use crate::register::reg_max_ts;
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
+use crate::strings::{strcat, strchr, strcpy, strlen, strncmp};
+#[allow(unused_imports)]
 use crate::window::win_valid;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
@@ -71,9 +73,9 @@ use crate::memory::{xfree, xmemdupz, xrealloc, xstrdup};
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
 use crate::textformat::oparg_T;
 
-pub type StringBuilder = KVec<c_char>;
+pub use crate::api::deprecated::StringBuilder;
 pub type CmdAtomVec = KVec<CmdAtom>;
-pub type Timestamp = u64;
+pub use crate::os::time::Timestamp;
 
 const MAX_SCHAR_SIZE: usize = 32;
 
@@ -404,11 +406,6 @@ static mut typed: TypedState = TypedState {
 unsafe extern "C" {
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-    fn strlen(s: *const c_char) -> usize;
-    fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strchr(s: *const c_char, c: c_int) -> *const c_char;
 }
 
 #[inline]

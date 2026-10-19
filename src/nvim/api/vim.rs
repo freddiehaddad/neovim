@@ -139,7 +139,6 @@ use crate::keycodes::{
     REPTERM_FROM_PART, REPTERM_NO_SPECIAL, name_to_mod_mask, replace_termcodes,
     vim_strsave_escape_ks,
 };
-use crate::kvec::KVecWithInit;
 use crate::lua::converter::{Boolean, Float, LuaRef};
 use crate::map::HlAttrs;
 use crate::map_glyph_cache::NvimString;
@@ -414,7 +413,7 @@ pub use crate::mapping::typebuf_T;
 pub use crate::api::private::helpers::HlMessageChunk;
 
 pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
-pub type ArrayBuilder = KVecWithInit<Object, 16>;
+pub use crate::api::private::helpers::ArrayBuilder;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

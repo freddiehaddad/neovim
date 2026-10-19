@@ -28,12 +28,11 @@ use std::ptr;
 use crate::cursor::{colnr_T, get_cursor_line_ptr};
 use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_grow, ga_init, garray_T};
-use crate::kvec::KVec;
 use crate::memory::{xmalloc, xstrchrnul};
 use crate::plines::{utf_ClusterInfo, utf_ptr2StrCharInfo};
 
-pub type StringBuilder = KVec<c_char>;
-pub type varnumber_T = i64;
+pub use crate::api::deprecated::StringBuilder;
+pub use crate::eval::buffer::varnumber_T;
 pub type uvarnumber_T = u64;
 
 const NUL: c_char = 0;

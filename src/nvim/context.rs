@@ -78,7 +78,7 @@ use crate::shada::{
     shada_read_string,
 };
 
-pub type colnr_T = c_int;
+pub use crate::cursor::colnr_T;
 pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
 pub type CtxSwitchFlags = c_int;

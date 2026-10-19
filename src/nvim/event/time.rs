@@ -17,11 +17,11 @@ use crate::event::multiqueue::{
 
 const UV_TIMER: c_int = 13;
 
-pub type Loop = c_void;
+pub use crate::event::r#loop::Loop;
 pub type TimeWatcher = c_void;
-pub type uv_loop_t = c_void;
-pub type uv_timer_t = c_void;
-pub type uv_handle_t = c_void;
+pub use crate::event::r#loop::uv_handle_t;
+pub use crate::event::r#loop::uv_loop_t;
+pub use crate::event::r#loop::uv_timer_t;
 
 pub type time_cb = Option<unsafe extern "C" fn(watcher: *mut TimeWatcher, data: *mut c_void)>;
 type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;

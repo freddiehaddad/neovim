@@ -4,10 +4,8 @@ use std::ffi::{c_int, c_void};
 
 use crate::memory::{xcalloc, xfree, xmalloc};
 
-#[allow(non_camel_case_types)]
-pub type schar_T = u32;
-#[allow(non_camel_case_types)]
-pub type sattr_T = i32;
+pub use crate::grid::sattr_T;
+pub use crate::grid::schar_T;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

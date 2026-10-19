@@ -80,10 +80,10 @@ use crate::eval::window::win_has_winnr;
 use crate::memory::{xfree, xmemdupz, xstrdup};
 
 pub type varnumber_T = i64;
-pub type colnr_T = i32;
-pub type linenr_T = i32;
-pub type MarkAdjustMode = c_int;
-pub type ExtmarkOp = c_int;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::mark::MarkAdjustMode;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;

@@ -55,6 +55,8 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
+use crate::strings::{atoi, gettext, strpbrk, strstr};
+#[allow(unused_imports)]
 use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::window::{check_colorcolumn, global_stl_height};
@@ -106,9 +108,9 @@ use crate::winfloat::{win_config_float, win_previewpopup_config};
 
 pub type OptIndex = c_int;
 pub type OptScopeFlags = u8;
-pub type scid_T = c_int;
-pub type UIExtension = c_int;
-pub type OptionalKeys = u64;
+pub use crate::api::win_config::UIExtension;
+pub use crate::eval::vars::scid_T;
+pub use crate::highlight::OptionalKeys;
 pub type FieldHashfn = Option<unsafe extern "C" fn(*const c_char, usize) -> *const KeySetLink>;
 
 #[repr(i32)]
@@ -162,11 +164,7 @@ pub struct KeySetLink {
 
 unsafe impl Sync for KeySetLink {}
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct OptKeySet {
-    pub is_set_: OptionalKeys,
-}
+pub use crate::lua::converter::OptKeySet;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -843,14 +841,10 @@ unsafe extern "C" {
     static opt_mousescroll_schema: [OptSchemaItem; 0];
     static opt_pvp_schema: [OptSchemaItem; 0];
 
-    fn gettext(msgid: *const c_char) -> *mut c_char;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn strcspn(s: *const c_char, reject: *const c_char) -> usize;
-    fn atoi(nptr: *const c_char) -> c_int;
 }
 
 #[inline]

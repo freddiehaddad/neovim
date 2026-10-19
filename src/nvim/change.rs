@@ -73,6 +73,8 @@ use crate::search::{findmatch, linewhite, showmatch};
 #[allow(unused_imports)]
 use crate::spell::spell_check_window;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_active, ui_has};
@@ -104,10 +106,10 @@ use crate::plines::{colnr_T, getvcol, linenr_T, linetabsize_eol, win_chartabsize
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
 use crate::textformat::{comp_textwidth, has_format_option};
 
-pub type GraphemeState = i32;
-pub type ExtmarkOp = c_int;
-pub type event_T = c_int;
-pub type UIExtension = c_int;
+pub use crate::api::autocmd::event_T;
+pub use crate::api::win_config::UIExtension;
+pub use crate::extmark::ExtmarkOp;
+pub use crate::mbyte::GraphemeState;
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;
 pub const OPENLINE_DO_COM: c_int = 0x02;
@@ -178,11 +180,6 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
     topline_offset: MAXLNUM,
     skipcol: 0,
 };
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

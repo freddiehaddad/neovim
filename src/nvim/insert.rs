@@ -99,6 +99,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::state::virtual_active;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
@@ -391,12 +393,6 @@ static mut pc_attr: c_int = 0;
 static mut pc_row: c_int = 0;
 static mut pc_col: c_int = 0;
 static mut ins_esc_disabled_redraw: bool = false;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-
-}
 
 #[inline]
 unsafe fn ascii2cells(b: c_int) -> c_int {

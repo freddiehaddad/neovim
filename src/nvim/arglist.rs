@@ -47,6 +47,8 @@ use crate::path::{
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::undo::bufIsChanged;
 #[allow(unused_imports)]
 use crate::version::list_in_columns;
@@ -70,13 +72,13 @@ use crate::ex_cmds2::{autowrite, check_changed};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 
-pub type colnr_T = i32;
-pub type linenr_T = i32;
-pub type varnumber_T = i64;
-pub type OptInt = i64;
+pub use crate::cursor::colnr_T;
+pub use crate::cursor::linenr_T;
+pub use crate::eval::buffer::varnumber_T;
+pub use crate::option::OptInt;
 pub use crate::os::env::expand_T;
+pub use crate::path::PathCmpFlags;
 pub use crate::regexp::regprog_T;
-pub type PathCmpFlags = c_int;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -154,11 +156,6 @@ struct arg_all_state_T {
 }
 
 static mut arglist_locked: bool = false;
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
-}
 
 #[inline]
 const fn ascii_isspace(c: c_char) -> bool {

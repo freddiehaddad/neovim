@@ -46,10 +46,12 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::plines::win_get_fill;
 #[allow(unused_imports)]
+use crate::strings::gettext;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::window::win_fdccol_count;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::api::tabpage::{pos_T, win_T};
@@ -69,9 +71,9 @@ use crate::plines::{
 use crate::textformat::oparg_T;
 use crate::winfloat::win_check_anchored_floats;
 
-pub type OptInt = i64;
-pub type Direction = c_int;
-pub type EvalFuncData = *mut c_void;
+pub use crate::eval::deprecated::EvalFuncData;
+pub use crate::option::OptInt;
+pub use crate::search::Direction;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -107,11 +109,6 @@ struct lineoff_T {
     lnum: linenr_T,
     fill: c_int,
     height: c_int,
-}
-
-unsafe extern "C" {
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
 #[inline]

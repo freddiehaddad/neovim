@@ -21,6 +21,8 @@
 
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
+use crate::strings::{atol, gettext, strchr, strcmp, strlen, strncmp, strpbrk, strstr};
 pub mod buffer;
 pub mod decode;
 pub mod deprecated;
@@ -212,7 +214,7 @@ use crate::tag::set_ref_in_tagfunc;
 
 pub use crate::eval::vars::evalarg_T;
 
-pub type float_T = f64;
+pub use crate::eval::typval::float_T;
 pub type timer_T = c_void;
 pub type var_flavour_T = c_int;
 pub type exprtype_T = c_int;
@@ -432,14 +434,7 @@ pub struct caller_scope {
 }
 
 unsafe extern "C" {
-    fn strlen(s: *const c_char) -> usize;
-    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
-    fn atol(nptr: *const c_char) -> c_long;
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
 }
@@ -449,8 +444,6 @@ unsafe extern "C" {
     static mut main_loop: u8;
 
     fn uv_handle_size(h_type: c_int) -> usize;
-
-    fn gettext(msgid: *const c_char) -> *mut c_char;
 
 }
 
