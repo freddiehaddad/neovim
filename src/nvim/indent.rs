@@ -18,6 +18,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::eval_expr_option_number;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_get_lnum;
+#[allow(unused_imports)]
 use crate::ex_docmd::handle_did_throw;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -174,7 +176,6 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn tv_get_lnum(tv: *const typval_T) -> linenr_T;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn atoi(s: *const c_char) -> c_int;

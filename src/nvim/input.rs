@@ -19,6 +19,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::garbage_collect;
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_has_key, tv_get_bool_chk};
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
@@ -35,6 +37,8 @@ use crate::insexpand::{
 };
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_exec_on_key;
+#[allow(unused_imports)]
+use crate::mapping::{eval_map_expr, get_buf_maphash_list, map_luaid_get};
 #[allow(unused_imports)]
 use crate::memline::ml_sync_all;
 #[allow(unused_imports)]
@@ -62,7 +66,6 @@ use crate::charset::skipwhite;
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{setcursor, showmode, unshowmode, update_screen};
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::EvalFuncData;
 use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
 use crate::extmark::TriState;
@@ -362,14 +365,7 @@ unsafe extern "C" {
         err: *mut Error,
     ) -> crate::api::private::validate::Object;
 
-    fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-
-    fn get_buf_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T;
-    fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char;
-    fn map_luaid_get(n: c_int) -> LuaRef;
 
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn atoi(s: *const c_char) -> c_int;

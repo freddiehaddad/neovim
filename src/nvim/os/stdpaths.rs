@@ -2,6 +2,8 @@
 
 #![cfg_attr(any(test, target_os = "windows"), allow(dead_code, unused_imports))]
 
+#[allow(unused_imports)]
+use crate::fileio::vim_gettempdir;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::os::env::{expand_env_save, os_env_exists, os_getenv};
@@ -89,7 +91,6 @@ unsafe extern "C" {
     #[cfg(not(target_os = "windows"))]
     #[cfg(target_os = "windows")]
     fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char;
-    fn vim_gettempdir() -> *mut c_char;
     fn path_equal(s1: *const c_char, s2: *const c_char, flags: c_int) -> bool;
 }
 

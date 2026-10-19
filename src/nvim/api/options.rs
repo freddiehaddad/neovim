@@ -18,6 +18,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds};
 #[allow(unused_imports)]
+use crate::buffer::{buflist_new, wipe_buffer};
+#[allow(unused_imports)]
 use crate::buffer::{bufref_valid, set_bufref};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -151,13 +153,6 @@ unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *const c_char;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 }
 

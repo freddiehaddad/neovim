@@ -16,11 +16,18 @@
 use crate::api::private::helpers::api_metadata_raw;
 #[allow(unused_imports)]
 use crate::api::ui::remote_ui_wait_for_attach;
+#[allow(unused_imports)]
+use crate::buffer::{
+    buf_set_changedtick, buflist_new, do_autochdir, do_modelines, handle_swap_exists,
+    set_buflisted, set_curbuf, setfname,
+};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::{eval_init, set_argv_var, timer_teardown};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
+#[allow(unused_imports)]
+use crate::fileio::shorten_fnames;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::log_get_stderr;
@@ -47,6 +54,8 @@ use crate::os::input::os_isatty;
 use crate::os::stdpaths::{appname_is_valid, get_appname};
 #[allow(unused_imports)]
 use crate::register::get_default_register_name;
+#[allow(unused_imports)]
+use crate::runtime::{do_source, load_plugins};
 #[allow(unused_imports)]
 use crate::syntax::syn_maybe_enable;
 #[allow(unused_imports)]
@@ -319,14 +328,6 @@ unsafe extern "C" {
 
     fn main_get_stdout() -> *mut FILE;
 
-    fn do_autochdir();
-    fn do_source(
-        fname: *mut c_char,
-        check_other: bool,
-        is_vimrc: c_int,
-        ret_sid: *mut c_int,
-    ) -> c_int;
-    fn load_plugins();
     fn readfile(
         fname: *mut c_char,
         sfname: *mut c_char,
@@ -337,25 +338,7 @@ unsafe extern "C" {
         flags: c_int,
         silent: bool,
     ) -> c_int;
-    fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T);
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn do_modelines(flags: c_int);
-    fn handle_swap_exists(old_curbuf: *mut bufref_T);
     fn open_buffer(read_stdin: bool, eap: *mut c_void, flags: c_int) -> c_int;
-    fn set_buflisted(on: c_int);
-    fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool);
-    fn setfname(
-        buf: *mut buf_T,
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        message: bool,
-    ) -> c_int;
-    fn shorten_fnames(force: c_int);
     fn invoke_all_defer();
     fn free_all_mem();
 

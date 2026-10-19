@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::bt_cmdwin;
+#[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, bt_terminal};
 #[allow(unused_imports)]
 use crate::charset::getdigits_int;
@@ -19,6 +21,10 @@ use crate::cursor::check_cursor;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::execute_common;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_nonnull_dict_arg, tv_dict_get_bool, tv_dict_get_number, tv_get_string_chk,
+};
 #[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
@@ -100,11 +106,6 @@ pub struct viewstate_T {
 
 unsafe extern "C" {
 
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn bt_cmdwin(buf: *const buf_T) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 

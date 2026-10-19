@@ -20,6 +20,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::may_trigger_vim_suspend_resume;
 #[allow(unused_imports)]
+use crate::buffer::{buf_close_terminal, buflist_new, buflist_nr2name, do_buffer};
+#[allow(unused_imports)]
 use crate::buffer::{bufref_valid, read_buffer_into, set_bufref};
 #[allow(unused_imports)]
 use crate::cursor::get_cursor_rel_lnum;
@@ -33,6 +35,8 @@ use crate::eval::typval::tv_dict_find;
 use crate::ex_docmd::exec_normal;
 #[allow(unused_imports)]
 use crate::ex_eval::aborting;
+#[allow(unused_imports)]
+use crate::fold::fold_info;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::{get_win_by_grid_handle, win_grid_alloc};
@@ -42,6 +46,8 @@ use crate::highlight::win_check_ns_hl;
 use crate::insexpand::get_cot_flags;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_get_global_ref_count, nlua_is_deferred_safe};
+#[allow(unused_imports)]
+use crate::mapping::{keymap_array, modify_keymap};
 #[allow(unused_imports)]
 use crate::message::{
     hl_msg_free, msg_ext_no_fast, msg_id_exists, verbose_enter, verbose_leave, verbose_stop,
@@ -59,6 +65,8 @@ use crate::optionstr::check_stl_option;
 use crate::os::input::input_enqueue;
 #[allow(unused_imports)]
 use crate::register::{finish_yankreg_from_object, prepare_yankreg_from_object};
+#[allow(unused_imports)]
+use crate::runtime::{do_source, get_lib_dir, runtime_get_named, runtime_inspect, script_autoload};
 #[allow(unused_imports)]
 use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
 #[allow(unused_imports)]
@@ -440,7 +448,6 @@ unsafe extern "C" {
     ) -> Object;
 
     fn do_chdir(new_dir: *mut c_char, scope: c_int) -> bool;
-    fn script_autoload(name: *const c_char, len: usize, reload: bool) -> bool;
 
     fn msg_multihl(
         id: Object,
@@ -453,16 +460,6 @@ unsafe extern "C" {
         raw_for_lua_print: bool,
     ) -> Object;
 
-    fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn buflist_nr2name(n: c_int, fullname: c_int, helptail: c_int) -> *mut c_char;
-    fn buf_close_terminal(buf: *mut buf_T);
-
     fn set_option_direct_for(
         opt_idx: c_int,
         val: Object,
@@ -471,20 +468,7 @@ unsafe extern "C" {
         scope: c_int,
         from: *mut c_void,
     );
-    fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T;
-    fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array;
-    fn modify_keymap(
-        channel_id: u64,
-        buffer: Buffer,
-        maptype: c_int,
-        mode: NvimString,
-        lhs: NvimString,
-        rhs: NvimString,
-        opts: *mut KeyDict_keymap,
-        err: *mut Error,
-    );
     fn channel_event(chan: *mut Channel, event: c_int);
-    fn runtime_inspect(arena: *mut Arena) -> Array;
     fn do_in_runtimepath(
         name: *mut c_char,
         flags: c_int,
@@ -497,14 +481,6 @@ unsafe extern "C" {
             ) -> bool,
         >,
         cookie: *mut c_void,
-    ) -> c_int;
-    fn get_lib_dir() -> *mut c_char;
-    fn runtime_get_named(is_lua: bool, pat: Array, all: bool, arena: *mut Arena) -> Array;
-    fn do_source(
-        fname: *mut c_char,
-        check_other: bool,
-        is_vimrc: c_int,
-        ret_sid: *mut c_int,
     ) -> c_int;
 }
 

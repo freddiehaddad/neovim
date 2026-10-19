@@ -16,6 +16,8 @@
 #[allow(unused_imports)]
 use crate::autocmd::do_filetype_autocmd;
 #[allow(unused_imports)]
+use crate::buffer::{do_autochdir, free_buf_options, maketitle};
+#[allow(unused_imports)]
 use crate::change::save_file_ff;
 #[allow(unused_imports)]
 use crate::cmdexpand::cmdline_fuzzy_complete;
@@ -28,10 +30,14 @@ use crate::eval::typval::callback_free;
 use crate::eval::vars::opt_to_tv;
 #[allow(unused_imports)]
 use crate::ex_docmd::{free_findfunc_option, set_no_hlsearch};
+#[allow(unused_imports)]
+use crate::fold::{foldUpdateAll, newFoldLevel};
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
+#[allow(unused_imports)]
+use crate::mapping::{langmap_init, put_escstr};
 #[allow(unused_imports)]
 use crate::mcursor::mc_ins_replay_can_join;
 #[allow(unused_imports)]
@@ -39,6 +45,8 @@ use crate::normal::do_check_scrollbind;
 #[allow(unused_imports)]
 use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
 #[allow(unused_imports)]
 use crate::ui::ui_call_option_set;
 #[allow(unused_imports)]
@@ -713,19 +721,10 @@ unsafe extern "C" {
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 
-    fn maketitle();
-    fn do_autochdir();
-    fn free_buf_options(buf: *mut buf_T, free_p_ff: bool);
     fn bufIsChanged(buf: *const buf_T) -> bool;
     fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
-    fn put_escstr(fd: *mut FILE, str_arg: *const c_char, what: c_int) -> c_int;
     fn callback_copy(dest: *mut Callback, src: *const Callback);
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
-    fn foldUpdateAll(win: *mut win_T);
-    fn newFoldLevel();
-    fn langmap_init();
-    fn runtimepath_default(clean_arg: bool) -> *mut c_char;
-    fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
@@ -1589,9 +1588,9 @@ pub unsafe extern "C" fn ex_set(eap: *mut exarg_T) {
     unsafe {
         let mut flags: c_int = 0;
 
-        if (*eap).cmdidx == cmdidx_T::CMD_setlocal {
+        if (*eap).cmdidx == cmdidx_T::CMD_setlocal as c_int {
             flags = OPT_LOCAL;
-        } else if (*eap).cmdidx == cmdidx_T::CMD_setglobal {
+        } else if (*eap).cmdidx == cmdidx_T::CMD_setglobal as c_int {
             flags = OPT_GLOBAL;
         }
         if (*eap).forceit != 0 {

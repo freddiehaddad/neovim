@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buflist_findnr;
+#[allow(unused_imports)]
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -19,7 +21,13 @@ use crate::eval::vars::get_globvar_dict;
 use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
 #[allow(unused_imports)]
 use crate::ex_getln::vim_strsave_fnameescape;
+#[allow(unused_imports)]
+use crate::fileio::shorten_fnames;
+#[allow(unused_imports)]
+use crate::fold::put_folds;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mapping::makemap;
 #[allow(unused_imports)]
 use crate::mbyte::utfc_ptr2len;
 #[allow(unused_imports)]
@@ -34,6 +42,8 @@ use crate::os::env::home_replace_save;
 use crate::os::fs::{os_chdir, os_dirname, os_isdir};
 #[allow(unused_imports)]
 use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
+#[allow(unused_imports)]
+use crate::runtime::do_source;
 #[allow(unused_imports)]
 use crate::strings::vim_strsave_escaped;
 #[allow(unused_imports)]
@@ -105,17 +115,8 @@ static mut did_lcd: bool = false;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int;
-    fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int;
     fn var_flavour(varname: *mut c_char) -> c_int;
     fn tv_get_string(tv: *const crate::clipboard::typval_T) -> *const c_char;
-    fn do_source(
-        fname: *mut c_char,
-        check_other: bool,
-        is_vimrc: c_int,
-        ret_sid: *mut c_int,
-    ) -> c_int;
     fn apply_autocmds(
         event: c_int,
         fname: *mut c_char,
@@ -124,7 +125,6 @@ unsafe extern "C" {
         buf: *mut buf_T,
     ) -> bool;
     fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
-    fn shorten_fnames(force: c_int);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;

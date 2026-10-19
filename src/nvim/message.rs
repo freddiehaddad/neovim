@@ -15,6 +15,8 @@ use crate::errors::*;
 use crate::eval::callback_call;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_sleep;
+#[allow(unused_imports)]
+use crate::fileio::check_timestamps;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::log_get_stderr;
@@ -22,6 +24,8 @@ use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::option::shortmess;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::runtime::estack_sfile;
 #[allow(unused_imports)]
 use crate::ui::{
     ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll, ui_call_msg_showmode,
@@ -98,7 +102,7 @@ use crate::os::time::os_delay;
 use crate::profile::estack_T;
 use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
-use crate::runtime::{ESTACK_NONE, TriState, estack_arg_T, exestack};
+use crate::runtime::{ESTACK_NONE, TriState, exestack};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
 use crate::strings::vim_strchr;
 use crate::ui::{
@@ -285,9 +289,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-
-    fn check_timestamps(focus: c_int) -> c_int;
-    fn estack_sfile(which: estack_arg_T) -> *mut c_char;
 
     #[doc(hidden)]
     pub fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;

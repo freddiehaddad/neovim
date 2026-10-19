@@ -16,6 +16,8 @@ use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, 
 use crate::autocmd::{apply_autocmds, has_event};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_get_string;
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_add_str, tv_dict_set_keys_readonly};
 #[allow(unused_imports)]
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
@@ -180,7 +182,6 @@ unsafe extern "C" {
     fn get_visual_text(cap: *mut c_void, pp: *mut *mut c_char, lenp: *mut usize) -> bool;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn tv_get_string(varp: *const typval_T) -> *const c_char;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
 }
 

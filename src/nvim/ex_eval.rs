@@ -16,6 +16,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
 #[allow(unused_imports)]
+use crate::eval::{clear_evalarg, eval_to_bool, eval0, fill_evalarg_from_eap};
+#[allow(unused_imports)]
 use crate::eval::{free_for_info, next_for_item};
 #[allow(unused_imports)]
 use crate::ex_docmd::{ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
@@ -27,6 +29,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::skip_regexp_err;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::runtime::{do_finish, stacktrace_create};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -184,27 +188,11 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn estack_sfile(which: c_int) -> *mut c_char;
-    fn stacktrace_create() -> *mut list_T;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn set_vim_var_list(idx: c_int, val: *mut list_T);
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn get_return_cmd(rettv: *mut c_void) -> *mut c_char;
-    fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
-    fn eval0(
-        arg: *mut c_char,
-        rettv: *mut typval_T,
-        eap: *mut exarg_T,
-        evalarg: *mut evalarg_T,
-    ) -> c_int;
-    fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T);
-    fn eval_to_bool(
-        arg: *mut c_char,
-        error: *mut bool,
-        eap: *mut exarg_T,
-        skip: bool,
-        use_simple_function: bool,
-    ) -> bool;
     fn eval_for_line(
         arg: *const c_char,
         errp: *mut bool,
@@ -216,7 +204,6 @@ unsafe extern "C" {
     fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
     fn vim_regfree(prog: *mut crate::regexp::regprog_T);
     fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
-    fn do_finish(eap: *mut exarg_T, reanimate: bool);
 
     fn strlen(s: *const c_char) -> usize;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;

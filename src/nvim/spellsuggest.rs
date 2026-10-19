@@ -22,6 +22,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::vars::{eval_spell_expr, get_spellword};
+#[allow(unused_imports)]
+use crate::fileio::vim_fgets;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -365,7 +367,6 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
     fn qsort(

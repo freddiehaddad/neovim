@@ -19,6 +19,8 @@ use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
 use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
+use crate::buffer::do_autochdir;
+#[allow(unused_imports)]
 use crate::cursor::{check_cursor, check_pos};
 #[allow(unused_imports)]
 use crate::eval::typval::tv_clear;
@@ -30,6 +32,8 @@ use crate::eval::vars::vars_clear;
 use crate::ex_docmd::do_cmdline_cmd;
 #[allow(unused_imports)]
 use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
+#[allow(unused_imports)]
+use crate::fileio::shorten_fnames;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::option::buf_copy_options;
@@ -208,8 +212,6 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn bufref_valid(bufref: *mut crate::api::options::bufref_T) -> bool;
     fn set_bufref(bufref: *mut crate::api::options::bufref_T, buf: *mut buf_T);
-    fn do_autochdir();
-    fn shorten_fnames(force: c_int);
 }
 
 #[inline]

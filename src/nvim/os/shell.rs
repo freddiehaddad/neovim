@@ -17,6 +17,8 @@ use crate::charset::backslash_halve;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::ex_cmds::{check_secure, make_filter_cmd};
+#[allow(unused_imports)]
+use crate::fileio::vim_tempname;
 use crate::globals::*;
 use crate::mbyte::utf8len_tab_zero;
 #[allow(unused_imports)]
@@ -150,7 +152,6 @@ unsafe extern "C" {
     fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *const c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
-    fn vim_tempname() -> *mut c_char;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
     fn ml_append(lnum: linenr_T, line: *mut c_char, len: c_int, newfile: bool) -> c_int;
 

@@ -19,6 +19,8 @@ use crate::cmdexpand::globpath;
 use crate::ex_docmd::eval_vars;
 #[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
+#[allow(unused_imports)]
+use crate::fileio::match_file_list;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_isalpha, mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
@@ -143,7 +145,6 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
     fn eval_to_string(arg: *const c_char, convert: bool, use_sandbox: bool) -> *mut c_char;
-    fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

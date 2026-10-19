@@ -14,6 +14,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::autocmd::apply_autocmds_exarg;
+#[allow(unused_imports)]
 use crate::buffer::{bt_nofilename, buf_set_file_id, set_bufref};
 #[allow(unused_imports)]
 use crate::drawscreen::status_redraw_all;
@@ -27,6 +29,10 @@ use crate::fileio::{
     add_quoted_fname, buf_store_file_info, fname_msg_id, modname, slow_io_ns, time_differs,
     write_eintr,
 };
+#[allow(unused_imports)]
+use crate::fileio::{
+    match_file_list, msg_add_fileformat, need_conversion, set_rw_fname, vim_rename, vim_tempname,
+};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
@@ -35,6 +41,8 @@ use crate::memline::{make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp}
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, msg, msg_puts_hl, set_keep_msg};
+#[allow(unused_imports)]
+use crate::option::get_fileformat_force;
 #[allow(unused_imports)]
 use crate::option::{get_bkc_flags, shortmess};
 use crate::option_vars::*;
@@ -252,27 +260,11 @@ unsafe extern "C" {
     ) -> *mut c_char;
 
     fn get_fio_flags(name: *mut c_char) -> c_int;
-    fn need_conversion(fenc: *const c_char) -> bool;
-    fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int;
-    fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int;
     fn filemess_bufwrite(buf: *mut buf_T, name: *const c_char, id: *const c_char);
-    fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool;
-    fn vim_tempname() -> *mut c_char;
-    fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
     fn get_file_in_dir(fname: *const c_char, dname: *const c_char) -> *mut c_char;
-    fn msg_add_fileformat(eol_type: c_int) -> bool;
     fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: i64);
 
     fn bufref_valid(bufref: *const bufref_T) -> bool;
-
-    fn apply_autocmds_exarg(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-        eap: *mut exarg_T,
-    ) -> bool;
 
     fn copy_option_part(
         option: *mut *mut c_char,

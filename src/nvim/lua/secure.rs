@@ -144,7 +144,7 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
 
 /// `:trust` command implementation (`ex_trust`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C-unwind" fn ex_trust(eap: *mut exarg_T) {
+pub unsafe extern "C" fn ex_trust(eap: *mut exarg_T) {
     #[cfg(test)]
     let _ = eap;
 

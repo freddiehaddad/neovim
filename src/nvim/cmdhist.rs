@@ -11,6 +11,8 @@
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_get_string_buf, tv_get_string_chk};
+#[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
@@ -77,8 +79,6 @@ pub use crate::api::command::regmatch_T;
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_number(tv: *const typval_T) -> i64;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
 

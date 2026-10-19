@@ -11,6 +11,8 @@
     clippy::upper_case_acronyms
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_to_env;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::env::os_shell_is_cmdexe;
@@ -172,7 +174,6 @@ mod win_impl {
         fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
         fn utf8_to_utf16(str: *const c_char, str_len: c_int, utf16_str: *mut *mut u16) -> c_int;
-        fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
         fn wcslen(s: *const u16) -> usize;
     }
 

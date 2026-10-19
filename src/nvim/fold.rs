@@ -21,6 +21,8 @@ use crate::api::private::helpers::{api_clear_error, api_free_object};
 use crate::diff::{diff_infold, diff_lnum_win};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_get_lnum;
+#[allow(unused_imports)]
 use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -158,7 +160,6 @@ static mut fdt_result_entered: bool = false;
 
 static E_NOFOLD: &CStr = c"E490: No fold found";
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     fn atoi(s: *const c_char) -> c_int;
@@ -177,11 +178,9 @@ unsafe extern "C" {
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
 
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn ngettext_wrap(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char {
     unsafe {
@@ -217,7 +216,6 @@ const fn ltoreq(a: pos_T, b: pos_T) -> bool {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn redraw_curbuf_later(type_: c_int) {
     unsafe {
@@ -249,8 +247,7 @@ pub unsafe extern "C" fn hasAnyFolding(win: *mut win_T) -> c_int {
 }
 
 /// Return true if line "lnum" in window "win" is part of a closed fold.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn hasFolding(
     win: *mut win_T,
     lnum: linenr_T,
@@ -261,8 +258,7 @@ pub unsafe extern "C" fn hasFolding(
 }
 
 /// Search folds starting at lnum.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn hasFoldingWin(
     win: *mut win_T,
     lnum: linenr_T,
@@ -360,7 +356,6 @@ pub unsafe extern "C" fn hasFoldingWin(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldLevel(lnum: linenr_T) -> c_int {
     unsafe {
         if invalid_top == 0 {
@@ -380,15 +375,13 @@ unsafe fn foldLevel(lnum: linenr_T) -> c_int {
 }
 
 /// Low level function to check if a line is folded.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn lineFolded(win: *mut win_T, lnum: linenr_T) -> bool {
     unsafe { fold_info(win, lnum).fi_lines != 0 }
 }
 
 /// Count the number of lines that are folded at line number "lnum".
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
     unsafe {
         let mut info = foldinfo_T {
@@ -455,8 +448,7 @@ pub unsafe extern "C" fn foldmethodIsDiff(wp: *mut win_T) -> bool {
 }
 
 /// Close fold for current window at position "pos".
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn closeFold(pos: pos_T, count: c_int) {
     unsafe {
         setFoldRepeat(pos, count, false);
@@ -464,8 +456,7 @@ pub unsafe extern "C" fn closeFold(pos: pos_T, count: c_int) {
 }
 
 /// Close fold for current window at position `pos` recursively.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn closeFoldRecurse(pos: pos_T) {
     unsafe {
         setManualFold(pos, false, true, ptr::null_mut());
@@ -473,8 +464,7 @@ pub unsafe extern "C" fn closeFoldRecurse(pos: pos_T) {
 }
 
 /// Open or Close folds for current window in lines "first" to "last".
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn opFoldRange(
     firstpos: pos_T,
     lastpos: pos_T,
@@ -514,8 +504,7 @@ pub unsafe extern "C" fn opFoldRange(
 }
 
 /// Open fold for current window at position "pos".
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn openFold(pos: pos_T, count: c_int) {
     unsafe {
         setFoldRepeat(pos, count, true);
@@ -523,8 +512,7 @@ pub unsafe extern "C" fn openFold(pos: pos_T, count: c_int) {
 }
 
 /// Open fold for current window at position `pos` recursively.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn openFoldRecurse(pos: pos_T) {
     unsafe {
         setManualFold(pos, true, true, ptr::null_mut());
@@ -532,8 +520,7 @@ pub unsafe extern "C" fn openFoldRecurse(pos: pos_T) {
 }
 
 /// Open folds until the cursor line is not in a closed fold.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldOpenCursor() {
     unsafe {
         checkupdate(curwin);
@@ -550,8 +537,7 @@ pub unsafe extern "C" fn foldOpenCursor() {
 }
 
 /// Set new foldlevel for current window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn newFoldLevel() {
     unsafe {
         newFoldLevelWin(curwin);
@@ -569,7 +555,6 @@ pub unsafe extern "C" fn newFoldLevel() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn newFoldLevelWin(wp: *mut win_T) {
     unsafe {
         checkupdate(wp);
@@ -585,8 +570,7 @@ unsafe fn newFoldLevelWin(wp: *mut win_T) {
 }
 
 /// Apply 'foldlevel' to all folds that don't contain the cursor.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldCheckClose() {
     unsafe {
         if *p_fcl == NUL {
@@ -623,8 +607,7 @@ unsafe fn checkCloseRec(gap: *mut garray_T, lnum: linenr_T, level: c_int) -> boo
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldManualAllowed(create: bool) -> c_int {
     unsafe {
         if foldmethodIsManual(curwin) || foldmethodIsMarker(curwin) {
@@ -645,8 +628,7 @@ pub unsafe extern "C" fn foldManualAllowed(create: bool) -> c_int {
 
 /// Create a fold from line "start" to line "end" (inclusive) in the current
 /// window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: pos_T) {
     unsafe {
         let mut use_level = false;
@@ -756,8 +738,7 @@ pub unsafe extern "C" fn foldCreate(wp: *mut win_T, mut start: pos_T, mut end: p
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn deleteFold(
     wp: *mut win_T,
     start: linenr_T,
@@ -848,8 +829,7 @@ pub unsafe extern "C" fn clearFolding(win: *mut win_T) {
 }
 
 /// Update folds for changes in the buffer of a window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T) {
     unsafe {
         if disable_fold_update != 0 || ((State & MODE_INSERT) != 0 && !foldmethodIsIndent(wp)) {
@@ -895,8 +875,7 @@ pub unsafe extern "C" fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T
 }
 
 /// Updates folds when leaving insert-mode.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldUpdateAfterInsert() {
     unsafe {
         if foldmethodIsManual(curwin) || foldmethodIsSyntax(curwin) || foldmethodIsExpr(curwin) {
@@ -909,8 +888,7 @@ pub unsafe extern "C" fn foldUpdateAfterInsert() {
 }
 
 /// Update all lines in a window for folding.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldUpdateAll(win: *mut win_T) {
     unsafe {
         (*win).w_foldinvalid = true;
@@ -918,8 +896,7 @@ pub unsafe extern "C" fn foldUpdateAll(win: *mut win_T) {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
     unsafe {
         let mut retval = FAIL;
@@ -1057,8 +1034,7 @@ pub unsafe extern "C" fn find_wl_entry(win: *mut win_T, lnum: linenr_T) -> c_int
 }
 
 /// Adjust the Visual area to include any fold at the start or end completely.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldAdjustVisual() {
     unsafe {
         if !Visual.active || hasAnyFolding(curwin) == 0 {
@@ -1092,8 +1068,7 @@ pub unsafe extern "C" fn foldAdjustVisual() {
 }
 
 /// Move the cursor to the first line of a closed fold.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldAdjustCursor(wp: *mut win_T) {
     unsafe {
         hasFolding(
@@ -1180,7 +1155,6 @@ unsafe fn foldLevelWin(wp: *mut win_T, lnum: linenr_T) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn checkupdate(wp: *mut win_T) {
     unsafe {
         if !(*wp).w_foldinvalid {
@@ -1192,7 +1166,6 @@ unsafe fn checkupdate(wp: *mut win_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
     unsafe {
         for n in 0..count {
@@ -1208,7 +1181,6 @@ unsafe fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_int) -> linenr_T {
     unsafe {
         if foldmethodIsDiff(curwin) && (*curwin).w_onebuf_opt.wo_scb != 0 {
@@ -1228,7 +1200,6 @@ unsafe fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_
     }
 }
 
-#[cfg(not(test))]
 unsafe fn setManualFoldWin(
     wp: *mut win_T,
     mut lnum: linenr_T,
@@ -1385,8 +1356,7 @@ pub unsafe extern "C" fn deleteFoldRecurse(bp: *mut buf_T, gap: *mut garray_T) {
 }
 
 /// Update line numbers of folds for inserted/deleted lines.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldMarkAdjust(
     wp: *mut win_T,
     mut line1: linenr_T,
@@ -1408,7 +1378,6 @@ pub unsafe extern "C" fn foldMarkAdjust(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldMarkAdjustRecurse(
     wp: *mut win_T,
     gap: *mut garray_T,
@@ -1502,8 +1471,7 @@ unsafe fn foldMarkAdjustRecurse(
 
 /// Get the lowest 'foldlevel' value that makes the deepest nested fold in
 /// window `wp`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn getDeepestNesting(wp: *mut win_T) -> c_int {
     unsafe {
         checkupdate(wp);
@@ -1523,7 +1491,6 @@ unsafe fn getDeepestNestingRecurse(gap: *const garray_T) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn check_closed(
     wp: *mut win_T,
     fp: *mut fold_T,
@@ -1560,7 +1527,6 @@ unsafe fn check_closed(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn checkSmall(wp: *mut win_T, fp: *mut fold_T, lnum_off: linenr_T) {
     unsafe {
         if (*fp).fd_small != kNone {
@@ -1594,7 +1560,6 @@ unsafe fn setSmallMaybe(gap: *mut garray_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldCreateMarkers(wp: *mut win_T, start: pos_T, end: pos_T) {
     unsafe {
         let buf = (*wp).w_buffer;
@@ -1614,7 +1579,6 @@ unsafe fn foldCreateMarkers(wp: *mut win_T, start: pos_T, end: pos_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, markerlen: usize) {
     unsafe {
         let cms = (*buf).b_p_cms;
@@ -1666,7 +1630,6 @@ unsafe fn foldAddMarker(buf: *mut buf_T, pos: pos_T, marker: *const c_char, mark
     }
 }
 
-#[cfg(not(test))]
 unsafe fn deleteFoldMarkers(wp: *mut win_T, fp: *mut fold_T, recursive: bool, lnum_off: linenr_T) {
     unsafe {
         if recursive {
@@ -1690,7 +1653,6 @@ unsafe fn deleteFoldMarkers(wp: *mut win_T, fp: *mut fold_T, recursive: bool, ln
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldDelMarker(buf: *mut buf_T, lnum: linenr_T, marker: *const c_char, markerlen: usize) {
     unsafe {
         if lnum > (*buf).b_ml.ml_line_count {
@@ -1755,8 +1717,7 @@ unsafe fn foldDelMarker(buf: *mut buf_T, lnum: linenr_T, marker: *const c_char, 
 }
 
 /// Generates text to display.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_foldtext(
     wp: *mut win_T,
     lnum: linenr_T,
@@ -1880,7 +1841,6 @@ pub unsafe extern "C" fn get_foldtext(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldtext_cleanup(str_ptr: *mut c_char) {
     unsafe {
         let cms_start = skipwhite((*curbuf).b_p_cms);
@@ -1970,7 +1930,6 @@ unsafe fn foldtext_cleanup(str_ptr: *mut c_char) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
     unsafe {
         match kind {
@@ -1983,7 +1942,6 @@ unsafe fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
     unsafe {
         if invalid_top != 0 {
@@ -2172,7 +2130,6 @@ unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldUpdateIEMSRecurse(
     gap: *mut garray_T,
     level: c_int,
@@ -2550,7 +2507,6 @@ unsafe fn foldSplit(_buf: *mut buf_T, gap: *mut garray_T, i: c_int, top: linenr_
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldRemove(wp: *mut win_T, gap: *mut garray_T, top: linenr_T, bot: linenr_T) {
     unsafe {
         if bot < top {
@@ -2617,7 +2573,6 @@ unsafe fn foldReverseOrder(gap: *mut garray_T, mut start: linenr_T, mut end: lin
     }
 }
 
-#[cfg(not(test))]
 unsafe fn truncate_fold(wp: *mut win_T, fp: *mut fold_T, mut end: linenr_T) {
     unsafe {
         end += 1;
@@ -2646,8 +2601,7 @@ unsafe fn fold_index(fp: *const fold_T, gap: *const garray_T) -> usize {
 }
 
 /// Move folds within the inclusive range "line1" to "line2" to after "dest".
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn foldMoveRange(
     wp: *mut win_T,
     gap: *mut garray_T,
@@ -2786,7 +2740,6 @@ unsafe fn foldMerge(wp: *mut win_T, fp1: *mut fold_T, gap: *mut garray_T, fp2: *
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldlevelIndent(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
@@ -2806,14 +2759,12 @@ unsafe fn foldlevelIndent(flp: &mut fline_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldlevelDiff(flp: &mut fline_T) {
     unsafe {
         flp.lvl = c_int::from(diff_infold(flp.wp, flp.lnum + flp.off));
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldlevelExpr(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
@@ -2890,7 +2841,6 @@ unsafe fn foldlevelExpr(flp: &mut fline_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn parseMarker(wp: *mut win_T) {
     unsafe {
         let fmr = (*wp).w_onebuf_opt.wo_fmr;
@@ -2901,7 +2851,6 @@ unsafe fn parseMarker(wp: *mut win_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldlevelMarker(flp: &mut fline_T) {
     unsafe {
         let start_lvl = flp.lvl;
@@ -2955,7 +2904,6 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldlevelSyntax(flp: &mut fline_T) {
     unsafe {
         let lnum = flp.lnum + flp.off;
@@ -2973,8 +2921,7 @@ unsafe fn foldlevelSyntax(flp: &mut fline_T) {
 }
 
 /// Write commands to "fd" to restore the manual folds in window "wp".
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
     unsafe {
         if foldmethodIsManual(wp)
@@ -2993,7 +2940,6 @@ pub unsafe extern "C" fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn put_folds_recurse(fd: *mut FILE, gap: *const garray_T, off: linenr_T) -> c_int {
     unsafe {
         let mut fp = (*gap).ga_data.cast::<fold_T>();
@@ -3018,7 +2964,6 @@ unsafe fn put_folds_recurse(fd: *mut FILE, gap: *const garray_T, off: linenr_T) 
     }
 }
 
-#[cfg(not(test))]
 unsafe fn put_foldopen_recurse(
     fd: *mut FILE,
     wp: *mut win_T,
@@ -3067,7 +3012,6 @@ unsafe fn put_foldopen_recurse(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn put_fold_open_close(fd: *mut FILE, fp: *const fold_T, off: linenr_T) -> c_int {
     unsafe {
         let mut buf = [0 as c_char; 32];
@@ -3092,7 +3036,6 @@ unsafe fn put_fold_open_close(fd: *mut FILE, fp: *const fold_T, off: linenr_T) -
     }
 }
 
-#[cfg(not(test))]
 unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: *mut typval_T, end: bool) {
     unsafe {
         let lnum = tv_get_lnum(argvars);
@@ -3109,8 +3052,7 @@ unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: *mut typval_T, end: boo
 }
 
 /// "foldclosed()" function
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn f_foldclosed(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3122,8 +3064,7 @@ pub unsafe extern "C" fn f_foldclosed(
 }
 
 /// "foldclosedend()" function
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn f_foldclosedend(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3135,8 +3076,7 @@ pub unsafe extern "C" fn f_foldclosedend(
 }
 
 /// "foldlevel()" function
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn f_foldlevel(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3151,8 +3091,7 @@ pub unsafe extern "C" fn f_foldlevel(
 }
 
 /// "foldtext()" function
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn f_foldtext(
     _argvars: *mut typval_T,
     rettv: *mut typval_T,
@@ -3207,8 +3146,7 @@ pub unsafe extern "C" fn f_foldtext(
 }
 
 /// "foldtextresult(lnum)" function
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn f_foldtextresult(
     argvars: *mut typval_T,
     rettv: *mut typval_T,

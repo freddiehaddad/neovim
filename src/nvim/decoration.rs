@@ -18,6 +18,8 @@ use crate::change::changed_lines_invalidate_buf;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 #[allow(unused_imports)]
 use crate::fold::hasAnyFolding;
+#[allow(unused_imports)]
+use crate::fold::hasFolding;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::{syn_id2attr, syn_id2name};
@@ -36,7 +38,7 @@ use crate::api::deprecated::{
 };
 use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
-    DecorState, colnr_T, linenr_T, ns_in_win, virt_text_to_array,
+    DecorState, colnr_T, ns_in_win, virt_text_to_array,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{lpos_T, win_T};
@@ -156,12 +158,6 @@ static mut sign_add_id: c_int = 0;
 
 unsafe extern "C" {
 
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
 }
 

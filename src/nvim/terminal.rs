@@ -17,9 +17,13 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 #[allow(unused_imports)]
+use crate::autocmd::apply_autocmds_group;
+#[allow(unused_imports)]
 use crate::autocmd::{
     apply_autocmds, block_autocmds, has_event, is_autocmd_blocked, unblock_autocmds,
 };
+#[allow(unused_imports)]
+use crate::buffer::do_buffer;
 #[allow(unused_imports)]
 use crate::drawscreen::{
     redraw_buf_line_later, redraw_later, redraw_statuslines, setcursor, show_cursor_info_later,
@@ -433,18 +437,6 @@ unsafe extern "C" {
     static mut main_loop: c_void;
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn apply_autocmds_group(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        group: c_int,
-        buf: *mut buf_T,
-        win: *mut win_T,
-        eap: *mut exarg_T,
-        data: *mut Object,
-        nested: bool,
-    ) -> bool;
 
     fn ml_append_buf(
         buf: *mut buf_T,
@@ -485,8 +477,6 @@ unsafe extern "C" {
         arena: *mut c_void,
         err: *mut Error,
     ) -> Object;
-
-    fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
 
     fn mb_check_adjust_col(wp: *mut win_T);
 

@@ -16,6 +16,8 @@ use crate::api::private::helpers::{
     find_buffer_by_handle, normalize_index, set_mark, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::buffer::buf_ensure_loaded;
+#[allow(unused_imports)]
 use crate::change::changed_lines;
 #[allow(unused_imports)]
 use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos};
@@ -26,6 +28,8 @@ use crate::extmark::extmark_splice;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_ref;
+#[allow(unused_imports)]
+use crate::mapping::{keymap_array, modify_keymap};
 #[allow(unused_imports)]
 use crate::mark::{mark_adjust_buf, mark_get};
 #[allow(unused_imports)]
@@ -182,20 +186,8 @@ pub use crate::extmark::u_header_T;
 
 unsafe extern "C" {
 
-    fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn memchrsub(data: *mut c_char, c: c_char, x: c_char, len: usize);
-    fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array;
-    fn modify_keymap(
-        channel_id: u64,
-        buffer: Buffer,
-        maptype: c_int,
-        mode: NvimString,
-        lhs: NvimString,
-        rhs: NvimString,
-        opts: *mut KeyDict_keymap,
-        err: *mut Error,
-    );
     fn do_buffer(
         action: c_int,
         start: c_int,

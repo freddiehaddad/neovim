@@ -18,6 +18,10 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
 #[allow(unused_imports)]
+use crate::ex_docmd::{
+    execute_cmd, find_ex_command, getargopt, parse_cmdline, replace_makeprg, set_cmd_count,
+};
+#[allow(unused_imports)]
 use crate::ex_docmd::{getargcmd, undo_cmdmod};
 #[allow(unused_imports)]
 use crate::ex_eval::aborting;
@@ -197,7 +201,7 @@ pub struct exarg_T {
     pub bad_char: c_int,
     pub useridx: c_int,
     pub errmsg: *mut c_char,
-    pub ea_getline: *mut c_void,
+    pub ea_getline: crate::eval::vars::LineGetter,
     pub cookie: *mut c_void,
     pub cstack: *mut c_void,
     pub magic: ExMagic,
@@ -340,30 +344,14 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *const c_char;
 
-    fn parse_cmdline(
-        cmdline: *mut *mut c_char,
-        eap: *mut exarg_T,
-        cmdmod: *mut cmdmod_T,
-        errormsg: *mut *const c_char,
-        only_range_and_cmd: bool,
-    ) -> bool;
     fn is_map_cmd(cmdidx: cmdidx_T) -> bool;
     fn get_command_name(xp: *mut c_void, idx: c_int) -> *mut c_char;
-    fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) -> *mut c_char;
     fn is_cmd_ni(cmdidx: cmdidx_T) -> bool;
     fn get_user_command_name(idx: c_int, cmdidx: cmdidx_T) -> *mut c_char;
     fn excmd_get_argt(cmdidx: cmdidx_T) -> u32;
     fn getdigits_long(pp: *mut *const c_char, strict: bool, def: c_long) -> c_long;
     fn invalid_range(eap: *const exarg_T) -> *const c_char;
-    fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool);
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
-    fn replace_makeprg(
-        eap: *mut exarg_T,
-        p: *mut c_char,
-        cmdlinep: *mut *mut c_char,
-    ) -> *mut c_char;
-    fn getargopt(eap: *mut exarg_T) -> c_int;
-    fn execute_cmd(eap: *mut exarg_T, cmdmod: *mut cmdmod_T, preview: bool) -> c_int;
 }
 
 #[inline]

@@ -26,6 +26,8 @@ use crate::errors::*;
 use crate::eval::vars::{do_unlet, get_var_value};
 #[allow(unused_imports)]
 use crate::ex_getln::check_opt_wim;
+#[allow(unused_imports)]
+use crate::fold::{foldUpdateAll, newFoldLevel};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::indent::briopt_check;
@@ -844,8 +846,6 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
 
-    fn foldUpdateAll(win: *mut win_T);
-    fn newFoldLevel();
     fn keymap_init() -> *const c_char;
     fn spell_check_msm(p: *const c_char, do_msg: bool) -> c_int;
 

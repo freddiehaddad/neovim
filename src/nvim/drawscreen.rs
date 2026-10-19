@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::maketitle;
+#[allow(unused_imports)]
 use crate::cmdexpand::cmdline_pum_display;
 #[allow(unused_imports)]
 use crate::diff::diff_redraw;
@@ -18,6 +20,8 @@ use crate::diff::diff_redraw;
 use crate::drawline::win_line;
 #[allow(unused_imports)]
 use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
+#[allow(unused_imports)]
+use crate::fold::{fold_info, hasFolding};
 #[allow(unused_imports)]
 use crate::fold::{foldmethodIsSyntax, hasAnyFolding};
 use crate::globals::*;
@@ -259,15 +263,7 @@ unsafe extern "C" {
         row: Integer,
         col: Integer,
     );
-    fn maketitle();
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T;
 }
 
 #[inline]

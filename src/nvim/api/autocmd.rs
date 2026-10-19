@@ -23,7 +23,11 @@ use crate::autocmd::{
     do_autocmd_event, event_name2nr_str, event_nr2name,
 };
 #[allow(unused_imports)]
+use crate::buffer::do_modelines;
+#[allow(unused_imports)]
 use crate::eval::typval::callback_free;
+#[allow(unused_imports)]
+use crate::eval::typval::callback_to_string;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
@@ -207,9 +211,6 @@ unsafe extern "C" {
         data: *mut Object,
         buflocal_only: bool,
     ) -> bool;
-    fn do_modelines(flags: c_int);
-
-    fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char;
 
     fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);

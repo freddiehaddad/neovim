@@ -13,6 +13,11 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_nofilename;
 #[allow(unused_imports)]
+use crate::buffer::{
+    bt_cmdwin, buf_ensure_loaded, buflist_add, buflist_findlnum, buflist_findname_exp,
+    buflist_findnr, buflist_new,
+};
+#[allow(unused_imports)]
 use crate::change::{
     appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark, inserted_bytes,
 };
@@ -26,6 +31,8 @@ use crate::eval::typval::{
     tv_dict_alloc, tv_get_bool_chk, tv_get_lnum_buf, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_item_remove,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_get_bool, tv_get_lnum, tv_get_string, tv_get_string_chk};
 #[allow(unused_imports)]
 use crate::eval::{callback_call, prompt_get_input, typval_tostring};
 #[allow(unused_imports)]
@@ -99,25 +106,9 @@ struct cob_T {
 
 unsafe extern "C" {
 
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_findname_exp(ffname: *mut c_char) -> *mut buf_T;
     fn bt_prompt(buf: *const buf_T) -> bool;
-    fn bt_cmdwin(buf: *const buf_T) -> bool;
     fn ml_append(lnum: linenr_T, line: *const c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_check_str_or_nr(tv: *mut typval_T) -> bool;
-    fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int;
-    fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn buflist_findlnum(buf: *mut buf_T) -> linenr_T;
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
 }
 

@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::maketitle;
+#[allow(unused_imports)]
 use crate::charset::{buf_init_isk_chartab, init_isf_chartab, init_isi_chartab};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -116,7 +118,6 @@ unsafe extern "C" {
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
 
-    fn maketitle();
 }
 
 #[inline]

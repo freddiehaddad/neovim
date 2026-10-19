@@ -15,6 +15,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
+use crate::buffer::{buf_hide, buflist_getfile, fileinfo};
+#[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
 use crate::drawscreen::setcursor;
@@ -23,6 +25,14 @@ use crate::errors::*;
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_sleep, update_topline_cursor};
 #[allow(unused_imports)]
 use crate::ex_getln::{compute_cmdrow, curbuf_locked};
+#[allow(unused_imports)]
+use crate::fileio::check_timestamps;
+#[allow(unused_imports)]
+use crate::fold::{
+    closeFold, closeFoldRecurse, deleteFold, foldAdjustVisual, foldCheckClose, foldManualAllowed,
+    foldMoveTo, foldOpenCursor, foldUpdateAfterInsert, getDeepestNesting, hasFolding, openFold,
+    openFoldRecurse,
+};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insert::{
@@ -30,6 +40,8 @@ use crate::insert::{
 };
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::mapping::add_map;
 #[allow(unused_imports)]
 use crate::memline::inc;
 #[allow(unused_imports)]
@@ -468,35 +480,6 @@ unsafe extern "C" {
     );
     fn time(tloc: *mut i64) -> i64;
     fn gettext(msgid: *const c_char) -> *const c_char;
-    fn check_timestamps(focus: c_int) -> c_int;
-    fn buf_hide(buf: *const buf_T) -> bool;
-    fn buflist_getfile(n: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
-    fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool);
-    fn closeFold(pos: pos_T, count: c_int);
-    fn closeFoldRecurse(pos: pos_T);
-    fn deleteFold(
-        wp: *mut win_T,
-        start: linenr_T,
-        end: linenr_T,
-        recursive: c_int,
-        had_visual: bool,
-    );
-    fn foldAdjustVisual();
-    fn foldCheckClose();
-    fn foldManualAllowed(create: bool) -> c_int;
-    fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int;
-    fn foldOpenCursor();
-    fn foldUpdateAfterInsert();
-    fn getDeepestNesting(wp: *mut win_T) -> c_int;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn openFold(pos: pos_T, count: c_int);
-    fn openFoldRecurse(pos: pos_T);
-    fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool);
 }
 
 #[inline]

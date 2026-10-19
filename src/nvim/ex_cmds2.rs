@@ -11,11 +11,20 @@
 )]
 
 #[allow(unused_imports)]
+use crate::arglist::{do_argfile, ex_all, ex_rewind};
+#[allow(unused_imports)]
 use crate::arglist::{editing_arg_idx, set_arglist};
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, au_event_restore};
 #[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bufref_valid, set_bufref};
+#[allow(unused_imports)]
+use crate::buffer::{
+    buf_hide, buf_spname, buflist_findnr, goto_buffer, no_write_message, no_write_message_nobang,
+    set_curbuf,
+};
+#[allow(unused_imports)]
+use crate::bufwrite::buf_write;
 #[allow(unused_imports)]
 use crate::change::unchanged;
 #[allow(unused_imports)]
@@ -28,9 +37,15 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 #[allow(unused_imports)]
+use crate::ex_cmds::check_overwrite;
+#[allow(unused_imports)]
 use crate::ex_cmds::set_swapcommand;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
+#[allow(unused_imports)]
+use crate::ex_getln::script_get;
+#[allow(unused_imports)]
+use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mark::setpcmark;
@@ -44,6 +59,10 @@ use crate::normal::do_check_scrollbind;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::path::vim_FullName;
+#[allow(unused_imports)]
+use crate::quickfix::{ex_cc, ex_cnext, qf_get_cur_idx, qf_get_valid_size};
+#[allow(unused_imports)]
+use crate::runtime::source_runtime_vim_lua;
 #[allow(unused_imports)]
 use crate::ui::ui_has;
 #[allow(unused_imports)]
@@ -124,59 +143,22 @@ use crate::arglist::{aentry_T, alist_T};
 
 unsafe extern "C" {
 
-    fn no_write_message();
-    fn no_write_message_nobang(buf: *const buf_T);
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn buf_set_name(fnum: c_int, name: *const c_char);
-    fn check_overwrite(
-        eap: *mut exarg_T,
-        buf: *mut buf_T,
-        fname: *mut c_char,
-        ffname: *mut c_char,
-        other: bool,
-    ) -> c_int;
-    fn buf_hide(buf: *const buf_T) -> bool;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool);
-    fn buf_write(
-        buf: *mut buf_T,
-        fname: *mut c_char,
-        sfname: *mut c_char,
-        start: linenr_T,
-        end: linenr_T,
-        eap: *mut exarg_T,
-        append: bool,
-        forceit: bool,
-        reset_changed: bool,
-        filtering: bool,
-    ) -> c_int;
     fn au_event_disable(what: *const c_char) -> *mut c_char;
-    fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_int);
-    fn qf_get_valid_size(eap: *mut exarg_T) -> usize;
-    fn qf_get_cur_idx(eap: *mut exarg_T) -> usize;
-    fn ex_cc(eap: *mut exarg_T);
-    fn ex_cnext(eap: *mut exarg_T);
-    fn do_argfile(eap: *mut exarg_T, argn: c_int);
     fn do_cmdline(
         cmdline: *mut c_char,
-        fgetline: *mut c_void,
+        fgetline: crate::eval::vars::LineGetter,
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
-    fn check_timestamps(focus: c_int) -> c_int;
-    fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
-    fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char;
     fn eval_call_provider(
         provider: *const c_char,
         method: *const c_char,
         arguments: *mut list_T,
         discard: bool,
     ) -> typval_T;
-    fn ex_all(eap: *mut exarg_T);
-    fn ex_rewind(eap: *mut exarg_T);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
 }
 
@@ -1071,12 +1053,7 @@ pub unsafe extern "C" fn ex_drop(eap: *mut exarg_T) {
 
                     if !(*eap).do_ecmd_cmd.is_null() {
                         let did_set_swapcommand = set_swapcommand((*eap).do_ecmd_cmd, 0);
-                        do_cmdline(
-                            (*eap).do_ecmd_cmd,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            DOCMD_VERBOSE,
-                        );
+                        do_cmdline((*eap).do_ecmd_cmd, None, ptr::null_mut(), DOCMD_VERBOSE);
                         if did_set_swapcommand {
                             set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
                         }

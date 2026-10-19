@@ -25,7 +25,14 @@ use crate::eval::typval::{
     tv_list_idx_of_item, tv_list_unref,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_string,
+    tv_get_string_buf_chk,
+};
+#[allow(unused_imports)]
 use crate::ex_docmd::{ends_excmd, set_no_hlsearch};
+#[allow(unused_imports)]
+use crate::fold::hasFolding;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
@@ -47,7 +54,6 @@ use std::ptr;
 use crate::api::command::exarg_T;
 use crate::api::tabpage::{ScopeDictDictItem, win_T};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::window::find_win_by_nr_or_id;
 use crate::ex_docmd::{ex_errmsg, find_nextcmd};
@@ -135,21 +141,6 @@ pub struct SearchState {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf_chk(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn tv_dict_get_string_buf(
-        d: *const dict_T,
-        key: *const c_char,
-        numbuf: *mut c_char,
-    ) -> *const c_char;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

@@ -18,6 +18,10 @@ use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_find, tv_dict_has_key, tv_dict_unref, tv_list_alloc,
     tv_list_alloc_ret, tv_list_append_list, tv_list_append_tv, tv_list_find,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_nonnull_dict_arg, tv_dict_get_callback, tv_dict_get_string, tv_get_string,
+};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
@@ -96,17 +100,7 @@ unsafe extern "C" {
     fn ml_get_buf(buf: *mut buf_T, lnum: i32) -> *mut c_char;
     fn ml_get_buf_len(buf: *mut buf_T, lnum: i32) -> c_int;
 
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
-    fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_dict_get_callback(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: isize,
-        result: *mut Callback,
-    ) -> bool;
 
     fn tv_list_append_number(l: *mut list_T, n: i64);
 

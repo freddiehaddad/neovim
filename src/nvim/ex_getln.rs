@@ -21,14 +21,25 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_array, arena_array, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::buffer::{buf_clear, buflist_findnr, do_buffer};
+#[allow(unused_imports)]
 use crate::drawscreen::redraw_custom_title_later;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::callback_free;
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_dict_get_callback, tv_dict_get_number,
+    tv_dict_get_string_buf_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::heredoc_get;
+#[allow(unused_imports)]
 use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, expr_map_locked, set_no_hlsearch, skip_range, undo_cmdmod};
+#[allow(unused_imports)]
+use crate::ex_docmd::{execute_cmd, parse_cmd_address, parse_cmdline, parse_command_modifiers};
 #[allow(unused_imports)]
 use crate::ex_eval::aborting;
 use crate::globals::*;
@@ -38,6 +49,8 @@ use crate::input::{beep_flush, map_execute_lua};
 use crate::insert::get_literal;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::mapping::{check_abbr, map_to_exists_mode};
 #[allow(unused_imports)]
 use crate::mbyte::ptr2cells;
 #[allow(unused_imports)]
@@ -111,7 +124,6 @@ use crate::drawscreen::{
     set_must_redraw, status_redraw_all, status_redraw_curbuf, update_screen,
 };
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str, tv_dict_find,
@@ -438,17 +450,6 @@ unsafe extern "C" {
     fn ui_call_cmdline_special_char(c: NvimString, shift: Boolean, level: Integer);
     fn ui_call_cmdline_hide(level: Integer, abort: Boolean);
 
-    fn parse_cmd_address(eap: *mut exarg_T, errormsg: *mut *const c_char, silent: bool) -> c_int;
-    fn parse_cmdline(
-        cmdline: *mut *mut c_char,
-        eap: *mut exarg_T,
-        cmod: *mut cmdmod_T,
-        errormsg: *mut *const c_char,
-        calculate_only: bool,
-    ) -> bool;
-    fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool) -> c_int;
-    fn heredoc_get(eap: *mut exarg_T, cmd: *mut c_char, script_get: bool) -> *mut list_T;
-
     fn lastwin_nofloating(ock: *mut win_T) -> *mut win_T;
 
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
@@ -457,38 +458,8 @@ unsafe extern "C" {
 
     fn get_expr_register() -> c_int;
 
-    fn buf_clear();
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
     fn rename_buffer(new_fname: *const c_char) -> c_int;
-    fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_dict_get_callback(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: isize,
-        result: *mut Callback,
-    ) -> bool;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_dict_get_string_buf_chk(
-        d: *const dict_T,
-        key: *const c_char,
-        key_len: isize,
-        buf: *mut c_char,
-        def: *const c_char,
-    ) -> *const c_char;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn string_to_key(str: *const c_char) -> c_int;
-    fn check_abbr(c: c_int, ptr: *mut c_char, col: c_int, mincol: c_int) -> bool;
-    fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool;
-    fn parse_command_modifiers(
-        eap: *mut exarg_T,
-        errormsg: *mut *const c_char,
-        cmod: *mut cmdmod_T,
-        skip_only: bool,
-    ) -> c_int;
 
     #[cfg(windows)]
     fn vim_strnicmp(s1: *const c_char, s2: *const c_char, len: usize) -> c_int;
@@ -5596,7 +5567,7 @@ pub unsafe extern "C" fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut
     unsafe {
         let mut cmd = (*eap).arg;
 
-        if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || (*eap).ea_getline.is_null() {
+        if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || (*eap).ea_getline.is_none() {
             *lenp = strlen((*eap).arg);
             return if (*eap).skip != 0 {
                 ptr::null_mut()

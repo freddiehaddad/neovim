@@ -17,10 +17,14 @@ use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
 use crate::buffer::bt_nofile;
 #[allow(unused_imports)]
+use crate::buffer::buf_clear;
+#[allow(unused_imports)]
 use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
 #[allow(unused_imports)]
 use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_cmds::prepare_tagpreview;
 use crate::globals::*;
@@ -257,16 +261,6 @@ unsafe extern "C" {
         screen_col: Integer,
     );
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn buf_clear();
-    fn do_ecmd(
-        fnum: c_int,
-        ffname: *mut c_char,
-        sfname: *mut c_char,
-        eap: *mut exarg_T,
-        newlnum: linenr_T,
-        flags: c_int,
-        oldwin: *mut win_T,
-    ) -> c_int;
     fn tv_dict_add_float(d: *mut dict_T, key: *const c_char, key_len: usize, nr: f64) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;

@@ -14,6 +14,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::col_print;
+#[allow(unused_imports)]
 use crate::cursor::gchar_cursor;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -24,6 +26,8 @@ use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
 use crate::ex_docmd::do_cmdline;
 #[allow(unused_imports)]
 use crate::ex_getln::getexline;
+#[allow(unused_imports)]
+use crate::fold::{deleteFold, foldCreate, foldOpenCursor, hasFolding, opFoldRange};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -55,7 +59,7 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::pos_T;
 use crate::change::{
     appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
     get_last_leader_offset, get_leader_len, ins_char, ins_str, truncate_line,
@@ -259,29 +263,12 @@ unsafe extern "C" {
     fn ml_get_pos_len(pos: *const pos_T) -> colnr_T;
     fn gchar_pos(pos: *const pos_T) -> c_int;
     fn edit(cmdchar: c_int, startln: bool, count: linenr_T) -> bool;
-    fn col_print(buf: *mut c_char, buflen: usize, col: c_int, vcol: c_int) -> c_int;
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,
         ht_stack: *mut *mut c_void,
         list_stack: *mut *mut c_void,
     ) -> bool;
-    fn foldOpenCursor();
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn foldCreate(wp: *mut win_T, start: pos_T, end: pos_T);
-    fn opFoldRange(first: pos_T, last: pos_T, opening: c_int, recurse: c_int, had_visual: bool);
-    fn deleteFold(
-        wp: *mut win_T,
-        first: linenr_T,
-        last: linenr_T,
-        recurse: c_int,
-        had_visual: bool,
-    );
 }
 
 #[inline]

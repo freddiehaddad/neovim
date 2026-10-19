@@ -35,6 +35,8 @@ use crate::eval::{
     partial_name, partial_unref, skip_expr,
 };
 #[allow(unused_imports)]
+use crate::eval::{clear_evalarg, eval0, fill_evalarg_from_eap};
+#[allow(unused_imports)]
 use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
 #[allow(unused_imports)]
 use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
@@ -52,6 +54,8 @@ use crate::message::{semsg, smsg, swmsg};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
+#[allow(unused_imports)]
+use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -282,14 +286,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn eval0(
-        arg: *mut c_char,
-        rettv: *mut typval_T,
-        eap: *mut exarg_T,
-        evalarg: *mut evalarg_T,
-    ) -> c_int;
-    fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
-    fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T);
     fn find_name_end(
         arg: *const c_char,
         expr_start: *mut *const c_char,
@@ -319,8 +315,6 @@ unsafe extern "C" {
 
     fn ui_has(ext: c_int) -> bool;
 
-    fn get_sourced_lnum(fgetline: LineGetter, cookie: *mut c_void) -> linenr_T;
-    fn script_autoload(name: *const c_char, len: usize, reload: bool) -> bool;
     fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
 }
 
@@ -4260,7 +4254,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
             return;
         }
 
-        let failed = if (*eap).cmdidx == cmdidx_T::CMD_defer {
+        let failed = if (*eap).cmdidx == cmdidx_T::CMD_defer as c_int {
             arg = startarg;
             ex_defer_inner(name, &raw mut arg, partial, &raw mut evalarg) == FAIL
         } else {

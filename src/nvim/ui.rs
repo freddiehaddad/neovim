@@ -22,6 +22,8 @@ use crate::api::ui::{
     remote_ui_ui_send, remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
     remote_ui_win_viewport_margins,
 };
+#[allow(unused_imports)]
+use crate::buffer::resettitle;
 use crate::cursor_shape::shape_table;
 use crate::globals::*;
 use crate::log::logmsg;
@@ -169,7 +171,6 @@ unsafe extern "C" {
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn resettitle();
     fn set_option_value(
         opt_idx: c_int,
         val: Object,

@@ -19,6 +19,8 @@ use crate::api::private::helpers::{api_free_dict, api_free_string};
 #[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, bt_terminal};
 #[allow(unused_imports)]
+use crate::buffer::{buflist_findnr, buflist_new, buflist_setfpos};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
 #[allow(unused_imports)]
 use crate::eval::{get_copyID, var_flavour, var_set_global};
@@ -28,6 +30,8 @@ use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
 use crate::ex_docmd::set_no_hlsearch;
 #[allow(unused_imports)]
 use crate::fileio::modname;
+#[allow(unused_imports)]
+use crate::fileio::vim_rename;
 use crate::globals::*;
 use crate::message::{semsg, siemsg, smsg};
 #[allow(unused_imports)]
@@ -42,7 +46,7 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, win_T, xfmark_T};
+use crate::api::tabpage::{pos_T, xfmark_T};
 use crate::arglist::alist_T;
 use crate::clipboard::{MotionType, TypvalVval, VarType, list_T, typval_T, yankreg_T};
 use crate::cmdhist::{
@@ -664,23 +668,7 @@ unsafe extern "C" {
     fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
     fn set_ref_in_list_items(l: *mut list_T, copyID: c_int, ht_stack: *mut *mut c_void) -> bool;
 
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn buflist_setfpos(
-        buf: *mut buf_T,
-        win: *mut win_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        copy_options: bool,
-    );
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,

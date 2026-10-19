@@ -21,14 +21,20 @@ use crate::arglist::check_arg_idx;
 #[allow(unused_imports)]
 use crate::buffer_updates::buf_free_callbacks;
 #[allow(unused_imports)]
+use crate::change::file_ff_differs;
+#[allow(unused_imports)]
 use crate::change::save_file_ff;
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_watcher_notify;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_copy,
 };
+#[allow(unused_imports)]
+use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_cmds::getfile;
 #[allow(unused_imports)]
@@ -39,15 +45,19 @@ use crate::ex_docmd::{do_cmdline_cmd, tabpage_new};
 use crate::ex_eval::aborting;
 #[allow(unused_imports)]
 use crate::ex_getln::text_or_buf_locked;
-#[cfg(not(test))]
-use crate::fileio::buf_check_timestamp;
 #[allow(unused_imports)]
-use crate::fileio::{file_pat_to_reg_pat, is_dev_fd_file};
+use crate::fileio::{buf_check_timestamp, readfile, shorten_fnames};
+#[allow(unused_imports)]
+use crate::fileio::{file_pat_to_reg_pat, is_dev_fd_file, prep_exarg};
+#[allow(unused_imports)]
+use crate::fold::foldUpdateAll;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::clear_cpt_callbacks;
 #[allow(unused_imports)]
 use crate::main_init::getout;
+#[allow(unused_imports)]
+use crate::mapping::map_clear_mode;
 #[allow(unused_imports)]
 use crate::message::{
     emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_start,
@@ -77,6 +87,8 @@ use crate::syntax::{reset_synblock, syntax_clear};
 use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 #[allow(unused_imports)]
 use crate::version::min_vim_version;
+#[allow(unused_imports)]
+use crate::window::one_window;
 #[allow(unused_imports)]
 use crate::window::{
     check_can_set_curbuf_forceit, close_windows, free_wininfo, global_stl_height, goto_tabpage_tp,
@@ -397,23 +409,12 @@ unsafe extern "C" {
     );
 }
 
-#[cfg(not(test))]
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn msg_delay(msec: i64, ignoreinput: bool);
 
-    fn readfile(
-        fname: *mut c_char,
-        sfname: *mut c_char,
-        from: linenr_T,
-        lines_to_skip: linenr_T,
-        lines_to_read: linenr_T,
-        eap: *mut exarg_T,
-        flags: c_int,
-        silent: bool,
-    ) -> c_int;
     #[cfg(any(
         target_os = "freebsd",
         target_os = "netbsd",
@@ -421,28 +422,9 @@ unsafe extern "C" {
         target_os = "dragonfly",
         target_os = "macos"
     ))]
-    fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
-    fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T);
-
     fn one_window(win: *const win_T, tp: *const tabpage_T) -> bool;
     fn last_window(win: *const win_T) -> bool;
 
-    fn tv_dict_watcher_notify(
-        dict: *mut dict_T,
-        key: *const c_char,
-        newtv: *mut typval_T,
-        oldtv: *mut typval_T,
-    );
-
-    fn do_ecmd(
-        fnum: c_int,
-        ffname: *mut c_char,
-        sfname: *mut c_char,
-        eap: *mut exarg_T,
-        newlnum: linenr_T,
-        flags: c_int,
-        oldwin: *mut win_T,
-    ) -> c_int;
     fn update_cwd(cause: c_int);
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -453,12 +435,9 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
 
-    fn shorten_fnames(force: c_int);
     fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
     fn check_colorcolumn(errbuf: *const CharBuf, wp: *mut win_T) -> *const c_char;
     fn win_valid_any_tab(win: *const win_T) -> bool;
-    fn foldUpdateAll(win: *mut win_T);
-    fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool);
 }
 
 #[inline]
@@ -481,16 +460,9 @@ unsafe fn to_slash(#[allow(unused_variables)] p: *mut c_char) {
 
 #[inline]
 unsafe fn buf_is_changed(buf: *const buf_T) -> bool {
-    unsafe { !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf, true)) }
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn file_ff_differs(buf: *const buf_T, ignore_empty: bool) -> bool;
-}
-#[cfg(test)]
-unsafe fn file_ff_differs(_buf: *const buf_T, _ignore_empty: bool) -> bool {
-    false
+    unsafe {
+        !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf.cast_mut(), true))
+    }
 }
 
 #[inline]
@@ -559,7 +531,6 @@ unsafe fn reset_binding(wp: *mut win_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn trigger_undo_ftplugin(buf: *mut buf_T, win: *mut win_T) {
     unsafe {
         window_layout_lock();
@@ -589,7 +560,6 @@ pub unsafe extern "C" fn get_highest_fnum() -> c_int {
 }
 
 /// Read data from buffer for retrying.
-#[cfg(not(test))]
 unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int {
     unsafe {
         let silent = shortmess(kShmFileinfo);
@@ -647,8 +617,7 @@ unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_in
 }
 
 /// Ensure buffer `buf` is loaded.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
     unsafe {
         if !(*buf).b_ml.ml_mfp.is_null() {
@@ -665,8 +634,7 @@ pub unsafe extern "C" fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
 
 /// Open current buffer, that is: open the memfile and read the file into
 /// memory.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn open_buffer(
     read_stdin: bool,
     eap: *mut exarg_T,
@@ -954,7 +922,6 @@ pub unsafe extern "C" fn buf_valid(buf: *mut buf_T) -> bool {
     false
 }
 
-#[cfg(not(test))]
 unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
     unsafe {
         let mut can_unload = (*buf).b_locked == 0;
@@ -992,8 +959,7 @@ unsafe fn can_unload_buffer(buf: *mut buf_T) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_close_terminal(buf: *mut buf_T) {
     unsafe {
         debug_assert!(!(*buf).terminal.is_null());
@@ -1004,8 +970,7 @@ pub unsafe extern "C" fn buf_close_terminal(buf: *mut buf_T) {
 }
 
 /// Close the link to a buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn close_buffer(
     win: *mut win_T,
     buf: *mut buf_T,
@@ -1084,7 +1049,7 @@ pub unsafe extern "C" fn close_buffer(
             }
             (*buf).b_locked -= 1;
             (*buf).b_locked_split -= 1;
-            if abort_if_last && one_window(win, ptr::null()) {
+            if abort_if_last && one_window(win, ptr::null_mut()) {
                 emsg(gettext(e_auabort.as_ptr()));
                 return false;
             }
@@ -1100,7 +1065,7 @@ pub unsafe extern "C" fn close_buffer(
                 }
                 (*buf).b_locked -= 1;
                 (*buf).b_locked_split -= 1;
-                if abort_if_last && one_window(win, ptr::null()) {
+                if abort_if_last && one_window(win, ptr::null_mut()) {
                     emsg(gettext(e_auabort.as_ptr()));
                     return false;
                 }
@@ -1212,8 +1177,7 @@ pub unsafe extern "C" fn close_buffer(
 }
 
 /// Make buffer not contain a file.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_clear_file(buf: *mut buf_T) {
     unsafe {
         (*buf).b_ml.ml_line_count = 1;
@@ -1230,8 +1194,7 @@ pub unsafe extern "C" fn buf_clear_file(buf: *mut buf_T) {
 }
 
 /// Clears the current buffer contents.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_clear() {
     unsafe {
         let line_count = (*curbuf).b_ml.ml_line_count;
@@ -1245,8 +1208,7 @@ pub unsafe extern "C" fn buf_clear() {
 }
 
 /// Free all things allocated for a buffer that are related to the file.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
     unsafe {
         let is_curbuf = buf == curbuf;
@@ -1359,7 +1321,6 @@ pub unsafe extern "C" fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn free_buffer(buf: *mut buf_T) {
     unsafe {
         map_del_int_ptr_t(&raw mut buffer_handles, (*buf).b_fnum, ptr::null_mut());
@@ -1404,7 +1365,6 @@ unsafe fn free_buffer(buf: *mut buf_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn clear_wininfo(buf: *mut buf_T) {
     unsafe {
         for i in 0..(*buf).b_wininfo.size {
@@ -1415,7 +1375,6 @@ unsafe fn clear_wininfo(buf: *mut buf_T) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
     unsafe {
         if (free_flags & kBffClearWinInfo) != 0 {
@@ -1453,13 +1412,12 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
 }
 
 /// Go to another buffer. Handles the result of the ATTENTION dialog.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_int) {
     unsafe {
         let save_sea = swap_exists_action;
         let skip_help_buf = matches!(
-            (*eap).cmdidx,
+            std::mem::transmute::<c_int, cmdidx_T>((*eap).cmdidx),
             cmdidx_T::CMD_bnext
                 | cmdidx_T::CMD_sbnext
                 | cmdidx_T::CMD_bNext
@@ -1504,8 +1462,7 @@ pub unsafe extern "C" fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int
 }
 
 /// Handle the situation of `swap_exists_action` being set.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn handle_swap_exists(old_curbuf: *mut bufref_T) {
     unsafe {
         let mut cs: cleanup_T = std::mem::zeroed();
@@ -1552,8 +1509,7 @@ pub unsafe extern "C" fn handle_swap_exists(old_curbuf: *mut bufref_T) {
 }
 
 /// Delete or unload buffer(s).
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn do_bufdel(
     command: c_int,
     mut arg: *mut c_char,
@@ -1678,7 +1634,6 @@ pub unsafe extern "C" fn do_bufdel(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_int {
     unsafe {
         let buf = curbuf;
@@ -1732,7 +1687,6 @@ unsafe fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> c_i
     }
 }
 
-#[cfg(not(test))]
 unsafe fn do_buffer_ext(
     action: c_int,
     start: c_int,
@@ -1927,7 +1881,7 @@ unsafe fn do_buffer_ext(
                 if buf != curbuf
                     && bufref_valid(&raw mut bufref)
                     && (*firstwin).w_buffer == buf
-                    && one_window(firstwin, ptr::null())
+                    && one_window(firstwin, ptr::null_mut())
                 {
                     debug_assert!((*curwin).w_floating);
                     let mut switchwin: CtxSwitch = std::mem::zeroed();
@@ -2126,8 +2080,7 @@ unsafe fn do_buffer_ext(
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn do_buffer(
     action: c_int,
     start: c_int,
@@ -2147,8 +2100,7 @@ pub unsafe extern "C" fn do_buffer(
 }
 
 /// Set current buffer to `buf`. Executes autocommands and closes current buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
     unsafe {
         let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
@@ -2226,7 +2178,6 @@ pub unsafe extern "C" fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumpl
 }
 
 /// Enter a new current buffer.
-#[cfg(not(test))]
 unsafe fn enter_buffer(buf: *mut buf_T) {
     unsafe {
         if Visual.active && !entered_free_all_mem {
@@ -2325,8 +2276,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
 }
 
 /// Change to the directory of the current buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn do_autochdir() {
     unsafe {
         if p_acd != 0
@@ -2340,8 +2290,7 @@ pub unsafe extern "C" fn do_autochdir() {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn no_write_message_buf(buf: *mut buf_T) {
     unsafe {
         if !(*buf).terminal.is_null() && channel_job_running((*buf).b_p_channel as u64) {
@@ -2357,8 +2306,7 @@ pub unsafe extern "C" fn no_write_message_buf(buf: *mut buf_T) {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn no_write_message() {
     unsafe {
         if !(*curbuf).terminal.is_null() && channel_job_running((*curbuf).b_p_channel as u64) {
@@ -2373,8 +2321,7 @@ pub unsafe extern "C" fn no_write_message() {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn no_write_message_nobang(buf: *const buf_T) {
     unsafe {
         if !(*buf).terminal.is_null() && channel_job_running((*buf).b_p_channel as u64) {
@@ -2385,7 +2332,6 @@ pub unsafe extern "C" fn no_write_message_nobang(buf: *const buf_T) {
     }
 }
 
-#[cfg(not(test))]
 #[inline]
 unsafe fn buf_init_changedtick(buf: *mut buf_T) {
     unsafe {
@@ -2410,8 +2356,7 @@ unsafe fn buf_init_changedtick(buf: *mut buf_T) {
 }
 
 /// Add a file name to the buffer list.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_new(
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
@@ -2599,8 +2544,7 @@ pub unsafe extern "C" fn buflist_new(
 
 /// Return true if the current buffer is empty, unnamed, unmodified and used in
 /// only one window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn curbuf_reusable() -> bool {
     unsafe {
         !curbuf.is_null()
@@ -2614,8 +2558,7 @@ pub unsafe extern "C" fn curbuf_reusable() -> bool {
 }
 
 /// Free the memory for the options of a buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
     unsafe {
         if free_p_ff {
@@ -2699,8 +2642,7 @@ pub unsafe extern "C" fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
 }
 
 /// Get alternate file `n`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_getfile(
     n: c_int,
     mut lnum: linenr_T,
@@ -2791,7 +2733,6 @@ pub unsafe extern "C" fn buflist_getfile(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buflist_getfpos() {
     unsafe {
         let fm = buflist_findfmark(curbuf);
@@ -2816,8 +2757,7 @@ unsafe fn buflist_getfpos() {
 }
 
 /// Find file in buffer list by name (it has to be for the current window).
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
@@ -2831,8 +2771,7 @@ pub unsafe extern "C" fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T 
 }
 
 /// Find file in buffer list by name.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut file_id: FileID = std::mem::zeroed();
@@ -2841,7 +2780,6 @@ pub unsafe extern "C" fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buflist_findname_file_id(
     ffname: *mut c_char,
     file_id: *mut FileID,
@@ -2862,8 +2800,7 @@ unsafe fn buflist_findname_file_id(
 }
 
 /// Find file in buffer list by a regexp pattern.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_findpat(
     pattern: *const c_char,
     pattern_end: *const c_char,
@@ -2985,8 +2922,7 @@ unsafe extern "C" fn buf_time_compare(s1: *const c_void, s2: *const c_void) -> c
 }
 
 /// Find all buffer names that match.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ExpandBufnames(
     pat: *mut c_char,
     num_file: *mut c_int,
@@ -3149,7 +3085,6 @@ pub unsafe extern "C" fn ExpandBufnames(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn buflist_match(rmp: *mut regmatch_T, buf: *mut buf_T, ignore_case: bool) -> *mut c_char {
     unsafe {
         let mut match_ = fname_match(rmp, (*buf).b_sfname, ignore_case);
@@ -3160,7 +3095,6 @@ unsafe fn buflist_match(rmp: *mut regmatch_T, buf: *mut buf_T, ignore_case: bool
     }
 }
 
-#[cfg(not(test))]
 unsafe fn fname_match(rmp: *mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *mut c_char {
     unsafe {
         let mut match_: *mut c_char = ptr::null_mut();
@@ -3185,8 +3119,7 @@ unsafe fn fname_match(rmp: *mut regmatch_T, name: *mut c_char, ignore_case: bool
 }
 
 /// Find a file in the buffer list by buffer number.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_findnr(mut nr: c_int) -> *mut buf_T {
     unsafe {
         if nr == 0 {
@@ -3201,8 +3134,7 @@ pub unsafe extern "C" fn buflist_findnr(mut nr: c_int) -> *mut buf_T {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_nr2name(
     n: c_int,
     fullname: c_int,
@@ -3225,8 +3157,7 @@ pub unsafe extern "C" fn buflist_nr2name(
 }
 
 /// Set the line and column numbers for the given buffer and window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_setfpos(
     buf: *mut buf_T,
     win: *mut win_T,
@@ -3294,7 +3225,6 @@ pub unsafe extern "C" fn buflist_setfpos(
     }
 }
 
-#[cfg(not(test))]
 unsafe fn wininfo_other_tab_diff(wip: *mut WinInfo) -> bool {
     unsafe {
         if (*wip).wi_opt.wo_diff == 0 {
@@ -3312,7 +3242,6 @@ unsafe fn wininfo_other_tab_diff(wip: *mut WinInfo) -> bool {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn find_wininfo(
     buf: *mut buf_T,
     need_options: bool,
@@ -3348,8 +3277,7 @@ unsafe fn find_wininfo(
 }
 
 /// Reset the local window options to the values last used in this window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_winopts(buf: *mut buf_T) {
     unsafe {
         clear_winopt(&raw mut (*curwin).w_onebuf_opt);
@@ -3400,8 +3328,7 @@ pub unsafe extern "C" fn get_winopts(buf: *mut buf_T) {
 }
 
 /// Find the mark for the buffer `buf` for the current window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
     unsafe {
         let wip = find_wininfo(buf, false, false);
@@ -3414,15 +3341,13 @@ pub unsafe extern "C" fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
 }
 
 /// Find the lnum for the buffer `buf` for the current window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
     unsafe { (*buflist_findfmark(buf)).mark.lnum }
 }
 
 /// List all known file names (for `:files` and `:buffers` command).
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_list(eap: *mut exarg_T) {
     unsafe {
         let mut buf = firstbuf;
@@ -3607,8 +3532,7 @@ pub unsafe extern "C" fn buflist_list(eap: *mut exarg_T) {
 }
 
 /// Get file name and line number for file `fnum`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_name_nr(
     fnum: c_int,
     fname: *mut *mut c_char,
@@ -3628,8 +3552,7 @@ pub unsafe extern "C" fn buflist_name_nr(
 }
 
 /// Set the file name for `buf` to `ffname_arg`, short file name to `sfname_arg`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn setfname(
     buf: *mut buf_T,
     ffname_arg: *mut c_char,
@@ -3716,8 +3639,7 @@ pub unsafe extern "C" fn setfname(
 }
 
 /// Crude way of changing the name of a buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_set_name(fnum: c_int, name: *mut c_char) {
     unsafe {
         let buf = buflist_findnr(fnum);
@@ -3737,8 +3659,7 @@ pub unsafe extern "C" fn buf_set_name(fnum: c_int, name: *mut c_char) {
 }
 
 /// Take care of what needs to be done when the name of buffer `buf` has changed.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_name_changed(buf: *mut buf_T) {
     unsafe {
         if !(*buf).b_ml.ml_mfp.is_null() {
@@ -3756,8 +3677,7 @@ pub unsafe extern "C" fn buf_name_changed(buf: *mut buf_T) {
 }
 
 /// Set alternate file name for current window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn setaltfname(
     ffname: *mut c_char,
     sfname: *mut c_char,
@@ -3773,8 +3693,7 @@ pub unsafe extern "C" fn setaltfname(
 }
 
 /// Get alternate file name for current window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn getaltfname(errmsg: bool) -> *mut c_char {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
@@ -3791,8 +3710,7 @@ pub unsafe extern "C" fn getaltfname(errmsg: bool) -> *mut c_char {
 }
 
 /// Add a file name to the buflist and return its number.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int {
     unsafe {
         let buf = buflist_new(fname, ptr::null_mut(), 0, flags);
@@ -3801,8 +3719,7 @@ pub unsafe extern "C" fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int 
 }
 
 /// Set alternate cursor position for the current buffer and window `win`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buflist_altfpos(win: *mut win_T) {
     unsafe {
         buflist_setfpos(curbuf, win, (*win).w_cursor.lnum, (*win).w_cursor.col, true);
@@ -3810,8 +3727,7 @@ pub unsafe extern "C" fn buflist_altfpos(win: *mut win_T) {
 }
 
 /// Check that `ffname` is not the same file as current file.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn otherfile(ffname: *mut c_char) -> bool {
     unsafe { otherfile_buf(curbuf, ffname, ptr::null_mut(), false) }
 }
@@ -3871,8 +3787,7 @@ unsafe fn buf_same_file_id(buf: *mut buf_T, file_id: *mut FileID) -> bool {
 }
 
 /// Print info about the current buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
     unsafe {
         let buffer = xmalloc(IOSIZE).cast::<c_char>();
@@ -4025,8 +3940,7 @@ pub unsafe extern "C" fn fileinfo(fullname: c_int, shorthelp: c_int, dont_trunca
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn col_print(
     buf: *mut c_char,
     buflen: usize,
@@ -4043,8 +3957,7 @@ pub unsafe extern "C" fn col_print(
 }
 
 /// Put the title name in the title bar and icon of the window.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn maketitle() {
     unsafe {
         let mut title_str: *mut c_char = ptr::null_mut();
@@ -4167,7 +4080,6 @@ pub unsafe extern "C" fn maketitle() {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn value_change(str_: *mut c_char, last: *mut *mut c_char) -> bool {
     unsafe {
         if str_.is_null() != (*last).is_null()
@@ -4187,8 +4099,7 @@ unsafe fn value_change(str_: *mut c_char, last: *mut *mut c_char) -> bool {
 }
 
 /// Set current window title.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn resettitle() {
     unsafe {
         ui_call_set_icon(cstr_as_string(lasticon));
@@ -4205,8 +4116,7 @@ pub unsafe extern "C" fn free_titles() {
 }
 
 /// Get relative cursor position in window into `buf[]`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
     unsafe {
         if buflen < 3 {
@@ -4249,8 +4159,7 @@ pub unsafe extern "C" fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn append_arg_number(
     wp: *mut win_T,
     buf: *mut c_char,
@@ -4329,15 +4238,13 @@ pub unsafe extern "C" fn bt_prompt(buf: *mut buf_T) -> bool {
 }
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn bt_cmdwin(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && buf == cmdwin_buf.cast_const() }
 }
 
 /// Open a window for a number of buffers.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_buffer_all(eap: *mut exarg_T) {
     unsafe {
         let mut wpnext: *mut win_T;
@@ -4351,7 +4258,8 @@ pub unsafe extern "C" fn ex_buffer_all(eap: *mut exarg_T) {
             (*eap).line2
         };
 
-        let all = (*eap).cmdidx != cmdidx_T::CMD_unhide && (*eap).cmdidx != cmdidx_T::CMD_sunhide;
+        let all = (*eap).cmdidx != cmdidx_T::CMD_unhide as c_int
+            && (*eap).cmdidx != cmdidx_T::CMD_sunhide as c_int;
 
         reset_VIsual_and_resel();
         setpcmark();
@@ -4519,8 +4427,7 @@ pub unsafe extern "C" fn ex_buffer_all(eap: *mut exarg_T) {
 }
 
 /// Process mode lines for the current file.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn do_modelines(flags: c_int) {
     unsafe {
         let mut nmlines = p_mls as c_int;
@@ -4556,7 +4463,6 @@ pub unsafe extern "C" fn do_modelines(flags: c_int) {
     }
 }
 
-#[cfg(not(test))]
 unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
     unsafe {
         let mut e: *mut c_char;
@@ -4746,8 +4652,7 @@ pub unsafe extern "C" fn bt_dontwrite(buf: *const buf_T) -> bool {
     }
 }
 
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
     unsafe {
         if bt_dontwrite(buf) {
@@ -4761,8 +4666,7 @@ pub unsafe extern "C" fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
 }
 
 /// Return true if the buffer should be hidden, according to `'hidden'`, `":hide"` and `'bufhidden'`.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_hide(buf: *const buf_T) -> bool {
     unsafe {
         match *(*buf).b_p_bh as u8 {
@@ -4774,8 +4678,7 @@ pub unsafe extern "C" fn buf_hide(buf: *const buf_T) -> bool {
 }
 
 /// Return special buffer name or NULL when the buffer has a normal file name.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_spname(buf: *mut buf_T) -> *mut c_char {
     unsafe {
         if bt_quickfix(buf) {
@@ -4804,8 +4707,7 @@ pub unsafe extern "C" fn buf_spname(buf: *mut buf_T) -> *mut c_char {
 }
 
 /// Get `buf->b_fname`, use `"[No Name]"` if it is NULL.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
     unsafe {
         if (*buf).b_fname.is_null() {
@@ -4817,8 +4719,7 @@ pub unsafe extern "C" fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
 }
 
 /// Set `'buflisted'` for `curbuf` to `on` and trigger autocommands if it changed.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn set_buflisted(on: c_int) {
     unsafe {
         if on == (*curbuf).b_p_bl {
@@ -4847,8 +4748,7 @@ pub unsafe extern "C" fn set_buflisted(on: c_int) {
 }
 
 /// Read the file for `buf` again and check if the contents changed.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_contents_changed(buf: *mut buf_T) -> bool {
     unsafe {
         let mut differ = true;
@@ -4903,8 +4803,7 @@ pub unsafe extern "C" fn buf_contents_changed(buf: *mut buf_T) -> bool {
 }
 
 /// Wipe out a (typically temporary) buffer.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn wipe_buffer(buf: *mut buf_T, aucmd: bool) {
     unsafe {
         if !aucmd {
@@ -4923,8 +4822,7 @@ pub unsafe extern "C" fn buf_is_empty(buf: *mut buf_T) -> bool {
 }
 
 /// Increment `b:changedtick` value.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_inc_changedtick(buf: *mut buf_T) {
     unsafe {
         buf_set_changedtick(buf, buf_get_changedtick(buf) + 1);
@@ -4932,8 +4830,7 @@ pub unsafe extern "C" fn buf_inc_changedtick(buf: *mut buf_T) {
 }
 
 /// Set `b:changedtick`, also checking `b:` for consistency in debug build.
-#[cfg(not(test))]
-#[unsafe(no_mangle)]
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
     unsafe {
         let old_val = (*buf).changedtick_di.di_tv;

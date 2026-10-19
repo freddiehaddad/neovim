@@ -24,8 +24,15 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::buffer::{bt_help, bt_quickfix};
 #[allow(unused_imports)]
+use crate::buffer::{
+    buf_hide, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, close_buffer,
+    do_autochdir, do_buffer, maketitle,
+};
+#[allow(unused_imports)]
 use crate::drawscreen::{comp_col, showmode};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_extend;
 #[allow(unused_imports)]
 use crate::ex_cmds2::can_abandon;
 #[allow(unused_imports)]
@@ -34,6 +41,10 @@ use crate::ex_docmd::{do_cmdline_cmd, tabpage_close};
 use crate::ex_getln::{compute_cmdrow, curbuf_locked};
 #[allow(unused_imports)]
 use crate::file_search::do_autocmd_dirchanged;
+#[allow(unused_imports)]
+use crate::fileio::shorten_fnames;
+#[allow(unused_imports)]
+use crate::fold::{getDeepestNesting, hasFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -422,37 +433,7 @@ unsafe extern "C" {
         flags: c_int,
         oldwin: *mut win_T,
     ) -> c_int;
-    fn buf_hide(buf: *const buf_T) -> bool;
     fn bufIsChanged(buf: *const buf_T) -> bool;
-    fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_getfile(n: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn close_buffer(
-        win: *mut win_T,
-        buf: *mut buf_T,
-        action: c_int,
-        abort_if_last: bool,
-        ignore_abort: bool,
-        set_Plines: bool,
-    ) -> bool;
-    fn do_autochdir();
-    fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
-    fn maketitle();
-    fn shorten_fnames(force: c_int);
-    fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_char);
-    fn getDeepestNesting(wp: *mut win_T) -> c_int;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
 }
 
 const ERROR_INIT: Error = Error {

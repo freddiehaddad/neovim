@@ -16,6 +16,8 @@
 use crate::buffer::bt_quickfix;
 #[allow(unused_imports)]
 use crate::drawscreen::conceal_cursor_line;
+#[allow(unused_imports)]
+use crate::fold::get_foldtext;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::{ins_compl_col_range_attr, ins_compl_lnum_in_range, ins_compl_win_active};
@@ -252,14 +254,6 @@ static mut stc_prev_tick: disptick_T = 0;
 unsafe extern "C" {
 
     fn gchar_pos(pos: *const pos_T) -> c_int;
-    fn get_foldtext(
-        wp: *mut win_T,
-        lnum: linenr_T,
-        lnume: linenr_T,
-        foldinfo: foldinfo_T,
-        buf: *mut c_char,
-        vt: *mut VirtText,
-    ) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

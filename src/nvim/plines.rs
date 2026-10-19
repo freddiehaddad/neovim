@@ -15,6 +15,8 @@ use crate::charset::vim_isprintc;
 use crate::decoration::decor_conceal_line;
 #[allow(unused_imports)]
 use crate::diff::{diff_check_fill, diffopt_filler};
+#[allow(unused_imports)]
+use crate::fold::{hasFolding, lineFolded};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::indent::get_breakindent_win;
@@ -121,13 +123,6 @@ unsafe extern "C" {
         lines: *mut c_void,
         apply_folds: bool,
     ) -> c_int;
-    fn lineFolded(win: *mut win_T, lnum: linenr_T) -> bool;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn hasFoldingWin(
         win: *mut win_T,
         lnum: linenr_T,

@@ -16,6 +16,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::eval_to_string;
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_check_for_opt_bool_arg, tv_get_string_buf_chk, tv_get_string_chk};
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_get_bool, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_string,
 };
@@ -27,6 +29,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::plain_vgetc;
 #[allow(unused_imports)]
+use crate::mapping::do_map;
+#[allow(unused_imports)]
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
 use crate::message::semsg;
 #[allow(unused_imports)]
@@ -36,6 +40,8 @@ use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::input::fast_breakcheck;
+#[allow(unused_imports)]
+use crate::runtime::{getsourceline, source_runtime};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -1635,12 +1641,6 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn source_runtime(name: *mut c_char, flags: c_int) -> c_int;
-    fn getsourceline(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
@@ -2292,14 +2292,7 @@ pub unsafe extern "C" fn ex_loadkeymap(eap: *mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
         let save_cpo = p_cpo;
-        let fgetline: LineGetter = if (*eap).ea_getline.is_null() {
-            None
-        } else {
-            Some(std::mem::transmute::<
-                *mut c_void,
-                unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char,
-            >((*eap).ea_getline))
-        };
+        let fgetline: LineGetter = (*eap).ea_getline;
 
         if !getline_equal(fgetline, (*eap).cookie, Some(getsourceline)) {
             emsg(gettext(

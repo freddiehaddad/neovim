@@ -18,10 +18,16 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::{bt_cmdwin, buf_spname};
+#[allow(unused_imports)]
 use crate::change::deleted_lines_mark;
 #[allow(unused_imports)]
 use crate::charset::{getwhitecols, str_foldcase, vim_isIDc};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_copy, tv_dict_get_number, tv_dict_get_string, tv_get_string, tv_get_string_chk,
+};
 #[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, restore_v_event};
 use crate::globals::*;
@@ -597,18 +603,11 @@ unsafe extern "C" {
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::r#match::regprog_T;
     fn vim_regfree(prog: *mut crate::r#match::regprog_T);
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut crate::fileio::FILE) -> bool;
-    fn bt_cmdwin(buf: *const buf_T) -> bool;
-    fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn callback_copy(dest: *mut Callback, src: *mut Callback);
     fn callback_call_retnr(
         callback: *mut Callback,
         argcount: c_int,
         argvars: *mut typval_T,
     ) -> varnumber_T;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,

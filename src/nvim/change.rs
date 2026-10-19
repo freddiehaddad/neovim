@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, aucmd_defer_modified};
 #[allow(unused_imports)]
+use crate::buffer::buf_inc_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bt_prompt};
 #[allow(unused_imports)]
 use crate::charset::vim_strnsize;
@@ -24,6 +26,8 @@ use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
     redraw_buf_status_later, redraw_later, redrawWinline, set_must_redraw, showmode,
 };
+#[allow(unused_imports)]
+use crate::fold::foldUpdate;
 #[allow(unused_imports)]
 use crate::fold::{find_wl_entry, hasAnyFolding};
 use crate::globals::*;
@@ -172,8 +176,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn buf_inc_changedtick(buf: *mut buf_T);
-    fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
     fn hasFoldingWin(
         win: *mut win_T,
         lnum: linenr_T,

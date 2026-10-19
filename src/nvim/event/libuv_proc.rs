@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_to_env;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::os::env::os_free_fullenv;
@@ -17,7 +19,6 @@ use crate::os::fs::os_close;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::eval::decode::dict_T;
 use crate::event::proc::{
     LibuvProc, Proc, libuv_proc_uv, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
 };
@@ -103,8 +104,6 @@ unsafe extern "C" {
     ) -> c_int;
     fn uv_process_get_pid(handle: *const uv_process_t) -> c_int;
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
-
-    fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
 
     #[cfg(windows)]
     fn os_shell_is_cmdexe(sh: *const c_char) -> bool;

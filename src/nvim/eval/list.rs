@@ -16,6 +16,11 @@ use crate::eval::typval::{
     tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_reverse, tv_list_unref,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_dict_extend, tv_dict_remove,
+    tv_equal, tv_get_string, tv_get_string_chk, tv_list_remove,
+};
+#[allow(unused_imports)]
 use crate::eval::vars::{prepare_vimvar, restore_vimvar, var_check_fixed, var_check_ro};
 #[allow(unused_imports)]
 use crate::eval::{eval_expr_typval, get_copyID};
@@ -61,12 +66,8 @@ enum FilterMap {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
     fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_check_for_string_or_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
 
     fn tv_dict_copy(
@@ -75,10 +76,6 @@ unsafe extern "C" {
         deep: bool,
         copy_id: c_int,
     ) -> *mut dict_T;
-    fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_char);
-    fn tv_dict_remove(argvars: *mut typval_T, rettv: *mut typval_T, arg_errmsg: *const c_char);
-
-    fn tv_blob_remove(argvars: *mut typval_T, rettv: *mut typval_T, arg_errmsg: *const c_char);
 
     fn tv_list_copy(
         conv: *const c_void,
@@ -86,7 +83,6 @@ unsafe extern "C" {
         deep: bool,
         copy_id: c_int,
     ) -> *mut list_T;
-    fn tv_list_remove(argvars: *mut typval_T, rettv: *mut typval_T, arg_errmsg: *const c_char);
 
     fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);

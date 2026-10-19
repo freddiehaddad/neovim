@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_help;
 #[allow(unused_imports)]
+use crate::buffer::{buflist_findname_exp, buflist_findnr, buflist_getfile};
+#[allow(unused_imports)]
 use crate::cmdexpand::{ExpandInit, ExpandOne};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -24,6 +26,8 @@ use crate::eval::typval::{
     tv_list_append_tv, tv_list_free,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_get_number, tv_dict_get_string};
+#[allow(unused_imports)]
 use crate::eval::{callback_call, list2fpos};
 #[allow(unused_imports)]
 use crate::ex_cmds::{getfile, prepare_tagpreview};
@@ -33,9 +37,15 @@ use crate::ex_docmd::{do_cmdline_cmd, set_no_hlsearch};
 use crate::file_search::{
     vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
 };
+#[allow(unused_imports)]
+use crate::fileio::vim_fgets;
+#[allow(unused_imports)]
+use crate::fold::foldOpenCursor;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::{ins_compl_check_keys, ins_compl_interrupted};
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_excmd;
 #[allow(unused_imports)]
 use crate::message::{
     emsg, give_warning, msg, msg_advance, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
@@ -63,7 +73,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::api::command::{cmdmod_T, exarg_T};
+use crate::api::command::exarg_T;
 use crate::api::tabpage::{taggy_T, win_T};
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::charset::{skipdigits, vim_isblankline};
@@ -71,7 +81,7 @@ use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cursor::{check_cursor, linenr_T};
 use crate::drawscreen::redraw_later;
 use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, buf_T, fmark_T, fmarkv_T, pos_T};
+use crate::eval::deprecated::{Callback, fmark_T, fmarkv_T, pos_T};
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
@@ -397,7 +407,6 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn foldOpenCursor();
     fn do_in_runtimepath(
         name: *mut c_char,
         flags: c_int,
@@ -412,21 +421,7 @@ unsafe extern "C" {
         list_stack: *mut *mut c_void,
     ) -> bool;
 
-    fn buflist_getfile(n: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
-
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn nlua_call_excmd(
-        module: *const c_char,
-        func: *const c_char,
-        eap: *mut exarg_T,
-        cmod: *const cmdmod_T,
-        extra: *mut typval_T,
-    ) -> bool;
-
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
 
     fn do_search(
         oap: *mut c_void,
@@ -440,7 +435,6 @@ unsafe extern "C" {
         sia: *mut c_void,
     ) -> c_int;
 
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
     fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;

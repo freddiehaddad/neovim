@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, dict_check_writable, try_enter, try_leave};
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_watcher_notify;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
 };
@@ -21,6 +23,8 @@ use crate::eval::typval::{
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
 #[allow(unused_imports)]
 use crate::ex_docmd::{apply_cmdmod, undo_cmdmod};
+#[allow(unused_imports)]
+use crate::fold::foldUpdate;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{
@@ -31,6 +35,8 @@ use crate::mbyte::{
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::runtime::script_autoload;
 #[allow(unused_imports)]
 use crate::window::win_find_tabpage;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -169,15 +175,6 @@ unsafe extern "C" {
     fn find_window_by_handle(window: handle_T, err: *mut Error) -> *mut win_T;
     fn find_tab_by_handle(tabpage: handle_T, err: *mut Error) -> *mut tabpage_T;
 
-    fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
-
-    fn tv_dict_watcher_notify(
-        dict: *mut dict_T,
-        key: *const c_char,
-        newtv: *mut typval_T,
-        oldtv: *mut typval_T,
-    );
-    fn script_autoload(name: *const c_char, len: usize, reload: bool) -> bool;
     fn str2special(
         sp: *mut *const c_char,
         replace_spaces: bool,

@@ -17,6 +17,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::{buf_inc_changedtick, buf_spname, setfname};
+#[allow(unused_imports)]
 use crate::dialog::do_dialog;
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -24,6 +26,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::fileio::{buf_store_file_info, modname};
+#[allow(unused_imports)]
+use crate::fileio::{vim_deltempdir, vim_rename, vim_tempname};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
@@ -349,18 +353,7 @@ unsafe extern "C" {
 
     fn ui_has(ext: c_int) -> bool;
 
-    fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
-    fn vim_tempname() -> *mut c_char;
-    fn vim_deltempdir();
-    fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn buf_inc_changedtick(buf: *mut buf_T);
     fn open_buffer(read_stdin: bool, eap: *mut c_void, flags_arg: c_int) -> c_int;
-    fn setfname(
-        buf: *mut buf_T,
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        message: bool,
-    ) -> c_int;
     fn readfile(
         fname: *mut c_char,
         sfname: *mut c_char,

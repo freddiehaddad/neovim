@@ -18,6 +18,8 @@ use crate::api::tabpage::{tabpage_T, win_T};
 use crate::autocmd::apply_autocmds;
 #[allow(unused_imports)]
 use crate::buffer::{bt_prompt, buf_is_empty, buf_valid, bufref_valid, set_bufref};
+#[allow(unused_imports)]
+use crate::buffer::{buflist_findnr, buflist_findpat};
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
 use crate::charset::{getdigits_int, getdigits_int32, skipwhite};
@@ -30,14 +32,24 @@ use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::fs::FileInfo;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_get_lnum;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_get_number;
 #[allow(unused_imports)]
 use crate::eval::vars::{eval_diff, eval_patch};
 #[allow(unused_imports)]
 use crate::ex_cmds::append_redir;
 #[allow(unused_imports)]
+use crate::ex_cmds::ex_file;
+#[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_exedit, get_address};
 use crate::extmark::extmark_adjust;
+#[allow(unused_imports)]
+use crate::fileio::{buf_check_timestamp, shorten_fnames, vim_fgets, vim_gettempdir, vim_tempname};
+#[allow(unused_imports)]
+use crate::fold::{foldUpdate, foldUpdateAll, hasFolding, newFoldLevel};
 use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -263,42 +275,7 @@ static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn buflist_findpat(
-        pattern: *const c_char,
-        pattern_end: *const c_char,
-        unlisted: bool,
-        diffmode: bool,
-        curtab_only: bool,
-    ) -> c_int;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn vim_tempname() -> *mut c_char;
-    fn vim_gettempdir() -> *mut c_char;
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
-    fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
-    fn shorten_fnames(force: c_int);
-    fn ex_file(eap: *mut exarg_T);
-    fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T);
-    fn get_address(
-        eap: *mut exarg_T,
-        ptr: *mut *mut c_char,
-        addr_type: cmd_addr_T,
-        skip: bool,
-        silent: bool,
-        to_other_file: c_int,
-        address_count: c_int,
-        errormsg: *mut *const c_char,
-    ) -> linenr_T;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
-    fn hasFolding(
-        wp: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn newFoldLevel();
-    fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
-    fn foldUpdateAll(win: *mut win_T);
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;
     fn strlen(s: *const c_char) -> usize;

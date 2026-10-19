@@ -16,6 +16,8 @@ use crate::change::inserted_bytes;
 use crate::drawscreen::redraw_later;
 #[allow(unused_imports)]
 use crate::fold::hasAnyFolding;
+#[allow(unused_imports)]
+use crate::fold::hasFolding;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mark::mark_mb_adjustpos;
@@ -60,16 +62,6 @@ const MODE_TERMINAL: c_int = 0x80;
 
 const kOptVeFlagAll: c_uint = 0x04;
 const kOptVeFlagOnemore: c_uint = 0x08;
-
-unsafe extern "C" {
-
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-}
 
 /// Return the screen position of the cursor (`getviscol`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

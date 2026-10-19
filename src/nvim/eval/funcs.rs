@@ -31,6 +31,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{au_exists, autocmd_supported};
 #[allow(unused_imports)]
+use crate::buffer::{buf_close_terminal, buflist_findnr, buflist_findpat, setfname};
+#[allow(unused_imports)]
 use crate::channel::{
     channel_close, channel_connect, channel_create_event, channel_decref, channel_from_stdio,
     channel_incref, channel_job_start, channel_send, channel_terminal_alloc,
@@ -47,6 +49,17 @@ use crate::eval::decode::{mpack_parse_typval, typval_parser_error_free, unpack_t
 #[allow(unused_imports)]
 use crate::eval::typval::{callback_free, value_check_lock};
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    check_repeat_count, tv_check_for_buffer_arg, tv_check_for_dict_arg, tv_check_for_list_arg,
+    tv_check_for_list_or_blob_arg, tv_check_for_lnum_arg, tv_check_for_nonempty_string_arg,
+    tv_check_for_nonnull_dict_arg, tv_check_for_number_arg, tv_check_for_opt_bool_arg,
+    tv_check_for_opt_dict_arg, tv_check_for_opt_number_arg, tv_check_for_string_arg,
+    tv_check_for_string_or_func_arg, tv_check_for_string_or_list_arg, tv_check_num,
+    tv_check_str_or_nr, tv_dict_get_bool, tv_dict_get_callback, tv_dict_get_number,
+    tv_dict_get_number_def, tv_dict_get_string, tv_equal, tv_get_lnum, tv_get_string,
+    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_copy, tv_list_flatten,
+};
+#[allow(unused_imports)]
 use crate::eval::vars::cat_prefix_varname;
 #[allow(unused_imports)]
 use crate::eval::{
@@ -54,6 +67,8 @@ use crate::eval::{
 };
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::expand_filename;
 #[allow(unused_imports)]
 use crate::ex_docmd::{cmd_exists, do_cmdline_cmd};
 #[allow(unused_imports)]
@@ -505,47 +520,8 @@ unsafe extern "C" {
         n2: varnumber_T,
         src_tv: *const typval_T,
     ) -> c_int;
-    fn tv_check_for_buffer_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_list_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_lnum_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_nonempty_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_string_or_func_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_num(varp: *const typval_T) -> bool;
-    fn tv_check_str_or_nr(varp: *const typval_T) -> bool;
     fn tv_dict_extend(d1: *mut dict_T, d2: *const dict_T, action: *const c_char);
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_dict_get_callback(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: isize,
-        result: *mut Callback,
-    ) -> bool;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_dict_get_number_def(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
-    fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
-    fn tv_get_string(varp: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_buf_chk(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_chk(varp: *const typval_T) -> *const c_char;
-    fn tv_list_copy(
-        conv: *const vimconv_T,
-        orig: *mut list_T,
-        deep: bool,
-        copyID: c_int,
-    ) -> *mut list_T;
     fn tv_list_find_nr(l: *const list_T, n: c_int, ret_error: *mut bool) -> varnumber_T;
-    fn tv_list_flatten(l: *mut list_T, li: *mut listitem_T, maxitems: i64, maxdepth: i64);
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
     fn func_call(
         name: *mut c_char,
@@ -586,7 +562,6 @@ unsafe extern "C" {
         firstline: *mut linenr_T,
         skip: bool,
     ) -> *mut c_char;
-    fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int;
     fn do_string_sub(
         str_: *mut c_char,
         len: usize,
@@ -678,17 +653,8 @@ unsafe extern "C" {
         err: *mut Error,
     ) -> Object;
 
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_findpat(
-        pattern: *const c_char,
-        pattern_end: *const c_char,
-        unlisted: bool,
-        diffmode: bool,
-        curtab_only: bool,
-    ) -> c_int;
     fn buf_charidx_to_byteidx(buf: *mut buf_T, lnum: i32, charidx: c_int) -> c_int;
     fn buf_byteidx_to_charidx(buf: *mut buf_T, lnum: i32, byteidx: c_int) -> c_int;
-    fn setfname(buf: *mut buf_T, ffname: *mut c_char, sfname: *mut c_char, message: bool) -> c_int;
 
     fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16);
 
@@ -699,11 +665,6 @@ unsafe extern "C" {
         flags: c_int,
     ) -> c_int;
     fn function_exists(name: *const c_char, no_deref: bool) -> bool;
-    fn expand_filename(
-        eap: *mut exarg_T,
-        cmdlinep: *mut *mut c_char,
-        errormsgp: *mut *const c_char,
-    ) -> c_int;
     fn last_csearch() -> *mut c_char;
     fn set_csearch_direction(cdir: c_int);
     fn prompt_for_input(
@@ -712,7 +673,6 @@ unsafe extern "C" {
         use_CTRL_C: bool,
         mouse_used: *mut bool,
     ) -> c_int;
-    fn buf_close_terminal(buf: *mut buf_T);
     fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32);
 }
 
@@ -2483,7 +2443,7 @@ pub unsafe extern "C" fn f_expandcmd(
         eap.arg = cmdstr;
         eap.usefilter = 0;
         eap.nextcmd = ptr::null_mut();
-        eap.cmdidx = cmdidx_T::CMD_USER;
+        eap.cmdidx = cmdidx_T::CMD_USER as c_int;
         eap.argt |= EX_NOSPC;
 
         if emsgoff {

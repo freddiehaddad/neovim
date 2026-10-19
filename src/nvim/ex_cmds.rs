@@ -20,19 +20,36 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::{
+    buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed, buflist_altfpos,
+    buflist_findfmark, buflist_findnr, buflist_new, close_buffer, do_autochdir, do_modelines,
+    fileinfo, get_winopts, handle_swap_exists, maketitle, no_write_message, no_write_message_buf,
+    open_buffer, set_buflisted, setaltfname, setfname,
+};
+#[allow(unused_imports)]
 use crate::drawscreen::number_width;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::ex_cmds2::{check_fname, dialog_changed};
 #[allow(unused_imports)]
+use crate::ex_docmd::{before_quit_all, ex_may_print};
+#[allow(unused_imports)]
 use crate::ex_docmd::{check_nextcmd, do_cmdline, not_exiting};
 #[allow(unused_imports)]
 use crate::ex_eval::{aborting, should_abort};
+#[allow(unused_imports)]
+use crate::fileio::{
+    buf_check_timestamp, set_file_options, set_forced_fenc, vim_tempname, write_lnum_adjust,
+};
+#[allow(unused_imports)]
+use crate::fold::{foldUpdate, foldUpdateAll};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::redo_append_lit;
 #[allow(unused_imports)]
 use crate::insert::beginline;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_excmd;
 #[allow(unused_imports)]
 use crate::main_init::getout;
 #[allow(unused_imports)]
@@ -65,7 +82,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
 use std::ptr;
 
-use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
+use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::arglist::{check_arg_idx, do_argfile};
@@ -92,7 +109,6 @@ use crate::charset::{
     getdigits_int, skiptobin, skiptodigit, skiptohex, skiptowhite, skipwhite, transchar,
     transchar_nonprint, vim_isIDc, vim_isprintc, vim_str2nr,
 };
-use crate::clipboard::typval_T;
 use crate::cmdexpand::cmdidx_T;
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
@@ -108,7 +124,7 @@ use crate::drawscreen::{
     show_cursor_info_later, update_screen,
 };
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, fmark_T, synblock_T};
+use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds2::{autowrite, autowrite_all, buf_write_all, check_changed};
 use crate::ex_eval::cstack_T;
@@ -419,10 +435,7 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn get_winopts(buf: *mut buf_T);
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-
-    fn ex_may_print(eap: *mut exarg_T);
 
     fn update_cwd(cause: c_int);
 
@@ -436,52 +449,8 @@ unsafe extern "C" {
     ) -> c_int;
     fn regtilde(source: *const c_char, magic: c_int, preview: bool) -> *mut c_char;
 
-    fn nlua_call_excmd(
-        module: *const c_char,
-        func: *const c_char,
-        eap: *mut exarg_T,
-        cmod: *const cmdmod_T,
-        extra: *mut typval_T,
-    ) -> bool;
-
-    fn write_lnum_adjust(offset: linenr_T);
-    fn do_autochdir();
-    fn before_quit_all(eap: *mut exarg_T) -> c_int;
-    fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
-    fn buf_clear_file(buf: *mut buf_T);
-    fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
-    fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool;
-    fn buf_hide(buf: *const buf_T) -> bool;
-    fn buf_name_changed(buf: *mut buf_T);
-    fn buflist_altfpos(win: *mut win_T);
-    fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T;
     fn buflist_findname(ffname: *const c_char) -> *mut buf_T;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn close_buffer(
-        win: *mut win_T,
-        buf: *mut buf_T,
-        action: c_int,
-        abort_if_last: bool,
-        ignore_abort: bool,
-        set_pcmark: bool,
-    ) -> bool;
-    fn do_modelines(flags: c_int);
-    fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool);
-    fn handle_swap_exists(old_curbuf: *mut bufref_T);
-    fn maketitle();
-    fn no_write_message();
-    fn no_write_message_buf(buf: *mut buf_T);
-    fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int;
     fn otherfile(ffname: *const c_char) -> bool;
-    fn set_buflisted(on: c_int);
-    fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr_T) -> *mut buf_T;
-    fn setfname(buf: *mut buf_T, ffname: *mut c_char, sfname: *mut c_char, message: bool) -> c_int;
     fn prompt_for_input(
         prompt: *const c_char,
         hl_id: c_int,
@@ -498,9 +467,6 @@ unsafe extern "C" {
         flags: c_int,
         silent: bool,
     ) -> c_int;
-    fn set_file_options(set_options: bool, eap: *mut exarg_T);
-    fn set_forced_fenc(eap: *mut exarg_T);
-    fn vim_tempname() -> *mut c_char;
     fn foldMoveRange(
         wp: *mut win_T,
         gap: *mut crate::garray::garray_T,
@@ -508,8 +474,6 @@ unsafe extern "C" {
         line2: linenr_T,
         dest: linenr_T,
     );
-    fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
-    fn foldUpdateAll(win: *mut win_T);
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -3679,7 +3643,7 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
             let theline = xstrdup((*eap).arg.add(1));
             *(*eap).arg = NUL;
             theline
-        } else if (*eap).ea_getline.is_null() {
+        } else if (*eap).ea_getline.is_none() {
             if (*eap).nextcmd.is_null() {
                 return ptr::null_mut();
             }
@@ -3702,8 +3666,7 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> *mut c_char {
         } else {
             let getline_State = State;
             State = MODE_CMDLINE;
-            let ea_getline: unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char =
-                std::mem::transmute((*eap).ea_getline);
+            let ea_getline = (*eap).ea_getline.unwrap();
             let cstack = (*eap).cstack.cast::<cstack_T>();
             let theline = ea_getline(
                 if (*cstack).cs_looplevel > 0 {

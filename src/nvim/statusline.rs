@@ -15,6 +15,8 @@ use crate::api::private::helpers::{
     api_free_array, arena_array, arena_dict, arena_string, cstr_as_string,
 };
 #[allow(unused_imports)]
+use crate::buffer::{append_arg_number, buf_spname, get_rel_pos};
+#[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, calc_percentage};
 #[allow(unused_imports)]
 use crate::charset::{vim_strnsize, vim_strsize};
@@ -271,16 +273,13 @@ unsafe extern "C" {
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn buf_spname(buf: *mut buf_T) -> *mut c_char;
     fn ui_call_tabline_update(current: c_int, tabs: Array, current_buffer: c_int, buffers: Array);
     fn lastwin_nofloating(avoid: *mut win_T) -> *mut win_T;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn append_arg_number(wp: *mut win_T, buf: *mut c_char, buflen: usize) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_int;
 }
 
 #[inline]

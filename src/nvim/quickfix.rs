@@ -21,11 +21,26 @@
     clippy::while_immutable_condition
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{
+    buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, close_buffer, do_modelines,
+    no_write_message, setfname, wipe_buffer,
+};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_copy, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string, tv_get_string_chk,
+};
 #[allow(unused_imports)]
 use crate::eval::window::win_id2wp;
 #[allow(unused_imports)]
+use crate::ex_docmd::ex_cd;
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, is_loclist_cmd};
+#[allow(unused_imports)]
+use crate::fileio::{shorten_fnames, vim_fgets, vim_tempname};
+#[allow(unused_imports)]
+use crate::fold::{foldOpenCursor, foldUpdateAll};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::ptr2cells;
@@ -597,42 +612,7 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
 
-    fn ex_cd(eap: *mut exarg_T);
-
     fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
-
-    fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_getfile(nr: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn close_buffer(
-        win: *mut win_T,
-        buf: *mut buf_T,
-        action: c_int,
-        abort_if_last: bool,
-        ignore_abort: bool,
-        set_prev_buf: bool,
-    ) -> bool;
-    fn do_modelines(flags: c_int);
-    fn no_write_message();
-    fn setfname(
-        buf: *mut buf_T,
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        message: bool,
-    ) -> c_int;
-    fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
-
-    fn callback_copy(dest: *mut Callback, src: *mut Callback);
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
 
     fn readfile(
         fname: *const c_char,
@@ -644,12 +624,6 @@ unsafe extern "C" {
         flags: c_int,
         silent: bool,
     ) -> c_int;
-    fn shorten_fnames(force: c_int);
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
-    fn vim_tempname() -> *mut c_char;
-
-    fn foldOpenCursor();
-    fn foldUpdateAll(win: *mut win_T);
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;

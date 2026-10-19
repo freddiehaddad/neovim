@@ -18,6 +18,8 @@ use crate::eval::last_set_msg;
 use crate::ex_docmd::ends_excmd;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_do_ucmd;
+#[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
 #[allow(unused_imports)]
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
@@ -316,10 +318,9 @@ unsafe extern "C" {
     ) -> *mut c_char;
     fn message_filtered(msg: *mut c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -> c_int;
     fn do_cmdline(
         cmdline: *mut c_char,
-        fgetline: *mut c_void,
+        fgetline: crate::eval::vars::LineGetter,
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;

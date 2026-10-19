@@ -10,6 +10,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_to_env;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::fs::os_set_cloexec;
@@ -264,8 +266,6 @@ mod unix_impl {
         fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
         fn uv_chdir(dir: *const c_char) -> c_int;
         fn uv_strerror(err: c_int) -> *const c_char;
-
-        fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
 
         fn forkpty(
             amaster: *mut c_int,

@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_watcher_notify;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
@@ -100,12 +102,6 @@ pub type HlMessage = KVec<HlMessageChunk>;
 unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn tv_dict_watcher_notify(
-        dict: *mut dict_T,
-        key: *const c_char,
-        newtv: *mut typval_T,
-        oldtv: *mut typval_T,
-    );
 }
 
 #[inline]

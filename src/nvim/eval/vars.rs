@@ -21,6 +21,11 @@ use crate::errors::*;
 use crate::eval::funcs::tv_get_buf;
 #[allow(unused_imports)]
 use crate::eval::typval::{
+    tv_check_str_or_nr, tv_dict_watcher_notify, tv_get_string, tv_get_string_buf_chk,
+    tv_get_string_chk, tv_list_find_nr, tv_list_find_str,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_item_alloc,
     tv_dict_item_remove, tv_dict_set_keys_readonly, tv_dict_unref, tv_get_bool_chk, tv_get_number,
     tv_get_number_chk, tv_item_lock, tv_list_alloc, tv_list_append_allocated_string,
@@ -29,6 +34,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::userfunc::get_current_funccal_dict;
+#[allow(unused_imports)]
+use crate::eval::{clear_evalarg, eval0, fill_evalarg_from_eap};
 #[allow(unused_imports)]
 use crate::eval::{
     clear_lval, eval_isnamec1, eval_option, eval_to_string, eval1, find_name_end,
@@ -55,6 +62,8 @@ use crate::option::{
     set_option_value, set_option_value_give_err,
 };
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::runtime::{new_script_item, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
@@ -581,14 +590,6 @@ unsafe extern "C" {
         argvars_in: *mut typval_T,
         rettv: *mut typval_T,
     ) -> bool;
-    fn eval0(
-        arg: *mut c_char,
-        rettv: *mut typval_T,
-        eap: *mut exarg_T,
-        evalarg: *mut evalarg_T,
-    ) -> c_int;
-    fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
-    fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T);
 
     fn list_func_vars(first: *mut c_int);
     fn find_hi_in_scoped_ht(name: *const c_char, pht: *mut *mut hashtab_T) -> *mut hashitem_T;
@@ -607,25 +608,8 @@ unsafe extern "C" {
 
     fn tv_get_buf_from_arg(tv: *const typval_T) -> *mut buf_T;
 
-    fn tv_dict_watcher_notify(
-        dict: *mut dict_T,
-        key: *const c_char,
-        newtv: *mut typval_T,
-        oldtv: *mut typval_T,
-    );
-
-    fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char;
-    fn tv_list_find_nr(l: *mut list_T, n: c_int, ret_error: *mut bool) -> varnumber_T;
-
-    fn tv_check_str_or_nr(tv: *const typval_T) -> bool;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 
-    fn new_script_item(name: *mut c_char, out_sid: *mut scid_T) -> *mut scriptitem_T;
-    fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool;
     fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, show_ref: bool) -> *mut c_char;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
@@ -1536,7 +1520,7 @@ pub unsafe extern "C" fn heredoc_get(
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ex_let(eap: *mut exarg_T) {
     unsafe {
-        let is_const = (*eap).cmdidx == cmdidx_T::CMD_const;
+        let is_const = (*eap).cmdidx == cmdidx_T::CMD_const as c_int;
         let mut arg = (*eap).arg;
         let mut rettv: typval_T = std::mem::zeroed();
         let mut var_count: c_int = 0;
@@ -2529,7 +2513,7 @@ unsafe extern "C" fn do_lock_var(
     deep: c_int,
 ) -> c_int {
     unsafe {
-        let lock = (*eap).cmdidx == cmdidx_T::CMD_lockvar;
+        let lock = (*eap).cmdidx == cmdidx_T::CMD_lockvar as c_int;
         let mut ret = OK;
 
         if (*lp).ll_tv.is_null() {

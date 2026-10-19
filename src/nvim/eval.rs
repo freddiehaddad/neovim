@@ -36,12 +36,22 @@ pub mod window;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, arena_array, cstr_to_string};
 #[allow(unused_imports)]
+use crate::buffer::buflist_findnr;
+#[allow(unused_imports)]
 use crate::channel::callback_reader_free;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::get_list_line;
 #[allow(unused_imports)]
 use crate::eval::typval::{callback_free, callback_put};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_blob_check_index, tv_blob_check_range, tv_blob_set_range, tv_blob_slice_or_index,
+    tv_check_num, tv_check_str, tv_dict_equal, tv_dict_get_callback, tv_dict_get_number,
+    tv_dict_watcher_notify, tv_equal, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
+    tv_get_string_chk, tv_list_assign_range, tv_list_check_range_index_one, tv_list_copy,
+    tv_list_join, tv_list_slice_or_index,
+};
 #[allow(unused_imports)]
 use crate::eval::userfunc::eval_fname_script;
 #[allow(unused_imports)]
@@ -77,6 +87,8 @@ use crate::quickfix::set_ref_in_quickfix;
 use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
 #[allow(unused_imports)]
 use crate::register::op_global_reg_iter;
+#[allow(unused_imports)]
+use crate::runtime::{get_scriptname, script_autoload, sourcing_a_script};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_void};
@@ -406,67 +418,13 @@ unsafe extern "C" {
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
     fn bt_prompt(buf: *const buf_T) -> bool;
-    fn sourcing_a_script(eap: *mut exarg_T) -> c_int;
-    fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char;
-    fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool;
 
-    fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) -> c_int;
-    fn tv_blob_check_range(bloblen: c_int, n1: varnumber_T, n2: varnumber_T, quiet: bool) -> c_int;
-    fn tv_blob_set_range(
-        dest: *mut blob_T,
-        n1: varnumber_T,
-        n2: varnumber_T,
-        src: *mut typval_T,
-    ) -> c_int;
-    fn tv_blob_slice_or_index(
-        b: *const blob_T,
-        is_range: bool,
-        n1: varnumber_T,
-        n2: varnumber_T,
-        exclusive: bool,
-        rettv: *mut typval_T,
-    ) -> c_int;
-    fn tv_check_num(tv: *const typval_T) -> bool;
-    fn tv_check_str(tv: *const typval_T) -> bool;
     fn tv_dict_copy(
         conv: *const vimconv_T,
         d: *const dict_T,
         deep: bool,
         copyID: c_int,
     ) -> *mut dict_T;
-    fn tv_dict_equal(d1: *mut dict_T, d2: *mut dict_T, ic: bool) -> bool;
-    fn tv_dict_get_callback(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: isize,
-        result: *mut Callback,
-    ) -> bool;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_dict_watcher_notify(
-        dict: *mut dict_T,
-        key: *const c_char,
-        newtv: *mut typval_T,
-        oldtv: *mut typval_T,
-    );
-    fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
-    fn tv_get_string(varp: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_buf_chk(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_chk(varp: *const typval_T) -> *const c_char;
-    fn tv_list_assign_range(
-        dest: *mut list_T,
-        src: *mut list_T,
-        idx1: c_int,
-        idx2: c_int,
-        empty2: bool,
-        op: *const c_char,
-        varname: *const c_char,
-    ) -> c_int;
-    fn tv_list_check_range_index_one(
-        l: *mut list_T,
-        n1: *mut c_int,
-        quiet: bool,
-    ) -> *mut listitem_T;
     fn tv_list_check_range_index_two(
         l: *mut list_T,
         n1: *mut c_int,
@@ -475,24 +433,8 @@ unsafe extern "C" {
         quiet: bool,
     ) -> c_int;
     fn tv_list_concat(l1: *const list_T, l2: *const list_T, tv: *mut typval_T) -> c_int;
-    fn tv_list_copy(
-        conv: *const vimconv_T,
-        orig: *mut list_T,
-        deep: bool,
-        copyID: c_int,
-    ) -> *mut list_T;
     fn tv_list_equal(l1: *const list_T, l2: *const list_T, ic: bool) -> bool;
     fn tv_list_find_nr(l: *const list_T, n: c_int, error: *mut bool) -> varnumber_T;
-    fn tv_list_join(gap: *mut garray_T, l: *mut list_T, sep: *const c_char) -> c_int;
-    fn tv_list_slice_or_index(
-        l: *mut list_T,
-        is_range: bool,
-        n1: varnumber_T,
-        n2: varnumber_T,
-        exclusive: bool,
-        rettv: *mut typval_T,
-        verbose: bool,
-    ) -> c_int;
 
     fn call_func(
         funcname: *const c_char,
@@ -553,7 +495,6 @@ unsafe extern "C" {
     ) -> c_int;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
 
     fn nlua_call_ref(
         ref_: c_int,
@@ -7648,16 +7589,16 @@ pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
             if (*eap).skip == 0 {
                 if atstart {
                     atstart = false;
-                    msg_ext_set_append((*eap).cmdidx == cmdidx_T::CMD_echon);
+                    msg_ext_set_append((*eap).cmdidx == cmdidx_T::CMD_echon as c_int);
                     msg_ext_no_fast();
                     msg_ext_set_kind(c"echo".as_ptr());
-                    if (*eap).cmdidx == cmdidx_T::CMD_echo {
+                    if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
                         if !msg_didout {
                             msg_sb_eol();
                         }
                         msg_start();
                     }
-                } else if (*eap).cmdidx == cmdidx_T::CMD_echo {
+                } else if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
                     msg_puts_hl(c" ".as_ptr(), echo_hl_id, false);
                 }
                 let tofree = encode_tv2echo(&raw mut rettv, ptr::null_mut());
@@ -7689,7 +7630,7 @@ pub unsafe extern "C" fn ex_echo(eap: *mut exarg_T) {
             } else if need_clear {
                 msg_clr_eos();
             }
-            if (*eap).cmdidx == cmdidx_T::CMD_echo {
+            if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
                 msg_end();
             }
         }
@@ -7738,7 +7679,7 @@ pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
             }
 
             if (*eap).skip == 0 {
-                let argstr = if (*eap).cmdidx == cmdidx_T::CMD_execute {
+                let argstr = if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
                     tv_get_string(&raw const rettv)
                 } else if rettv.v_type == VarType::VAR_STRING {
                     encode_tv2echo(&raw mut rettv, ptr::null_mut()).cast_const()
@@ -7756,7 +7697,7 @@ pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
                     ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
                     len + 1,
                 );
-                if (*eap).cmdidx != cmdidx_T::CMD_execute {
+                if (*eap).cmdidx != cmdidx_T::CMD_execute as c_int {
                     xfree(argstr.cast_mut().cast());
                 }
                 ga.ga_len += len as c_int;
@@ -7767,18 +7708,18 @@ pub unsafe extern "C" fn ex_execute(eap: *mut exarg_T) {
         }
 
         if ret != FAIL && !ga.ga_data.is_null() {
-            if (*eap).cmdidx == cmdidx_T::CMD_echomsg {
+            if (*eap).cmdidx == cmdidx_T::CMD_echomsg as c_int {
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echomsg".as_ptr());
                 msg(ga.ga_data.cast(), echo_hl_id);
-            } else if (*eap).cmdidx == cmdidx_T::CMD_echoerr {
+            } else if (*eap).cmdidx == cmdidx_T::CMD_echoerr as c_int {
                 let save_did_emsg = did_emsg;
                 msg_ext_no_fast();
                 emsg_multiline(ga.ga_data.cast(), c"echoerr".as_ptr(), HLF_E, true);
                 if !force_abort {
                     did_emsg = save_did_emsg;
                 }
-            } else if (*eap).cmdidx == cmdidx_T::CMD_execute {
+            } else if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
                 do_cmdline(
                     ga.ga_data.cast(),
                     (*eap).ea_getline,

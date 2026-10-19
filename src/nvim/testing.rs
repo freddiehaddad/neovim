@@ -9,6 +9,12 @@
 )]
 
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
+    tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_equal,
+    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
+};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find};
 #[allow(unused_imports)]
 use crate::eval::vars::assert_error;
@@ -69,19 +75,8 @@ unsafe extern "C" {
 
     fn estack_sfile(which: c_int) -> *mut c_char;
 
-    fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
-
-    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
     fn tv_get_float(tv: *const typval_T) -> f64;
-
-    fn tv_check_for_string_or_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_string_or_list_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_float_or_nr_arg(args: *const typval_T, idx: c_int) -> c_int;
 
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn get_vim_var_tv(idx: c_int) -> *mut typval_T;

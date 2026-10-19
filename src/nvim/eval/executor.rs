@@ -8,6 +8,8 @@ use crate::errors::*;
 use crate::eval::grow_string_tv;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_list_extend};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_get_string, tv_get_string_buf};
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::strings::concat_str;
@@ -33,8 +35,6 @@ unsafe extern "C" {
     fn tv_get_number(varp: *const typval_T) -> i64;
     fn num_divide(n1: i64, n2: i64) -> i64;
     fn num_modulus(n1: i64, n2: i64) -> i64;
-    fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string(varp: *const typval_T) -> *const c_char;
 }
 
 unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {

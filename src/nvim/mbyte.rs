@@ -19,6 +19,8 @@
 use crate::drawscreen::redraw_all_later;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_check_for_string_arg, tv_get_string, tv_get_string_buf};
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
 };
@@ -968,9 +970,6 @@ unsafe extern "C" {
     #[cfg(all(not(windows), not(target_os = "linux")))]
     fn __error() -> *mut c_int;
 
-    fn tv_get_string(varp: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_check_for_string_arg(argvars: *const typval_T, idx: c_int) -> c_int;
 }
 
 #[inline]

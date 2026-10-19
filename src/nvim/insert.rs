@@ -19,6 +19,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::bt_cmdwin;
+#[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, set_bufref};
 #[allow(unused_imports)]
 use crate::change::get_leader_len;
@@ -33,6 +35,10 @@ use crate::errors::*;
 use crate::ex_docmd::{do_cmdline_cmd, expr_map_locked};
 #[allow(unused_imports)]
 use crate::ex_getln::cmdwin_do_action;
+#[allow(unused_imports)]
+use crate::fileio::check_timestamps;
+#[allow(unused_imports)]
+use crate::fold::{foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::highlight_changed;
@@ -62,6 +68,8 @@ use crate::insexpand::{
     ins_compl_preinsert_longest, ins_compl_prep, ins_compl_used_match, ins_compl_win_active,
     ins_complete, ins_ctrl_x, pum_wanted,
 };
+#[allow(unused_imports)]
+use crate::mapping::{check_abbr, map_to_exists_mode};
 #[allow(unused_imports)]
 use crate::message::{emsg, msg_check_for_delay};
 #[allow(unused_imports)]
@@ -378,15 +386,6 @@ unsafe extern "C" {
     fn tabstop_first(ts: *const c_int) -> c_int;
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const c_int) -> c_int;
 
-    fn foldCheckClose();
-    fn foldOpenCursor();
-    fn foldUpdateAfterInsert();
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn hasFoldingWin(
         win: *mut win_T,
         lnum: linenr_T,
@@ -396,16 +395,11 @@ unsafe extern "C" {
         infop: *mut c_void,
     ) -> bool;
 
-    fn check_abbr(c: c_int, ptr: *mut c_char, col: c_int, mincol: c_int) -> bool;
-    fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool;
-
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn ui_has(ext: c_int) -> bool;
-    fn check_timestamps(focus: c_int) -> c_int;
 
     fn bt_prompt(buf: *const buf_T) -> bool;
-    fn bt_cmdwin(buf: *const buf_T) -> bool;
     fn buf_is_empty(buf: *const buf_T) -> bool;
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 

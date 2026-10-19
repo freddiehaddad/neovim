@@ -22,6 +22,8 @@ use crate::drawscreen::{
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number, tv_get_number_chk};
+#[allow(unused_imports)]
+use crate::fold::{foldAdjustCursor, hasFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -107,14 +109,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn get_showbreak_value(win: *const win_T) -> *mut c_char;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn tv_check_for_number_arg(args: *mut typval_T, idx: c_int) -> c_int;
-    fn foldAdjustCursor(wp: *mut win_T);
 }
 
 #[inline]

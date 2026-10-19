@@ -15,11 +15,18 @@ use crate::api::command::exarg_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::arglist::get_arglist_exp;
+#[allow(unused_imports)]
+use crate::buffer::buflist_findname_exp;
 use crate::charset::{getdigits_int, skipdigits, skipwhite};
 use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
+#[allow(unused_imports)]
+use crate::fileio::{
+    buf_reload, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
+    vim_tempname,
+};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -361,7 +368,6 @@ struct spellinfo_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
     fn home_replace(
         buf: *mut buf_T,
         src: *const c_char,
@@ -375,16 +381,6 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
-    fn get2c(fd: *mut FILE) -> c_int;
-    fn get3c(fd: *mut FILE) -> c_int;
-    fn get4c(fd: *mut FILE) -> c_int;
-    fn get8ctime(fd: *mut FILE) -> time_t;
-    fn read_string(fd: *mut FILE, cnt: usize) -> *mut c_char;
-    fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool;
-    fn put_time(fd: *mut FILE, time_: time_t) -> c_int;
-    fn vim_tempname() -> *mut c_char;
-    fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn atoi(s: *const c_char) -> c_int;

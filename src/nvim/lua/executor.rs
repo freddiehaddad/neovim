@@ -24,6 +24,8 @@ use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline;
 #[allow(unused_imports)]
+use crate::ex_getln::script_get;
+#[allow(unused_imports)]
 use crate::ex_getln::{get_user_input, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -34,6 +36,8 @@ use crate::message::{emsg, msg_ext_no_fast, msg_putchar, msg_use_printf, redirec
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::home_replace_save;
+#[allow(unused_imports)]
+use crate::runtime::{runtime_get_named_thread, runtime_search_path_validate};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -351,7 +355,6 @@ unsafe extern "C" {
         raw_for_lua_print: bool,
     ) -> Object;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char;
     fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
@@ -368,8 +371,6 @@ unsafe extern "C" {
     ) -> c_int;
     fn register_luafunc(ref_: LuaRef) -> *mut c_char;
     fn new_script_item(name: *mut c_char, sc_id: *mut c_int) -> *mut scriptitem_T;
-    fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array;
-    fn runtime_search_path_validate();
 
     #[cfg(unix)]
     fn pthread_exit(retval: *mut c_void) -> !;

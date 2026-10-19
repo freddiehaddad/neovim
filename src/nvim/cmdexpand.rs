@@ -23,10 +23,16 @@ use crate::arglist::get_arglist_name;
 #[allow(unused_imports)]
 use crate::autocmd::{aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name};
 #[allow(unused_imports)]
+use crate::buffer::ExpandBufnames;
+#[allow(unused_imports)]
 use crate::cmdhist::get_history_arg;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::{get_expr_name, get_function_name};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_string_arg, tv_dict_get_string, tv_get_string, tv_get_string_chk,
+};
 #[allow(unused_imports)]
 use crate::eval::typval::{
     tv_clear, tv_dict_add_list, tv_dict_add_str_len, tv_dict_alloc_ret, tv_list_alloc,
@@ -61,6 +67,8 @@ use crate::lua::executor::{
     nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
 #[allow(unused_imports)]
+use crate::mapping::ExpandMappings;
+#[allow(unused_imports)]
 use crate::menu::{get_menu_name, get_menu_names};
 use crate::message::semsg;
 #[allow(unused_imports)]
@@ -79,6 +87,10 @@ use crate::profile::{get_profile_name, set_context_in_profile_cmd};
 #[allow(unused_imports)]
 use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree};
 #[allow(unused_imports)]
+use crate::runtime::{
+    ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, set_context_in_runtime_cmd,
+};
+#[allow(unused_imports)]
 use crate::search::ignorecase;
 #[allow(unused_imports)]
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
@@ -91,6 +103,8 @@ use crate::syntax::{
 };
 #[allow(unused_imports)]
 use crate::ui::{ui_flush, ui_has, vim_beep};
+#[allow(unused_imports)]
+use crate::usercmd::find_ucmd;
 #[allow(unused_imports)]
 use crate::usercmd::{
     get_user_cmd_addr_type, get_user_cmd_complete, get_user_cmd_flags, get_user_cmd_nargs,
@@ -109,7 +123,6 @@ use crate::charset::{
     transchar_byte, vim_isfilec_or_wc, vim_strsize,
 };
 use crate::clipboard::{VarType, list_T, typval_T};
-use crate::cursor::linenr_T;
 use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, EvalFuncData};
@@ -733,52 +746,7 @@ pub enum cmdidx_T {
     CMD_USER_BUF = -2,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ExArgMagic {
-    pub file: bool,
-    pub bar: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct exarg_T {
-    pub arg: *mut c_char,
-    pub args: *mut *mut c_char,
-    pub arglens: *mut usize,
-    pub argc: usize,
-    pub nextcmd: *mut c_char,
-    pub cmd: *mut c_char,
-    pub cmdlinep: *mut *mut c_char,
-    pub cmdline_tofree: *mut c_char,
-    pub cmdidx: cmdidx_T,
-    pub argt: u32,
-    pub skip: c_int,
-    pub forceit: c_int,
-    pub addr_count: c_int,
-    pub line1: linenr_T,
-    pub line2: linenr_T,
-    pub addr_type: cmd_addr_T,
-    pub flags: c_int,
-    pub do_ecmd_cmd: *mut c_char,
-    pub do_ecmd_lnum: linenr_T,
-    pub append: c_int,
-    pub usefilter: c_int,
-    pub amount: c_int,
-    pub regname: c_int,
-    pub force_bin: c_int,
-    pub read_edit: c_int,
-    pub mkdir_p: c_int,
-    pub force_ff: c_int,
-    pub force_enc: c_int,
-    pub bad_char: c_int,
-    pub useridx: c_int,
-    pub errmsg: *mut c_char,
-    pub ea_getline: LineGetter,
-    pub cookie: *mut c_void,
-    pub cstack: *mut c_void,
-    pub magic: ExArgMagic,
-}
+pub use crate::api::command::{ExMagic as ExArgMagic, exarg_T};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -1094,13 +1062,6 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
 
-    fn ExpandBufnames(
-        pat: *mut c_char,
-        num_file: *mut c_int,
-        file: *mut *mut *mut c_char,
-        options: c_int,
-    ) -> c_int;
-
     fn get_users(xp: *mut expand_T, idx: c_int) -> *mut c_char;
     fn set_context_in_menu_cmd(
         xp: *mut expand_T,
@@ -1117,48 +1078,11 @@ unsafe extern "C" {
         isunmap: bool,
         cmdidx: cmdidx_T,
     ) -> *mut c_char;
-    fn ExpandMappings(
-        pat: *mut c_char,
-        regmatch: *mut regmatch_T,
-        numMatches: *mut c_int,
-        matches: *mut *mut *mut c_char,
-    ) -> c_int;
-
-    fn find_ucmd(
-        eap: *mut exarg_T,
-        p: *mut c_char,
-        full: *mut c_int,
-        xp: *mut expand_T,
-        complp: *mut c_int,
-    ) -> *mut c_char;
-
-    fn set_context_in_runtime_cmd(xp: *mut expand_T, arg: *const c_char);
-    fn ExpandRTDir(
-        pat: *mut c_char,
-        flags: c_int,
-        num_file: *mut c_int,
-        file: *mut *mut *mut c_char,
-        dirnames: *mut *mut c_char,
-    ) -> c_int;
-    fn ExpandPackAddDir(
-        pat: *mut c_char,
-        num_file: *mut c_int,
-        file: *mut *mut *mut c_char,
-    ) -> c_int;
-    fn expand_runtime_cmd(
-        pat: *mut c_char,
-        numMatches: *mut c_int,
-        matches: *mut *mut *mut c_char,
-    ) -> c_int;
 
     fn set_context_for_expression(xp: *mut expand_T, arg: *mut c_char, cmdidx: cmdidx_T);
     fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
 
-    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_get_bool_chk(tv: *const typval_T, denote: *mut bool) -> i64;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
 
     fn qsort(
@@ -2875,7 +2799,7 @@ unsafe fn set_cmd_index(
         let fuzzy = cmdline_fuzzy_complete(cmd);
 
         if !fuzzy && p_ic == 0 && *cmd == b'k' as c_char && *cmd.add(1) != b'e' as c_char {
-            (*eap).cmdidx = cmdidx_T::CMD_k;
+            (*eap).cmdidx = cmdidx_T::CMD_k as c_int;
             p = cmd.add(1);
         } else {
             p = cmd;
@@ -2907,10 +2831,10 @@ unsafe fn set_cmd_index(
                 return ptr::null();
             }
 
-            (*eap).cmdidx = excmd_get_cmdidx(cmd, len);
+            (*eap).cmdidx = excmd_get_cmdidx(cmd, len) as c_int;
 
             if (*cmd >= b'A' as c_char && *cmd <= b'Z' as c_char)
-                || (fuzzy && (*eap).cmdidx != cmdidx_T::CMD_bang && *p != NUL)
+                || (fuzzy && (*eap).cmdidx != cmdidx_T::CMD_bang as c_int as c_int && *p != NUL)
             {
                 while ascii_isalnum(*p) || *p == b'*' as c_char {
                     p = p.add(1);
@@ -2922,21 +2846,21 @@ unsafe fn set_cmd_index(
             return ptr::null();
         }
 
-        if (*eap).cmdidx == cmdidx_T::CMD_SIZE {
+        if (*eap).cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
             if *cmd == b's' as c_char
                 && !vim_strchr(c"cgriI".as_ptr(), *cmd.add(1) as u8 as c_int).is_null()
             {
-                (*eap).cmdidx = cmdidx_T::CMD_substitute;
+                (*eap).cmdidx = cmdidx_T::CMD_substitute as c_int;
                 p = cmd.add(1);
             } else if *cmd >= b'A' as c_char && *cmd <= b'Z' as c_char {
                 (*eap).cmd = cmd.cast_mut();
                 p = find_ucmd(eap.cast(), p.cast_mut(), ptr::null_mut(), xp, complp);
                 if p.is_null() {
-                    (*eap).cmdidx = cmdidx_T::CMD_SIZE;
+                    (*eap).cmdidx = cmdidx_T::CMD_SIZE as c_int;
                 }
             }
         }
-        if (*eap).cmdidx == cmdidx_T::CMD_SIZE {
+        if (*eap).cmdidx == cmdidx_T::CMD_SIZE as c_int as c_int {
             (*xp).xp_context = EXPAND_UNSUCCESSFUL;
             return ptr::null();
         }
@@ -3002,7 +2926,8 @@ unsafe fn set_context_for_wildcard_arg(
 
         if usefilter
             || (!eap.is_null()
-                && ((*eap).cmdidx == cmdidx_T::CMD_bang || (*eap).cmdidx == cmdidx_T::CMD_terminal))
+                && ((*eap).cmdidx == cmdidx_T::CMD_bang as c_int
+                    || (*eap).cmdidx == cmdidx_T::CMD_terminal as c_int))
             || *complp == EXPAND_SHELLCMDLINE
         {
             #[cfg(not(windows))]
@@ -3829,8 +3754,8 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
             p = p.add(1);
         }
 
-        if !is_user_cmdidx(ea.cmdidx) {
-            ea.argt = excmd_get_argt(ea.cmdidx);
+        if !is_user_cmdidx(std::mem::transmute::<c_int, cmdidx_T>(ea.cmdidx)) {
+            ea.argt = excmd_get_argt(std::mem::transmute::<c_int, cmdidx_T>(ea.cmdidx));
         }
 
         let mut arg: *const c_char = skipwhite(p);
@@ -3850,20 +3775,20 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
             }
         }
 
-        if ea.cmdidx == cmdidx_T::CMD_write || ea.cmdidx == cmdidx_T::CMD_update {
+        if ea.cmdidx == cmdidx_T::CMD_write as c_int || ea.cmdidx == cmdidx_T::CMD_update as c_int {
             if *arg == b'>' as c_char {
                 arg = arg.add(1);
                 if *arg == b'>' as c_char {
                     arg = arg.add(1);
                 }
                 arg = skipwhite(arg);
-            } else if *arg == b'!' as c_char && ea.cmdidx == cmdidx_T::CMD_write {
+            } else if *arg == b'!' as c_char && ea.cmdidx == cmdidx_T::CMD_write as c_int {
                 arg = arg.add(1);
                 usefilter = true;
             }
         }
 
-        if ea.cmdidx == cmdidx_T::CMD_read {
+        if ea.cmdidx == cmdidx_T::CMD_read as c_int {
             usefilter = forceit;
             if *arg == b'!' as c_char {
                 arg = arg.add(1);
@@ -3871,7 +3796,8 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
             }
         }
 
-        if ea.cmdidx == cmdidx_T::CMD_lshift || ea.cmdidx == cmdidx_T::CMD_rshift {
+        if ea.cmdidx == cmdidx_T::CMD_lshift as c_int || ea.cmdidx == cmdidx_T::CMD_rshift as c_int
+        {
             while *arg == *cmd {
                 arg = arg.add(1);
             }
@@ -3891,7 +3817,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
 
         if (ea.argt & EX_TRLBAR) != 0 && !usefilter {
             p = arg;
-            if ea.cmdidx == cmdidx_T::CMD_redir
+            if ea.cmdidx == cmdidx_T::CMD_redir as c_int as c_int
                 && *p == b'@' as c_char
                 && *p.add(1) == b'"' as c_char
             {
@@ -3939,7 +3865,15 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
             set_context_for_wildcard_arg(&raw mut ea, arg, usefilter, xp, &raw mut context);
         }
 
-        set_context_by_cmdname(cmd, ea.cmdidx, xp, arg, ea.argt, context, forceit)
+        set_context_by_cmdname(
+            cmd,
+            std::mem::transmute::<c_int, cmdidx_T>(ea.cmdidx),
+            xp,
+            arg,
+            ea.argt,
+            context,
+            forceit,
+        )
     }
 }
 

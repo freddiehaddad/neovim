@@ -28,6 +28,8 @@ use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
 use crate::eval::{call_vim_function, eval_has_provider};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
+#[allow(unused_imports)]
+use crate::fold::{closeFold, hasFolding, openFold};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{
@@ -217,16 +219,8 @@ static mut dragwin: *mut win_T = ptr::null_mut();
 unsafe extern "C" {
 
     fn ml_get_buf(buf: *const buf_T, lnum: linenr_T) -> *mut c_char;
-    fn openFold(pos: pos_T, count: c_int);
-    fn closeFold(pos: pos_T, count: c_int);
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn decor_virt_lines(
         wp: *mut win_T,
         start_row: c_int,

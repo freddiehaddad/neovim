@@ -18,6 +18,8 @@ use crate::eval::typval::{tv_clear, tv_dict_find};
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::runtime::do_source_str;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 use crate::api::autocmd::TryState;
@@ -86,7 +88,6 @@ static mut CALL_FUNC_RECURSIVE: c_int = 0;
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn do_source_str(cmd: *const c_char, traceback_name: *const c_char) -> c_int;
     fn eval0(
         arg: *mut c_char,
         rettv: *mut typval_T,

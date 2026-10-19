@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::buffer::buf_is_empty;
 #[allow(unused_imports)]
+use crate::buffer::{buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname};
+#[allow(unused_imports)]
 use crate::buffer_updates::buf_updates_send_changes;
 #[allow(unused_imports)]
 use crate::change::del_chars;
@@ -30,6 +32,8 @@ use crate::eval::{eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds2::check_fname;
 #[allow(unused_imports)]
 use crate::ex_getln::{cmdline_paste_str, getcmdline};
+#[allow(unused_imports)]
+use crate::fold::hasFolding;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{
@@ -67,7 +71,6 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::win_T;
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
     EVENT_TEXTYANKPOST, apply_autocmds, has_event,
@@ -83,7 +86,7 @@ use crate::cursor::{
 };
 use crate::drawscreen::{showmode, update_screen};
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::deprecated::pos_T;
 use crate::extmark::{ExtmarkOp, bcount_t, extmark_splice, extmark_splice_cols};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, ga_set_growsize, garray_T};
@@ -233,23 +236,7 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn msgmore(n: linenr_T);
-    fn getaltfname(errmsg: bool) -> *mut c_char;
-    fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut linenr_T) -> c_int;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_findpat(
-        pattern: *const c_char,
-        pattern_end: *const c_char,
-        unlisted: bool,
-        diffmode: bool,
-        curtab_only: bool,
-    ) -> c_int;
     fn exec_stuffed(cap: *mut c_void);
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

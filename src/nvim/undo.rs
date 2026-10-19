@@ -12,10 +12,14 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_set_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bt_prompt, buf_is_empty};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::get_buf_arg;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_get_string;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_list_alloc,
@@ -27,6 +31,10 @@ use crate::ex_docmd::expr_map_locked;
 use crate::ex_getln::{text_locked, text_locked_msg};
 #[allow(unused_imports)]
 use crate::fileio::read_eintr;
+#[allow(unused_imports)]
+use crate::fileio::{get2c, get4c, get8ctime};
+#[allow(unused_imports)]
+use crate::fold::foldOpenCursor;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -256,19 +264,10 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
 
-    fn foldOpenCursor();
-
     #[cfg(unix)]
     fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int;
 
-    fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T);
-
-    fn get2c(fd: *mut FILE) -> c_int;
-    fn get4c(fd: *mut FILE) -> c_int;
-    fn get8ctime(fd: *mut FILE) -> time_t;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
 
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "time")]

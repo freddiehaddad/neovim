@@ -11,15 +11,26 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::{buf_hide, buflist_findname_exp, buflist_findnr};
+#[allow(unused_imports)]
 use crate::drawscreen::redraw_buf_later;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::get_buf_arg;
 #[allow(unused_imports)]
 use crate::eval::typval::{
+    tv_check_for_nonnull_dict_arg, tv_check_for_opt_dict_arg, tv_check_for_string_arg,
+    tv_dict_get_string, tv_get_lnum, tv_get_string, tv_get_string_chk,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
 };
+#[allow(unused_imports)]
+use crate::ex_cmds::do_ecmd;
+#[allow(unused_imports)]
+use crate::fold::foldOpenCursor;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
@@ -45,7 +56,6 @@ use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{
     DecorPriority, DecorSignHighlight, NS, describe_ns, linenr_T, nvim_create_namespace,
 };
-use crate::api::tabpage::win_T;
 use crate::charset::{
     backslash_halve, getdigits_int, skiptowhite, skiptowhite_esc, skipwhite, vim_isprintc,
 };
@@ -176,31 +186,11 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn buf_hide(buf: *const buf_T) -> bool;
-    fn do_ecmd(
-        fnum: c_int,
-        ffname: *mut c_char,
-        sfname: *mut c_char,
-        eap: *mut exarg_T,
-        newlnum: linenr_T,
-        flags: c_int,
-        oldwin: *mut win_T,
-    ) -> c_int;
-    fn foldOpenCursor();
-    fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> i64;
     fn tv_dict_get_number_def(d: *const dict_T, key: *const c_char, def: c_int) -> i64;
     fn tv_list_append_number(l: *mut list_T, n: i64);
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
-    fn tv_get_lnum(tv: *const typval_T) -> linenr_T;
-    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

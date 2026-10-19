@@ -17,6 +17,8 @@ use crate::charset::{
 use crate::clipboard::typval_T;
 use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T};
 use crate::eval::deprecated::{buf_T, pos_T};
+#[allow(unused_imports)]
+use crate::eval::typval::tv_get_lnum;
 use crate::globals::*;
 use crate::indent::{
     EvalFuncData, fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value,
@@ -85,7 +87,6 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
     fn strlen(s: *const c_char) -> usize;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

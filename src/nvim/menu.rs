@@ -12,6 +12,8 @@
 
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_get_string_chk;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_add_allocated_str, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_str,
     tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret, tv_list_alloc, tv_list_append_dict,
@@ -207,7 +209,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn str2special_save(
         str: *const c_char,
         replace_spaces: bool,

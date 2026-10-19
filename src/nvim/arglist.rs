@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::{buf_hide, buflist_add, buflist_findnr, curbuf_reusable, maketitle, otherfile};
+#[allow(unused_imports)]
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
 #[allow(unused_imports)]
 use crate::charset::{rem_backslash, skipwhite};
@@ -19,6 +21,8 @@ use crate::errors::*;
 use crate::eval::typval::{
     tv_get_number, tv_get_number_chk, tv_list_alloc_ret, tv_list_append_string,
 };
+#[allow(unused_imports)]
+use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_getln::gotocmdline;
 #[allow(unused_imports)]
@@ -58,7 +62,7 @@ use crate::api::win_config::bufref_T;
 use crate::clipboard::{VarType, typval_T};
 use crate::cmdhist::regmatch_T;
 use crate::context::is_ctx_win;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::deprecated::EvalFuncData;
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
 use crate::ex_cmds2::{autowrite, check_changed};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
@@ -153,21 +157,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn buf_set_name(fnum: c_int, name: *const c_char);
-    fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int;
-    fn buf_hide(buf: *const buf_T) -> bool;
-    fn otherfile(ffname: *mut c_char) -> bool;
-    fn do_ecmd(
-        fnum: c_int,
-        ffname: *mut c_char,
-        sfname: *mut c_char,
-        eap: *mut exarg_T,
-        newlnum: linenr_T,
-        flags: c_int,
-        oldwin: *mut win_T,
-    ) -> c_int;
-    fn curbuf_reusable() -> bool;
-    fn maketitle();
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
 }
 
 #[inline]

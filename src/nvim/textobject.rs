@@ -14,6 +14,8 @@
 use crate::drawscreen::{redraw_curbuf_later, showmode};
 #[allow(unused_imports)]
 use crate::eval::funcs::do_searchpair;
+#[allow(unused_imports)]
+use crate::fold::hasFolding;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::indent::inindent;
@@ -38,7 +40,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::api::tabpage::win_T;
 use crate::charset::skipwhite;
 use crate::cursor::{
     coladvance, colnr_T, dec_cursor, gchar_cursor, get_cursor_line_ptr, get_cursor_pos_ptr,
@@ -66,16 +67,6 @@ const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
 
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
-
-unsafe extern "C" {
-
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-}
 
 #[inline]
 const fn ascii_iswhite(c: c_int) -> bool {

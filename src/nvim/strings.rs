@@ -13,6 +13,12 @@
 
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_number_arg, tv_check_for_opt_bool_arg, tv_check_for_opt_number_arg,
+    tv_check_for_opt_string_arg, tv_check_for_string_arg, tv_get_string, tv_get_string_buf_chk,
+    tv_get_string_chk,
+};
+#[allow(unused_imports)]
 use crate::ex_docmd::find_cmdline_var;
 #[allow(unused_imports)]
 use crate::message::emsg;
@@ -115,15 +121,6 @@ unsafe extern "C" {
     fn va_state_ptr(va_ptr: *mut c_void) -> *mut c_void;
     fn va_state_double(va_ptr: *mut c_void) -> c_double;
     fn va_report_null_string();
-
-    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
 
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

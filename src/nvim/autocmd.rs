@@ -22,15 +22,23 @@ use crate::api::private::helpers::{
 };
 #[allow(unused_imports)]
 use crate::buffer::{bt_nofile, set_bufref};
+#[allow(unused_imports)]
+use crate::buffer::{buflist_findnr, do_modelines};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::callback_to_string;
 #[allow(unused_imports)]
 use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_tv, tv_dict_set_keys_readonly};
 #[allow(unused_imports)]
 use crate::eval::userfunc::{restore_funccal, save_funccal};
 #[allow(unused_imports)]
+use crate::eval::vars::set_cmdarg;
+#[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, ends_excmd, expand_sfile};
+#[allow(unused_imports)]
+use crate::fileio::check_timestamps;
 #[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
@@ -1347,12 +1355,9 @@ unsafe extern "C" {
     ) -> bool;
 
     fn callback_copy(dest: *mut Callback, src: *const Callback);
-    fn callback_to_string(callback: *mut Callback, arena: *mut Arena) -> *mut c_char;
 
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-    fn do_modelines(flags: c_int);
 
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: isize, nr: varnumber_T)
@@ -1362,8 +1367,6 @@ unsafe extern "C" {
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
 
     fn estack_push(type_: c_int, name: *mut c_char, lnum: i32) -> *mut estack_T;
-    fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char;
-    fn check_timestamps(focus: c_int) -> c_int;
 }
 
 #[inline]

@@ -20,29 +20,128 @@ use crate::api::vimscript::nvim_command;
 #[allow(unused_imports)]
 use crate::arglist::{arg_all, check_arg_idx};
 #[allow(unused_imports)]
+use crate::arglist::{
+    ex_all, ex_argadd, ex_argdedupe, ex_argdelete, ex_argedit, ex_args, ex_argument, ex_last,
+    ex_next, ex_previous, ex_rewind,
+};
+#[allow(unused_imports)]
 use crate::autocmd::{
     apply_autocmds, apply_autocmds_win, check_nomodeline, do_augroup, do_doautocmd, getnextac,
     has_event, may_trigger_vim_suspend_resume,
 };
 #[allow(unused_imports)]
+use crate::autocmd::{do_autocmd, ex_doautoall};
+#[allow(unused_imports)]
 use crate::buffer::{bt_prompt, bt_quickfix, bufref_valid, get_highest_fnum, set_bufref};
+#[allow(unused_imports)]
+use crate::buffer::{
+    buf_hide, buf_spname, buflist_findnr, buflist_findpat, buflist_list, do_bufdel, do_modelines,
+    ex_buffer_all, goto_buffer, maketitle, no_write_message, otherfile, setaltfname, setfname,
+};
 #[allow(unused_imports)]
 use crate::channel::channel_event;
 #[allow(unused_imports)]
 use crate::cmdexpand::expand_process_user_list;
+#[allow(unused_imports)]
+use crate::cmdhist::ex_history;
+#[allow(unused_imports)]
+use crate::diff::{
+    ex_diffgetput, ex_diffoff, ex_diffpatch, ex_diffsplit, ex_diffthis, ex_diffupdate,
+};
+#[allow(unused_imports)]
+use crate::digraph::ex_loadkeymap;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_str, tv_dict_alloc, tv_list_alloc_ret,
     tv_list_append_allocated_string, tv_list_find, tv_list_free,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_get_string, tv_get_string, tv_list_find_str};
+#[allow(unused_imports)]
+use crate::eval::vars::{ex_let, ex_lockvar, ex_unlet};
+#[allow(unused_imports)]
 use crate::eval::{callback_call, eval_to_string, get_copyID};
+#[allow(unused_imports)]
+use crate::eval::{ex_echo, ex_echohl, ex_execute};
+#[allow(unused_imports)]
+use crate::ex_cmds::{
+    do_ascii, do_wqall, ex_align, ex_append, ex_change, ex_file, ex_global, ex_oldfiles, ex_sort,
+    ex_substitute, ex_substitute_preview, ex_uniq, ex_update, ex_wnext, ex_write, ex_z,
+};
+#[allow(unused_imports)]
+use crate::ex_cmds2::{
+    ex_checktime, ex_compiler, ex_drop, ex_listdo, ex_perl, ex_perldo, ex_perlfile, ex_py3file,
+    ex_pydo3, ex_python3, ex_ruby, ex_rubydo, ex_rubyfile,
+};
+#[allow(unused_imports)]
+use crate::ex_eval::{
+    ex_break, ex_catch, ex_continue, ex_else, ex_endfunction, ex_endif, ex_endtry, ex_endwhile,
+    ex_eval, ex_finally, ex_if, ex_throw, ex_try, ex_while,
+};
+#[allow(unused_imports)]
+use crate::ex_session::{ex_loadview, ex_mkrc};
+#[allow(unused_imports)]
+use crate::fileio::{readfile, shorten_fnames};
+#[allow(unused_imports)]
+use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::help::{ex_exusage, ex_help, ex_helpclose, ex_helptags, ex_viusage};
+#[allow(unused_imports)]
+use crate::indent::ex_retab;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::lua::executor::{ex_luado, ex_luafile};
+#[allow(unused_imports)]
+use crate::lua::secure::ex_trust;
+#[allow(unused_imports)]
+use crate::mapping::{ex_abbreviate, ex_abclear, ex_map, ex_mapclear, ex_unmap};
+#[allow(unused_imports)]
+use crate::mark::{ex_changes, ex_clearjumps, ex_delmarks, ex_jumps, ex_marks};
+#[allow(unused_imports)]
+use crate::r#match::ex_match;
+#[allow(unused_imports)]
+use crate::menu::{ex_emenu, ex_menu, ex_menutranslate};
+#[allow(unused_imports)]
+use crate::message::ex_messages;
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::ex_set;
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::lang::ex_language;
+#[allow(unused_imports)]
+use crate::profile::ex_profile;
+#[allow(unused_imports)]
+use crate::quickfix::{
+    ex_cbelow, ex_cbottom, ex_cbuffer, ex_cc, ex_cclose, ex_cexpr, ex_cfile, ex_cnext, ex_copen,
+    ex_cwindow, ex_helpgrep, ex_make, ex_vimgrep, qf_age, qf_history, qf_list,
+};
+#[allow(unused_imports)]
+use crate::register::ex_display;
+#[allow(unused_imports)]
+use crate::runtime::{
+    do_finish, ex_finish, ex_options, ex_packadd, ex_packloadall, ex_runtime, ex_scriptencoding,
+    ex_scriptnames, ex_source, getsourceline, source_finished, source_runtime,
+};
+#[allow(unused_imports)]
+use crate::sign::ex_sign;
+#[allow(unused_imports)]
+use crate::spell::{ex_spelldump, ex_spellinfo, ex_spellrepall};
+#[allow(unused_imports)]
+use crate::spellfile::{ex_mkspell, ex_spell};
+#[allow(unused_imports)]
+use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
+#[allow(unused_imports)]
+use crate::tag::do_tags;
+#[allow(unused_imports)]
 use crate::ui::{ui_call_error_exit, ui_call_suspend};
+#[allow(unused_imports)]
+use crate::undo::{ex_undojoin, ex_undolist};
+#[allow(unused_imports)]
+use crate::usercmd::{ex_comclear, ex_command, ex_delcommand};
+#[allow(unused_imports)]
+use crate::version::{ex_intro, ex_version};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -73,7 +172,7 @@ use crate::drawscreen::{
     update_screen,
 };
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, CallbackReader, EvalFuncData, buf_T};
+use crate::eval::deprecated::{Callback, CallbackReader, EvalFuncData};
 use crate::eval::fs::modify_fname;
 use crate::eval::funcs::create_environment;
 use crate::eval::userfunc::{
@@ -767,39 +866,6 @@ unsafe extern "C" {
     #[link_name = "strcasecmp"]
     fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int;
 
-    fn otherfile(ffname: *mut c_char) -> bool;
-    fn buflist_findpat(
-        pattern: *const c_char,
-        pattern_end: *const c_char,
-        unlisted: bool,
-        diffmode: bool,
-        curtab_only: bool,
-    ) -> c_int;
-    fn buf_hide(buf: *const buf_T) -> bool;
-    fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn no_write_message();
-    fn do_bufdel(
-        command: c_int,
-        arg: *mut c_char,
-        addr_count: c_int,
-        start_bnr: c_int,
-        end_bnr: c_int,
-        forceit: c_int,
-    ) -> *mut c_char;
-    fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_int);
-    fn do_modelines(flags: c_int);
-    fn maketitle();
-    fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr_T) -> *mut buf_T;
-    fn setfname(
-        buf: *mut buf_T,
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        message: bool,
-    ) -> c_int;
-
-    fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int);
-
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,
@@ -808,15 +874,12 @@ unsafe extern "C" {
     ) -> bool;
     fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
 
-    fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_list_copy(
         conv: *const c_void,
         orig: *mut list_T,
         deep: bool,
         copyID: c_int,
     ) -> *mut list_T;
-    fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char;
 
     fn channel_job_start(
         argv: *mut *mut c_char,
@@ -835,195 +898,19 @@ unsafe extern "C" {
         env: *mut dict_T,
         status_out: *mut varnumber_T,
     ) -> *mut Channel;
-    fn readfile(
-        fname: *mut c_char,
-        sfname: *mut c_char,
-        from: linenr_T,
-        lines_to_skip: linenr_T,
-        lines_to_read: linenr_T,
-        eap: *mut exarg_T,
-        flags: c_int,
-        silent: bool,
-    ) -> c_int;
-    fn shorten_fnames(force: c_int);
     fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
     fn func_has_ended(cookie: *mut c_void) -> c_int;
     fn get_func_line(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn foldCreate(wp: *mut win_T, start: pos_T, end: pos_T);
-    fn foldManualAllowed(create: bool) -> c_int;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn opFoldRange(
-        firstpos: pos_T,
-        lastpos: pos_T,
-        opening: c_int,
-        recurse: c_int,
-        had_visual: bool,
-    );
-    fn do_finish(eap: *mut exarg_T, reanimate: bool);
     fn estack_sfile(which: c_int) -> *mut c_char;
-    fn getsourceline(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn source_finished(fgetline: LineGetter, cookie: *mut c_void) -> bool;
-    fn source_runtime(name: *mut c_char, flags: c_int) -> c_int;
-    fn ex_substitute_preview(
-        eap: *mut exarg_T,
-        cmdpreview_ns: c_int,
-        cmdpreview_bufnr: handle_T,
-    ) -> c_int;
-    fn buflist_list(eap: *mut exarg_T);
-    fn do_ascii(eap: *mut exarg_T);
-    fn do_tags(eap: *mut exarg_T);
-    fn do_wqall(eap: *mut exarg_T);
-    fn ex_abbreviate(eap: *mut exarg_T);
-    fn ex_abclear(eap: *mut exarg_T);
-    fn ex_align(eap: *mut exarg_T);
-    fn ex_all(eap: *mut exarg_T);
-    fn ex_append(eap: *mut exarg_T);
-    fn ex_argadd(eap: *mut exarg_T);
-    fn ex_argdedupe(eap: *mut exarg_T);
-    fn ex_argdelete(eap: *mut exarg_T);
-    fn ex_argedit(eap: *mut exarg_T);
-    fn ex_args(eap: *mut exarg_T);
-    fn ex_argument(eap: *mut exarg_T);
-    fn ex_break(eap: *mut exarg_T);
     fn ex_breakadd(eap: *mut exarg_T);
     fn ex_breakdel(eap: *mut exarg_T);
     fn ex_breaklist(eap: *mut exarg_T);
-    fn ex_buffer_all(eap: *mut exarg_T);
     fn ex_call(eap: *mut exarg_T);
-    fn ex_catch(eap: *mut exarg_T);
-    fn ex_cbelow(eap: *mut exarg_T);
-    fn ex_cbottom(eap: *mut exarg_T);
-    fn ex_cbuffer(eap: *mut exarg_T);
-    fn ex_cc(eap: *mut exarg_T);
-    fn ex_cclose(eap: *mut exarg_T);
-    fn ex_cexpr(eap: *mut exarg_T);
-    fn ex_cfile(eap: *mut exarg_T);
-    fn ex_change(eap: *mut exarg_T);
-    fn ex_changes(eap: *mut exarg_T);
-    fn ex_checktime(eap: *mut exarg_T);
-    fn ex_clearjumps(eap: *mut exarg_T);
-    fn ex_cnext(eap: *mut exarg_T);
-    fn ex_comclear(eap: *mut exarg_T);
-    fn ex_command(eap: *mut exarg_T);
-    fn ex_compiler(eap: *mut exarg_T);
-    fn ex_continue(eap: *mut exarg_T);
-    fn ex_copen(eap: *mut exarg_T);
-    fn ex_cwindow(eap: *mut exarg_T);
     fn ex_debug(eap: *mut exarg_T);
     fn ex_debuggreedy(eap: *mut exarg_T);
-    fn ex_delcommand(eap: *mut exarg_T);
     fn ex_delfunction(eap: *mut exarg_T);
-    fn ex_delmarks(eap: *mut exarg_T);
-    fn ex_diffgetput(eap: *mut exarg_T);
-    fn ex_diffoff(eap: *mut exarg_T);
-    fn ex_diffpatch(eap: *mut exarg_T);
-    fn ex_diffsplit(eap: *mut exarg_T);
-    fn ex_diffthis(eap: *mut exarg_T);
-    fn ex_diffupdate(eap: *mut exarg_T);
-    fn ex_display(eap: *mut exarg_T);
-    fn ex_doautoall(eap: *mut exarg_T);
-    fn ex_drop(eap: *mut exarg_T);
-    fn ex_echo(eap: *mut exarg_T);
-    fn ex_echohl(eap: *mut exarg_T);
-    fn ex_else(eap: *mut exarg_T);
-    fn ex_emenu(eap: *mut exarg_T);
-    fn ex_endfunction(eap: *mut exarg_T);
-    fn ex_endif(eap: *mut exarg_T);
-    fn ex_endtry(eap: *mut exarg_T);
-    fn ex_endwhile(eap: *mut exarg_T);
-    fn ex_eval(eap: *mut exarg_T);
-    fn ex_execute(eap: *mut exarg_T);
-    fn ex_exusage(eap: *mut exarg_T);
-    fn ex_file(eap: *mut exarg_T);
-    fn ex_finally(eap: *mut exarg_T);
-    fn ex_finish(eap: *mut exarg_T);
     fn ex_function(eap: *mut exarg_T);
-    fn ex_global(eap: *mut exarg_T);
-    fn ex_help(eap: *mut exarg_T);
-    fn ex_helpclose(eap: *mut exarg_T);
-    fn ex_helpgrep(eap: *mut exarg_T);
-    fn ex_helptags(eap: *mut exarg_T);
-    fn ex_history(eap: *mut exarg_T);
-    fn ex_if(eap: *mut exarg_T);
-    fn ex_intro(eap: *mut exarg_T);
-    fn ex_jumps(eap: *mut exarg_T);
-    fn ex_language(eap: *mut exarg_T);
-    fn ex_last(eap: *mut exarg_T);
-    fn ex_let(eap: *mut exarg_T);
-    fn ex_listdo(eap: *mut exarg_T);
-    fn ex_loadkeymap(eap: *mut exarg_T);
-    fn ex_loadview(eap: *mut exarg_T);
-    fn ex_lockvar(eap: *mut exarg_T);
-    fn ex_luado(eap: *mut exarg_T);
-    fn ex_luafile(eap: *mut exarg_T);
-    fn ex_make(eap: *mut exarg_T);
-    fn ex_map(eap: *mut exarg_T);
-    fn ex_mapclear(eap: *mut exarg_T);
-    fn ex_marks(eap: *mut exarg_T);
-    fn ex_match(eap: *mut exarg_T);
-    fn ex_menu(eap: *mut exarg_T);
-    fn ex_menutranslate(eap: *mut exarg_T);
-    fn ex_messages(eap: *mut exarg_T);
-    fn ex_mkrc(eap: *mut exarg_T);
-    fn ex_mkspell(eap: *mut exarg_T);
-    fn ex_next(eap: *mut exarg_T);
-    fn ex_oldfiles(eap: *mut exarg_T);
-    fn ex_options(eap: *mut exarg_T);
-    fn ex_ownsyntax(eap: *mut exarg_T);
-    fn ex_packadd(eap: *mut exarg_T);
-    fn ex_packloadall(eap: *mut exarg_T);
-    fn ex_perl(eap: *mut exarg_T);
-    fn ex_perldo(eap: *mut exarg_T);
-    fn ex_perlfile(eap: *mut exarg_T);
-    fn ex_previous(eap: *mut exarg_T);
-    fn ex_profile(eap: *mut exarg_T);
-    fn ex_py3file(eap: *mut exarg_T);
-    fn ex_pydo3(eap: *mut exarg_T);
-    fn ex_python3(eap: *mut exarg_T);
-    fn ex_retab(eap: *mut exarg_T);
     fn ex_return(eap: *mut exarg_T);
-    fn ex_rewind(eap: *mut exarg_T);
-    fn ex_ruby(eap: *mut exarg_T);
-    fn ex_rubydo(eap: *mut exarg_T);
-    fn ex_rubyfile(eap: *mut exarg_T);
-    fn ex_runtime(eap: *mut exarg_T);
-    fn ex_scriptencoding(eap: *mut exarg_T);
-    fn ex_scriptnames(eap: *mut exarg_T);
-    fn ex_set(eap: *mut exarg_T);
-    fn ex_sign(eap: *mut exarg_T);
-    fn ex_sort(eap: *mut exarg_T);
-    fn ex_source(eap: *mut exarg_T);
-    fn ex_spell(eap: *mut exarg_T);
-    fn ex_spelldump(eap: *mut exarg_T);
-    fn ex_spellinfo(eap: *mut exarg_T);
-    fn ex_spellrepall(eap: *mut exarg_T);
-    fn ex_substitute(eap: *mut exarg_T);
-    fn ex_syntax(eap: *mut exarg_T);
-    fn ex_syntime(eap: *mut exarg_T);
-    fn ex_throw(eap: *mut exarg_T);
-    fn ex_trust(eap: *mut exarg_T);
-    fn ex_try(eap: *mut exarg_T);
-    fn ex_undojoin(eap: *mut exarg_T);
-    fn ex_undolist(eap: *mut exarg_T);
-    fn ex_uniq(eap: *mut exarg_T);
-    fn ex_unlet(eap: *mut exarg_T);
-    fn ex_unmap(eap: *mut exarg_T);
-    fn ex_update(eap: *mut exarg_T);
-    fn ex_version(eap: *mut exarg_T);
-    fn ex_vimgrep(eap: *mut exarg_T);
-    fn ex_viusage(eap: *mut exarg_T);
-    fn ex_while(eap: *mut exarg_T);
-    fn ex_wnext(eap: *mut exarg_T);
-    fn ex_write(eap: *mut exarg_T);
-    fn ex_z(eap: *mut exarg_T);
-    fn qf_age(eap: *mut exarg_T);
-    fn qf_history(eap: *mut exarg_T);
-    fn qf_list(eap: *mut exarg_T);
 }
 
 #[allow(clippy::large_const_arrays)]
@@ -6958,7 +6845,7 @@ unsafe fn do_one_cmd(
 
             ea.cmd = *cmdlinep;
             ea.cmdlinep = cmdlinep;
-            ea.ea_getline = std::mem::transmute::<LineGetter, *mut c_void>(fgetline);
+            ea.ea_getline = fgetline;
             ea.cookie = cookie;
             ea.cstack = cstack.cast();
 

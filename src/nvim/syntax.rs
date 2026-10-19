@@ -28,6 +28,10 @@ use crate::eval::deprecated::{buf_T, pos_T, syn_time_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 #[allow(unused_imports)]
 use crate::ex_docmd::{check_nextcmd, do_cmdline_cmd, ends_excmd, find_nextcmd};
+#[allow(unused_imports)]
+use crate::ex_docmd::{expand_filename, separate_nextcmd};
+#[allow(unused_imports)]
+use crate::fold::foldUpdateAll;
 use crate::fold::foldmethodIsSyntax;
 use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
@@ -67,6 +71,8 @@ use crate::regexp::{
     vim_regexec_multi, vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE};
+#[allow(unused_imports)]
+use crate::runtime::{do_source, source_runtime};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
 use std::ffi::{c_char, c_int, c_void};
@@ -393,21 +399,6 @@ static mut expand_what: c_int = EXP_SUBCMD;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn separate_nextcmd(eap: *mut exarg_T);
-    fn expand_filename(
-        eap: *mut exarg_T,
-        cmdlinep: *mut *mut c_char,
-        errormsgp: *mut *const c_char,
-    ) -> c_int;
-    fn foldUpdateAll(win: *mut win_T);
-    fn do_source(
-        fname: *mut c_char,
-        check_other: bool,
-        is_vimrc: c_int,
-        ret_sid: *mut c_int,
-    ) -> c_int;
-    fn source_runtime(name: *mut c_char, flags: c_int) -> c_int;
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(windows)]

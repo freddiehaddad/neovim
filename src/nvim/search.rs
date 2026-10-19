@@ -16,6 +16,8 @@
 use crate::drawscreen::showmode;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_check_for_nonnull_dict_arg, tv_dict_get_bool, tv_get_string_chk};
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_get_number_chk, tv_list_find,
 };
@@ -25,6 +27,10 @@ use crate::ex_cmds::prepare_tagpreview;
 use crate::ex_docmd::set_no_hlsearch;
 #[allow(unused_imports)]
 use crate::ex_getln::gotocmdline;
+#[allow(unused_imports)]
+use crate::fileio::vim_fgets;
+#[allow(unused_imports)]
+use crate::fold::{foldOpenCursor, hasFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::{
@@ -315,20 +321,9 @@ unsafe extern "C" {
     fn atol(s: *const c_char) -> c_long;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn foldOpenCursor();
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
-    fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn getfile(
         fnum: c_int,
         ffname_arg: *const c_char,

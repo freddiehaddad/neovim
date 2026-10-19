@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
+use crate::buffer::{buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name};
+#[allow(unused_imports)]
 use crate::diff::diff_mark_adjust;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -21,9 +23,13 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
     tv_list_append_dict,
 };
+#[allow(unused_imports)]
+use crate::fold::{foldMarkAdjust, hasFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insert::beginline;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_excmd;
 #[allow(unused_imports)]
 use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
 #[allow(unused_imports)]
@@ -57,11 +63,11 @@ use crate::undo::u_update_named_mark;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::api::command::{cmdmod_T, exarg_T};
+use crate::api::command::exarg_T;
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T, winopt_T, xfmark_T};
 use crate::charset::{skipwhite, vim_isprintc};
-use crate::clipboard::{list_T, typval_T};
+use crate::clipboard::list_T;
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T};
 use crate::extmark::extmark_adjust;
@@ -181,37 +187,8 @@ unsafe extern "C" {
         eap: *mut exarg_T,
         data: *mut Object,
     );
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn buflist_getfile(n: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
-    fn buflist_new(
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        lnum: linenr_T,
-        flags: c_int,
-    ) -> *mut buf_T;
-    fn buflist_nr2name(n: c_int, fullname: c_int, helptail: c_int) -> *mut c_char;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn hasFolding(
-        win: *mut win_T,
-        lnum: linenr_T,
-        firstp: *mut linenr_T,
-        lastp: *mut linenr_T,
-    ) -> bool;
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn nlua_call_excmd(
-        module: *const c_char,
-        func: *const c_char,
-        eap: *mut exarg_T,
-        cmod: *const cmdmod_T,
-        extra: *mut typval_T,
-    ) -> bool;
-    fn foldMarkAdjust(
-        wp: *mut win_T,
-        line1: linenr_T,
-        line2: linenr_T,
-        amount: linenr_T,
-        amount_after: linenr_T,
-    );
     fn tv_list_append_number(l: *mut list_T, n: i64);
 }
 

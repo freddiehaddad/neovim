@@ -13,10 +13,14 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_help;
 #[allow(unused_imports)]
+use crate::buffer::{buflist_findnr, set_buflisted, wipe_buffer};
+#[allow(unused_imports)]
 use crate::charset::{buf_init_isk_chartab, skipwhite};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_clear;
+#[allow(unused_imports)]
+use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
@@ -37,6 +41,8 @@ use crate::os::fs::os_fopen;
 #[allow(unused_imports)]
 use crate::path::FreeWild;
 #[allow(unused_imports)]
+use crate::tag::do_tag;
+#[allow(unused_imports)]
 use crate::tag::find_tags;
 #[allow(unused_imports)]
 use crate::window::{win_close, win_enter, win_setheight, win_split};
@@ -47,7 +53,6 @@ use crate::api::command::exarg_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::clipboard::{TypvalVval, VarType, typval_T};
-use crate::eval::deprecated::buf_T;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xstrdup};
 
@@ -95,32 +100,12 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fclose(stream: *mut c_void) -> c_int;
-    fn do_ecmd(
-        fnum: c_int,
-        ffname: *mut c_char,
-        sfname: *mut c_char,
-        eap: *mut exarg_T,
-        newlnum: linenr_T,
-        flags: c_int,
-        oldwin: *mut win_T,
-    ) -> c_int;
-    fn do_tag(
-        eap: *mut exarg_T,
-        tag: *mut c_char,
-        type_: c_int,
-        count: c_int,
-        forceit: c_int,
-        verbose: bool,
-    );
-    fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
     fn qsort(
         base: *mut c_void,
         num: usize,
         size: usize,
         compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
     );
-    fn set_buflisted(on: c_int);
 }
 
 #[inline]

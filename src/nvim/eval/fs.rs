@@ -20,6 +20,11 @@ use crate::eval::typval::{
     tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_item_remove,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_get_string,
+    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
+};
+#[allow(unused_imports)]
 use crate::eval::userfunc::add_defer;
 #[allow(unused_imports)]
 use crate::eval::vars::{prepare_vimvar, restore_vimvar};
@@ -31,6 +36,8 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::vim_mkdir_emsg;
 #[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
+#[allow(unused_imports)]
+use crate::fileio::{delete_recursive, readdir_core, vim_copyfile, vim_rename, vim_tempname};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
@@ -283,25 +290,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn os_is_reparse_point_include(path: *const c_char) -> bool;
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn delete_recursive(name: *const c_char) -> c_int;
-    fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int;
-    fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
-    fn vim_tempname() -> *mut c_char;
-    fn readdir_core(
-        gap: *mut garray_T,
-        path: *const c_char,
-        context: *mut c_void,
-        checkitem: CheckItem,
-    ) -> c_int;
-
-    fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_get_string_buf(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_for_nonempty_string_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_check_str_or_nr(tv: *const typval_T) -> bool;
 
     fn can_add_defer() -> bool;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
