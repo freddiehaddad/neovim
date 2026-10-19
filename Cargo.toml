@@ -12,6 +12,10 @@ crate-type = ["staticlib", "rlib"]
 name = "tee"
 path = "src/tee/main.rs"
 
+[[bin]]
+name = "xxd"
+path = "src/xxd/main.rs"
+
 [features]
 vendor-bit = []
 
