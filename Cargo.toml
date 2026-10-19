@@ -28,6 +28,14 @@ path = "test/functional/fixtures/printenv-test.rs"
 name = "shell-test"
 path = "test/functional/fixtures/shell-test.rs"
 
+[[bin]]
+name = "streams-test"
+path = "test/functional/fixtures/streams-test.rs"
+
+[[bin]]
+name = "tty-test"
+path = "test/functional/fixtures/tty-test.rs"
+
 [features]
 vendor-bit = []
 

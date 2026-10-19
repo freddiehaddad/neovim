@@ -171,7 +171,7 @@ end)
 it(':vimgrep can specify Unicode pattern without delimiters', function()
   eq(
     'Vim(vimgrep):E480: No match: →',
-    pcall_err(command, 'vimgrep → test/functional/fixtures/tty-test.c')
+    pcall_err(command, 'vimgrep → test/functional/fixtures/tty-test.rs')
   )
   local screen = Screen.new(40, 6)
   screen:set_default_attr_ids({

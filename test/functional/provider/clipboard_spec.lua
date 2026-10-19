@@ -147,7 +147,7 @@ describe('clipboard', function()
     command("let g:clipboard = 'bogus'")
     n.exec([[
       redir @+>
-        silent echo system("cat test/functional/fixtures/tty-test.c")
+        silent echo system("cat test/functional/fixtures/tty-test.rs")
       redir END
     ]])
     screen:expect([[
@@ -308,10 +308,10 @@ describe('clipboard (with fake clipboard.vim)', function()
     eq(0, eval('g:clip_called_set'))
     n.exec([[
       redir @+>
-        silent echo system("cat test/functional/fixtures/tty-test.c")
+        silent echo system("cat test/functional/fixtures/tty-test.rs")
       redir END
     ]])
-    -- Assuming tty-test.c has >100 lines.
+    -- Assuming tty-test.rs has >100 lines.
     assert(eval('g:clip_called_set') > 100)
   end)
 
@@ -322,7 +322,7 @@ describe('clipboard (with fake clipboard.vim)', function()
     eq(0, eval('g:clip_called_set'))
     n.exec([[
       redir @">
-        silent echo system("cat test/functional/fixtures/tty-test.c")
+        silent echo system("cat test/functional/fixtures/tty-test.rs")
       redir END
     ]])
     eq(0, eval('g:clip_called_set'))

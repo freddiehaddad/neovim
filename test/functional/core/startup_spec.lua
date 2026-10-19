@@ -616,7 +616,7 @@ describe('startup', function()
         "+echo has('ttyin') has('ttyout') 'bufs='.bufnr('$')",
         '+qall!',
         '-',
-        'test/functional/fixtures/tty-test.c',
+        'test/functional/fixtures/tty-test.rs',
         'test/functional/fixtures/shell-test.rs',
       }, { 'ohyeah', '' })
     )
@@ -704,7 +704,7 @@ describe('startup', function()
         'NONE',
         '-Es',
         '+.print',
-        'test/functional/fixtures/tty-test.c',
+        'test/functional/fixtures/tty-test.rs',
       }, { 'partylikeits1999', '' })
     )
     eq(inputstr, fn.system({ nvim_prog, '-i', 'NONE', '-Es', '+%print', '-' }, input))
@@ -732,7 +732,7 @@ describe('startup', function()
         '-i',
         'NONE',
         '-es',
-        'test/functional/fixtures/tty-test.c',
+        'test/functional/fixtures/tty-test.rs',
       }, { 'set encoding', '' })
     )
     eq('line1\nline2\n', fn.system({ nvim_prog, '-i', 'NONE', '-es', '-' }, input))

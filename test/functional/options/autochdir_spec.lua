@@ -15,11 +15,11 @@ describe("'autochdir'", function()
     local target_dir = t.paths.test_source_path .. '/test/functional/fixtures'
 
     -- By default 'autochdir' is off, thus getcwd() returns the initial directory.
-    clear(target_dir .. '/tty-test.c')
+    clear(target_dir .. '/tty-test.rs')
     eq(start_dir, fn.getcwd())
 
-    -- With 'autochdir' on, we should get the directory of tty-test.c.
-    clear('--cmd', 'set autochdir', target_dir .. '/tty-test.c')
+    -- With 'autochdir' on, we should get the directory of tty-test.rs.
+    clear('--cmd', 'set autochdir', target_dir .. '/tty-test.rs')
     eq(t.is_os('win') and target_dir:gsub('/', '\\') or target_dir, fn.getcwd())
   end)
 

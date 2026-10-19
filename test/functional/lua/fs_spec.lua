@@ -558,7 +558,7 @@ describe('vim.fs', function()
 
   describe('root()', function()
     before_each(function()
-      command('edit test/functional/fixtures/tty-test.c')
+      command('edit test/functional/fixtures/tty-test.rs')
     end)
 
     after_each(function()

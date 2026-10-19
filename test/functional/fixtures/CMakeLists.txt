@@ -26,9 +26,5 @@ add_rust_fixture_bin(shell-test shell-test shell-test.rs)
 add_rust_fixture_bin(pwsh-test shell-test shell-test.rs)
 add_rust_fixture_bin(printargs-test printargs-test printargs-test.rs)
 add_rust_fixture_bin(printenv-test printenv-test printenv-test.rs)
-
-add_executable(tty-test EXCLUDE_FROM_ALL tty-test.c)
-add_executable(streams-test EXCLUDE_FROM_ALL streams-test.c)
-
-target_link_libraries(tty-test PRIVATE test_lib)
-target_link_libraries(streams-test PRIVATE test_lib)
+add_rust_fixture_bin(streams-test streams-test streams-test.rs)
+add_rust_fixture_bin(tty-test tty-test tty-test.rs)
