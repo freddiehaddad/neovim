@@ -83,7 +83,7 @@ const DEFAULT_GRID_HANDLE: c_int = 1;
 const ECMD_ONE: linenr_T = 1;
 
 const MODE_CMDLINE: c_int = 0x08;
-const UPD_SOME_VALID: c_int = 25;
+const UPD_SOME_VALID: c_int = 35;
 const UPD_NOT_VALID: c_int = 40;
 
 const CPT_ABBR: c_int = 0;

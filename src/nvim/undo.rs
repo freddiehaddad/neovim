@@ -82,7 +82,7 @@ const UH_RELOAD: c_int = 0x04;
 const ML_EMPTY: c_int = 0x01;
 const BL_SOL: c_int = 2;
 const BL_FIX: c_int = 4;
-const UPD_NOT_VALID: c_int = 30;
+const UPD_NOT_VALID: c_int = 40;
 const HLF_T: c_int = 23;
 
 const kExtmarkNOOP: ExtmarkOp = 0;

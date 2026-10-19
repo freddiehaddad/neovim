@@ -193,7 +193,7 @@ const OPT_LOCAL: c_int = 0x02;
 const OPT_NOWIN: c_int = 0x10;
 
 const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 50;
+const UPD_NOT_VALID: c_int = 40;
 
 const ML_EMPTY: c_int = 0x01;
 const VAR_FIXED: c_int = 2;

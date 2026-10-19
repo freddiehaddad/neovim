@@ -115,9 +115,7 @@ unsafe extern "C" {
     static mut stdin_isatty: bool;
     static mut stdout_isatty: bool;
     static mut Columns: c_int;
-    static mut normal_fg: c_int;
-    static mut normal_bg: c_int;
-    static mut normal_sp: c_int;
+    static mut p_bg: *mut c_char;
     static mut ui_ext_names: [*const c_char; kUIExtCount];
     static e_invchan: [c_char; 0];
 
@@ -1068,14 +1066,15 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
 ) {
     unsafe {
         if !(*ui).ui_ext[kUITermColors] {
+            let dark = *p_bg == b'd' as c_char;
             if rgb_fg == -1 {
-                rgb_fg = Integer::from(normal_fg);
+                rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
             }
             if rgb_bg == -1 {
-                rgb_bg = Integer::from(normal_bg);
+                rgb_bg = if dark { 0x000000 } else { 0xFFFFFF };
             }
             if rgb_sp == -1 {
-                rgb_sp = Integer::from(normal_sp);
+                rgb_sp = 0xFF0000;
             }
         }
         let mut args_items: [Object; 5] = [

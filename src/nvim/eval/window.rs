@@ -44,9 +44,9 @@ const WSP_VERT: c_int = 0x02;
 const WSP_BELOW: c_int = 0x40;
 const WSP_ABOVE: c_int = 0x80;
 
+const kCtxKeepCwd: c_int = 1;
 const kCtxNoDisplay: c_int = 4;
-const kCtxKeepCwd: c_int = 16;
-const kCtxValidate: c_int = 32;
+const kCtxValidate: c_int = 16;
 
 const E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE: &CStr =
     c"E1308: Cannot resize a window in another tab page";

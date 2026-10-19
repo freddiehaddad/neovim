@@ -499,15 +499,15 @@ const B_IMODE_USE_INSERT: OptInt = -1;
 const B_IMODE_NONE: OptInt = 0;
 const B_IMODE_LAST: OptInt = 1;
 
-const UPD_NOT_VALID: c_int = 35;
-const UPD_SOME_VALID: c_int = 30;
-const UPD_CLEAR: c_int = 40;
+const UPD_SOME_VALID: c_int = 35;
+const UPD_NOT_VALID: c_int = 40;
+const UPD_CLEAR: c_int = 50;
 const NO_SCREEN: c_int = 2;
 const SID_NONE: scid_T = -6;
 const STR2NR_ALL: c_int = 0x7f;
-const HLF_W: c_int = 39;
+const HLF_W: c_int = 26;
 const Ctrl_C: OptInt = 3;
-const kCtxNoDisplay: c_int = 1 << 0;
+const kCtxNoDisplay: c_int = 4;
 const FUZZY_SCORE_NONE: c_int = i32::MIN;
 const VAR_STRING: VarType = VarType::VAR_STRING;
 
