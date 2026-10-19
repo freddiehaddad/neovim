@@ -2496,39 +2496,39 @@ pub unsafe extern "C" fn f_exists(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        let mut n = false;
+        let mut n: c_int = 0;
         let mut p = tv_get_string(argvars);
         if *p == b'$' as c_char {
             if os_env_exists(p.add(1), false) {
-                n = true;
+                n = 1;
             } else {
                 let exp = expand_env_save(p.cast_mut());
                 if !exp.is_null() && *exp != b'$' as c_char {
-                    n = true;
+                    n = 1;
                 }
                 xfree(exp.cast());
             }
         } else if *p == b'&' as c_char || *p == b'+' as c_char {
-            n = eval_option(&raw mut p, ptr::null_mut(), true) == OK;
+            n = c_int::from(eval_option(&raw mut p, ptr::null_mut(), true) == OK);
             if *skipwhite(p) != NUL {
-                n = false;
+                n = 0;
             }
         } else if *p == b'*' as c_char {
-            n = if strnequal(p, c"*v:lua.".as_ptr(), 7) {
+            n = c_int::from(if strnequal(p, c"*v:lua.".as_ptr(), 7) {
                 nlua_func_exists(p.add(7))
             } else {
                 function_exists(p.add(1), false)
-            };
+            });
         } else if *p == b':' as c_char {
-            n = cmd_exists(p.add(1)) != 0;
+            n = cmd_exists(p.add(1));
         } else if *p == b'#' as c_char {
             if *p.add(1) == b'#' as c_char {
-                n = autocmd_supported(p.add(2));
+                n = c_int::from(autocmd_supported(p.add(2)));
             } else {
-                n = au_exists(p.add(1));
+                n = c_int::from(au_exists(p.add(1)));
             }
         } else {
-            n = var_exists(p);
+            n = c_int::from(var_exists(p));
         }
         (*rettv).vval.v_number = varnumber_T::from(n);
     }
