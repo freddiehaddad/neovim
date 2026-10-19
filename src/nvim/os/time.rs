@@ -6,6 +6,8 @@
 use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::os::env::os_getenv_noalloc;
+#[allow(unused_imports)]
 use crate::os::input::os_input_ready;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -48,8 +50,6 @@ unsafe extern "C" {
     fn c_time(tloc: *mut time_t) -> time_t;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
 
-    #[cfg(unix)]
-    fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
     #[cfg(unix)]
     fn tzset();
     #[cfg(unix)]

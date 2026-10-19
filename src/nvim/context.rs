@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, arena_dict, copy_array, copy_object,
     string_to_array,
@@ -208,11 +210,6 @@ static mut CTX_SWITCH_DEPTH: c_int = 0;
 static mut CTX_SAVED_CURWIN: handle_T = 0;
 static mut CTX_DID_CHDIR: bool = false;
 static mut CTX_MARKS_NS_ID: u32 = 0;
-
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-}
 
 #[inline]
 const fn string_obj(s: NvimString) -> Object {
@@ -563,7 +560,7 @@ unsafe fn array_to_string(array: Array, err: *mut Error) -> NvimString {
 
         assert_eq!(list_tv.v_type, VarType::VAR_LIST);
         if !encode_vim_list_to_buf(list_tv.vval.v_list, &mut sbuf.size, &mut sbuf.data) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"%s".as_ptr(),

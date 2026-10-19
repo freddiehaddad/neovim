@@ -36,7 +36,15 @@ use crate::globals::*;
 use crate::lua::executor::api_free_luaref;
 use crate::message::semsg;
 #[allow(unused_imports)]
+use crate::os::fs::os_dup_cloexec;
+#[allow(unused_imports)]
 use crate::os::fs::os_write;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::os::os_win_console::os_attach_parent_console;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::os::pty_conpty_win::os_has_conpty_working;
 #[allow(unused_imports)]
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
@@ -183,12 +191,6 @@ unsafe extern "C" {
 
     #[cfg(windows)]
     fn __acrt_iob_func(ix: c_uint) -> *mut c_void;
-    #[cfg(windows)]
-    fn os_has_conpty_working() -> bool;
-    #[cfg(windows)]
-    fn os_dup_cloexec(fd: c_int) -> c_int;
-    #[cfg(windows)]
-    fn os_attach_parent_console();
 
     #[cfg(target_os = "linux")]
     static mut stderr: *mut c_void;

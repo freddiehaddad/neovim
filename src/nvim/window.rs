@@ -18,6 +18,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, cstr_as_string, find_window_by_handle, try_enter, try_leave,
 };
@@ -374,8 +376,6 @@ unsafe extern "C" {
     fn gettext(str: *const c_char) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-
     fn apply_autocmds(
         event: event_T,
         fname: *const c_char,
@@ -528,14 +528,14 @@ pub unsafe extern "C" fn window_layout_locked_err(cmd: cmdidx_T, err: *mut Error
     unsafe {
         if split_disallowed > 0 || close_disallowed > 0 {
             if close_disallowed == 0 && cmd == cmdidx_T::CMD_tabnew {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
                     E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER.as_ptr(),
                 );
             } else {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
@@ -1140,7 +1140,7 @@ pub unsafe extern "C" fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut
         try_leave(&raw const tstate, err);
 
         if !win_ok && !error_set(&*err) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to switch to window %d".as_ptr(),
@@ -1465,7 +1465,7 @@ pub unsafe extern "C" fn check_split_disallowed(wp: *const win_T) -> c_int {
 pub unsafe extern "C" fn check_split_disallowed_err(wp: *const win_T, err: *mut Error) -> bool {
     unsafe {
         if split_disallowed > 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"E242: Can't split a window while closing another".as_ptr(),
@@ -1473,7 +1473,7 @@ pub unsafe extern "C" fn check_split_disallowed_err(wp: *const win_T, err: *mut 
             return false;
         }
         if (*(*wp).w_buffer).b_locked_split != 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"%s".as_ptr(),

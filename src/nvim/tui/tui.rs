@@ -22,9 +22,13 @@ use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_exec;
 #[allow(unused_imports)]
+use crate::mbyte::utf_ptr2char;
+#[allow(unused_imports)]
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells};
 #[allow(unused_imports)]
 use crate::ui_client::ui_client_set_size;
+#[allow(unused_imports)]
+use crate::ui_client::{ui_client_attach, ui_client_detach};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -337,13 +341,6 @@ unsafe extern "C" {
     fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
     #[cfg(windows)]
     fn uv_handle_size(h_type: c_int) -> usize;
-
-    fn utf_ptr2char(p_in: *const c_char) -> c_int;
-
-    #[cfg(unix)]
-    fn ui_client_detach();
-    #[cfg(unix)]
-    fn ui_client_attach(width: c_int, height: c_int, term: *mut c_char, rgb: bool);
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;

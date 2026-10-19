@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_set_sctx, arena_array, arena_dict, arena_string, try_enter, try_leave,
 };
@@ -77,12 +79,6 @@ type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
 
 static mut EVAL_RECURSIVE: c_int = 0;
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-}
 
 #[inline]
 const fn nil_obj() -> Object {
@@ -368,7 +364,7 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
 
         if !error_set(err) {
             if ok == FAIL {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to evaluate expression: '%.*s'".as_ptr(),
@@ -400,7 +396,7 @@ unsafe fn call_function_impl(
         let mut rv = nil_obj();
 
         if args.size > MAX_FUNC_ARGS {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Function called with too many arguments".as_ptr(),
@@ -550,7 +546,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
         'body: {
             let self_dict = rettv.vval.v_ptr.cast::<dict_T>();
             if rettv.v_type != VarType::VAR_DICT || self_dict.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"dict not found".as_ptr(),
@@ -564,7 +560,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
             {
                 let di = tv_dict_find(self_dict, fn_name.data, fn_name.size as isize);
                 if di.is_null() {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Not found: %s".as_ptr(),
@@ -573,7 +569,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
                     break 'body;
                 }
                 if (*di).di_tv.v_type == VarType::VAR_PARTIAL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"partial function not supported".as_ptr(),
@@ -581,7 +577,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
                     break 'body;
                 }
                 if (*di).di_tv.v_type != VarType::VAR_FUNC {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Not a function: %s".as_ptr(),
@@ -597,7 +593,7 @@ pub unsafe extern "C" fn nvim_call_dict_function(
             }
 
             if fn_name.data.is_null() || fn_name.size == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid function name: %s".as_ptr(),
@@ -642,7 +638,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
                 b'E' => pflags |= kExprFlagsDisallowEOC,
                 b'l' => pflags |= kExprFlagsParseLet,
                 0 => {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Invalid flag: '\\0' (%u)".as_ptr(),
@@ -651,7 +647,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
                     return Dict::new();
                 }
                 _ => {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Invalid flag: '%c' (%u)".as_ptr(),

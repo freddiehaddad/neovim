@@ -30,6 +30,8 @@ use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error};
+#[allow(unused_imports)]
+use crate::strings::vim_stricmp;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -285,8 +287,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    #[cfg(windows)]
-    fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 

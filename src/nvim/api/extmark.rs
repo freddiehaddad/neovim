@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -370,11 +372,6 @@ pub struct KeyDict_set_decoration_provider {
 pub struct KeyDict_ns_opts {
     pub is_set__ns_opts_: OptionalKeys,
     pub wins: Array,
-}
-
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 
 #[inline]
@@ -1013,7 +1010,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__end_line) {
                 if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -1122,7 +1119,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         let mut ch: c_int = 0;
                         hl.conceal_char = utfc_ptr2schar(conceal_str.data, &mut ch);
                         if hl.conceal_char == 0 || !vim_isprintc(ch) {
-                            api_set_error(
+                            api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeValidation,
                                 c"%s".as_ptr(),
@@ -1138,7 +1135,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 hl.flags |= kSHConcealLines;
                 has_hl = true;
                 if (*opts).conceal_lines.size > 0 && *(*opts).conceal_lines.data != NUL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -1195,7 +1192,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     virt_text.hl_mode = kHlModeCombine;
                 } else if strequal(str_val.data, "blend") {
                     if virt_text.pos == kVPosInline {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
                             c"%s".as_ptr(),
@@ -1298,7 +1295,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 && col2 == -1
                 && has_key(mask, KEYSET_OPTIDX_set_extmark__end_right_gravity)
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -1443,7 +1440,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 }
             } else {
                 if (*opts).ephemeral {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"cannot set emphemeral mark outside of a decoration provider".as_ptr(),
@@ -1756,7 +1753,7 @@ pub unsafe extern "C" fn parse_virt_text(
                     || chunk.size > 2
                     || (*chunk.items.add(0)).obj_type != ObjectType::kObjectTypeString
                 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),

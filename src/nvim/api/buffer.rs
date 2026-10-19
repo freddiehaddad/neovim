@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, arena_dict, buf_get_text, dict_get_value, dict_set_var,
     find_buffer_by_handle, normalize_index, set_mark, try_enter, try_leave,
@@ -188,7 +190,6 @@ pub use crate::extmark::u_header_T;
 
 unsafe extern "C" {
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn memchrsub(data: *mut c_char, c: c_char, x: c_char, len: usize);
 }
 
@@ -315,7 +316,7 @@ pub unsafe extern "C" fn api_buf_ensure_loaded(buf: Buffer, err: *mut Error) -> 
         }
 
         if (*b).b_ml.ml_mfp.is_null() && !buf_ensure_loaded(b) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to load buffer".as_ptr(),
@@ -432,7 +433,7 @@ pub unsafe extern "C" fn nvim_buf_get_lines(
         end = normalize_index(b, end, true, &mut oob);
 
         if strict_indexing && oob {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -486,7 +487,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
         end = normalize_index(b, end, true, &mut oob);
 
         if strict_indexing && oob {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -495,7 +496,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
             return;
         }
         if start > end {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -533,7 +534,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
 
         try_wrap(err, || 'end: {
             if (*b).b_p_ma == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Buffer is not 'modifiable'".as_ptr(),
@@ -542,7 +543,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
             }
 
             if u_save_buf(b, (start - 1) as linenr_T, end as linenr_T) == FAIL {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to save undo information".as_ptr(),
@@ -555,7 +556,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
                 if ml_delete_buf(b, start as linenr_T, false) == FAIL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to delete line".as_ptr(),
@@ -573,7 +574,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
             for i in 0..to_replace {
                 let lnum = start + (i as i64);
                 if lnum >= MAXLNUM {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -584,7 +585,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
 
                 let line_ptr = *lines.add(i);
                 if ml_replace_buf(b, lnum as linenr_T, line_ptr, false, true) == FAIL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to replace line".as_ptr(),
@@ -598,7 +599,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
             for i in to_replace..new_len {
                 let lnum = start + (i as i64) - 1;
                 if lnum >= MAXLNUM {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -609,7 +610,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
 
                 let line_ptr = *lines.add(i);
                 if ml_append_buf(b, lnum as linenr_T, line_ptr, 0, false) == FAIL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to insert line".as_ptr(),
@@ -744,7 +745,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
         }
 
         if start_row > end_row || (end_row == start_row && start_col > end_col) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -834,7 +835,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
 
         try_wrap(err, || 'end: {
             if (*b).b_p_ma == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Buffer is not 'modifiable'".as_ptr(),
@@ -843,7 +844,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             }
 
             if u_save_buf(b, (start_row as linenr_T) - 1, (end_row as linenr_T) + 1) == FAIL {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to save undo information".as_ptr(),
@@ -857,7 +858,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             let to_delete = old_len.saturating_sub(new_len);
             for _ in 0..to_delete {
                 if ml_delete_buf(b, start_row as linenr_T, false) == FAIL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to delete line".as_ptr(),
@@ -874,7 +875,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             for i in 0..to_replace {
                 let lnum = start_row + (i as i64);
                 if lnum >= MAXLNUM {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -884,7 +885,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 }
 
                 if ml_replace_buf(b, lnum as linenr_T, *lines.add(i), false, true) == FAIL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to replace line".as_ptr(),
@@ -896,7 +897,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             for i in to_replace..new_len {
                 let lnum = start_row + (i as i64) - 1;
                 if lnum >= MAXLNUM {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -906,7 +907,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 }
 
                 if ml_append_buf(b, lnum as linenr_T, *lines.add(i), 0, false) == FAIL {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to insert line".as_ptr(),
@@ -1041,7 +1042,7 @@ pub unsafe extern "C" fn nvim_buf_get_text(
         end_row = normalize_index(b, end_row, false, &mut oob);
 
         if oob {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -1051,7 +1052,7 @@ pub unsafe extern "C" fn nvim_buf_get_text(
         }
 
         if start_row > end_row {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -1142,7 +1143,7 @@ pub unsafe extern "C" fn nvim_buf_get_offset(
         }
 
         if index < 0 || index > i64::from((*b).b_ml.ml_line_count) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -1324,7 +1325,7 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
         }
 
         if ren_ret == FAIL {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to rename buffer".as_ptr(),
@@ -1370,7 +1371,7 @@ pub unsafe extern "C" fn nvim_buf_delete(
         );
 
         if result == FAIL {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to unload buffer.".as_ptr(),

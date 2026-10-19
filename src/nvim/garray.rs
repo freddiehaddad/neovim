@@ -1,5 +1,9 @@
 //! Functions for handling growing arrays (`src/nvim/garray.c`).
 
+#[allow(unused_imports)]
+use crate::path::path_equal;
+#[allow(unused_imports)]
+use crate::strings::sort_strings;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::memory::{xfree, xmallocz, xrealloc};
@@ -16,32 +20,6 @@ pub struct garray_T {
 }
 
 const K_PATH_CMP_LITERAL: c_int = 1 << 0;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn sort_strings(files: *mut *mut c_char, count: c_int);
-    fn path_equal(s1: *const c_char, s2: *const c_char, flags: c_int) -> bool;
-}
-
-#[cfg(test)]
-unsafe fn sort_strings(files: *mut *mut c_char, count: c_int) {
-    if count <= 1 || files.is_null() {
-        return;
-    }
-    let slice = unsafe { std::slice::from_raw_parts_mut(files, count as usize) };
-    slice.sort_by(|&a, &b| {
-        let sa = unsafe { CStr::from_ptr(a).to_bytes() };
-        let sb = unsafe { CStr::from_ptr(b).to_bytes() };
-        sa.cmp(sb)
-    });
-}
-
-#[cfg(test)]
-unsafe fn path_equal(s1: *const c_char, s2: *const c_char, _flags: c_int) -> bool {
-    let b1 = unsafe { CStr::from_ptr(s1).to_bytes() };
-    let b2 = unsafe { CStr::from_ptr(s2).to_bytes() };
-    b1 == b2
-}
 
 /// Clear an allocated growing array (`ga_clear`).
 ///

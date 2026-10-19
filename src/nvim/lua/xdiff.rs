@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_string};
 #[allow(unused_imports)]
 use crate::lua::converter::nlua_pop_keydict;
@@ -149,7 +151,6 @@ unsafe extern "C" {
         str_ptr: *const c_char,
         len: usize,
     ) -> *const crate::lua::converter::KeySetLink;
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 
 #[cfg(not(test))]
@@ -344,7 +345,7 @@ unsafe extern "C" fn call_on_hunk_cb(
 
         if lua_pcall(lstate, 4, 1, 0) != 0 {
             let msg_ptr = lua_tolstring(lstate, -1, std::ptr::null_mut());
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"on_hunk: %s".as_ptr(),
@@ -417,7 +418,7 @@ unsafe fn process_xdl_diff_opts(
                 } else if strequal(c"indices".as_ptr(), opts.result_type.data) {
                     had_result_type_indices = true;
                 } else {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"not a valid result_type".as_ptr(),
@@ -436,7 +437,7 @@ unsafe fn process_xdl_diff_opts(
                 } else if strequal(c"histogram".as_ptr(), opts.algorithm.data) {
                     params.flags |= XDF_HISTOGRAM_DIFF;
                 } else {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"not a valid algorithm".as_ptr(),
@@ -462,7 +463,7 @@ unsafe fn process_xdl_diff_opts(
                 } else if opts.linematch.obj_type == ObjectType::kObjectTypeInteger {
                     *linematch = opts.linematch.data.integer;
                 } else {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"linematch must be a boolean or integer".as_ptr(),
@@ -494,7 +495,7 @@ unsafe fn process_xdl_diff_opts(
                 mode = NluaXdiffMode::OnHunkCb;
                 nlua_pushref(lstate, opts.on_hunk);
                 if lua_type(lstate, -1) != LUA_TFUNCTION {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"on_hunk is not a function".as_ptr(),
@@ -592,7 +593,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
             if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
                 && err.err_type == ErrorType::kErrorTypeNone
             {
-                api_set_error(
+                api_set_error!(
                     &mut err,
                     ErrorType::kErrorTypeException,
                     c"diff operation failed".as_ptr(),

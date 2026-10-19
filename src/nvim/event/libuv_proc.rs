@@ -15,7 +15,11 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::os::env::os_free_fullenv;
 #[allow(unused_imports)]
+use crate::os::env::os_shell_is_cmdexe;
+#[allow(unused_imports)]
 use crate::os::fs::os_close;
+#[allow(unused_imports)]
+use crate::path::path_to_backslash;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -105,10 +109,6 @@ unsafe extern "C" {
     fn uv_process_get_pid(handle: *const uv_process_t) -> c_int;
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
-    #[cfg(windows)]
-    fn os_shell_is_cmdexe(sh: *const c_char) -> bool;
-    #[cfg(windows)]
-    fn path_to_backslash(path: *mut c_char) -> *mut c_char;
 }
 
 #[inline]

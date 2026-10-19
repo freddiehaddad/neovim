@@ -23,6 +23,8 @@ use crate::buffer::{bt_quickfix, bt_terminal};
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_new, buflist_setfpos};
 #[allow(unused_imports)]
+use crate::eval::typval::tv_copy;
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
 #[allow(unused_imports)]
 use crate::eval::{get_copyID, var_flavour, var_set_global};
@@ -669,8 +671,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     #[link_name = "uv_strerror"]
     fn os_strerror(err: c_int) -> *const c_char;
-
-    fn tv_copy(from: *const typval_T, to: *mut typval_T);
 
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
 

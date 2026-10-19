@@ -14,6 +14,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::autocmd::do_filetype_autocmd;
 #[allow(unused_imports)]
 use crate::buffer::{do_autochdir, free_buf_options, maketitle};
@@ -728,8 +730,6 @@ unsafe extern "C" {
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 
     fn callback_copy(dest: *mut Callback, src: *const Callback);
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
     pub fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
     pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex;
@@ -5632,7 +5632,7 @@ unsafe fn switch_option_context(
                 ) {
                     ctx_restore(ctx.cast::<CtxSwitch>());
                     if !error_set(err) {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Problem while switching windows".as_ptr(),
@@ -5738,7 +5738,7 @@ pub unsafe extern "C" fn set_option_value_for(
             let tab = from.cast::<tabpage_T>();
             assert!(opt_idx == kOptCmdheight);
             if value.obj_type != ObjectType::kObjectTypeInteger {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"'cmdheight' requires a Number".as_ptr(),
@@ -5769,7 +5769,7 @@ pub unsafe extern "C" fn set_option_value_for(
         };
         let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, &raw const errbuf);
         if !errmsg.is_null() {
-            api_set_error(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
+            api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
         }
 
         if switched {
@@ -8348,7 +8348,7 @@ pub unsafe extern "C" fn get_option_info(
     unsafe {
         let opt_idx = find_option_len(name.data, name.size);
         if opt_idx == kOptInvalid {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Invalid option (not found): '%s'".as_ptr(),

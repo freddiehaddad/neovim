@@ -911,8 +911,10 @@ static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
 
 unsafe extern "C" {
 
+    #[cfg(not(test))]
     fn utf8proc_get_property(codepoint: i32) -> *const utf8proc_property_t;
     fn utf8proc_grapheme_break(codepoint1: i32, codepoint2: i32) -> bool;
+    #[cfg(not(test))]
     fn utf8proc_grapheme_break_stateful(
         codepoint1: i32,
         codepoint2: i32,
@@ -1087,6 +1089,21 @@ unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> ico
     }
 }
 
+#[cfg(test)]
+static DUMMY_UTF8PROC_PROP: utf8proc_property_t = unsafe { std::mem::zeroed() };
+#[cfg(test)]
+unsafe fn utf8proc_get_property(_codepoint: i32) -> *const utf8proc_property_t {
+    &raw const DUMMY_UTF8PROC_PROP
+}
+#[cfg(test)]
+unsafe fn utf8proc_grapheme_break_stateful(
+    _codepoint1: i32,
+    _codepoint2: i32,
+    _state: *mut GraphemeState,
+) -> bool {
+    true
+}
+
 #[inline]
 unsafe fn call_iconv(
     cd: iconv_t,
@@ -1095,13 +1112,18 @@ unsafe fn call_iconv(
     outbuf: *mut *mut c_char,
     outbytesleft: *mut usize,
 ) -> usize {
-    #[cfg(windows)]
+    #[cfg(all(not(test), windows))]
     unsafe {
         libiconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
     }
-    #[cfg(not(windows))]
+    #[cfg(all(not(test), not(windows)))]
     unsafe {
         iconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
+    }
+    #[cfg(test)]
+    {
+        let _ = (cd, inbuf, inbytesleft, outbuf, outbytesleft);
+        usize::MAX
     }
 }
 

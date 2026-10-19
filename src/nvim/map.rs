@@ -1,5 +1,7 @@
 //! Hash maps and sets (`src/nvim/map.c`, `src/nvim/map_key_impl.c.h`, `src/nvim/map_value_impl.c.h`).
 
+#[allow(unused_imports)]
+use crate::path::{path_cmp, path_fold_char, vim_ispathsep, vim_ispathsep_nocolon};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
@@ -96,48 +98,6 @@ pub struct StcClick {
 
 pub type StcClicks = Map<c_int, StcClick>;
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn vim_ispathsep(c: c_int) -> bool;
-    fn vim_ispathsep_nocolon(c: c_int) -> bool;
-    fn path_fold_char(ic: bool, p: *const c_char, len: *mut c_int) -> c_int;
-    fn path_cmp(ic: bool, p: *const c_char, q: *const c_char, maxlen: usize) -> c_int;
-}
-
-#[cfg(test)]
-unsafe fn vim_ispathsep(c: c_int) -> bool {
-    c == b'/' as c_int || c == b'\\' as c_int
-}
-
-#[cfg(test)]
-unsafe fn vim_ispathsep_nocolon(c: c_int) -> bool {
-    unsafe { vim_ispathsep(c) }
-}
-
-#[cfg(test)]
-unsafe fn path_fold_char(ic: bool, p: *const c_char, len: *mut c_int) -> c_int {
-    unsafe {
-        *len = 1;
-        let b = *p as u8;
-        if ic {
-            c_int::from(b.to_ascii_lowercase())
-        } else {
-            c_int::from(b)
-        }
-    }
-}
-
-#[cfg(test)]
-unsafe fn path_cmp(ic: bool, p: *const c_char, q: *const c_char, _maxlen: usize) -> c_int {
-    let bp = unsafe { CStr::from_ptr(p).to_bytes() };
-    let bq = unsafe { CStr::from_ptr(q).to_bytes() };
-    if ic {
-        bp.to_ascii_lowercase().cmp(&bq.to_ascii_lowercase()) as c_int
-    } else {
-        bp.cmp(bq) as c_int
-    }
-}
-
 #[inline]
 const fn hash_u64(key: u64) -> u32 {
     ((key >> 33) ^ key ^ (key << 11)) as u32
@@ -194,7 +154,7 @@ unsafe fn hash_path(mut p: *const c_char) -> u32 {
     while unsafe { *p != 0 } {
         let cur = unsafe { *p };
         let next = unsafe { *p.add(1) };
-        if unsafe { vim_ispathsep_nocolon(c_int::from(cur as u8)) }
+        if vim_ispathsep_nocolon(c_int::from(cur as u8))
             && next == 0
             && !std::ptr::eq(start, p)
             && unsafe { !vim_ispathsep(c_int::from(*p.sub(1) as u8)) }

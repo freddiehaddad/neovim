@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -153,7 +155,6 @@ pub struct KeyDict_option {
 
 unsafe extern "C" {
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 }
 
@@ -317,7 +318,7 @@ unsafe fn validate_option_value_args(
 
         *opt_idxp = find_option(name);
         if *opt_idxp == kOptInvalid {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Unknown option '%s'".as_ptr(),
@@ -384,7 +385,7 @@ unsafe fn validate_option_value_args(
                 c"".as_ptr()
             };
 
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"'%s' cannot be passed for %s%soption '%s'".as_ptr(),
@@ -408,7 +409,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
 
         let ftbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
         if ftbuf.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Could not create internal buffer".as_ptr(),
@@ -417,7 +418,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
         }
 
         if ml_open(ftbuf) == FAIL {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Could not load internal buffer".as_ptr(),
@@ -465,7 +466,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
 
         if !bufref_valid(&mut bufref) {
             if !error_set(err) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Internal buffer was deleted".as_ptr(),
@@ -475,7 +476,7 @@ unsafe fn do_ft_buf(filetype: *const c_char, aco: *mut CtxSwitch, err: *mut Erro
         }
 
         if !did_au_ft && !error_set(err) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Could not execute FileType autocommands".as_ptr(),
@@ -727,7 +728,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 );
                 optval_free(oldval);
                 if !errmsg.is_null() {
-                    api_set_error(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
+                    api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
                     optval_free(merged_val);
                     return NIL;
                 }
@@ -761,7 +762,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
             merged_val = args.os_newval;
             free_option_prepared(&mut args);
             if !errmsg.is_null() {
-                api_set_error(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
+                api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
                 optval_free(merged_val);
                 return NIL;
             }

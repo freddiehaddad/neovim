@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -138,11 +140,6 @@ pub struct KeyDict_empty {
 }
 
 pub type ApiDispatchWrapper = unsafe extern "C" fn(u64, Array, *mut Arena, *mut Error) -> Object;
-
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-}
 
 static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
 static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();
@@ -411,7 +408,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
         }
 
         if !(0..MAXLNUM).contains(&line) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Line number outside range".as_ptr(),

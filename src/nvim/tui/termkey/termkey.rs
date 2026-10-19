@@ -8,6 +8,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::mbyte::{utf_char2bytes, utf_char2len};
 use std::ffi::{CStr, c_char, c_int, c_uchar, c_void};
 
 use crate::memory::{xfree, xmalloc, xrealloc};
@@ -64,44 +66,6 @@ pub const TERMKEY_FORMAT_LOWERSPACE: TermKeyFormat = 1 << 6;
 pub const TERMKEY_FORMAT_MOUSE_POS: TermKeyFormat = 1 << 8;
 
 const UNICODE_INVALID: c_int = 0xFFFD;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utf_char2len(c: c_int) -> c_int;
-}
-
-#[cfg(test)]
-unsafe fn utf_char2len(c: c_int) -> c_int {
-    if c < 0x80 {
-        1
-    } else if c < 0x800 {
-        2
-    } else if c < 0x10000 {
-        3
-    } else if c < 0x200000 {
-        4
-    } else if c < 0x4000000 {
-        5
-    } else {
-        6
-    }
-}
-
-#[cfg(test)]
-unsafe fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
-    unsafe {
-        if let Some(ch) = char::from_u32(c as u32) {
-            let mut tmp = [0u8; 4];
-            let s = ch.encode_utf8(&mut tmp);
-            std::ptr::copy_nonoverlapping(s.as_ptr().cast(), buf, s.len());
-            s.len() as c_int
-        } else {
-            *buf = c as u8 as c_char;
-            1
-        }
-    }
-}
 
 static mut TERMKEY_DRIVER_TI: TermKeyDriver = TermKeyDriver {
     name: c"terminfo".as_ptr(),

@@ -17,6 +17,8 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::main_init::preserve_exit;
+#[allow(unused_imports)]
+use crate::memline::ml_sync_all;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -79,8 +81,6 @@ static mut rejecting_deadly: bool = false;
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
-    #[cfg(target_os = "linux")]
-    fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     #[cfg(unix)]

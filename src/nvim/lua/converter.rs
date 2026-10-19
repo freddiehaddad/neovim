@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -216,13 +218,6 @@ unsafe extern "C-unwind" {
     fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
     fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
     fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-
 }
 
 #[cfg(not(test))]
@@ -1550,7 +1545,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_String(
     unsafe {
         if lua_type(lstate, -1) != LUA_TSTRING {
             lua_pop(lstate, 1);
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Expected Lua string".as_ptr(),
@@ -1585,7 +1580,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Integer(
     unsafe {
         if lua_type(lstate, -1) != LUA_TNUMBER {
             lua_pop(lstate, 1);
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Expected Lua number".as_ptr(),
@@ -1598,7 +1593,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Integer(
             || n < (Integer::MIN as lua_Number)
             || ((n as Integer) as lua_Number) != n
         {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Number is not integral".as_ptr(),
@@ -1654,7 +1649,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Boolean_strict(
                 ret = false;
             }
             _ => {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"not a boolean".as_ptr(),
@@ -1680,7 +1675,7 @@ unsafe fn nlua_check_type(
                 } else {
                     c"table".as_ptr()
                 };
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Expected Lua %s".as_ptr(),
@@ -1707,7 +1702,7 @@ unsafe fn nlua_check_type(
         }
 
         if table_props.table_type != expected_type && !err.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Expected %s-like Lua table".as_ptr(),
@@ -1922,7 +1917,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
             let mut cur = stack.pop().unwrap();
             if cur.container {
                 if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Lua failed to grow stack".as_ptr(),
@@ -2063,7 +2058,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                             };
                         }
                         ObjectType::kObjectTypeNil => {
-                            api_set_error(
+                            api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeValidation,
                                 c"Cannot convert given Lua table".as_ptr(),
@@ -2081,7 +2076,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                             },
                         };
                     } else {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
                             c"Cannot convert given Lua type".as_ptr(),
@@ -2095,7 +2090,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     if is_nil {
                         *cur.obj = nil_obj();
                     } else {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
                             c"Cannot convert userdata".as_ptr(),
@@ -2103,7 +2098,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     }
                 }
                 _ => {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Cannot convert given Lua type".as_ptr(),
@@ -2162,7 +2157,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_handle(
     #[cfg(not(test))]
     unsafe {
         let ret = if lua_type(lstate, -1) != LUA_TNUMBER {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Expected Lua number".as_ptr(),
@@ -2248,7 +2243,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_keydict(
     #[cfg(not(test))]
     unsafe {
         if lua_type(L, -1) != LUA_TTABLE {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Expected Lua table".as_ptr(),
@@ -2264,7 +2259,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_keydict(
             let s = lua_tolstring(L, -2, &mut len);
             let field_ptr = hashy_fn(s, len);
             if field_ptr.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"invalid key: %.*s".as_ptr(),

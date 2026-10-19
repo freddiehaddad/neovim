@@ -1,5 +1,7 @@
 //! Msgpack-RPC serializer (`src/nvim/msgpack_rpc/packer.c`).
 
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
@@ -33,20 +35,6 @@ struct ContainerStackItem {
     container: *mut Object,
     idx: usize,
 }
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn nlua_funcref_str(luaref: c_int, arena: *mut c_void, inspect: bool) -> *mut c_char;
-    fn api_free_luaref(luaref: c_int);
-}
-
-#[cfg(test)]
-unsafe fn nlua_funcref_str(_luaref: c_int, _arena: *mut c_void, _inspect: bool) -> *mut c_char {
-    unsafe { crate::memory::xstrdup(c"<Lua>".as_ptr()) }
-}
-
-#[cfg(test)]
-unsafe fn api_free_luaref(_luaref: c_int) {}
 
 #[inline]
 pub(crate) unsafe fn mpack_w(b: *mut *mut c_char, byte: u8) {

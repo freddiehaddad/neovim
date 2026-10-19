@@ -65,6 +65,8 @@ use crate::message::{
 #[allow(unused_imports)]
 use crate::mouse::cmdline_mousescroll;
 #[allow(unused_imports)]
+use crate::option::csh_like_shell;
+#[allow(unused_imports)]
 use crate::option::set_option_direct;
 #[allow(unused_imports)]
 use crate::option::string_to_key;
@@ -75,6 +77,10 @@ use crate::option_vars::*;
 use crate::regexp::skip_regexp_ex;
 #[allow(unused_imports)]
 use crate::register::get_expr_line;
+#[allow(unused_imports)]
+use crate::register::get_expr_register;
+#[allow(unused_imports)]
+use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
@@ -454,15 +460,8 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    #[cfg(not(windows))]
-    fn csh_like_shell() -> c_int;
-
-    fn get_expr_register() -> c_int;
-
     fn rename_buffer(new_fname: *const c_char) -> c_int;
 
-    #[cfg(windows)]
-    fn vim_strnicmp(s1: *const c_char, s2: *const c_char, len: usize) -> c_int;
     #[cfg(not(windows))]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

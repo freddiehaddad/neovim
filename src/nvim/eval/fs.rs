@@ -64,6 +64,11 @@ use crate::os::fs::{
     os_realpath, os_remove, os_rmdir,
 };
 #[allow(unused_imports)]
+use crate::os::fs::{os_is_reparse_point_include, os_resolve_shortcut};
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::path::slash_adjust;
+#[allow(unused_imports)]
 use crate::path::{
     FullName_save, add_pathsep, after_pathsep, path_cmp, path_is_absolute, path_next_component,
     path_tail, path_tail_with_sep, path_to_slash_save, shorten_dir_len, simplify_filename,
@@ -291,12 +296,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn slash_adjust(p: *mut c_char);
-
-    #[cfg(windows)]
-    fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn os_is_reparse_point_include(path: *const c_char) -> bool;
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;

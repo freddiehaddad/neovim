@@ -48,6 +48,8 @@ use crate::popupmenu::pum_show_popupmenu;
 #[allow(unused_imports)]
 use crate::state::get_real_state;
 #[allow(unused_imports)]
+use crate::strings::vim_stricmp;
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::ui_call_update_menu;
@@ -201,11 +203,6 @@ static mut MENUTRANS_GA: garray_T = garray_T {
     ga_growsize: 0,
     ga_data: ptr::null_mut(),
 };
-
-#[cfg(windows)]
-unsafe extern "C" {
-    fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
-}
 
 #[cfg(not(windows))]
 unsafe extern "C" {

@@ -11,10 +11,15 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_metadata;
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::main_init::os_exit;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::os::os_win_console::os_open_conin_fd;
 #[allow(unused_imports)]
 use crate::tui::tui::{
     tui_bell, tui_busy_start, tui_busy_stop, tui_default_colors_set, tui_flush, tui_grid_clear,
@@ -91,11 +96,8 @@ static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn KeyDict_highlight_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
     fn uv_os_getpid() -> c_int;
-    #[cfg(windows)]
-    fn os_open_conin_fd() -> c_int;
     #[cfg(windows)]
     #[link_name = "_close"]
     fn close_fd(fd: c_int) -> c_int;
@@ -415,7 +417,7 @@ pub unsafe extern "C" fn handle_ui_client_redraw(
     error: *mut Error,
 ) -> Object {
     unsafe {
-        api_set_error(
+        api_set_error!(
             error,
             ErrorType::kErrorTypeValidation,
             c"'redraw' cannot be sent as a request".as_ptr(),

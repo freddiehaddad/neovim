@@ -60,9 +60,13 @@ use crate::option::was_set_insecurely;
 use crate::option::{can_bs, option_set_callback_func, shortmess};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::path::{path_has_drive_letter, path_to_slash};
+#[allow(unused_imports)]
 use crate::regexp::vim_regexec;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
@@ -610,12 +614,6 @@ unsafe extern "C" {
     fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    #[cfg(windows)]
-    fn vim_strnicmp(s1: *const c_char, s2: *const c_char, len: usize) -> c_int;
-    #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

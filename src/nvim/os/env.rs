@@ -19,6 +19,9 @@ use crate::eval::skip_expr;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::mbyte::utf16_to_utf8;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len, utf_valid_string};
 use crate::message::semsg;
@@ -32,6 +35,10 @@ use crate::path::{
     after_pathsep, append_path, concat_fnames, path_cmp, path_is_absolute, path_tail,
     path_tail_with_sep,
 };
+#[allow(unused_imports)]
+use crate::path::{path_to_slash, path_to_slash_save, vim_ispathsep};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::vim_strsave_escaped;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -156,19 +163,10 @@ unsafe extern "C" {
     fn uv_err_name(err: c_int) -> *const c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn vim_ispathsep(c: c_int) -> bool;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn path_to_slash_save(path: *const c_char) -> *mut c_char;
-
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
     #[cfg(windows)]
     fn wcslen(s: *const u16) -> usize;
-    #[cfg(windows)]
-    fn utf16_to_utf8(utf16: *const u16, utf16len: c_int, utf8: *mut *mut c_char) -> c_int;
 
     #[cfg(target_os = "macos")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;
@@ -187,25 +185,6 @@ unsafe extern "system" {
     fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
     fn GetComputerNameW(lpBuffer: *mut u16, nSize: *mut u32) -> c_int;
     fn GetLastError() -> u32;
-}
-
-#[cfg(test)]
-unsafe fn vim_ispathsep(c: c_int) -> bool {
-    c == b'/' as c_int || c == b'\\' as c_int
-}
-
-#[cfg(test)]
-unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
-    unsafe {
-        let mut p = string;
-        while *p != 0 {
-            if c_int::from(*p as u8) == c {
-                return p.cast_mut();
-            }
-            p = p.add(1);
-        }
-        ptr::null_mut()
-    }
 }
 
 #[inline]

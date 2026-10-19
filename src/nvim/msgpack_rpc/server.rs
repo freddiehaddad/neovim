@@ -14,6 +14,8 @@ use crate::channel::channel_from_connection;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
+#[allow(unused_imports)]
 use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
 use crate::globals::*;
 use crate::log::logmsg;
@@ -25,6 +27,8 @@ use crate::os::env::{os_env_exists, os_get_pid, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 #[allow(unused_imports)]
 use crate::path::fix_fname;
+#[allow(unused_imports)]
+use crate::path::{path_to_slash, path_to_slash_save};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -78,13 +82,6 @@ unsafe extern "C" {
     fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
     fn uv_freeaddrinfo(ai: *mut c_void);
     fn uv_strerror(err: c_int) -> *const c_char;
-
-    #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn path_to_slash_save(path: *const c_char) -> *mut c_char;
-
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

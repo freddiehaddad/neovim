@@ -40,6 +40,9 @@ use crate::globals::*;
 use crate::input::beep_flush;
 #[allow(unused_imports)]
 use crate::insert::beginline;
+#[cfg(unix)]
+#[allow(unused_imports)]
+use crate::memline::resolve_symlink;
 #[allow(unused_imports)]
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
 #[allow(unused_imports)]
@@ -259,9 +262,6 @@ unsafe extern "C" {
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    #[cfg(unix)]
-    fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int;
 
     fn uv_strerror(err: c_int) -> *const c_char;
 

@@ -10,6 +10,10 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::charset::vim_str2nr;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, trans_special};
@@ -641,80 +645,7 @@ const NODE_PROPS: [(ExprOpLvl, ExprOpAssociativity); 39] = [
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn vim_str2nr(
-        start: *const c_char,
-        prep: *mut c_int,
-        len: *mut c_int,
-        what: c_int,
-        nptr: *mut i64,
-        unptr: *mut u64,
-        maxlen: c_int,
-        strict: bool,
-        overflow: *mut bool,
-    );
-    fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int;
-    fn utf_char2len(c: c_int) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-}
-
-#[cfg(test)]
-unsafe fn vim_str2nr(
-    start: *const c_char,
-    prep: *mut c_int,
-    len: *mut c_int,
-    _what: c_int,
-    _nptr: *mut i64,
-    unptr: *mut u64,
-    maxlen: c_int,
-    _strict: bool,
-    _overflow: *mut bool,
-) {
-    unsafe {
-        let mut idx = 0usize;
-        let mut val = 0u64;
-        while (maxlen == 0 || (idx as c_int) < maxlen) && (*start.add(idx) as u8).is_ascii_digit() {
-            val = val * 10 + u64::from(*start.add(idx) as u8 - b'0');
-            idx += 1;
-        }
-        if !prep.is_null() {
-            *prep = 0;
-        }
-        if !len.is_null() {
-            *len = idx as c_int;
-        }
-        if !unptr.is_null() {
-            *unptr = val;
-        }
-    }
-}
-
-#[cfg(test)]
-unsafe fn utfc_ptr2len_len(_p: *const c_char, _size: c_int) -> c_int {
-    1
-}
-
-#[cfg(test)]
-unsafe fn utf_char2len(_c: c_int) -> c_int {
-    1
-}
-
-#[cfg(test)]
-unsafe fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
-    unsafe {
-        *buf = c as u8 as c_char;
-    }
-    1
-}
-
-#[cfg(test)]
-unsafe fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
-    unsafe {
-        **tp = **fp;
-        *fp = (*fp).add(1);
-        *tp = (*tp).add(1);
-    }
 }
 
 #[inline]

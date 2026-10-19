@@ -13,6 +13,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_set_sctx, arena_dict, arena_take_arraybuilder,
     find_buffer_by_handle, string_to_cstr,
@@ -286,8 +288,6 @@ unsafe extern "C" {
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
@@ -3346,7 +3346,7 @@ pub unsafe extern "C" fn modify_keymap(
 
         'block: {
             if parsed_args.replace_keycodes && !parsed_args.expr {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"\"replace_keycodes\" requires \"expr\"".as_ptr(),
@@ -3363,7 +3363,7 @@ pub unsafe extern "C" fn modify_keymap(
                 p_cpo,
                 &mut parsed_args,
             ) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"LHS exceeds maximum map length: %s".as_ptr(),
@@ -3373,7 +3373,7 @@ pub unsafe extern "C" fn modify_keymap(
             }
 
             if parsed_args.lhs_len > MAXMAPLEN || parsed_args.alt_lhs_len > MAXMAPLEN {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"LHS exceeds maximum map length: %s".as_ptr(),
@@ -3398,7 +3398,7 @@ pub unsafe extern "C" fn modify_keymap(
                 p = p.add(1);
             }
             if mode.size > 0 && ((p as usize) - (mode.data as usize)) != mode.size {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid mode shortname: \"%s\"".as_ptr(),
@@ -3408,7 +3408,7 @@ pub unsafe extern "C" fn modify_keymap(
             }
 
             if parsed_args.lhs_len == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid (empty) LHS".as_ptr(),
@@ -3431,14 +3431,14 @@ pub unsafe extern "C" fn modify_keymap(
                 }
             } else if is_unmap && (parsed_args.rhs_len != 0 || parsed_args.rhs_lua != LUA_NOREF) {
                 if parsed_args.rhs_len != 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Gave nonempty RHS in unmap command: %s".as_ptr(),
                         parsed_args.rhs,
                     );
                 } else {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Gave nonempty RHS for unmap".as_ptr(),
@@ -3454,13 +3454,13 @@ pub unsafe extern "C" fn modify_keymap(
             match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, target_buf) {
                 0 => {}
                 1 => {
-                    api_set_error(err, ErrorType::kErrorTypeException, e_invarg.as_ptr(), 0);
+                    api_set_error!(err, ErrorType::kErrorTypeException, e_invarg.as_ptr(), 0);
                 }
                 2 => {
-                    api_set_error(err, ErrorType::kErrorTypeException, e_nomap.as_ptr(), 0);
+                    api_set_error!(err, ErrorType::kErrorTypeException, e_nomap.as_ptr(), 0);
                 }
                 5 => {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         if is_abbrev {
@@ -3472,7 +3472,7 @@ pub unsafe extern "C" fn modify_keymap(
                     );
                 }
                 6 => {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         if is_abbrev {

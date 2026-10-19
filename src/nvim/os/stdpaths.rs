@@ -89,13 +89,6 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
     Some(c"/usr/local/share/:/usr/share/"),
 ];
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    #[cfg(not(target_os = "windows"))]
-    #[cfg(target_os = "windows")]
-    fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char;
-}
-
 #[inline]
 unsafe fn to_slash_in_place(p: *mut c_char) {
     #[cfg(target_os = "windows")]

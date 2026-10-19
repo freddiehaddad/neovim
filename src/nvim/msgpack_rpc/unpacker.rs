@@ -10,6 +10,8 @@
 
 #[allow(unused_imports)]
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::schar_from_buf;
@@ -126,7 +128,6 @@ unsafe extern "C" {
     fn mpack_unpack_sint(t: mpack_token_t) -> i64;
     fn mpack_unpack_float_fast(t: mpack_token_t) -> f64;
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
 }
 
@@ -380,25 +381,25 @@ pub unsafe extern "C" fn unpack(
         *arena = unpacker.arena;
 
         if result == MPACK_NOMEM {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"object was too deep to unpack".as_ptr(),
             );
         } else if result == MPACK_EOF {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"incomplete msgpack string".as_ptr(),
             );
         } else if result == MPACK_ERROR {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"invalid msgpack string".as_ptr(),
             );
         } else if result == MPACK_OK && size != 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"trailing data in msgpack string".as_ptr(),
@@ -540,7 +541,7 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
         if result == MPACK_EOF {
             mpack_tokbuf_init(&mut p.reader);
         } else {
-            api_set_error(
+            api_set_error!(
                 &mut p.unpack_error,
                 ErrorType::kErrorTypeValidation,
                 c"failed to decode msgpack".as_ptr(),
@@ -588,7 +589,7 @@ pub unsafe extern "C" fn unpacker_advance(p: *mut Unpacker) -> bool {
         if p_ref.state >= 10 && p_ref.state != 13 {
             if !unpacker_parse_redraw(p) {
                 if p_ref.state < 0 {
-                    api_set_error(
+                    api_set_error!(
                         &mut p_ref.unpack_error,
                         ErrorType::kErrorTypeValidation,
                         c"failed to parse redraw event".as_ptr(),
@@ -619,7 +620,7 @@ pub unsafe extern "C" fn unpacker_advance(p: *mut Unpacker) -> bool {
                 if result == MPACK_EOF {
                     return false;
                 } else if result != MPACK_OK {
-                    api_set_error(
+                    api_set_error!(
                         &mut p_ref.unpack_error,
                         ErrorType::kErrorTypeValidation,
                         c"failed to parse msgpack".as_ptr(),

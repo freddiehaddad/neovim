@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -225,7 +227,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 unsafe extern "C" {
     static opt_winborder_values: [*const c_char; 9];
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 
 const NIL: Object = Object {
@@ -402,7 +403,7 @@ pub unsafe extern "C" fn nvim_open_win(
                 if parent.is_null() {
                     break 'cleanup;
                 } else if is_split && (*parent).w_floating {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Cannot split a floating window".as_ptr(),
@@ -470,7 +471,7 @@ pub unsafe extern "C" fn nvim_open_win(
                 }
             } else {
                 if (*(*curwin).w_buffer).b_locked_split != 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"E1159: Cannot open a float when closing the buffer".as_ptr(),
@@ -481,7 +482,7 @@ pub unsafe extern "C" fn nvim_open_win(
             }
             if wp.is_null() {
                 if !error_set(err) {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to create window".as_ptr(),
@@ -537,7 +538,7 @@ pub unsafe extern "C" fn nvim_open_win(
             }
             if tp.is_null() {
                 api_clear_error(err);
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Window was closed immediately".as_ptr(),
@@ -599,7 +600,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
 unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -> bool {
     unsafe {
         if one_window(wp, if tp == curtab { ptr::null_mut() } else { tp }) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Cannot move last non-floating window".as_ptr(),
@@ -607,7 +608,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -
             return false;
         }
         if win_locked(wp) != 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Cannot move window to another tabpage whilst in use".as_ptr(),
@@ -618,7 +619,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -
             return false;
         }
         if textlock != 0 || expr_map_locked() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"%s".as_ptr(),
@@ -627,7 +628,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -
             return false;
         }
         if is_ctx_win(wp) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Cannot move autocmd window to another tabpage".as_ptr(),
@@ -703,7 +704,7 @@ unsafe fn win_config_split(
             let mut win_tp = win_find_tabpage(win);
             if !parent.is_null() {
                 if (*parent).w_floating {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Cannot split a floating window".as_ptr(),
@@ -729,7 +730,7 @@ unsafe fn win_config_split(
                     win_goto(altwin);
 
                     if curwin == win {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Failed to switch away from window %d".as_ptr(),
@@ -739,7 +740,7 @@ unsafe fn win_config_split(
                     }
                     win_tp = win_find_tabpage(win);
                     if win_tp.is_null() || !win_valid_any_tab(parent) {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Windows to split were closed".as_ptr(),
@@ -747,7 +748,7 @@ unsafe fn win_config_split(
                         break 'restore_curwin;
                     }
                     if was_split == (*win).w_floating || (*parent).w_floating {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Floating state of windows to split changed".as_ptr(),
@@ -762,7 +763,7 @@ unsafe fn win_config_split(
 
                 if was_split {
                     if (*(*win).w_frame).fr_parent.is_null() {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Cannot move last non-floating window".as_ptr(),
@@ -812,7 +813,7 @@ unsafe fn win_config_split(
                             );
                             neighbor = altwin;
                         } else {
-                            api_set_error(
+                            api_set_error!(
                                 err,
                                 ErrorType::kErrorTypeException,
                                 c"Cannot split window into itself".as_ptr(),
@@ -897,7 +898,7 @@ unsafe fn win_config_split(
                         winframe_restore(win, dir, unflat_altfr);
                     }
                     if !error_set(err) {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Failed to move window %d into split".as_ptr(),
@@ -968,7 +969,7 @@ unsafe fn win_config_float_tp(
                     win_goto(altwin);
 
                     if curwin == win {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Failed to switch away from window %d".as_ptr(),
@@ -980,7 +981,7 @@ unsafe fn win_config_float_tp(
                     parent_tp = win_find_tabpage(parent);
 
                     if win_tp.is_null() || parent_tp.is_null() {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Target windows were closed".as_ptr(),
@@ -1592,7 +1593,7 @@ pub unsafe extern "C" fn parse_border_style(
 unsafe fn generate_api_error(wp: *mut win_T, attribute: *const c_char, err: *mut Error) {
     unsafe {
         if !wp.is_null() && (*wp).w_floating {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Required: 'relative' when reconfiguring floating window %d".as_ptr(),
@@ -1803,7 +1804,7 @@ unsafe fn parse_win_config(
                     break 'fail;
                 }
                 if (*fconfig).external && !ui_has(kUIMultigrid) {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"UI doesn't support external windows".as_ptr(),
@@ -1829,7 +1830,7 @@ unsafe fn parse_win_config(
                     break 'fail;
                 }
                 if target_win == wp {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"floating window cannot be relative to itself".as_ptr(),
@@ -1950,7 +1951,7 @@ unsafe fn parse_win_config(
 
             if has_key(mask, KEYSET_OPTIDX_win_config__noautocmd) {
                 if !wp.is_null() && (*config).noautocmd != (*fconfig).noautocmd {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"'noautocmd' cannot be changed on existing window".as_ptr(),

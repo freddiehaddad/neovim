@@ -16,6 +16,8 @@
 
 #[allow(unused_imports)]
 use crate::api::extmark::ns_initialized;
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
@@ -351,7 +353,6 @@ unsafe extern "C" {
     fn uv_thread_self() -> uv_thread_t;
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
@@ -1869,7 +1870,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
         while (i as c_int) < nargs {
             lua_pushvalue(lstate, (i as c_int) + 2);
             if !nlua_pop_typval(lstate, &raw mut vim_args[i]) {
-                api_set_error(
+                api_set_error!(
                     &raw mut err,
                     ErrorType::kErrorTypeException,
                     c"error converting argument %d".as_ptr(),
@@ -1989,7 +1990,7 @@ unsafe fn nlua_rpc(lstate: *mut lua_State, request: bool) -> c_int {
             } else if !rpc_send_event(chan_id, name, args) {
                 let mut mbuf = [0u8; 64];
                 let _ = write!(&mut mbuf[..], "Invalid channel: {chan_id}\0");
-                api_set_error(
+                api_set_error!(
                     &raw mut err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -2352,7 +2353,7 @@ pub unsafe extern "C" fn nlua_exec(
         if luaL_loadbuffer(lstate, str_.data, str_.size, name) != 0 {
             let mut len: usize = 0;
             let errstr = lua_tolstring(lstate, -1, &raw mut len);
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Lua: %.*s".as_ptr(),
@@ -2369,7 +2370,7 @@ pub unsafe extern "C" fn nlua_exec(
         if nlua_pcall(lstate, args.size as c_int, 1) != 0 {
             let mut len: usize = 0;
             let errstr = lua_tolstring(lstate, -1, &raw mut len);
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Lua: %.*s".as_ptr(),
@@ -2527,7 +2528,7 @@ pub unsafe extern "C" fn nlua_call_ref_ctx(
 
         if fast {
             if nlua_fast_cfpcall(lstate, nargs, mode_ret(mode), -1) < 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"fast context failure".as_ptr(),
@@ -2538,7 +2539,7 @@ pub unsafe extern "C" fn nlua_call_ref_ctx(
             if !err.is_null() {
                 let mut len: usize = 0;
                 let errstr = lua_tolstring(lstate, -1, &raw mut len);
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Lua: %.*s".as_ptr(),

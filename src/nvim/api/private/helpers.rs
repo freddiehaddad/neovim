@@ -99,10 +99,45 @@ pub struct HlMessageChunk {
 
 pub type HlMessage = KVec<HlMessageChunk>;
 
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn api_set_error_str(
+    err: *mut Error,
+    err_type: ErrorType,
+    msg: *const c_char,
+) {
+    unsafe {
+        debug_assert!(!matches!(err_type, ErrorType::kErrorTypeNone));
+        (*err).msg = xstrdup(msg);
+        (*err).err_type = err_type;
+    }
 }
+
+#[macro_export]
+macro_rules! api_set_error {
+    ($err:expr, $err_type:expr, $fmt:expr $(,)?) => {{
+        $crate::api::private::helpers::api_set_error_str($err, $err_type, $fmt);
+    }};
+    ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
+        let err_ptr: *mut $crate::api::private::validate::Error = $err;
+        let et: $crate::api::private::validate::ErrorType = $err_type;
+        let fmt_ptr: *const std::ffi::c_char = $fmt;
+        #[cfg(not(test))]
+        {
+            let len = $crate::log::snprintf(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
+            let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
+            let buf = $crate::memory::xmalloc(bufsize).cast::<std::ffi::c_char>();
+            $crate::log::snprintf(buf, bufsize, fmt_ptr, $($arg),+);
+            (*err_ptr).msg = buf;
+            (*err_ptr).err_type = et;
+        }
+        #[cfg(test)]
+        {
+            let _ = ($($arg),+);
+            $crate::api::private::helpers::api_set_error_str(err_ptr, et, fmt_ptr);
+        }
+    }};
+}
+pub use api_set_error;
 
 #[inline]
 unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
@@ -163,7 +198,7 @@ pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
             if did_throw {
                 discard_current_exception();
             }
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Keyboard interrupt".as_ptr(),
@@ -177,7 +212,7 @@ pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
                 ptr::null_mut(),
                 &raw mut should_free,
             );
-            api_set_error(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), msg);
+            api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), msg);
             free_global_msglist();
             if should_free {
                 xfree(msg.cast());
@@ -185,7 +220,7 @@ pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
         } else if did_throw || need_rethrow {
             if *(*current_exception).throw_name != NUL {
                 if (*current_exception).throw_lnum != 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"%s, line %d: %s".as_ptr(),
@@ -194,7 +229,7 @@ pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
                         (*current_exception).value,
                     );
                 } else {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"%s: %s".as_ptr(),
@@ -203,7 +238,7 @@ pub unsafe extern "C" fn try_leave(tstate: *const TryState, err: *mut Error) {
                     );
                 }
             } else {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
@@ -233,7 +268,7 @@ pub unsafe extern "C" fn dict_get_value(
     unsafe {
         let di = tv_dict_find(dict, key.data, key.size as isize);
         if di.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Key not found: %s".as_ptr(),
@@ -256,21 +291,21 @@ pub unsafe extern "C" fn dict_check_writable(
         let di = tv_dict_find(dict, key.data, key.size as isize);
         if !di.is_null() {
             if ((*di).di_flags & DI_FLAGS_RO) != 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Key is read-only: %s".as_ptr(),
                     key.data,
                 );
             } else if ((*di).di_flags & DI_FLAGS_LOCK) != 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Key is locked: %s".as_ptr(),
                     key.data,
                 );
             } else if del && ((*di).di_flags & DI_FLAGS_FIX) != 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Key is fixed: %s".as_ptr(),
@@ -278,19 +313,19 @@ pub unsafe extern "C" fn dict_check_writable(
                 );
             }
         } else if (*dict).dv_lock != 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Dict is locked".as_ptr(),
             );
         } else if key.size == 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Key name is empty".as_ptr(),
             );
         } else if key.size > c_int::MAX as usize {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Key name is too long".as_ptr(),
@@ -321,7 +356,7 @@ pub unsafe extern "C" fn dict_set_var(
         let watched = tv_dict_is_watched(dict);
         if del {
             if di.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Key not found: %s".as_ptr(),
@@ -361,7 +396,7 @@ pub unsafe extern "C" fn dict_set_var(
                 {
                     tv_clear(&raw mut tv);
                     if type_error {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
                             c"Setting v:%s to value with wrong type".as_ptr(),
@@ -396,7 +431,7 @@ pub unsafe extern "C" fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) 
         }
         let rv = pmap_get_int(&raw mut buffer_handles, buffer).cast::<buf_T>();
         if rv.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Invalid buffer id: %lld".as_ptr(),
@@ -416,7 +451,7 @@ pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) 
         }
         let rv = pmap_get_int(&raw mut window_handles, window).cast::<win_T>();
         if rv.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Invalid window id: %lld".as_ptr(),
@@ -436,7 +471,7 @@ pub unsafe extern "C" fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -
         }
         let rv = pmap_get_int(&raw mut tabpage_handles, tabpage).cast::<tabpage_T>();
         if rv.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Invalid tabpage id: %lld".as_ptr(),
@@ -659,7 +694,7 @@ pub unsafe extern "C" fn buf_get_text(
             size: 0,
         };
         if lnum >= MAXLNUM {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"'line index' value out of range".as_ptr(),
@@ -681,7 +716,7 @@ pub unsafe extern "C" fn buf_get_text(
         end_col = end_col.clamp(0, line_length);
 
         if start_col > end_col {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"start_col must be less than or equal to end_col".as_ptr(),
@@ -950,7 +985,7 @@ pub unsafe extern "C" fn object_to_hl_id(
                 }
             }
             _ => {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid 'hl_group': '%s'".as_ptr(),
@@ -1001,7 +1036,7 @@ pub unsafe extern "C" fn parse_hl_msg(chunks: Array, is_err: bool, err: *mut Err
                 || chunk.size > 2
                 || (*chunk.items).obj_type != ObjectType::kObjectTypeString
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -1040,7 +1075,7 @@ pub unsafe extern "C" fn api_dict_to_keydict(
             let k = (*dict.items.add(i)).key;
             let field = hashy_fn(k.data, k.size);
             if field.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid key: '%.*s'".as_ptr(),
@@ -1172,7 +1207,7 @@ pub unsafe extern "C" fn api_dict_to_keydict(
                     }
                 }
                 ObjectType::kObjectTypeLuaRef => {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Invalid key: '%.*s' is only allowed from Lua".as_ptr(),
@@ -1340,7 +1375,7 @@ pub unsafe extern "C" fn set_mark(
             deleting = true;
         } else {
             if col > MAXCOL {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"'column' value out of range".as_ptr(),
@@ -1348,7 +1383,7 @@ pub unsafe extern "C" fn set_mark(
                 return false;
             }
             if line < 1 || line > i64::from((*buf).b_ml.ml_line_count) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"'line' value out of range".as_ptr(),
@@ -1369,14 +1404,14 @@ pub unsafe extern "C" fn set_mark(
         ) != 0;
         if !res {
             if deleting {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to delete named mark: %c".as_ptr(),
                     *name.data as c_int,
                 );
             } else {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to set named mark: %c".as_ptr(),

@@ -1,5 +1,7 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
+#[allow(unused_imports)]
+use crate::mbyte::string_convert;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::kvec::KVecWithInit;
@@ -59,20 +61,6 @@ pub struct ParserState {
     pub stack: KVecWithInit<ParserStateItem, 16>,
     pub colors: *mut ParserHighlight,
     pub can_continuate: bool,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn string_convert(vcp: *const vimconv_T, ptr: *mut c_char, lenp: *mut usize) -> *mut c_char;
-}
-
-#[cfg(test)]
-unsafe fn string_convert(
-    _vcp: *const vimconv_T,
-    _ptr: *mut c_char,
-    _lenp: *mut usize,
-) -> *mut c_char {
-    std::ptr::null_mut()
 }
 
 /// Simple line getter reading from an array of `ParserLine` (`parser_simple_get_line`).

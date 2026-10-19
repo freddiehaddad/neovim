@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -351,8 +353,6 @@ unsafe extern "C-unwind" {
 
 unsafe extern "C" {
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-
     fn getdigits_long(pp: *mut *const c_char, strict: bool, def: c_long) -> c_long;
     fn invalid_range(eap: *const exarg_T) -> *const c_char;
 }
@@ -587,14 +587,14 @@ pub unsafe extern "C" fn nvim_parse_cmd(
 
         if !parse_cmdline(&mut cmdline, &mut ea, &mut cmod, &mut errormsg, false) {
             if !errormsg.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Parsing command-line: %s".as_ptr(),
                     errormsg,
                 );
             } else {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Parsing command-line".as_ptr(),
@@ -926,7 +926,7 @@ pub unsafe extern "C" fn nvim_cmd(
             }
 
             if !((!p.is_null() && ea.cmdidx != CMD_SIZE) || range_only) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Command not found: %s".as_ptr(),
@@ -940,7 +940,7 @@ pub unsafe extern "C" fn nvim_cmd(
                     ea.cmdidx,
                 )))
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Command not implemented: %s".as_ptr(),
@@ -958,7 +958,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 let cmdname_bytes = CStr::from_ptr(cmdname).to_bytes();
                 let fullname_bytes = CStr::from_ptr(fullname).to_bytes();
                 if !fullname_bytes.starts_with(cmdname_bytes) {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Invalid command: \"%s\"".as_ptr(),
@@ -1058,7 +1058,7 @@ pub unsafe extern "C" fn nvim_cmd(
                     };
 
                     if !argc_valid {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
                             c"%s".as_ptr(),
@@ -1071,7 +1071,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
             if has_key(mask, KEYSET_OPTIDX_cmd__range) {
                 if (ea.argt & EX_RANGE) == 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Command cannot accept %s: %s".as_ptr(),
@@ -1114,7 +1114,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
             build_cmdline_str(&mut cmdline, &mut ea, args);
             if !parse_cmdline(&mut cmdline, &mut ea, &mut cmod, &mut errormsg, true) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
@@ -1155,7 +1155,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
             if has_key(mask, KEYSET_OPTIDX_cmd__count) {
                 if count_from_first_arg {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -1164,7 +1164,7 @@ pub unsafe extern "C" fn nvim_cmd(
                     break 'end;
                 }
                 if (ea.argt & EX_COUNT) == 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Command cannot accept %s: %s".as_ptr(),
@@ -1187,7 +1187,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
             if has_key(mask, KEYSET_OPTIDX_cmd__reg) {
                 if (ea.argt & EX_REGSTR) == 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Command cannot accept %s: %s".as_ptr(),
@@ -1207,7 +1207,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
                 let regname = *(*cmd).reg.data;
                 if regname == b'=' as c_char {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -1219,7 +1219,7 @@ pub unsafe extern "C" fn nvim_cmd(
                     c_int::from(regname as u8),
                     !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_put && ea.cmdidx != CMD_iput,
                 ) {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Invalid register: \"%c".as_ptr(),
@@ -1232,7 +1232,7 @@ pub unsafe extern "C" fn nvim_cmd(
 
             ea.forceit = c_int::from((*cmd).bang);
             if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Command cannot accept %s: %s".as_ptr(),
@@ -1396,7 +1396,7 @@ pub unsafe extern "C" fn nvim_cmd(
                 }
 
                 if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && (ea.argt & EX_SBOXOK) == 0 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"%s".as_ptr(),
@@ -1600,7 +1600,7 @@ pub unsafe extern "C" fn nvim_buf_del_user_command(buf: Buffer, name: NvimString
             }
         }
 
-        api_set_error(
+        api_set_error!(
             err,
             ErrorType::kErrorTypeException,
             c"Invalid command (not found): %s".as_ptr(),
@@ -1648,7 +1648,7 @@ pub unsafe extern "C" fn create_user_command(
             if has_key(mask, KEYSET_OPTIDX_user_command__range)
                 && has_key(mask, KEYSET_OPTIDX_user_command__count)
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -1701,7 +1701,7 @@ pub unsafe extern "C" fn create_user_command(
             }
 
             if has_key(mask, KEYSET_OPTIDX_user_command__complete) && argt == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -1899,7 +1899,7 @@ pub unsafe extern "C" fn create_user_command(
                     force,
                 ) != OK
                 {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"Failed to create user command".as_ptr(),
@@ -1947,7 +1947,7 @@ pub unsafe extern "C" fn nvim_buf_get_commands(
 
         if global {
             if (*opts).builtin {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"builtin=true not implemented".as_ptr(),

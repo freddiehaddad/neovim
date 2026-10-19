@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, dict_get_value, dict_set_var, find_buffer_by_handle,
     find_tab_by_handle, find_window_by_handle, try_enter, try_leave,
@@ -478,12 +480,6 @@ pub struct KeyDict_tabpage_config {
     pub after: Integer,
 }
 
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-}
-
 #[inline]
 const fn nil_obj() -> Object {
     Object {
@@ -689,7 +685,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err
             return;
         }
         if !tabpage_win_valid(tp, wp) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Window does not belong to tabpage %d".as_ptr(),
@@ -787,7 +783,7 @@ pub unsafe extern "C" fn nvim_open_tabpage(
 
         if tp.is_null() {
             if !error_set(err) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to create new tabpage".as_ptr(),
@@ -797,7 +793,7 @@ pub unsafe extern "C" fn nvim_open_tabpage(
         }
         if !valid_tabpage(tp) {
             api_clear_error(err);
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Tabpage was closed immediately".as_ptr(),
@@ -818,7 +814,7 @@ pub unsafe extern "C" fn nvim_open_tabpage(
             }
             if !valid_tabpage(tp) {
                 api_clear_error(err);
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Tabpage was closed immediately".as_ptr(),

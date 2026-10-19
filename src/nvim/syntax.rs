@@ -75,6 +75,8 @@ use crate::runtime::{DIP_ALL, DOSO_NONE};
 use crate::runtime::{do_source, source_runtime};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
+#[allow(unused_imports)]
+use crate::strings::{vim_stricmp, vim_strnicmp};
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
@@ -401,12 +403,8 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    #[cfg(windows)]
-    fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    #[cfg(windows)]
-    fn vim_strnicmp(s1: *const c_char, s2: *const c_char, len: usize) -> c_int;
     #[cfg(not(windows))]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 

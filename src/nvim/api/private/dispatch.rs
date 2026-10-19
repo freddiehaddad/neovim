@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -36,7 +38,6 @@ pub struct MsgpackRpcRequestHandler {
 unsafe extern "C" {
     fn msgpack_rpc_get_handler_for_hash(str_in: *const c_char, len: usize) -> c_int;
     fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler;
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -49,7 +50,7 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
         let hash = msgpack_rpc_get_handler_for_hash(name, name_len);
         if hash < 0 {
             let empty = c"<empty>";
-            api_set_error(
+            api_set_error!(
                 error,
                 ErrorType::kErrorTypeException,
                 c"Invalid method: %.*s".as_ptr(),

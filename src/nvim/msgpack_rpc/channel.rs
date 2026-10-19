@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_dict, api_free_object, copy_dict};
 #[allow(unused_imports)]
 use crate::api::ui::remote_ui_disconnect;
@@ -24,6 +26,9 @@ use crate::event::proc::exit_on_closed_chan;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::message::semsg;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::os::os_win_console::os_detach_ui_console;
 #[allow(unused_imports)]
 use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -287,8 +292,6 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-
     fn handle_nvim_get_mode(
         channel_id: u64,
         args: Array,
@@ -308,8 +311,6 @@ unsafe extern "C" {
         error: *mut Error,
     ) -> Object;
 
-    #[cfg(windows)]
-    fn os_detach_ui_console(stdio_chan: bool);
 }
 
 #[inline]
@@ -526,7 +527,7 @@ pub unsafe extern "C" fn rpc_send_call(
         let mut channel = find_rpc_channel(id);
         if channel.is_null() {
             #[cfg(not(test))]
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Invalid channel: %llu".as_ptr(),
@@ -573,7 +574,7 @@ pub unsafe extern "C" fn rpc_send_call(
         if !(*frame_ptr).returned {
             #[cfg(not(test))]
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Invalid channel: %llu".as_ptr(),
@@ -588,7 +589,7 @@ pub unsafe extern "C" fn rpc_send_call(
             let res = (*frame_ptr).result;
             #[cfg(not(test))]
             if res.obj_type == ObjectType::kObjectTypeString {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
@@ -603,14 +604,14 @@ pub unsafe extern "C" fn rpc_send_call(
                     && (*array.items.add(1)).obj_type == ObjectType::kObjectTypeString
                 {
                     let et: ErrorType = std::mem::transmute((*array.items).data.integer as c_int);
-                    api_set_error(
+                    api_set_error!(
                         err,
                         et,
                         c"%s".as_ptr(),
                         (*array.items.add(1)).data.string.data,
                     );
                 } else {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
                         c"%s".as_ptr(),
@@ -618,7 +619,7 @@ pub unsafe extern "C" fn rpc_send_call(
                     );
                 }
             } else {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"%s".as_ptr(),
@@ -991,7 +992,7 @@ unsafe fn send_error(
             msg: ptr::null_mut(),
         };
         #[cfg(not(test))]
-        api_set_error(
+        api_set_error!(
             &raw mut e,
             ErrorType::kErrorTypeException,
             c"%s".as_ptr(),

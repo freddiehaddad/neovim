@@ -31,6 +31,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
 #[allow(unused_imports)]
+use crate::fileio::read_eintr;
+#[allow(unused_imports)]
 use crate::fileio::readfile;
 #[allow(unused_imports)]
 use crate::fileio::{buf_store_file_info, modname};
@@ -350,7 +352,6 @@ unsafe extern "C" {
     fn uv_uptime(uptime: *mut f64) -> c_int;
     #[link_name = "uv_strerror"]
     fn os_strerror(err: c_int) -> *const c_char;
-    fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize;
     #[cfg_attr(windows, link_name = "_lseeki64")]
     #[cfg_attr(not(windows), link_name = "lseek")]
     fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T;

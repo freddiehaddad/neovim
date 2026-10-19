@@ -33,6 +33,8 @@ use crate::option_vars::*;
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::concat_str;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -140,22 +142,7 @@ unsafe extern "C" {
     fn _getdrive() -> c_int;
     fn tolower(c: c_int) -> c_int;
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-}
-
-#[cfg(test)]
-unsafe fn vim_strchr(mut string: *const c_char, c: c_int) -> *mut c_char {
-    unsafe {
-        while *string != NUL {
-            if *string as u8 as c_int == c {
-                return string.cast_mut();
-            }
-            string = string.add(1);
-        }
-        ptr::null_mut()
-    }
 }
 
 #[inline]

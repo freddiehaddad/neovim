@@ -36,9 +36,13 @@ use crate::message::{
 use crate::message::{msg_schedule_semsg, semsg, smsg};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::env::{os_getenv, os_setenv, restore_env_var};
+#[allow(unused_imports)]
 use crate::os::fs::os_fopen;
 #[allow(unused_imports)]
 use crate::os::fs::{os_can_exe, os_isdir, os_path_exists, os_remove};
+#[allow(unused_imports)]
+use crate::path::invocation_path_tail;
 #[allow(unused_imports)]
 use crate::path::{add_pathsep, path_has_wildcard, path_tail};
 #[allow(unused_imports)]
@@ -154,16 +158,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    #[cfg(unix)]
-    fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *const c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    #[cfg(windows)]
-    fn os_getenv(name: *const c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int;
-    #[cfg(windows)]
-    fn restore_env_var(name: *const c_char, old_value: *mut c_char, must_free: bool);
 
     fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_err_name(err: c_int) -> *const c_char;

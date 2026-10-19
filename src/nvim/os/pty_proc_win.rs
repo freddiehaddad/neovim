@@ -14,6 +14,9 @@
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_to_env;
 use crate::log::logmsg;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::mbyte::utf8_to_utf16;
 #[allow(unused_imports)]
 use crate::os::env::os_shell_is_cmdexe;
 #[allow(unused_imports)]
@@ -173,7 +176,6 @@ mod win_impl {
         fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
         fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
-        fn utf8_to_utf16(str: *const c_char, str_len: c_int, utf16_str: *mut *mut u16) -> c_int;
         fn wcslen(s: *const u16) -> usize;
     }
 

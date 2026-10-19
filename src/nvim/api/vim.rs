@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_metadata, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
     arena_take_arraybuilder, copy_array, copy_dict, copy_object, copy_string, cstr_as_string,
@@ -432,12 +434,6 @@ struct RuntimeCookie {
 
 static mut PASTE_CANCELLED: bool = false;
 
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-
-}
-
 #[inline]
 unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: *mut Error) -> bool {
     if !cond {
@@ -670,7 +666,7 @@ pub unsafe extern "C" fn nvim_set_hl(
         let mut link_id: c_int = -1;
 
         if ((*val).is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Invalid key: 'url'".as_ptr(),
@@ -874,7 +870,7 @@ pub unsafe extern "C" fn nvim_input_mouse(
         };
 
         let Some(code) = valid else {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"invalid button or action".as_ptr(),
@@ -890,7 +886,7 @@ pub unsafe extern "C" fn nvim_input_mouse(
             }
             let m = name_to_mod_mask(c_int::from(byte as u8));
             if m == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid modifier: %c".as_ptr(),
@@ -1082,7 +1078,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
 ) -> Array {
     unsafe {
         if (*opts).do_source && !nlua_is_deferred_safe() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -1179,7 +1175,7 @@ pub unsafe extern "C" fn nvim_get_var(
         if di.is_null() {
             let found = script_autoload(name.data, name.size, false) && !aborting();
             if !found {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Key not found: %s".as_ptr(),
@@ -1190,7 +1186,7 @@ pub unsafe extern "C" fn nvim_get_var(
             di = tv_dict_find(get_globvar_dict(), name.data, name.size as isize);
         }
         if di.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Key not found: %s".as_ptr(),
@@ -1302,7 +1298,7 @@ pub unsafe extern "C" fn nvim_echo(
                     || (*opts).data.size != 0
                     || (*opts).source.size != 0)
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Conflict: title/source/status/percent/data not allowed with kind='%s'"
@@ -1600,7 +1596,7 @@ pub unsafe extern "C" fn nvim_create_buf(
         try_leave(&tstate, err);
 
         if ret == 0 && !error_set(&*err) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to create buffer".as_ptr(),
@@ -1680,7 +1676,7 @@ pub unsafe extern "C" fn nvim_open_term(
         let mut may_read_buffer = true;
         if !(*b).terminal.is_null() {
             if terminal_running((*b).terminal.cast()) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Terminal already connected to buffer %d".as_ptr(),
@@ -1746,7 +1742,7 @@ pub unsafe extern "C" fn nvim_open_term(
                 &mut error,
             );
             if !error.is_null() {
-                api_set_error(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), error);
+                api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), error);
             }
         }
 
@@ -1764,7 +1760,7 @@ pub unsafe extern "C" fn nvim_chan_send(chan: Integer, data: NvimString, err: *m
         let mut error: *const c_char = ptr::null();
         channel_send(chan as u64, data.data, data.size, false, &mut error);
         if !error.is_null() {
-            api_set_error(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), error);
+            api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), error);
         }
     }
 }
@@ -2313,7 +2309,7 @@ pub unsafe extern "C" fn nvim_get_proc_children(
             if o.obj_type == ObjectType::kObjectTypeArray {
                 rvobj = o.data.array;
             } else if !error_set(&*err) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to get process children. pid=%lld error=%d".as_ptr(),
@@ -2377,7 +2373,7 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mu
             } else if o.obj_type == ObjectType::kObjectTypeDict {
                 rvobj = o;
             } else if !error_set(&*err) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Failed to get process info. pid=%lld".as_ptr(),
@@ -2603,7 +2599,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
             };
             let errmsg = check_stl_option(str_.data, &errbuf);
             if !errmsg.is_null() {
-                api_set_error(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
+                api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
                 return result;
             }
         }
@@ -2654,7 +2650,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
             use_bools += 1;
         }
         if use_bools > 1 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -2863,7 +2859,7 @@ pub unsafe extern "C" fn nvim__complete_set(
     unsafe {
         let mut rv = arena_dict(arena, 2);
         if (get_cot_flags() & kOptCotFlagPopup) == 0 {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"completeopt option does not include popup".as_ptr(),
@@ -2930,7 +2926,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
 
         if ((*opts).is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__buf)) != 0 {
             if !win.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -2946,7 +2942,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
 
         let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
         if (xpopcount((*opts).is_set__redraw_) as u32) <= count {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -2982,7 +2978,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
                 && (*r.items).data.integer >= 0
                 && (*r.items.add(1)).data.integer >= -1;
             if !ok {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),

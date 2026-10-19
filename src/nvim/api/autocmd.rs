@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -187,12 +189,6 @@ pub struct KeyDict_exec_autocmds {
 }
 
 static mut NEXT_AUTOCMD_ID: i64 = 1;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-}
 
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
@@ -501,7 +497,7 @@ unsafe fn clear_autocmd(
 ) -> bool {
     unsafe {
         if do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) == FAIL {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to clear autocmd".as_ptr(),
@@ -648,7 +644,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                     pattern_filter_count += 1;
                 } else if v.obj_type == ObjectType::kObjectTypeArray {
                     if v.data.array.size > AUCMD_MAX_PATTERNS {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeValidation,
                             c"Too many patterns (maximum of %d)".as_ptr(),
@@ -693,7 +689,7 @@ pub unsafe extern "C" fn nvim_get_autocmds(
                 add_c(&mut buffers, string_obj(pat));
             } else if buf.obj_type == ObjectType::kObjectTypeArray {
                 if buf.data.array.size > AUCMD_MAX_PATTERNS {
-                    api_set_error(
+                    api_set_error!(
                         err,
                         ErrorType::kErrorTypeValidation,
                         c"Too many buffers (maximum of %d)".as_ptr(),
@@ -1005,7 +1001,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                 break 'body;
             }
             if patterns.size == 0 {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -1052,7 +1048,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                     current_sctx = save_current_sctx;
 
                     if retval == FAIL {
-                        api_set_error(
+                        api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
                             c"Failed to set autocmd".as_ptr(),
@@ -1085,7 +1081,7 @@ pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: *mut Error) {
             return;
         }
         if !autocmd_delete_id(id) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to delete autocmd".as_ptr(),
@@ -1204,7 +1200,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
         let save_current_sctx = api_set_sctx(channel_id);
         let augroup = augroup_add(augroup_name);
         if augroup == AUGROUP_ERROR {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Failed to set augroup".as_ptr(),

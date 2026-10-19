@@ -18,6 +18,9 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::mbyte::mb_strnicmp;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::mbyte::{utf8_to_utf16, utf16_to_utf8};
 #[allow(unused_imports)]
 use crate::message::{emsg, verbose_enter, verbose_leave};
 use crate::message::{semsg, smsg};
@@ -26,6 +29,8 @@ use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::path::path_next_component;
+#[allow(unused_imports)]
+use crate::path::path_to_slash;
 #[allow(unused_imports)]
 use crate::path::{
     FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
@@ -416,13 +421,6 @@ unsafe extern "C" {
         path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
-
-    #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: *mut *mut u16) -> c_int;
-    #[cfg(windows)]
-    fn utf16_to_utf8(utf16: *const u16, utf16len: c_int, utf8: *mut *mut c_char) -> c_int;
 
     #[cfg(windows)]
     fn _fdopen(fd: c_int, mode: *const c_char) -> *mut c_void;

@@ -3,6 +3,9 @@
 #![cfg_attr(test, allow(dead_code, unused_imports))]
 
 #[cfg(windows)]
+#[allow(unused_imports)]
+use crate::mbyte::utf16_to_utf8;
+#[cfg(windows)]
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::os::env::os_getenv_noalloc;
@@ -102,11 +105,6 @@ unsafe extern "system" {
         resume_handle: *mut u32,
     ) -> u32;
     fn NetApiBufferFree(buffer: *mut c_void) -> u32;
-}
-
-#[cfg(all(target_os = "windows", not(test)))]
-unsafe extern "C" {
-    fn utf16_to_utf8(str_utf16: *const u16, str_len: c_int, out: *mut *mut c_char) -> c_int;
 }
 
 unsafe fn add_user(users: *mut garray_T, user: *mut c_char, need_copy: bool) {

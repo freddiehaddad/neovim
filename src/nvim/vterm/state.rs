@@ -10,6 +10,10 @@
 )]
 
 use crate::mbyte::utf8len_tab;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_iscomposing, utf_ptr2CharInfo_impl,
+};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -183,40 +187,6 @@ pub struct VTermSelectionCallbacks {
         ) -> c_int,
     >,
     pub query: Option<unsafe extern "C" fn(mask: VTermSelectionMask, user: *mut c_void) -> c_int>,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut i32) -> bool;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utf_char2cells(c: c_int) -> c_int;
-    fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32;
-    fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> ClusterInfo;
-}
-
-#[cfg(test)]
-unsafe fn utf_iscomposing(_c1: c_int, _c2: c_int, _state: *mut i32) -> bool {
-    false
-}
-#[cfg(test)]
-unsafe fn utf_char2bytes(_c: c_int, _buf: *mut c_char) -> c_int {
-    0
-}
-#[cfg(test)]
-unsafe fn utf_char2cells(_c: c_int) -> c_int {
-    1
-}
-#[cfg(test)]
-unsafe fn utf_ptr2CharInfo_impl(_p: *const u8, _len: usize) -> i32 {
-    0
-}
-#[cfg(test)]
-unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, _max_len: *mut c_int) -> ClusterInfo {
-    ClusterInfo {
-        next: base,
-        cells: 1,
-    }
 }
 
 #[inline]

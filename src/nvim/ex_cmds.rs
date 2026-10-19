@@ -84,6 +84,8 @@ use crate::regexp::{
 #[allow(unused_imports)]
 use crate::regexp::{regtilde, vim_regsub_multi};
 #[allow(unused_imports)]
+use crate::strings::vim_stricmp;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -453,8 +455,6 @@ unsafe extern "C" {
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    #[cfg(windows)]
-    fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 

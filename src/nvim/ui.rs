@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::ui::{
     remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
     remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
@@ -181,7 +183,6 @@ unsafe extern "C" {
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
 }
 
@@ -985,7 +986,7 @@ pub unsafe extern "C" fn ui_grid_resize(
 
         let wp = get_win_by_grid_handle(grid_handle);
         if wp.is_null() {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"Invalid window handle: %lld".as_ptr(),

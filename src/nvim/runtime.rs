@@ -62,6 +62,8 @@ use crate::lua::executor::{nlua_exec_file, nlua_is_deferred_safe};
 #[allow(unused_imports)]
 use crate::memline::ml_get;
 #[allow(unused_imports)]
+use crate::message::msg_source;
+#[allow(unused_imports)]
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_ext_ui_flush, msg_outtrans, msg_putchar,
     verbose_enter, verbose_leave,
@@ -72,6 +74,8 @@ use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::path::path_to_slash;
 #[allow(unused_imports)]
 use crate::regexp::vim_regexec;
 #[allow(unused_imports)]
@@ -372,16 +376,12 @@ unsafe extern "C" {
     fn __error() -> *mut c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn msg_source(hl_id: c_int);
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
     fn vimrc_found(fname: *mut c_char, envname: *const c_char);
 
-    #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char);
 }
 
 #[inline]

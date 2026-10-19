@@ -78,6 +78,10 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::optionstr::clear_string_option;
 #[allow(unused_imports)]
+use crate::os::fs::os_resolve_shortcut;
+#[allow(unused_imports)]
+use crate::path::path_to_slash;
+#[allow(unused_imports)]
 use crate::plines::win_get_fill;
 #[allow(unused_imports)]
 use crate::quickfix::qf_stack_get_bufnr;
@@ -422,11 +426,6 @@ unsafe extern "C" {
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-
-    #[cfg(windows)]
-    fn path_to_slash(path: *mut c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
 
 }
 

@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::arena_dict;
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
@@ -361,7 +363,6 @@ const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn atoi(s: *const c_char) -> c_int;
@@ -2050,7 +2051,7 @@ pub unsafe extern "C" fn ns_get_hl_defs(
 
         if id != -1 {
             if !(1 <= id && id <= highlight_ga.ga_len) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),

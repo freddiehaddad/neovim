@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, find_buffer_by_handle, find_window_by_handle};
 #[allow(unused_imports)]
 use crate::api::vim::nvim_create_buf;
@@ -152,7 +154,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 
 unsafe extern "C" {
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn qsort(
         base: *mut c_void,
         num: usize,
@@ -250,7 +251,7 @@ pub unsafe extern "C" fn win_new_float(
                     && (*win_tp).tp_firstwin == wp
                     && lastwin_nofloating(win_tp) == wp)
             {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
                     c"Cannot change last window into float".as_ptr(),

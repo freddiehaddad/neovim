@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_dict_to_keydict, arena_array, arena_dict};
 #[allow(unused_imports)]
 use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_hl_group_set};
@@ -283,7 +285,6 @@ static mut ns_get_hl_recursive: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 
 #[inline]
@@ -1437,7 +1438,7 @@ pub unsafe extern "C" fn hl_get_attr_by_id(
         }
 
         if attr_id < 0 || attr_id >= Integer::from(attr_entries.h.size) {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
                 c"Invalid attribute id: %lld".as_ptr(),
@@ -1860,7 +1861,7 @@ pub unsafe extern "C" fn dict2hlattrs(
             || has_key(is_set, KEYSET_OPTIDX_highlight__link_global)
         {
             if link_id.is_null() {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"Invalid Key: '%s'".as_ptr(),

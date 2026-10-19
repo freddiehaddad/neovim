@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, arena_dict, dict_get_value, dict_set_var, find_buffer_by_handle,
     find_window_by_handle, normalize_index, try_enter, try_leave,
@@ -92,7 +94,6 @@ pub struct KeyDict_win_resize {
 
 unsafe extern "C" {
 
-    fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 
@@ -532,7 +533,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
         }
 
         if oob {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -541,7 +542,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
             return rv;
         }
         if start_lnum > end_lnum {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
@@ -552,7 +553,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__start_vcol) {
             if !has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -569,7 +570,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
 
         if has_key(mask, KEYSET_OPTIDX_win_text_height__end_vcol) {
             if !has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
-                api_set_error(
+                api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
                     c"%s".as_ptr(),
@@ -594,7 +595,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
         }
 
         if start_lnum == end_lnum && start_vcol >= 0 && end_vcol >= 0 && start_vcol > end_vcol {
-            api_set_error(
+            api_set_error!(
                 err,
                 ErrorType::kErrorTypeValidation,
                 c"%s".as_ptr(),
