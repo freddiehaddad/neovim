@@ -11,16 +11,47 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{bt_dontwrite, bt_prompt, buf_is_empty};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::get_buf_arg;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_list_alloc,
+    tv_list_append_dict,
+};
+#[allow(unused_imports)]
+use crate::ex_docmd::expr_map_locked;
+#[allow(unused_imports)]
+use crate::ex_getln::{text_locked, text_locked_msg};
+#[allow(unused_imports)]
+use crate::fileio::read_eintr;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::insert::beginline;
+#[allow(unused_imports)]
+use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
+    msg_putchar, msg_puts, msg_puts_hl, msg_start, verb_msg, verbose_enter, verbose_leave,
+};
 use crate::message::{semsg, smsg, smsg_keep};
+#[allow(unused_imports)]
+use crate::option::shortmess;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::spell::spell_check_window;
+#[allow(unused_imports)]
+use crate::strings::{sort_strings, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::command::exarg_T;
 use crate::api::options::CtxSwitch;
-use crate::api::tabpage::win_T;
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer_updates::{buf_updates_changedtick, buf_updates_unload};
 use crate::change::{
@@ -33,7 +64,6 @@ use crate::cursor::{
     linenr_T,
 };
 use crate::drawscreen::{redraw_later, redrawWinline};
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T, fmark_T, pos_T, visualinfo_T};
 use crate::eval::fs::FileInfo;
 use crate::extmark::{
@@ -216,75 +246,29 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
-    fn internal_error(where_: *const c_char);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn verb_msg(s: *const c_char) -> c_int;
-    fn give_warning(message: *const c_char, hl: bool, with_source: bool);
-    fn messaging() -> bool;
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_start();
-    fn msg_end() -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn verbose_enter();
-    fn verbose_leave();
-    fn beep_flush();
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn sort_strings(files: *mut *mut c_char, count: c_int);
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn shortmess(x: c_int) -> bool;
 
-    fn expr_map_locked() -> bool;
     fn foldOpenCursor();
-    fn text_locked() -> bool;
-    fn text_locked_msg();
-    fn beginline(flags: c_int);
-    fn spell_check_window(wp: *mut win_T) -> bool;
 
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_delete(lnum: linenr_T) -> c_int;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn ml_append_flags(lnum: linenr_T, line: *mut c_char, len: colnr_T, flags: c_int) -> c_int;
     #[cfg(unix)]
     fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int;
 
-    fn buf_is_empty(buf: *mut buf_T) -> bool;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
-    fn bt_dontwrite(buf: *const buf_T) -> bool;
     fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T);
 
-    fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize;
     fn get2c(fd: *mut FILE) -> c_int;
     fn get4c(fd: *mut FILE) -> c_int;
     fn get8ctime(fd: *mut FILE) -> time_t;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T;
 
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "time")]

@@ -13,10 +13,22 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
+#[allow(unused_imports)]
+use crate::eval::{free_for_info, next_for_item};
+#[allow(unused_imports)]
+use crate::ex_docmd::{ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error, msg_puts, verbose_enter, verbose_leave};
 use crate::message::{semsg, smsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::skip_regexp_err;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::strings::{concat_str, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -171,24 +183,13 @@ unsafe extern "C" {
     static mut p_vfile: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn tv_free(varp: *mut typval_T);
-    fn tv_clear(varp: *mut typval_T);
-    fn tv_list_unref(l: *mut list_T);
     fn estack_sfile(which: c_int) -> *mut c_char;
     fn stacktrace_create() -> *mut list_T;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg_puts(s: *const c_char);
-    fn internal_error(where_: *const c_char);
-    fn verbose_enter();
-    fn verbose_leave();
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn set_vim_var_list(idx: c_int, val: *mut list_T);
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn handle_did_throw();
     fn get_return_cmd(rettv: *mut c_void) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
     fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
     fn eval0(
         arg: *mut c_char,
@@ -204,24 +205,18 @@ unsafe extern "C" {
         skip: bool,
         use_simple_function: bool,
     ) -> bool;
-    fn ends_excmd(c: c_int) -> c_int;
     fn eval_for_line(
         arg: *const c_char,
         errp: *mut bool,
         eap: *mut exarg_T,
         evalarg: *const evalarg_T,
     ) -> *mut c_void;
-    fn next_for_item(fi_void: *mut c_void, arg: *mut c_char) -> bool;
-    fn free_for_info(fi_void: *mut c_void);
     fn eval_to_string_skip(arg: *const c_char, eap: *mut exarg_T, skip: bool) -> *mut c_char;
-    fn find_nextcmd(p: *const c_char) -> *mut c_char;
-    fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
+    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
     fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
-    fn vim_regfree(prog: *mut c_void);
+    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
     fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
     fn do_finish(eap: *mut exarg_T, reanimate: bool);
-    fn modifier_len(cmd: *mut c_char) -> c_int;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;

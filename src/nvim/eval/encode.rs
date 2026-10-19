@@ -9,8 +9,16 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item};
 use crate::eval::vars::eval_msgpack_type_lists;
+#[allow(unused_imports)]
+use crate::eval::{get_copyID, partial_name};
+#[allow(unused_imports)]
+use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -131,22 +139,9 @@ struct MPConvStackVal {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn get_copyID() -> c_int;
-    fn partial_name(pt: *mut partial_T) -> *mut c_char;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
-    fn tv_list_idx_of_item(l: *const list_T, item: *const listitem_T) -> c_int;
-    fn tv_list_append_allocated_string(l: *mut list_T, str: *mut c_char);
-
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn utf_char2len(c: c_int) -> c_int;
-    fn utf_printable(c: c_int) -> bool;
-
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
 }
 
 #[inline]

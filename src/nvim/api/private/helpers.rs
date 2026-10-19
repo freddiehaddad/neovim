@@ -10,6 +10,10 @@
 )]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, api_new_luaref};
+#[allow(unused_imports)]
+use crate::message::hl_msg_free;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -82,13 +86,7 @@ pub struct TryState {
     pub did_emsg: c_int,
 }
 
-#[repr(C)]
-pub struct ArrayBuilder {
-    pub size: usize,
-    pub capacity: usize,
-    pub items: *mut Object,
-    pub init_array: [Object; 16],
-}
+pub type ArrayBuilder = crate::kvec::KVecWithInit<Object, 16>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -102,9 +100,6 @@ pub type HlMessage = KVec<HlMessageChunk>;
 unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_free_luaref(luaref: LuaRef);
-    fn api_new_luaref(luaref: LuaRef) -> LuaRef;
-    fn hl_msg_free(hl_msg: HlMessage);
     fn tv_dict_watcher_notify(
         dict: *mut dict_T,
         key: *const c_char,

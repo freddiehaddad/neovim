@@ -11,15 +11,52 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_clear_error;
+#[allow(unused_imports)]
+use crate::cursor::get_cursor_line_ptr;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::garbage_collect;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_has_key, tv_get_bool_chk};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::update_topline_cursor;
+#[allow(unused_imports)]
+use crate::ex_getln::{get_cmdline_info, putcmdline, redrawcmd, redrawcmdline, unputcmdline};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insert::{edit_putchar, edit_unputchar};
+#[allow(unused_imports)]
+use crate::insexpand::{
+    compl_status_local, ctrl_x_mode_eval, ctrl_x_mode_not_default, vim_is_ctrl_x_key,
+};
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_exec_on_key;
+#[allow(unused_imports)]
+use crate::memline::ml_sync_all;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error};
 use crate::message::{semsg, semsg_multiline};
+#[allow(unused_imports)]
+use crate::r#move::win_col_off;
+#[allow(unused_imports)]
+use crate::normal::{add_to_showcmd, normal_cmd, pop_showcmd, push_showcmd};
+#[allow(unused_imports)]
+use crate::ops::clear_oparg;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::expand_env;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
 use crate::api::private::validate::{Array, Error, ErrorType};
-use crate::api::tabpage::win_T;
 use crate::api::vim::nvim_paste;
 use crate::charset::skipwhite;
 use crate::clipboard::{VarType, typval_T};
@@ -66,8 +103,8 @@ use crate::plines::{
     CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, utf_ClusterInfo, win_charsize,
 };
 use crate::state::{
-    CmdlineInfo, MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP,
-    MODE_NORMAL, MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
+    MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
+    MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
     state_no_longer_safe, typebuf_T,
 };
 use crate::textformat::oparg_T;
@@ -314,23 +351,8 @@ unsafe extern "C" {
     fn uv_loop_size() -> usize;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
-    fn vim_beep(val: c_uint);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
 
-    fn check_secure() -> bool;
-    fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn clear_oparg(oap: *mut oparg_T);
-    fn update_topline_cursor();
-    fn normal_cmd(oap: *mut oparg_T, toplevel: bool);
-    fn garbage_collect(testing: bool) -> bool;
-    fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool);
-    fn add_to_showcmd(c: c_int) -> bool;
-    fn push_showcmd();
-    fn pop_showcmd();
-    fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool;
     fn nlua_call_ref(
         ref_: LuaRef,
         name: *const c_char,
@@ -339,34 +361,12 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> crate::api::private::validate::Object;
-    fn api_clear_error(value: *mut Error);
 
     fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_dict_has_key(d: *const dict_T, key: *const c_char) -> bool;
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
 
-    fn ui_busy_start();
-    fn ui_busy_stop();
-    fn ui_cursor_goto(new_row: c_int, new_col: c_int);
-    fn ui_flush();
-
-    fn ctrl_x_mode_eval() -> bool;
-    fn ctrl_x_mode_not_default() -> bool;
-    fn vim_is_ctrl_x_key(c: c_int) -> bool;
-    fn compl_status_local() -> bool;
-
-    fn redrawcmdline();
-    fn redrawcmd();
-    fn get_cursor_line_ptr() -> *mut c_char;
-    fn edit_putchar(c: c_int, highlight: bool);
-    fn edit_unputchar();
-    fn get_cmdline_info() -> *mut CmdlineInfo;
-    fn putcmdline(c: c_char, shift: bool);
-    fn unputcmdline();
-    fn win_col_off(wp: *mut win_T) -> c_int;
     fn get_buf_maphash_list(state: c_int, c: c_int) -> *mut mapblock_T;
     fn eval_map_expr(mp: *mut mapblock_T, c: c_int) -> *mut c_char;
     fn map_luaid_get(n: c_int) -> LuaRef;

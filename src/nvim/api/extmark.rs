@@ -10,7 +10,33 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    arena_array, arena_dict, copy_string, find_buffer_by_handle, find_window_by_handle,
+    object_to_hl_id,
+};
+#[allow(unused_imports)]
+use crate::charset::{transstr, vim_isprintc};
+#[allow(unused_imports)]
+use crate::decoration::{
+    clear_virtlines, clear_virttext, decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh,
+    decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
+};
+#[allow(unused_imports)]
+use crate::decoration_provider::{decor_provider_clear, get_decor_provider};
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_all_later;
+#[allow(unused_imports)]
+use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::marktree::mt_inspect;
+#[allow(unused_imports)]
+use crate::mbyte::mb_string2cells;
+#[allow(unused_imports)]
+use crate::memline::ml_get_buf_len;
+#[allow(unused_imports)]
+use crate::r#move::changed_window_setting;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -33,11 +59,11 @@ use crate::map::{
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorHighlightInline,
-    DecorInlineData, MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL,
-    MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_DECOR_VIRT_LINES,
-    MT_FLAG_DECOR_VIRT_TEXT_INLINE, MT_FLAG_INVALID, MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO,
-    MT_FLAG_PAIRED, MT_FLAG_RIGHT_GRAVITY, MTKey, MTPair, MarkTree, MarkTreeIter,
+    DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
+    MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL,
+    MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE,
+    MT_FLAG_INVALID, MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MT_FLAG_PAIRED, MT_FLAG_RIGHT_GRAVITY,
+    MTKey, MTPair, MarkTreeIter,
 };
 use crate::memory::{Arena, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
@@ -340,92 +366,11 @@ pub struct KeyDict_ns_opts {
 
 unsafe extern "C" {
 
-    fn copy_string(str: NvimString, arena: *mut Arena) -> NvimString;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object;
-    fn decor_to_dict_legacy(dict: *mut Dict, decor: DecorInline, hl_name: bool, arena: *mut Arena);
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn extmark_from_id(buf: *mut buf_T, ns_id: u32, id: u32) -> MTPair;
-    fn extmark_get(
-        buf: *mut buf_T,
-        ns_id: u32,
-        l_row: c_int,
-        l_col: colnr_T,
-        u_row: c_int,
-        u_col: colnr_T,
-        amount: i64,
-        type_filter: ExtmarkType,
-        overlap: bool,
-    ) -> ExtmarkInfoArray;
-    fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error) -> c_int;
     fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> u32;
-    fn vim_isprintc(c: c_int) -> bool;
     fn init_sign_text(sp: *mut c_void, sign_text: *mut u32, text: *mut c_char) -> c_int;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn decor_put_vt(vt: DecorVirtText, next: *mut DecorVirtText) -> *mut DecorVirtText;
-    fn decor_range_add_virt(
-        state: *mut DecorState,
-        start_row: c_int,
-        start_col: c_int,
-        end_row: c_int,
-        end_col: c_int,
-        vt: *mut DecorVirtText,
-        owned: bool,
-    );
-    fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight;
-    fn decor_range_add_sh(
-        state: *mut DecorState,
-        start_row: c_int,
-        start_col: c_int,
-        end_row: c_int,
-        end_col: c_int,
-        sh: *mut DecorSignHighlight,
-        owned: bool,
-        ns: u32,
-        mark_id: u32,
-        subpriority: DecorPriority,
-    );
-    fn decor_put_sh(item: DecorSignHighlight) -> u32;
     fn schar_high(sc: u32) -> bool;
-    fn extmark_set(
-        buf: *mut buf_T,
-        ns_id: u32,
-        idp: *mut u32,
-        row: c_int,
-        col: colnr_T,
-        end_row: c_int,
-        end_col: colnr_T,
-        decor: DecorInline,
-        decor_flags: u16,
-        right_gravity: bool,
-        end_right_gravity: bool,
-        no_undo: bool,
-        invalidate: bool,
-        err: *mut Error,
-    );
-    fn decor_free(decor: DecorInline);
-    fn clear_virttext(text: *mut VirtText);
-    fn clear_virtlines(lines: *mut VirtLines);
-    fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool;
-    fn extmark_clear(
-        buf: *mut buf_T,
-        ns_id: u32,
-        l_row: c_int,
-        l_col: colnr_T,
-        u_row: c_int,
-        u_col: colnr_T,
-    ) -> bool;
-    fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider;
-    fn decor_provider_clear(p: *mut DecorProvider);
-    fn redraw_all_later(type_: c_int);
-    fn transstr(s: *const c_char, replace_spaces: bool) -> *mut c_char;
-    fn mb_string2cells(p: *const c_char) -> usize;
-    fn mt_inspect(tree: *mut MarkTree, keys: bool, dot: bool) -> NvimString;
-    fn changed_window_setting(wp: *mut win_T);
 }
 
 #[inline]

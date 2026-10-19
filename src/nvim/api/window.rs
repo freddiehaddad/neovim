@@ -9,8 +9,30 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, arena_array, arena_dict, dict_get_value, dict_set_var, find_buffer_by_handle,
+    find_window_by_handle, normalize_index, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::cursor::check_cursor_col;
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_later;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref;
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::r#move::{update_topline, validate_cursor};
+#[allow(unused_imports)]
+use crate::window::{
+    win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
+    win_setheight_win, win_setwidth_win,
+};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -20,10 +42,8 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_conflict,
     api_err_exp, api_err_invalid, api_err_required,
 };
-use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::buf_T;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map_glyph_cache::NvimString;
@@ -72,60 +92,9 @@ pub struct KeyDict_win_resize {
 
 unsafe extern "C" {
 
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error);
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn check_cursor_col(win: *mut win_T);
-    fn update_topline(wp: *mut win_T);
-    fn validate_cursor(wp: *mut win_T);
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn dict_get_value(
-        d: *mut dict_T,
-        name: NvimString,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn dict_set_var(
-        dict: *mut dict_T,
-        name: NvimString,
-        value: Object,
-        del: bool,
-        retval: bool,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T;
-    fn win_get_tabwin(id: handle_T, tabnr: *mut c_int, winnr: *mut c_int);
-    fn api_clear_error(value: *mut Error);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn win_close_othertab(
-        win: *mut win_T,
-        free_buf: c_int,
-        tp: *mut tabpage_T,
-        force: bool,
-    ) -> bool;
-    fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T);
-    fn nlua_call_ref(
-        ref_id: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn normalize_index(buf: *mut buf_T, index: i64, end_exclusive: bool, oob: *mut bool) -> i64;
-    fn win_setheight_win(height: c_int, win: *mut win_T, from_top: bool);
-    fn win_setwidth_win(width: c_int, wp: *mut win_T, from_left: bool);
 }
-
-use crate::msgpack_rpc::packer::handle_T;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

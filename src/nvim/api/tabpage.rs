@@ -9,7 +9,16 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, arena_array, dict_get_value, dict_set_var, find_buffer_by_handle,
+    find_tab_by_handle, find_window_by_handle, try_enter, try_leave,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::window::{
+    tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage, win_set_buf,
+};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -472,41 +481,7 @@ pub struct KeyDict_tabpage_config {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T;
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-    fn tabpage_win_valid(tp: *const tabpage_T, wp: *const win_T) -> bool;
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
-    fn win_goto(wp: *mut win_T);
-    fn win_new_tabpage(
-        after: c_int,
-        filename: *mut c_char,
-        enter: bool,
-        wp_out: *mut *mut win_T,
-    ) -> *mut tabpage_T;
-    fn win_set_buf(wp: *mut win_T, b: *mut buf_T, err: *mut Error);
-
-    fn dict_get_value(
-        dict: *mut dict_T,
-        key: NvimString,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn dict_set_var(
-        dict: *mut dict_T,
-        key: NvimString,
-        value: Object,
-        del: bool,
-        retval: bool,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn api_clear_error(value: *mut Error);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
 }
 
 #[inline]

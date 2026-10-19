@@ -12,10 +12,47 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::showmode;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_get_number_chk, tv_list_find,
+};
+#[allow(unused_imports)]
+use crate::ex_cmds::prepare_tagpreview;
+#[allow(unused_imports)]
+use crate::ex_docmd::set_no_hlsearch;
+#[allow(unused_imports)]
+use crate::ex_getln::gotocmdline;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insexpand::{
+    compl_status_adding, compl_status_sol, ctrl_x_mode_not_default, find_word_end, find_word_start,
+    ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted, ins_compl_len,
+};
+#[allow(unused_imports)]
+use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
+    msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
+    msg_puts_title, msg_start, msg_strtrunc, msg_trunc, verbose_enter, verbose_leave,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::normal::may_start_select;
+#[allow(unused_imports)]
+use crate::option::shortmess;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::{reverse_text, vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
+#[allow(unused_imports)]
+use crate::window::{win_enter, win_split, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -45,7 +82,7 @@ use crate::indent_c::check_linecomment;
 use crate::input::char_avail;
 use crate::input_cmdatom::cmdarg_T;
 use crate::mark::setpcmark;
-use crate::r#match::{regmmatch_T, regprog_T};
+use crate::r#match::regmmatch_T;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_head_off, utf_iscomposing_first,
@@ -278,10 +315,6 @@ unsafe extern "C" {
     fn atol(s: *const c_char) -> c_long;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn decl(lp: *mut pos_T) -> c_int;
-    fn incl(lp: *mut pos_T) -> c_int;
-    fn inc(lp: *mut pos_T) -> c_int;
     fn foldOpenCursor();
     fn hasFolding(
         win: *mut win_T,
@@ -289,94 +322,12 @@ unsafe extern "C" {
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool;
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
     fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_list_find(l: *mut list_T, n: c_int) -> *mut listitem_T;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn give_warning(message: *const c_char, hl: bool, with_source: bool);
-    fn messaging() -> bool;
-    fn msg_start();
-    fn msg_end() -> bool;
-    fn msg_check();
-    fn msg_clr_eos();
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_puts_title(s: *const c_char);
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char;
-    fn msg_trunc(s: *mut c_char, a: bool, hl_id: c_int) -> *mut c_char;
-    fn msg_home_replace(fname: *const c_char);
-    fn msg_prt_line(s: *const c_char, list: bool);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn verbose_enter();
-    fn verbose_leave();
-    fn gotocmdline(clr: bool);
-    fn showmode() -> c_int;
-    fn shortmess(x: c_int) -> bool;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn reverse_text(s: *mut c_char) -> *mut c_char;
-    fn set_no_hlsearch(flag: bool);
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regexec_multi(
-        rmp: *mut regmmatch_T,
-        win: *mut win_T,
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        tm: *mut proftime_T,
-        timed_out: *mut c_int,
-    ) -> c_int;
-    fn skip_regexp_ex(
-        startp: *mut c_char,
-        dirc: c_int,
-        magic: c_int,
-        newp: *mut *mut c_char,
-        dropped: *mut c_int,
-        magic_val: *mut magic_T,
-    ) -> *mut c_char;
-    fn ctrl_x_mode_not_default() -> bool;
-    fn compl_status_adding() -> bool;
-    fn compl_status_sol() -> bool;
-    fn ins_compl_len() -> c_int;
-    fn ins_compl_add_infercase(
-        str_arg: *mut c_char,
-        len: c_int,
-        icase: bool,
-        fname: *mut c_char,
-        dir: Direction,
-        cont_s_ipos: bool,
-        score: c_int,
-    ) -> c_int;
-    fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool);
-    fn ins_compl_interrupted() -> bool;
-    fn find_word_start(ptr: *mut c_char) -> *mut c_char;
-    fn find_word_end(ptr: *mut c_char) -> *mut c_char;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_busy_start();
-    fn ui_busy_stop();
-    fn ui_flush();
-    fn ui_cursor_shape();
-    fn vim_beep(val: c_uint);
-    fn may_start_select(c: c_int);
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn getfile(
         fnum: c_int,
@@ -386,9 +337,6 @@ unsafe extern "C" {
         lnum: linenr_T,
         forceit: bool,
     ) -> c_int;
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
 }
 
 #[inline]

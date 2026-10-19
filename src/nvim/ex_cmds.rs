@@ -19,10 +19,49 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::number_width;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_cmds2::{check_fname, dialog_changed};
+#[allow(unused_imports)]
+use crate::ex_docmd::{check_nextcmd, do_cmdline, not_exiting};
+#[allow(unused_imports)]
+use crate::ex_eval::{aborting, should_abort};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::redo_append_lit;
+#[allow(unused_imports)]
+use crate::insert::beginline;
+#[allow(unused_imports)]
+use crate::main_init::getout;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
+    msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
+    msg_puts, msg_puts_hl, msg_sb_eol, msg_start, msgmore, set_keep_msg, wait_return,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::r#move::changed_line_abv_curs;
+#[allow(unused_imports)]
+use crate::normal::reset_VIsual;
+#[allow(unused_imports)]
+use crate::option::{buf_copy_options, get_fileformat, shortmess};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{
+    re_multiline, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
+    vim_regexec_multi, vim_regfree,
+};
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
+#[allow(unused_imports)]
+use crate::window::{
+    check_can_set_curbuf_forceit, check_lnums, curwin_init, win_enter, win_split, win_valid,
+};
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
 use std::ptr;
 
@@ -373,38 +412,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_start();
-    fn msg_end() -> bool;
-    fn msg_sb_eol();
-    fn msg_clr_eos();
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
-    fn msg_outtrans(str: *const c_char, hl_id: c_int, recurse: bool) -> c_int;
-    fn msg_prt_line(s: *const c_char, list: bool);
-    fn msg_multiline(
-        s: NvimString,
-        hl_id: c_int,
-        check_int: bool,
-        hist: bool,
-        need_clear: *mut bool,
-    );
-    fn msg_ext_no_fast();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msgmore(n: c_int);
-    fn set_keep_msg(s: *const c_char, hl_id: c_int);
-    fn wait_return(redraw: c_int);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn msg_check_for_delay(check_msg_scroll: bool);
-    fn messaging() -> bool;
 
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_cursor_goto(new_row: c_int, new_col: c_int);
-    fn ui_cursor_shape();
-
-    fn get_fileformat(buf: *const buf_T) -> c_int;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
@@ -412,51 +420,12 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
     fn get_winopts(buf: *mut buf_T);
-    fn shortmess(x: c_int) -> bool;
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
 
-    fn check_nextcmd(p: *mut c_char) -> *mut c_char;
-    fn aborting() -> bool;
-    fn check_can_set_curbuf_forceit(forceit: c_int) -> bool;
-    fn should_abort(ret_value: c_int) -> bool;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
     fn ex_may_print(eap: *mut exarg_T);
-    fn getout(r: c_int) -> !;
-    fn reset_VIsual();
 
-    fn win_valid(win: *const win_T) -> bool;
-    fn curwin_init();
-    fn check_lnums(do_curwin: bool);
     fn update_cwd(cause: c_int);
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
 
-    fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
-    fn skip_regexp_ex(
-        startp: *mut c_char,
-        dirc: c_int,
-        magic: c_int,
-        newp: *mut *mut c_char,
-        dropped: *mut c_int,
-        magic_val: *mut magic_T,
-    ) -> *mut c_char;
-    fn skip_regexp(startp: *mut c_char, dirc: c_int, magic: c_int) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regexec_multi(
-        rmp: *mut regmmatch_T,
-        win: *mut win_T,
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        tm: *mut proftime_T,
-        timed_out: *mut c_int,
-    ) -> c_int;
     fn vim_regsub_multi(
         rmp: *mut regmmatch_T,
         lnum: linenr_T,
@@ -466,8 +435,6 @@ unsafe extern "C" {
         flags: c_int,
     ) -> c_int;
     fn regtilde(source: *const c_char, magic: c_int, preview: bool) -> *mut c_char;
-    fn re_multiline(prog: *const regprog_T) -> c_int;
-    fn vim_regfree(prog: *mut regprog_T);
 
     fn nlua_call_excmd(
         module: *const c_char,
@@ -477,12 +444,7 @@ unsafe extern "C" {
         extra: *mut typval_T,
     ) -> bool;
 
-    fn not_exiting(save_exiting: bool);
-    fn changed_line_abv_curs();
-    fn beginline(flags: c_int);
-    fn dialog_changed(buf: *mut buf_T, checkall: bool);
     fn write_lnum_adjust(offset: linenr_T);
-    fn redo_append_lit(str: *const c_char, len: c_int);
     fn do_autochdir();
     fn before_quit_all(eap: *mut exarg_T) -> c_int;
     fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
@@ -501,7 +463,6 @@ unsafe extern "C" {
         lnum: linenr_T,
         flags: c_int,
     ) -> *mut buf_T;
-    fn check_fname() -> c_int;
     fn close_buffer(
         win: *mut win_T,
         buf: *mut buf_T,
@@ -527,7 +488,6 @@ unsafe extern "C" {
         one_key: bool,
         mouse_used: *mut bool,
     ) -> c_int;
-    fn number_width(wp: *mut win_T) -> c_int;
     fn readfile(
         fname: *const c_char,
         sfname: *const c_char,
@@ -554,10 +514,6 @@ unsafe extern "C" {
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
     #[cfg(windows)]
     fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
@@ -1119,10 +1075,9 @@ pub unsafe extern "C" fn ex_sort(eap: *mut exarg_T) {
                             emsg(gettext(e_noprevre.as_ptr()));
                             break 'sortend;
                         }
-                        regmatch.regprog =
-                            vim_regcomp(last_search_pat(), RE_MAGIC).cast::<c_void>();
+                        regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
                     } else {
-                        regmatch.regprog = vim_regcomp(p.add(1), RE_MAGIC).cast::<c_void>();
+                        regmatch.regprog = vim_regcomp(p.add(1), RE_MAGIC);
                     }
                     if regmatch.regprog.is_null() {
                         break 'sortend;
@@ -1395,10 +1350,9 @@ pub unsafe extern "C" fn ex_uniq(eap: *mut exarg_T) {
                             emsg(gettext(e_noprevre.as_ptr()));
                             break 'uniqend;
                         }
-                        regmatch.regprog =
-                            vim_regcomp(last_search_pat(), RE_MAGIC).cast::<c_void>();
+                        regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
                     } else {
-                        regmatch.regprog = vim_regcomp(p.add(1), RE_MAGIC).cast::<c_void>();
+                        regmatch.regprog = vim_regcomp(p.add(1), RE_MAGIC);
                     }
                     if regmatch.regprog.is_null() {
                         break 'uniqend;
@@ -3704,10 +3658,6 @@ pub unsafe extern "C" fn do_ecmd(
         xfree(free_fname.cast::<c_void>());
         retval
     }
-}
-
-unsafe extern "C" {
-    fn buf_copy_options(buf: *mut buf_T, flags: c_int);
 }
 
 unsafe fn delbuf_msg(name: *mut c_char) {

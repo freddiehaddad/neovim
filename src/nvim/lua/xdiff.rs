@@ -10,6 +10,8 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_string};
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
@@ -149,10 +151,8 @@ unsafe extern "C" {
         err: *mut Error,
     );
     fn nlua_pushref(lstate: *mut lua_State, ref_id: c_int);
-    fn api_free_string(value: NvimString);
     fn api_free_luaref(ref_id: c_int);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_clear_error(value: *mut Error);
 }
 
 #[cfg(not(test))]

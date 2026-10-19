@@ -11,10 +11,51 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::cmdexpand::{ExpandCleanup, ExpandInit, ExpandOne, globpath};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_blob_alloc_ret, tv_blob_free, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk,
+    tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_item_remove,
+};
+#[allow(unused_imports)]
+use crate::eval::userfunc::add_defer;
+#[allow(unused_imports)]
+use crate::eval::vars::{prepare_vimvar, restore_vimvar};
+#[allow(unused_imports)]
+use crate::eval::{do_string_sub, eval_expr_typval};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::vim_mkdir_emsg;
+#[allow(unused_imports)]
+use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_head_off, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::{expand_env_save, home_replace};
+#[allow(unused_imports)]
+use crate::os::fs::{
+    os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
+    os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_getperm, os_isdir, os_mkdir_recurse,
+    os_realpath, os_remove, os_rmdir,
+};
+#[allow(unused_imports)]
+use crate::path::{
+    FullName_save, add_pathsep, after_pathsep, path_cmp, path_is_absolute, path_next_component,
+    path_tail, path_tail_with_sep, path_to_slash_save, shorten_dir_len, simplify_filename,
+    vim_isAbsName, vim_ispathsep,
+};
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr, vim_strsave_shellescape, xstrnsave};
+#[allow(unused_imports)]
+use crate::window::find_tabpage;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -230,81 +271,13 @@ unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
 
-    fn expand_env_save(src: *mut c_char) -> *mut c_char;
-    fn home_replace(
-        buf: *const buf_T,
-        src: *const c_char,
-        dst: *mut c_char,
-        dstlen: usize,
-        one: bool,
-    ) -> usize;
-
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_head_off(base: *const c_char, p: *const c_char) -> c_int;
-
-    fn vim_ispathsep(c: c_int) -> bool;
-    fn vim_isAbsName(name: *const c_char) -> bool;
-    fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char;
-    fn add_pathsep(p: *mut c_char) -> bool;
-    fn path_cmp(ic: bool, p: *const c_char, q: *const c_char, maxlen: usize) -> c_int;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;
-    fn path_next_component(fname: *const c_char) -> *const c_char;
-    fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int;
     fn slash_adjust(p: *mut c_char);
-    fn path_to_slash_save(p: *const c_char) -> *mut c_char;
-    fn path_is_absolute(fname: *const c_char) -> bool;
-    fn shorten_dir_len(str: *mut c_char, trim_len: c_int);
-    fn simplify_filename(filename: *mut c_char) -> usize;
 
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn vim_strsave_shellescape(
-        string: *const c_char,
-        do_special: bool,
-        do_newline: bool,
-    ) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-
-    fn do_string_sub(
-        str: *mut c_char,
-        len: usize,
-        pat: *mut c_char,
-        sub: *mut c_char,
-        expr: *mut typval_T,
-        flags: *const c_char,
-        ret_len: *mut usize,
-    ) -> *mut c_char;
-
-    fn check_secure() -> bool;
     fn do_chdir(new_dir: *mut c_char, scope: c_int) -> bool;
-    fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int;
-    fn find_tabpage(n: c_int) -> *mut tabpage_T;
     fn find_buffer_by_handle(buffer: c_int, err: *mut Error) -> *mut buf_T;
 
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
-    fn os_isdir(name: *const c_char) -> bool;
-    fn os_remove(path: *const c_char) -> c_int;
-    fn os_rmdir(path: *const c_char) -> c_int;
-    fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool;
-    fn os_file_is_readable(name: *const c_char) -> bool;
-    fn os_file_is_writable(name: *const c_char) -> c_int;
-    fn os_getperm(name: *const c_char) -> i32;
-    fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool;
-    fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool;
-    fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool;
-    fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool;
-    fn os_fileinfo_size(file_info: *const FileInfo) -> u64;
-    fn os_mkdir_recurse(
-        dir: *const c_char,
-        mode: i32,
-        failed_dir: *mut *mut c_char,
-        created: *mut *mut c_char,
-    ) -> c_int;
     fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
-    fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char;
     #[cfg(windows)]
     fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
     #[cfg(windows)]
@@ -315,12 +288,6 @@ unsafe extern "C" {
     fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int;
     fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
     fn vim_tempname() -> *mut c_char;
-    fn file_pat_to_reg_pat(
-        pat: *const c_char,
-        pat_end: *const c_char,
-        allow_dirs: *mut c_char,
-        no_bslash: c_int,
-    ) -> *mut c_char;
     fn readdir_core(
         gap: *mut garray_T,
         path: *const c_char,
@@ -328,53 +295,16 @@ unsafe extern "C" {
         checkitem: CheckItem,
     ) -> c_int;
 
-    fn ExpandInit(xp: *mut expand_T);
-    fn ExpandOne(
-        xp: *mut expand_T,
-        str: *mut c_char,
-        orig: *mut c_char,
-        options: c_int,
-        mode: c_int,
-    ) -> *mut c_char;
-    fn ExpandCleanup(xp: *mut expand_T);
-    fn globpath(
-        path: *mut c_char,
-        file: *mut c_char,
-        ga: *mut garray_T,
-        expand_options: c_int,
-        dirs: bool,
-    );
-
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_buf(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn tv_get_number(tv: *const typval_T) -> varnumber_T;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
-    fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
     fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_for_nonempty_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_str_or_nr(tv: *const typval_T) -> bool;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_string(l: *mut list_T, str: *const c_char, len: isize);
-    fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T;
-    fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T;
-    fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T;
-    fn tv_blob_free(b: *mut blob_T);
-    fn tv_clear(tv: *mut typval_T);
 
     fn can_add_defer() -> bool;
-    fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T);
-    fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T);
-    fn restore_vimvar(idx: c_int, save_tv: *mut typval_T);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn eval_expr_typval(
-        expr: *const typval_T,
-        want_func: bool,
-        argv: *mut typval_T,
-        argc: c_int,
-        rettv: *mut typval_T,
-    ) -> c_int;
     fn script_is_lua(sid: c_int) -> bool;
 
     fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;

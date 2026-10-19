@@ -10,10 +10,48 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::arglist::{editing_arg_idx, set_arglist};
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, au_event_restore};
+#[allow(unused_imports)]
+use crate::buffer::{bt_dontwrite, bufref_valid, set_bufref};
+#[allow(unused_imports)]
+use crate::change::unchanged;
+#[allow(unused_imports)]
+use crate::channel::channel_job_running;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
+#[allow(unused_imports)]
+use crate::ex_cmds::set_swapcommand;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mark::setpcmark;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg, msg_source, wait_return};
+#[allow(unused_imports)]
+use crate::r#move::validate_cursor;
+#[allow(unused_imports)]
+use crate::normal::do_check_scrollbind;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::path::vim_FullName;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
+#[allow(unused_imports)]
+use crate::window::{
+    goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
+};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -86,10 +124,6 @@ use crate::arglist::{aentry_T, alist_T};
 
 unsafe extern "C" {
 
-    fn bt_dontwrite(buf: *const buf_T) -> bool;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
-    fn bufIsChanged(buf: *mut buf_T) -> bool;
     fn no_write_message();
     fn no_write_message_nobang(buf: *const buf_T);
     fn gettext(msgid: *const c_char) -> *mut c_char;
@@ -102,15 +136,9 @@ unsafe extern "C" {
         ffname: *mut c_char,
         other: bool,
     ) -> c_int;
-    fn unchanged(buf: *mut buf_T, ff: bool, always_inc_changedtick: bool);
     fn buf_hide(buf: *const buf_T) -> bool;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn channel_job_running(id: u64) -> bool;
-    fn emsg(s: *const c_char) -> bool;
     fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn wait_return(redraw: c_int);
-    fn goto_tabpage_win(tp: *mut tabpage_T, wp: *mut win_T);
     fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool);
     fn buf_write(
         buf: *mut buf_T,
@@ -124,65 +152,31 @@ unsafe extern "C" {
         reset_changed: bool,
         filtering: bool,
     ) -> c_int;
-    fn msg_source(hl_id: c_int);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_goto(wp: *mut win_T);
-    fn win_split(size: c_int, flags: c_int) -> c_int;
     fn au_event_disable(what: *const c_char) -> *mut c_char;
-    fn au_event_restore(old_ei: *mut c_char);
     fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_int);
     fn qf_get_valid_size(eap: *mut exarg_T) -> usize;
     fn qf_get_cur_idx(eap: *mut exarg_T) -> usize;
     fn ex_cc(eap: *mut exarg_T);
     fn ex_cnext(eap: *mut exarg_T);
-    fn setpcmark();
-    fn editing_arg_idx(win: *mut win_T) -> bool;
     fn do_argfile(eap: *mut exarg_T, argn: c_int);
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-    fn goto_tabpage_tp(
-        tp: *mut tabpage_T,
-        trigger_enter_autocmds: bool,
-        trigger_leave_autocmds: bool,
-    );
     fn do_cmdline(
         cmdline: *mut c_char,
         fgetline: *mut c_void,
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn validate_cursor(wp: *mut win_T);
-    fn do_check_scrollbind(check: bool);
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn get_var_value(name: *const c_char) -> *mut c_char;
-    fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int;
     fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
-    fn set_internal_string_var(name: *const c_char, value: *mut c_char);
     fn check_timestamps(focus: c_int) -> c_int;
     fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
     fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_allocated_string(l: *mut list_T, str_: *mut c_char);
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
     fn eval_call_provider(
         provider: *const c_char,
         method: *const c_char,
         arguments: *mut list_T,
         discard: bool,
     ) -> typval_T;
-    fn vim_FullName(fname: *const c_char, buf: *mut c_char, len: usize, force: bool) -> c_int;
-    fn set_arglist(str_: *mut c_char);
     fn ex_all(eap: *mut exarg_T);
     fn ex_rewind(eap: *mut exarg_T);
-    fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
 }
 

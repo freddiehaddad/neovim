@@ -2051,7 +2051,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
     }
 }
 
-pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_T {
+pub(super) unsafe extern "C" fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_T {
     unsafe {
         let mut flags: c_int = 0;
 
@@ -2148,7 +2148,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *mut regprog_
     }
 }
 
-pub(super) unsafe fn bt_regfree(prog: *mut regprog_T) {
+pub(super) unsafe extern "C" fn bt_regfree(prog: *mut regprog_T) {
     unsafe {
         xfree(prog.cast());
     }
@@ -4051,7 +4051,7 @@ unsafe fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
     }
 }
 
-pub(super) unsafe fn bt_regexec_nl(
+pub(super) unsafe extern "C" fn bt_regexec_nl(
     rmp: *mut regmatch_T,
     line: *mut u8,
     col: colnr_T,
@@ -4073,7 +4073,7 @@ pub(super) unsafe fn bt_regexec_nl(
     }
 }
 
-pub(super) unsafe fn bt_regexec_multi(
+pub(super) unsafe extern "C" fn bt_regexec_multi(
     rmp: *mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,

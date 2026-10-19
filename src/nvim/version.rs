@@ -10,8 +10,16 @@
     clippy::needless_range_loop
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_free_object;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -3769,11 +3777,6 @@ unsafe extern "C" {
     fn memchr(s: *const c_char, c: c_int, n: usize) -> *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_ext_set_kind(msg_sep: *const c_char);
     fn nlua_exec(
         str_: NvimString,
         name: *const c_char,
@@ -3782,7 +3785,6 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn api_free_object(value: Object);
 }
 
 #[inline]

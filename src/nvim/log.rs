@@ -14,6 +14,14 @@
 
 use crate::globals::*;
 use crate::message::msg_schedule_semsg;
+#[allow(unused_imports)]
+use crate::os::env::{expand_env, os_get_pid, os_setenv};
+#[allow(unused_imports)]
+use crate::os::fs::{os_exepath, os_isdir, os_mkdir_recurse};
+#[allow(unused_imports)]
+use crate::os::stdpaths::stdpaths_user_state_subpath;
+#[allow(unused_imports)]
+use crate::path::{concat_fnames_realloc, path_tail};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr;
@@ -57,22 +65,7 @@ static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
-    fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn os_isdir(name: *const c_char) -> bool;
-    fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int;
     fn get_xdg_home(idx: c_int) -> *mut c_char;
-    fn concat_fnames_realloc(fname1: *mut c_char, fname2: *const c_char, sep: bool) -> *mut c_char;
-    fn os_mkdir_recurse(
-        dir: *const c_char,
-        mode: i32,
-        failed_dir: *mut *mut c_char,
-        created: *mut *mut c_char,
-    ) -> c_int;
-    fn stdpaths_user_state_subpath(
-        fname: *const c_char,
-        trailing_pathseps: usize,
-        escape_commas: bool,
-    ) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
     fn uv_mutex_lock(handle: *mut c_void);
@@ -81,10 +74,7 @@ unsafe extern "C" {
     fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
     fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *const c_char;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn os_get_pid() -> i64;
-    fn os_exepath(buffer: *mut c_char, size: *mut usize) -> c_int;
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fclose(stream: *mut FILE) -> c_int;

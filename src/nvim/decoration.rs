@@ -10,7 +10,23 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{arena_array, arena_string};
+#[allow(unused_imports)]
+use crate::change::changed_lines_invalidate_buf;
+#[allow(unused_imports)]
+use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
+#[allow(unused_imports)]
+use crate::fold::hasAnyFolding;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_id2attr, syn_id2name};
+#[allow(unused_imports)]
+use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::r#move::{changed_window_setting, win_col_off};
+#[allow(unused_imports)]
+use crate::sign::{buf_has_signs, describe_sign_text};
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -140,34 +156,13 @@ static mut sign_add_id: c_int = 0;
 
 unsafe extern "C" {
 
-    fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool);
-    fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T);
-    fn changed_lines_invalidate_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        lnume: linenr_T,
-        xtra: linenr_T,
-    );
-    fn changed_window_setting(wp: *mut win_T);
-    fn syn_id2attr(hl_id: c_int) -> c_int;
-    fn syn_id2name(id: c_int) -> *mut c_char;
-    fn conceal_cursor_line(wp: *const win_T) -> bool;
-    fn hasAnyFolding(win: *mut win_T) -> c_int;
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn buf_has_signs(buf: *const buf_T) -> bool;
-    fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize;
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
-    fn utf_ptr2cells(p_in: *const c_char) -> c_int;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString;
 }
 
 #[inline]

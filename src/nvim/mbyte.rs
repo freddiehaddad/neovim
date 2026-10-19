@@ -15,10 +15,26 @@
     clippy::enum_variant_names
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_all_later;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::memline::ml_get_buf;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg};
+#[allow(unused_imports)]
+use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::check_chars_options;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -952,20 +968,9 @@ unsafe extern "C" {
     #[cfg(all(not(windows), not(target_os = "linux")))]
     fn __error() -> *mut c_int;
 
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn emsg(s: *const c_char) -> bool;
-    fn beep_flush();
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
     fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_check_for_string_arg(argvars: *const typval_T, idx: c_int) -> c_int;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
-    fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T);
-    fn check_chars_options() -> *const c_char;
-    fn changed_window_setting_all();
-    fn redraw_all_later(type_: c_int);
 }
 
 #[inline]

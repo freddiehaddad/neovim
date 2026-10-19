@@ -10,9 +10,23 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::decoration::{decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::mbyte::utf8len_tab;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    mb_string2cells, ptr2cells, utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_char2len,
+    utf_cp_bounds, utf_ptr2CharInfo_impl, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utfc_ptrlen2schar,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::check_chars_options;
+#[allow(unused_imports)]
+use crate::ui::{ui_check_cursor_grid, ui_grid_cursor_goto, ui_has, ui_line};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -104,37 +118,7 @@ static mut last_grid_handle: c_int = DEFAULT_GRID_HANDLE;
 
 unsafe extern "C" {
 
-    fn decor_check_invalid_glyphs();
-    fn check_chars_options() -> *const c_char;
-    fn ptr2cells(p_in: *const c_char) -> c_int;
-    fn utf_ptr2char(p_in: *const c_char) -> c_int;
-    fn utf_ptr2len(p_in: *const c_char) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utf_char2len(c: c_int) -> c_int;
-    fn utf_char2cells(c: c_int) -> c_int;
-    fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff;
-    fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32;
-    fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> ClusterInfo;
-    fn utfc_ptrlen2schar(p: *const c_char, len: c_int, firstc: *mut c_int) -> schar_T;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2cells(p_in: *const c_char) -> c_int;
-    fn mb_string2cells(str_: *const c_char) -> usize;
-    fn ui_grid_cursor_goto(grid_handle: handle_T, new_row: c_int, new_col: c_int);
-    fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int;
-    fn hl_apply_winblend(winbl: c_int, attr: c_int) -> c_int;
-    fn ui_line(
-        grid: *mut ScreenGrid,
-        row: c_int,
-        invalid_row: bool,
-        startcol: c_int,
-        endcol: c_int,
-        clearcol: c_int,
-        clearattr: c_int,
-        wrap: bool,
-    );
-    fn ui_has(ext: UIExtension) -> bool;
     fn ui_call_grid_resize(grid: i64, width: i64, height: i64);
-    fn ui_check_cursor_grid(grid_handle: handle_T);
     fn ui_call_grid_scroll(
         grid: i64,
         top: i64,
@@ -144,7 +128,6 @@ unsafe extern "C" {
         rows: i64,
         cols: i64,
     );
-    fn next_virt_text_chunk(vt: VirtText, pos: *mut usize, attr: *mut c_int) -> *mut c_char;
 }
 
 #[inline]

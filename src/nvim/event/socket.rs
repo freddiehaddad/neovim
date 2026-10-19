@@ -9,7 +9,15 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::charset::try_getdigits;
+#[allow(unused_imports)]
+use crate::event::r#loop::loop_poll_events;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::fs::{os_path_exists, os_remove};
+#[allow(unused_imports)]
+use crate::path::path_tail;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -173,12 +181,6 @@ unsafe extern "C" {
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool;
-
-    fn try_getdigits(cp: *mut *mut c_char, nr: *mut i64) -> bool;
-    fn os_remove(path: *const c_char) -> c_int;
-    fn os_path_exists(path: *const c_char) -> bool;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;

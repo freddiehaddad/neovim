@@ -12,7 +12,16 @@
 
 use crate::globals::*;
 use crate::mbyte::utf8len_tab;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2bytes, utf_char2cells,
+    utf_char2len, utf_class_tab, utf_printable, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+};
+#[allow(unused_imports)]
+use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::path::path_has_wildcard;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
@@ -58,25 +67,6 @@ const UVARNUMBER_MAX: uvarnumber_T = u64::MAX;
 static mut isf_chartab: [u64; 4] = [0; 4];
 static mut isi_chartab: [u64; 4] = [0; 4];
 static mut transchar_charbuf: [u8; 11] = [0; 11];
-
-unsafe extern "C" {
-
-    fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int;
-    fn skip_to_option_part(p: *const c_char) -> *mut c_char;
-    fn mb_islower(a: c_int) -> bool;
-    fn mb_isupper(a: c_int) -> bool;
-    fn mb_tolower(a: c_int) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2char(p_in: *const c_char) -> c_int;
-    fn utf_ptr2len(p_in: *const c_char) -> c_int;
-    fn utf_char2len(c: c_int) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utf_char2cells(c: c_int) -> c_int;
-    fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int;
-    fn utf_printable(c: c_int) -> bool;
-    fn get_fileformat(buf: *const buf_T) -> c_int;
-    fn path_has_wildcard(p: *const c_char, all: bool) -> bool;
-}
 
 #[inline]
 unsafe fn set_chartab(chartab: *mut u64, c: c_int) {

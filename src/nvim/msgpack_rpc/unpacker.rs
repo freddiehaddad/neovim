@@ -8,7 +8,15 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_buf;
+#[allow(unused_imports)]
+use crate::ui_client::{
+    handle_ui_client_redraw, ui_client_event_grid_line, ui_client_get_redraw_handler,
+};
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::api::private::validate::{
@@ -49,21 +57,8 @@ pub enum MessageType {
     kMessageTypeRedrawEvent = 3,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct MsgpackRpcRequestHandler {
-    pub name: *const c_char,
-    pub fn_ptr: *const c_void,
-    pub fast: bool,
-    pub ret_alloc: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct UIClientHandler {
-    pub name: *const c_char,
-    pub fn_ptr: *const c_void,
-}
+pub use crate::api::private::dispatch::MsgpackRpcRequestHandler;
+pub use crate::ui_client::UIClientHandler;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -133,24 +128,6 @@ unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
-    fn msgpack_rpc_get_handler_for(
-        name: *const c_char,
-        name_len: usize,
-        error: *mut Error,
-    ) -> MsgpackRpcRequestHandler;
-    fn handle_ui_client_redraw(
-        channel_id: u64,
-        args: Array,
-        arena: *mut Arena,
-        error: *mut Error,
-    ) -> Object;
-    fn ui_client_get_redraw_handler(
-        name: *const c_char,
-        name_len: usize,
-        error: *mut Error,
-    ) -> UIClientHandler;
-    fn ui_client_event_grid_line(args: Array);
-    fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T;
 }
 
 #[inline]
@@ -592,7 +569,8 @@ pub unsafe extern "C" fn unpacker_advance(p: *mut Unpacker) -> bool {
                 return false;
             }
             if p_ref.msg_type == MessageType::kMessageTypeNotification
-                && p_ref.handler.fn_ptr == (handle_ui_client_redraw as *const c_void)
+                && p_ref.handler.r#fn.map(|f| f as *const c_void)
+                    == Some(handle_ui_client_redraw as *const c_void)
             {
                 p_ref.msg_type = MessageType::kMessageTypeRedrawEvent;
                 p_ref.state = 10;
@@ -771,7 +749,9 @@ pub unsafe extern "C" fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
             p.nevents -= 1;
             p.read_ptr = data;
             p.read_size = size;
-            if p.ui_handler.fn_ptr != (ui_client_event_grid_line as *const c_void) {
+            if p.ui_handler.r#fn.map(|f| f as *const c_void)
+                != Some(ui_client_event_grid_line as *const c_void)
+            {
                 p.state = 12;
                 return true;
             } else {

@@ -11,9 +11,52 @@
     clippy::deref_addrof
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_string, cstr_to_string, string_to_array,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_all_later;
+#[allow(unused_imports)]
+use crate::ex_docmd::{
+    exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::syn_check_group;
+#[allow(unused_imports)]
+use crate::input::{
+    beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
+};
+#[allow(unused_imports)]
+use crate::insexpand::ins_compl_active;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::memline::{dec, inc, ml_get_len, ml_region_text};
+#[allow(unused_imports)]
+use crate::r#move::{
+    restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
+};
+#[allow(unused_imports)]
+use crate::normal::{end_visual_mode, visualinfo};
+#[allow(unused_imports)]
+use crate::ops::{getregionpos_line, getregionpos_prep};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::input::line_breakcheck;
+#[allow(unused_imports)]
+use crate::register::{
+    get_reg_contents, get_unname_register, get_y_previous, get_y_register, reg_max_ts,
+    write_reg_contents_ex,
+};
+#[allow(unused_imports)]
+use crate::search::{restore_search_patterns, save_search_patterns};
+#[allow(unused_imports)]
+use crate::undo::{u_forget_unchanged, u_save};
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -21,9 +64,9 @@ use crate::api::buffer::{VisualState, nvim_buf_set_text};
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::pos_T;
 use crate::api::vim::nvim_feedkeys;
-use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T, yankreg_T};
+use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
 use crate::context::{Context, ctx_free, ctx_load, ctx_save, handle_get_buffer};
 use crate::cursor::{check_cursor, check_cursor_col, check_pos, colnr_T, getvpos, linenr_T};
 use crate::eval::buffer::varnumber_T;
@@ -34,7 +77,7 @@ use crate::extmark::{
     extmark_set_pos, u_header_T,
 };
 use crate::input_cmdatom::{
-    CmdAtom, CmdOrigin, CmdSpec, StringBuilder, Timestamp, atom_cmd_spec, atom_composite_active,
+    CmdAtom, CmdOrigin, StringBuilder, Timestamp, atom_cmd_spec, atom_composite_active,
     atom_composite_queued, atom_did_global_op, atom_key_class, atom_lhs_replay_queue,
     atom_push_raw, atom_suppress, atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T,
     g_atoms, kAInsertSpan, kAMotion, kAVisualSpan, kKeyInsFlush,
@@ -166,12 +209,7 @@ const CONTEXT_INIT: Context = Context {
     },
 };
 
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct RedoState {
-    pub cur: CmdSpec,
-    pub old: CmdSpec,
-}
+pub use crate::input::RedoState;
 
 #[repr(C)]
 struct McSandbox {
@@ -249,81 +287,7 @@ unsafe extern "C" {
 
     fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
     fn set_vim_var_bool(idx: c_int, val: c_int);
-    fn inc(lp: *mut pos_T) -> c_int;
-    fn dec(lp: *mut pos_T) -> c_int;
-    fn update_curswant();
-    fn save_viewstate(wp: *mut win_T, vs: *mut viewstate_T);
-    fn restore_viewstate(wp: *mut win_T, vs: *const viewstate_T);
-    fn save_current_state(sst: *mut save_state_T);
-    fn restore_current_state(sst: *mut save_state_T);
-    fn save_search_patterns();
-    fn restore_search_patterns();
-    fn save_redobuff(save_redo: *mut RedoState);
-    fn restore_redobuff(save_redo: *mut RedoState);
-    fn set_topline(wp: *mut win_T, lnum: linenr_T);
-    fn update_topline(wp: *mut win_T);
-    fn reg_max_ts(clipboard: bool) -> Timestamp;
-    fn visualinfo() -> visualinfo_T;
-    fn api_free_string(value: NvimString);
     fn bufref_valid(bufref: *const crate::input_cmdatom::bufref_T) -> bool;
-    fn line_breakcheck();
-    fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
-    fn u_forget_unchanged(buf: *mut buf_T);
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn block_on_key();
-    fn unblock_on_key();
-    fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array;
-    fn api_clear_error(value: *mut Error);
-    fn redo_keys(spec: *const CmdSpec) -> NvimString;
-    fn ins_compl_active() -> bool;
-    fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> NvimString;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn get_reg_contents(regname: c_int, flags: c_int) -> *mut c_void;
-    fn get_unname_register() -> c_int;
-    fn get_y_register(reg: c_int) -> *mut yankreg_T;
-    fn get_y_previous() -> *mut yankreg_T;
-    fn write_reg_contents_ex(
-        name: c_int,
-        str: *const c_char,
-        maxlen: isize,
-        must_append: bool,
-        yank_type: MotionType,
-        block_len: colnr_T,
-    );
-    fn syn_check_group(name: *const c_char, len: usize) -> c_int;
-    fn getregionpos_prep(
-        p1: *mut pos_T,
-        p2: *mut pos_T,
-        region_type: MotionType,
-        exclusive: bool,
-        block_width: c_int,
-        inclusive: *mut bool,
-        oap: *mut oparg_T,
-    );
-    fn getregionpos_line(
-        lnum: linenr_T,
-        p1: pos_T,
-        p2: pos_T,
-        inclusive: bool,
-        region_type: MotionType,
-        oap: *mut oparg_T,
-        allow_eol: bool,
-        ret_p1: *mut pos_T,
-        ret_p2: *mut pos_T,
-    );
-    fn nlua_call_typval(
-        module: *const c_char,
-        func: *const c_char,
-        args: *mut typval_T,
-        rettv: *mut typval_T,
-    );
-    fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool);
-    fn end_visual_mode();
-    fn beep_flush();
-    fn cstr_to_string(str: *const c_char) -> NvimString;
-    fn set_no_hlsearch(flag: bool);
-    fn redraw_all_later(r#type: c_int);
     fn set_option_value_give_err(opt_idx: c_int, val: Object, opt_flags: c_int);
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
@@ -1395,7 +1359,7 @@ unsafe fn mc_reg_gather() {
                     joined[idx].items,
                     joined[idx].size as isize,
                     false,
-                    kMTLineWise,
+                    crate::clipboard::MotionType::kMTLineWise,
                     0,
                 );
                 if r == b'"' as c_int {

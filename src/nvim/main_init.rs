@@ -12,10 +12,47 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_metadata_raw;
+#[allow(unused_imports)]
+use crate::api::ui::remote_ui_wait_for_attach;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::{eval_init, set_argv_var, timer_teardown};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::log::log_get_stderr;
+#[allow(unused_imports)]
+use crate::lua::executor::{
+    get_global_lstate, nlua_exec_file, nlua_init, nlua_init_defaults, nlua_pcall,
+};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{msg_putchar, wait_return};
+#[allow(unused_imports)]
+use crate::option::{
+    reset_modifiable, set_init_1, set_init_2, set_init_3, set_init_tablocal,
+    set_option_value_give_err, set_options_bin,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::{os_get_pid, os_hint_priority};
+#[allow(unused_imports)]
+use crate::os::fs::os_write;
+#[allow(unused_imports)]
+use crate::os::input::os_isatty;
+#[allow(unused_imports)]
+use crate::os::stdpaths::{appname_is_valid, get_appname};
+#[allow(unused_imports)]
+use crate::register::get_default_register_name;
+#[allow(unused_imports)]
+use crate::syntax::syn_maybe_enable;
+#[allow(unused_imports)]
+use crate::ui::{ui_call_error_exit, ui_call_set_title};
+#[allow(unused_imports)]
+use crate::window::win_new_screensize;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -253,18 +290,8 @@ unsafe extern "C" {
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
 
-    fn set_init_tablocal();
-    fn set_init_1(clean_arg: bool);
-    fn set_init_2(headless: bool);
-    fn set_init_3();
-    fn set_option_value_give_err(opt_idx: OptIndex, val: Object, opt_flags: c_int);
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-    fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int);
-    fn reset_modifiable();
 
-    fn nlua_init(argv: *mut *mut c_char, argc: c_int, lua_arg0: c_int);
-    fn nlua_init_defaults();
-    fn nlua_exec_file(path: *const c_char) -> bool;
     fn nlua_call_typval(
         func_name: *const c_char,
         sub_name: *const c_char,
@@ -279,44 +306,20 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn get_global_lstate() -> *mut lua_State;
-    fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, nresults: c_int) -> c_int;
 
-    fn api_metadata_raw() -> NvimString;
-    fn remote_ui_wait_for_attach();
-    fn ui_call_set_title(title: NvimString);
-    fn ui_call_error_exit(status: Integer);
-
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn msg_putchar(c: c_int);
-    fn wait_return(redraw: c_int);
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn uv_guess_handle(file: c_int) -> c_int;
     fn uv_strerror(err: c_int) -> *const c_char;
-    fn os_get_pid() -> i64;
 
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn printf(format: *const c_char, ...) -> c_int;
     fn setbuf(stream: *mut FILE, buffer: *mut c_char);
 
-    fn log_get_stderr() -> *mut FILE;
     fn main_get_stdout() -> *mut FILE;
 
-    fn timer_teardown();
-    fn os_hint_priority();
-    fn appname_is_valid() -> bool;
-    fn get_appname(namelike: bool) -> *const c_char;
     fn do_autochdir();
-    fn get_default_register_name() -> c_int;
-    fn eval_init();
-    fn set_argv_var(argv: *mut *mut c_char, argc: c_int);
-    fn os_isatty(fd: c_int) -> bool;
-    fn os_write(fd: c_int, buf: *const c_char, count: usize, non_blocking: bool) -> isize;
-    fn filetype_plugin_enable();
-    fn filetype_maybe_enable();
-    fn syn_maybe_enable();
     fn do_source(
         fname: *mut c_char,
         check_other: bool,
@@ -353,7 +356,6 @@ unsafe extern "C" {
         message: bool,
     ) -> c_int;
     fn shorten_fnames(force: c_int);
-    fn win_new_screensize();
     fn invoke_all_defer();
     fn free_all_mem();
 

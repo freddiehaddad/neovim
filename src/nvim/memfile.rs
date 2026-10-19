@@ -12,8 +12,21 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::fileio::{read_eintr, write_eintr};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_open_file};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, iemsg};
+#[allow(unused_imports)]
+use crate::os::fs::{
+    os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync, os_open, os_remove,
+    os_set_cloexec,
+};
+#[allow(unused_imports)]
+use crate::path::FullName_save;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -135,25 +148,8 @@ pub struct memfile_T {
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn strerror(errnum: c_int) -> *mut c_char;
-
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_open_file(buf: *mut buf_T);
-    fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char;
-
-    fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int;
-    fn os_set_cloexec(fd: c_int) -> c_int;
-    fn os_remove(path: *const c_char) -> c_int;
-    fn os_fsync(fd: c_int) -> c_int;
-    fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool;
-    fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool;
-    fn os_fileinfo_blocksize(file_info: *const FileInfo) -> u64;
-
-    fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize;
-    fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize;
 
     #[cfg(windows)]
     fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;

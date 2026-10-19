@@ -3,6 +3,12 @@
 #![cfg_attr(any(test, target_os = "windows"), allow(dead_code, unused_imports))]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::os::env::{expand_env_save, os_env_exists, os_getenv};
+#[cfg(all(not(test), windows))]
+use crate::os::fs::os_realpath;
+#[allow(unused_imports)]
+use crate::path::{concat_fnames_realloc, path_is_absolute};
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 
 use crate::memory::{xfree, xmallocz, xrealloc, xstrdup};
@@ -80,16 +86,11 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 #[cfg(not(test))]
 unsafe extern "C" {
     fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
-    fn os_getenv(name: *const c_char) -> *mut c_char;
     #[cfg(not(target_os = "windows"))]
-    fn os_env_exists(name: *const c_char, nonempty: bool) -> bool;
     #[cfg(target_os = "windows")]
     fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char;
-    fn expand_env_save(src: *mut c_char) -> *mut c_char;
     fn vim_gettempdir() -> *mut c_char;
-    fn path_is_absolute(fname: *const c_char) -> bool;
     fn path_equal(s1: *const c_char, s2: *const c_char, flags: c_int) -> bool;
-    fn concat_fnames_realloc(fname1: *mut c_char, fname2: *const c_char, sep: bool) -> *mut c_char;
 }
 
 #[inline]

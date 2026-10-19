@@ -10,9 +10,51 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_array, arena_array};
+#[allow(unused_imports)]
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+#[allow(unused_imports)]
+use crate::buffer::bt_nofile;
+#[allow(unused_imports)]
+use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
+#[allow(unused_imports)]
+use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_cmds::prepare_tagpreview;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_str;
+#[allow(unused_imports)]
+use crate::highlight_group::syn_check_group;
+#[allow(unused_imports)]
+use crate::input::{vgetc, vungetc};
+#[allow(unused_imports)]
+use crate::insexpand::{
+    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader,
+};
+#[allow(unused_imports)]
+use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::mouse::mouse_find_win_outer;
+#[allow(unused_imports)]
+use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
+#[allow(unused_imports)]
+use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::reverse_text;
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_grid_destroy, ui_call_grid_resize, ui_call_option_set, ui_call_popupmenu_hide,
+    ui_call_popupmenu_select, ui_call_popupmenu_show, ui_call_win_close, ui_has, ui_pum_get_height,
+    ui_pum_get_pos,
+};
+#[allow(unused_imports)]
+use crate::window::{goto_tabpage_tp, valid_tabpage, win_enter, win_setheight, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -25,7 +67,6 @@ use crate::api::win_config::{UIExtension, parse_winborder};
 use crate::charset::{transstr, vim_strsize};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::buf_T;
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::garray::{ga_clear, garray_T};
 use crate::grid::{
@@ -202,29 +243,6 @@ static mut PUM_INVALID: bool = false;
 unsafe extern "C" {
     static opt_winborder_values: [*const c_char; 9];
 
-    fn validate_cheight(wp: *mut win_T);
-    fn validate_cursor_col(wp: *mut win_T);
-    fn validate_cursor(wp: *mut win_T);
-    fn update_topline(wp: *mut win_T);
-    fn update_screen() -> c_int;
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn setcursor_mayforce(wp: *mut win_T, force: bool);
-    fn conceal_cursor_line(wp: *const win_T) -> bool;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn ui_call_popupmenu_show(
-        items: Array,
-        selected: Integer,
-        row: Integer,
-        col: Integer,
-        grid: Integer,
-    );
-    fn ui_call_popupmenu_select(selected: Integer);
-    fn ui_call_popupmenu_hide();
-    fn ui_call_grid_resize(grid: Integer, width: Integer, height: Integer);
-    fn ui_call_win_close(grid: Integer);
-    fn ui_call_grid_destroy(grid: Integer);
-    fn ui_call_option_set(name: NvimString, value: Object);
     fn ui_call_win_float_pos(
         grid: Integer,
         win: handle_T,
@@ -238,31 +256,7 @@ unsafe extern "C" {
         screen_row: Integer,
         screen_col: Integer,
     );
-    fn ui_pum_get_height() -> c_int;
-    fn ui_pum_get_pos(pwidth: *mut f64, pheight: *mut f64, prow: *mut f64, pcol: *mut f64) -> bool;
-    fn cmdline_compl_pattern() -> *mut c_char;
-    fn cmdline_compl_is_fuzzy() -> bool;
-    fn ins_compl_leader() -> *mut c_char;
-    fn ins_compl_active() -> bool;
-    fn get_cot_flags() -> c_uint;
-    fn compl_match_curr_select(selected: c_int) -> bool;
-    fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int;
-    fn utf_ptr2cells(p: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn ptr2cells(p: *const c_char) -> c_int;
-    fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
-    fn schar_from_str(str: *const c_char) -> schar_T;
-    fn reverse_text(s: *mut c_char) -> *mut c_char;
-    fn mb_string2cells(p_in: *const c_char) -> usize;
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn api_clear_error(value: *mut Error);
-    fn api_free_array(value: Array);
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn bt_nofile(buf: *const buf_T) -> bool;
     fn buf_clear();
     fn do_ecmd(
         fnum: c_int,
@@ -273,21 +267,9 @@ unsafe extern "C" {
         flags: c_int,
         oldwin: *mut win_T,
     ) -> c_int;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-    fn win_setheight(height: c_int);
-    fn win_valid(win: *const win_T) -> bool;
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-    fn goto_tabpage_tp(
-        tp: *mut tabpage_T,
-        trigger_enter_autocmds: bool,
-        trigger_leave_autocmds: bool,
-    );
     fn tv_dict_add_float(d: *mut dict_T, key: *const c_char, key_len: usize, nr: f64) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
-    fn mouse_find_win_outer(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_int) -> *mut win_T;
-    fn vgetc() -> c_int;
-    fn vungetc(c: c_int);
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 }

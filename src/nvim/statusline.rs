@@ -10,8 +10,50 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_free_array, arena_array, arena_dict, arena_string, cstr_as_string,
+};
+#[allow(unused_imports)]
+use crate::buffer::{bt_quickfix, calc_percentage};
+#[allow(unused_imports)]
+use crate::charset::{vim_strnsize, vim_strsize};
+#[allow(unused_imports)]
+use crate::drawline::{fill_foldcolumn, use_cursor_line_highlight};
+#[allow(unused_imports)]
+use crate::drawscreen::{compute_foldcolumn, redrawing};
+#[allow(unused_imports)]
+use crate::eval::eval_to_string_safe;
+#[allow(unused_imports)]
+use crate::eval::vars::{do_unlet, set_internal_string_var, set_var};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_id2attr, syn_name2id_len};
+#[allow(unused_imports)]
+use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::message::msg_clr_eos;
+#[allow(unused_imports)]
+use crate::normal::showcmd_update_clear_state;
+#[allow(unused_imports)]
+use crate::option::{
+    find_option, get_fileformat, get_option_default, optval_free_read, set_option_direct,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::home_replace;
+#[allow(unused_imports)]
+use crate::path::{path_tail, shorten_dir};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::{ui_call_msg_ruler, ui_has};
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
+#[allow(unused_imports)]
+use crate::window::{global_stl_height, tabline_height};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -229,82 +271,16 @@ unsafe extern "C" {
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn global_stl_height() -> c_int;
-    fn tabline_height() -> c_int;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn redrawing() -> bool;
     fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn home_replace(
-        buf: *const buf_T,
-        src: *const c_char,
-        dst: *mut c_char,
-        dstlen: usize,
-        one: bool,
-    ) -> usize;
-    fn syn_id2attr(hl_id: c_int) -> c_int;
-    fn syn_name2id_len(name: *const c_char, len: usize) -> c_int;
-    fn find_option(name: *const c_char) -> OptIndex;
-    fn showcmd_update_clear_state();
-    fn ui_call_msg_ruler(content: Array);
     fn ui_call_tabline_update(current: c_int, tabs: Array, current_buffer: c_int, buffers: Array);
-    fn api_free_array(value: Array);
     fn lastwin_nofloating(avoid: *mut win_T) -> *mut win_T;
-    fn msg_clr_eos();
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut Arena, str: NvimString) -> NvimString;
-    fn cstr_as_string(str: *const c_char) -> NvimString;
-    fn bufIsChanged(buf: *mut buf_T) -> bool;
-    fn shorten_dir(str: *mut c_char);
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn set_var(name: *const c_char, name_len: usize, tv: *mut typval_T, copy: bool);
-    fn eval_to_string_safe(
-        arg: *mut c_char,
-        use_sandbox: bool,
-        use_simple_function: bool,
-    ) -> *mut c_char;
-    fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn ml_find_line_or_offset(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        offp: *mut c_int,
-        no_ff: bool,
-    ) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn ptr2cells(p: *const c_char) -> c_int;
-    fn vim_strsize(s: *const c_char) -> c_int;
-    fn vim_strnsize(s: *const c_char, len: c_int) -> c_int;
     fn append_arg_number(wp: *mut win_T, buf: *mut c_char, buflen: usize) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn set_internal_string_var(name: *const c_char, value: *mut c_char);
-    fn calc_percentage(part: i64, whole: i64) -> c_int;
     fn get_rel_pos(wp: *mut win_T, buf: *mut c_char, buflen: c_int) -> c_int;
-    fn get_fileformat(buf: *const buf_T) -> c_int;
-    fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int;
-    fn fill_foldcolumn(
-        wp: *mut win_T,
-        foldinfo: foldinfo_T,
-        lnum: linenr_T,
-        attr: c_int,
-        fdc: c_int,
-        is_virt: bool,
-        wlv_off: *mut c_int,
-        out_vcol: *mut colnr_T,
-        out_buffer: *mut schar_T,
-    );
-    fn use_cursor_line_highlight(wp: *mut win_T, lnum: linenr_T) -> bool;
-    fn bt_quickfix(buf: *const buf_T) -> bool;
-    fn get_option_default(opt_idx: OptIndex, opt_flags: c_int) -> Object;
-    fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set_sid: scid_T);
-    fn optval_free_read(opt_idx: OptIndex, value: Object);
 }
 
 #[inline]

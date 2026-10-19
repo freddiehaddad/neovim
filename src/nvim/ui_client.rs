@@ -9,8 +9,18 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_metadata;
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::main_init::os_exit;
+#[allow(unused_imports)]
+use crate::tui::tui::{
+    tui_bell, tui_busy_start, tui_busy_stop, tui_default_colors_set, tui_flush, tui_grid_clear,
+    tui_grid_cursor_goto, tui_grid_scroll, tui_hl_attr_define, tui_mode_info_set, tui_mouse_off,
+    tui_mouse_on, tui_suspend, tui_update_menu, tui_visual_bell,
+};
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -76,11 +86,9 @@ static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    fn api_metadata() -> Object;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn KeyDict_highlight_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
     fn uv_os_getpid() -> c_int;
-    fn os_exit(r: c_int) -> !;
     #[cfg(windows)]
     fn os_open_conin_fd() -> c_int;
     #[cfg(windows)]
@@ -746,54 +754,17 @@ pub struct UIClientHandler {
 }
 
 unsafe extern "C" {
-    fn tui_mode_info_set(tui: *mut TUIData, enabled: bool, cursor_styles: Array);
-    fn tui_update_menu(tui: *mut TUIData);
-    fn tui_busy_start(tui: *mut TUIData);
-    fn tui_busy_stop(tui: *mut TUIData);
-    fn tui_mouse_on(tui: *mut TUIData);
-    fn tui_mouse_off(tui: *mut TUIData);
     fn tui_mode_change(
         tui: *mut TUIData,
         mode: crate::map_glyph_cache::NvimString,
         mode_idx: Integer,
     );
-    fn tui_bell(tui: *mut TUIData);
-    fn tui_visual_bell(tui: *mut TUIData);
-    fn tui_flush(tui: *mut TUIData);
-    fn tui_suspend(tui: *mut TUIData);
     fn tui_set_title(tui: *mut TUIData, title: crate::map_glyph_cache::NvimString);
     fn tui_set_icon(tui: *mut TUIData, icon: crate::map_glyph_cache::NvimString);
     fn tui_screenshot(tui: *mut TUIData, path: crate::map_glyph_cache::NvimString);
     fn tui_option_set(tui: *mut TUIData, name: crate::map_glyph_cache::NvimString, value: Object);
     fn tui_chdir(tui: *mut TUIData, path: crate::map_glyph_cache::NvimString);
     fn tui_ui_send(tui: *mut TUIData, content: crate::map_glyph_cache::NvimString);
-    fn tui_default_colors_set(
-        tui: *mut TUIData,
-        rgb_fg: Integer,
-        rgb_bg: Integer,
-        rgb_sp: Integer,
-        cterm_fg: Integer,
-        cterm_bg: Integer,
-    );
-    fn tui_hl_attr_define(
-        tui: *mut TUIData,
-        id: Integer,
-        rgb_attrs: HlAttrs,
-        cterm_attrs: HlAttrs,
-        info: Array,
-    );
-    fn tui_grid_clear(tui: *mut TUIData, grid: Integer);
-    fn tui_grid_cursor_goto(tui: *mut TUIData, grid: Integer, row: Integer, col: Integer);
-    fn tui_grid_scroll(
-        tui: *mut TUIData,
-        grid: Integer,
-        top: Integer,
-        bot: Integer,
-        left: Integer,
-        right: Integer,
-        rows: Integer,
-        cols: Integer,
-    );
 }
 
 unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {

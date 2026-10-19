@@ -10,8 +10,56 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::change::{del_bytes, del_char, get_leader_len, ins_bytes, ins_str, open_line};
+#[allow(unused_imports)]
+use crate::charset::{char2cells, getwhitecols_curline, skipwhite};
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_curbuf_later;
+#[allow(unused_imports)]
+use crate::eval::eval_expr_option_number;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_char;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::indent::{
+    change_indent, get_expr_indent, get_indent, get_indent_lnum, get_lisp_indent,
+    get_number_indent, set_indent,
+};
+#[allow(unused_imports)]
+use crate::indent_c::{check_linecomment, cindent_on, get_c_indent};
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::insert::{
+    backspace_until_column, beginline, get_nolist_virtcol, insertchar, set_can_cindent,
+    undisplay_dollar,
+};
+#[allow(unused_imports)]
+use crate::mark::mark_col_adjust;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
+#[allow(unused_imports)]
+use crate::memline::{ml_get, ml_get_len, ml_replace};
+#[allow(unused_imports)]
+use crate::message::msgmore;
+#[allow(unused_imports)]
+use crate::r#move::update_topline;
+#[allow(unused_imports)]
+use crate::ops::do_join;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::input::line_breakcheck;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::textobject::startPS;
+#[allow(unused_imports)]
+use crate::ui::ui_cursor_shape;
+#[allow(unused_imports)]
+use crate::undo::{u_save, u_save_cursor};
+#[allow(unused_imports)]
+use crate::window::win_fdccol_count;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
@@ -22,7 +70,7 @@ use crate::cursor::{
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
     linenr_T, pchar_cursor,
 };
-use crate::eval::deprecated::{Callback, pos_T};
+use crate::eval::deprecated::pos_T;
 use crate::memory::xfree;
 
 const NUL: c_char = 0;
@@ -145,79 +193,9 @@ static mut did_add_space: bool = false;
 
 unsafe extern "C" {
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn utf_ptr2char(p_in: *const c_char) -> c_int;
-    fn utf_iscomposing_first(c: c_int) -> bool;
-    fn utf_allow_break_before(cc: c_int) -> bool;
-    fn utf_allow_break(cc: c_int, ncc: c_int) -> bool;
-    fn char2cells(c: c_int) -> c_int;
-    fn skipwhite(p: *const c_char) -> *mut c_char;
-    fn getwhitecols_curline() -> isize;
-    fn get_nolist_virtcol() -> colnr_T;
-    fn get_leader_len(
-        line: *mut c_char,
-        flags: *mut *mut c_char,
-        backward: bool,
-        include_space: bool,
-    ) -> c_int;
-    fn check_linecomment(line: *const c_char) -> c_int;
-    fn undisplay_dollar();
-    fn backspace_until_column(col: c_int);
-    fn open_line(
-        dir: c_int,
-        flags: c_int,
-        second_line_indent: c_int,
-        did_do_comment: *mut bool,
-    ) -> bool;
-    fn get_number_indent(lnum: linenr_T) -> c_int;
-    fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_bytes: bool);
-    fn ins_str(s: *mut c_char, slen: usize);
-    fn set_indent(size: c_int, flags: c_int) -> bool;
-    fn ins_bytes(p: *mut c_char);
-    fn set_can_cindent(val: bool);
-    fn line_breakcheck();
-    fn update_topline(wp: *mut win_T);
-    fn redraw_curbuf_later(type_: c_int);
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn startPS(lnum: linenr_T, para: c_int, both: bool) -> bool;
-    fn u_save_cursor() -> c_int;
-    fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
-    fn del_char(fixpos: bool) -> c_int;
-    fn del_bytes(count: colnr_T, fixpos_arg: bool, use_delcombine: bool) -> c_int;
-    fn win_fdccol_count(wp: *mut win_T) -> c_int;
-    fn beginline(flags: c_int);
-    fn msgmore(n: c_int);
     fn was_set_insecurely(wp: *mut win_T, opt_idx: c_int, opt_flags: c_int) -> c_int;
     fn set_vim_var_nr(idx: c_int, val: i64);
-    fn set_vim_var_char(c: c_int);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int;
-    fn get_indent_lnum(lnum: linenr_T) -> c_int;
-    fn get_indent() -> c_int;
-    fn get_lisp_indent() -> c_int;
-    fn cindent_on() -> bool;
-    fn get_expr_indent() -> c_int;
-    fn get_c_indent() -> c_int;
-    fn insertchar(c: c_int, flags: c_int, second_indent: c_int);
-    fn ui_cursor_shape();
-    fn mark_col_adjust(
-        lnum: linenr_T,
-        mincol: colnr_T,
-        lnum_amount: linenr_T,
-        col_amount: colnr_T,
-        spaces_removed: c_int,
-    );
-    fn do_join(
-        count: usize,
-        insert_space: bool,
-        save_undo: bool,
-        use_formatoptions: bool,
-        setmark: bool,
-    ) -> c_int;
-    fn beep_flush();
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 }
 

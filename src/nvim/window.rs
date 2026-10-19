@@ -17,10 +17,47 @@
     clippy::unnecessary_cast
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, cstr_as_string, find_window_by_handle, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::buffer::{bt_help, bt_quickfix};
+#[allow(unused_imports)]
+use crate::drawscreen::{comp_col, showmode};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_cmds2::can_abandon;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, tabpage_close};
+#[allow(unused_imports)]
+use crate::ex_getln::{compute_cmdrow, curbuf_locked};
+#[allow(unused_imports)]
+use crate::file_search::do_autocmd_dirchanged;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::main_init::getout;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, iemsg, internal_error, msg, msg_clr_eos_force, msg_grid_validate, msg_ui_flush,
+    set_keep_msg,
+};
+#[allow(unused_imports)]
+use crate::r#move::{win_col_off, win_col_off2};
+#[allow(unused_imports)]
+use crate::option::{
+    buf_copy_options, clear_winopt, option_was_set, set_option_value, win_copy_options,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_grid_destroy, ui_call_win_close, ui_call_win_hide, ui_check_cursor_grid, ui_has,
+};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
 use std::ptr;
@@ -311,51 +348,15 @@ static mut win_scrolled_resized_recursive: bool = false;
 unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn internal_error(where_: *const c_char);
-    fn beep_flush();
-    fn msg_clr_eos_force();
-    fn msg_grid_validate();
-    fn msg_ui_flush();
-    fn set_keep_msg(s: *const c_char, hl_id: c_int);
-    fn showmode() -> c_int;
-    fn compute_cmdrow();
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn cstr_as_string(str: *const c_char) -> NvimString;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_clear_error(value: *mut Error);
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
 
-    fn bt_quickfix(buf: *const buf_T) -> bool;
     fn bt_prompt(buf: *const buf_T) -> bool;
-    fn bt_help(buf: *const buf_T) -> bool;
-    fn win_copy_options(wp_from: *mut win_T, wp_to: *mut win_T);
-    fn buf_copy_options(buf: *mut buf_T, flags: c_int);
-    fn clear_winopt(wop: *mut winopt_T);
-    fn set_option_value(
-        opt_idx: OptIndex,
-        val: Object,
-        opt_flags: c_int,
-        set_sid: bool,
-        errbuf: *const CharBuf,
-    ) -> *const c_char;
-    fn option_was_set(opt_idx: OptIndex) -> bool;
     fn get_scrolloff_value(wp: *mut win_T) -> OptInt;
-    fn virtual_active(wp: *mut win_T) -> bool;
 
-    fn curbuf_locked() -> bool;
     fn check_text_or_curbuf_locked(oap: *mut c_void) -> bool;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn tabpage_close(forceit: c_int);
-    fn getout(r: c_int) -> !;
 
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_check_cursor_grid(grid: handle_T);
     fn ui_call_win_pos(
         grid: Integer,
         win: Window,
@@ -378,8 +379,6 @@ unsafe extern "C" {
         screen_col: Integer,
     );
     fn ui_call_win_external_pos(grid: Integer, win: Window);
-    fn ui_call_win_hide(grid: Integer);
-    fn ui_call_win_close(grid: Integer);
     fn ui_call_win_viewport(
         grid: Integer,
         win: Window,
@@ -398,7 +397,6 @@ unsafe extern "C" {
         left: Integer,
         right: Integer,
     );
-    fn ui_call_grid_destroy(grid: Integer);
 
     fn apply_autocmds(
         event: event_T,
@@ -415,7 +413,6 @@ unsafe extern "C" {
         buf: *mut buf_T,
         win: *mut win_T,
     ) -> bool;
-    fn do_autocmd_dirchanged(new_dir: *mut c_char, scope: CdScope, cause: CdCause, pre: bool);
     fn do_ecmd(
         fnum: c_int,
         ffname: *const c_char,
@@ -425,7 +422,6 @@ unsafe extern "C" {
         flags: c_int,
         oldwin: *mut win_T,
     ) -> c_int;
-    fn comp_col();
     fn buf_hide(buf: *const buf_T) -> bool;
     fn bufIsChanged(buf: *const buf_T) -> bool;
     fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
@@ -437,7 +433,6 @@ unsafe extern "C" {
         lnum: linenr_T,
         flags: c_int,
     ) -> *mut buf_T;
-    fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool;
     fn close_buffer(
         win: *mut win_T,
         buf: *mut buf_T,
@@ -458,8 +453,6 @@ unsafe extern "C" {
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn win_col_off2(wp: *mut win_T) -> c_int;
 }
 
 const ERROR_INIT: Error = Error {

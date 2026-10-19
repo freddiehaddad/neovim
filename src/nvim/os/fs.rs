@@ -16,8 +16,20 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::mbyte::mb_strnicmp;
+#[allow(unused_imports)]
+use crate::message::{emsg, verbose_enter, verbose_leave};
 use crate::message::{semsg, smsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::path::{
+    FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
+    path_tail, path_tail_with_sep, path_with_url, save_abs_path, vim_ispathsep,
+    vim_ispathsep_nocolon,
+};
+#[allow(unused_imports)]
+use crate::ui::ui_call_chdir;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -264,10 +276,6 @@ struct IPersistFile {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn verbose_enter();
-    fn verbose_leave();
-    fn ui_call_chdir(path: NvimString);
 
     fn uv_req_size(r_type: c_int) -> usize;
     fn uv_chdir(dir: *const c_char) -> c_int;
@@ -405,18 +413,6 @@ unsafe extern "C" {
         cb: *const c_void,
     ) -> c_int;
 
-    fn gettail_dir(path: *const c_char) -> *const c_char;
-    fn save_abs_path(name: *const c_char) -> *mut c_char;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;
-    fn get_past_head(path: *const c_char) -> *mut c_char;
-    fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> c_int;
-    fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char;
-    fn dir_of_file_exists(fname: *mut c_char) -> bool;
-    fn vim_ispathsep(c: c_int) -> bool;
-    fn vim_ispathsep_nocolon(c: c_int) -> bool;
-    fn path_with_url(fname: *const c_char) -> c_int;
-    fn path_skip_sep(p: *const c_char, skip_colon: bool) -> *mut c_char;
     fn path_next_component(fname: *const c_char) -> *mut c_char;
     fn copy_option_part(
         option: *mut *mut c_char,
@@ -424,7 +420,6 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int;
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]

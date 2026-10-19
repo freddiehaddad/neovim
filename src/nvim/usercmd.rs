@@ -10,17 +10,38 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::arena_dict;
+#[allow(unused_imports)]
+use crate::eval::last_set_msg;
+#[allow(unused_imports)]
+use crate::ex_docmd::ends_excmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
+#[allow(unused_imports)]
+use crate::mbyte::{mb_copy_char, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::menu::set_context_in_menu_cmd;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts,
+    msg_puts_hl, msg_puts_title,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::input::line_breakcheck;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
+#[allow(unused_imports)]
+use crate::window::{prevwin_curwin, tabpage_index};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{tabpage_T, win_T};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite};
 use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
@@ -284,13 +305,6 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 
 unsafe extern "C" {
 
-    fn prevwin_curwin() -> *mut win_T;
-    fn set_context_in_menu_cmd(
-        xp: *mut expand_T,
-        cmd: *const c_char,
-        arg: *mut c_char,
-        forceit: bool,
-    ) -> *mut c_char;
     fn set_context_in_map_cmd(
         xp: *mut expand_T,
         cmd: *mut c_char,
@@ -300,29 +314,8 @@ unsafe extern "C" {
         isunmap: bool,
         cmdidx: cmdidx_T,
     ) -> *mut c_char;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char);
-    fn msg_ext_set_kind(msg_sep: *const c_char);
     fn message_filtered(msg: *mut c_char) -> bool;
-    fn msg_puts_title(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
-    fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
-    fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) -> c_int;
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn nlua_funcref_str(ref_: LuaRef, arena: *mut Arena, show_ref: bool) -> *mut c_char;
-    fn last_set_msg(script_ctx: sctx_T);
-    fn line_breakcheck();
-    fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn ends_excmd(c: c_int) -> c_int;
-    fn nlua_set_sctx(current: *mut sctx_T);
-    fn api_free_luaref(ref_: LuaRef);
-    fn api_new_luaref(original_ref: LuaRef) -> LuaRef;
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -> c_int;
     fn do_cmdline(
         cmdline: *mut c_char,
@@ -330,8 +323,6 @@ unsafe extern "C" {
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
     fn strchr(s: *const c_char, c: c_int) -> *const c_char;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

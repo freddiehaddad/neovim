@@ -8,6 +8,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
@@ -30,13 +32,6 @@ unsafe extern "C-unwind" {
     fn lua_pushstring(L: *mut lua_State, s: *const c_char);
     fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn get_global_lstate() -> *mut lua_State;
-    fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, nresults: c_int) -> c_int;
-    fn nlua_error(lstate: *mut lua_State, msg: *const c_char);
 }
 
 #[inline]

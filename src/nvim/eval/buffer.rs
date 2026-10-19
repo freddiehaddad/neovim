@@ -10,7 +10,47 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::bt_nofilename;
+#[allow(unused_imports)]
+use crate::change::{
+    appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark, inserted_bytes,
+};
+#[allow(unused_imports)]
+use crate::cursor::check_cursor_col;
+#[allow(unused_imports)]
+use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
+    tv_dict_alloc, tv_get_bool_chk, tv_get_lnum_buf, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_item_remove,
+};
+#[allow(unused_imports)]
+use crate::eval::{callback_call, prompt_get_input, typval_tostring};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::extmark::extmark_splice_cols;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insert::buf_prompt_text;
+#[allow(unused_imports)]
+use crate::mark::mark_adjust_buf;
+#[allow(unused_imports)]
+use crate::memline::{
+    ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace, ml_replace_buf,
+};
+#[allow(unused_imports)]
+use crate::r#move::update_topline;
+#[allow(unused_imports)]
+use crate::path::path_with_url;
+#[allow(unused_imports)]
+use crate::sign::{buf_has_signs, get_buffer_signs};
+#[allow(unused_imports)]
+use crate::strings::concat_str;
+#[allow(unused_imports)]
+use crate::undo::{bufIsChanged, u_clearallandblockfree, u_save, u_savesub, u_sync};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -61,64 +101,13 @@ unsafe extern "C" {
 
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn buflist_findname_exp(ffname: *mut c_char) -> *mut buf_T;
-    fn path_with_url(fname: *const c_char) -> c_int;
-    fn bt_nofilename(buf: *const buf_T) -> bool;
     fn bt_prompt(buf: *const buf_T) -> bool;
     fn bt_cmdwin(buf: *const buf_T) -> bool;
-    fn typval_tostring(arg: *mut typval_T, quotes: bool) -> *mut c_char;
-    fn u_sync(force: bool);
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn u_savesub(lnum: linenr_T) -> c_int;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn ml_replace_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        line: *mut c_char,
-        copy: bool,
-        noalloc: bool,
-    ) -> c_int;
-    fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int);
-    fn check_cursor_col(win: *mut win_T);
-    fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
     fn ml_append(lnum: linenr_T, line: *const c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn appended_lines_mark(lnum: linenr_T, count: c_int);
-    fn update_topline(wp: *mut win_T);
     fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
-    fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T;
-    fn tv_get_buf_from_arg(tv: *mut typval_T) -> *mut buf_T;
-    fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T;
-    fn tv_get_lnum_buf(argvars: *const typval_T, buf: *const buf_T) -> linenr_T;
-    fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int;
-    fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int;
-    fn mark_adjust_buf(
-        buf: *mut buf_T,
-        line1: linenr_T,
-        line2: linenr_T,
-        amount: linenr_T,
-        amount_after: linenr_T,
-        adjust_folds: bool,
-        mode: MarkAdjustMode,
-        op: ExtmarkOp,
-    );
-    fn deleted_lines_buf(buf: *mut buf_T, lnum: linenr_T, count: linenr_T);
-    fn deleted_lines_mark(lnum: linenr_T, count: c_int);
-    fn prompt_get_input(buf: *mut buf_T) -> *mut c_char;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-    fn tv_clear(tv: *mut typval_T);
-    fn u_clearallandblockfree(buf: *mut buf_T);
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
     fn tv_check_str_or_nr(tv: *mut typval_T) -> bool;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T;
     fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int;
     fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
     fn buflist_new(
@@ -127,57 +116,9 @@ unsafe extern "C" {
         lnum: linenr_T,
         flags: c_int,
     ) -> *mut buf_T;
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_dict(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut dict_T,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut list_T,
-    ) -> c_int;
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
-    fn tv_list_append_dict(l: *mut list_T, d: *mut dict_T);
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
     fn buflist_findlnum(buf: *mut buf_T) -> linenr_T;
-    fn bufIsChanged(buf: *mut buf_T) -> bool;
-    fn buf_has_signs(buf: *const buf_T) -> bool;
-    fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T;
-    fn check_secure() -> bool;
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
-    fn callback_free(callback: *mut Callback);
-    fn buf_prompt_text(buf: *const buf_T) -> *mut c_char;
-    fn extmark_splice_cols(
-        buf: *mut buf_T,
-        start_row: c_int,
-        start_col: colnr_T,
-        old_col: colnr_T,
-        new_col: colnr_T,
-        undo: ExtmarkOp,
-    );
-    fn changed_lines(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        lnume: linenr_T,
-        xtra: linenr_T,
-        do_buf_event: bool,
-    );
 }
 
 #[inline]

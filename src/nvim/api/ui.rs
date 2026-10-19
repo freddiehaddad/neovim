@@ -13,9 +13,15 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::api_typename;
 use crate::errors::*;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::option::set_tty_option;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::ui::ui_call_ui_send;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -113,9 +119,6 @@ unsafe extern "C" {
     static mut main_loop: Loop;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_typename(t: ObjectType) -> *mut c_char;
-    fn set_tty_option(name: *const c_char, value: *mut c_char) -> bool;
-    fn ui_call_ui_send(content: NvimString);
 }
 
 #[inline]

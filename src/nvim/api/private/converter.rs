@@ -9,6 +9,16 @@
     clippy::only_used_in_recursion
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{arena_array, arena_dict};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
+};
+#[allow(unused_imports)]
+use crate::eval::userfunc::find_func;
+#[allow(unused_imports)]
+use crate::eval::{get_copyID, partial_name};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::private::validate::{
@@ -71,6 +81,7 @@ pub struct ufunc_T {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct partial_T {
     pub pt_refcount: c_int,
     pub pt_copyID: c_int,
@@ -84,19 +95,9 @@ pub struct partial_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn get_copyID() -> c_int;
-    fn find_func(name: *const c_char) -> *mut ufunc_T;
-    fn partial_name(pt: *mut partial_T) -> *mut c_char;
     fn api_new_luaref(luaref: c_int) -> c_int;
     fn register_luafunc(luaref: c_int) -> *mut c_char;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
 
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T;
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
 }
 
 #[inline]

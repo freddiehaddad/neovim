@@ -12,6 +12,12 @@
 
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::env::os_getenv;
+#[allow(unused_imports)]
+use crate::os::fs::os_path_exists;
+#[allow(unused_imports)]
+use crate::ui::ui_active;
 #[cfg(windows)]
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 
@@ -144,10 +150,7 @@ unsafe extern "C" {
 #[cfg(all(windows, not(test)))]
 unsafe extern "C" {
 
-    fn ui_active() -> usize;
-    fn os_getenv(name: *const c_char) -> *mut c_char;
     fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
-    fn os_path_exists(path: *const c_char) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn uv_tty_set_vterm_state(state: c_int);
 }

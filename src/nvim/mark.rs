@@ -11,20 +11,58 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::bt_prompt;
+#[allow(unused_imports)]
+use crate::diff::diff_mark_adjust;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
+    tv_list_append_dict,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insert::beginline;
+#[allow(unused_imports)]
+use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::mcursor::mc_replaying;
+#[allow(unused_imports)]
+use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::memory::xstrlcpy;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
+};
+#[allow(unused_imports)]
+use crate::r#move::set_topline;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::fs::os_dirname;
+#[allow(unused_imports)]
+use crate::os::input::os_breakcheck;
+#[allow(unused_imports)]
+use crate::path::{path_equal, path_shorten_fname, vim_ispathsep_nocolon};
+#[allow(unused_imports)]
+use crate::quickfix::qf_mark_adjust;
+#[allow(unused_imports)]
+use crate::strings::xstrnsave;
+#[allow(unused_imports)]
+use crate::tag::tagstack_clear_entry;
+#[allow(unused_imports)]
+use crate::undo::u_update_named_mark;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::{cmdmod_T, exarg_T};
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{tabpage_T, taggy_T, win_T, winopt_T, xfmark_T};
+use crate::api::tabpage::{tabpage_T, win_T, winopt_T, xfmark_T};
 use crate::charset::{skipwhite, vim_isprintc};
 use crate::clipboard::{list_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T};
 use crate::extmark::extmark_adjust;
 use crate::garray::garray_T;
@@ -152,55 +190,20 @@ unsafe extern "C" {
         flags: c_int,
     ) -> *mut buf_T;
     fn buflist_nr2name(n: c_int, fullname: c_int, helptail: c_int) -> *mut c_char;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
-    fn u_update_named_mark(buf: *mut buf_T, idx: c_int);
-    fn tagstack_clear_entry(item: *mut taggy_T);
-    fn mc_replaying() -> bool;
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn beginline(flags: c_int);
-    fn set_topline(wp: *mut win_T, lnum: linenr_T);
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn vim_ispathsep_nocolon(c: c_int) -> bool;
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize;
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
-    fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) -> *mut c_char;
-    fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> bool;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn ptr2cells(p: *const c_char) -> c_int;
     fn nlua_call_excmd(
         module: *const c_char,
         func: *const c_char,
         eap: *mut exarg_T,
         cmod: *const cmdmod_T,
         extra: *mut typval_T,
-    ) -> bool;
-    fn msg_ext_set_kind(msg_sep: *const c_char);
-    fn msg_puts_title(s: *const c_char);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
-    fn os_breakcheck();
-    fn qf_mark_adjust(
-        buf: *mut buf_T,
-        wp: *mut win_T,
-        line1: linenr_T,
-        line2: linenr_T,
-        amount: linenr_T,
-        amount_after: linenr_T,
     ) -> bool;
     fn foldMarkAdjust(
         wp: *mut win_T,
@@ -209,36 +212,7 @@ unsafe extern "C" {
         amount: linenr_T,
         amount_after: linenr_T,
     );
-    fn diff_mark_adjust(
-        buf: *mut buf_T,
-        line1: linenr_T,
-        line2: linenr_T,
-        amount: linenr_T,
-        amount_after: linenr_T,
-    );
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T);
     fn tv_list_append_number(l: *mut list_T, n: i64);
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
 }
 
 #[inline]

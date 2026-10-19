@@ -15,11 +15,57 @@
     clippy::needless_range_loop
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, api_free_string, copy_object, cstr_as_string, cstr_to_string,
+    find_buffer_by_handle,
+};
+#[allow(unused_imports)]
+use crate::buffer::{bt_nofile, set_bufref};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_tv, tv_dict_set_keys_readonly};
+#[allow(unused_imports)]
+use crate::eval::userfunc::{restore_funccal, save_funccal};
+#[allow(unused_imports)]
+use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, ends_excmd, expand_sfile};
+#[allow(unused_imports)]
+use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{restore_redobuff, save_redobuff};
+#[allow(unused_imports)]
+use crate::insexpand::ins_compl_active;
+#[allow(unused_imports)]
+use crate::lua::executor::{nlua_call_ref, nlua_set_sctx};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
+    msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, verbose_enter,
+    verbose_enter_scroll, verbose_leave, verbose_leave_scroll,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::apply_optionset_autocmd_now;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::expand_env_save;
+#[allow(unused_imports)]
+use crate::os::input::line_breakcheck;
+#[allow(unused_imports)]
+use crate::runtime::estack_pop;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::search::{restore_search_patterns, save_search_patterns};
+#[allow(unused_imports)]
+use crate::state::get_mode;
+#[allow(unused_imports)]
+use crate::window::{
+    check_lnums, check_lnums_nested, reset_lnums, snapshot_windows_scroll_size, unuse_tabpage,
+    use_tabpage,
+};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -1288,39 +1334,9 @@ unsafe extern "C" {
     static mut main_loop: u8;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn cstr_as_string(str_: *const c_char) -> NvimString;
-    fn cstr_to_string(str_: *const c_char) -> NvimString;
-    fn api_free_string(value: NvimString);
-    fn copy_object(obj: Object, arena: *mut Arena) -> Object;
-    fn api_free_object(value: Object);
-    fn api_clear_error(value: *mut Error);
 
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
-    fn msg_puts_title(s: *const c_char);
-    fn msg_advance(col: c_int);
-    fn msg_outtrans(str_: *const c_char, attr: c_int, Marse: bool) -> c_int;
-    fn msg_start();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_clr_eos();
-    fn msg_end() -> bool;
-    fn last_set_msg(script_ctx: sctx_T);
-    fn verbose_enter();
-    fn verbose_leave();
-    fn verbose_enter_scroll();
-    fn verbose_leave_scroll();
-    fn emsg(s: *const c_char) -> bool;
-    fn give_warning(message: *const c_char, hl: bool, with_source: bool);
-
-    fn vim_regfree(prog: *mut c_void);
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
-    fn file_pat_to_reg_pat(
-        pat: *const c_char,
-        pat_end: *const c_char,
-        allow_dirs: *mut c_char,
-        no_bslash: c_int,
-    ) -> *mut c_char;
+    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
+    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
     fn match_file_pat(
         pattern: *const c_char,
         prog: *mut *mut c_void,
@@ -1329,86 +1345,24 @@ unsafe extern "C" {
         tail: *const c_char,
         allow_dirs: c_int,
     ) -> bool;
-    fn snapshot_windows_scroll_size();
 
-    fn callback_free(callback: *mut Callback);
     fn callback_copy(dest: *mut Callback, src: *const Callback);
     fn callback_to_string(callback: *mut Callback, arena: *mut Arena) -> *mut c_char;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-    fn nlua_set_sctx(sctx: *mut sctx_T);
-    fn nlua_call_ref(
-        ref_id: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
 
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-    fn apply_optionset_autocmd_now(
-        opt_idx: OptIndex,
-        opt_flags: c_int,
-        oldval: Object,
-        oldval_l: Object,
-        oldval_g: Object,
-        newval: Object,
-    );
     fn do_modelines(flags: c_int);
 
-    fn expand_env_save(src: *mut c_char) -> *mut c_char;
-    fn expand_sfile(arg: *mut c_char) -> *mut c_char;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
     fn bufref_valid(bufref: *const bufref_T) -> bool;
-    fn bt_nofile(buf: *const buf_T) -> bool;
-    fn get_mode(buf: *mut c_char);
-    fn unuse_tabpage(tp: *mut tabpage_T);
-    fn use_tabpage(tp: *mut tabpage_T);
-    fn ends_excmd(c: c_int) -> c_int;
 
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
-    fn tv_dict_add_tv(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut typval_T,
-    ) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: isize, nr: varnumber_T)
     -> c_int;
-    fn tv_dict_set_keys_readonly(d: *mut dict_T);
-    fn tv_clear(varp: *mut typval_T);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
 
-    fn ins_compl_active() -> bool;
     fn estack_push(type_: c_int, name: *mut c_char, lnum: i32) -> *mut estack_T;
-    fn estack_pop();
-    fn save_funccal(entry: *mut funccal_entry_T);
-    fn restore_funccal();
-    fn save_search_patterns();
-    fn restore_search_patterns();
-    fn save_redobuff(save_redo: *mut RedoState);
-    fn restore_redobuff(save_redo: *mut RedoState);
     fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *mut c_char;
-    fn check_lnums(do_curwin: bool);
-    fn check_lnums_nested(do_curwin: bool);
-    fn reset_lnums();
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn line_breakcheck();
     fn check_timestamps(focus: c_int) -> c_int;
 }
 

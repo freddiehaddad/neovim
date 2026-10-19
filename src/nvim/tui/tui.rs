@@ -15,8 +15,16 @@
     clippy::collapsible_if
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_exec;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_ambiguous_width, utf_char2cells};
+#[allow(unused_imports)]
+use crate::ui_client::ui_client_set_size;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -331,22 +339,7 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
 
     fn utf_ptr2char(p_in: *const c_char) -> c_int;
-    fn utf_ambiguous_width(p: *const c_char) -> bool;
-    fn utf_char2cells(c: c_int) -> c_int;
 
-    fn nlua_exec(
-        str_: NvimString,
-        chunkname: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn api_free_object(value: Object);
-    fn api_clear_error(value: *mut Error);
-
-    fn ui_client_set_size(width: c_int, height: c_int);
     #[cfg(unix)]
     fn ui_client_detach();
     #[cfg(unix)]
@@ -667,9 +660,9 @@ pub unsafe extern "C" fn tui_enable_extended_underline(tui: *mut TUIData) {
     }
 }
 
-unsafe extern "C" fn tui_set_key_encoding_cb(tui: *mut c_void) {
+unsafe extern "C" fn tui_set_key_encoding_cb(tui: *mut TUIData) {
     unsafe {
-        tui_set_key_encoding(tui.cast::<TUIData>());
+        tui_set_key_encoding(tui);
     }
 }
 
@@ -1386,9 +1379,9 @@ pub unsafe extern "C" fn tui_stop(tui: *mut TUIData) {
     }
 }
 
-unsafe extern "C" fn tui_stop_cb(tui: *mut c_void) {
+unsafe extern "C" fn tui_stop_cb(tui: *mut TUIData) {
     unsafe {
-        (*tui.cast::<TUIData>()).stopped = true;
+        (*tui).stopped = true;
     }
 }
 
@@ -2535,9 +2528,8 @@ pub unsafe extern "C" fn tui_suspend(tui: *mut TUIData) {
 }
 
 #[cfg(unix)]
-unsafe extern "C" fn tui_suspend_cb(tui_ptr: *mut c_void) {
+unsafe extern "C" fn tui_suspend_cb(tui: *mut TUIData) {
     unsafe {
-        let tui = tui_ptr.cast::<TUIData>();
         let input = tui_input(tui);
         tui_terminal_stop(tui);
         stream_set_blocking((*input_prefix(input)).in_fd, true);

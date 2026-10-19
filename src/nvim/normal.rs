@@ -12,14 +12,54 @@
     clippy::if_same_then_else
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
+use crate::charset::vim_strsize;
+#[allow(unused_imports)]
+use crate::drawscreen::setcursor;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_sleep, update_topline_cursor};
+#[allow(unused_imports)]
+use crate::ex_getln::{compute_cmdrow, curbuf_locked};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insert::{
+    beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner, oneleft, oneright,
+};
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::memline::inc;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, may_clear_sb_text, messaging, msg, msg_ext_set_trigger, msg_grid_validate, show_sb_text,
+    wait_return,
+};
+#[allow(unused_imports)]
+use crate::option::{
+    get_showbreak_value, get_sidescrolloff_value, get_ve_flags, set_option_value, shortmess,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::quickfix::qf_view_result;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_msg_showcmd, ui_cursor_shape, ui_cursor_shape_no_check_conceal, ui_flush, vim_beep,
+};
+#[allow(unused_imports)]
+use crate::window::{
+    check_can_set_curbuf_disabled, do_window, goto_tabpage, goto_tabpage_lastused,
+    may_make_initial_scroll_size_snapshot, may_trigger_win_scrolled_resized, set_fraction,
+    win_setheight,
+};
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::options::CharBuf;
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
@@ -81,7 +121,6 @@ use crate::keycodes::{
     K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_XF1, K_ZERO, KE_EVENT,
     KE_FILLER, KE_LUA, KS_EXTRA, MOD_MASK_SHIFT, NL, TAB, is_special, simplify_key, termcap2key,
 };
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::langmap_adjust_mb;
 use crate::mark::{
     checkpcmark, get_changelist, get_jumplist, getnextmark, mark_get, mark_mb_adjustpos,
@@ -407,70 +446,14 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    fn curbuf_locked() -> bool;
-    fn ui_cursor_shape();
-    fn ui_cursor_shape_no_check_conceal();
-    fn ui_flush();
     fn ui_has(ext: c_int) -> bool;
-    fn ui_call_msg_showcmd(content: Array);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn emsg(s: *const c_char) -> bool;
-    fn vim_beep(val: c_uint);
-    fn wait_return(redraw: c_int);
-    fn shortmess(x: c_int) -> bool;
-    fn messaging() -> bool;
-    fn may_clear_sb_text();
-    fn show_sb_text();
-    fn msg_grid_validate();
-    fn msg_ext_set_trigger(trigger: *const c_char);
-    fn compute_cmdrow();
-    fn do_sleep(msec: i64, hide_cursor: bool);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn vim_strsave_shellescape(
-        string: *const c_char,
-        do_special: bool,
-        do_newline: bool,
-    ) -> *mut c_char;
-    fn cstr_as_string(str: *const c_char) -> NvimString;
-    fn may_make_initial_scroll_size_snapshot();
-    fn goto_tabpage(n: c_int);
-    fn goto_tabpage_lastused() -> bool;
-    fn win_setheight(height: c_int);
-    fn set_fraction(wp: *mut win_T);
-    fn do_window(nchar: c_int, Prenum: c_int, xchar: c_int);
-    fn check_can_set_curbuf_disabled() -> bool;
-    fn get_sidescrolloff_value(wp: *mut win_T) -> i64;
-    fn get_showbreak_value(win: *mut win_T) -> *mut c_char;
-    fn get_ve_flags(wp: *mut win_T) -> c_uint;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn set_option_value(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        value_replaced: bool,
-        errbuf: *const CharBuf,
-    ) -> *const c_char;
-    fn vim_strsize(s: *const c_char) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn qf_view_result(split: bool);
-    fn nlua_call_typval(
-        module: *const c_char,
-        func: *const c_char,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    );
     fn strlen(s: *const c_char) -> usize;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;
@@ -485,14 +468,6 @@ unsafe extern "C" {
     );
     fn time(tloc: *mut i64) -> i64;
     fn gettext(msgid: *const c_char) -> *const c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn beginline(flags: c_int);
-    fn oneleft() -> c_int;
-    fn oneright() -> c_int;
-    fn setcursor();
-    fn inc(lp: *mut pos_T) -> c_int;
-    fn may_trigger_win_scrolled_resized();
-    fn update_topline_cursor();
     fn check_timestamps(focus: c_int) -> c_int;
     fn buf_hide(buf: *const buf_T) -> bool;
     fn buflist_getfile(n: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
@@ -522,10 +497,6 @@ unsafe extern "C" {
     fn openFold(pos: pos_T, count: c_int);
     fn openFoldRecurse(pos: pos_T);
     fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool);
-    fn cursor_down(n: c_int, upd_topline: bool) -> c_int;
-    fn cursor_down_inner(wp: *mut win_T, n: c_int, skip_conceal: bool);
-    fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int;
-    fn cursor_up_inner(wp: *mut win_T, n: linenr_T, skip_conceal: bool);
 }
 
 #[inline]

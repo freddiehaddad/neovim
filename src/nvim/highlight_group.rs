@@ -10,11 +10,37 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::arena_dict;
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_all_later;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::last_set_msg;
+#[allow(unused_imports)]
+use crate::eval::vars::{do_unlet, get_var_value};
+#[allow(unused_imports)]
+use crate::ex_docmd::ends_excmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_set_sctx;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
+    msg_puts_hl, msg_source,
+};
+#[allow(unused_imports)]
+use crate::option::{option_was_set, reset_option_was_set, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::strings::{vim_memcpy_up, vim_strup};
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
+    ui_rgb_attached,
+};
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
@@ -333,35 +359,7 @@ const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn get_var_value(name: *const c_char) -> *mut c_char;
     fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
-    fn nlua_set_sctx(current: *mut sctx_T);
-    fn ui_default_colors_set();
-    fn ui_mode_info_set();
-    fn ui_rgb_attached() -> bool;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_refresh();
-    fn ui_flush();
-    fn ui_call_hl_group_set(name: NvimString, id: Integer);
-    fn redraw_all_later(type_: c_int);
-    fn ends_excmd(c: c_int) -> c_int;
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int;
-    fn vim_memcpy_up(dst: *mut c_char, src: *const c_char, n: usize);
-    fn vim_strup(p: *mut c_char);
-    fn option_was_set(opt_idx: OptIndex) -> bool;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-    fn reset_option_was_set(opt_idx: OptIndex);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_advance(col: c_int);
-    fn msg_clr_eos();
-    fn msg_source(hl_id: c_int);
-    fn last_set_msg(script_ctx: sctx_T);
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;

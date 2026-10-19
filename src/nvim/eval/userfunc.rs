@@ -14,10 +14,46 @@
     clippy::unnecessary_cast
 )]
 
+#[allow(unused_imports)]
+use crate::charset::vim_strsize;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::{
+    call_internal_func, call_internal_method, check_internal_func, find_internal_func,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_list_append, tv_list_init_static,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::skip_var_list;
+#[allow(unused_imports)]
+use crate::eval::{
+    callback_call, check_luafunc_name, clear_lval, eval_isnamec, eval_isnamec1, eval1,
+    garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
+    partial_name, partial_unref, skip_expr,
+};
+#[allow(unused_imports)]
+use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
+#[allow(unused_imports)]
+use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insexpand::ins_compl_active;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, nlua_exec_typval_callable, nlua_set_sctx};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
+    msg_putchar, msg_puts, msg_start, trunc_string, verbose_enter_scroll, verbose_leave_scroll,
+};
 use crate::message::{semsg, smsg, swmsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -245,9 +281,6 @@ unsafe extern "C" {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
-    fn internal_error(where_: *const c_char);
 
     fn eval0(
         arg: *mut c_char,
@@ -255,50 +288,14 @@ unsafe extern "C" {
         eap: *mut exarg_T,
         evalarg: *mut evalarg_T,
     ) -> c_int;
-    fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -> c_int;
-    fn skip_expr(arg: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int;
     fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
     fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T);
-    fn handle_subscript(
-        arg: *mut *const c_char,
-        rettv: *mut typval_T,
-        evalarg: *mut evalarg_T,
-        verbose: bool,
-    ) -> c_int;
-    fn partial_name(pt: *mut partial_T) -> *mut c_char;
-    fn partial_unref(pt: *mut partial_T);
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-    fn get_lval(
-        name: *mut c_char,
-        rettv: *mut typval_T,
-        lp: *mut lval_T,
-        unlet: bool,
-        skip: bool,
-        flags: c_int,
-        fne_flags: c_int,
-    ) -> *mut c_char;
-    fn clear_lval(lp: *mut lval_T);
     fn find_name_end(
         arg: *const c_char,
         expr_start: *mut *const c_char,
         expr_end: *mut *const c_char,
         flags: c_int,
     ) -> *mut c_char;
-    fn get_id_len(arg: *mut *const c_char) -> c_int;
-    fn eval_isnamec(c: c_int) -> bool;
-    fn eval_isnamec1(c: c_int) -> bool;
-    fn skip_var_list(
-        arg: *const c_char,
-        var_count: *mut c_int,
-        semicolon: *mut c_int,
-        silent: bool,
-    ) -> *const c_char;
-    fn garbage_collect(testing: bool) -> bool;
     fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
     fn set_ref_in_list_items(l: *mut list_T, copyID: c_int, ht_stack: *mut *mut c_void) -> bool;
     fn set_ref_in_item(
@@ -308,41 +305,6 @@ unsafe extern "C" {
         list_stack: *mut *mut c_void,
     ) -> bool;
 
-    fn tv_clear(varp: *mut typval_T);
-    fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn tv_get_number_chk(varp: *const typval_T, denote: *mut bool) -> varnumber_T;
-    fn tv_list_init_static(l: *mut list_T);
-    fn tv_list_append(l: *mut list_T, item: *mut listitem_T);
-    fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T;
-    fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
-    fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T);
-    fn tv_dict_unref(d: *mut dict_T);
-
-    fn find_internal_func(name: *const c_char) -> *const EvalFuncDef;
-    fn check_internal_func(fdef: *const EvalFuncDef, argcount: c_int) -> c_int;
-    fn call_internal_func(
-        fname: *const c_char,
-        argcount: c_int,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> c_int;
-    fn call_internal_method(
-        fname: *const c_char,
-        argcount: c_int,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-        basetv: *mut typval_T,
-    ) -> c_int;
-
-    fn api_free_luaref(ref_: LuaRef);
-    fn nlua_exec_typval_callable(
-        lua_cb: LuaRef,
-        argcount: c_int,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> c_int;
-    fn is_luafunc(partial: *mut partial_T) -> bool;
     fn nlua_call_vlua(
         funcname: *const c_char,
         len: usize,
@@ -350,50 +312,15 @@ unsafe extern "C" {
         argcount: c_int,
         rettv: *mut typval_T,
     );
-    fn check_luafunc_name(str_: *const c_char, dot: bool) -> c_int;
-    fn nlua_set_sctx(sctx: *mut sctx_T);
 
-    fn ins_compl_active() -> bool;
-    fn verbose_enter_scroll();
-    fn verbose_leave_scroll();
-    fn msg_start();
-    fn msg_puts(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_outnum(n: c_int);
-    fn msg_clr_eos();
     fn msg_prt_line(s: *mut c_char, list: bool);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: c_int);
-    fn vim_strsize(s: *const c_char) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
 
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn ends_excmd(c: c_int) -> c_int;
-    fn check_nextcmd(p: *mut c_char) -> *mut c_char;
-    fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool;
-    fn skip_range(cmd: *const c_char, ctx: *mut c_int) -> *mut c_char;
-    fn skip_regexp(startp: *mut c_char, dirc: c_int, magic: c_int) -> *mut c_char;
-    fn getcmdline(firstc: c_int, count: c_int, indent: c_int, do_concat: bool) -> *mut c_char;
-
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
     fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: i32) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
 
     fn ui_has(ext: c_int) -> bool;
-    fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char);
-    fn ui_ext_cmdline_block_leave();
 
     fn get_sourced_lnum(fgetline: LineGetter, cookie: *mut c_void) -> linenr_T;
     fn script_autoload(name: *const c_char, len: usize, reload: bool) -> bool;
-    fn last_set_msg(script_ctx: sctx_T);
     fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
 }
 

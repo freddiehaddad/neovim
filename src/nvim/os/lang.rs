@@ -11,8 +11,16 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::charset::{buf_init_isk_chartab, init_isf_chartab, init_isi_chartab};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::mb_strnicmp;
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::set_helplang_default;
+#[allow(unused_imports)]
+use crate::path::{path_tail, path_tail_with_sep};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -107,15 +115,8 @@ unsafe extern "C" {
 
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;
-    fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int;
 
-    fn set_helplang_default(lang: *const c_char);
     fn maketitle();
-    fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int;
-    fn init_isf_chartab() -> c_int;
-    fn init_isi_chartab() -> c_int;
 }
 
 #[inline]

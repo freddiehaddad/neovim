@@ -12,11 +12,42 @@
     clippy::needless_range_loop
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, api_set_sctx, arena_dict, arena_take_arraybuilder,
+    find_buffer_by_handle, string_to_cstr,
+};
+#[allow(unused_imports)]
+use crate::cmdexpand::cmdline_fuzzy_complete;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_alloc_ret, tv_dict_find, tv_list_alloc_ret, tv_list_append_dict,
+};
+#[allow(unused_imports)]
+use crate::eval::userfunc::find_func;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_char;
+#[allow(unused_imports)]
+use crate::eval::{eval_to_string, last_set_msg};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{ins_typebuf, noremap_keys};
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_set_sctx};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
+    msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, str2special_arena,
+    str2special_save,
+};
 use crate::message::{semsg, semsg_multiline, swmsg};
 use crate::option_vars::*;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::strings::{sort_strings, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -239,49 +270,14 @@ unsafe extern "C" {
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_outtrans(str_ptr: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) -> c_int;
-    fn msg_clr_eos();
-    fn msg_start();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn last_set_msg(script_ctx: sctx_T);
-    fn str2special_save(
-        str_ptr: *const c_char,
-        replace_spaces: bool,
-        replace_others: TriState,
-    ) -> *mut c_char;
-    fn str2special_arena(
-        str_ptr: *const c_char,
-        replace_spaces: bool,
-        replace_others: TriState,
-        arena: *mut Arena,
-    ) -> *mut c_char;
 
-    fn api_free_luaref(luaref: LuaRef);
-    fn api_new_luaref(luaref: LuaRef) -> LuaRef;
-    fn api_free_object(value: Object);
-    fn api_clear_error(value: *mut Error);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_set_sctx(channel_id: u64) -> sctx_T;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_take_arraybuilder(arena: *mut Arena, arr: *mut ArrayBuilder) -> Array;
-    fn string_to_cstr(str_val: NvimString) -> *mut c_char;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
 
     fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, inspect: bool) -> *mut c_char;
-    fn nlua_set_sctx(sctx: *mut sctx_T);
     fn nlua_call_ref(
         luaref: LuaRef,
         name: *const c_char,
@@ -292,36 +288,16 @@ unsafe extern "C" {
     ) -> Object;
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn sort_strings(files: *mut *mut c_char, count: c_int);
-    fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool;
     fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
-
-    fn noremap_keys() -> bool;
-    fn ins_typebuf(
-        str_ptr: *mut c_char,
-        noremap: c_int,
-        offset: c_int,
-        nottyped: bool,
-        silent: bool,
-    ) -> c_int;
-
-    fn set_vim_var_char(c: c_int);
-    fn eval_to_string(arg: *mut c_char, convert: bool, use_simple_function: bool) -> *mut c_char;
 
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
     fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_string_buf_chk(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_bool(varp: *const typval_T) -> i64;
-    fn tv_dict_alloc_ret(rettv: *mut typval_T);
-    fn tv_list_alloc_ret(rettv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_dict(l: *mut list_T, d: *mut dict_T);
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> i64;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> i64;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn check_secure() -> bool;
-    fn find_func(name: *const c_char) -> *mut ufunc_T;
 }
 
 #[inline]

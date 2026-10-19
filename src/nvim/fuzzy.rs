@@ -9,7 +9,23 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::charset::{vim_iswordc, vim_iswordp};
+#[allow(unused_imports)]
+use crate::eval::callback_call;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_free, tv_clear, tv_dict_find, tv_dict_has_key, tv_dict_unref, tv_list_alloc,
+    tv_list_alloc_ret, tv_list_append_list, tv_list_append_tv, tv_list_find,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
+#[allow(unused_imports)]
+use crate::mbyte::{
+    mb_charlen, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len,
+    utfc_ptr2len,
+};
 use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -77,54 +93,22 @@ struct MatchStruct {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn mb_charlen(str_ptr: *const c_char) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn mb_toupper(a: c_int) -> c_int;
-    fn mb_tolower(a: c_int) -> c_int;
-    fn mb_isupper(a: c_int) -> bool;
-    fn mb_islower(a: c_int) -> bool;
-    fn vim_iswordc(c: c_int) -> bool;
-    fn vim_iswordp(p: *const c_char) -> bool;
-
-    fn find_word_start(ptr: *mut c_char) -> *mut c_char;
-    fn find_word_end(ptr: *mut c_char) -> *mut c_char;
-    fn find_line_end(ptr: *mut c_char) -> *mut c_char;
-    fn ctrl_x_mode_whole_line() -> bool;
     fn ml_get_buf(buf: *mut buf_T, lnum: i32) -> *mut c_char;
     fn ml_get_buf_len(buf: *mut buf_T, lnum: i32) -> c_int;
 
-    fn tv_clear(tv: *mut typval_T);
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
     fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
 
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_dict_unref(d: *mut dict_T);
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_dict_get_callback(
         d: *mut dict_T,
         key: *const c_char,
         key_len: isize,
         result: *mut Callback,
     ) -> bool;
-    fn tv_dict_has_key(d: *const dict_T, key: *const c_char) -> bool;
 
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-    fn callback_free(callback: *mut Callback);
-
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
     fn tv_list_append_number(l: *mut list_T, n: i64);
-    fn tv_list_append_tv(l: *mut list_T, tv: *mut typval_T);
-    fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T);
-    fn tv_list_find(l: *mut list_T, n: c_int) -> *mut listitem_T;
 
     fn qsort(
         base: *mut c_void,

@@ -10,9 +10,62 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, aucmd_defer_modified};
+#[allow(unused_imports)]
+use crate::buffer::{bt_dontwrite, bt_prompt};
+#[allow(unused_imports)]
+use crate::charset::vim_strnsize;
+#[allow(unused_imports)]
+use crate::cursor::check_visual_pos;
+#[allow(unused_imports)]
+use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
+#[allow(unused_imports)]
+use crate::drawscreen::{
+    redraw_buf_status_later, redraw_later, redrawWinline, set_must_redraw, showmode,
+};
+#[allow(unused_imports)]
+use crate::fold::{find_wl_entry, hasAnyFolding};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::indent_c::{check_linecomment, cin_is_cinword, do_c_expr_indent, in_cinkeys};
+#[allow(unused_imports)]
+use crate::insert::{prompt_text, replace_push, replace_push_nul, truncate_spaces};
+#[allow(unused_imports)]
+use crate::insexpand::ins_compl_active;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    mb_adjust_cursor, ptr2cells, utf_char2bytes, utf_composinglike, utf_head_off,
+    utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
+};
+#[allow(unused_imports)]
+use crate::memline::{
+    ml_add_deleted_len, ml_append, ml_delete_flags, ml_get, ml_get_buf, ml_get_len,
+    ml_line_alloced, ml_open_file, ml_replace, ml_setflags,
+};
 use crate::message::siemsg;
+#[allow(unused_imports)]
+use crate::message::{
+    msg_clr_eos, msg_end, msg_ext_set_kind, msg_puts_hl, msg_source, msg_start, wait_return,
+};
+#[allow(unused_imports)]
+use crate::r#move::{
+    approximate_botline_win, changed_cline_bef_curs, changed_line_abv_curs_win,
+    invalidate_botline_win, set_topline, sms_marker_overlap,
+};
+#[allow(unused_imports)]
+use crate::option::get_ve_flags;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::search::{findmatch, linewhite, showmatch};
+#[allow(unused_imports)]
+use crate::spell::spell_check_window;
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::{ui_active, ui_has};
+#[allow(unused_imports)]
+use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -37,7 +90,7 @@ use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xstrdup};
 use crate::os::time::os_time;
 use crate::plines::{colnr_T, getvcol, linenr_T, linetabsize_eol, win_chartabsize};
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::textformat::{comp_textwidth, has_format_option, oparg_T};
+use crate::textformat::{comp_textwidth, has_format_option};
 
 pub type GraphemeState = i32;
 pub type ExtmarkOp = c_int;
@@ -117,43 +170,9 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn curbufIsChanged() -> bool;
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn msg_start();
-    fn msg_source(attr: c_int);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn msg_clr_eos();
-    fn msg_end() -> bool;
-    fn ui_active() -> usize;
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn showmode() -> c_int;
-    fn bt_dontwrite(buf: *const buf_T) -> bool;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
-    fn ml_open_file(buf: *mut buf_T);
-    fn ui_has(ext: UIExtension) -> bool;
-    fn wait_return(redraw: c_int);
     fn buf_inc_changedtick(buf: *mut buf_T);
-    fn ml_setflags(buf: *mut buf_T);
-    fn redraw_buf_status_later(buf: *mut buf_T);
-    fn aucmd_defer_modified(buf: *mut buf_T, modified: bool);
-    fn find_wl_entry(win: *mut win_T, lnum: linenr_T) -> c_int;
-    fn changed_line_abv_curs_win(wp: *mut win_T);
-    fn changed_cline_bef_curs(wp: *mut win_T);
-    fn invalidate_botline_win(wp: *mut win_T);
-    fn approximate_botline_win(wp: *mut win_T);
-    fn diff_internal() -> c_int;
-    fn diff_update_line(lnum: linenr_T);
-    fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T;
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn sms_marker_overlap(wp: *mut win_T, extra2: c_int) -> c_int;
     fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
     fn hasFoldingWin(
         win: *mut win_T,
@@ -163,56 +182,12 @@ unsafe extern "C" {
         cache: bool,
         infop: *mut c_void,
     ) -> bool;
-    fn hasAnyFolding(win: *mut win_T) -> c_int;
-    fn set_topline(wp: *mut win_T, lnum: linenr_T);
-    fn set_must_redraw(type_: c_int);
-    fn spell_check_window(wp: *mut win_T) -> bool;
-    fn redrawWinline(wp: *mut win_T, lnum: linenr_T);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn ml_line_alloced() -> c_int;
-    fn ml_add_deleted_len(ptr: *mut c_char, len: isize);
-    fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn ml_delete_flags(lnum: linenr_T, flags: c_int) -> c_int;
-    fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
-    fn utf_composinglike(p1: *const c_char, p2: *const c_char, state: *mut GraphemeState) -> bool;
-    fn utf_iscomposing_first(c: c_int) -> bool;
-    fn vim_strnsize(s: *const c_char, len: c_int) -> c_int;
-    fn ptr2cells(p: *const c_char) -> c_int;
-    fn replace_push_nul();
-    fn replace_push(str: *mut c_char, len: usize);
-    fn ins_compl_active() -> bool;
-    fn showmatch(c: c_int);
-    fn get_ve_flags(wp: *mut win_T) -> c_uint;
-    fn u_clearline(buf: *mut buf_T);
-    fn u_save_cursor() -> c_int;
-    fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int;
-    fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T;
-    fn cin_is_cinword(line: *const c_char) -> bool;
-    fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool;
-    fn check_linecomment(line: *const c_char) -> c_int;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn prompt_text() -> *mut c_char;
-    fn truncate_spaces(line: *mut c_char, len: usize);
-    fn mb_adjust_cursor();
-    fn check_visual_pos();
-    fn do_c_expr_indent();
-    fn linewhite(lnum: linenr_T) -> bool;
 }
 
 #[inline]

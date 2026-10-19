@@ -10,13 +10,21 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::arena_array;
 use crate::globals::*;
 use crate::log::logmsg;
-use std::ffi::{c_char, c_int};
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, nlua_call_ref};
+#[allow(unused_imports)]
+use crate::memline::ml_flush_deleted_bytes;
+#[allow(unused_imports)]
+use crate::msgpack_rpc::channel::rpc_send_event;
+use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::buffer::buf_collect_lines;
-use crate::api::private::validate::{Array, Error, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
@@ -40,26 +48,6 @@ const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 const LUA_NOREF: LuaRef = -2;
 const kRetNilBool: LuaRetMode = 1;
 const LOG_ERROR: c_int = 3;
-
-unsafe extern "C" {
-
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool;
-    fn nlua_call_ref(
-        ref_id: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn ml_flush_deleted_bytes(
-        buf: *mut buf_T,
-        codepoints: *mut usize,
-        codeunits: *mut usize,
-    ) -> usize;
-    fn api_free_luaref(ref_id: LuaRef);
-}
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

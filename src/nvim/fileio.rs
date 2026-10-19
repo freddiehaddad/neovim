@@ -14,11 +14,36 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::change::{appended_lines_mark, save_file_ff};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::vars::eval_charconvert;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::stuff_empty;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg, msg_check_for_delay, msg_clr_eos, msg_end, msg_may_trunc, msg_outtrans, msg_putchar,
+    msg_puts, msg_puts_hl, msg_start, msg_trunc, set_keep_msg,
+};
 use crate::message::{msg_schedule_semsg, semsg, smsg};
+#[allow(unused_imports)]
+use crate::r#move::update_topline;
+#[allow(unused_imports)]
+use crate::option::{
+    default_fileformat, get_fileformat, set_fileformat, set_options_bin, shortmess,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::shada::check_marks_read;
+#[allow(unused_imports)]
+use crate::strings::{sort_strings, vim_strchr};
+#[allow(unused_imports)]
+use crate::ui::ui_flush;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -99,7 +124,7 @@ pub type OptInt = i64;
 pub type off_T = i64;
 pub type iconv_t = isize;
 pub type FILE = c_void;
-pub type regprog_T = c_void;
+pub use crate::regexp::regprog_T;
 pub type CheckItem = Option<unsafe extern "C" fn(*mut c_void, *const c_char) -> varnumber_T>;
 
 pub const READ_NEW: c_int = 0x01;
@@ -271,9 +296,6 @@ unsafe extern "C" {
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn msg_check_for_delay(check_msg_scroll: bool);
-    fn msg_start();
-    fn msg_putchar(c: c_int);
     fn msg_progress(
         msg: *const c_char,
         id: *const c_char,
@@ -294,23 +316,10 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn msg_may_trunc(force: bool, s: *mut c_char) -> *mut c_char;
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_clr_eos();
-    fn msg_end() -> bool;
-    fn msg_trunc(s: *mut c_char, a: bool, keep_last: c_int) -> *mut c_char;
-    fn set_keep_msg(s: *const c_char, hl_id: c_int);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn ui_flush();
     fn ui_has(ext: c_int) -> bool;
 
-    fn shortmess(x: c_int) -> bool;
     fn set_option_direct(opt_idx: c_int, val: Object, opt_flags: c_int, set_sid: c_int);
-    fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int);
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
@@ -318,12 +327,6 @@ unsafe extern "C" {
         sep_chars: *const c_char,
     ) -> usize;
 
-    fn eval_charconvert(
-        enc_from: *const c_char,
-        enc_to: *const c_char,
-        fname_from: *const c_char,
-        fname_to: *const c_char,
-    ) -> c_int;
     fn bufIsChanged(buf: *const buf_T) -> bool;
     fn buf_contents_changed(buf: *mut buf_T) -> bool;
     fn buflist_new(
@@ -341,22 +344,8 @@ unsafe extern "C" {
     ) -> c_int;
     fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
     fn foldUpdateAll(win: *mut win_T);
-    fn appended_lines_mark(lnum: linenr_T, count: c_int);
-    fn update_topline(wp: *mut win_T);
-    fn check_marks_read();
-    fn default_fileformat() -> c_int;
-    fn get_fileformat(buf: *const buf_T) -> c_int;
     fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int;
-    fn save_file_ff(buf: *mut buf_T);
-    fn set_fileformat(e: c_int, opt_flags: c_int);
-    fn stuff_empty() -> bool;
-    fn sort_strings(files: *mut *mut c_char, count: c_int);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn ferror(stream: *mut FILE) -> c_int;

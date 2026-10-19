@@ -22,10 +22,87 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::converter::object_to_vim_take_luaref;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, api_free_string, api_metadata, dict_set_var,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{au_exists, autocmd_supported};
+#[allow(unused_imports)]
+use crate::channel::{
+    channel_close, channel_connect, channel_create_event, channel_decref, channel_from_stdio,
+    channel_incref, channel_job_start, channel_send, channel_terminal_alloc,
+};
+#[allow(unused_imports)]
+use crate::charset::getdigits_int;
+#[allow(unused_imports)]
+use crate::cmdexpand::cmdline_pum_active;
+#[allow(unused_imports)]
+use crate::dialog::do_dialog;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::decode::{mpack_parse_typval, typval_parser_error_free, unpack_typval};
+#[allow(unused_imports)]
+use crate::eval::typval::{callback_free, value_check_lock};
+#[allow(unused_imports)]
+use crate::eval::vars::cat_prefix_varname;
+#[allow(unused_imports)]
+use crate::eval::{
+    common_job_callbacks, eval_option, find_job, save_tv_as_string, string2float, tv_to_argv,
+};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::{cmd_exists, do_cmdline_cmd};
+#[allow(unused_imports)]
+use crate::ex_getln::{get_user_input, text_locked, text_locked_msg, vim_strsave_fnameescape};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::syn_get_final_id;
+#[allow(unused_imports)]
+use crate::lua::executor::{
+    nlua_call_luaeval, nlua_call_typval, nlua_func_exists, nlua_is_table_from_lua,
+    nlua_register_table_as_callable,
+};
+#[allow(unused_imports)]
+use crate::mbyte::mb_adjust_cursor;
+#[allow(unused_imports)]
+use crate::memline::{decl, incl, recover_names, swapfile_dict};
+#[allow(unused_imports)]
+use crate::menu::{get_menu_cmd_modes, menu_get};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, internal_error, msg_clr_eos, msg_ext_set_kind, msg_putchar, msg_puts, msg_scroll_flush,
+    msg_start, str2special_save, verb_msg,
+};
 use crate::message::{semsg, semsg_multiline};
+#[allow(unused_imports)]
+use crate::r#move::{update_curswant, win_col_off};
+#[allow(unused_imports)]
+use crate::msgpack_rpc::channel::get_client_info;
+#[allow(unused_imports)]
+use crate::normal::{find_decl, op_pending};
+#[allow(unused_imports)]
+use crate::ops::{block_prep, cursor_pos_info};
+#[allow(unused_imports)]
+use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::os_get_pid;
+#[allow(unused_imports)]
+use crate::os::stdpaths::get_appname;
+#[allow(unused_imports)]
+use crate::search::{
+    last_csearch_forward, last_csearch_until, set_csearch_until, set_last_csearch,
+};
+#[allow(unused_imports)]
+use crate::state::virtual_active;
+#[allow(unused_imports)]
+use crate::strings::{mb_strup_buf, vim_snprintf_typval_only};
+#[allow(unused_imports)]
+use crate::ui::ui_gui_attached;
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -469,7 +546,6 @@ unsafe extern "C" {
     ) -> *mut list_T;
     fn tv_list_find_nr(l: *const list_T, n: c_int, ret_error: *mut bool) -> varnumber_T;
     fn tv_list_flatten(l: *mut list_T, li: *mut listitem_T, maxitems: i64, maxdepth: i64);
-    fn callback_free(callback: *mut Callback);
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
     fn func_call(
         name: *mut c_char,
@@ -501,7 +577,6 @@ unsafe extern "C" {
         partial: *mut *mut partial_T,
     ) -> *mut c_char;
     fn translated_function_exists(name: *const c_char) -> bool;
-    fn eval_option(arg: *mut *const c_char, rettv: *mut typval_T, evaluate: bool) -> c_int;
     fn eval_vars(
         src: *mut c_char,
         usedlen: *const c_char,
@@ -512,14 +587,6 @@ unsafe extern "C" {
         skip: bool,
     ) -> *mut c_char;
     fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int;
-    fn str2special_save(
-        str_: *const c_char,
-        replace_spaces: bool,
-        replace_lt: TriState,
-    ) -> *mut c_char;
-    fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize;
-    fn get_appname(namelike: bool) -> *const c_char;
-    fn os_get_pid() -> i64;
     fn do_string_sub(
         str_: *mut c_char,
         len: usize,
@@ -529,7 +596,6 @@ unsafe extern "C" {
         flags: *mut c_char,
         endpos: *mut *mut c_char,
     ) -> *mut c_char;
-    fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T, is_del: bool);
     fn charwise_block_prep(
         start: crate::api::tabpage::pos_T,
         end: crate::api::tabpage::pos_T,
@@ -557,13 +623,6 @@ unsafe extern "C" {
         ret_p1: *mut crate::api::tabpage::pos_T,
         ret_p2: *mut crate::api::tabpage::pos_T,
     );
-    fn find_decl(
-        ptr: *mut c_char,
-        len: usize,
-        locally: bool,
-        thisblock: bool,
-        flags_arg: c_int,
-    ) -> bool;
     #[cfg_attr(target_os = "windows", link_name = "_stricmp")]
     #[cfg_attr(not(target_os = "windows"), link_name = "strcasecmp")]
     fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -573,9 +632,6 @@ unsafe extern "C" {
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn vim_strsave_escape_ks(p: *const c_char) -> *mut c_char;
-    fn vim_strsave_fnameescape(ptr: *const c_char, what: c_int) -> *mut c_char;
-    fn syn_get_final_id(hl_id: c_int) -> c_int;
-    fn win_col_off(wp: *mut win_T) -> c_int;
 
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -607,46 +663,10 @@ unsafe extern "C" {
 
     fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef;
     fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int;
-    fn vim_snprintf_typval_only(
-        str_: *mut c_char,
-        str_m: usize,
-        fmt: *const c_char,
-        tvs: *mut typval_T,
-    ) -> c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
     fn emsg_funcname(ermsg: *const c_char, name: *const c_char);
-    fn internal_error(where_: *const c_char);
-    fn verb_msg(s: *const c_char) -> c_int;
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_start();
-    fn msg_clr_eos();
-    fn msg_puts(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_scroll_flush();
-    fn check_secure() -> bool;
-    fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char;
 
-    fn object_to_vim_take_luaref(
-        obj: *mut Object,
-        rettv: *mut typval_T,
-        lua_special: bool,
-        err: *mut Error,
-    );
-    fn api_free_object(value: Object);
-    fn api_free_string(value: NvimString);
-    fn api_clear_error(value: *mut Error);
-    fn api_metadata() -> Object;
-    fn dict_set_var(
-        dict: *mut dict_T,
-        key: NvimString,
-        value: Object,
-        del: bool,
-        retval: bool,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
     fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: bool);
 
     fn nlua_exec(
@@ -657,16 +677,6 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn nlua_is_table_from_lua(arg: *const typval_T) -> bool;
-    fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_char;
-    fn nlua_func_exists(name: *const c_char) -> bool;
-    fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, rettv: *mut typval_T);
-    fn nlua_call_typval(
-        modname: *const c_char,
-        funcname: *const c_char,
-        args: *mut typval_T,
-        rettv: *mut typval_T,
-    );
 
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn buflist_findpat(
@@ -680,79 +690,8 @@ unsafe extern "C" {
     fn buf_byteidx_to_charidx(buf: *mut buf_T, lnum: i32, byteidx: c_int) -> c_int;
     fn setfname(buf: *mut buf_T, ffname: *mut c_char, sfname: *mut c_char, message: bool) -> c_int;
 
-    fn channel_close(id: u64, part: ChannelPart, error: *mut *const c_char) -> bool;
-    fn channel_send(
-        id: u64,
-        data: *mut c_char,
-        len: usize,
-        data_owned: bool,
-        error: *mut *const c_char,
-    ) -> usize;
-    fn save_tv_as_string(
-        tv: *mut typval_T,
-        len: *mut isize,
-        endnl: bool,
-        crlf: bool,
-    ) -> *mut c_char;
-    fn find_job(id: u64, show_error: bool) -> *mut Channel;
-    fn tv_to_argv(
-        cmd_tv: *mut typval_T,
-        cmd: *mut *const c_char,
-        executable: *mut bool,
-    ) -> *mut *mut c_char;
-    fn common_job_callbacks(
-        vopts: *mut dict_T,
-        on_stdout: *mut CallbackReader,
-        on_stderr: *mut CallbackReader,
-        on_exit: *mut Callback,
-    ) -> bool;
-    fn channel_job_start(
-        argv: *mut *mut c_char,
-        exepath: *const c_char,
-        on_stdout: CallbackReader,
-        on_stderr: CallbackReader,
-        on_exit: Callback,
-        pty: bool,
-        rpc: bool,
-        overlapped: bool,
-        detach: bool,
-        stdin_mode: ChannelStdinMode,
-        cwd: *const c_char,
-        pty_width: u16,
-        pty_height: u16,
-        env: *mut dict_T,
-        status_out: *mut varnumber_T,
-    ) -> *mut Channel;
-    fn channel_create_event(chan: *mut Channel, ext_source: *const c_char);
-    fn channel_incref(chan: *mut Channel);
-    fn channel_decref(chan: *mut Channel);
-    fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel);
-    fn channel_connect(
-        tcp: bool,
-        address: *const c_char,
-        rpc: bool,
-        on_output: CallbackReader,
-        timeout: c_int,
-        error: *mut *const c_char,
-    ) -> u64;
-    fn channel_from_stdio(rpc: bool, callback: CallbackReader, error: *mut *const c_char) -> u64;
-    fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const c_char;
-
     fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16);
 
-    fn virtual_active(wp: *mut win_T) -> bool;
-    fn mb_adjust_cursor();
-    fn update_curswant();
-    fn do_dialog(
-        type_: c_int,
-        title: *const c_char,
-        message: *const c_char,
-        buttons: *const c_char,
-        dfltbutton: c_int,
-        textfield: *const c_char,
-        ex_cmd: c_int,
-    ) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn do_cmdline(
         cmdline: *mut c_char,
         fgetline: Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>,
@@ -760,70 +699,24 @@ unsafe extern "C" {
         flags: c_int,
     ) -> c_int;
     fn function_exists(name: *const c_char, no_deref: bool) -> bool;
-    fn cmd_exists(name: *const c_char) -> c_int;
-    fn autocmd_supported(name: *const c_char) -> bool;
-    fn au_exists(arg: *const c_char) -> bool;
-    fn get_menu_cmd_modes(
-        p: *const c_char,
-        forceit: bool,
-        noremap: *mut c_int,
-        unmenu: *mut bool,
-    ) -> c_int;
-    fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) -> bool;
     fn expand_filename(
         eap: *mut exarg_T,
         cmdlinep: *mut *mut c_char,
         errormsgp: *mut *const c_char,
     ) -> c_int;
-    fn value_check_lock(
-        lock: VarLockStatus,
-        arg_errmsg: *const c_char,
-        arg_errmsg_len: usize,
-    ) -> bool;
     fn last_csearch() -> *mut c_char;
-    fn last_csearch_forward() -> c_int;
-    fn last_csearch_until() -> c_int;
-    fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int);
     fn set_csearch_direction(cdir: c_int);
-    fn set_csearch_until(t_cmd: c_int);
-    fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int;
-    fn ui_gui_attached() -> bool;
-    fn get_user_input(
-        argvars: *const typval_T,
-        rettv: *mut typval_T,
-        inputdialog: bool,
-        secret: bool,
-    );
     fn prompt_for_input(
         prompt: *const c_char,
         hl_id: c_int,
         use_CTRL_C: bool,
         mouse_used: *mut bool,
     ) -> c_int;
-    fn text_locked() -> bool;
-    fn text_locked_msg();
-    fn terminal_running(term: *const c_void) -> bool;
     fn buf_close_terminal(buf: *mut buf_T);
-    fn terminal_buf(term: *const c_void) -> handle_T;
-    fn terminal_open(term: *mut *mut c_void, buf: *mut buf_T);
     fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32);
-    fn mpack_parse_typval(
-        parser: *mut mpack_parser_t,
-        data: *mut *const c_char,
-        size: *mut usize,
-    ) -> c_int;
-    fn typval_parser_error_free(parser: *mut mpack_parser_t);
-    fn unpack_typval(data: *mut *const c_char, size: *mut usize, ret: *mut typval_T) -> c_int;
-    fn op_pending() -> bool;
-    fn decl(lp: *mut pos_T) -> c_int;
-    fn incl(lp: *mut pos_T) -> c_int;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-    fn string2float(text: *const c_char, ret_value: *mut float_T) -> usize;
-    fn recover_names(fname: *mut c_char, list: bool, ret_list: *mut list_T);
-    fn swapfile_dict(fname: *const c_char, d: *mut dict_T);
-    fn cmdline_pum_active() -> bool;
-    fn cursor_pos_info(dict: *mut dict_T);
 }
+
+use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 
 type handle_T = c_int;
 
@@ -1304,7 +1197,7 @@ pub unsafe extern "C" fn api_wrapper(
             err_type: ErrorType::kErrorTypeNone,
             msg: ptr::null_mut(),
         };
-        let fn_ptr: RequestHandlerFn = std::mem::transmute(handler.fn_ptr);
+        let fn_ptr = handler.r#fn.unwrap();
         let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &raw mut arena, &raw mut err);
 
         if err.err_type != ErrorType::kErrorTypeNone {

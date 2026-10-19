@@ -24,10 +24,17 @@ use crate::indent::{
 use crate::keycodes::get_special_key_code;
 use crate::math::trim_to_int;
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::{ml_get, ml_get_pos};
 use crate::memory::{xfree, xmalloc, xstrdup};
+#[allow(unused_imports)]
+use crate::option::skip_to_option_part;
 use crate::option_vars::*;
 use crate::plines::getvcol;
-use crate::textformat::oparg_T;
+#[allow(unused_imports)]
+use crate::search::{findmatchlimit, linewhite};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 const NUL: c_char = 0;
@@ -72,18 +79,12 @@ struct cpp_baseclass_cache_T {
     lpos: lpos_T,
 }
 unsafe extern "C" {
-    fn findmatchlimit(oap: *mut oparg_T, initc: c_int, flags: c_int, maxtravel: i64) -> *mut pos_T;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_pos(pos: *const pos_T) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn linewhite(lnum: linenr_T) -> bool;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn skip_to_option_part(p: *const c_char) -> *mut c_char;
     fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
     fn strlen(s: *const c_char) -> usize;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;

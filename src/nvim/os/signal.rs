@@ -11,6 +11,8 @@
 
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::main_init::preserve_exit;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -75,7 +77,6 @@ unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
     fn set_vim_var_nr(idx: c_int, val: i64);
-    fn preserve_exit(reason: *const c_char) -> !;
     fn apply_autocmds(
         event: c_int,
         fname: *mut c_char,

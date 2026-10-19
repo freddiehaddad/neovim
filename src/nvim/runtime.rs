@@ -13,10 +13,49 @@
     clippy::needless_range_loop
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, arena_array, arena_dict, arena_string, cstr_to_string,
+};
+#[allow(unused_imports)]
+use crate::charset::skiptowhite_esc;
+#[allow(unused_imports)]
+use crate::cmdexpand::globpath;
+#[allow(unused_imports)]
+use crate::debugger::has_profiling;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::get_copyID;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc,
+    tv_dict_find, tv_get_number_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+    tv_list_append_string, tv_list_append_tv,
+};
+#[allow(unused_imports)]
+use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal};
+#[allow(unused_imports)]
+use crate::eval::vars::new_script_vars;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, getline_cookie, getline_equal};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::openscript;
+#[allow(unused_imports)]
+use crate::lua::executor::{nlua_exec_file, nlua_is_deferred_safe};
+#[allow(unused_imports)]
+use crate::memline::ml_get;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, message_filtered, msg_ext_set_kind, msg_ext_ui_flush, msg_outtrans, msg_putchar,
+    verbose_enter, verbose_leave,
+};
 use crate::message::{semsg, smsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
@@ -296,7 +335,6 @@ unsafe extern "C" {
     static mut default_lib_dir: *mut c_char;
 
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
@@ -311,21 +349,12 @@ unsafe extern "C" {
     fn __error() -> *mut c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn verbose_enter();
-    fn verbose_leave();
-    fn msg_ext_ui_flush();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str_ptr: *const c_char, hl_id: c_int, hist: bool) -> c_int;
     #[cfg(windows)]
     fn msg_source(hl_id: c_int);
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
-    fn skiptowhite_esc(p: *const c_char) -> *mut c_char;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
@@ -334,13 +363,6 @@ unsafe extern "C" {
     ) -> usize;
     fn set_option_value_give_err(opt_idx: c_int, val: Object, opt_flags: c_int);
 
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut Arena, str_val: NvimString) -> NvimString;
-    fn cstr_to_string(str_ptr: *const c_char) -> NvimString;
-    fn api_clear_error(value: *mut Error);
-
-    fn nlua_is_deferred_safe() -> bool;
     fn nlua_exec(
         str_val: NvimString,
         name: *const c_char,
@@ -350,41 +372,14 @@ unsafe extern "C" {
         err: *mut Error,
     ) -> Object;
     fn nlua_exec_ga(ga: *mut garray_T, name: *const c_char);
-    fn nlua_exec_file(path: *const c_char) -> bool;
 
     fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> i64;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn getline_equal(fgetline: LineGetter, cookie: *mut c_void, getter: LineGetter) -> bool;
-    fn getline_cookie(fgetline: LineGetter, cookie: *mut c_void) -> *mut c_void;
 
-    fn globpath(
-        path: *mut c_char,
-        file: *mut c_char,
-        ga: *mut garray_T,
-        expand_options: c_int,
-        dirs: bool,
-    );
-
-    fn openscript(name: *mut c_char, directly: bool);
     fn add_win_cmd_modifiers(buf: *mut c_char, cmod: *mut cmdmod_T, multi_mods: *mut bool)
     -> usize;
-    fn new_script_vars(id: scid_T);
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
     fn vimrc_found(fname: *mut c_char, envname: *const c_char);
-    fn save_funccal(entry: *mut funccal_entry_T);
-    fn restore_funccal();
-    fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool;
     fn do_exedit(eap: *mut exarg_T, old_curwin: *mut c_void);
-    fn func_tbl_get() -> *mut hashtab_T;
-    fn get_copyID() -> c_int;
 
-    fn tv_dict_alloc() -> *mut dict_T;
     fn tv_dict_alloc_lock(lock: c_int) -> *mut dict_T;
     fn tv_dict_add_func(
         d: *mut dict_T,
@@ -392,48 +387,19 @@ unsafe extern "C" {
         key_len: usize,
         fp: *mut ufunc_T,
     ) -> c_int;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: TriState)
     -> c_int;
-    fn tv_dict_add_dict(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        item: *mut dict_T,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        item: *mut list_T,
-    ) -> c_int;
     fn tv_dict_copy(
         conv: *const vimconv_T,
         orig: *mut dict_T,
         deep: bool,
         copyID: c_int,
     ) -> *mut dict_T;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(rettv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_tv(l: *mut list_T, item: *mut typval_T);
-    fn tv_list_append_string(l: *mut list_T, str_val: *const c_char, len: isize);
-    fn tv_list_append_dict(l: *mut list_T, d: *mut dict_T);
     fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_get_number_chk(varp: *const typval_T, denote: *mut bool) -> varnumber_T;
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
     fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
 
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char);

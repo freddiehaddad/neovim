@@ -33,10 +33,52 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, arena_array, cstr_to_string};
+#[allow(unused_imports)]
+use crate::channel::callback_reader_free;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::get_list_line;
+#[allow(unused_imports)]
+use crate::eval::typval::{callback_free, callback_put};
+#[allow(unused_imports)]
+use crate::eval::userfunc::eval_fname_script;
+#[allow(unused_imports)]
+use crate::eval::vars::opt_to_tv;
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::{check_nextcmd, do_cmdline, ends_excmd, set_ref_in_findfunc};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::{
+    nlua_is_deferred_safe, nlua_is_table_from_lua, nlua_register_table_as_callable,
+};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, emsg_multiline, iemsg, internal_error, msg, msg_clr_eos, msg_end, msg_ext_no_fast,
+    msg_ext_set_append, msg_ext_set_kind, msg_multiline, msg_outnum, msg_puts, msg_puts_hl,
+    msg_puts_len, msg_sb_eol, msg_start, verb_msg, verbose_enter, verbose_enter_scroll,
+    verbose_leave, verbose_leave_scroll,
+};
 use crate::message::{semsg, semsg_multiline, smsg};
+#[allow(unused_imports)]
+use crate::r#move::{check_cursor_moved, update_topline, validate_botline_win};
+#[allow(unused_imports)]
+use crate::option::{
+    find_option_end, get_option_value, get_tty_option, is_option_hidden, is_tty_option,
+    optval_free, set_option_value_give_err, was_set_insecurely,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::quickfix::set_ref_in_quickfix;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
+#[allow(unused_imports)]
+use crate::register::op_global_reg_iter;
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr};
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -363,18 +405,7 @@ unsafe extern "C" {
     fn atol(nptr: *const c_char) -> c_long;
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn check_cursor_moved(wp: *mut win_T);
-    fn update_topline(wp: *mut win_T);
-    fn validate_botline_win(wp: *mut win_T);
-    fn op_global_reg_iter(
-        iter: *const c_void,
-        name: *mut c_char,
-        reg: *mut yankreg_T,
-        is_unnamed: *mut bool,
-    ) -> *const c_void;
     fn bt_prompt(buf: *const buf_T) -> bool;
-    fn eval_fname_script(p: *const c_char) -> c_int;
     fn sourcing_a_script(eap: *mut exarg_T) -> c_int;
     fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char;
     fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool;
@@ -499,10 +530,7 @@ unsafe extern "C" {
     fn set_ref_in_functions(copyID: c_int) -> bool;
     fn set_ref_in_previous_funccal(copyID: c_int) -> bool;
 
-    fn ends_excmd(c: c_int) -> c_int;
-    fn check_nextcmd(p: *mut c_char) -> *mut c_char;
     fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
     fn call_simple_luafunc(func: *const c_char, len: usize, rettv: *mut typval_T) -> c_int;
 }
 
@@ -513,66 +541,8 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn emsg_multiline(s: *const c_char, kind: *const c_char, hl_id: c_int, multiline: bool)
-    -> bool;
-    fn iemsg(s: *const c_char);
-    fn internal_error(where_: *const c_char);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn verb_msg(s: *const c_char) -> c_int;
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_puts_len(str_: *const c_char, maxlen: isize, hl_id: c_int, hist: bool);
-    fn msg_outnum(n: c_int);
-    fn msg_start();
-    fn msg_end() -> bool;
-    fn msg_clr_eos();
-    fn msg_sb_eol();
-    fn msg_multiline(
-        str_: NvimString,
-        hl_id: c_int,
-        check_int: bool,
-        hist: bool,
-        need_clear: *mut bool,
-    );
-    fn msg_ext_set_append(append: bool);
-    fn msg_ext_no_fast();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn verbose_enter();
-    fn verbose_leave();
-    fn verbose_enter_scroll();
-    fn verbose_leave_scroll();
     fn ui_has(ext: c_int) -> bool;
 
-    fn get_list_line(
-        c: c_int,
-        cookie: *mut c_void,
-        indent: c_int,
-        getline_options: bool,
-    ) -> *mut c_char;
-    fn check_secure() -> bool;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn set_ref_in_findfunc(copyID: c_int) -> bool;
-    fn set_ref_in_quickfix(copyID: c_int) -> bool;
-
-    fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn is_tty_option(name: *const c_char) -> bool;
-    fn get_tty_option(name: *const c_char) -> Object;
-    fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object;
-    fn opt_to_tv(val: Object, compat: bool) -> typval_T;
-    fn optval_free(o: Object);
-    fn is_option_hidden(opt_idx: OptIndex) -> bool;
-    fn find_option_end(arg: *const c_char, opt_idxp: *mut OptIndex) -> *const c_char;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
     fn vim_regsub(
         rmp: *mut regmatch_T,
         source: *const c_char,
@@ -585,8 +555,6 @@ unsafe extern "C" {
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
 
-    fn nlua_is_table_from_lua(arg: *const typval_T) -> bool;
-    fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_char;
     fn nlua_call_ref(
         ref_: c_int,
         name: *const c_char,
@@ -595,15 +563,8 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn nlua_is_deferred_safe() -> bool;
 
-    fn cstr_to_string(str_: *const c_char) -> NvimString;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn api_clear_error(value: *mut Error);
     fn callback_copy(dest: *mut Callback, src: *const Callback);
-    fn callback_free(callback: *mut Callback);
-    fn callback_put(callback: *mut Callback, tv: *mut typval_T);
-    fn callback_reader_free(reader: *mut CallbackReader);
 }
 
 #[inline]

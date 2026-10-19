@@ -10,6 +10,10 @@
 )]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::os::env::os_free_fullenv;
+#[allow(unused_imports)]
+use crate::os::fs::os_close;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -101,8 +105,6 @@ unsafe extern "C" {
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
     fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
-    fn os_free_fullenv(env: *mut *mut c_char);
-    fn os_close(fd: c_int) -> c_int;
 
     #[cfg(windows)]
     fn os_shell_is_cmdexe(sh: *const c_char) -> bool;

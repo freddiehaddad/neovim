@@ -14,8 +14,16 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::{
+    callback_call, func_equal, get_copyID, partial_unref, set_selfdict, var_item_copy, var2fpos,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -271,24 +279,13 @@ unsafe extern "C" {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(windows)]
     fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]
     fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
-    fn api_free_luaref(ref_: LuaRef);
-    fn api_new_luaref(ref_: LuaRef) -> LuaRef;
     fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, inspect: bool) -> *mut c_char;
-    fn var2fpos(
-        varp: *const typval_T,
-        dollar_lnum: bool,
-        fnum: *mut c_int,
-        charcol: bool,
-        wp: *mut win_T,
-    ) -> *mut pos_T;
     fn call_func(
         funcname: *const c_char,
         len: c_int,
@@ -297,26 +294,9 @@ unsafe extern "C" {
         argvars_in: *mut typval_T,
         funcexe: *mut funcexe_T,
     ) -> c_int;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
-    fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
     fn get_funccal_local_ht() -> *mut hashtab_T;
     fn partial_name(pt: *mut partial_T) -> *const c_char;
-    fn partial_unref(pt: *mut partial_T);
-    fn set_selfdict(rettv: *mut typval_T, selfdict: *mut dict_T);
-    fn get_copyID() -> c_int;
-    fn var_item_copy(
-        conv: *const vimconv_T,
-        from: *mut typval_T,
-        to: *mut typval_T,
-        deep: bool,
-        copyID: c_int,
-    ) -> c_int;
 }
 
 #[inline]

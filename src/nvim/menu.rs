@@ -11,9 +11,36 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_allocated_str, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_str,
+    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret, tv_list_alloc, tv_list_append_dict,
+    tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::del_menutrans_vars;
+#[allow(unused_imports)]
+use crate::ex_docmd::{ends_excmd, exec_normal_cmd, restore_current_state, save_current_state};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::ins_typebuf;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
+    msg_puts_title,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::popupmenu::pum_show_popupmenu;
+#[allow(unused_imports)]
+use crate::state::get_real_state;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -177,65 +204,15 @@ unsafe extern "C" {
 
 unsafe extern "C" {
 
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn ui_call_update_menu();
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
-    fn tv_dict_add_allocated_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut c_char,
-    ) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
-    fn tv_dict_add_dict(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        dict: *mut dict_T,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T);
-    fn tv_list_append_string(l: *mut list_T, str: *const c_char, len: isize);
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn str2special_save(
         str: *const c_char,
         replace_spaces: bool,
         replace_others: c_int,
     ) -> *mut c_char;
-    fn msg_puts_title(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
-    fn msg_outnum(n: c_int);
-    fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
-    fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) -> c_int;
     fn apply_autocmds(
         event: c_int,
         fname: *mut c_char,
@@ -243,20 +220,6 @@ unsafe extern "C" {
         force: bool,
         buf: *mut buf_T,
     ) -> bool;
-    fn pum_show_popupmenu(menu: *mut vimmenu_T);
-    fn get_real_state() -> c_int;
-    fn save_current_state(sst: *mut save_state_T);
-    fn restore_current_state(sst: *mut save_state_T);
-    fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool);
-    fn ins_typebuf(
-        str: *mut c_char,
-        noremap: c_int,
-        offset: c_int,
-        nottyped: bool,
-        silent: bool,
-    ) -> c_int;
-    fn ends_excmd(c: c_int) -> c_int;
-    fn del_menutrans_vars();
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;

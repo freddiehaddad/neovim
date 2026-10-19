@@ -10,19 +10,78 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{bt_prompt, bt_quickfix};
+#[allow(unused_imports)]
+use crate::cursor::set_leftcol;
+#[allow(unused_imports)]
+use crate::decoration::decor_conceal_line;
+#[allow(unused_imports)]
+use crate::diff::diff_check_fill;
+#[allow(unused_imports)]
+use crate::drawscreen::{
+    redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
+#[allow(unused_imports)]
+use crate::eval::{call_vim_function, eval_has_provider};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{
+    prep_redo, redo_append_char, safe_vgetc, stuffReadbuff, stuffcharReadbuff, stuffnumReadbuff,
+    vpeekc, vungetc,
+};
+#[allow(unused_imports)]
+use crate::insert::{set_can_cindent, start_arrow, undisplay_dollar};
+#[allow(unused_imports)]
+use crate::keycodes::get_mouse_button;
 use crate::mbyte::utf8len_tab;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_get_class, utf_head_off, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::{gchar_pos, inc, ml_get};
 use crate::message::siemsg;
+#[allow(unused_imports)]
+use crate::r#move::{check_topfill, pagescroll, scroll_redraw, win_col_off, win_col_off2};
+#[allow(unused_imports)]
+use crate::normal::{
+    clearop, clearopbeep, end_visual_mode, exec_stuffed, may_start_select, nv_scroll_line,
+};
+#[allow(unused_imports)]
+use crate::ops::clear_oparg;
+#[allow(unused_imports)]
+use crate::option::get_scrolloff_value;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::plines::win_get_fill;
+#[allow(unused_imports)]
+use crate::register::{do_put, insert_reg, yank_register_mline};
+#[allow(unused_imports)]
+use crate::search::findmatch;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
+#[allow(unused_imports)]
+use crate::statusline::stl_connected;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
+#[allow(unused_imports)]
+use crate::window::{
+    find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
+    win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
+};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::charset::vim_iswordc;
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cursor::{coladvance, get_cursor_pos_ptr};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::buf_T;
 use crate::extmark::TriState;
 use crate::grid::grid_adjust;
@@ -157,88 +216,17 @@ static mut dragwin: *mut win_T = ptr::null_mut();
 
 unsafe extern "C" {
 
-    fn gchar_pos(pos: *mut pos_T) -> c_int;
-    fn mb_get_class(p: *const c_char) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
     fn ml_get_buf(buf: *const buf_T, lnum: linenr_T) -> *mut c_char;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn tabpage_move(nr: c_int);
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
-    fn find_tabpage(n: c_int) -> *mut tabpage_T;
-    fn tabpage_close(forceit: c_int);
-    fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int);
-    fn tabpage_new();
-    fn goto_tabpage(n: c_int);
-    fn call_vim_function(
-        func: *const c_char,
-        argc: c_int,
-        argv: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> c_int;
-    fn tv_clear(tv: *mut typval_T);
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn win_col_off2(wp: *mut win_T) -> c_int;
-    fn global_stl_height() -> c_int;
-    fn redraw_curbuf_later(type_: c_int);
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn redraw_statuslines();
-    fn update_screen() -> c_int;
-    fn setcursor();
-    fn ui_flush();
-    fn get_mouse_button(code: c_int, is_click: *mut bool, is_drag: *mut bool) -> c_int;
-    fn vpeekc() -> c_int;
-    fn safe_vgetc() -> c_int;
-    fn vungetc(c: c_int);
-    fn stuffcharReadbuff(c: c_int);
-    fn stuffnumReadbuff(n: c_int);
-    fn stuffReadbuff(s: *const c_char);
-    fn exec_stuffed(cap: *mut cmdarg_T);
-    fn clearopbeep(oap: *mut oparg_T);
-    fn clearop(oap: *mut oparg_T);
-    fn clear_oparg(oap: *mut oparg_T);
-    fn insert_reg(regname: c_int, reg: *mut yankreg_T, literally_arg: bool) -> c_int;
-    fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool;
-    fn yank_register_mline(regname: c_int, reg: *mut *mut yankreg_T) -> bool;
-    fn do_put(regname: c_int, reg: *mut yankreg_T, dir: c_int, count: c_int, flags: c_int);
-    fn redo_append_char(c: c_int);
-    fn end_visual_mode();
-    fn bt_quickfix(buf: *const buf_T) -> bool;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
-    fn ui_mouse_has(mode: c_int) -> bool;
     fn openFold(pos: pos_T, count: c_int);
     fn closeFold(pos: pos_T, count: c_int);
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn get_scrolloff_value(wp: *mut win_T) -> i64;
-    fn scroll_redraw(up: c_int, count: linenr_T);
-    fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec);
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn may_start_select(c: c_int);
-    fn inc(lp: *mut pos_T) -> c_int;
-    fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T;
-    fn undisplay_dollar();
-    fn win_valid(win: *const win_T) -> bool;
-    fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int);
-    fn set_can_cindent(val: bool);
-    fn pagescroll(dir: Direction, count: c_int, half: bool) -> c_int;
-    fn nv_scroll_line(cap: *mut cmdarg_T);
-    fn stl_connected(wp: *mut win_T) -> bool;
-    fn win_fdccol_count(wp: *mut win_T) -> c_int;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn win_drag_status_line(dragwin: *mut win_T, offset: c_int);
-    fn win_drag_vsep_line(dragwin: *mut win_T, offset: c_int);
-    fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn check_topfill(wp: *mut win_T, down: bool);
-    fn virtual_active(wp: *mut win_T) -> bool;
-    fn set_leftcol(leftcol: colnr_T) -> bool;
     fn decor_virt_lines(
         wp: *mut win_T,
         start_row: c_int,
@@ -247,14 +235,7 @@ unsafe extern "C" {
         lines: *mut c_void,
         apply_folds: bool,
     ) -> c_int;
-    fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
-    fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> bool;
     fn get_win_by_grid_handle(handle: c_int) -> *mut win_T;
-    fn ui_cursor_shape();
-    fn ui_check_mouse();
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
 }
 
 #[inline]

@@ -10,9 +10,40 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{bt_quickfix, bt_terminal};
+#[allow(unused_imports)]
+use crate::charset::getdigits_int;
+#[allow(unused_imports)]
+use crate::cursor::check_cursor;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::execute_common;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
+    tv_dict_find, tv_get_bool, tv_get_number, tv_get_number_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_list, tv_list_append_number, tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::ex_getln::text_or_buf_locked;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::r#move::{
+    changed_window_setting, check_topfill, restore_viewstate, save_viewstate, set_topline,
+    update_curswant, validate_botline_win, validate_cursor, win_col_off,
+};
+#[allow(unused_imports)]
+use crate::normal::end_visual_mode;
+#[allow(unused_imports)]
+use crate::window::{
+    check_split_disallowed, find_tabpage, goto_tabpage_win, tabpage_index, valid_tabpage,
+    win_drag_status_line, win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor,
+    win_splitmove, win_valid, win_vert_neighbor,
+};
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
@@ -69,72 +100,11 @@ pub struct viewstate_T {
 
 unsafe extern "C" {
 
-    fn tv_get_number(tv: *const typval_T) -> varnumber_T;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
-    fn tv_get_bool(tv: *const typval_T) -> varnumber_T;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
-    fn tv_list_append_list(l: *mut list_T, item: *mut list_T);
-    fn tv_list_append_dict(l: *mut list_T, d: *mut dict_T);
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn tv_dict_add_dict(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut dict_T,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut list_T,
-    ) -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
     fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn win_get_tabwin(id: handle_T, tabnr: *mut c_int, winnr: *mut c_int);
-    fn find_tabpage(n: c_int) -> *mut tabpage_T;
-    fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int;
-    fn win_vert_neighbor(tp: *mut tabpage_T, wp: *mut win_T, up: bool, count: c_int) -> *mut win_T;
-    fn win_horz_neighbor(
-        tp: *mut tabpage_T,
-        wp: *mut win_T,
-        left: bool,
-        count: c_int,
-    ) -> *mut win_T;
-    fn validate_botline_win(wp: *mut win_T);
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn bt_terminal(buf: *const buf_T) -> bool;
-    fn bt_quickfix(buf: *const buf_T) -> bool;
     fn bt_cmdwin(buf: *const buf_T) -> bool;
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-    fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_off: c_int);
-    fn text_or_buf_locked() -> bool;
-    fn end_visual_mode();
-    fn goto_tabpage_win(tp: *mut tabpage_T, wp: *mut win_T);
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_drag_vsep_line(dragwin: *mut win_T, offset: c_int);
-    fn win_drag_status_line(dragwin: *mut win_T, offset: c_int);
-    fn check_split_disallowed(wp: *const win_T) -> c_int;
-    fn win_goto(wp: *mut win_T);
-    fn win_splitmove(wp: *mut win_T, size: c_int, flags: c_int) -> c_int;
-    fn validate_cursor(wp: *mut win_T);
-    fn set_topline(wp: *mut win_T, lnum: linenr_T);
-    fn save_viewstate(wp: *mut win_T, vs: *mut viewstate_T);
-    fn restore_viewstate(wp: *mut win_T, vs: *const viewstate_T);
-    fn check_cursor(wp: *mut win_T);
-    fn changed_window_setting(wp: *mut win_T);
-    fn check_topfill(wp: *mut win_T, down: bool);
-    fn update_curswant();
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 

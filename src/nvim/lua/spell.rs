@@ -11,10 +11,13 @@
 
 use crate::errors::*;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::spell::{parse_spelllang, spell_check};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::api::tabpage::win_T;
 use crate::eval::deprecated::synblock_T;
 use crate::lua::base64::{lua_State, luaL_Reg};
 use crate::lua::converter::lua_Integer;
@@ -47,15 +50,6 @@ unsafe extern "C-unwind" {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn parse_spelllang(wp: *mut win_T) -> *mut c_char;
-    fn spell_check(
-        wp: *mut win_T,
-        ptr: *mut c_char,
-        attrp: *mut hlf_T,
-        capcol: *mut c_int,
-        docount: bool,
-    ) -> usize;
 }
 
 /// Check spelling in `str` (`nlua_spell_check`).

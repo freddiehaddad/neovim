@@ -3,14 +3,40 @@
 
 #![allow(dead_code, clippy::missing_safety_doc)]
 
+#[allow(unused_imports)]
+use crate::api::ui::remote_ui_free_all_mem;
+#[allow(unused_imports)]
+use crate::buffer_updates::buf_free_callbacks;
 #[cfg(not(test))]
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_cmds::free_prev_shellcmd;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, free_cd_dir};
 #[cfg(not(test))]
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::close_all_scripts;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_free_all_mem;
+#[allow(unused_imports)]
+use crate::main_init::preserve_exit;
+#[allow(unused_imports)]
+use crate::memfile::mf_release_all;
 #[cfg(not(test))]
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, set_keep_msg};
+#[allow(unused_imports)]
+use crate::option::free_all_options;
 #[cfg(not(test))]
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::register::set_expr_line;
+#[allow(unused_imports)]
+use crate::ui::ui_free_all_mem;
+#[allow(unused_imports)]
+use crate::ui_client::ui_client_free_all_mem;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -71,14 +97,6 @@ pub static mut mem_realloc: MemRealloc = crt_realloc;
 #[allow(non_upper_case_globals)]
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut entered_free_all_mem: bool = false;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn clear_sb_text(all: bool);
-    fn mf_release_all() -> bool;
-    fn preserve_exit(errmsg: *const c_char) -> !;
-}
 
 static TRYING_TO_FREE: AtomicBool = AtomicBool::new(false);
 
@@ -894,7 +912,6 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::decoration_provider::decor_free_all_mem;
     use crate::diff::diff_clear;
     use crate::drawline::drawline_free_all_mem;
-    use crate::eval::deprecated::buf_T;
     use crate::eval::eval_clear;
     use crate::ex_cmds::free_old_sub;
     use crate::file_search::free_findfile;
@@ -926,24 +943,6 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::ui_compositor::ui_comp_free_all_mem;
     use crate::usercmd::ex_comclear;
     use crate::window::{free_tabpage, win_free_all};
-
-    unsafe extern "C" {
-
-        fn nlua_free_all_mem();
-        fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-        fn free_prev_shellcmd();
-        fn free_cd_dir();
-        fn set_expr_line(new_line: *mut c_char);
-        fn set_keep_msg(s: *const c_char, attr: c_int);
-        fn close_all_scripts();
-        fn free_all_options();
-        fn buf_free_callbacks(buf: *mut buf_T);
-        fn reset_last_sourcing();
-        fn msg_hist_clear(number: c_int);
-        fn ui_client_free_all_mem();
-        fn remote_ui_free_all_mem();
-        fn ui_free_all_mem();
-    }
 
     unsafe fn destroy_int_pmap(map: *mut Map<c_int, *mut c_void>) {
         unsafe {

@@ -10,9 +10,48 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_array, api_free_object, arena_array, find_buffer_by_handle,
+    find_window_by_handle, object_to_hl_id, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds_win, block_autocmds, unblock_autocmds};
+#[allow(unused_imports)]
+use crate::buffer::{bufref_valid, set_bufref};
+#[allow(unused_imports)]
+use crate::charset::transstr;
+#[allow(unused_imports)]
+use crate::drawscreen::{redraw_later, set_must_redraw};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_docmd::expr_map_locked;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_check_group, syn_id2name};
+#[allow(unused_imports)]
+use crate::mbyte::{mb_string2cells, mb_string2cells_len};
+#[allow(unused_imports)]
+use crate::r#move::changed_window_setting;
+#[allow(unused_imports)]
+use crate::option::didset_window_options;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
+#[allow(unused_imports)]
+use crate::ui_compositor::ui_comp_remove_grid;
+#[allow(unused_imports)]
+use crate::window::{
+    check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
+    lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
+    win_goto, win_locked, win_remove, win_set_buf, win_setheight_win, win_setwidth_win,
+    win_split_ins, win_valid, win_valid_any_tab, winframe_find_altwin, winframe_remove,
+    winframe_restore,
+};
+#[allow(unused_imports)]
+use crate::winfloat::{
+    win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
+};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -24,11 +63,8 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
     api_err_invalid, api_err_required,
 };
-use crate::api::tabpage::{
-    Buffer, ScreenGrid, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T,
-};
+use crate::api::tabpage::{Buffer, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
-use crate::eval::deprecated::buf_T;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, xmemdupz};
@@ -185,85 +221,9 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 unsafe extern "C" {
     static opt_winborder_values: [*const c_char; 9];
 
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T;
-    fn check_split_disallowed_err(wp: *const win_T, err: *mut Error) -> bool;
-    fn win_split_ins(
-        size: c_int,
-        flags: c_int,
-        new_wp: *mut win_T,
-        dir: c_int,
-        to_flatten: *mut frame_T,
-    ) -> *mut win_T;
-    fn win_setwidth_win(width: c_int, wp: *mut win_T, from_left: bool);
-    fn win_setheight_win(height: c_int, win: *mut win_T, from_top: bool);
-    fn win_new_float(wp: *mut win_T, last: bool, fconfig: WinConfig, err: *mut Error)
-    -> *mut win_T;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
-    fn apply_autocmds_win(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-        win: *mut win_T,
-    ) -> bool;
-    fn goto_tabpage_win(tp: *mut tabpage_T, wp: *mut win_T);
-    fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error);
-    fn api_clear_error(value: *mut Error);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *const c_char;
-    fn api_free_array(value: Array);
-    fn api_free_object(value: Object);
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn win_set_minimal_style(wp: *mut win_T);
-    fn didset_window_options(wp: *mut win_T, valid_cursor: bool);
-    fn changed_window_setting(wp: *mut win_T);
-    fn one_window(win: *mut win_T, tp: *mut tabpage_T) -> bool;
-    fn win_locked(wp: *mut win_T) -> c_int;
     fn window_layout_locked_err(cmd: cmdidx_T, err: *mut Error) -> bool;
-    fn expr_map_locked() -> bool;
-    fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut win_T;
-    fn winframe_find_altwin(
-        win: *mut win_T,
-        dirp: *mut c_int,
-        tp: *mut tabpage_T,
-        altfr: *mut *mut frame_T,
-    ) -> *mut win_T;
-    fn win_goto(wp: *mut win_T);
-    fn win_valid_any_tab(win: *mut win_T) -> bool;
-    fn winframe_remove(
-        win: *mut win_T,
-        dirp: *mut c_int,
-        tp: *mut tabpage_T,
-        unflat_altfr: *mut *mut frame_T,
-    ) -> *mut win_T;
-    fn win_remove(wp: *mut win_T, tp: *mut tabpage_T);
-    fn last_status(morewin: bool);
-    fn win_comp_pos() -> c_int;
-    fn win_append(after: *mut win_T, wp: *mut win_T, tp: *mut tabpage_T);
-    fn winframe_restore(wp: *mut win_T, dir: c_int, unflat_altfr: *mut frame_T);
-    fn win_valid(win: *const win_T) -> bool;
-    fn clear_float_config(fconfig: *mut WinConfig, free_fields: bool);
-    fn merge_win_config(dst: *mut WinConfig, src: WinConfig);
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn lastwin_nofloating(tp: *mut tabpage_T) -> *mut win_T;
-    fn ui_comp_remove_grid(grid: *mut ScreenGrid);
-    fn set_must_redraw(type_: c_int);
-    fn win_config_float(wp: *mut win_T, fconfig: WinConfig);
-    fn syn_id2name(id: c_int) -> *mut c_char;
-    fn transstr(s: *const c_char, replace_spaces: bool) -> *mut c_char;
-    fn mb_string2cells(p: *const c_char) -> usize;
-    fn mb_string2cells_len(p: *const c_char, size: usize) -> usize;
-    fn object_to_hl_id(obj: Object, what: *const c_char, err: *mut Error) -> c_int;
-    fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
 }
 
 const NIL: Object = Object {

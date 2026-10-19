@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::log::log_uv_handles;
 use crate::log::logmsg;
 use std::ffi::{c_int, c_void};
 use std::ptr;
@@ -100,7 +102,6 @@ unsafe extern "C" {
     fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
-    fn log_uv_handles(loop_: *mut c_void);
 }
 
 #[inline]

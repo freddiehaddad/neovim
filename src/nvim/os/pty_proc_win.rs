@@ -12,6 +12,10 @@
 )]
 
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::env::os_shell_is_cmdexe;
+#[allow(unused_imports)]
+use crate::os::fs::os_can_exe;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -168,8 +172,6 @@ mod win_impl {
         fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
         fn utf8_to_utf16(str: *const c_char, str_len: c_int, utf16_str: *mut *mut u16) -> c_int;
-        fn os_shell_is_cmdexe(sh: *const c_char) -> bool;
-        fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool;
         fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
         fn wcslen(s: *const u16) -> usize;
     }

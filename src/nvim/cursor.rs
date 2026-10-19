@@ -10,8 +10,28 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::change::inserted_bytes;
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_later;
+#[allow(unused_imports)]
+use crate::fold::hasAnyFolding;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mark::mark_mb_adjustpos;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_head_off, utf_ptr2char};
+#[allow(unused_imports)]
+use crate::memline::{
+    dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
+};
+#[allow(unused_imports)]
+use crate::r#move::{changed_cline_bef_curs, set_valid_virtcol, validate_virtcol, win_col_off};
+#[allow(unused_imports)]
+use crate::option::{get_sidescrolloff_value, get_ve_flags};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
@@ -43,32 +63,12 @@ const kOptVeFlagOnemore: c_uint = 0x08;
 
 unsafe extern "C" {
 
-    fn set_valid_virtcol(wp: *mut win_T, vcol: colnr_T);
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn inserted_bytes(lnum: linenr_T, start_col: colnr_T, old_col: c_int, new_col: c_int);
-    fn get_ve_flags(wp: *mut win_T) -> c_uint;
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn virtual_active(wp: *mut win_T) -> bool;
-    fn mark_mb_adjustpos(buf: *mut buf_T, lp: *mut pos_T);
-    fn inc(lp: *mut pos_T) -> c_int;
-    fn dec(lp: *mut pos_T) -> c_int;
-    fn hasAnyFolding(win: *mut win_T) -> c_int;
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn changed_cline_bef_curs(wp: *mut win_T);
-    fn validate_virtcol(wp: *mut win_T);
-    fn get_sidescrolloff_value(wp: *mut win_T) -> i64;
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
 }
 
 /// Return the screen position of the cursor (`getviscol`).

@@ -10,10 +10,36 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, cstr_to_string};
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, has_event};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_dict_add_str, tv_dict_set_keys_readonly};
+#[allow(unused_imports)]
+use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::expand_env_esc;
+#[allow(unused_imports)]
+use crate::os::fs::{os_chdir, os_dirname, os_fileid, os_fileid_equal, os_isdir, os_path_exists};
+#[allow(unused_imports)]
+use crate::os::input::os_breakcheck;
+#[allow(unused_imports)]
+use crate::path::{
+    FreeWild, FullName_save, after_pathsep, expand_wildcards, path_cmp, path_equal,
+    path_has_drive_letter, path_is_url, path_shorten_fname, path_tail, path_tail_with_sep,
+    path_to_slash, path_with_url, simplify_filename, vim_FullName, vim_isAbsName, vim_ispathsep,
+};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -23,11 +49,8 @@ use crate::clipboard::typval_T;
 use crate::context::CdCause;
 use crate::cursor::get_cursor_line_ptr;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T};
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{
-    Arena, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy,
-};
+use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy};
 use crate::plines::linenr_T;
 use crate::state::save_v_event_T;
 
@@ -147,86 +170,18 @@ static mut ff_expand_buffer: NvimString = NULL_STRING;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn cstr_as_string(str: *const c_char) -> NvimString;
-    fn cstr_to_string(str: *const c_char) -> NvimString;
-    fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString;
-    fn copy_string(str: NvimString, arena: *mut Arena) -> NvimString;
-    fn vim_ispathsep(c: c_int) -> bool;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;
-    fn vim_isAbsName(name: *const c_char) -> bool;
-    fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char;
-    fn vim_FullName(fname: *const c_char, buf: *mut c_char, len: usize, force: bool) -> c_int;
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
-    fn os_isdir(name: *const c_char) -> bool;
-    fn os_path_exists(path: *const c_char) -> bool;
-    fn os_chdir(path: *const c_char) -> c_int;
-    fn os_fileid(path: *const c_char, file_id: *mut FileID) -> bool;
-    fn os_fileid_equal(file_id_1: *const FileID, file_id_2: *const FileID) -> bool;
-    fn os_breakcheck();
-    fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int;
-    fn path_with_url(fname: *const c_char) -> c_int;
-    fn path_is_url(p: *const c_char) -> c_int;
-    fn path_has_drive_letter(p: *const c_char, path_len: usize) -> bool;
-    fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> bool;
-    fn path_cmp(ic: bool, p: *const c_char, q: *const c_char, maxlen: usize) -> c_int;
-    fn simplify_filename(filename: *mut c_char) -> usize;
-    fn path_shorten_fname(full_path: *mut c_char, dir_name: *mut c_char) -> *mut c_char;
-    fn path_to_slash(p: *mut c_char) -> *mut c_char;
-    fn expand_wildcards(
-        num_pat: c_int,
-        pat: *mut *mut c_char,
-        num_files: *mut c_int,
-        files: *mut *mut *mut c_char,
-        flags: c_int,
-    ) -> c_int;
-    fn FreeWild(count: c_int, files: *mut *mut c_char);
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
-    fn mb_tolower(a: c_int) -> c_int;
-    fn expand_env_esc(
-        srcp: *const c_char,
-        dst: *mut c_char,
-        dstlen: c_int,
-        esc_chars: *mut c_char,
-        one: bool,
-        prefix: *mut c_char,
-    ) -> usize;
     fn get_visual_text(cap: *mut c_void, pp: *mut *mut c_char, lenp: *mut usize) -> bool;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn eval_expr_option_tv(cb: *mut Callback, use_sandbox: bool, ret_tv: *mut typval_T) -> bool;
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
-    fn tv_clear(varp: *mut typval_T);
-    fn has_event(event: event_T) -> bool;
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
-    fn tv_dict_set_keys_readonly(dict: *mut dict_T);
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
 }
 
 #[inline]

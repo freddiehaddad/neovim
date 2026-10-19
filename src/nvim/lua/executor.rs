@@ -14,10 +14,26 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::extmark::ns_initialized;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline;
+#[allow(unused_imports)]
+use crate::ex_getln::{get_user_input, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::log::log_get_stderr;
 use crate::message::semsg_multiline;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg_ext_no_fast, msg_putchar, msg_use_printf, redirecting};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::home_replace_save;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -324,15 +340,6 @@ unsafe extern "C" {
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
     fn get_command_name(xp: *mut expand_T, idx: c_int) -> *const c_char;
-    fn msg_ext_no_fast();
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn msg_use_printf() -> c_int;
-    fn redirecting() -> c_int;
     fn msg_multihl(
         id: Object,
         hl_msg: HlMessage,
@@ -343,28 +350,14 @@ unsafe extern "C" {
         needs_msg_clear: *mut bool,
         raw_for_lua_print: bool,
     ) -> Object;
-    fn get_user_input(
-        argvars: *const typval_T,
-        rettv: *mut typval_T,
-        inputdialog: bool,
-        secret: bool,
-    );
-    fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char);
-    fn ui_ext_cmdline_block_leave();
-    fn msg_putchar(c: c_int);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn check_secure() -> bool;
-    fn emsg(s: *const c_char) -> bool;
     fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> *mut c_char;
     fn arena_printf(arena: *mut Arena, fmt: *const c_char, ...) -> NvimString;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
-    fn log_get_stderr() -> *mut FILE;
 
     fn cmd_source_buffer(eap: *const c_void, ex_lua: bool);
-    fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_char;
-    fn ns_initialized(ns: u32) -> bool;
     fn call_func(
         funcname: *const c_char,
         len: c_int,
@@ -373,8 +366,6 @@ unsafe extern "C" {
         argvars_in: *mut typval_T,
         funcexe: *mut funcexe_T,
     ) -> c_int;
-    fn find_internal_func(name: *const c_char) -> *const EvalFuncDef;
-    fn find_internal_func_lua(name: *const c_char) -> *const c_char;
     fn register_luafunc(ref_: LuaRef) -> *mut c_char;
     fn new_script_item(name: *mut c_char, sc_id: *mut c_int) -> *mut scriptitem_T;
     fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array;
@@ -1093,7 +1084,7 @@ unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> c_in
 }
 
 #[cfg(not(test))]
-unsafe extern "C-unwind" fn nlua_ex_getline(
+unsafe extern "C" fn nlua_ex_getline(
     _c: c_int,
     cookie: *mut c_void,
     _indent: c_int,

@@ -11,10 +11,58 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::buf_is_empty;
+#[allow(unused_imports)]
+use crate::buffer_updates::buf_updates_send_changes;
+#[allow(unused_imports)]
+use crate::change::del_chars;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
+    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
+    tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::eval::{eval_to_string, get_v_event, restore_v_event};
+#[allow(unused_imports)]
+use crate::ex_cmds2::check_fname;
+#[allow(unused_imports)]
+use crate::ex_getln::{cmdline_paste_str, getcmdline};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{
+    beep_flush, get_recorded, ins_typebuf, redo_append_char, stuffReadbuff, stuffReadbuffLen,
+    stuffcharReadbuff, stuffescaped,
+};
+#[allow(unused_imports)]
+use crate::insert::{beginline, get_last_insert, get_last_insert_save, oneright, stuff_inserted};
+#[allow(unused_imports)]
+use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
+#[allow(unused_imports)]
+use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
+    msg_puts, msg_puts_hl, msg_puts_title,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::normal::find_ident_under_cursor;
+#[allow(unused_imports)]
+use crate::ops::{adjust_cursor_eol, block_prep, charwise_block_prep, get_op_char};
+#[allow(unused_imports)]
+use crate::option::get_ve_flags;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::search::{last_search_pat, set_last_search_pat};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strsave_escaped_ext};
+#[allow(unused_imports)]
+use crate::ui::ui_has;
+#[allow(unused_imports)]
+use crate::undo::{u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -27,7 +75,7 @@ use crate::autocmd::{
 use crate::change::{changed_bytes, changed_lines};
 use crate::charset::{getdigits_int, skipwhite, transchar, vim_strsize};
 use crate::clipboard::{
-    MotionType, adjust_clipboard_name, get_clipboard, list_T, set_clipboard, yankreg_T,
+    MotionType, adjust_clipboard_name, get_clipboard, set_clipboard, yankreg_T,
 };
 use crate::cursor::{
     coladvance_force, colnr_T, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
@@ -184,43 +232,7 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn emsg_invreg(name: c_int);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msgmore(n: linenr_T);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_puts_title(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_outtrans_len(msgstr: *const c_char, len: c_int, hl_id: c_int, hist: bool) -> c_int;
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn ui_has(ext: UIExtension) -> bool;
-    fn getcmdline(firstc: c_int, count: c_int, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn cmdline_paste_str(s: *const c_char, literally: bool);
-    fn eval_to_string(arg: *mut c_char, join_list: bool, use_simple_function: bool) -> *mut c_char;
-    fn get_recorded() -> *mut c_char;
-    fn ins_typebuf(
-        str_: *mut c_char,
-        noremap: c_int,
-        offset: c_int,
-        nottyped: bool,
-        silent: bool,
-    ) -> c_int;
-    fn stuffescaped(arg: *const c_char, literally: bool);
-    fn stuffcharReadbuff(c: c_int);
-    fn stuffReadbuff(s: *const c_char);
-    fn stuffReadbuffLen(s: *const c_char, len: isize);
-    fn redo_append_char(c: c_int);
-    fn beep_flush();
-    fn stuff_inserted(c: c_int, count: c_int, no_esc: c_int) -> c_int;
-    fn get_last_insert() -> NvimString;
-    fn get_last_insert_save() -> *mut c_char;
-    fn beginline(flags: c_int);
-    fn u_save_cursor() -> c_int;
-    fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
-    fn del_chars(count: c_int, fixpos: c_int) -> c_int;
-    fn check_fname() -> c_int;
     fn getaltfname(errmsg: bool) -> *mut c_char;
     fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut linenr_T) -> c_int;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
@@ -231,85 +243,13 @@ unsafe extern "C" {
         diffmode: bool,
         curtab_only: bool,
     ) -> c_int;
-    fn buf_is_empty(buf: *mut buf_T) -> bool;
-    fn last_search_pat() -> *mut c_char;
-    fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool);
-    fn block_prep(oap: *mut oparg_T, bdp: *mut block_def, lnum: linenr_T, is_del: bool);
-    fn charwise_block_prep(
-        start: pos_T,
-        end: pos_T,
-        bdp: *mut block_def,
-        lnum: linenr_T,
-        inclusive: bool,
-    );
-    fn get_op_char(optype: c_int) -> c_int;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
-    fn tv_dict_add_bool(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: BoolVarValue,
-    ) -> c_int;
-    fn tv_dict_set_keys_readonly(dict: *mut dict_T);
-    fn get_ve_flags(wp: *mut win_T) -> c_uint;
-    fn ins_compl_preinsert_effect() -> bool;
-    fn ins_compl_delete(new_leader: bool);
     fn exec_stuffed(cap: *mut c_void);
-    fn adjust_cursor_eol();
-    fn decl(lp: *mut pos_T) -> c_int;
-    fn oneright() -> c_int;
-    fn find_ident_under_cursor(
-        text: *mut *mut c_char,
-        find_type: c_int,
-        offset: *mut c_int,
-    ) -> usize;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_allocated_string(l: *mut list_T, str_: *mut c_char);
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
-    fn vim_strsave_escaped_ext(
-        string: *const c_char,
-        esc_chars: *const c_char,
-        cc: c_char,
-        bsl: bool,
-    ) -> *mut c_char;
-    fn buf_updates_send_changes(
-        buf: *mut buf_T,
-        firstline: linenr_T,
-        num_added: i64,
-        num_removed: i64,
-    );
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

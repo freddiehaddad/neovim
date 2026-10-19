@@ -10,7 +10,33 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, api_set_sctx, arena_array, copy_object, copy_string,
+    dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, try_enter,
+    try_leave,
+};
+#[allow(unused_imports)]
+use crate::decoration::{clear_virttext, decor_find_virttext};
+#[allow(unused_imports)]
+use crate::eval::vars::get_globvar_dict;
+#[allow(unused_imports)]
+use crate::extmark::extmark_set;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_exec;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
+#[allow(unused_imports)]
+use crate::option::{
+    find_option, get_option_info, get_option_value_for, option_has_scope, set_option_value_for,
+};
+#[allow(unused_imports)]
+use crate::window::{win_setheight_win, win_setwidth_win};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -18,14 +44,11 @@ use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::options::{OptIndex, OptScope};
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
 };
-use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::buf_T;
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
@@ -34,7 +57,6 @@ use crate::marktree::{
 };
 use crate::memory::{Arena, xmalloc, xrealloc};
 use crate::msgpack_rpc::packer::Integer;
-use crate::msgpack_rpc::unpacker::MsgpackRpcRequestHandler;
 
 pub type colnr_T = c_int;
 pub type LuaRetMode = c_int;
@@ -117,97 +139,9 @@ pub type ApiDispatchWrapper = unsafe extern "C" fn(u64, Array, *mut Arena, *mut 
 
 unsafe extern "C" {
 
-    fn nlua_exec(
-        str: NvimString,
-        name: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T;
-    fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
-    fn extmark_set(
-        buf: *mut buf_T,
-        ns_id: u32,
-        idp: *mut u32,
-        row: c_int,
-        col: colnr_T,
-        end_row: c_int,
-        end_col: colnr_T,
-        decor: DecorInline,
-        decor_flags: u16,
-        right_gravity: bool,
-        end_right_gravity: bool,
-        no_undo: bool,
-        invalidate: bool,
-        err: *mut Error,
-    );
-    fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText;
-    fn clear_virttext(text: *mut VirtText);
-    fn syn_get_final_id(hl_id: c_int) -> c_int;
-    fn syn_id2attr(hl_id: c_int) -> c_int;
     fn hl_get_attr_by_id(attr_id: c_int, rgb: Boolean, arena: *mut Arena, err: *mut Error) -> Dict;
-    fn syn_name2id(name: *const c_char) -> c_int;
-    fn dict_set_var(
-        dict: *mut dict_T,
-        name: NvimString,
-        value: Object,
-        del: bool,
-        retval: bool,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn get_globvar_dict() -> *mut dict_T;
-    fn get_option_info(
-        name: NvimString,
-        opt_flags: c_int,
-        buf: *mut buf_T,
-        win: *mut win_T,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Dict;
-    fn find_option(name: *const c_char) -> OptIndex;
-    fn option_has_scope(opt_idx: OptIndex, scope: OptScope) -> bool;
-    fn get_option_value_for(
-        opt_idx: OptIndex,
-        opt_flags: c_int,
-        scope: OptScope,
-        from: *mut c_void,
-        err: *mut Error,
-    ) -> Object;
-    fn set_option_value_for(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        scope: OptScope,
-        from: *mut c_void,
-        value_replaced: bool,
-        err: *mut Error,
-    );
     fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_set_sctx(channel_id: u64) -> sctx_T;
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn copy_object(obj: Object, arena: *mut Arena) -> Object;
-    fn copy_string(str: NvimString, arena: *mut Arena) -> NvimString;
-    fn msgpack_rpc_get_handler_for(
-        name: *const c_char,
-        name_len: usize,
-        error: *mut Error,
-    ) -> MsgpackRpcRequestHandler;
-    fn msg_ext_no_fast();
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_end() -> bool;
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn win_setheight_win(height: c_int, win: *mut win_T, from_top: bool);
-    fn win_setwidth_win(width: c_int, wp: *mut win_T, from_left: bool);
 }
 
 static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
@@ -1071,7 +1005,7 @@ pub unsafe extern "C" fn nvim_call_atomic(
                     break;
                 }
 
-                let func: ApiDispatchWrapper = std::mem::transmute(handler.fn_ptr);
+                let func = handler.r#fn.unwrap();
                 let result = func(channel_id, args, arena, &mut nested_error);
                 if error_set(&nested_error) {
                     break;

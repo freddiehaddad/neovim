@@ -12,8 +12,19 @@
 )]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::{schar_from_buf, schar_from_char};
+#[allow(unused_imports)]
+use crate::highlight::hl_blend_attrs;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::option_vars::*;
-use std::ffi::{c_char, c_int, c_uint};
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_flush, ui_composed_call_grid_cursor_goto, ui_composed_call_grid_resize,
+    ui_composed_call_grid_scroll, ui_has,
+};
+use std::ffi::{c_int, c_uint};
 use std::ptr;
 
 use crate::api::tabpage::ScreenGrid;
@@ -80,12 +91,6 @@ static mut dbghl_recompose: c_int = 0;
 
 unsafe extern "C" {
 
-    fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
-    fn ui_composed_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer);
-    fn ui_has(ext: UIExtension) -> bool;
-    fn schar_from_char(c: c_int) -> schar_T;
-    fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T;
-    fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut bool) -> c_int;
     fn ui_composed_call_raw_line(
         grid: Integer,
         row: Integer,
@@ -97,18 +102,6 @@ unsafe extern "C" {
         chunk: *const schar_T,
         attrs: *const sattr_T,
     );
-    fn syn_id2attr(hl_id: c_int) -> c_int;
-    fn ui_call_flush();
-    fn ui_composed_call_grid_scroll(
-        grid: Integer,
-        top: Integer,
-        bot: Integer,
-        left: Integer,
-        right: Integer,
-        rows: Integer,
-        cols: Integer,
-    );
-    fn ui_composed_call_grid_resize(grid: Integer, width: Integer, height: Integer);
 }
 
 #[inline]

@@ -12,6 +12,8 @@
 )]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_get_buf_len};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -583,8 +585,6 @@ unsafe extern "C" {
     fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
     fn uv_dlerror(lib: *const UvLib) -> *const c_char;
 
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn ts_parser_new() -> *mut TSParser;

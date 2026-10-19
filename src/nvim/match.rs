@@ -10,15 +10,42 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::charset::{skiptowhite, skipwhite};
+#[allow(unused_imports)]
+use crate::drawscreen::{redraw_later, redraw_win_range_later};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::get_optional_window;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
+    tv_dict_find, tv_get_number, tv_get_number_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_append_tv,
+    tv_list_idx_of_item, tv_list_unref,
+};
+#[allow(unused_imports)]
+use crate::ex_docmd::{ends_excmd, set_no_hlsearch};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
+#[allow(unused_imports)]
+use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::ml_get_buf;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
 use crate::option_vars::*;
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[allow(unused_imports)]
+use crate::regexp::{re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::tabpage::{ScopeDictDictItem, lpos_T, win_T};
+use crate::api::tabpage::{ScopeDictDictItem, win_T};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
@@ -31,7 +58,7 @@ pub type colnr_T = i32;
 pub type linenr_T = i32;
 pub type varnumber_T = i64;
 pub type OptInt = i64;
-pub type regprog_T = c_void;
+pub use crate::regexp::{regmmatch_T, regprog_T};
 pub type dictitem_T = ScopeDictDictItem;
 
 const NUL: c_char = 0;
@@ -51,17 +78,6 @@ const HLF_L: usize = 8;
 const HLF_LC: usize = 9;
 const kCpoSearch: c_int = b'c' as c_int;
 const kListLenMayKnow: isize = -3;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct regmmatch_T {
-    pub regprog: *mut regprog_T,
-    pub startpos: [lpos_T; NSUBEXP],
-    pub endpos: [lpos_T; NSUBEXP],
-    pub rmm_matchcol: colnr_T,
-    pub rmm_ic: c_int,
-    pub rmm_maxcol: colnr_T,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -118,65 +134,15 @@ pub struct SearchState {
 
 unsafe extern "C" {
 
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
-    fn syn_id2attr(hl_id: c_int) -> c_int;
-    fn syn_name2id(name: *const c_char) -> c_int;
-    fn syn_id2name(id: c_int) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn tv_get_number(tv: *const typval_T) -> varnumber_T;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_buf_chk(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn redraw_win_range_later(wp: *mut win_T, firstline: linenr_T, lastline: linenr_T);
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn vim_regexec_multi(
-        rmp: *mut regmmatch_T,
-        win: *mut win_T,
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        tm: *mut proftime_T,
-        timed_out: *mut c_int,
-    ) -> c_int;
-    fn set_no_hlsearch(flag: bool);
-    fn re_multiline(prog: *const regprog_T) -> c_int;
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut list_T,
-    ) -> c_int;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
     fn tv_dict_get_string_buf(
         d: *const dict_T,
         key: *const c_char,
@@ -184,20 +150,7 @@ unsafe extern "C" {
     ) -> *const c_char;
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_unref(l: *mut list_T);
-    fn tv_list_idx_of_item(l: *const list_T, item: *const listitem_T) -> c_int;
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
-    fn tv_list_append_dict(l: *mut list_T, d: *mut dict_T);
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
-    fn tv_list_append_tv(l: *mut list_T, item: *mut typval_T);
-    fn get_optional_window(argvars: *mut typval_T, idx: c_int) -> *mut win_T;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn ends_excmd(c: c_int) -> c_int;
-    fn skiptowhite(p: *const c_char) -> *mut c_char;
-    fn skipwhite(q: *const c_char) -> *mut c_char;
-    fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
 }
 
 #[inline]

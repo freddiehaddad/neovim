@@ -16,10 +16,76 @@
     clippy::unnecessary_cast
 )]
 
+#[allow(unused_imports)]
+use crate::arglist::check_arg_idx;
+#[allow(unused_imports)]
+use crate::buffer_updates::buf_free_callbacks;
+#[allow(unused_imports)]
+use crate::change::save_file_ff;
+#[allow(unused_imports)]
+use crate::charset::vim_strsize;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_copy,
+};
+#[allow(unused_imports)]
+use crate::ex_cmds::getfile;
+#[allow(unused_imports)]
+use crate::ex_cmds2::{can_abandon, dialog_close_terminal};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, tabpage_new};
+#[allow(unused_imports)]
+use crate::ex_eval::aborting;
+#[allow(unused_imports)]
+use crate::ex_getln::text_or_buf_locked;
+#[cfg(not(test))]
+use crate::fileio::buf_check_timestamp;
+#[allow(unused_imports)]
+use crate::fileio::{file_pat_to_reg_pat, is_dev_fd_file};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insexpand::clear_cpt_callbacks;
+#[allow(unused_imports)]
+use crate::main_init::getout;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_start,
+    msg_trunc, set_keep_msg,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::normal::{end_visual_mode, reset_VIsual_and_resel};
+#[allow(unused_imports)]
+use crate::option::{
+    buf_copy_options, clear_winopt, copy_winopt, didset_window_options, do_set, shortmess,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::clear_string_option;
+#[allow(unused_imports)]
+use crate::plines::win_get_fill;
+#[allow(unused_imports)]
+use crate::quickfix::qf_stack_get_bufnr;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::syntax::{reset_synblock, syntax_clear};
+#[allow(unused_imports)]
+use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
+#[allow(unused_imports)]
+use crate::version::min_vim_version;
+#[allow(unused_imports)]
+use crate::window::{
+    check_can_set_curbuf_forceit, close_windows, free_wininfo, global_stl_height, goto_tabpage_tp,
+    goto_tabpage_win, lastwin_nofloating, swbuf_goto_win_with_buf, tabline_height, tabpage_index,
+    win_close, win_enter, win_locked, win_move_after, win_split, win_valid, window_layout_lock,
+    window_layout_unlock,
+};
+#[allow(unused_imports)]
+use crate::winfloat::win_set_minimal_style;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -336,23 +402,8 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg_start();
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_puts(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str_: *const c_char, attr: c_int, 和时间: bool) -> c_int;
-    fn msg_trunc(s: *mut c_char, a: bool, attr: c_int) -> *mut c_char;
-    fn set_keep_msg(s: *const c_char, attr: c_int);
     fn msg_delay(msec: i64, ignoreinput: bool);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn message_filtered(msg: *const c_char) -> bool;
 
-    fn aborting() -> bool;
-    fn getout(r: c_int) -> !;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-
-    fn shortmess(x: c_int) -> bool;
     fn readfile(
         fname: *mut c_char,
         sfname: *mut c_char,
@@ -370,62 +421,18 @@ unsafe extern "C" {
         target_os = "dragonfly",
         target_os = "macos"
     ))]
-    fn is_dev_fd_file(fname: *mut c_char) -> bool;
-    fn save_file_ff(buf: *mut buf_T);
     fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
     fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T);
 
-    fn window_layout_lock();
-    fn window_layout_unlock();
     fn one_window(win: *const win_T, tp: *const tabpage_T) -> bool;
     fn last_window(win: *const win_T) -> bool;
-    fn win_locked(wp: *mut win_T) -> c_int;
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn close_windows(buf: *mut buf_T, keep_curwin: bool);
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn win_move_after(wp1: *mut win_T, wp2: *mut win_T);
-    fn lastwin_nofloating(tp: *mut tabpage_T) -> *mut win_T;
-    fn goto_tabpage_win(tp: *mut tabpage_T, wp: *mut win_T);
-    fn goto_tabpage_tp(
-        tp: *mut tabpage_T,
-        trigger_enter_autocmds: bool,
-        trigger_leave_autocmds: bool,
-    );
-    fn tabpage_new();
-    fn tabpage_index(tp: *mut tabpage_T) -> c_int;
-    fn swbuf_goto_win_with_buf(buf: *mut buf_T) -> *mut win_T;
-    fn check_can_set_curbuf_forceit(forceit: c_int) -> bool;
-    fn global_stl_height() -> c_int;
 
-    fn end_visual_mode();
-    fn reset_VIsual_and_resel();
-    fn reset_synblock(wp: *mut win_T);
-    fn syntax_clear(block: *mut synblock_T);
-
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
-    fn tv_dict_item_copy(di: *mut dictitem_T) -> *mut dictitem_T;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, key_len: isize) -> *mut dictitem_T;
     fn tv_dict_watcher_notify(
         dict: *mut dict_T,
         key: *const c_char,
         newtv: *mut typval_T,
         oldtv: *mut typval_T,
     );
-    fn callback_free(callback: *mut Callback);
-
-    fn free_wininfo(wip: *mut WinInfo, bp: *mut buf_T);
-    fn clear_winopt(wop: *mut winopt_T);
-    fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T);
-    fn didset_window_options(wp: *mut win_T, valid_cursor: bool);
-    fn win_set_minimal_style(wp: *mut win_T);
-    fn buf_copy_options(buf: *mut buf_T, flags: c_int);
-    fn clear_string_option(pp: *mut *mut c_char);
-    fn clear_cpt_callbacks(cb: *mut *mut Callback, count: c_int);
-    fn buf_free_callbacks(buf: *mut buf_T);
-    fn do_set(arg: *mut c_char, opt_flags: c_int) -> c_int;
 
     fn do_ecmd(
         fnum: c_int,
@@ -436,54 +443,22 @@ unsafe extern "C" {
         flags: c_int,
         oldwin: *mut win_T,
     ) -> c_int;
-    fn getfile(
-        fnum: c_int,
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        setpm: bool,
-        lnum: linenr_T,
-        forceit: bool,
-    ) -> c_int;
-    fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool;
     fn update_cwd(cause: c_int);
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
-
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn vim_strsize(s: *const c_char) -> c_int;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_call_set_icon(icon: NvimString);
-    fn ui_call_set_title(title: NvimString);
 
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]
     fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
 
-    fn min_vim_version() -> c_int;
-    fn qf_stack_get_bufnr() -> c_int;
-    fn check_arg_idx(win: *mut win_T);
     fn shorten_fnames(force: c_int);
     fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
-    fn dialog_close_terminal(buf: *mut buf_T) -> bool;
     fn check_colorcolumn(errbuf: *const CharBuf, wp: *mut win_T) -> *const c_char;
     fn win_valid_any_tab(win: *const win_T) -> bool;
-    fn file_pat_to_reg_pat(
-        pat: *const c_char,
-        pat_end: *const c_char,
-        allow_dirs: *mut c_char,
-        no_bslash: c_int,
-    ) -> *mut c_char;
-    fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
     fn foldUpdateAll(win: *mut win_T);
     fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool);
-    fn tabline_height() -> c_int;
 }
 
 #[inline]
@@ -2814,11 +2789,6 @@ pub unsafe extern "C" fn buflist_getfile(
         RedrawingDisabled -= 1;
         FAIL
     }
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn text_or_buf_locked() -> bool;
 }
 
 #[cfg(not(test))]

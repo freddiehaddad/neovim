@@ -12,7 +12,15 @@
 )]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::main_init::os_exit;
+#[allow(unused_imports)]
+use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::tui::tui::{
+    tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
+};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -48,7 +56,7 @@ use crate::tui::termkey::termkey::{
     termkey_start, termkey_strfkey,
 };
 
-pub type TUIData = c_void;
+pub use crate::tui::tui::TUIData;
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
 pub type TermMode = c_int;
@@ -116,12 +124,6 @@ unsafe extern "C" {
     fn uv_timer_get_due_in(handle: *const uv_timer_t) -> u64;
     fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
-    fn os_exit(r: c_int) -> !;
-    fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool;
-    fn tui_query_bg_color(tui: *mut TUIData);
-    fn tui_enable_extended_underline(tui: *mut TUIData);
-    fn tui_handle_term_mode(tui: *mut TUIData, mode: TermMode, state: TermModeState);
-    fn tui_set_size(tui: *mut TUIData, width: c_int, height: c_int);
 }
 
 #[inline]

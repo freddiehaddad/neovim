@@ -13,8 +13,21 @@
 )]
 
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len, utf_valid_string};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::fs::{os_dirname, os_isdir, os_realpath};
+#[allow(unused_imports)]
+use crate::path::{
+    after_pathsep, append_path, concat_fnames, path_cmp, path_is_absolute, path_tail,
+    path_tail_with_sep,
+};
+#[allow(unused_imports)]
+use crate::strings::vim_strsave_escaped;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -137,17 +150,8 @@ unsafe extern "C" {
     fn uv_err_name(err: c_int) -> *const c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn utf_ptr2len(p_in: *const c_char) -> c_int;
-    fn utf_ptr2char(p_in: *const c_char) -> c_int;
-    fn utf_isalnum(c: c_int) -> bool;
-    fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool;
-    fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
-
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
-    fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
     fn modify_fname(
         src: *const c_char,
         tilde_file: bool,
@@ -158,19 +162,8 @@ unsafe extern "C" {
         skip_did_modify: bool,
     ) -> c_int;
 
-    fn os_isdir(name: *const c_char) -> bool;
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
-    fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_char;
-
     fn vim_ispathsep(c: c_int) -> bool;
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn path_tail_with_sep(fname: *mut c_char) -> *mut c_char;
-    fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int;
-    fn concat_fnames(fname1: NvimString, fname2: NvimString, sep: bool) -> NvimString;
-    fn path_cmp(ic: bool, p: *const c_char, q: *const c_char, maxlen: usize) -> c_int;
-    fn append_path(path: *mut c_char, to_append: *const c_char, max_len: usize) -> c_int;
-    fn path_is_absolute(fname: *const c_char) -> bool;
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]

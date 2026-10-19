@@ -10,15 +10,38 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::read_buffer_into;
+#[allow(unused_imports)]
+use crate::charset::backslash_halve;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_cmds::{check_secure, make_filter_cmd};
 use crate::globals::*;
 use crate::mbyte::utf8len_tab_zero;
+#[allow(unused_imports)]
+use crate::mbyte::utfc_ptr2len_len;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg, msg_end, msg_ext_no_fast, msg_ext_set_append, msg_ext_set_kind, msg_multiline,
+    msg_outnum, msg_outtrans, msg_putchar, msg_puts, msg_sb_eol, msg_start, verbose_enter,
+    verbose_leave,
+};
 use crate::message::{msg_schedule_semsg, semsg, smsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::fs::{os_can_exe, os_isdir, os_path_exists, os_remove};
+#[allow(unused_imports)]
+use crate::path::{add_pathsep, path_has_wildcard, path_tail};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strnsave_unquoted, vim_strsave_escaped_ext};
+#[allow(unused_imports)]
+use crate::tag::tag_freematch;
+#[allow(unused_imports)]
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::eval::deprecated::buf_T;
 use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_free, multiqueue_new_child,
@@ -120,67 +143,17 @@ unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_start();
-    fn msg_end() -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_outnum(n: c_int);
-    fn msg_outtrans(str: *const c_char, attr: c_int, ischanged: bool) -> c_int;
-    fn msg_sb_eol();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_ext_set_append(append: bool);
-    fn msg_ext_no_fast();
-    fn msg_multiline(
-        str: NvimString,
-        attr: c_int,
-        check_int: bool,
-        hist: bool,
-        need_clear: *mut bool,
-    );
-    fn verbose_enter();
-    fn verbose_leave();
 
     fn ui_has(ext: c_int) -> bool;
-    fn ui_busy_start();
-    fn ui_busy_stop();
-    fn ui_flush();
 
-    fn backslash_halve(p: *mut c_char);
-    fn path_has_wildcard(p: *const c_char, all: bool) -> bool;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn add_pathsep(p: *mut c_char) -> bool;
     #[cfg(unix)]
     fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *const c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn vim_strnsave_unquoted(string: *const c_char, length: usize) -> *mut c_char;
-    fn vim_strsave_escaped_ext(
-        string: *const c_char,
-        esc_chars: *const c_char,
-        cc: c_char,
-        bsl: bool,
-    ) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
-    fn check_secure() -> bool;
     fn vim_tempname() -> *mut c_char;
-    fn make_filter_cmd(
-        cmd: *mut c_char,
-        itmp: *mut c_char,
-        otmp: *mut c_char,
-        do_in: bool,
-    ) -> *mut c_char;
-    fn tag_freematch();
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn read_buffer_into(buf: *mut buf_T, start: linenr_T, end: linenr_T, sb: *mut StringBuilder);
     fn ml_append(lnum: linenr_T, line: *mut c_char, len: c_int, newfile: bool) -> c_int;
-    fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int;
 
-    fn os_remove(path: *const c_char) -> c_int;
-    fn os_path_exists(path: *const c_char) -> bool;
-    fn os_isdir(name: *const c_char) -> bool;
-    fn os_can_exe(name: *const c_char, abspath: *mut *mut c_char, use_path: bool) -> bool;
     fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
 
     #[cfg(windows)]

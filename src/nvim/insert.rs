@@ -18,9 +18,68 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{bt_quickfix, set_bufref};
+#[allow(unused_imports)]
+use crate::change::get_leader_len;
+#[allow(unused_imports)]
+use crate::cursor::check_visual_pos;
+#[allow(unused_imports)]
+use crate::drawscreen::{
+    redrawing, show_cursor_info_later, showmode, skip_showmode, status_redraw_curbuf, unshowmode,
+};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, expr_map_locked};
+#[allow(unused_imports)]
+use crate::ex_getln::cmdwin_do_action;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::highlight_changed;
+#[allow(unused_imports)]
+use crate::indent::tabstop_start;
+#[allow(unused_imports)]
+use crate::indent_c::cindent_on;
+#[allow(unused_imports)]
+use crate::input::{
+    map_execute_lua, merge_modifiers, paste_repeat, prep_redo, redo_append_char, redo_append_lit,
+    redo_append_str, redo_keys,
+};
+#[allow(unused_imports)]
+use crate::insexpand::{
+    check_compl_option, compl_status_clear, compl_status_local, ctrl_x_mode_cmdline,
+    ctrl_x_mode_dictionary, ctrl_x_mode_files, ctrl_x_mode_function, ctrl_x_mode_line_or_eval,
+    ctrl_x_mode_none, ctrl_x_mode_normal, ctrl_x_mode_omni, ctrl_x_mode_path_defines,
+    ctrl_x_mode_path_patterns, ctrl_x_mode_register, ctrl_x_mode_scroll, ctrl_x_mode_spell,
+    ctrl_x_mode_tags, ctrl_x_mode_thesaurus, ctrl_x_mode_whole_line, ins_compl_accept_char,
+    ins_compl_active, ins_compl_addfrommatch, ins_compl_addleader,
+    ins_compl_arm_autocomplete_delay, ins_compl_arm_autostart, ins_compl_bs, ins_compl_cancel,
+    ins_compl_clear, ins_compl_clear_autocomplete_delay, ins_compl_col, ins_compl_commit_char,
+    ins_compl_delete, ins_compl_disable_autocomplete, ins_compl_disarm_autostart,
+    ins_compl_enable_autocomplete, ins_compl_enter_selects, ins_compl_has_autocomplete,
+    ins_compl_has_shown_match, ins_compl_init_get_longest, ins_compl_insert,
+    ins_compl_is_match_selected, ins_compl_long_shown_match, ins_compl_preinsert_effect,
+    ins_compl_preinsert_longest, ins_compl_prep, ins_compl_used_match, ins_compl_win_active,
+    ins_complete, ins_ctrl_x, pum_wanted,
+};
+#[allow(unused_imports)]
+use crate::message::{emsg, msg_check_for_delay};
+#[allow(unused_imports)]
+use crate::normal::{
+    add_to_showcmd, add_to_showcmd_c, clear_showcmd, do_check_scrollbind, end_visual_mode,
+    start_selection,
+};
+#[allow(unused_imports)]
+use crate::option::{can_bs, get_scrolloff_value, set_iminsert_global};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::syntax::syntax_present;
+#[allow(unused_imports)]
+use crate::ui::{ui_cursor_shape, ui_flush, vim_beep};
+#[allow(unused_imports)]
+use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -306,9 +365,7 @@ static mut ins_esc_disabled_redraw: bool = false;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
@@ -320,7 +377,6 @@ unsafe extern "C" {
     fn tabstop_count(ts: *const c_int) -> c_int;
     fn tabstop_first(ts: *const c_int) -> c_int;
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const c_int) -> c_int;
-    fn tabstop_start(col: colnr_T, ts: c_int, vts: *mut colnr_T) -> colnr_T;
 
     fn foldCheckClose();
     fn foldOpenCursor();
@@ -340,127 +396,29 @@ unsafe extern "C" {
         infop: *mut c_void,
     ) -> bool;
 
-    fn highlight_changed();
-    fn cindent_on() -> bool;
-    fn get_leader_len(
-        line: *mut c_char,
-        flags: *mut *mut c_char,
-        backward: bool,
-        include_space: bool,
-    ) -> c_int;
-
-    fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec);
-    fn redo_append_char(c: c_int);
-    fn redo_append_lit(str_: *const c_char, len: c_int);
-    fn redo_append_str(s: *const c_char, len: isize);
-    fn redo_keys(spec: *const CmdSpec) -> NvimString;
-    fn merge_modifiers(c_arg: c_int, modifiers: *mut c_int) -> c_int;
-
     fn check_abbr(c: c_int, ptr: *mut c_char, col: c_int, mincol: c_int) -> bool;
-    fn expr_map_locked() -> bool;
-    fn map_execute_lua(may_repeat: bool, visual: bool) -> bool;
     fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool;
-
-    fn end_visual_mode();
-    fn paste_repeat(count: c_int);
-    fn start_selection();
-    fn status_redraw_curbuf();
-    fn do_check_scrollbind(redraw: bool);
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn msg_check_for_delay(check_msg_scroll: bool);
-    fn clear_showcmd();
-    fn add_to_showcmd(c: c_int) -> bool;
-    fn add_to_showcmd_c(c: c_int);
-    fn showmode() -> c_int;
-    fn unshowmode(force: bool);
-    fn skip_showmode() -> bool;
-    fn ui_cursor_shape();
-    fn ui_flush();
     fn ui_has(ext: c_int) -> bool;
-    fn redrawing() -> bool;
-    fn vim_beep(val: c_uint);
     fn check_timestamps(focus: c_int) -> c_int;
 
     fn bt_prompt(buf: *const buf_T) -> bool;
     fn bt_cmdwin(buf: *const buf_T) -> bool;
-    fn bt_quickfix(buf: *const buf_T) -> bool;
     fn buf_is_empty(buf: *const buf_T) -> bool;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 
-    fn get_scrolloff_value(wp: *mut win_T) -> i64;
     fn get_ve_flags(wp: *const win_T) -> c_uint;
     fn virtual_active(wp: *const win_T) -> bool;
-    fn can_bs(what: c_int) -> bool;
-    fn set_iminsert_global(buf: *mut buf_T);
-    fn check_visual_pos();
-    fn goto_tabpage(n: c_int);
 
-    fn syntax_present(win: *mut win_T) -> bool;
-    fn may_trigger_win_scrolled_resized();
-    fn show_cursor_info_later(force: bool);
-
-    fn cmdwin_do_action(action: *const c_char);
     fn do_cmdline(
         cmdline: *mut c_char,
         fgetline: Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>,
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
 
-    fn ins_ctrl_x();
-    fn ctrl_x_mode_none() -> bool;
-    fn ctrl_x_mode_normal() -> bool;
-    fn ctrl_x_mode_scroll() -> bool;
-    fn ctrl_x_mode_whole_line() -> bool;
-    fn ctrl_x_mode_files() -> bool;
-    fn ctrl_x_mode_tags() -> bool;
-    fn ctrl_x_mode_path_patterns() -> bool;
-    fn ctrl_x_mode_path_defines() -> bool;
-    fn ctrl_x_mode_dictionary() -> bool;
-    fn ctrl_x_mode_thesaurus() -> bool;
-    fn ctrl_x_mode_cmdline() -> bool;
-    fn ctrl_x_mode_function() -> bool;
-    fn ctrl_x_mode_omni() -> bool;
-    fn ctrl_x_mode_spell() -> bool;
-    fn ctrl_x_mode_line_or_eval() -> bool;
-    fn ctrl_x_mode_register() -> bool;
-    fn compl_status_local() -> bool;
-    fn compl_status_clear();
-    fn check_compl_option(dict_opt: bool) -> bool;
-    fn ins_compl_accept_char(c: c_int) -> bool;
-    fn ins_compl_commit_char(c: c_int) -> bool;
-    fn ins_compl_is_match_selected() -> bool;
-    fn ins_compl_preinsert_longest() -> bool;
-    fn ins_compl_has_shown_match() -> bool;
-    fn ins_compl_long_shown_match() -> bool;
-    fn pum_wanted() -> bool;
-    fn ins_compl_clear();
-    fn ins_compl_active() -> bool;
-    fn ins_compl_win_active(wp: *mut win_T) -> bool;
-    fn ins_compl_used_match() -> bool;
-    fn ins_compl_init_get_longest();
-    fn ins_compl_enter_selects() -> bool;
-    fn ins_compl_col() -> colnr_T;
-    fn ins_compl_preinsert_effect() -> bool;
-    fn ins_compl_bs() -> c_int;
-    fn ins_compl_has_autocomplete() -> bool;
-    fn ins_compl_addleader(c: c_int);
-    fn ins_compl_addfrommatch();
-    fn ins_compl_cancel() -> bool;
-    fn ins_compl_prep(c: c_int) -> bool;
-    fn ins_compl_delete(new_leader: bool);
-    fn ins_compl_insert(move_cursor: bool, insert_prefix: bool);
-    fn ins_complete(c: c_int, enable_pum: bool) -> c_int;
-    fn ins_compl_enable_autocomplete();
-    fn ins_compl_disable_autocomplete();
-    fn ins_compl_arm_autostart();
-    fn ins_compl_disarm_autostart();
-    fn ins_compl_arm_autocomplete_delay() -> bool;
-    fn ins_compl_clear_autocomplete_delay();
 }
 
 #[inline]

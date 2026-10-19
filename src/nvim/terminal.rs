@@ -14,8 +14,51 @@
     clippy::while_immutable_condition
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_object};
+#[allow(unused_imports)]
+use crate::autocmd::{
+    apply_autocmds, block_autocmds, has_event, is_autocmd_blocked, unblock_autocmds,
+};
+#[allow(unused_imports)]
+use crate::drawscreen::{
+    redraw_buf_line_later, redraw_later, redraw_statuslines, setcursor, show_cursor_info_later,
+    showmode, status_redraw_buf, unshowmode, update_screen,
+};
+#[allow(unused_imports)]
+use crate::eval::get_v_event;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list, tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::get_globvar_dict;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::name_to_color;
+#[allow(unused_imports)]
+use crate::input::{getcmdkeycmd, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
+#[allow(unused_imports)]
+use crate::mbyte::{utf_ptr2char, utf_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::{ml_delete_buf, ml_replace_buf};
+#[allow(unused_imports)]
+use crate::r#move::win_col_off;
+#[allow(unused_imports)]
+use crate::ops::clear_oparg;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::free_string_option;
+#[allow(unused_imports)]
+use crate::state::may_trigger_modechanged;
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
+};
+#[allow(unused_imports)]
+use crate::window::{may_trigger_win_scrolled_resized, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -402,34 +445,13 @@ unsafe extern "C" {
         data: *mut Object,
         nested: bool,
     ) -> bool;
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn has_event(event: event_T) -> bool;
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn is_autocmd_blocked() -> bool;
-    fn may_trigger_modechanged();
-    fn may_trigger_win_scrolled_resized();
 
-    fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int;
     fn ml_append_buf(
         buf: *mut buf_T,
         lnum: linenr_T,
         line: *const c_char,
         len: c_int,
         newfile: bool,
-    ) -> c_int;
-    fn ml_replace_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        line: *mut c_char,
-        copy: bool,
-        nobytes: bool,
     ) -> c_int;
 
     fn set_option_value(
@@ -439,17 +461,9 @@ unsafe extern "C" {
         set_sid: bool,
         errbuf: *const c_void,
     ) -> *const c_char;
-    fn free_string_option(p: *mut c_char);
 
-    fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue;
-
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
     fn restore_v_event(v_event: *mut dict_T, sve: *const save_v_event_T);
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_set_keys_readonly(d: *mut dict_T);
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
-    fn tv_list_append_list(l: *mut list_T, item: *mut list_T);
     fn eval_call_provider(
         provider: *const c_char,
         method: *const c_char,
@@ -471,49 +485,11 @@ unsafe extern "C" {
         arena: *mut c_void,
         err: *mut Error,
     ) -> Object;
-    fn get_globvar_dict() -> *mut dict_T;
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
-
-    fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool);
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn redraw_statuslines();
-    fn status_redraw_buf(bp: *mut buf_T);
-    fn update_screen() -> c_int;
-    fn show_cursor_info_later(force: bool);
-    fn showmode() -> c_int;
-    fn unshowmode(force: bool);
-
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn win_valid(win: *const win_T) -> bool;
-
-    fn ui_cursor_shape();
-    fn ui_busy_start();
-    fn ui_busy_stop();
-    fn ui_flush();
-    fn ui_mode_info_set();
-    fn setcursor();
 
     fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
 
-    fn paste_repeat(count: c_int);
-    fn getcmdkeycmd(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn map_execute_lua(may_repeat: bool, expr: bool) -> bool;
-
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
     fn mb_check_adjust_col(wp: *mut win_T);
 
-    fn clear_oparg(oap: *mut oparg_T);
-    fn merge_modifiers(c_arg: c_int, modifiers: *mut c_int) -> c_int;
-    fn requeue_key(c: c_int, mod_mask: c_int, offset: c_int, is_recorded: bool);
-    fn vim_beep(val: c_uint);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 
@@ -1069,7 +1045,7 @@ pub unsafe extern "C" fn terminal_alloc(
         (*term).opts = opts;
 
         (*term).buf_handle = (*buf).b_fnum;
-        (*buf).terminal = term.cast::<c_void>();
+        (*buf).terminal = term;
         (*term).vt = vterm_new(c_int::from(opts.height), c_int::from(opts.width));
         vterm_set_utf8((*term).vt, 1);
 

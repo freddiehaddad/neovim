@@ -9,8 +9,43 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_array, api_free_string, arena_dict, copy_array, copy_object,
+    string_to_array,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+#[allow(unused_imports)]
+use crate::buffer::bt_prompt;
+#[allow(unused_imports)]
+use crate::cursor::{check_cursor, check_pos};
+#[allow(unused_imports)]
+use crate::eval::typval::tv_clear;
+#[allow(unused_imports)]
+use crate::eval::userfunc::func_tbl_get;
+#[allow(unused_imports)]
+use crate::eval::vars::vars_clear;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
+#[allow(unused_imports)]
+use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::option::buf_copy_options;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::fs::{os_chdir, os_dirname};
+#[allow(unused_imports)]
+use crate::register::{free_register, get_y_register};
+#[allow(unused_imports)]
+use crate::window::{
+    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, unuse_tabpage, update_cwd,
+    use_tabpage, valid_tabpage, valid_tabpage_win, win_alloc_ctx_win, win_append,
+    win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
+};
+#[allow(unused_imports)]
+use crate::winfloat::win_config_float;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -20,12 +55,12 @@ use crate::api::private::converter::object_to_vim;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::{WinConfig, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
-use crate::clipboard::{VarType, typval_T, yankreg_T};
+use crate::clipboard::{VarType, typval_T};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
 use crate::eval::encode::encode_vim_list_to_buf;
-use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
+use crate::hashtab::{hash_init, hashitem_empty};
 use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::memory::{Arena, xfree, xstrdup};
@@ -170,64 +205,11 @@ static mut CTX_MARKS_NS_ID: u32 = 0;
 
 unsafe extern "C" {
 
-    fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool;
-    fn extmark_set_pos(
-        buf: *mut buf_T,
-        ns_id: u32,
-        mark: *mut u32,
-        pos: pos_T,
-        right_gravity: bool,
-        no_undo: bool,
-        ui_watched: bool,
-    );
-    fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: *mut pos_T) -> bool;
-    fn api_free_string(value: NvimString);
-    fn api_free_array(value: Array);
-    fn api_clear_error(value: *mut Error);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn check_pos(buf: *mut buf_T, pos: *mut pos_T);
-    fn func_tbl_get() -> *mut hashtab_T;
-    fn free_register(reg: *mut yankreg_T);
-    fn get_y_register(reg: c_int) -> *mut yankreg_T;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn tv_clear(varp: *mut typval_T);
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array;
-    fn copy_array(array: Array, arena: *mut Arena) -> Array;
-    fn copy_object(obj: Object, arena: *mut Arena) -> Object;
     fn bufref_valid(bufref: *mut crate::api::options::bufref_T) -> bool;
     fn set_bufref(bufref: *mut crate::api::options::bufref_T, buf: *mut buf_T);
-    fn update_cwd(cause: CdCause);
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
     fn do_autochdir();
-    fn os_chdir(path: *const c_char) -> c_int;
     fn shorten_fnames(force: c_int);
-    fn win_alloc_ctx_win(idx: c_int);
-    fn win_init_empty(wp: *mut win_T);
-    fn win_append(after: *mut win_T, wp: *mut win_T, tp: *mut tabpage_T);
-    fn win_config_float(wp: *mut win_T, fconfig: WinConfig);
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn goto_tabpage_tp(
-        tp: *mut tabpage_T,
-        trigger_enter_autocmds: bool,
-        trigger_leave_autocmds: bool,
-    );
-    fn win_goto(wp: *mut win_T);
-    fn win_remove(wp: *mut win_T, tp: *mut tabpage_T);
-    fn valid_tabpage_win(tpc: *mut tabpage_T) -> c_int;
-    fn close_tabpage(tab: *mut tabpage_T);
-    fn win_find_by_handle(handle: handle_T) -> *mut win_T;
-    fn win_valid(win: *const win_T) -> bool;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
-    fn unuse_tabpage(tp: *mut tabpage_T);
-    fn use_tabpage(tp: *mut tabpage_T);
-    fn leaving_window(win: *mut win_T);
-    fn entering_window(win: *mut win_T);
-    fn buf_copy_options(buf: *mut buf_T, flags: c_int);
-    fn check_cursor(wp: *mut win_T);
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-    fn vars_clear(ht: *mut hashtab_T);
 }
 
 #[inline]

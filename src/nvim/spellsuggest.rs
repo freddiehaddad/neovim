@@ -9,14 +9,19 @@
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
-use crate::api::tabpage::win_T;
 use crate::change::inserted_bytes;
 use crate::charset::{getdigits_int, skiptowhite, skipwhite};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T};
+use crate::clipboard::{TypvalVval, VarType, listitem_T, typval_T};
+use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{buf_T, synblock_T};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
+    tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::{eval_spell_expr, get_spellword};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -25,19 +30,42 @@ use crate::hashtab::{
 };
 use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
 use crate::input_cmdatom::CmdSpec;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_typval;
 use crate::mbyte::{
     mb_charlen, mb_cptr2char_adv, mb_isupper, mb_stricmp, utf_byte2len, utf_char2bytes,
     utf_char2len, utf_fold, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_replace};
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error, msg, msg_ext_set_kind};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::normal::end_visual_mode;
+#[allow(unused_imports)]
+use crate::option::{option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+#[allow(unused_imports)]
+use crate::spell::{
+    allcap_copy, byte_in_str, can_compound, captype, check_need_cap, make_case_word,
+    match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang, spell_casefold,
+    spell_check, spell_iswordp, spell_iswordp_nmw, spell_move_to, spell_soundfold,
+    spell_valid_case, valid_word_prefix,
+};
 use crate::spell::{repl_from, repl_to, spelltab};
+#[allow(unused_imports)]
+use crate::spellfile::suggest_load_files;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, xstrnsave};
 use crate::tag::BoolVarValue;
+#[allow(unused_imports)]
+use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -160,7 +188,7 @@ pub struct slang_T {
     pub sl_compsylmax: c_int,
     pub sl_compoptions: c_int,
     pub sl_comppat: garray_T,
-    pub sl_compprog: *mut c_void,
+    pub sl_compprog: *mut crate::regexp::regprog_T,
     pub sl_comprules: *mut u8,
     pub sl_compstartflags: *mut u8,
     pub sl_compallflags: *mut u8,
@@ -168,7 +196,7 @@ pub struct slang_T {
     pub sl_syllable: *mut c_char,
     pub sl_syl_items: garray_T,
     pub sl_prefixcnt: c_int,
-    pub sl_prefprog: *mut *mut c_void,
+    pub sl_prefprog: *mut *mut crate::regexp::regprog_T,
     pub sl_rep: garray_T,
     pub sl_rep_first: [i16; 256],
     pub sl_sal: garray_T,
@@ -331,109 +359,14 @@ static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn internal_error(where_: *const c_char);
-    fn option_next_keyval(
-        p: *mut *const c_char,
-        key: *mut *const c_char,
-        keylen: *mut usize,
-        val: *mut *const c_char,
-        vallen: *mut usize,
-    ) -> bool;
-    fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_tv(l: *mut list_T, tv: *mut typval_T);
-    fn tv_list_unref(l: *mut list_T);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_allocated_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *mut c_char,
-    ) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn tv_dict_add_bool(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: BoolVarValue,
-    ) -> c_int;
-    fn tv_clear(tv: *mut typval_T);
-    fn nlua_call_typval(
-        module: *const c_char,
-        func: *const c_char,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    );
-    fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut list_T;
-    fn get_spellword(list: *mut list_T, ret_word: *mut *const c_char) -> c_int;
-    fn end_visual_mode();
-    fn vim_beep(val: c_uint);
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn byte_in_str(str: *mut u8, n: c_int) -> bool;
-    fn match_compoundrule(slang: *mut slang_T, compflags: *const u8) -> bool;
-    fn captype(word: *const c_char, end: *const c_char) -> c_int;
-    fn parse_spelllang(wp: *mut win_T) -> *mut c_char;
-    fn spell_move_to(
-        wp: *mut win_T,
-        dir: c_int,
-        behaviour: smt_T,
-        curline: bool,
-        attrp: *mut hlf_T,
-    ) -> usize;
-    fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool;
-    fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool;
-    fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bool;
-    fn spell_check(
-        wp: *mut win_T,
-        ptr: *mut c_char,
-        attrp: *mut hlf_T,
-        capcol: *mut c_int,
-        docount: bool,
-    ) -> usize;
-    fn spell_casefold(
-        wp: *const win_T,
-        str: *const c_char,
-        len: c_int,
-        buf: *mut c_char,
-        buflen: c_int,
-    ) -> c_int;
-    fn spell_soundfold(slang: *mut slang_T, inword: *mut c_char, folded: bool, res: *mut c_char);
-    fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_int);
-    fn suggest_load_files();
-    fn nofold_len(fword: *mut c_char, flen: c_int, word: *mut c_char) -> c_int;
-    fn valid_word_prefix(
-        totprefcnt: c_int,
-        arridx: c_int,
-        flags: c_int,
-        word: *mut c_char,
-        slang: *mut slang_T,
-        cond_req: bool,
-    ) -> c_int;
-    fn match_checkcompoundpattern(ptr: *mut c_char, wlen: c_int, gap: *mut garray_T) -> bool;
-    fn can_compound(slang: *mut slang_T, word: *const c_char, flags: *const u8) -> bool;
-    fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool;
-    fn allcap_copy(word: *const c_char, wcopy: *mut c_char);
     fn fclose(stream: *mut FILE) -> c_int;
     fn qsort(
         base: *mut c_void,

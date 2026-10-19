@@ -8,8 +8,14 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::userfunc::{func_tbl_get, get_current_funccal};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::os::env::expand_env_save_opt;
 use crate::runtime::exestack;
 use crate::runtime::script_items;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -102,11 +108,7 @@ pub struct scriptitem_T {
     pub sn_prl_execed: c_int,
 }
 
-#[repr(C)]
-pub struct expand_T {
-    pub xp_pattern: *mut c_char,
-    pub xp_context: c_int,
-}
+pub use crate::os::env::expand_T;
 
 #[repr(C)]
 pub struct estack_T {
@@ -150,15 +152,11 @@ pub struct funccall_T {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn func_tbl_get() -> *mut hashtab_T;
-    fn get_current_funccal() -> *mut funccall_T;
     fn get_scriptname(script_ctx: sctx_T, should_free: *mut bool) -> *mut c_char;
-    fn expand_env_save_opt(src: *mut c_char, one: bool, esc_chars: *mut c_char) -> *mut c_char;
     fn set_vim_var_nr(idx: c_int, val: i64);
     fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn uv_err_name(err: c_int) -> *const c_char;
-    fn emsg(s: *const c_char) -> bool;
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fclose(stream: *mut FILE) -> c_int;

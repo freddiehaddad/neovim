@@ -12,8 +12,36 @@
     clippy::if_same_then_else
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_free_dict, api_free_string, cstr_to_string};
+#[allow(unused_imports)]
+use crate::buffer::set_bufref;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{
+    prep_redo, prep_redo_visual, redo_append_lit, redo_append_spec, redo_append_str, redo_keys,
+    redo_new, redo_spec, sb_add_char, sb_add_lit, sb_add_spec, stuff_empty, typebuf_typed,
+};
+#[allow(unused_imports)]
+use crate::insert::get_last_insert_save;
+#[allow(unused_imports)]
+use crate::mbyte::utf_char2bytes;
+#[allow(unused_imports)]
+use crate::mcursor::{
+    mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
+    mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
+};
+#[allow(unused_imports)]
+use crate::normal::nv_is;
+#[allow(unused_imports)]
+use crate::ops::{get_extra_op_char, get_op_char, op_redoable, op_self_select};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::register::reg_max_ts;
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr};
+#[allow(unused_imports)]
+use crate::window::win_valid;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -367,37 +395,8 @@ static mut typed: TypedState = TypedState {
 
 unsafe extern "C" {
 
-    fn nv_is(cmdchar: c_int, flags: c_int) -> bool;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
     fn bufref_valid(bufref: *const bufref_T) -> bool;
-    fn win_valid(win: *const win_T) -> bool;
 
-    fn mc_replaying() -> bool;
-    fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32;
-    fn mc_buf_has_cursors(buf: *mut buf_T) -> bool;
-    fn mc_following() -> bool;
-    fn mc_vsel_clear();
-    fn mc_vsel_refresh();
-    fn mc_ins_cascade_start(cascade: bool, origin: CmdOrigin, root_frame: u64, vsel: *const c_char);
-    fn mc_ins_commit() -> bool;
-    fn mc_ins_cascaded(root_frame: u64) -> bool;
-    fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool);
-
-    fn redo_keys(spec: *const CmdSpec) -> NvimString;
-    fn redo_spec() -> CmdSpec;
-    fn sb_add_char(sb: *mut StringBuilder, c: c_int);
-    fn sb_add_spec(buf: *mut StringBuilder, s: *const c_char);
-    fn sb_add_lit(buf: *mut StringBuilder, str: *const c_char, len: c_int);
-    fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec);
-    fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec);
-    fn redo_append_str(s: *const c_char, len: isize);
-    fn redo_append_lit(str: *const c_char, len: c_int);
-    fn redo_append_spec(s: *const c_char);
-    fn redo_new(spec: CmdSpec);
-    fn stuff_empty() -> bool;
-    fn typebuf_typed() -> c_int;
-
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
     fn has_event(event: c_int) -> bool;
     fn aucmd_defer(
         event: c_int,
@@ -408,18 +407,7 @@ unsafe extern "C" {
         eap: *mut c_void,
         data: *mut Object,
     );
-    fn api_free_dict(value: Dict);
-    fn api_free_string(value: NvimString);
-    fn cstr_to_string(str: *const c_char) -> NvimString;
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn op_redoable(op: c_int, redo_yank: bool) -> bool;
-    fn get_op_char(optype: c_int) -> c_int;
-    fn get_extra_op_char(optype: c_int) -> c_int;
-    fn op_self_select(cap: *const cmdarg_T) -> bool;
-    fn get_last_insert_save() -> *mut c_char;
-    fn reg_max_ts(clipboard: bool) -> Timestamp;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;

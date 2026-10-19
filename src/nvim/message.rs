@@ -11,9 +11,21 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::callback_call;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_sleep;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::log::log_get_stderr;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::option::shortmess;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll, ui_call_msg_showmode,
+};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
@@ -34,7 +46,6 @@ use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cursor::linenr_T;
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
 use crate::drawscreen::{redraw_all_later, redraw_later, set_must_redraw};
-use crate::eval::deprecated::Callback;
 use crate::eval::typval::tv_clear;
 use crate::eval::vars::{
     VV_ERRMSG, VV_SCROLLSTART, VV_STATUSMSG, VV_WARNINGMSG, get_vim_var_str, set_vim_var_string,
@@ -275,16 +286,8 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
-    fn shortmess(x: c_int) -> bool;
-    fn do_sleep(msec: i64, hide_cursor: bool);
     fn check_timestamps(focus: c_int) -> c_int;
     fn estack_sfile(which: estack_arg_T) -> *mut c_char;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
 
     #[doc(hidden)]
     pub fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -297,8 +300,6 @@ unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
     fn strnlen(s: *const c_char, maxlen: usize) -> usize;
 
-    fn log_get_stderr() -> *mut FILE;
-
     fn ui_call_msg_set_pos(
         grid: Integer,
         row: Integer,
@@ -306,17 +307,6 @@ unsafe extern "C" {
         sep_char: NvimString,
         zindex: Integer,
         compindex: Integer,
-    );
-    fn ui_call_grid_resize(grid: Integer, width: Integer, height: Integer);
-    fn ui_call_grid_destroy(grid: Integer);
-    fn ui_call_grid_scroll(
-        grid: Integer,
-        top: Integer,
-        bot: Integer,
-        left: Integer,
-        right: Integer,
-        rows: Integer,
-        cols: Integer,
     );
     fn ui_call_msg_show(
         kind: NvimString,
@@ -327,7 +317,6 @@ unsafe extern "C" {
         id: Object,
         trigger: NvimString,
     );
-    fn ui_call_msg_showmode(content: Array);
     fn ui_call_msg_history_show(entries: Array, prev_cmd: Boolean);
 }
 

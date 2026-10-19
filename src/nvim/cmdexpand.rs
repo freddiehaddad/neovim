@@ -14,10 +14,90 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, cstr_as_string, cstrn_to_string,
+};
+#[allow(unused_imports)]
+use crate::arglist::get_arglist_name;
+#[allow(unused_imports)]
+use crate::autocmd::{aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name};
+#[allow(unused_imports)]
+use crate::cmdhist::get_history_arg;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::{get_expr_name, get_function_name};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_dict_add_list, tv_dict_add_str_len, tv_dict_alloc_ret, tv_list_alloc,
+    tv_list_alloc_ret, tv_list_append_string, tv_list_unref,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::get_user_var_name;
+#[allow(unused_imports)]
+use crate::eval::{call_func_retlist, call_func_retstr};
+#[allow(unused_imports)]
+use crate::ex_cmds::skip_vimgrep_pat;
+#[allow(unused_imports)]
+use crate::ex_docmd::{
+    ends_excmd, expand_argopt, expand_findfunc, find_nextcmd, get_command_name, set_no_hlsearch,
+    skip_cmd_arg, skip_range,
+};
+#[allow(unused_imports)]
+use crate::ex_getln::{
+    cmd_screencol, cursorcmd, escape_fname, get_cmdline_info, get_cmdline_last_prompt_id,
+    parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff, redrawcmd, tilde_replace,
+    vim_strsave_fnameescape,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::insexpand::find_word_end;
+#[allow(unused_imports)]
+use crate::lua::executor::{
+    nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
+};
+#[allow(unused_imports)]
+use crate::menu::{get_menu_name, get_menu_names};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
+    msg_puts, msg_puts_hl, msg_scroll_up, msg_start,
+};
+#[allow(unused_imports)]
+use crate::option::{
+    ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, csh_like_shell,
+    get_findfunc, set_context_in_set_cmd,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::profile::{get_profile_name, set_context_in_profile_cmd};
+#[allow(unused_imports)]
+use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree};
+#[allow(unused_imports)]
+use crate::search::ignorecase;
+#[allow(unused_imports)]
+use crate::sign::{get_sign_name, set_context_in_sign_cmd};
+#[allow(unused_imports)]
+use crate::strings::{sort_strings, strcase_save, vim_strchr, vim_strsave_escaped, xstrnsave};
+#[allow(unused_imports)]
+use crate::syntax::{
+    get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
+    set_context_in_syntax_cmd,
+};
+#[allow(unused_imports)]
+use crate::ui::{ui_flush, ui_has, vim_beep};
+#[allow(unused_imports)]
+use crate::usercmd::{
+    get_user_cmd_addr_type, get_user_cmd_complete, get_user_cmd_flags, get_user_cmd_nargs,
+    get_user_commands, set_context_in_user_cmd, set_context_in_user_cmdarg,
+};
+#[allow(unused_imports)]
+use crate::window::{global_stl_height, last_status};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -29,7 +109,7 @@ use crate::charset::{
     transchar_byte, vim_isfilec_or_wc, vim_strsize,
 };
 use crate::clipboard::{VarType, list_T, typval_T};
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::linenr_T;
 use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, EvalFuncData};
@@ -45,11 +125,10 @@ use crate::help::{cleanup_help_tags, find_help_tags};
 use crate::input::{char_avail, vpeekc};
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::map_glyph_cache::NvimString;
-use crate::r#match::regprog_T;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
-use crate::memory::{Arena, xfree, xmalloc, xmemcpyz, xmemdupz, xstpcpy, xstrdup};
+use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstpcpy, xstrdup};
 use crate::menu::menu_is_separator;
 use crate::os::env::{
     env_name_len, expand_T, expand_env_save_opt, get_env_name, home_replace, vim_getenv,
@@ -1004,102 +1083,16 @@ static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn beep_flush();
-    fn vim_beep(val: c_uint);
-
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_flush();
-
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str_arg: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_outtrans_long(str_arg: *const c_char, hl_id: c_int);
-    fn msg_advance(col: c_int);
-    fn msg_clr_eos();
-    fn msg_start();
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_scroll_up(may_throttle: bool, zerocmd: bool);
-
-    fn get_cmdline_info() -> *mut CmdlineInfo;
-    fn get_cmdline_last_prompt_id() -> c_uint;
-    fn realloc_cmdbuff(len: c_int);
-    fn redrawcmd();
-    fn cursorcmd();
-    fn cmd_screencol(bytepos: c_int) -> c_int;
-    fn put_on_cmdline(str_arg: *const c_char, len: c_int, redraw: bool);
-    fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut c_char;
-    fn escape_fname(pp: *mut *mut c_char);
-    fn tilde_replace(orig_pat: *mut c_char, num_files: c_int, files: *mut *mut c_char);
-    fn parse_pattern_and_range(
-        incsearch_start: *mut pos_T,
-        search_delim: *mut c_int,
-        skiplen: *mut c_int,
-        patlen: *mut c_int,
-        is_magic: *mut bool,
-    ) -> bool;
 
     fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T;
     fn excmd_get_argt(idx: cmdidx_T) -> u32;
-    fn skip_range(cmd: *const c_char, ctx: *mut c_int) -> *mut c_char;
-    fn skip_cmd_arg(p: *mut c_char, rembs: bool) -> *mut c_char;
-    fn expand_argopt(
-        pat: *mut c_char,
-        xp: *mut expand_T,
-        rmp: *mut regmatch_T,
-        matches: *mut *mut *mut c_char,
-        numMatches: *mut c_int,
-    ) -> c_int;
-    fn ends_excmd(c: c_int) -> c_int;
-    fn find_nextcmd(p: *const c_char) -> *mut c_char;
-    fn get_command_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn expand_findfunc(
-        xp: *mut expand_T,
-        pat: *mut c_char,
-        files: *mut *mut *mut c_char,
-        numMatches: *mut c_int,
-    ) -> c_int;
-    fn set_no_hlsearch(flag: bool);
 
-    fn skip_vimgrep_pat(p: *mut c_char, s: *mut *mut c_char, flags: *mut c_int) -> *mut c_char;
-    fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn ignorecase(pat: *mut c_char) -> c_int;
-
-    fn get_findfunc() -> *mut Callback;
-    fn set_context_in_set_cmd(xp: *mut expand_T, arg: *mut c_char, opt_flags: c_int);
-    fn ExpandSettings(
-        xp: *mut expand_T,
-        regmatch: *mut regmatch_T,
-        fuzzystr: *mut c_char,
-        numMatches: *mut c_int,
-        matches: *mut *mut *mut c_char,
-        can_fuzzy: bool,
-    ) -> c_int;
-    fn ExpandOldSetting(numMatches: *mut c_int, matches: *mut *mut *mut c_char) -> c_int;
-    fn ExpandStringSetting(
-        xp: *mut expand_T,
-        regmatch: *mut regmatch_T,
-        numMatches: *mut c_int,
-        matches: *mut *mut *mut c_char,
-    ) -> c_int;
-    fn ExpandSettingSubtract(
-        xp: *mut expand_T,
-        regmatch: *mut regmatch_T,
-        numMatches: *mut c_int,
-        matches: *mut *mut *mut c_char,
-    ) -> c_int;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn csh_like_shell() -> c_int;
 
     fn ExpandBufnames(
         pat: *mut c_char,
@@ -1108,31 +1101,7 @@ unsafe extern "C" {
         options: c_int,
     ) -> c_int;
 
-    fn set_context_in_syntax_cmd(xp: *mut expand_T, arg: *const c_char);
-    fn set_context_in_echohl_cmd(xp: *mut expand_T, arg: *const c_char);
-    fn reset_expand_highlight();
-    fn get_syntax_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_syntime_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn set_context_in_highlight_cmd(xp: *mut expand_T, arg: *const c_char);
-    fn get_highlight_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-
-    fn aucmd_set_expand_context(
-        xp: *mut expand_T,
-        arg: *mut c_char,
-        doautocmd: bool,
-    ) -> *mut c_char;
-    fn expand_get_event_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn expand_get_augroup_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-
-    fn get_history_arg(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_arglist_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
     fn get_users(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_sign_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char);
-    fn get_profile_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn set_context_in_profile_cmd(xp: *mut expand_T, arg: *const c_char);
-    fn get_menu_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_menu_names(xp: *mut expand_T, idx: c_int) -> *mut c_char;
     fn set_context_in_menu_cmd(
         xp: *mut expand_T,
         cmd: *const c_char,
@@ -1162,20 +1131,6 @@ unsafe extern "C" {
         xp: *mut expand_T,
         complp: *mut c_int,
     ) -> *mut c_char;
-    fn set_context_in_user_cmd(xp: *mut expand_T, arg_in: *const c_char) -> *const c_char;
-    fn set_context_in_user_cmdarg(
-        cmd: *const c_char,
-        arg: *const c_char,
-        argt: u32,
-        context: c_int,
-        xp: *mut expand_T,
-        forceit: bool,
-    ) -> *const c_char;
-    fn get_user_commands(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_user_cmd_addr_type(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_user_cmd_flags(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_user_cmd_nargs(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_user_cmd_complete(xp: *mut expand_T, idx: c_int) -> *mut c_char;
 
     fn set_context_in_runtime_cmd(xp: *mut expand_T, arg: *const c_char);
     fn ExpandRTDir(
@@ -1196,67 +1151,16 @@ unsafe extern "C" {
         matches: *mut *mut *mut c_char,
     ) -> c_int;
 
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
-    fn sort_strings(files: *mut *mut c_char, count: c_int);
-    fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char;
-    fn find_word_end(ptr: *mut c_char) -> *mut c_char;
-
     fn set_context_for_expression(xp: *mut expand_T, arg: *mut c_char, cmdidx: cmdidx_T);
-    fn call_func_retstr(func: *const c_char, argc: c_int, argv: *mut typval_T) -> *mut c_void;
-    fn call_func_retlist(func: *const c_char, argc: c_int, argv: *mut typval_T) -> *mut c_void;
-    fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-    fn get_expr_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
     fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-
-    fn nlua_expand_pat(xp: *mut expand_T);
-    fn nlua_expand_get_matches(num_results: *mut c_int, results: *mut *mut *mut c_char) -> c_int;
-    fn nlua_call_user_expand_func(xp: *mut expand_T, ret_tv: *mut typval_T);
-    fn nlua_exec(
-        str_arg: NvimString,
-        chunkname: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-
-    fn cstr_as_string(str_arg: *const c_char) -> NvimString;
-    fn cstrn_to_string(str_arg: *const c_char, maxsize: usize) -> NvimString;
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
-
-    fn last_status(morewin: bool);
-    fn global_stl_height() -> c_int;
 
     fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_get_bool_chk(tv: *const typval_T, denote: *mut bool) -> i64;
-    fn tv_clear(tv: *mut typval_T);
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_unref(l: *mut list_T);
-    fn tv_list_append_string(l: *mut list_T, str_arg: *const c_char, len: isize);
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn qsort(
         base: *mut c_void,
         nmemb: usize,

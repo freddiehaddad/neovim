@@ -13,10 +13,36 @@
     clippy::needless_range_loop
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_object};
+#[allow(unused_imports)]
+use crate::api::vimscript::nvim_command;
+#[allow(unused_imports)]
+use crate::arglist::{arg_all, check_arg_idx};
+#[allow(unused_imports)]
+use crate::autocmd::{
+    apply_autocmds, apply_autocmds_win, check_nomodeline, do_augroup, do_doautocmd, getnextac,
+    has_event, may_trigger_vim_suspend_resume,
+};
+#[allow(unused_imports)]
+use crate::buffer::{bt_prompt, bt_quickfix, bufref_valid, get_highest_fnum, set_bufref};
+#[allow(unused_imports)]
+use crate::channel::channel_event;
+#[allow(unused_imports)]
+use crate::cmdexpand::expand_process_user_list;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_free, tv_clear, tv_dict_add_str, tv_dict_alloc, tv_list_alloc_ret,
+    tv_list_append_allocated_string, tv_list_find, tv_list_free,
+};
+#[allow(unused_imports)]
+use crate::eval::{callback_call, eval_to_string, get_copyID};
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::message::{semsg, smsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::ui::{ui_call_error_exit, ui_call_suspend};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -33,7 +59,7 @@ use crate::charset::{
     skipwhite,
 };
 use crate::clipboard::{
-    TypvalVval, VarType, end_batch_changes, list_T, listitem_T, start_batch_changes, typval_T,
+    TypvalVval, VarType, end_batch_changes, list_T, start_batch_changes, typval_T,
 };
 use crate::cmdexpand::{CompleteListItemGetter, ExpandGeneric, ExpandInit, ExpandOne, cmdidx_T};
 use crate::context::{ctx_did_chdir, is_ctx_win};
@@ -749,13 +775,9 @@ unsafe extern "C" {
         diffmode: bool,
         curtab_only: bool,
     ) -> c_int;
-    fn bt_quickfix(buf: *const buf_T) -> bool;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
     fn buf_hide(buf: *const buf_T) -> bool;
     fn buf_spname(buf: *mut buf_T) -> *mut c_char;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
     fn no_write_message();
     fn do_bufdel(
         command: c_int,
@@ -766,7 +788,6 @@ unsafe extern "C" {
         forceit: c_int,
     ) -> *mut c_char;
     fn goto_buffer(eap: *mut exarg_T, start: c_int, dir: c_int, count: c_int);
-    fn get_highest_fnum() -> c_int;
     fn do_modelines(flags: c_int);
     fn maketitle();
     fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr_T) -> *mut buf_T;
@@ -776,76 +797,26 @@ unsafe extern "C" {
         sfname_arg: *mut c_char,
         message: bool,
     ) -> c_int;
-    fn arg_all() -> *mut c_char;
-    fn check_arg_idx(win: *mut win_T);
 
-    fn has_event(event: event_T) -> bool;
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn apply_autocmds_win(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-        win: *mut win_T,
-    ) -> bool;
     fn do_autocmd(eap: *mut exarg_T, arg_in: *mut c_char, forceit: c_int);
-    fn do_augroup(arg: *mut c_char, del_group: bool);
-    fn check_nomodeline(argp: *mut *mut c_char) -> bool;
-    fn do_doautocmd(arg_start: *mut c_char, do_msg: bool, did_something: *mut bool) -> c_int;
-    fn may_trigger_vim_suspend_resume(suspend: bool);
-    fn getnextac(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
 
-    fn eval_to_string(arg: *mut c_char, join_list: bool, use_simple_function: bool) -> *mut c_char;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-    fn callback_free(callback: *mut Callback);
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,
         ht_stack: *mut *mut c_void,
         list_stack: *mut *mut c_void,
     ) -> bool;
-    fn get_copyID() -> c_int;
     fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
 
-    fn tv_clear(tv: *mut typval_T);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_allocated_string(l: *mut list_T, str_: *mut c_char);
     fn tv_list_copy(
         conv: *const c_void,
         orig: *mut list_T,
         deep: bool,
         copyID: c_int,
     ) -> *mut list_T;
-    fn tv_list_find(l: *mut list_T, n: c_int) -> *mut listitem_T;
     fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char;
-    fn tv_list_free(l: *mut list_T);
-    fn expand_process_user_list(
-        retlist: *mut list_T,
-        matches: *mut *mut *mut c_char,
-        numMatches: *mut c_int,
-        xp: *mut expand_T,
-    );
 
     fn channel_job_start(
         argv: *mut *mut c_char,
@@ -864,12 +835,6 @@ unsafe extern "C" {
         env: *mut dict_T,
         status_out: *mut varnumber_T,
     ) -> *mut Channel;
-    fn channel_event(chan: *mut Channel, event: event_T);
-    fn nvim_command(cmd: NvimString, err: *mut Error);
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
-    fn ui_call_error_exit(status: Integer);
-    fn ui_call_suspend();
     fn readfile(
         fname: *mut c_char,
         sfname: *mut c_char,

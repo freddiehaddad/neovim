@@ -14,6 +14,8 @@
 use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
+#[allow(unused_imports)]
+use crate::charset::str_foldcase;
 use crate::charset::{
     check_isopt, getdigits_int, getdigits_int32, parse_isopt, skiptowhite, skipwhite, vim_isprintc,
     vim_iswordp_buf,
@@ -24,6 +26,8 @@ use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redr
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, syn_time_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
+#[allow(unused_imports)]
+use crate::ex_docmd::{check_nextcmd, do_cmdline_cmd, ends_excmd, find_nextcmd};
 use crate::fold::foldmethodIsSyntax;
 use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
@@ -41,6 +45,11 @@ use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
+    msg_putchar, msg_puts, msg_puts_hl, msg_puts_title,
+};
 use crate::option_vars::*;
 use crate::optionstr::clear_string_option;
 use crate::os::env::expand_T;
@@ -52,13 +61,20 @@ use crate::profile::{
     profile_add, profile_cmp, profile_divide, profile_end, profile_msg, profile_start,
     profile_zero, proftime_T,
 };
+#[allow(unused_imports)]
+use crate::regexp::{
+    ref_extmatch, skip_regexp, unref_extmatch, vim_regcomp, vim_regcomp_had_eol, vim_regexec,
+    vim_regexec_multi, vim_regfree,
+};
 use crate::runtime::{DIP_ALL, DOSO_NONE};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type disptick_T = u64;
-pub type regprog_T = c_void;
+pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -377,45 +393,13 @@ static mut expand_what: c_int = EXP_SUBCMD;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_puts_title(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_outnum(n: c_int);
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_outtrans_len(str_: *const c_char, len: c_int, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_advance(col: c_int);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
 
-    fn ref_extmatch(em: *mut reg_extmatch_T) -> *mut reg_extmatch_T;
-    fn unref_extmatch(em: *mut reg_extmatch_T);
-    fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regcomp_had_eol() -> c_int;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regexec_multi(
-        rmp: *mut regmmatch_T,
-        win: *mut win_T,
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        tm: *mut proftime_T,
-        timed_out: *mut c_int,
-    ) -> c_int;
-
-    fn find_nextcmd(p: *const c_char) -> *mut c_char;
-    fn check_nextcmd(p: *mut c_char) -> *mut c_char;
-    fn ends_excmd(c: c_int) -> c_int;
     fn separate_nextcmd(eap: *mut exarg_T);
     fn expand_filename(
         eap: *mut exarg_T,
         cmdlinep: *mut *mut c_char,
         errormsgp: *mut *const c_char,
     ) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn foldUpdateAll(win: *mut win_T);
     fn do_source(
         fname: *mut c_char,
@@ -424,13 +408,8 @@ unsafe extern "C" {
         ret_sid: *mut c_int,
     ) -> c_int;
     fn source_runtime(name: *mut c_char, flags: c_int) -> c_int;
-    fn str_foldcase(str_: *mut c_char, len: c_int, buf: *mut c_char, buflen: c_int) -> *mut c_char;
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strsave_up(string: *const c_char) -> *mut c_char;
-    fn vim_strnsave_up(string: *const c_char, len: usize) -> *mut c_char;
     #[cfg(windows)]
     fn vim_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
     #[cfg(not(windows))]

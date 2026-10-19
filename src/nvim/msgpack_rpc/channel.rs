@@ -11,9 +11,19 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_dict, api_free_object, copy_dict};
+#[allow(unused_imports)]
+use crate::api::ui::remote_ui_flush_pending_data;
+#[allow(unused_imports)]
+use crate::channel::{channel_close, channel_decref, channel_event, channel_incref};
+#[allow(unused_imports)]
+use crate::event::proc::exit_on_closed_chan;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -250,7 +260,7 @@ pub struct ChannelTail {
     pub is_rpc: bool,
     pub detach: bool,
     pub rpc: RpcState,
-    pub term: *mut c_void,
+    pub term: *mut crate::terminal::Terminal,
     pub on_data: CallbackReader,
     pub on_stderr: CallbackReader,
     pub on_exit: Callback,
@@ -275,16 +285,7 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn channel_incref(chan: *mut Channel);
-    fn channel_decref(chan: *mut Channel);
-    fn channel_close(id: u64, part: ChannelPart, error: *mut *const c_char) -> bool;
-    fn channel_event(chan: *mut Channel, event: event_T);
-
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
-    fn api_free_dict(value: Dict);
-    fn copy_dict(d: Dict, arena: *mut Arena) -> Dict;
 
     fn handle_nvim_get_mode(
         channel_id: u64,
@@ -305,11 +306,7 @@ unsafe extern "C" {
         error: *mut Error,
     ) -> Object;
 
-    fn ui_client_event_raw_line(g: *mut GridLineEvent);
-    fn ui_client_attach_to_restarted_server(error_restart: bool);
     fn remote_ui_disconnect(channel_id: u64, arena: *mut Arena, do_free: bool);
-    fn remote_ui_flush_pending_data(ui: *mut RemoteUI);
-    fn exit_on_closed_chan(status: c_int);
 
     #[cfg(windows)]
     fn os_detach_ui_console(stdio_chan: bool);
@@ -710,10 +707,9 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
                     if (*p).has_grid_line_event {
                         ui_client_event_raw_line(&raw mut (*p).grid_line_event);
                         (*p).has_grid_line_event = false;
-                    } else if !(*p).ui_handler.fn_ptr.is_null()
+                    } else if let Some(ui_fn) = (*p).ui_handler.r#fn
                         && (*p).result.obj_type == ObjectType::kObjectTypeArray
                     {
-                        let ui_fn: UIEventHandlerFn = std::mem::transmute((*p).ui_handler.fn_ptr);
                         ui_fn((*p).result.data.array);
                     }
                 }
@@ -780,7 +776,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
                 || (*p).msg_type == MessageType::kMessageTypeNotification
         );
 
-        if (*p).handler.fn_ptr.is_null() {
+        if (*p).handler.r#fn.is_none() {
             send_error(
                 channel,
                 (*p).handler,
@@ -812,7 +808,8 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
 
         if (*p).handler.fast {
             #[cfg(not(test))]
-            let is_get_mode = (*p).handler.fn_ptr == (handle_nvim_get_mode as *const c_void);
+            let is_get_mode = (*p).handler.r#fn.map(|f| f as *const c_void)
+                == Some(handle_nvim_get_mode as *const c_void);
             #[cfg(test)]
             let is_get_mode = false;
 
@@ -825,7 +822,8 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
             }
         } else {
             #[cfg(not(test))]
-            let is_resize = (*p).handler.fn_ptr == (handle_nvim_ui_try_resize as *const c_void);
+            let is_resize = (*p).handler.r#fn.map(|f| f as *const c_void)
+                == Some(handle_nvim_ui_try_resize as *const c_void);
             #[cfg(test)]
             let is_resize = false;
 
@@ -862,7 +860,7 @@ unsafe extern "C" fn request_event(argv: *mut *mut c_void) {
         };
 
         if !(*ct).rpc.closed {
-            let fn_call: RequestHandlerFn = std::mem::transmute(handler.fn_ptr);
+            let fn_call = handler.r#fn.unwrap();
             let mut result = fn_call((*cp).id, (*e).args, &raw mut (*e).used_mem, &raw mut error);
             if (*e).r#type == MessageType::kMessageTypeRequest
                 || error.err_type != ErrorType::kErrorTypeNone
@@ -1213,7 +1211,8 @@ pub unsafe extern "C" fn serialize_response(
             && r#type == MessageType::kMessageTypeNotification
         {
             #[cfg(not(test))]
-            let is_paste = handler.fn_ptr == (handle_nvim_paste as *const c_void);
+            let is_paste = handler.r#fn.map(|f| f as *const c_void)
+                == Some(handle_nvim_paste as *const c_void);
             #[cfg(test)]
             let is_paste = false;
 

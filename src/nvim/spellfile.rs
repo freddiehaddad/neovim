@@ -16,7 +16,7 @@ use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::arglist::get_arglist_exp;
 use crate::charset::{getdigits_int, skipdigits, skipwhite};
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
@@ -34,16 +34,26 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, verbose_enter, verbose_leave,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
 use crate::os::time::{Timestamp, os_time};
+#[allow(unused_imports)]
+use crate::path::FreeWild;
 use crate::path::{
     dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail, path_tail_with_sep,
     vim_ispathsep,
 };
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
     byte_in_str, captype, clear_spell_chartab, close_spellbuf, count_common_word, did_set_spelltab,
@@ -52,13 +62,19 @@ use crate::spell::{
     slang_free, spell_casefold, spell_enc, spell_soundfold, spelltab,
 };
 use crate::spellsuggest::{fromto_T, idx_T, langp_T, salfirst_T, salitem_T, slang_T, spelltab_T};
+#[allow(unused_imports)]
+use crate::strings::{has_non_ascii, vim_strchr};
+#[allow(unused_imports)]
+use crate::ui::ui_flush;
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type SpellAddType = c_int;
 pub type OptIndex = c_int;
-pub type regprog_T = c_void;
+pub use crate::regexp::regprog_T;
 pub type FILE = c_void;
 pub type time_t = i64;
 
@@ -345,17 +361,7 @@ struct spellinfo_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_start();
-    fn msg_puts(s: *const c_char);
-    fn msg_outtrans_long(str_: *const c_char, hl_id: c_int);
-    fn msg_clr_eos();
-    fn verbose_enter();
-    fn verbose_leave();
-    fn FreeWild(count: c_int, files: *mut *mut c_char);
     fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
-    fn bufIsChanged(buf: *mut buf_T) -> bool;
     fn home_replace(
         buf: *mut buf_T,
         src: *const c_char,
@@ -363,23 +369,12 @@ unsafe extern "C" {
         dstlen: usize,
         one: bool,
     ) -> usize;
-    fn has_non_ascii(s: *const c_char) -> bool;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec_prog(
-        prog: *mut *mut regprog_T,
-        ignore_case: bool,
-        line: *const c_char,
-        col: colnr_T,
-    ) -> bool;
-    fn ui_flush();
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn get2c(fd: *mut FILE) -> c_int;
     fn get3c(fd: *mut FILE) -> c_int;
@@ -390,7 +385,6 @@ unsafe extern "C" {
     fn put_time(fd: *mut FILE, time_: time_t) -> c_int;
     fn vim_tempname() -> *mut c_char;
     fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 
     fn atoi(s: *const c_char) -> c_int;

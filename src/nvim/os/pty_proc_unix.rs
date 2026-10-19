@@ -11,6 +11,8 @@
 )]
 
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::fs::os_set_cloexec;
 use std::ffi::{c_char, c_int, c_ulong, c_ushort, c_void};
 use std::ptr;
 
@@ -263,7 +265,6 @@ mod unix_impl {
         fn uv_chdir(dir: *const c_char) -> c_int;
         fn uv_strerror(err: c_int) -> *const c_char;
 
-        fn os_set_cloexec(fd: c_int) -> c_int;
         fn tv_dict_to_env(denv: *mut dict_T) -> *mut *mut c_char;
 
         fn forkpty(

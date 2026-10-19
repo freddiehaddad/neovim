@@ -10,17 +10,52 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
+#[allow(unused_imports)]
+use crate::charset::{rem_backslash, skipwhite};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_get_number, tv_get_number_chk, tv_list_alloc_ret, tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::ex_getln::gotocmdline;
+#[allow(unused_imports)]
+use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mark::{setmark, setpcmark};
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[allow(unused_imports)]
+use crate::os::input::os_breakcheck;
+#[allow(unused_imports)]
+use crate::path::{
+    FreeWild, FullName_save, expand_wildcards, fix_fname, gen_expand_wildcards, path_equal,
+};
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
+#[allow(unused_imports)]
+use crate::version::list_in_columns;
+#[allow(unused_imports)]
+use crate::window::{
+    check_can_set_curbuf_forceit, goto_tabpage_tp, lastwin_nofloating, tabpage_index,
+    valid_tabpage, win_close, win_enter, win_move_after, win_split, win_valid,
+};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::bufref_T;
-use crate::clipboard::{VarType, list_T, typval_T};
+use crate::clipboard::{VarType, typval_T};
 use crate::cmdhist::regmatch_T;
 use crate::context::is_ctx_win;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
@@ -33,8 +68,8 @@ pub type colnr_T = i32;
 pub type linenr_T = i32;
 pub type varnumber_T = i64;
 pub type OptInt = i64;
-pub type regprog_T = c_void;
-pub type expand_T = c_void;
+pub use crate::os::env::expand_T;
+pub use crate::regexp::regprog_T;
 pub type PathCmpFlags = c_int;
 
 const NUL: c_char = 0;
@@ -116,45 +151,10 @@ static mut arglist_locked: bool = false;
 
 unsafe extern "C" {
 
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn expand_wildcards(
-        num_pat: c_int,
-        pat: *mut *mut c_char,
-        num_file: *mut c_int,
-        file: *mut *mut *mut c_char,
-        flags: c_int,
-    ) -> c_int;
-    fn gen_expand_wildcards(
-        num_pat: c_int,
-        pat: *mut *mut c_char,
-        num_file: *mut c_int,
-        file: *mut *mut *mut c_char,
-        flags: c_int,
-    ) -> c_int;
-    fn FreeWild(count: c_int, files: *mut *mut c_char);
-    fn os_breakcheck();
     fn buf_set_name(fnum: c_int, name: *const c_char);
     fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int;
-    fn rem_backslash(str_: *const c_char) -> bool;
-    fn skipwhite(q: *const c_char) -> *mut c_char;
-    fn file_pat_to_reg_pat(
-        pat: *const c_char,
-        pat_end: *const c_char,
-        allow_dirs: *mut c_char,
-        no_bslash: c_int,
-    ) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn path_equal(s1: *const c_char, s2: *const c_char, flags: PathCmpFlags) -> bool;
-    fn gotocmdline(clr: bool);
-    fn list_in_columns(items: *mut *mut c_char, count: c_int, curr: c_int);
-    fn check_can_set_curbuf_forceit(forceit: c_int) -> bool;
-    fn setpcmark();
-    fn win_split(size: c_int, flags: c_int) -> c_int;
     fn buf_hide(buf: *const buf_T) -> bool;
-    fn fix_fname(fname: *const c_char) -> *mut c_char;
     fn otherfile(ffname: *mut c_char) -> bool;
     fn do_ecmd(
         fnum: c_int,
@@ -165,32 +165,9 @@ unsafe extern "C" {
         flags: c_int,
         oldwin: *mut win_T,
     ) -> c_int;
-    fn setmark(c: c_int) -> c_int;
-    fn FullName_save(fname: *const c_char, force: bool) -> *mut c_char;
     fn curbuf_reusable() -> bool;
     fn maketitle();
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn goto_tabpage_tp(
-        tp: *mut tabpage_T,
-        trigger_enter_autocmds: bool,
-        trigger_leave_autocmds: bool,
-    );
-    fn bufIsChanged(buf: *mut buf_T) -> bool;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-    fn buf_is_empty(buf: *mut buf_T) -> bool;
-    fn win_move_after(wp1: *mut win_T, wp2: *mut win_T);
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
-    fn reset_VIsual_and_resel();
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn lastwin_nofloating(tp: *mut tabpage_T) -> *mut win_T;
-    fn tv_get_number(tv: *const typval_T) -> varnumber_T;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
 }
 
 #[inline]

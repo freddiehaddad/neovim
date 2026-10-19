@@ -8,8 +8,30 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::charset::getdigits_int32;
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_all_later;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_free;
+#[allow(unused_imports)]
+use crate::eval::typval_tostring;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
+#[allow(unused_imports)]
+use crate::ex_getln::{getcmdline_prompt, getexline};
+#[allow(unused_imports)]
+use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{restore_typeahead, save_typeahead};
+#[allow(unused_imports)]
+use crate::message::{emsg, msg, msg_starthere};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::os::env::expand_env_save;
+#[allow(unused_imports)]
+use crate::path::fix_fname;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -93,7 +115,7 @@ pub struct debuggy {
     pub dbg_nr: c_int,
     pub dbg_type: c_int,
     pub dbg_name: *mut c_char,
-    pub dbg_prog: *mut c_void,
+    pub dbg_prog: *mut crate::regexp::regprog_T,
     pub dbg_lnum: i32,
     pub dbg_forceit: c_int,
     pub dbg_val: *mut typval_T,
@@ -129,46 +151,14 @@ pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, boo
 unsafe extern "C" {
 
     fn estack_sfile(which: c_int) -> *mut c_char;
-    fn save_typeahead(tp: *mut tasave_T);
-    fn restore_typeahead(tp: *mut tasave_T);
-    fn getcmdline_prompt(
-        firstc: c_int,
-        prompt: *const c_char,
-        hl_id: c_int,
-        xp_context: c_int,
-        xp_arg: *const c_char,
-        highlight_callback: Callback,
-        one_key: bool,
-        mouse_used: *mut bool,
-    ) -> *mut c_char;
-    fn getexline(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn redraw_all_later(upd_type: c_int);
 
     fn eval_expr(arg: *mut c_char, eap: *mut c_void) -> *mut typval_T;
-    fn tv_free(tv: *mut typval_T);
-    fn typval_tostring(arg: *mut typval_T, quotes: bool) -> *mut c_char;
     fn typval_compare(typ1: *mut typval_T, typ2: *mut typval_T, etype: c_int, ic: bool) -> c_int;
 
-    fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32;
-    fn expand_env_save(src: *mut c_char) -> *mut c_char;
-    fn fix_fname(fname: *const c_char) -> *mut c_char;
-    fn file_pat_to_reg_pat(
-        pat: *const c_char,
-        pat_end: *const c_char,
-        allow_dirs: *mut c_char,
-        no_bslash: c_int,
-    ) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
-    fn vim_regfree(prog: *mut c_void);
+    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
+    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
     fn vim_regexec_prog(
-        prog: *mut *mut c_void,
+        prog: *mut *mut crate::regexp::regprog_T,
         ignore_case: bool,
         line: *const c_char,
         col: c_int,
@@ -181,9 +171,6 @@ unsafe extern "C" {
         one: bool,
     ) -> usize;
 
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_starthere();
-    fn emsg(s: *const c_char) -> bool;
 }
 
 #[inline]

@@ -10,10 +10,32 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::eval_to_string;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_get_bool, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_string,
+};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
+#[allow(unused_imports)]
+use crate::ex_getln::putcmdline;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::plain_vgetc;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar};
+#[allow(unused_imports)]
+use crate::normal::add_to_showcmd;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::input::fast_breakcheck;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -1612,34 +1634,13 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 
 unsafe extern "C" {
 
-    fn plain_vgetc() -> c_int;
-    fn putcmdline(c: c_char, shift: bool);
-    fn add_to_showcmd(c: c_int) -> bool;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utf_iscomposing_first(c: c_int) -> bool;
-    fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int;
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
-    fn msg_ext_set_kind(msg_sep: *const c_char);
-    fn msg_advance(col: c_int);
-    fn fast_breakcheck();
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T);
-    fn tv_list_append_string(l: *mut list_T, str: *const c_char, len: isize);
     fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn tv_get_bool(tv: *const typval_T) -> varnumber_T;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn source_runtime(name: *mut c_char, flags: c_int) -> c_int;
-    fn getline_equal(fgetline: LineGetter, cookie: *mut c_void, func: LineGetter) -> bool;
     fn getsourceline(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
     fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int;
-    fn status_redraw_curbuf();
-    fn eval_to_string(arg: *mut c_char, join_list: bool, use_simple_function: bool) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }
 

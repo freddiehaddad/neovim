@@ -16,10 +16,61 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_array, arena_array, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_custom_title_later;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::callback_free;
+#[allow(unused_imports)]
+use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, expr_map_locked, set_no_hlsearch, skip_range, undo_cmdmod};
+#[allow(unused_imports)]
+use crate::ex_eval::aborting;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{beep_flush, map_execute_lua};
+#[allow(unused_imports)]
+use crate::insert::get_literal;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::mbyte::ptr2cells;
+#[allow(unused_imports)]
+use crate::memline::{decl, incl};
 use crate::message::smsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
+    msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
+    sb_text_restart_cmdline, sb_text_start_cmdline,
+};
+#[allow(unused_imports)]
+use crate::mouse::cmdline_mousescroll;
+#[allow(unused_imports)]
+use crate::option::{set_iminsert_global, set_imsearch_global};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::skip_regexp_ex;
+#[allow(unused_imports)]
+use crate::register::get_expr_line;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,
+    ui_call_cmdline_block_show, ui_call_cmdline_pos, ui_call_cmdline_show, ui_cursor_shape,
+    ui_flush, ui_has, vim_beep,
+};
+#[allow(unused_imports)]
+use crate::window::{
+    close_windows, global_stl_height, may_trigger_win_scrolled_resized, win_enter,
+    win_size_restore, win_size_save, win_split,
+};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -383,46 +434,10 @@ unsafe extern "C" {
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
-    fn msg_puts_len(str: *const c_char, maxlen: isize, hl_id: c_int, recurse: bool);
-    fn msg_outtrans_len(str: *const c_char, len: c_int, hl_id: c_int, Zucker: bool) -> c_int;
-    fn msg_starthere();
-    fn msg_start();
-    fn msg_check();
-    fn msg_clr_eos();
-    fn msg_cursor_goto(row: c_int, col: c_int);
-    fn msg_grid_validate();
-    fn sb_text_start_cmdline();
-    fn sb_text_end_cmdline();
-    fn sb_text_restart_cmdline();
-    fn beep_flush();
-    fn vim_beep(val: c_uint);
 
-    fn ui_has(ext: UIExtension) -> bool;
-    fn ui_busy_start();
-    fn ui_busy_stop();
-    fn ui_flush();
-    fn ui_cursor_shape();
-    fn ui_call_cmdline_show(
-        content: Array,
-        pos: Integer,
-        firstc: NvimString,
-        prompt: NvimString,
-        indent: Integer,
-        level: Integer,
-        hl_id: Integer,
-    );
-    fn ui_call_cmdline_pos(pos: Integer, level: Integer);
     fn ui_call_cmdline_special_char(c: NvimString, shift: Boolean, level: Integer);
     fn ui_call_cmdline_hide(level: Integer, abort: Boolean);
-    fn ui_call_cmdline_block_show(lines: Array);
-    fn ui_call_cmdline_block_append(lines: Array);
-    fn ui_call_cmdline_block_hide();
 
-    fn skip_range(cmd: *const c_char, ctx: *mut c_int) -> *mut c_char;
     fn parse_cmd_address(eap: *mut exarg_T, errormsg: *mut *const c_char, silent: bool) -> c_int;
     fn parse_cmdline(
         cmdline: *mut *mut c_char,
@@ -431,77 +446,21 @@ unsafe extern "C" {
         errormsg: *mut *const c_char,
         calculate_only: bool,
     ) -> bool;
-    fn undo_cmdmod(cmod: *mut cmdmod_T);
     fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool) -> c_int;
     fn heredoc_get(eap: *mut exarg_T, cmd: *mut c_char, script_get: bool) -> *mut list_T;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
 
-    fn skip_regexp_ex(
-        startp: *mut c_char,
-        dirc: c_int,
-        magic: c_int,
-        newp: *mut *mut c_char,
-        dropped: *mut c_int,
-        magic_val: *mut magic_T,
-    ) -> *mut c_char;
-
-    fn global_stl_height() -> c_int;
-    fn may_trigger_win_scrolled_resized();
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn win_size_save(gap: *mut garray_T);
-    fn win_size_restore(gap: *mut garray_T);
     fn lastwin_nofloating(ock: *mut win_T) -> *mut win_T;
 
     fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-    fn set_iminsert_global(buf: *mut buf_T);
-    fn set_imsearch_global(buf: *mut buf_T);
     #[cfg(not(windows))]
     fn csh_like_shell() -> c_int;
 
     fn get_expr_register() -> c_int;
-    fn get_expr_line() -> *mut c_char;
-    fn aborting() -> bool;
-    fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-    fn callback_free(callback: *mut Callback);
-    fn get_echo_hl_id() -> c_int;
 
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn api_clear_error(value: *mut Error);
-    fn api_free_array(value: Array);
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-
-    fn nlua_call_typval(
-        module: *const c_char,
-        func: *const c_char,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    );
-
-    fn ptr2cells(p: *const c_char) -> c_int;
-    fn decl(lp: *mut pos_T) -> c_int;
-    fn incl(lp: *mut pos_T) -> c_int;
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
     fn buf_clear();
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn close_windows(buf: *mut buf_T, keep_curwin: bool);
     fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
-    fn redraw_custom_title_later() -> bool;
     fn rename_buffer(new_fname: *const c_char) -> c_int;
-    fn cmdline_mousescroll(dir: c_int) -> bool;
     fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_dict_get_callback(
@@ -521,13 +480,9 @@ unsafe extern "C" {
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
-    fn get_literal(no_simplify: bool) -> c_int;
     fn string_to_key(str: *const c_char) -> c_int;
     fn check_abbr(c: c_int, ptr: *mut c_char, col: c_int, mincol: c_int) -> bool;
-    fn expr_map_locked() -> bool;
-    fn map_execute_lua(may_repeat: bool, is_aborted: bool) -> bool;
     fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool;
-    fn set_no_hlsearch(flag: bool);
     fn parse_command_modifiers(
         eap: *mut exarg_T,
         errormsg: *mut *const c_char,
@@ -535,9 +490,6 @@ unsafe extern "C" {
         skip_only: bool,
     ) -> c_int;
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
     #[cfg(windows)]
     fn vim_strnicmp(s1: *const c_char, s2: *const c_char, len: usize) -> c_int;
     #[cfg(not(windows))]

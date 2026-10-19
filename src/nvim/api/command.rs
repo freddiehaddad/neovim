@@ -10,8 +10,30 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_dict_to_keydict, api_set_sctx, arena_array, arena_dict, arena_string,
+    find_buffer_by_handle, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, has_event};
+#[allow(unused_imports)]
+use crate::ex_docmd::{getargcmd, undo_cmdmod};
+#[allow(unused_imports)]
+use crate::ex_eval::aborting;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, api_new_luaref};
+#[allow(unused_imports)]
+use crate::mbyte::mb_islower;
+#[allow(unused_imports)]
+use crate::register::valid_yank_reg;
 use crate::usercmd::ucmds;
+#[allow(unused_imports)]
+use crate::usercmd::{
+    commands_array, free_ucmd, parse_addr_type_arg, parse_compl_arg, uc_add_command,
+    uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name,
+};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -23,9 +45,8 @@ use crate::api::private::validate::{
     api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::Buffer;
-use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_clear, ga_init, garray_T};
-use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, LuaRef};
+use crate::lua::converter::{Boolean, KeySetLink, LuaRef};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
@@ -182,15 +203,7 @@ pub struct exarg_T {
     pub magic: ExMagic,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct regmatch_T {
-    pub regprog: *mut c_void,
-    pub startp: [*mut c_char; 10],
-    pub endp: [*mut c_char; 10],
-    pub rm_matchcol: colnr_T,
-    pub rm_ic: bool,
-}
+pub use crate::regexp::regmatch_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -324,22 +337,8 @@ unsafe extern "C-unwind" {
 
 unsafe extern "C" {
 
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut Arena, str: NvimString) -> NvimString;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *const c_char;
-    fn api_dict_to_keydict(
-        retval: *mut c_void,
-        hashy: FieldHashfn,
-        dict: Dict,
-        err: *mut Error,
-    ) -> bool;
-    fn api_set_sctx(channel_id: u64) -> sctx_T;
-    fn api_new_luaref(ref_id: LuaRef) -> LuaRef;
-    fn api_free_luaref(ref_id: LuaRef);
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
 
     fn parse_cmdline(
         cmdline: *mut *mut c_char,
@@ -349,75 +348,22 @@ unsafe extern "C" {
         only_range_and_cmd: bool,
     ) -> bool;
     fn is_map_cmd(cmdidx: cmdidx_T) -> bool;
-    fn uc_nargs_upper_bound(arg: *const c_char, len: usize) -> usize;
-    fn uc_split_args_iter(
-        arg: *const c_char,
-        arglen: usize,
-        end: *mut usize,
-        buf: *mut c_char,
-        len: *mut usize,
-    ) -> bool;
     fn get_command_name(xp: *mut c_void, idx: c_int) -> *mut c_char;
-    fn undo_cmdmod(cmod: *mut cmdmod_T);
     fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) -> *mut c_char;
-    fn has_event(event: event_T) -> bool;
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn aborting() -> bool;
     fn is_cmd_ni(cmdidx: cmdidx_T) -> bool;
     fn get_user_command_name(idx: c_int, cmdidx: cmdidx_T) -> *mut c_char;
     fn excmd_get_argt(cmdidx: cmdidx_T) -> u32;
     fn getdigits_long(pp: *mut *const c_char, strict: bool, def: c_long) -> c_long;
     fn invalid_range(eap: *const exarg_T) -> *const c_char;
     fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool);
-    fn valid_yank_reg(regname: c_int, writing: bool) -> bool;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
+    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
     fn replace_makeprg(
         eap: *mut exarg_T,
         p: *mut c_char,
         cmdlinep: *mut *mut c_char,
     ) -> *mut c_char;
     fn getargopt(eap: *mut exarg_T) -> c_int;
-    fn getargcmd(argp: *mut *mut c_char) -> *mut c_char;
     fn execute_cmd(eap: *mut exarg_T, cmdmod: *mut cmdmod_T, preview: bool) -> c_int;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn free_ucmd(cmd: *mut ucmd_T);
-    fn uc_validate_name(name: *mut c_char) -> *mut c_char;
-    fn mb_islower(c: c_int) -> bool;
-    fn parse_addr_type_arg(
-        value: *mut c_char,
-        vallen: c_int,
-        addr_type_arg: *mut cmd_addr_T,
-    ) -> c_int;
-    fn parse_compl_arg(
-        value: *const c_char,
-        vallen: c_int,
-        complp: *mut c_int,
-        argt: *mut u32,
-        compl_arg: *mut *mut c_char,
-    ) -> c_int;
-    fn uc_add_command(
-        name: *mut c_char,
-        name_len: usize,
-        rep: *const c_char,
-        argt: u32,
-        def: i64,
-        flags: c_int,
-        compl: c_int,
-        compl_arg: *mut c_char,
-        compl_luaref: LuaRef,
-        preview_luaref: LuaRef,
-        addr_type_arg: cmd_addr_T,
-        luaref: LuaRef,
-        desc: *const c_char,
-        force: bool,
-    ) -> c_int;
-    fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict;
 }
 
 #[inline]

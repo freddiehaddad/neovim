@@ -334,10 +334,10 @@ pub(super) struct nfa_regprog_T {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct regengine_T {
-    pub regcomp: unsafe fn(*mut u8, c_int) -> *mut regprog_T,
-    pub regfree: unsafe fn(*mut regprog_T),
-    pub regexec_nl: unsafe fn(*mut regmatch_T, *mut u8, colnr_T, bool) -> c_int,
-    pub regexec_multi: unsafe fn(
+    pub regcomp: unsafe extern "C" fn(*mut u8, c_int) -> *mut regprog_T,
+    pub regfree: unsafe extern "C" fn(*mut regprog_T),
+    pub regexec_nl: unsafe extern "C" fn(*mut regmatch_T, *mut u8, colnr_T, bool) -> c_int,
+    pub regexec_multi: unsafe extern "C" fn(
         *mut regmmatch_T,
         *mut win_T,
         *mut buf_T,

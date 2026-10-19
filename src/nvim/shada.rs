@@ -14,9 +14,29 @@
     clippy::unnecessary_cast
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_free_dict, api_free_string};
+#[allow(unused_imports)]
+use crate::buffer::{bt_quickfix, bt_terminal};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
+#[allow(unused_imports)]
+use crate::eval::{get_copyID, var_flavour, var_set_global};
+#[allow(unused_imports)]
+use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
+#[allow(unused_imports)]
+use crate::ex_docmd::set_no_hlsearch;
+#[allow(unused_imports)]
+use crate::fileio::modname;
 use crate::globals::*;
 use crate::message::{semsg, siemsg, smsg};
+#[allow(unused_imports)]
+use crate::message::{verbose_enter, verbose_leave};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::regtilde;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -636,27 +656,13 @@ unsafe extern "C" {
     fn KeyDict__shada_register_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
     fn KeyDict__shada_search_pat_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
 
-    fn var_flavour(varname: *mut c_char) -> var_flavour_T;
-    fn var_set_global(name: *const c_char, vartv: typval_T);
-
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn verbose_enter();
-    fn verbose_leave();
     #[link_name = "uv_strerror"]
     fn os_strerror(err: c_int) -> *const c_char;
 
     fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn tv_clear(varp: *mut typval_T);
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_allocated_string(l: *mut list_T, str_: *mut c_char);
-    fn get_copyID() -> c_int;
     fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
     fn set_ref_in_list_items(l: *mut list_T, copyID: c_int, ht_stack: *mut *mut c_void) -> bool;
-
-    fn set_no_hlsearch(flag: bool);
-    fn sub_get_replacement(ret_sub: *mut SubReplacementString);
-    fn sub_set_replacement(sub: SubReplacementString);
-    fn regtilde(source: *mut c_char, magic: c_int, preview: bool) -> *mut c_char;
 
     fn buflist_new(
         ffname_arg: *mut c_char,
@@ -672,11 +678,8 @@ unsafe extern "C" {
         copy_options: bool,
     );
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn bt_quickfix(buf: *const buf_T) -> bool;
-    fn bt_terminal(buf: *const buf_T) -> bool;
 
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn modname(fname: *const c_char, ext: *const c_char, prepend_dot: bool) -> *mut c_char;
     fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
     fn copy_option_part(
         option: *mut *mut c_char,
@@ -684,10 +687,7 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
 
-    fn api_free_dict(value: Dict);
-    fn api_free_string(value: NvimString);
     fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
 
     #[cfg(unix)]

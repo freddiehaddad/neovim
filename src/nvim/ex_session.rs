@@ -10,10 +10,34 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::vars::get_globvar_dict;
+#[allow(unused_imports)]
+use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
+#[allow(unused_imports)]
+use crate::ex_getln::vim_strsave_fnameescape;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::utfc_ptr2len;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::option::{makefoldset, makeset};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::home_replace_save;
+#[allow(unused_imports)]
+use crate::os::fs::{os_chdir, os_dirname, os_isdir};
+#[allow(unused_imports)]
+use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
+#[allow(unused_imports)]
+use crate::strings::vim_strsave_escaped;
+#[allow(unused_imports)]
+use crate::window::tabpage_index;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -21,7 +45,7 @@ use crate::api::command::exarg_T;
 use crate::api::tabpage::{frame_T, tabpage_T, win_T};
 use crate::arglist::{aentry_T, alist_T, alist_name};
 use crate::clipboard::VarType;
-use crate::eval::decode::{dict_T, dictitem_T};
+use crate::eval::decode::dictitem_T;
 use crate::eval::deprecated::{buf_T, fmark_T};
 use crate::garray::garray_T;
 use crate::hashtab::hashitem_empty;
@@ -81,34 +105,17 @@ static mut did_lcd: bool = false;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn bt_nofilename(buf: *const buf_T) -> bool;
-    fn bt_help(buf: *const buf_T) -> bool;
-    fn bt_terminal(buf: *const buf_T) -> bool;
-    fn bt_normal(buf: *const buf_T) -> bool;
-    fn vim_FullName(fname: *const c_char, buf: *mut c_char, len: usize, force: bool) -> c_int;
-    fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> *mut c_char;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> *mut c_char;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int;
-    fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int;
-    fn makefoldset(fd: *mut FILE) -> c_int;
     fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int;
-    fn get_globvar_dict() -> *mut dict_T;
     fn var_flavour(varname: *mut c_char) -> c_int;
     fn tv_get_string(tv: *const crate::clipboard::typval_T) -> *const c_char;
-    fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
     fn do_source(
         fname: *mut c_char,
         check_other: bool,
         is_vimrc: c_int,
         ret_sid: *mut c_int,
     ) -> c_int;
-    fn os_isdir(name: *const c_char) -> bool;
-    fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int;
-    fn open_exfile(fname: *mut c_char, forceit: c_int, mode: *mut c_char) -> *mut FILE;
     fn apply_autocmds(
         event: c_int,
         fname: *mut c_char,
@@ -116,13 +123,9 @@ unsafe extern "C" {
         force: bool,
         buf: *mut buf_T,
     ) -> bool;
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
-    fn os_chdir(path: *const c_char) -> c_int;
     fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
     fn shorten_fnames(force: c_int);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn vim_ispathsep(c: c_int) -> bool;
-    fn add_pathsep(p: *mut c_char) -> bool;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fwrite(ptr: *const c_void, size: usize, count: usize, stream: *mut FILE) -> usize;

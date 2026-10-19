@@ -10,15 +10,36 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::{redraw_curbuf_later, showmode};
+#[allow(unused_imports)]
+use crate::eval::funcs::do_searchpair;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::indent::inindent;
+#[allow(unused_imports)]
+use crate::insert::oneleft;
+#[allow(unused_imports)]
+use crate::mark::setpcmark;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
+#[allow(unused_imports)]
+use crate::r#move::adjust_skipcol;
+#[allow(unused_imports)]
+use crate::normal::unadjust_for_sel;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::search::{findmatch, findmatchlimit, linewhite};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::api::tabpage::win_T;
 use crate::charset::skipwhite;
-use crate::clipboard::typval_T;
 use crate::cursor::{
     coladvance, colnr_T, dec_cursor, gchar_cursor, get_cursor_line_ptr, get_cursor_pos_ptr,
     inc_cursor, linenr_T,
@@ -48,46 +69,12 @@ static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "C" {
 
-    fn incl(lp: *mut pos_T) -> c_int;
-    fn decl(lp: *mut pos_T) -> c_int;
-    fn inc(lp: *mut pos_T) -> c_int;
-    fn dec(lp: *mut pos_T) -> c_int;
-    fn gchar_pos(pos: *mut pos_T) -> c_int;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_get_pos(pos: *const pos_T) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn setpcmark();
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
-    fn utf_class(c: c_int) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn mb_prevptr(line: *mut c_char, p: *mut c_char) -> *mut c_char;
-    fn adjust_skipcol();
-    fn unadjust_for_sel() -> bool;
-    fn oneleft() -> c_int;
-    fn redraw_curbuf_later(type_: c_int);
-    fn showmode() -> c_int;
-    fn inindent(extra: c_int) -> bool;
-    fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T;
-    fn findmatchlimit(oap: *mut oparg_T, initc: c_int, flags: c_int, maxtravel: i64) -> *mut pos_T;
-    fn do_searchpair(
-        spat: *const c_char,
-        mpat: *const c_char,
-        epat: *const c_char,
-        dir: c_int,
-        skip: *const typval_T,
-        flags: c_int,
-        match_pos: *mut pos_T,
-        lnum_stop: linenr_T,
-        time_limit: i64,
-    ) -> c_int;
-    fn linewhite(lnum: linenr_T) -> bool;
 }
 
 #[inline]

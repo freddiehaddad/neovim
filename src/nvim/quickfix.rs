@@ -22,9 +22,39 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::window::win_id2wp;
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, is_loclist_cmd};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::ptr2cells;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
+    msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_start, msg_strtrunc, trunc_string,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::ops::get_region_bytecount;
+#[allow(unused_imports)]
+use crate::option::{
+    buf_copy_options, set_option_direct, set_option_value_give_err, shortmess, skip_to_option_part,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::env::os_get_pid;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::{has_non_ascii, vim_strchr};
+#[allow(unused_imports)]
+use crate::ui::ui_flush;
+#[allow(unused_imports)]
+use crate::window::{
+    check_can_set_curbuf_forceit, check_lnums, goto_tabpage_win, tabline_height, win_close,
+    win_enter, win_goto, win_setheight, win_setwidth, win_split, win_valid,
+};
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
@@ -545,30 +575,11 @@ static mut set_qf_ll_recursive: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_keep(s: *const c_char, hl_id: c_int, keep: bool, multiline: bool) -> bool;
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_puts_hl(str_: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_puts(str_: *const c_char);
     fn msg_prt_line(s: *mut c_char, list: bool);
-    fn msg_start();
-    fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char;
-    fn msg_clr_eos();
-    fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: c_int);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
-    fn ui_flush();
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn has_non_ascii(s: *const c_char) -> bool;
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
     fn vim_regexec_multi(
         rmp: *mut regmmatch_T,
         win: *mut win_T,
@@ -579,34 +590,14 @@ unsafe extern "C" {
         timed_out: *mut c_int,
     ) -> c_long;
 
-    fn skip_to_option_part(p: *const c_char) -> *mut c_char;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn buf_copy_options(buf: *mut buf_T, flags: c_int);
-    fn set_option_value_give_err(opt_idx: OptIndex, val: Object, opt_flags: c_int);
-    fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: scid_T);
-    fn shortmess(x: c_int) -> bool;
 
-    fn is_loclist_cmd(cmdidx: c_int) -> bool;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn ex_cd(eap: *mut exarg_T);
-
-    fn win_valid(inp: *const win_T) -> bool;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_setheight(height: c_int);
-    fn win_setwidth(width: c_int);
-    fn goto_tabpage_win(tp: *mut tabpage_T, wp: *mut win_T);
-    fn win_goto(wp: *mut win_T);
-    fn win_id2wp(id: c_int) -> *mut win_T;
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn tabline_height() -> c_int;
-    fn check_lnums(do_curwin: bool);
-    fn check_can_set_curbuf_forceit(forceit: c_int) -> bool;
 
     fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
 
@@ -637,16 +628,6 @@ unsafe extern "C" {
     ) -> c_int;
     fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
 
-    fn get_region_bytecount(
-        buf: *mut buf_T,
-        start_lnum: linenr_T,
-        end_lnum: linenr_T,
-        start_col: colnr_T,
-        end_col: colnr_T,
-    ) -> bcount_t;
-    fn ptr2cells(p: *const c_char) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-
     fn callback_copy(dest: *mut Callback, src: *mut Callback);
     fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> varnumber_T;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
@@ -669,7 +650,6 @@ unsafe extern "C" {
 
     fn foldOpenCursor();
     fn foldUpdateAll(win: *mut win_T);
-    fn os_get_pid() -> i64;
 
     fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     fn fclose(stream: *mut FILE) -> c_int;

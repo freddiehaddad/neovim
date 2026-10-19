@@ -9,8 +9,26 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_blob_copy, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_item_remove,
+    tv_dict_unref, tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_tv, tv_list_extend,
+    tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_reverse, tv_list_unref,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::{prepare_vimvar, restore_vimvar, var_check_fixed, var_check_ro};
+#[allow(unused_imports)]
+use crate::eval::{eval_expr_typval, get_copyID};
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::strings::reverse_text;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -43,8 +61,6 @@ enum FilterMap {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn tv_clear(tv: *mut typval_T);
     fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
     fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
@@ -52,70 +68,31 @@ unsafe extern "C" {
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_check_for_string_or_list_or_blob_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
-    fn var_check_ro(flags: c_int, name: *const c_char, name_len: usize) -> bool;
-    fn var_check_fixed(flags: c_int, name: *const c_char, name_len: usize) -> bool;
 
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
-    fn tv_dict_add_tv(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        tv: *mut typval_T,
-    ) -> c_int;
-    fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T);
     fn tv_dict_copy(
         conv: *const c_void,
         orig: *mut dict_T,
         deep: bool,
         copy_id: c_int,
     ) -> *mut dict_T;
-    fn tv_dict_unref(d: *mut dict_T);
     fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_char);
     fn tv_dict_remove(argvars: *mut typval_T, rettv: *mut typval_T, arg_errmsg: *const c_char);
 
-    fn tv_blob_copy(from: *mut blob_T, to: *mut typval_T);
     fn tv_blob_remove(argvars: *mut typval_T, rettv: *mut typval_T, arg_errmsg: *const c_char);
 
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T;
-    fn tv_list_append_tv(l: *mut list_T, tv: *mut typval_T);
-    fn tv_list_insert_tv(l: *mut list_T, tv: *mut typval_T, item: *mut listitem_T);
-    fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T;
-    fn tv_list_find(l: *mut list_T, n: c_int) -> *mut listitem_T;
     fn tv_list_copy(
         conv: *const c_void,
         orig: *mut list_T,
         deep: bool,
         copy_id: c_int,
     ) -> *mut list_T;
-    fn tv_list_unref(l: *mut list_T);
-    fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut listitem_T);
     fn tv_list_remove(argvars: *mut typval_T, rettv: *mut typval_T, arg_errmsg: *const c_char);
-    fn tv_list_reverse(l: *mut list_T);
 
-    fn get_copyID() -> c_int;
     fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn set_vim_var_type(idx: c_int, val_type: VarType);
     fn set_vim_var_nr(idx: c_int, val: i64);
-    fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T);
-    fn restore_vimvar(idx: c_int, save_tv: *mut typval_T);
 
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn eval_expr_typval(
-        expr: *const typval_T,
-        want_func: bool,
-        argv: *mut typval_T,
-        argc: c_int,
-        rettv: *mut typval_T,
-    ) -> c_int;
-
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int;
-    fn reverse_text(s: *mut c_char) -> *mut c_char;
-
-    fn emsg(s: *const c_char) -> bool;
 }
 
 #[inline]

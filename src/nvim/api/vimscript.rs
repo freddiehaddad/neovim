@@ -9,6 +9,14 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_set_sctx, arena_array, arena_dict, arena_string, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_dict_find};
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
@@ -79,7 +87,6 @@ static mut CALL_FUNC_RECURSIVE: c_int = 0;
 unsafe extern "C" {
 
     fn do_source_str(cmd: *const c_char, traceback_name: *const c_char) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn eval0(
         arg: *mut c_char,
         rettv: *mut typval_T,
@@ -87,8 +94,6 @@ unsafe extern "C" {
         evalarg: *mut evalarg_T,
     ) -> c_int;
     fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut c_void);
-    fn tv_clear(varp: *mut typval_T);
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, key_len: isize) -> *mut dictitem_T;
     fn call_func(
         funcname: *const c_char,
         len: c_int,
@@ -98,13 +103,7 @@ unsafe extern "C" {
         funcexe: *mut funcexe_T,
     ) -> c_int;
 
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut Arena, str: NvimString) -> NvimString;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_set_sctx(channel_id: u64) -> sctx_T;
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
 }
 
 #[inline]

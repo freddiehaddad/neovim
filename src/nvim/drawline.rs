@@ -12,8 +12,30 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::bt_quickfix;
+#[allow(unused_imports)]
+use crate::drawscreen::conceal_cursor_line;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insexpand::{ins_compl_col_range_attr, ins_compl_lnum_in_range, ins_compl_win_active};
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::option::get_showbreak_value;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::quickfix::qf_current_entry;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::syntax::{
+    get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present, syntax_start,
+};
+#[allow(unused_imports)]
+use crate::ui::ui_rgb_attached;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -238,24 +260,7 @@ unsafe extern "C" {
         buf: *mut c_char,
         vt: *mut VirtText,
     ) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn get_showbreak_value(win: *mut win_T) -> *mut c_char;
-    fn conceal_cursor_line(wp: *const win_T) -> bool;
-    fn virtual_active(wp: *mut win_T) -> bool;
-    fn bt_quickfix(buf: *const buf_T) -> bool;
-    fn qf_current_entry(wp: *mut win_T) -> linenr_T;
-    fn syntax_present(win: *mut win_T) -> bool;
-    fn syntax_start(wp: *mut win_T, lnum: linenr_T);
-    fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bool) -> c_int;
-    fn get_syntax_info(seqnrp: *mut c_int) -> c_int;
-    fn syn_get_sub_char() -> c_int;
-    fn ins_compl_win_active(wp: *mut win_T) -> bool;
-    fn ins_compl_lnum_in_range(lnum: linenr_T) -> bool;
-    fn ins_compl_col_range_attr(lnum: linenr_T, col: c_int) -> c_int;
-    fn ui_rgb_attached() -> bool;
 }
 
 #[inline]

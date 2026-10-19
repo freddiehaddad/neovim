@@ -17,10 +17,36 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::change::deleted_lines_mark;
+#[allow(unused_imports)]
+use crate::charset::{getwhitecols, str_foldcase, vim_isIDc};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::{callback_call, get_v_event, restore_v_event};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::using_script;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_expand_pat;
+#[allow(unused_imports)]
+use crate::memline::dec;
+#[allow(unused_imports)]
+use crate::memory::strequal;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error, msg, msg_clr_cmdline, msg_ext_set_kind};
+#[allow(unused_imports)]
+use crate::option::{can_bs, option_set_callback_func, shortmess};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::vim_regexec;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::{ui_flush, ui_has, vim_beep};
+#[allow(unused_imports)]
+use crate::window::win_valid;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -549,12 +575,7 @@ use crate::state::save_v_event_T;
 unsafe extern "C" {
 
     fn gettext(str: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_clr_cmdline();
     fn msg_delay(msec: i64, ignoreinput: bool);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
     fn msg_progress(
         s: *const c_char,
         id: *const c_char,
@@ -565,15 +586,7 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn vim_beep(val: c_uint);
-    fn shortmess(x: c_int) -> bool;
-    fn can_bs(what: c_int) -> bool;
-    fn vim_isIDc(c: c_int) -> bool;
     fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
-    fn win_valid(win: *const win_T) -> bool;
-    fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback) -> c_int;
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,
@@ -583,31 +596,10 @@ unsafe extern "C" {
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::r#match::regprog_T;
     fn vim_regfree(prog: *mut crate::r#match::regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn ui_flush();
-    fn ui_has(ext: UIExtension) -> bool;
-    fn nlua_expand_pat(xp: *mut expand_T);
-    fn dec(lp: *mut pos_T) -> c_int;
-    fn deleted_lines_mark(lnum: linenr_T, count: c_int);
-    fn using_script() -> c_int;
-    fn getwhitecols(p: *const c_char) -> isize;
-    fn str_foldcase(
-        str_ptr: *mut c_char,
-        orglen: c_int,
-        buf: *mut c_char,
-        buflen: c_int,
-    ) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut crate::fileio::FILE) -> bool;
     fn bt_cmdwin(buf: *const buf_T) -> bool;
     fn buf_spname(buf: *mut buf_T) -> *mut c_char;
     fn callback_copy(dest: *mut Callback, src: *mut Callback);
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
     fn callback_call_retnr(
         callback: *mut Callback,
         argcount: c_int,
@@ -623,10 +615,7 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn strequal(a: *const c_char, b: *const c_char) -> bool;
     fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn vim_strsave_escaped(string: *const c_char, esc_chars: *const c_char) -> *mut c_char;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     #[cfg(windows)]

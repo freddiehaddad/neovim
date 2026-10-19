@@ -2,6 +2,8 @@
 
 #![allow(dead_code, unused_imports, unused_mut)]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{arena_dict, arena_string};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::memory::{Arena, xrealloc};
@@ -82,12 +84,6 @@ unsafe extern "system" {
     ) -> *mut c_void;
     fn CloseHandle(h_object: *mut c_void) -> i32;
     fn TerminateProcess(h_process: *mut c_void, u_exit_code: u32) -> i32;
-}
-
-#[cfg(all(target_os = "windows", not(test)))]
-unsafe extern "C" {
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut Arena, str_val: NvimString) -> NvimString;
 }
 
 #[cfg(all(target_os = "windows", not(test)))]

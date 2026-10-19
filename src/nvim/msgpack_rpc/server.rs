@@ -9,8 +9,16 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::channel::channel_from_connection;
+#[allow(unused_imports)]
+use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::env::{os_env_exists, os_get_pid, os_unsetenv};
+#[allow(unused_imports)]
+use crate::path::fix_fname;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -65,12 +73,8 @@ unsafe extern "C" {
     fn uv_freeaddrinfo(ai: *mut c_void);
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn os_env_exists(name: *const c_char, nonempty: bool) -> bool;
     fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
-    fn os_unsetenv(name: *const c_char) -> c_int;
-    fn os_get_pid() -> i64;
     fn get_appname(namelike: bool) -> bool;
-    fn fix_fname(fname: *const c_char) -> *mut c_char;
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]
@@ -78,15 +82,6 @@ unsafe extern "C" {
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
-
-    fn socket_watcher_init(
-        loop_: *mut Loop,
-        watcher: *mut SocketWatcher,
-        endpoint: *const c_char,
-    ) -> c_int;
-    fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int, cb: socket_cb) -> c_int;
-    fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close_cb);
-    fn channel_from_connection(watcher: *mut SocketWatcher);
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

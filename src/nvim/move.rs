@@ -10,10 +10,39 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::buf_is_empty;
+#[allow(unused_imports)]
+use crate::diff::diff_get_corresponding_line;
+#[allow(unused_imports)]
+use crate::drawscreen::{
+    conceal_cursor_line, number_width, redraw_buf_later, redraw_later, redrawWinline, redrawing,
+    win_cursorline_standout, win_scroll_lines,
+};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number, tv_get_number_chk};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::insert::{beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner};
+#[allow(unused_imports)]
+use crate::mbyte::{mb_adjust_cursor, utf_head_off};
+#[allow(unused_imports)]
+use crate::memline::ml_get_buf;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::normal::{nv_g_home_m_cmd, nv_screengo};
+#[allow(unused_imports)]
+use crate::option::{get_scrolloff_value, get_scrolloffpad_value, get_sidescrolloff_value};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::plines::win_get_fill;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::window::win_fdccol_count;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
@@ -22,7 +51,6 @@ use crate::clipboard::typval_T;
 use crate::cursor::{check_cursor, check_cursor_lnum, coladvance};
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::buf_T;
 use crate::eval::window::{find_win_by_nr_or_id, viewstate_T};
 use crate::grid::wline_T;
@@ -78,47 +106,15 @@ struct lineoff_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn redrawing() -> bool;
-    fn win_cursorline_standout(wp: *const win_T) -> bool;
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn conceal_cursor_line(wp: *const win_T) -> bool;
-    fn redrawWinline(wp: *mut win_T, lnum: linenr_T);
-    fn redraw_buf_later(buf: *mut buf_T, type_: c_int);
     fn get_showbreak_value(win: *const win_T) -> *mut c_char;
-    fn get_scrolloff_value(wp: *mut win_T) -> i64;
-    fn get_scrolloffpad_value(wp: *mut win_T) -> i64;
-    fn get_sidescrolloff_value(wp: *mut win_T) -> i64;
-    fn buf_is_empty(buf: *mut buf_T) -> bool;
-    fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
     fn hasFolding(
         win: *mut win_T,
         lnum: linenr_T,
         firstp: *mut linenr_T,
         lastp: *mut linenr_T,
     ) -> bool;
-    fn number_width(wp: *mut win_T) -> c_int;
-    fn win_fdccol_count(wp: *mut win_T) -> c_int;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int);
-    fn tv_dict_alloc_ret(ret_tv: *mut typval_T);
-    fn tv_get_number(varp: *const typval_T) -> varnumber_T;
-    fn tv_get_number_chk(varp: *const typval_T, denote: *mut bool) -> varnumber_T;
     fn tv_check_for_number_arg(args: *mut typval_T, idx: c_int) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int;
-    fn cursor_down(n: c_int, upd_topline: bool) -> c_int;
-    fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int;
-    fn cursor_down_inner(wp: *mut win_T, n: c_int, skip_conceal: bool);
-    fn cursor_up_inner(wp: *mut win_T, n: linenr_T, skip_conceal: bool);
     fn foldAdjustCursor(wp: *mut win_T);
-    fn nv_screengo(oap: *mut oparg_T, dir: c_int, dist: c_int, skip_conceal: bool) -> bool;
-    fn beep_flush();
-    fn beginline(flags: c_int);
-    fn nv_g_home_m_cmd(cap: *mut cmdarg_T);
-    fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T;
-    fn mb_adjust_cursor();
 }
 
 #[inline]

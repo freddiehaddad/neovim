@@ -9,9 +9,30 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::charset::vim_isprintc;
+#[allow(unused_imports)]
+use crate::decoration::decor_conceal_line;
+#[allow(unused_imports)]
+use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::indent::get_breakindent_win;
 use crate::mbyte::utf8len_tab;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    ptr2cells, utf_ClusterInfo_impl, utf_char2cells, utf_ptr2CharInfo_impl, utf_ptr2char,
+    utfc_ptr2len,
+};
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::r#move::{win_col_off, win_col_off2};
+#[allow(unused_imports)]
+use crate::option::get_showbreak_value;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -91,22 +112,7 @@ pub struct ClusterInfo {
 unsafe extern "C" {
 
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
-    fn ptr2cells(p: *const c_char) -> c_int;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn get_showbreak_value(win: *mut win_T) -> *mut c_char;
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn win_col_off2(wp: *mut win_T) -> c_int;
     fn vim_strsize(s: *mut c_char) -> c_int;
-    fn get_breakindent_win(wp: *mut win_T, line: *mut c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32;
-    fn utf_char2cells(c: c_int) -> c_int;
-    fn utf_ClusterInfo_impl(cur: StrCharInfo, size: *mut c_int) -> ClusterInfo;
-    fn virtual_active(wp: *mut win_T) -> bool;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn vim_isprintc(c: c_int) -> bool;
-    fn diffopt_filler() -> bool;
     fn decor_virt_lines(
         wp: *mut win_T,
         start_row: c_int,
@@ -115,8 +121,6 @@ unsafe extern "C" {
         lines: *mut c_void,
         apply_folds: bool,
     ) -> c_int;
-    fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
-    fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool) -> bool;
     fn lineFolded(win: *mut win_T, lnum: linenr_T) -> bool;
     fn hasFolding(
         win: *mut win_T,

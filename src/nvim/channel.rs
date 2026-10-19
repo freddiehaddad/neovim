@@ -15,9 +15,33 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{arena_array, arena_dict};
+#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, has_event};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_free,
+    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_unref,
+};
+#[allow(unused_imports)]
+use crate::eval::{callback_call, get_v_event, restore_v_event};
+#[allow(unused_imports)]
+use crate::event::proc::exit_on_closed_chan;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::api_free_luaref;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::os::fs::os_write;
+#[allow(unused_imports)]
+use crate::terminal::{
+    terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
+    terminal_set_state,
+};
+#[allow(unused_imports)]
+use crate::ui_client::ui_client_attach_to_restarted_server;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -67,7 +91,7 @@ use crate::os::shell::shell_free_argv;
 use crate::state::save_v_event_T;
 
 pub type ChannelStdinMode = c_int;
-pub type Terminal = c_void;
+pub use crate::terminal::Terminal;
 pub type OptInt = i64;
 pub type varnumber_T = i64;
 
@@ -148,63 +172,12 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn api_free_luaref(luaref: LuaRef);
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-
-    fn tv_dict_free(d: *mut dict_T);
     fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut c_void;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
-    fn tv_dict_add_dict(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        dict: *mut dict_T,
-    ) -> c_int;
-    fn tv_dict_set_keys_readonly(d: *mut dict_T);
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_string(l: *mut list_T, str_: *const c_char, len: isize);
-    fn tv_list_unref(l: *mut list_T);
-    fn tv_clear(varp: *mut typval_T);
-    fn callback_free(callback: *mut Callback);
-    fn callback_call(
-        callback: *mut Callback,
-        argc: c_int,
-        argv: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
-
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
-    fn has_event(v: event_T) -> bool;
-    fn apply_autocmds(
-        event: event_T,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-
-    fn os_write(fd: c_int, buf: *const c_char, size: usize, non_blocking: bool) -> isize;
-    fn exit_on_closed_chan(status: c_int);
-    fn ui_client_attach_to_restarted_server(error_restart: bool);
 
     fn pty_proc_close_master(ptyproc: *mut c_void);
     fn pty_proc_resize(ptyproc: *mut c_void, width: u16, height: u16);
     fn pty_proc_resume(ptyproc: *mut c_void);
     fn pty_proc_tty_name(ptyproc: *mut c_void) -> *const c_char;
-
-    fn terminal_alloc(buf: *mut buf_T, opts: TerminalOptions) -> *mut Terminal;
-    fn terminal_close(termpp: *mut *mut Terminal, status: c_int);
-    fn terminal_destroy(termpp: *mut *mut Terminal);
-    fn terminal_receive(term: *mut Terminal, data: *const c_char, len: usize);
-    fn terminal_set_state(term: *mut Terminal, suspended: bool);
-    fn terminal_buf(term: *const Terminal) -> Buffer;
 
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
 

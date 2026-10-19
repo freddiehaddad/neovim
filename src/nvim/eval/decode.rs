@@ -8,7 +8,16 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc,
+    tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
+};
 use crate::eval::vars::eval_msgpack_type_lists;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
@@ -165,24 +174,7 @@ struct ValuesStackItem {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T;
-    fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
-
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T;
-    fn tv_list_append_list(l: *mut list_T, item_l: *mut list_T);
     fn tv_list_append_number(l: *mut list_T, n: i64);
-
-    fn tv_blob_alloc_ret(ret_tv: *mut typval_T) -> *mut blob_T;
-    fn tv_clear(tv: *mut typval_T);
-
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_char2len(c: c_int) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
 
     fn vim_str2nr(
         start: *const c_char,
@@ -210,7 +202,6 @@ unsafe extern "C" {
     fn mpack_unpack_sint(t: mpack_token_t) -> i64;
     fn mpack_unpack_float_fast(t: mpack_token_t) -> f64;
 
-    fn emsg(s: *const c_char) -> bool;
 }
 
 #[inline]

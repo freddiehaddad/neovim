@@ -11,7 +11,28 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, dict_check_writable, try_enter, try_leave};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
+};
+#[allow(unused_imports)]
+use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
+#[allow(unused_imports)]
+use crate::ex_docmd::{apply_cmdmod, undo_cmdmod};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
+    mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
+};
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::window::win_find_tabpage;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -36,7 +57,7 @@ use crate::map_glyph_cache::NvimString;
 use crate::memory::xfree;
 use crate::msgpack_rpc::packer::handle_T;
 
-pub type regprog_T = c_void;
+pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
 const NSUBEXP: usize = 10;
@@ -147,74 +168,15 @@ unsafe extern "C" {
     fn find_buffer_by_handle(buffer: handle_T, err: *mut Error) -> *mut buf_T;
     fn find_window_by_handle(window: handle_T, err: *mut Error) -> *mut win_T;
     fn find_tab_by_handle(tabpage: handle_T, err: *mut Error) -> *mut tabpage_T;
-    fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T;
-
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-
-    fn mb_utflen(s: *const c_char, len: usize, codepoints: *mut usize, codeunits: *mut usize);
-    fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int;
-    fn utf_cp_bounds_len(base: *const c_char, p_in: *const c_char, p_len: c_int) -> CharBoundsOff;
-    fn mb_utf_index_to_bytes(
-        s: *const c_char,
-        len: usize,
-        index: usize,
-        use_utf16_units: bool,
-    ) -> isize;
-    fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
-
-    fn enc_skip(p: *mut c_char) -> *mut c_char;
-    fn enc_canonize(enc: *mut c_char) -> *mut c_char;
-    fn convert_setup(vcp: *mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int;
-    fn convert_setup_ext(
-        vcp: *mut vimconv_T,
-        from: *mut c_char,
-        from_unicode_is_utf8: bool,
-        to: *mut c_char,
-        to_unicode_is_utf8: bool,
-    ) -> c_int;
-    fn string_convert(vcp: *const vimconv_T, ptr: *mut c_char, lenp: *mut usize) -> *mut c_char;
 
     fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T);
-    fn apply_cmdmod(cmod: *mut cmdmod_T);
-    fn undo_cmdmod(cmod: *mut cmdmod_T);
 
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn api_clear_error(value: *mut Error);
-
-    fn get_globvar_dict() -> *mut dict_T;
-    fn get_vimvar_dict() -> *mut dict_T;
-    fn dict_check_writable(
-        dict: *mut dict_T,
-        key: NvimString,
-        del: bool,
-        err: *mut Error,
-    ) -> *mut dictitem_T;
     fn tv_dict_watcher_notify(
         dict: *mut dict_T,
         key: *const c_char,
         newtv: *mut typval_T,
         oldtv: *mut typval_T,
     );
-    fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T);
-    fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
-    fn before_set_vvar(
-        varname: *const c_char,
-        di: *mut dictitem_T,
-        tv: *mut typval_T,
-        copy: bool,
-        watched: bool,
-        type_error: *mut bool,
-    ) -> bool;
-    fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn tv_clear(varp: *mut typval_T);
     fn script_autoload(name: *const c_char, len: usize, reload: bool) -> bool;
     fn str2special(
         sp: *mut *const c_char,

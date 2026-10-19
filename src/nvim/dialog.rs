@@ -8,7 +8,19 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::ex_getln::getcmdline_prompt;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::message::{display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
+#[allow(unused_imports)]
+use crate::mouse::setmouse;
+#[allow(unused_imports)]
+use crate::os::input::input_available;
+#[allow(unused_imports)]
+use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_mouse_has};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::eval::deprecated::Callback;
@@ -48,27 +60,6 @@ pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
 unsafe extern "C" {
 
     fn ui_has(ext: c_int) -> bool;
-    fn ui_mouse_has(mode: c_int) -> bool;
-    fn ui_call_busy_stop();
-    fn ui_flush();
-    fn ui_active() -> usize;
-    fn input_available() -> usize;
-    fn setmouse();
-    fn msg_putchar(c: c_int);
-    fn set_keep_msg(s: *const c_char, hl_id: c_int);
-    fn msg_end_prompt();
-    fn display_confirm_msg();
-
-    fn getcmdline_prompt(
-        firstc: c_int,
-        prompt: *const c_char,
-        hl_id: c_int,
-        xp_context: c_int,
-        xp_arg: *const c_char,
-        highlight_callback: Callback,
-        one_key: bool,
-        mouse_used: *mut bool,
-    ) -> *mut c_char;
 
     fn ins_typebuf(
         str_ptr: *const c_char,
@@ -78,11 +69,6 @@ unsafe extern "C" {
         silent: bool,
     ) -> c_int;
 
-    fn mb_tolower(a: c_int) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
 }
 
 #[cfg(not(test))]

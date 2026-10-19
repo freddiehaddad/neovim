@@ -15,9 +15,29 @@
     clippy::collapsible_if
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, api_free_object};
+#[allow(unused_imports)]
+use crate::diff::{diff_infold, diff_lnum_win};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::ops::skip_comment;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::search::linewhite;
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr};
+#[allow(unused_imports)]
+use crate::syntax::syn_get_foldlevel;
+#[allow(unused_imports)]
+use crate::undo::u_save;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -143,7 +163,6 @@ unsafe extern "C" {
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
@@ -151,45 +170,15 @@ unsafe extern "C" {
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     #[cfg(windows)]
     fn libintl_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
 
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn ml_replace_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        line: *mut c_char,
-        copy: bool,
-        noalloc: bool,
-    ) -> c_int;
-
-    fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
-    fn skip_comment(
-        line: *mut c_char,
-        process: bool,
-        include_space: bool,
-        is_comment: *mut bool,
-    ) -> *mut c_char;
-    fn linewhite(lnum: linenr_T) -> bool;
-    fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T;
-    fn diff_infold(wp: *mut win_T, lnum: linenr_T) -> bool;
-    fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int;
-
-    fn eval_foldtext(wp: *mut win_T) -> Object;
-    fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
 
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
 }
 
 #[cfg(not(test))]

@@ -10,24 +10,61 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, find_buffer_by_handle, find_window_by_handle};
+#[allow(unused_imports)]
+use crate::api::vim::nvim_create_buf;
+#[allow(unused_imports)]
+use crate::api::win_config::{parse_bordertext, parse_winborder};
+#[allow(unused_imports)]
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+#[allow(unused_imports)]
+use crate::decoration::clear_virttext;
+#[allow(unused_imports)]
+use crate::drawscreen::{redraw_later, set_must_redraw};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::grid_adjust;
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::mouse::mouse_find_win_inner;
+#[allow(unused_imports)]
+use crate::r#move::{textpos2screenpos, validate_cursor};
+#[allow(unused_imports)]
+use crate::option::{parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::{free_string_option, opt_keyset};
+#[allow(unused_imports)]
+use crate::os::fs::os_dirname;
+#[allow(unused_imports)]
+use crate::plines::{plines_m_win, win_max_displaywidth};
+#[allow(unused_imports)]
+use crate::strings::concat_str;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
+#[allow(unused_imports)]
+use crate::window::{
+    last_status, lastwin_nofloating, merge_win_config, tabpage_win_valid, win_alloc, win_append,
+    win_close, win_comp_pos, win_enter, win_find_tabpage, win_free, win_init, win_remove,
+    win_remove_status_line, win_set_buf, win_set_inner_size, win_valid, winframe_remove,
+};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::VirtText;
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{
-    Buffer, GridView, ScreenGrid, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T,
-};
+use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::win_config::{
     AlignTextPos, BorderTextType, FloatAnchor, FloatRelative, UIExtension, WinStyle,
 };
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::deprecated::pos_T;
 use crate::kvec::KVec;
-use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xrealloc, xstrdup};
 
@@ -115,91 +152,13 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 
 unsafe extern "C" {
 
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T;
-    fn lastwin_nofloating(tp: *mut tabpage_T) -> *mut win_T;
-    fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T;
-    fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int);
-    fn free_string_option(p: *mut c_char);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_clear_error(value: *mut Error);
-    fn winframe_remove(
-        win: *mut win_T,
-        dirp: *mut c_int,
-        tp: *mut tabpage_T,
-        unflat_altfr: *mut *mut frame_T,
-    ) -> *mut win_T;
-    fn win_remove(wp: *mut win_T, tp: *mut tabpage_T);
-    fn last_status(morewin: bool);
-    fn win_comp_pos() -> c_int;
-    fn win_append(after: *mut win_T, wp: *mut win_T, tp: *mut tabpage_T);
-    fn redraw_later(wp: *mut win_T, type_: c_int);
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool;
-    fn win_remove_status_line(wp: *mut win_T, add_hsep: bool);
-    fn validate_cursor(wp: *mut win_T);
-    fn mouse_find_win_inner(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_int) -> *mut win_T;
-    fn merge_win_config(dst: *mut WinConfig, src: WinConfig);
-    fn ui_has(ext: UIExtension) -> bool;
-    fn win_set_inner_size(wp: *mut win_T, valid_cursor: bool);
-    fn set_must_redraw(type_: c_int);
-    fn grid_adjust(
-        grid: *mut GridView,
-        row_off: *mut c_int,
-        col_off: *mut c_int,
-    ) -> *mut ScreenGrid;
-    fn textpos2screenpos(
-        wp: *mut win_T,
-        pos: *mut pos_T,
-        rowp: *mut c_int,
-        scolp: *mut c_int,
-        ccolp: *mut c_int,
-        ecolp: *mut c_int,
-        local: bool,
-    );
     fn qsort(
         base: *mut c_void,
         num: usize,
         size: usize,
         compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
     );
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn tabpage_win_valid(tp: *const tabpage_T, win: *const win_T) -> bool;
-    fn emsg(s: *const c_char) -> bool;
-    fn win_free(wp: *mut win_T, tp: *mut tabpage_T);
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: *mut Error) -> Buffer;
-    fn set_option_direct_for(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        set_sid: scid_T,
-        scope: OptScope,
-        from: *mut c_void,
-    );
-    fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut Error);
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
-    fn shorten_buf_fname(buf: *mut buf_T, dirname: *mut c_char, force: c_int) -> bool;
-    fn clear_virttext(text: *mut VirtText);
-    fn parse_bordertext(
-        bordertext: Object,
-        bordertext_type: BorderTextType,
-        fconfig: *mut WinConfig,
-        err: *mut Error,
-    );
-    fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
-    fn win_max_displaywidth(
-        wp: *mut win_T,
-        first: linenr_T,
-        last: linenr_T,
-        maxwidth: c_int,
-    ) -> c_int;
-    fn plines_m_win(wp: *mut win_T, first: linenr_T, last: linenr_T, max: c_int) -> c_int;
-    fn parse_winborder(fconfig: *mut WinConfig, border_opt: *mut c_char, err: *mut Error) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
 }
 

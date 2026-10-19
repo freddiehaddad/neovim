@@ -12,7 +12,13 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::ex_docmd::find_cmdline_var;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::{semsg, siemsg};
+#[allow(unused_imports)]
+use crate::option::{csh_like_shell, fish_like_shell};
 use crate::option_vars::*;
 use std::ffi::{
     CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
@@ -93,10 +99,6 @@ pub struct keyvalue_T {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn csh_like_shell() -> c_int;
-    fn fish_like_shell() -> bool;
-    fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize;
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 

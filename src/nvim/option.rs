@@ -13,10 +13,38 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::autocmd::do_filetype_autocmd;
+#[allow(unused_imports)]
+use crate::change::save_file_ff;
+#[allow(unused_imports)]
+use crate::cmdexpand::cmdline_fuzzy_complete;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::last_set_msg;
+#[allow(unused_imports)]
+use crate::eval::typval::callback_free;
+#[allow(unused_imports)]
+use crate::eval::vars::opt_to_tv;
+#[allow(unused_imports)]
+use crate::ex_docmd::{free_findfunc_option, set_no_hlsearch};
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, api_new_luaref};
+#[allow(unused_imports)]
+use crate::mcursor::mc_ins_replay_can_join;
+#[allow(unused_imports)]
+use crate::normal::do_check_scrollbind;
+#[allow(unused_imports)]
+use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::ui::ui_call_option_set;
+#[allow(unused_imports)]
+use crate::undo::curbufIsChanged;
+#[allow(unused_imports)]
+use crate::window::{check_colorcolumn, win_find_tabpage};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -688,33 +716,16 @@ unsafe extern "C" {
     fn maketitle();
     fn do_autochdir();
     fn free_buf_options(buf: *mut buf_T, free_p_ff: bool);
-    fn save_file_ff(buf: *mut buf_T);
     fn bufIsChanged(buf: *const buf_T) -> bool;
-    fn curbufIsChanged() -> bool;
-    fn do_filetype_autocmd(buf: *mut buf_T, force: bool) -> bool;
-    fn free_findfunc_option();
-    fn free_operatorfunc_option();
     fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
-    fn opt_to_tv(val: Object, compat: bool) -> typval_T;
     fn put_escstr(fd: *mut FILE, str_arg: *const c_char, what: c_int) -> c_int;
-    fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_char;
-    fn win_find_tabpage(win: *mut win_T) -> *mut tabpage_T;
-    fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool;
-    fn mc_ins_replay_can_join() -> bool;
-    fn last_set_msg(script_ctx: sctx_T);
     fn callback_copy(dest: *mut Callback, src: *const Callback);
-    fn callback_free(callback: *mut Callback);
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
-    fn do_check_scrollbind(check: bool);
     fn foldUpdateAll(win: *mut win_T);
     fn newFoldLevel();
     fn langmap_init();
     fn runtimepath_default(clean_arg: bool) -> *mut c_char;
     fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int;
-    fn set_no_hlsearch(flag: bool);
-    fn ui_call_option_set(name: NvimString, value: Object);
-    fn api_free_luaref(luaref: LuaRef);
-    fn api_new_luaref(luaref: LuaRef) -> LuaRef;
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 

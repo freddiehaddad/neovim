@@ -10,9 +10,32 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_buf_later;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::get_buf_arg;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
+#[allow(unused_imports)]
+use crate::insert::beginline;
+#[allow(unused_imports)]
+use crate::mark::setpcmark;
+#[allow(unused_imports)]
+use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
+#[allow(unused_imports)]
+use crate::message::{emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -22,7 +45,6 @@ use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{
     DecorPriority, DecorSignHighlight, NS, describe_ns, linenr_T, nvim_create_namespace,
 };
-use crate::api::private::converter::sctx_T;
 use crate::api::tabpage::win_T;
 use crate::charset::{
     backslash_halve, getdigits_int, skiptowhite, skiptowhite_esc, skipwhite, vim_isprintc,
@@ -30,12 +52,11 @@ use crate::charset::{
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::check_cursor_lnum;
 use crate::decoration::{SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
+use crate::eval::decode::dict_T;
+use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
 use crate::grid::{schar_T, schar_get};
 use crate::kvec::KVec;
-use crate::lua::converter::LuaRef;
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_String_int,
     map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
@@ -115,32 +136,7 @@ pub struct sign_T {
     pub sn_priority: c_int,
 }
 
-#[repr(C)]
-pub struct expand_T {
-    pub xp_pattern: *mut c_char,
-    pub xp_context: c_int,
-    pub xp_pattern_len: usize,
-    pub xp_prefix: c_int,
-    pub xp_arg: *mut c_char,
-    pub xp_luaref: LuaRef,
-    pub xp_script_ctx: sctx_T,
-    pub xp_backslash: c_int,
-    #[cfg(not(windows))]
-    pub xp_shell: bool,
-    pub xp_numfiles: c_int,
-    pub xp_col: c_int,
-    pub xp_selected: c_int,
-    pub xp_orig: *mut c_char,
-    pub xp_files: *mut *mut c_char,
-    pub xp_files_abbr: *mut *mut c_char,
-    pub xp_files_kind: *mut *mut c_char,
-    pub xp_files_menu: *mut *mut c_char,
-    pub xp_files_info: *mut *mut c_char,
-    pub xp_line: *mut c_char,
-    pub xp_buf: [c_char; 256],
-    pub xp_search_dir: c_int,
-    pub xp_pre_incsearch_pos: pos_T,
-}
+pub use crate::os::env::expand_T;
 
 static mut sign_map: Map<cstr_t, ptr_t> = Map {
     set: Set {
@@ -179,22 +175,7 @@ const CMDS: [*const c_char; 7] = [
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg_puts_title(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_puts(s: *const c_char);
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> schar_T;
-    fn utf_ptr2cells(p_in: *const c_char) -> c_int;
-    fn syn_check_group(name: *const c_char, len: usize) -> c_int;
-    fn redraw_buf_later(buf: *mut buf_T, type_: c_int);
-    fn get_highlight_name_ext(xp: *mut expand_T, idx: c_int, skip_cleared: bool) -> *const c_char;
-    fn buf_jump_open_win(buf: *mut buf_T) -> *mut win_T;
-    fn beginline(flags: c_int);
-    fn setpcmark();
     fn buf_hide(buf: *const buf_T) -> bool;
     fn do_ecmd(
         fnum: c_int,
@@ -208,35 +189,10 @@ unsafe extern "C" {
     fn foldOpenCursor();
     fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> i64;
     fn tv_dict_get_number_def(d: *const dict_T, key: *const c_char, def: c_int) -> i64;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T);
     fn tv_list_append_number(l: *mut list_T, n: i64);
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
@@ -245,7 +201,6 @@ unsafe extern "C" {
     fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_for_opt_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_for_nonnull_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
-    fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T;
     fn atoi(s: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

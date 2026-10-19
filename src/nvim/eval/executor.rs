@@ -4,7 +4,13 @@
 #![allow(dead_code, unused_imports, clippy::missing_safety_doc)]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::grow_string_tv;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_list_extend};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::strings::concat_str;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -24,15 +30,11 @@ pub struct blob_T {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut listitem_T);
     fn tv_get_number(varp: *const typval_T) -> i64;
-    fn tv_clear(tv: *mut typval_T);
     fn num_divide(n1: i64, n2: i64) -> i64;
     fn num_modulus(n1: i64, n2: i64) -> i64;
     fn tv_get_string_buf(varp: *const typval_T, buf: *mut c_char) -> *const c_char;
-    fn grow_string_tv(tv: *mut typval_T, s: *const c_char) -> c_int;
     fn tv_get_string(varp: *const typval_T) -> *const c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
 }
 
 unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {

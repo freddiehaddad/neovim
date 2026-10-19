@@ -11,6 +11,8 @@
 )]
 
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::env::os_get_pid;
 #[cfg(windows)]
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
@@ -203,7 +205,6 @@ unsafe extern "C" {
     fn uv_dlclose(lib: *mut UvLib);
     fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
     fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
-    fn os_get_pid() -> i64;
 }
 
 #[cfg(windows)]

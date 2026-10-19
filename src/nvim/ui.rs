@@ -11,11 +11,32 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::ui::{
+    remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
+    remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
+    remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
+    remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_group_set, remote_ui_mode_change,
+    remote_ui_mouse_off, remote_ui_mouse_on, remote_ui_option_set, remote_ui_raw_line,
+    remote_ui_screenshot, remote_ui_set_icon, remote_ui_set_title, remote_ui_suspend,
+    remote_ui_ui_send, remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
+    remote_ui_win_viewport_margins,
+};
 use crate::cursor_shape::shape_table;
 use crate::globals::*;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::lua::executor::api_free_luaref;
+#[allow(unused_imports)]
+use crate::message::{msg, msg_ext_ui_flush, msg_scroll_flush, msg_source, msg_ui_refresh};
 use crate::message::{msg_schedule_semsg, msg_schedule_semsg_multiline};
+#[allow(unused_imports)]
+use crate::option::ui_refresh_options;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui_compositor::{ui_comp_grid_cursor_goto, ui_comp_grid_resize, ui_comp_grid_scroll};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::size_of;
 use std::ptr;
@@ -148,7 +169,6 @@ unsafe extern "C" {
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn resettitle();
     fn set_option_value(
         opt_idx: c_int,
@@ -157,14 +177,7 @@ unsafe extern "C" {
         set_sid: bool,
         err: *mut Error,
     ) -> *const c_char;
-    fn ui_refresh_options();
-    fn msg_scroll_flush();
-    fn msg_ui_refresh();
-    fn msg_ext_ui_flush();
-    fn msg_source(attr: c_int);
-    fn msg(s: *const c_char, attr: c_int) -> bool;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_free_luaref(luaref: LuaRef);
     fn nlua_call_ref_ctx(
         fast: bool,
         ref_: LuaRef,
@@ -174,64 +187,13 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimString, value: Object);
-    fn remote_ui_event(ui: *mut RemoteUI, name: *mut c_char, args: Array);
     fn remote_ui_mode_info_set(ui: *mut RemoteUI, enabled: bool, cursor_styles: Array);
-    fn remote_ui_update_menu(ui: *mut RemoteUI);
-    fn remote_ui_busy_start(ui: *mut RemoteUI);
-    fn remote_ui_busy_stop(ui: *mut RemoteUI);
-    fn remote_ui_mouse_on(ui: *mut RemoteUI);
-    fn remote_ui_mouse_off(ui: *mut RemoteUI);
-    fn remote_ui_mode_change(ui: *mut RemoteUI, mode: NvimString, mode_idx: Integer);
-    fn remote_ui_bell(ui: *mut RemoteUI);
-    fn remote_ui_visual_bell(ui: *mut RemoteUI);
-    fn remote_ui_flush(ui: *mut RemoteUI);
-    fn remote_ui_suspend(ui: *mut RemoteUI);
-    fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimString);
-    fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString);
-    fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimString);
-    fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString);
-    fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimString);
-    fn remote_ui_default_colors_set(
-        ui: *mut RemoteUI,
-        rgb_fg: Integer,
-        rgb_bg: Integer,
-        rgb_sp: Integer,
-        cterm_fg: Integer,
-        cterm_bg: Integer,
-    );
     fn remote_ui_hl_attr_define(
         ui: *mut RemoteUI,
         id: Integer,
         rgb_attrs: crate::map::HlAttrs,
         cterm_attrs: crate::map::HlAttrs,
         info: Array,
-    );
-    fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: Integer);
-    fn remote_ui_grid_resize(ui: *mut RemoteUI, grid: Integer, width: Integer, height: Integer);
-    fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer);
-    fn remote_ui_grid_cursor_goto(ui: *mut RemoteUI, grid: Integer, row: Integer, col: Integer);
-    fn remote_ui_grid_scroll(
-        ui: *mut RemoteUI,
-        grid: Integer,
-        top: Integer,
-        bot: Integer,
-        left: Integer,
-        right: Integer,
-        rows: Integer,
-        cols: Integer,
-    );
-    fn remote_ui_raw_line(
-        ui: *mut RemoteUI,
-        grid: Integer,
-        row: Integer,
-        startcol: Integer,
-        endcol: Integer,
-        clearcol: Integer,
-        clearattr: Integer,
-        flags: c_int,
-        chunk: *const schar_T,
-        attrs: *const sattr_T,
     );
     fn remote_ui_msg_set_pos(
         ui: *mut RemoteUI,
@@ -242,40 +204,7 @@ unsafe extern "C" {
         zindex: Integer,
         compindex: Integer,
     );
-    fn remote_ui_win_viewport(
-        ui: *mut RemoteUI,
-        grid: Integer,
-        win: handle_T,
-        topline: Integer,
-        botline: Integer,
-        curline: Integer,
-        curcol: Integer,
-        line_count: Integer,
-        scroll_delta: Integer,
-    );
-    fn remote_ui_win_viewport_margins(
-        ui: *mut RemoteUI,
-        grid: Integer,
-        win: handle_T,
-        top: Integer,
-        bottom: Integer,
-        left: Integer,
-        right: Integer,
-    );
-    fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer);
-    fn remote_ui__set_restart_on_crash_exit(ui: *mut RemoteUI, progpath: NvimString, argv: Array);
 
-    fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer);
-    fn ui_comp_grid_cursor_goto(grid: Integer, row: Integer, col: Integer);
-    fn ui_comp_grid_scroll(
-        grid: Integer,
-        top: Integer,
-        bot: Integer,
-        left: Integer,
-        right: Integer,
-        rows: Integer,
-        cols: Integer,
-    );
     fn ui_comp_raw_line(
         grid: Integer,
         row: Integer,

@@ -8,7 +8,19 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find};
+#[allow(unused_imports)]
+use crate::eval::vars::assert_error;
+#[allow(unused_imports)]
+use crate::eval::{garbage_collect, pattern_match};
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
+#[allow(unused_imports)]
+use crate::message::{emsg, msg_reset_scroll};
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 
@@ -56,19 +68,8 @@ enum AssertType {
 unsafe extern "C" {
 
     fn estack_sfile(which: c_int) -> *mut c_char;
-    fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
 
     fn tv_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bool;
-    fn tv_clear(tv: *mut typval_T);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
-    fn tv_dict_add_tv(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        tv: *mut typval_T,
-    ) -> c_int;
 
     fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
@@ -86,13 +87,6 @@ unsafe extern "C" {
     fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
     fn get_vim_var_nr(idx: c_int) -> i64;
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-
-    fn assert_error(gap: *mut garray_T);
-    fn pattern_match(pat: *const c_char, text: *const c_char, ic: bool) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn msg_reset_scroll();
-    fn garbage_collect(testing: bool) -> bool;
-    fn emsg(s: *const c_char) -> bool;
 
     fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
     fn fgetc(stream: *mut FILE) -> c_int;

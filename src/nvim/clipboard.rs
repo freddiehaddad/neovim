@@ -9,7 +9,17 @@
     clippy::needless_return
 )]
 
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_alloc, tv_list_append_list, tv_list_append_string};
+#[allow(unused_imports)]
+use crate::eval::{eval_call_provider, eval_has_provider};
+#[allow(unused_imports)]
+use crate::mcursor::mc_replaying;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::register::{free_register, get_y_previous, get_y_register, update_yankreg_width};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
@@ -119,29 +129,6 @@ static CLIPBOARD_NEEDS_UPDATE: AtomicBool = AtomicBool::new(false);
 static CLIPBOARD_DIDWARN: AtomicBool = AtomicBool::new(false);
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn eval_has_provider(feat: *const c_char, throw_err: bool) -> bool;
-    fn eval_call_provider(
-        provider: *mut c_char,
-        method: *mut c_char,
-        arguments: *mut list_T,
-        discard: bool,
-    ) -> typval_T;
-    fn redirecting() -> c_int;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn emsg(s: *const c_char) -> bool;
-    fn get_y_register(reg: c_int) -> *mut yankreg_T;
-    fn get_y_previous() -> *mut yankreg_T;
-    fn free_register(reg: *mut yankreg_T);
-    fn update_yankreg_width(reg: *mut yankreg_T);
-    fn mc_replaying() -> bool;
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_string(l: *mut list_T, str_ptr: *const c_char, len: isize);
-    fn tv_list_append_list(l: *mut list_T, item_l: *mut list_T);
-}
 
 #[inline]
 unsafe fn cstr_to_nvim_string(s: *const c_char) -> NvimString {

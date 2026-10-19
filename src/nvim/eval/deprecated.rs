@@ -8,7 +8,19 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::channel::channel_create_event;
+#[allow(unused_imports)]
+use crate::eval::find_job;
+#[allow(unused_imports)]
+use crate::eval::funcs::{f_jobstart, f_jobstop};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_alloc, tv_dict_free};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
@@ -157,7 +169,7 @@ pub struct synblock_T {
     pub b_syn_sync_maxlines: i32,
     pub b_syn_sync_linebreaks: i32,
     pub b_syn_linecont_pat: *mut c_char,
-    pub b_syn_linecont_prog: *mut c_void,
+    pub b_syn_linecont_prog: *mut crate::regexp::regprog_T,
     pub b_syn_linecont_time: syn_time_T,
     pub b_syn_linecont_ic: c_int,
     pub b_syn_topgrp: c_int,
@@ -451,7 +463,7 @@ pub struct buf_T {
     pub b_prompt_start: fmark_T,
     pub b_s: synblock_T,
     pub b_signcols: BufSigncols,
-    pub terminal: *mut c_void,
+    pub terminal: *mut crate::terminal::Terminal,
     pub additional_data: *mut c_void,
     pub b_mapped_ctrl_c: c_int,
     pub b_marktree: [MarkTree; 1],
@@ -472,11 +484,8 @@ pub struct buf_T {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn check_secure() -> bool;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
-    fn tv_dict_alloc() -> *mut dict_T;
     fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
-    fn tv_dict_free(d: *mut dict_T);
 
     fn channel_job_start(
         argv: *mut *mut c_char,
@@ -495,13 +504,8 @@ unsafe extern "C" {
         env: *mut dict_T,
         status_out: *mut i64,
     ) -> *mut Channel;
-    fn channel_create_event(chan: *mut Channel, ext_source: *const c_char);
     fn channel_close(id: u64, part: c_int, error: *mut *const c_char) -> bool;
-    fn find_job(id: u64, show_error: bool) -> *mut Channel;
-    fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData);
-    fn f_jobstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: EvalFuncData);
 
-    fn emsg(s: *const c_char) -> bool;
 }
 
 #[inline]

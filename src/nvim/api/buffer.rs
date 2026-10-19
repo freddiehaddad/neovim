@@ -10,8 +10,38 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, arena_array, arena_dict, buf_get_text, dict_get_value, dict_set_var,
+    find_buffer_by_handle, normalize_index, set_mark, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::change::changed_lines;
+#[allow(unused_imports)]
+use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos};
+#[allow(unused_imports)]
+use crate::ex_cmds::rename_buffer;
+#[allow(unused_imports)]
+use crate::extmark::extmark_splice;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref;
+#[allow(unused_imports)]
+use crate::mark::{mark_adjust_buf, mark_get};
+#[allow(unused_imports)]
+use crate::memline::{
+    ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len,
+    ml_replace_buf,
+};
+#[allow(unused_imports)]
+use crate::memory::strchrsub;
+#[allow(unused_imports)]
+use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
+#[allow(unused_imports)]
+use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::undo::u_save_buf;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -25,8 +55,7 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{Buffer, pos_T, win_T};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::context::{ctx_restore, ctx_switch};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{BufUpdateCallbacks, buf_T, fmark_T};
+use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map_glyph_cache::NvimString;
@@ -153,99 +182,9 @@ pub use crate::extmark::u_header_T;
 
 unsafe extern "C" {
 
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
     fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_clear_error(value: *mut Error);
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn normalize_index(buf: *mut buf_T, index: i64, end_exclusive: bool, oob: *mut bool) -> i64;
     fn memchrsub(data: *mut c_char, c: c_char, x: c_char, len: usize);
-    fn strchrsub(buf: *mut c_char, c: c_char, x: c_char);
-    fn u_save_buf(buf: *mut buf_T, top: linenr_T, bot: linenr_T) -> c_int;
-    fn get_region_bytecount(
-        buf: *mut buf_T,
-        start_lnum: linenr_T,
-        end_lnum: linenr_T,
-        start_col: colnr_T,
-        end_col: colnr_T,
-    ) -> bcount_t;
-    fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int;
-    fn ml_replace_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        line: *mut c_char,
-        copy: bool,
-        noalloc: bool,
-    ) -> c_int;
-    fn ml_append_buf(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        line: *mut c_char,
-        len: colnr_T,
-        newfile: bool,
-    ) -> c_int;
-    fn mark_adjust_buf(
-        buf: *mut buf_T,
-        line1: linenr_T,
-        line2: linenr_T,
-        amount: linenr_T,
-        amount_after: linenr_T,
-        adjust_cursor: bool,
-        mode: MarkAdjustMode,
-        op: ExtmarkOp,
-    );
-    fn check_visual_pos();
-    fn extmark_splice(
-        buf: *mut buf_T,
-        start_row: c_int,
-        start_col: colnr_T,
-        old_row: c_int,
-        old_col: colnr_T,
-        old_byte: bcount_t,
-        new_row: c_int,
-        new_col: colnr_T,
-        new_byte: bcount_t,
-        undo: ExtmarkOp,
-    );
-    fn changed_lines(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        lnume: linenr_T,
-        xtra: linenr_T,
-        do_buf_event: bool,
-    );
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn buf_get_text(
-        buf: *mut buf_T,
-        lnum: i64,
-        start_col: i64,
-        end_col: i64,
-        err: *mut Error,
-    ) -> NvimString;
-    fn ml_find_line_or_offset(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        offp: *mut c_int,
-        no_ff: bool,
-    ) -> c_int;
-    fn dict_get_value(
-        d: *mut dict_T,
-        name: NvimString,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn dict_set_var(
-        dict: *mut dict_T,
-        name: NvimString,
-        value: Object,
-        del: bool,
-        retval: bool,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
     fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array;
     fn modify_keymap(
         channel_id: u64,
@@ -257,7 +196,6 @@ unsafe extern "C" {
         opts: *mut KeyDict_keymap,
         err: *mut Error,
     );
-    fn rename_buffer(new_fname: *mut c_char) -> c_int;
     fn do_buffer(
         action: c_int,
         start: c_int,
@@ -265,35 +203,6 @@ unsafe extern "C" {
         count: handle_T,
         forceit: c_int,
     ) -> c_int;
-    fn mark_get(
-        buf: *mut buf_T,
-        win: *mut win_T,
-        fmp: *mut fmark_T,
-        flag: MarkGet,
-        name: c_int,
-    ) -> *mut fmark_T;
-    fn set_mark(
-        buf: *mut buf_T,
-        name: NvimString,
-        line: Integer,
-        col: Integer,
-        err: *mut Error,
-    ) -> bool;
-    fn nlua_call_ref(
-        ref_id: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: LuaRetMode,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn check_cursor_lnum(win: *mut win_T);
-    fn check_cursor_col(win: *mut win_T);
-    fn changed_cline_bef_curs(wp: *mut win_T);
-    fn update_topline(wp: *mut win_T);
-    fn invalidate_botline_win(wp: *mut win_T);
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
 }
 
 unsafe extern "C-unwind" {

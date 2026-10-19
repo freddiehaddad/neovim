@@ -13,10 +13,44 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::cursor::gchar_cursor;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::callback_call;
+#[allow(unused_imports)]
+use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline;
+#[allow(unused_imports)]
+use crate::ex_getln::getexline;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::beep_flush;
+#[allow(unused_imports)]
+use crate::insert::{beginline, display_dollar};
+#[allow(unused_imports)]
+use crate::memline::{
+    dec, decl, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_get_pos,
+    ml_replace, ml_replace_len,
+};
 use crate::message::smsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore};
+#[allow(unused_imports)]
+use crate::normal::{
+    clearop, clearopbeep, exec_stuffed, may_clear_cmdline, restore_visual_mode, unadjust_for_sel,
+    unadjust_for_sel_inner, visualinfo,
+};
+#[allow(unused_imports)]
+use crate::option::{get_equalprg, get_fileformat, get_ve_flags};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::state::virtual_active;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::vim_beep;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -36,7 +70,7 @@ use crate::cursor::{
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T, visualinfo_T};
+use crate::eval::deprecated::{Callback, buf_T};
 use crate::extmark::{ExtmarkOp, TriState, bcount_t, extmark_splice, extmark_splice_cols};
 use crate::indent::{
     change_indent, fix_indent, get_expr_indent, get_indent, get_lisp_indent, get_sw_value_indent,
@@ -221,62 +255,17 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn internal_error(where_: *const c_char);
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_keep(s: *const c_char, attr: c_int, keep: bool, multiline: bool) -> bool;
-    fn msg_start();
-    fn msgmore(n: c_int);
-    fn may_clear_cmdline();
-    fn beep_flush();
-    fn vim_beep(val: c_uint);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_get_pos(pos: *const pos_T) -> *mut c_char;
     fn ml_get_pos_len(pos: *const pos_T) -> colnr_T;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool) -> c_int;
-    fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int;
     fn gchar_pos(pos: *const pos_T) -> c_int;
-    fn gchar_cursor() -> c_int;
-    fn inc(lp: *mut pos_T) -> c_int;
-    fn dec(lp: *mut pos_T) -> c_int;
-    fn decl(lp: *mut pos_T) -> c_int;
-    fn beginline(flags: c_int);
     fn edit(cmdchar: c_int, startln: bool, count: linenr_T) -> bool;
-    fn display_dollar(col_arg: colnr_T);
-    fn virtual_active(wp: *mut win_T) -> bool;
-    fn get_ve_flags(wp: *mut win_T) -> c_uint;
-    fn get_fileformat(buf: *const buf_T) -> c_int;
-    fn get_equalprg() -> *mut c_char;
     fn col_print(buf: *mut c_char, buflen: usize, col: c_int, vcol: c_int) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn tv_clear(varp: *mut typval_T);
-    fn callback_free(callback: *mut Callback);
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,
         ht_stack: *mut *mut c_void,
         list_stack: *mut *mut c_void,
     ) -> bool;
-    fn getexline(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
     fn foldOpenCursor();
     fn hasFolding(
         win: *mut win_T,
@@ -293,13 +282,6 @@ unsafe extern "C" {
         recurse: c_int,
         had_visual: bool,
     );
-    fn visualinfo() -> visualinfo_T;
-    fn restore_visual_mode();
-    fn unadjust_for_sel() -> bool;
-    fn unadjust_for_sel_inner(pp: *mut pos_T) -> bool;
-    fn clearop(oap: *mut oparg_T);
-    fn clearopbeep(oap: *mut oparg_T);
-    fn exec_stuffed(cap: *mut cmdarg_T);
 }
 
 #[inline]

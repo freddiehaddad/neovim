@@ -10,7 +10,18 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::decoration::{
+    buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free, decor_redraw,
+    decor_state_invalidate, decor_type_flags,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
+#[allow(unused_imports)]
+use crate::memline::ml_find_line_or_offset;
+#[allow(unused_imports)]
+use crate::undo::u_force_get_undo_header;
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -131,40 +142,6 @@ pub struct u_header_T {
     pub uh_flags: c_int,
     pub uh_namedm: [fmark_T; NMARKS],
     pub uh_extmark: extmark_undo_vec_t,
-}
-
-unsafe extern "C" {
-
-    fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_header_T;
-    fn buf_decor_remove(
-        buf: *mut buf_T,
-        row1: c_int,
-        row2: c_int,
-        col1: c_int,
-        decor: DecorInline,
-        free: bool,
-    );
-    fn decor_state_invalidate(buf: *mut buf_T);
-    fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, row2: c_int);
-    fn decor_redraw(buf: *mut buf_T, row1: c_int, row2: c_int, col1: c_int, decor: DecorInline);
-    fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, id: u32, pos: pos_T);
-    fn buf_signcols_count_range(
-        buf: *mut buf_T,
-        row1: c_int,
-        row2: c_int,
-        add: c_int,
-        clear: TriState,
-    );
-    fn decor_free(decor: DecorInline);
-    fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32);
-    fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32);
-    fn decor_type_flags(decor: DecorInline) -> u16;
-    fn ml_find_line_or_offset(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        offp: *mut c_int,
-        no_ff: bool,
-    ) -> c_int;
 }
 
 #[inline]

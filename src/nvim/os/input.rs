@@ -10,7 +10,21 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::autocmd::trigger_cursorhold;
+#[allow(unused_imports)]
+use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{before_blocking, typebuf_changed};
+#[allow(unused_imports)]
+use crate::insexpand::{
+    ins_compl_active, ins_compl_autocomplete_elapsed, ins_compl_autocomplete_pending,
+};
+#[allow(unused_imports)]
+use crate::keycodes::get_mouse_button;
+#[allow(unused_imports)]
+use crate::main_init::getout;
 use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -108,7 +122,6 @@ unsafe extern "C" {
 
     fn uv_loop_size() -> usize;
     fn uv_guess_handle(file: c_int) -> c_int;
-    fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool;
 
     fn apply_autocmds(
         event: c_int,
@@ -117,17 +130,8 @@ unsafe extern "C" {
         force: bool,
         buf: *mut buf_T,
     ) -> bool;
-    fn trigger_cursorhold() -> bool;
 
-    fn ins_compl_autocomplete_pending() -> bool;
-    fn ins_compl_active() -> bool;
-    fn ins_compl_autocomplete_elapsed() -> i64;
-
-    fn typebuf_changed(tb_change_cnt: c_int) -> bool;
-    fn before_blocking();
-    fn getout(r: c_int) -> !;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn get_mouse_button(code: c_int, is_click: *mut bool, is_drag: *mut bool) -> c_int;
 
     fn sscanf(s: *const c_char, format: *const c_char, ...) -> c_int;
 }

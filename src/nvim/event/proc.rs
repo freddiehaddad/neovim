@@ -9,7 +9,13 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::main_init::{os_exit, preserve_exit};
+#[allow(unused_imports)]
+use crate::os::shell::shell_free_argv;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
@@ -97,17 +103,12 @@ unsafe extern "C" {
     -> c_int;
     fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
 
-    fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int;
-    fn libuv_proc_close(uvproc: *mut LibuvProc);
     fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int;
     fn pty_proc_close(ptyproc: *mut PtyProc);
     fn pty_proc_close_master(ptyproc: *mut PtyProc);
     fn pty_proc_flush_master(ptyproc: *mut PtyProc);
     fn pty_proc_teardown(loop_: *mut Loop);
 
-    fn shell_free_argv(argv: *mut *mut c_char);
-    fn os_exit(r: c_int) -> !;
-    fn preserve_exit(reason: *const c_char) -> !;
 }
 
 #[inline]

@@ -9,8 +9,26 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::drawscreen::{setcursor, update_screen};
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_set_keys_readonly;
+#[allow(unused_imports)]
+use crate::eval::{get_v_event, restore_v_event};
+#[allow(unused_imports)]
+use crate::ex_getln::{cmdline_overstrike, get_cmdline_info};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::input::{
+    check_end_reg_executing, may_sync_undo, safe_vgetc, stuff_empty, using_script, vpeekc,
+};
+#[allow(unused_imports)]
+use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::os::input::{input_available, input_get, os_breakcheck};
+#[allow(unused_imports)]
+use crate::ui::ui_flush;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -128,37 +146,14 @@ unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
     fn uv_loop_size() -> usize;
-    fn vpeekc() -> c_int;
-    fn safe_vgetc() -> c_int;
-    fn ui_flush();
-    fn update_screen() -> c_int;
-    fn setcursor();
-    fn input_get(
-        buf: *mut u8,
-        maxlen: c_int,
-        ms: c_int,
-        tb_change_cnt: c_int,
-        events: *mut MultiQueue,
-    ) -> c_int;
-    fn input_available() -> usize;
-    fn check_end_reg_executing(advance: bool);
-    fn may_sync_undo();
-    fn os_breakcheck();
     fn get_ve_flags(wp: *const win_T) -> c_uint;
-    fn get_cmdline_info() -> *mut CmdlineInfo;
-    fn ins_compl_active() -> bool;
-    fn ctrl_x_mode_not_defined_yet() -> bool;
-    fn cmdline_overstrike() -> bool;
     fn has_event(event: c_int) -> bool;
-    fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
-    fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
     fn tv_dict_add_str(
         d: *mut dict_T,
         key: *const c_char,
         key_len: isize,
         val: *const c_char,
     ) -> c_int;
-    fn tv_dict_set_keys_readonly(d: *mut dict_T);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn apply_autocmds(
         event: c_int,
@@ -167,8 +162,6 @@ unsafe extern "C" {
         force: bool,
         buf: *mut buf_T,
     ) -> bool;
-    fn stuff_empty() -> bool;
-    fn using_script() -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }

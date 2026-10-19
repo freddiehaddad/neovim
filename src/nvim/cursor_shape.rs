@@ -8,9 +8,17 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{arena_array, arena_dict};
+#[allow(unused_imports)]
+use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::log::logmsg;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::ui::ui_mode_info_set;
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
@@ -127,14 +135,7 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
     fn getdigits_int(pp: *mut *const c_char, strict: bool, def: c_int) -> c_int;
-    fn syn_id2attr(hl_id: c_int) -> c_int;
-    fn syn_check_group(name: *const c_char, len: usize) -> c_int;
-    fn ui_mode_info_set();
-    fn cmdline_at_end() -> bool;
-    fn cmdline_overstrike() -> bool;
 }
 
 #[inline]

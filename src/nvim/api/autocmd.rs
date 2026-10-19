@@ -10,7 +10,23 @@
     clippy::needless_range_loop
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_set_sctx, arena_array, arena_dict, arena_string, arena_take_arraybuilder,
+    find_buffer_by_handle, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{
+    au_get_autocmds_for_event, aucmd_del_for_event_and_group, aucmd_span_pattern, augroup_add,
+    augroup_del, augroup_del_by_id, augroup_exists, augroup_find, augroup_name,
+    aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat, autocmd_delete_id,
+    do_autocmd_event, event_name2nr_str, event_nr2name,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::callback_free;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::private::converter::sctx_T;
@@ -82,7 +98,7 @@ const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
 pub struct AutoPat {
     pub refcount: usize,
     pub pat: *mut c_char,
-    pub reg_prog: *mut c_void,
+    pub reg_prog: *mut crate::regexp::regprog_T,
     pub group: c_int,
     pub patlen: c_int,
     pub buflocal_nr: c_int,
@@ -167,25 +183,6 @@ static mut NEXT_AUTOCMD_ID: i64 = 1;
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn event_name2nr_str(str: NvimString) -> event_T;
-    fn event_nr2name(event: event_T) -> *const c_char;
-    fn augroup_find(name: *const c_char) -> c_int;
-    fn augroup_name(group: c_int) -> *mut c_char;
-    fn augroup_exists(name: *const c_char) -> bool;
-    fn augroup_add(name: *const c_char) -> c_int;
-    fn augroup_del_by_id(group: c_int);
-    fn augroup_del(name: *mut c_char, id: c_int, stupid_legacy_mode: bool);
-    fn aucmd_del_for_event_and_group(event: event_T, group: c_int);
-    fn au_get_autocmds_for_event(event: event_T) -> *mut AutoCmdVec;
-    fn aupat_is_buflocal(pat: *const c_char, patlen: c_int) -> bool;
-    fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int;
-    fn aupat_normalize_buflocal_pat(
-        dest: *mut c_char,
-        pat: *const c_char,
-        patlen: c_int,
-        buflocal_nr: c_int,
-    );
-    fn aucmd_span_pattern(pat: *const c_char, start: *mut *const c_char) -> usize;
     fn autocmd_register(
         id: i64,
         event: event_T,
@@ -197,16 +194,6 @@ unsafe extern "C" {
         desc: *const c_char,
         handler_cmd: *const c_char,
         handler_fn: *mut Callback,
-    ) -> c_int;
-    fn autocmd_delete_id(id: i64) -> bool;
-    fn do_autocmd_event(
-        event: event_T,
-        pat: *const c_char,
-        once: bool,
-        nested: c_int,
-        cmd: *const c_char,
-        forceit: bool,
-        group: c_int,
     ) -> c_int;
     fn apply_autocmds_group(
         event: event_T,
@@ -222,21 +209,10 @@ unsafe extern "C" {
     ) -> bool;
     fn do_modelines(flags: c_int);
 
-    fn nlua_ref_is_function(ref_id: LuaRef) -> bool;
-    fn api_new_luaref(ref_id: LuaRef) -> LuaRef;
     fn callback_to_string(cb: *mut Callback, arena: *mut Arena) -> *mut c_char;
-    fn callback_free(cb: *mut Callback);
 
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_string(arena: *mut Arena, str: NvimString) -> NvimString;
-    fn arena_take_arraybuilder(arena: *mut Arena, arr: *mut ArrayBuilder) -> Array;
     fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_set_sctx(channel_id: u64) -> sctx_T;
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
 }
 
 #[inline]

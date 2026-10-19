@@ -10,10 +10,48 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::change::{changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str};
+#[allow(unused_imports)]
+use crate::drawscreen::redraw_curbuf_later;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::eval_expr_option_number;
+#[allow(unused_imports)]
+use crate::ex_docmd::handle_did_throw;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
+#[allow(unused_imports)]
+use crate::insert::{
+    backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
+};
+#[allow(unused_imports)]
+use crate::mbyte::utfc_ptr2len;
+#[allow(unused_imports)]
+use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
+#[allow(unused_imports)]
+use crate::ops::shift_line;
+#[allow(unused_imports)]
+use crate::option::{get_flp_value, get_showbreak_value, set_option_value, was_set_insecurely};
 use crate::option_vars::*;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
+#[allow(unused_imports)]
+use crate::optionstr::opt_keyset;
+#[allow(unused_imports)]
+use crate::os::input::line_breakcheck;
+#[allow(unused_imports)]
+use crate::regexp::vim_regexec;
+#[allow(unused_imports)]
+use crate::search::{findmatch, linewhite};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
@@ -25,7 +63,7 @@ use crate::clipboard::typval_T;
 use crate::cursor::{
     check_cursor, coladvance, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T,
 };
-use crate::eval::deprecated::{Callback, buf_T, pos_T};
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::extmark::extmark_splice_cols;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
@@ -115,47 +153,8 @@ static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
 
-    fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
-    fn get_nolist_virtcol() -> colnr_T;
-    fn ml_get(lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_len(lnum: linenr_T) -> colnr_T;
-    fn ml_get_pos(pos: *const pos_T) -> *mut c_char;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn u_savesub(lnum: linenr_T) -> c_int;
-    fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
-    fn u_savecommon(
-        buf: *mut buf_T,
-        top: linenr_T,
-        bot: linenr_T,
-        newbot: linenr_T,
-        reload: bool,
-    ) -> c_int;
-    fn u_clearline(buf: *mut buf_T);
-    fn changed_bytes(lnum: linenr_T, col: colnr_T);
-    fn changed_lines(
-        buf: *mut buf_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        lnume: linenr_T,
-        xtra: linenr_T,
-        do_buf_event: bool,
-    );
-    fn get_leader_len(
-        line: *mut c_char,
-        flags: *mut *mut c_char,
-        backward: bool,
-        include_space: bool,
-    ) -> c_int;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regfree(prog: *mut c_void);
-    fn win_col_off(wp: *mut win_T) -> c_int;
-    fn win_col_off2(wp: *mut win_T) -> c_int;
-    fn get_flp_value(buf: *mut buf_T) -> *mut c_char;
-    fn get_showbreak_value(win: *mut win_T) -> *mut c_char;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn emsg(s: *const c_char) -> bool;
+    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
+    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn msg_progress(
@@ -168,40 +167,13 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn beginline(flags: c_int);
-    fn redraw_curbuf_later(type_: c_int);
-    fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool;
-    fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T;
-    fn shift_line(left: bool, round: bool, amount: c_int, call_changed_bytes: c_int);
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn ins_str(s: *mut c_char, slen: usize);
-    fn ins_bytes(p: *mut c_char);
-    fn changed_cline_bef_curs(wp: *mut win_T);
-    fn replace_join(off: c_int);
-    fn replace_push_nul();
-    fn backspace_until_column(col: c_int);
-    fn line_breakcheck();
-    fn set_option_value(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        value_replaced: bool,
-        errbuf: *const CharBuf,
-    ) -> *const c_char;
-    fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int;
     fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn handle_did_throw();
-    fn linewhite(lnum: linenr_T) -> bool;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn do_c_expr_indent();
-    fn cindent_on() -> bool;
     fn tv_get_lnum(tv: *const typval_T) -> linenr_T;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

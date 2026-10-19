@@ -11,20 +11,64 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::bt_help;
+#[allow(unused_imports)]
+use crate::cmdexpand::{ExpandInit, ExpandOne};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
+    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_get_number,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
+    tv_list_append_tv, tv_list_free,
+};
+#[allow(unused_imports)]
+use crate::eval::{callback_call, list2fpos};
+#[allow(unused_imports)]
+use crate::ex_cmds::{getfile, prepare_tagpreview};
+#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline_cmd, set_no_hlsearch};
+#[allow(unused_imports)]
+use crate::file_search::{
+    vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::insexpand::{ins_compl_check_keys, ins_compl_interrupted};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, give_warning, msg, msg_advance, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
+    verbose_enter, verbose_leave, wait_return,
+};
 use crate::message::{semsg, smsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::free_string_option;
+#[allow(unused_imports)]
+use crate::path::FreeWild;
+#[allow(unused_imports)]
+use crate::quickfix::set_errorlist;
+#[allow(unused_imports)]
+use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::search::{ignorecase, ignorecase_opt};
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::window::{
+    check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_close, win_enter,
+    win_split, win_valid,
+};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::{cmdmod_T, exarg_T};
-use crate::api::private::converter::sctx_T;
-use crate::api::tabpage::{tabpage_T, taggy_T, win_T};
+use crate::api::tabpage::{taggy_T, win_T};
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::charset::{skipdigits, vim_isblankline};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cursor::{check_cursor, colnr_T, linenr_T};
+use crate::cursor::{check_cursor, linenr_T};
 use crate::drawscreen::redraw_later;
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{Callback, buf_T, fmark_T, fmarkv_T, pos_T};
@@ -52,7 +96,7 @@ pub type VarLockStatus = c_int;
 pub type OptInt = i64;
 pub type off_T = i64;
 pub type FILE = c_void;
-pub type regprog_T = c_void;
+pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
@@ -179,33 +223,7 @@ pub use crate::api::command::regmatch_T;
 
 pub use crate::r#match::SearchState;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct expand_T {
-    pub xp_pattern: *mut c_char,
-    pub xp_context: c_int,
-    pub xp_pattern_len: usize,
-    pub xp_prefix: c_int,
-    pub xp_arg: *mut c_char,
-    pub xp_luaref: c_int,
-    pub xp_script_ctx: sctx_T,
-    pub xp_backslash: c_int,
-    #[cfg(not(windows))]
-    pub xp_shell: bool,
-    pub xp_numfiles: c_int,
-    pub xp_col: c_int,
-    pub xp_selected: c_int,
-    pub xp_orig: *mut c_char,
-    pub xp_files: *mut *mut c_char,
-    pub xp_files_abbr: *mut *mut c_char,
-    pub xp_files_kind: *mut *mut c_char,
-    pub xp_files_menu: *mut *mut c_char,
-    pub xp_files_info: *mut *mut c_char,
-    pub xp_line: *mut c_char,
-    pub xp_buf: [c_char; 256],
-    pub xp_search_dir: c_int,
-    pub xp_pre_incsearch_pos: pos_T,
-}
+pub use crate::os::env::expand_T;
 
 #[derive(Clone, Copy)]
 struct tagptrs_T {
@@ -369,24 +387,10 @@ static mut DO_TAG_FLAGS: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn give_warning(message: *const c_char, hl: bool, with_source: bool);
     fn msg_delay(msec: i64, ignoreinput: bool);
-    fn msg_putchar(c: c_int);
-    fn msg_advance(col: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_title(s: *const c_char);
-    fn msg_outtrans(str: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn wait_return(redraw: c_int);
-    fn verbose_enter();
-    fn verbose_leave();
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn free_string_option(p: *mut c_char);
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
@@ -401,42 +405,17 @@ unsafe extern "C" {
         cookie: *mut c_void,
     ) -> c_int;
 
-    fn callback_free(callback: *mut Callback);
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,
         ht_stack: *mut *mut c_void,
         list_stack: *mut *mut c_void,
     ) -> bool;
-    fn callback_call(
-        callback: *mut Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
 
-    fn check_can_set_curbuf_forceit(forceit: c_int) -> bool;
     fn buflist_getfile(n: c_int, lnum: linenr_T, options: c_int, forceit: c_int) -> c_int;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T;
-    fn bt_help(buf: *const buf_T) -> bool;
-    fn getfile(
-        fnum: c_int,
-        ffname_arg: *mut c_char,
-        sfname_arg: *mut c_char,
-        setpm: bool,
-        lnum: linenr_T,
-        forceit: bool,
-    ) -> c_int;
-    fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool;
-    fn swbuf_goto_win_with_buf(buf: *mut buf_T) -> *mut win_T;
-    fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_valid(win: *const win_T) -> bool;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
 
-    fn FreeWild(count: c_int, files: *mut *mut c_char);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn nlua_call_excmd(
         module: *const c_char,
@@ -445,69 +424,10 @@ unsafe extern "C" {
         cmod: *const cmdmod_T,
         extra: *mut typval_T,
     ) -> bool;
-    fn set_errorlist(
-        wp: *mut win_T,
-        list: *mut list_T,
-        action: c_int,
-        title: *mut c_char,
-        what: *mut dict_T,
-    ) -> c_int;
 
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_free(l: *mut list_T);
-    fn tv_list_append_tv(l: *mut list_T, tv: *mut typval_T);
-    fn tv_list_append_dict(l: *mut list_T, dict: *mut dict_T);
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T;
-    fn tv_dict_add_str(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-    ) -> c_int;
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        len: c_int,
-    ) -> c_int;
-    fn tv_dict_add_bool(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: BoolVarValue,
-    ) -> c_int;
-    fn tv_dict_add_list(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        list: *mut list_T,
-    ) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: varnumber_T)
-    -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn tv_dict_get_string(d: *const dict_T, key: *const c_char, save: bool) -> *mut c_char;
     fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> varnumber_T;
-    fn tv_get_number(tv: *const typval_T) -> varnumber_T;
-    fn tv_clear(tv: *mut typval_T);
-    fn list2fpos(
-        arg: *mut typval_T,
-        posp: *mut pos_T,
-        fnump: *mut c_int,
-        curswantp: *mut colnr_T,
-        charcol: bool,
-    ) -> c_int;
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
-
-    fn ignorecase(pat: *mut c_char) -> c_int;
-    fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int;
     fn do_search(
         oap: *mut c_void,
         dirc: c_int,
@@ -519,36 +439,6 @@ unsafe extern "C" {
         magic: bool,
         sia: *mut c_void,
     ) -> c_int;
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn set_no_hlsearch(flag: bool);
-
-    fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool);
-    fn ins_compl_interrupted() -> bool;
-
-    fn vim_findfile_init(
-        path: *mut c_char,
-        filename: *mut c_char,
-        filenamelen: usize,
-        stopdirs: *mut c_char,
-        level: c_int,
-        free_visited: c_int,
-        find_what: c_int,
-        search_ctx_arg: *mut c_void,
-        tagfile: c_int,
-        rel_fname: *mut c_char,
-    ) -> *mut c_void;
-    fn vim_findfile_stopdir(buf: *mut c_char) -> *mut c_char;
-    fn vim_findfile_cleanup(ctx: *mut c_void);
-    fn vim_findfile(search_ctx_arg: *mut c_void) -> *mut c_char;
-
-    fn ExpandInit(xp: *mut expand_T);
-    fn ExpandOne(
-        xp: *mut expand_T,
-        str: *mut c_char,
-        orig: *mut c_char,
-        options: c_int,
-        mode: c_int,
-    ) -> *mut c_char;
 
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn fclose(stream: *mut FILE) -> c_int;

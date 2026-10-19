@@ -16,9 +16,36 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::dialog::do_dialog;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_dict_add_str_len, tv_list_alloc_ret, tv_list_append_allocated_string,
+};
+#[allow(unused_imports)]
+use crate::fileio::{buf_store_file_info, modname};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::main_init::getout;
+#[allow(unused_imports)]
+use crate::mbyte::mb_adjust_cursor;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
+    msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, set_keep_msg, verb_msg,
+};
 use crate::message::{semsg, siemsg, smsg};
+#[allow(unused_imports)]
+use crate::option::{get_fileformat, set_fileformat};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::ui_flush;
+#[allow(unused_imports)]
+use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -300,30 +327,7 @@ unsafe extern "C" {
     static mut Versions: [*mut c_char; 1];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn verb_msg(s: *const c_char) -> c_int;
-    fn msg_start();
-    fn msg_end() -> bool;
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
-    fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_outnum(n: c_int);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_reset_scroll();
-    fn msg_multiline(
-        str_: NvimString,
-        hl_id: c_int,
-        check_int: bool,
-        hist: bool,
-        need_clear: *mut bool,
-    );
-    fn set_keep_msg(s: *const c_char, hl_id: c_int);
 
-    fn get_fileformat(buf: *const buf_T) -> c_int;
-    fn set_fileformat(eol_style: c_int, opt_flags: c_int);
     fn set_option_value_give_err(opt_idx: c_int, value: Object, opt_flags: c_int);
     fn copy_option_part(
         option: *mut *mut c_char,
@@ -343,18 +347,12 @@ unsafe extern "C" {
     #[cfg(unix)]
     fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
 
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn mb_adjust_cursor();
-    fn ui_flush();
     fn ui_has(ext: c_int) -> bool;
 
     fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
     fn vim_tempname() -> *mut c_char;
     fn vim_deltempdir();
-    fn modname(fname: *const c_char, ext: *const c_char, prepend_dot: bool) -> *mut c_char;
     fn buf_spname(buf: *mut buf_T) -> *mut c_char;
-    fn bufIsChanged(buf: *mut buf_T) -> bool;
-    fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo);
     fn buf_inc_changedtick(buf: *mut buf_T);
     fn open_buffer(read_stdin: bool, eap: *mut c_void, flags_arg: c_int) -> c_int;
     fn setfname(
@@ -373,36 +371,10 @@ unsafe extern "C" {
         flags: c_int,
         silent: bool,
     ) -> c_int;
-    fn getout(r: c_int) -> !;
-    fn nlua_call_typval(
-        module: *const c_char,
-        func: *const c_char,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    );
-    fn do_dialog(
-        type_: c_int,
-        title: *const c_char,
-        message: *const c_char,
-        buttons: *const c_char,
-        dfltbutton: c_int,
-        textfield: *const c_char,
-        ex_cmd: c_int,
-    ) -> c_int;
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn get_vim_var_str(idx: c_int) -> *mut c_char;
 
-    fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_allocated_string(l: *mut list_T, str_: *mut c_char);
-    fn tv_clear(varp: *mut typval_T);
-    fn tv_dict_add_str_len(
-        d: *mut dict_T,
-        key: *const c_char,
-        key_len: usize,
-        val: *const c_char,
-        val_len: c_int,
-    ) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
 }
 

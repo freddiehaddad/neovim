@@ -9,9 +9,28 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_free_array, api_free_dict, api_free_object, arena_array, arena_dict,
+};
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
+    tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
+};
+#[allow(unused_imports)]
+use crate::eval::userfunc::find_func;
 use crate::eval::vars::eval_msgpack_type_lists;
+#[allow(unused_imports)]
+use crate::eval::{get_copyID, partial_name};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::syn_check_group;
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, internal_error};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -198,34 +217,10 @@ unsafe extern "C-unwind" {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef);
-    fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef;
     fn register_luafunc(luaref: LuaRef) -> *mut c_char;
-    fn api_free_luaref(ref_: LuaRef);
-    fn api_free_array(value: Array);
-    fn api_free_dict(value: Dict);
-    fn api_free_object(value: Object);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(object_type: ObjectType) -> *const c_char;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
 
-    fn get_copyID() -> c_int;
-    fn find_func(name: *const c_char) -> *mut ufunc_T;
-    fn partial_name(pt: *mut partial_T) -> *mut c_char;
-    fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn tv_clear(tv: *mut typval_T);
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_append_owned_tv(l: *mut list_T, tv: typval_T) -> *mut typval_T;
-    fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T);
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
-    fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
-
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_: *const c_char);
 }
 
 #[cfg(not(test))]

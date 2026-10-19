@@ -16,6 +16,8 @@ use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
+use crate::buffer::{bt_prompt, buf_is_empty, buf_valid, bufref_valid, set_bufref};
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
 use crate::charset::{getdigits_int, getdigits_int32, skipwhite};
@@ -27,11 +29,18 @@ use crate::drawscreen::redraw_later;
 use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::fs::FileInfo;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_get_number;
+#[allow(unused_imports)]
+use crate::eval::vars::{eval_diff, eval_patch};
+#[allow(unused_imports)]
+use crate::ex_cmds::append_redir;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::extmark::extmark_adjust;
 use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::keycodes::scid_T;
 use crate::linematch::{linematch_nbuffers, mmfile_t};
 use crate::map_glyph_cache::NvimString;
 use crate::mark::{mark_adjust, setpcmark};
@@ -39,17 +48,36 @@ use crate::mbyte::{
     mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold, utf_head_off,
     utf_ptr2char, utfc_ptr2len,
 };
+#[allow(unused_imports)]
+use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
 use crate::memory::{memchrsub, strequal, xcalloc, xfree, xmalloc, xstrdup};
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::semsg;
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
     invalidate_botline_win, validate_cursor,
 };
+#[allow(unused_imports)]
+use crate::normal::check_scrollbind;
+#[allow(unused_imports)]
+use crate::option::{set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::{free_string_option, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
+#[allow(unused_imports)]
+use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
+#[allow(unused_imports)]
+use crate::window::{
+    frames_locked, scroll_to_fraction, set_fraction, win_split, win_valid, window_layout_lock,
+    window_layout_unlock,
+};
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{xdemitcb_t, xdemitconf_t, xpparam_t};
 use std::ffi::{c_char, c_int, c_long, c_uint, c_ulong, c_void};
@@ -235,11 +263,6 @@ static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn buf_valid(buf: *mut buf_T) -> bool;
-    fn buf_is_empty(buf: *mut buf_T) -> bool;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
     fn buflist_findpat(
         pattern: *const c_char,
         pattern_end: *const c_char,
@@ -248,41 +271,13 @@ unsafe extern "C" {
         curtab_only: bool,
     ) -> c_int;
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
-    fn bt_prompt(buf: *mut buf_T) -> bool;
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn ml_delete(lnum: linenr_T) -> c_int;
-    fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn frames_locked() -> bool;
-    fn window_layout_lock();
-    fn window_layout_unlock();
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_valid(win: *const win_T) -> bool;
-    fn set_fraction(wp: *mut win_T);
-    fn scroll_to_fraction(wp: *mut win_T, prev_height: c_int);
-    fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int);
-    fn free_string_option(p: *mut c_char);
-    fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-    fn set_option_direct_for(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        set_sid: scid_T,
-        scope: OptScope,
-        from: *mut c_void,
-    );
     fn vim_tempname() -> *mut c_char;
     fn vim_gettempdir() -> *mut c_char;
     fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool;
     fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
     fn shorten_fnames(force: c_int);
-    fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile: *const c_char);
-    fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfile: *const c_char);
-    fn append_redir(buf: *mut c_char, buflen: usize, opt: *const c_char, fname: *const c_char);
     fn ex_file(eap: *mut exarg_T);
     fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T);
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn get_address(
         eap: *mut exarg_T,
         ptr: *mut *mut c_char,
@@ -293,17 +288,8 @@ unsafe extern "C" {
         address_count: c_int,
         errormsg: *mut *const c_char,
     ) -> linenr_T;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn vim_strsave_shellescape(
-        string: *const c_char,
-        do_special: bool,
-        do_newline: bool,
-    ) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_beep(val: c_uint);
     fn tv_get_lnum(argvars: *const typval_T) -> linenr_T;
-    fn tv_get_number(varp: *const typval_T) -> varnumber_T;
     fn hasFolding(
         wp: *mut win_T,
         lnum: linenr_T,

@@ -13,10 +13,39 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::{bt_nofilename, buf_set_file_id, set_bufref};
+#[allow(unused_imports)]
+use crate::drawscreen::status_redraw_all;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::vars::eval_charconvert;
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::fileio::{
+    add_quoted_fname, buf_store_file_info, fname_msg_id, modname, slow_io_ns, time_differs,
+    write_eintr,
+};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
+#[allow(unused_imports)]
+use crate::memline::{make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{emsg, msg, msg_puts_hl, set_keep_msg};
+#[allow(unused_imports)]
+use crate::option::{get_bkc_flags, shortmess};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::path::{after_pathsep, path_equal, path_tail};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
+#[allow(unused_imports)]
+use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -201,9 +230,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
     fn msg_progress(
         msg: *const c_char,
         id: *const c_char,
@@ -224,71 +250,20 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn set_keep_msg(s: *const c_char, attr: c_int);
-    fn ui_flush();
-    fn ui_busy_start();
-    fn ui_busy_stop();
-    fn status_redraw_all();
 
-    fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int;
-    fn utf_ptr2char(p_in: *const c_char) -> c_int;
-    fn enc_canonize(enc: *mut c_char) -> *mut c_char;
-    fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *mut c_void;
-
-    fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize;
-    fn time_differs(file_info: *const FileInfo, mtime: i64, mtime_ns: i64) -> bool;
     fn get_fio_flags(name: *mut c_char) -> c_int;
     fn need_conversion(fenc: *const c_char) -> bool;
     fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int;
-    fn check_secure() -> bool;
     fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int;
-    fn add_quoted_fname(
-        ret_buf: *mut c_char,
-        buf_len: usize,
-        buf: *const buf_T,
-        fname: *const c_char,
-    );
-    fn fname_msg_id(
-        msg_id: *mut c_char,
-        size: usize,
-        prefix: *const c_char,
-        buf: *const buf_T,
-        fname: *const c_char,
-    );
     fn filemess_bufwrite(buf: *mut buf_T, name: *const c_char, id: *const c_char);
-    fn slow_io_ns() -> u64;
     fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool;
     fn vim_tempname() -> *mut c_char;
     fn vim_rename(from: *const c_char, to: *const c_char) -> c_int;
-    fn make_percent_swname(
-        dir: *mut c_char,
-        dir_end: *mut c_char,
-        name: *const c_char,
-    ) -> *mut c_char;
-    fn modname(fname: *const c_char, ext: *const c_char, prepend_dot: bool) -> *mut c_char;
     fn get_file_in_dir(fname: *const c_char, dname: *const c_char) -> *mut c_char;
-    fn eval_charconvert(
-        enc_from: *const c_char,
-        enc_to: *const c_char,
-        fname_from: *const c_char,
-        fname_to: *const c_char,
-    ) -> c_int;
     fn msg_add_fileformat(eol_type: c_int) -> bool;
     fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: i64);
-    fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo);
-    fn buf_set_file_id(buf: *mut buf_T);
 
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
     fn bufref_valid(bufref: *const bufref_T) -> bool;
-    fn bt_nofilename(buf: *const buf_T) -> bool;
-    fn curbufIsChanged() -> bool;
-    fn u_unchanged(buf: *mut buf_T);
-    fn u_update_save_nr(buf: *mut buf_T);
-    fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *mut u8);
-
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_timestamp(buf: *mut buf_T);
-    fn ml_preserve(buf: *mut buf_T, message: bool, fsync: bool);
 
     fn apply_autocmds_exarg(
         event: event_T,
@@ -299,18 +274,12 @@ unsafe extern "C" {
         eap: *mut exarg_T,
     ) -> bool;
 
-    fn get_bkc_flags(buf: *mut buf_T) -> c_uint;
-    fn shortmess(x: c_int) -> bool;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn after_pathsep(b: *const c_char, p: *const c_char) -> c_int;
-    fn path_tail(fname: *const c_char) -> *mut c_char;
-    fn path_equal(p1: *const c_char, p2: *const c_char, flags: PathCmpFlags) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 

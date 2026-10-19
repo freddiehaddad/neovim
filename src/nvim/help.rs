@@ -10,10 +10,36 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::buffer::bt_help;
+#[allow(unused_imports)]
+use crate::charset::{buf_init_isk_chartab, skipwhite};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_clear;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::memory::xstrlcpy;
+#[allow(unused_imports)]
+use crate::message::emsg;
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::set_option_direct;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::optionstr::check_buf_options;
+#[allow(unused_imports)]
+use crate::os::fs::os_fopen;
+#[allow(unused_imports)]
+use crate::path::FreeWild;
+#[allow(unused_imports)]
+use crate::tag::find_tags;
+#[allow(unused_imports)]
+use crate::window::{win_close, win_enter, win_setheight, win_split};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -67,22 +93,8 @@ const kSpecialVarNull: i64 = 0;
 
 unsafe extern "C" {
 
-    fn nlua_call_typval(
-        module: *const c_char,
-        func: *const c_char,
-        argvars: *mut typval_T,
-        rettv: *mut typval_T,
-    );
-    fn tv_clear(tv: *mut typval_T);
-    fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn FreeWild(count: c_int, files: *mut *mut c_char);
-    fn bt_help(buf: *const buf_T) -> bool;
-    fn win_enter(wp: *mut win_T, undo_sync: bool);
-    fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut c_void;
     fn fclose(stream: *mut c_void) -> c_int;
-    fn win_split(size: c_int, flags: c_int) -> c_int;
-    fn win_setheight(height: c_int);
     fn do_ecmd(
         fnum: c_int,
         ffname: *mut c_char,
@@ -102,28 +114,13 @@ unsafe extern "C" {
     );
     fn buflist_findnr(nr: c_int) -> *mut buf_T;
     fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
-    fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn find_tags(
-        pat: *mut c_char,
-        num_matches: *mut c_int,
-        matchesp: *mut *mut *mut c_char,
-        flags: c_int,
-        mincount: c_int,
-        buf_ffname: *mut c_char,
-    ) -> c_int;
     fn qsort(
         base: *mut c_void,
         num: usize,
         size: usize,
         compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
     );
-    fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize;
-    fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set_sid: scid_T);
-    fn check_buf_options(buf: *mut buf_T);
-    fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int;
     fn set_buflisted(on: c_int);
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn skipwhite(q: *const c_char) -> *mut c_char;
 }
 
 #[inline]

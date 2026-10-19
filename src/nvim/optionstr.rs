@@ -15,9 +15,39 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
+#[allow(unused_imports)]
+use crate::charset::{buf_init_isk_chartab, check_isopt, init_isf_chartab, init_isi_chartab};
+#[allow(unused_imports)]
+use crate::cursor::coladvance;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::vars::{do_unlet, get_var_value};
+#[allow(unused_imports)]
+use crate::ex_getln::check_opt_wim;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::indent::briopt_check;
+#[allow(unused_imports)]
+use crate::insexpand::set_cpt_callbacks;
+#[allow(unused_imports)]
+use crate::message::{msg_grid_validate, verbose_open, verbose_stop};
+#[allow(unused_imports)]
+use crate::option::{
+    did_set_title, fill_culopt_flags, get_fileformat, get_option_default, option_next_keyval,
+    option_slice_eq, optval_free_read, parse_winhl_opt, redraw_titles, set_iminsert_global,
+    set_imsearch_global, set_option_direct, skip_to_option_part, valid_name,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
+#[allow(unused_imports)]
+use crate::window::{check_colorcolumn, global_stl_height};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -806,64 +836,19 @@ unsafe extern "C" {
     static opt_pvp_schema: [OptSchemaItem; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn valid_name(val: *const c_char, allowed: *const c_char) -> bool;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-    fn get_option_default(opt_idx: OptIndex, opt_flags: c_int) -> Object;
-    fn optval_free_read(opt_idx: OptIndex, value: Object);
-    fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set_sid: scid_T);
-    fn did_set_title();
-    fn redraw_titles();
-    fn set_iminsert_global(buf: *mut buf_T);
-    fn set_imsearch_global(buf: *mut buf_T);
-    fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int;
-    fn get_fileformat(buf: *const buf_T) -> c_int;
-    fn skip_to_option_part(p: *const c_char) -> *mut c_char;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn option_next_keyval(
-        p: *mut *const c_char,
-        key: *mut *const c_char,
-        keylen: *mut usize,
-        val: *mut *const c_char,
-        vallen: *mut usize,
-    ) -> bool;
-    fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool;
-    fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool;
 
-    fn briopt_check(wp: *mut win_T);
     fn foldUpdateAll(win: *mut win_T);
     fn newFoldLevel();
-    fn global_stl_height() -> c_int;
-    fn check_colorcolumn(cc: *mut c_char, wp: *mut win_T) -> *const c_char;
-    fn set_cpt_callbacks(args: *mut optset_T) -> c_int;
-    fn msg_grid_validate();
-    fn check_isopt(varp: *mut c_char) -> c_int;
-    fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int;
-    fn init_isf_chartab() -> c_int;
-    fn init_isi_chartab() -> c_int;
     fn keymap_init() -> *const c_char;
     fn spell_check_msm(p: *const c_char, do_msg: bool) -> c_int;
-    fn verbose_stop();
-    fn verbose_open() -> c_int;
-    fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int;
-    fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int;
-    fn ui_has(ext: UIExtension) -> bool;
 
-    fn get_var_value(name: *const c_char) -> *mut c_char;
-    fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c_int;
-
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
-
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn api_clear_error(value: *mut Error);
-
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strpbrk(s: *const c_char, accept: *const c_char) -> *mut c_char;

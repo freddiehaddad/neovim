@@ -14,6 +14,8 @@ use crate::api::options::bufref_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
+use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
 use crate::change::inserted_bytes;
 use crate::charset::{getwhitecols, skipbin, skipdigits, skiphex, skipwhite, vim_is_fname_char};
 use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T};
@@ -24,6 +26,10 @@ use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::redraw_later;
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
+#[allow(unused_imports)]
+use crate::ex_cmds::do_sub_msg;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline_cmd;
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -31,24 +37,48 @@ use crate::hashtab::{
     hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
     hashitem_empty,
 };
+#[allow(unused_imports)]
+use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
 use crate::mbyte::{
     mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr2char_adv,
     mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold, utf_head_off,
     utf_ptr2char, utfc_ptr2len,
 };
+#[allow(unused_imports)]
+use crate::memline::{
+    ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
+};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start,
+};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::{
+    get_option_value, optval_free, set_option_value_give_err, shortmess, valid_name,
+};
 use crate::option_vars::*;
 use crate::os::fs::os_remove;
 use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regexec_prog, vim_regfree};
+#[allow(unused_imports)]
+use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
 };
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
+#[allow(unused_imports)]
+use crate::window::win_valid_any_tab;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 pub type hlf_T = c_int;
@@ -56,7 +86,7 @@ pub type smt_T = c_int;
 pub type Direction = c_int;
 pub type OptIndex = c_int;
 pub type event_T = c_int;
-pub type regprog_T = c_void;
+pub use crate::regexp::regprog_T;
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const FAIL: c_int = 0;
@@ -188,55 +218,12 @@ static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn give_warning(message: *const c_char, hl: bool, with_source: bool);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_start();
-    fn msg_puts(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_end() -> bool;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
-    fn buf_is_empty(buf: *mut buf_T) -> bool;
-    fn win_valid_any_tab(win: *mut win_T) -> bool;
-    fn ml_open(buf: *mut buf_T) -> c_int;
-    fn ml_open_file(buf: *mut buf_T);
-    fn ml_close(buf: *mut buf_T, del_file: c_int);
-    fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T;
-    fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int;
-    fn ml_delete(lnum: linenr_T) -> c_int;
-    fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int;
-    fn syntax_present(win: *mut win_T) -> bool;
-    fn syn_get_id(
-        wp: *mut win_T,
-        lnum: linenr_T,
-        col: colnr_T,
-        trans: c_int,
-        spellp: *mut bool,
-        keep_state: c_int,
-    ) -> c_int;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regfree(prog: *mut regprog_T);
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regexec_prog(
-        prog: *mut *mut regprog_T,
-        ignore_case: bool,
-        line: *const c_char,
-        col: colnr_T,
-    ) -> bool;
-    fn shortmess(x: c_int) -> bool;
     fn copy_option_part(
         option: *mut *mut c_char,
         buf: *mut c_char,
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn valid_name(val: *const c_char, allowed: *const c_char) -> bool;
-    fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-    fn optval_free(o: Object);
-    fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn do_search(
         oap: *mut c_void,
         dirc: c_int,
@@ -248,33 +235,12 @@ unsafe extern "C" {
         magic: bool,
         sia: *mut c_void,
     ) -> c_int;
-    fn do_sub_msg(count_only: bool) -> bool;
-    fn ins_compl_interrupted() -> bool;
-    fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool);
-    fn ins_compl_add_infercase(
-        str_arg: *mut c_char,
-        len: c_int,
-        icase: bool,
-        fname: *mut c_char,
-        dir: Direction,
-        cont_s_ipos: bool,
-        score: c_int,
-    ) -> c_int;
-    fn spell_load_file(
-        fname: *mut c_char,
-        lang: *mut c_char,
-        old_lp: *mut slang_T,
-        silent: bool,
-    ) -> *mut slang_T;
     fn do_in_runtimepath(
         name: *mut c_char,
         flags: c_int,
         callback: Option<unsafe extern "C" fn(c_int, *mut *mut c_char, bool, *mut c_void) -> bool>,
         cookie: *mut c_void,
     ) -> c_int;
-    fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

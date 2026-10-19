@@ -8,8 +8,19 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::charset::vim_strsize;
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title,
+    trunc_string,
+};
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -66,27 +77,15 @@ pub use crate::api::command::regmatch_T;
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn get_cmdline_firstc() -> c_int;
-    fn get_list_range(str_ptr: *mut *mut c_char, num1: *mut c_int, num2: *mut c_int) -> c_int;
-    fn check_secure() -> bool;
-
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_buf(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
     fn tv_get_number(tv: *const typval_T) -> i64;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
+    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
     fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
-    fn vim_regfree(prog: *mut c_void);
+    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
 
-    fn vim_strsize(s: *const c_char) -> c_int;
-    fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: c_int);
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg(s: *const c_char, hl_id: c_int) -> bool;
-    fn msg_puts_title(s: *const c_char);
-    fn msg_putchar(c: c_int);
-    fn msg_outtrans(str_ptr: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn message_filtered(msg: *const c_char) -> bool;
 }
 
 #[inline]

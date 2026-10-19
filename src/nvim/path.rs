@@ -13,8 +13,20 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::cmdexpand::globpath;
+#[allow(unused_imports)]
+use crate::ex_docmd::eval_vars;
+#[allow(unused_imports)]
+use crate::fileio::file_pat_to_reg_pat;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{mb_isalpha, mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::concat_str;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -123,22 +135,6 @@ unsafe extern "C" {
     fn tolower(c: c_int) -> c_int;
 
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_head_off(base: *const c_char, p: *const c_char) -> c_int;
-    fn utf_fold(a: c_int) -> c_int;
-    fn mb_isalpha(a: c_int) -> bool;
-    fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int;
-
-    fn file_pat_to_reg_pat(
-        pat: *const c_char,
-        pat_end: *const c_char,
-        allow_dirs: *mut c_char,
-        no_bslash: c_int,
-    ) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
-    fn vim_regfree(prog: *mut regprog_T);
 
     fn copy_option_part(
         option: *mut *mut c_char,
@@ -146,24 +142,7 @@ unsafe extern "C" {
         maxlen: usize,
         sep_chars: *const c_char,
     ) -> usize;
-    fn globpath(
-        path: *mut c_char,
-        file: *mut c_char,
-        ga: *mut garray_T,
-        expand_options: c_int,
-        dirs: bool,
-    );
     fn eval_to_string(arg: *const c_char, convert: bool, use_sandbox: bool) -> *mut c_char;
-    fn eval_vars(
-        src: *mut c_char,
-        srcstart: *const c_char,
-        usedlen: *mut usize,
-        lnump: *mut linenr_T,
-        errormsg: *mut *const c_char,
-        escaped: *mut c_int,
-        empty_is_error: bool,
-    ) -> *mut c_char;
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
     fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }

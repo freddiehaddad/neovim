@@ -10,12 +10,32 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_free_object, api_set_sctx, copy_object, find_buffer_by_handle, find_tab_by_handle,
+    find_window_by_handle, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::autocmd::{block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds};
+#[allow(unused_imports)]
+use crate::buffer::{bufref_valid, set_bufref};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::memline::ml_open;
+#[allow(unused_imports)]
+use crate::option::{
+    escape_option_str_cmdline, find_option, free_option_prepared, get_all_options_info,
+    get_option_info, get_option_newval, get_option_value_for, get_option_varp_scope_from,
+    get_varp_from, opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj,
+    optval_own, optval_to_obj, set_option_direct, set_option_value_for,
+    validate_and_prepare_option_value,
+};
+#[allow(unused_imports)]
+use crate::window::close_windows;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::autocmd::TryState;
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
 };
@@ -129,87 +149,16 @@ pub struct KeyDict_option {
 
 unsafe extern "C" {
 
-    fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
-    fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
-    fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T;
-    fn find_option(name: *const c_char) -> OptIndex;
-    fn api_set_sctx(channel_id: u64) -> sctx_T;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn api_free_object(value: Object);
     fn api_typename(t: ObjectType) -> *const c_char;
-    fn copy_object(obj: Object, arena: *mut Arena) -> Object;
-    fn option_has_type(opt_idx: OptIndex, t: ObjectType) -> bool;
-    fn option_has_scope(opt_idx: OptIndex, scope: OptScope) -> bool;
     fn buflist_new(
         ffname_arg: *mut c_char,
         sfname_arg: *mut c_char,
         lnum: linenr_T,
         flags: c_int,
     ) -> *mut buf_T;
-    fn ml_open(buf: *mut buf_T) -> c_int;
-    fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);
-    fn bufref_valid(bufref: *mut bufref_T) -> bool;
-    fn set_option_direct(opt_idx: OptIndex, value: Object, opt_flags: c_int, set_sid: scid_T);
-    fn get_option_varp_scope_from(
-        opt_idx: OptIndex,
-        opt_flags: c_int,
-        buf: *mut buf_T,
-        win: *mut win_T,
-    ) -> *mut c_void;
-    fn has_event(event: event_T) -> bool;
-    fn try_enter(tstate: *mut TryState);
-    fn try_leave(tstate: *const TryState, err: *mut Error);
-    fn do_filetype_autocmd(buf: *mut buf_T, do_ftdetect: bool) -> bool;
-    fn block_autocmds();
-    fn unblock_autocmds();
-    fn close_windows(buf: *mut buf_T, keep_curwin: bool);
     fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
-    fn get_option_value_for(
-        opt_idx: OptIndex,
-        opt_flags: c_int,
-        scope: OptScope,
-        from: *mut c_void,
-        err: *mut Error,
-    ) -> Object;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-    fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_T) -> *mut c_void;
-    fn optval_from_obj(opt_idx: OptIndex, o: Object, op: set_op_T, error: *mut bool) -> Object;
-    fn optval_free(o: Object);
-    fn escape_option_str_cmdline(var: *mut c_char) -> *mut c_char;
-    fn optval_own(opt_idx: OptIndex, value: Object) -> Object;
-    fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object;
-    fn get_option_newval(
-        opt_idx: OptIndex,
-        opt_flags: c_int,
-        prefix: set_prefix_T,
-        argp: *mut *mut c_char,
-        nextchar: c_int,
-        op: set_op_T,
-        varp: *mut c_void,
-        oldval_override: *mut Object,
-        errmsg: *mut *const c_char,
-    ) -> Object;
-    fn validate_and_prepare_option_value(args: *mut optset_T) -> *const c_char;
-    fn free_option_prepared(args: *mut optset_T);
-    fn set_option_value_for(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        scope: OptScope,
-        from: *mut c_void,
-        value_replaced: bool,
-        err: *mut Error,
-    );
-    fn optval_to_obj(opt_idx: OptIndex, value: Object, arena: *mut Arena) -> Object;
-    fn get_all_options_info(arena: *mut Arena) -> Dict;
-    fn get_option_info(
-        name: NvimString,
-        opt_flags: c_int,
-        buf: *mut buf_T,
-        win: *mut win_T,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Dict;
 }
 
 const NIL: Object = Object {

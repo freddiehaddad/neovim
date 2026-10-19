@@ -10,9 +10,23 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::extmark::describe_ns;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_array, api_free_object, api_object_to_bool,
+};
+#[allow(unused_imports)]
+use crate::decoration::decor_check_to_be_deleted;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight::hl_check_ns;
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::lua::executor::api_free_luaref;
 use crate::message::msg_schedule_semsg_multiline;
+#[allow(unused_imports)]
+use crate::r#move::validate_botline_win;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -45,7 +59,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
 
 unsafe extern "C" {
 
-    fn describe_ns(ns_id: NS, fail: *const c_char) -> *const c_char;
     fn nlua_call_ref(
         ref_: LuaRef,
         name: *const c_char,
@@ -54,19 +67,6 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn api_object_to_bool(
-        obj: Object,
-        what: *const c_char,
-        nil_value: bool,
-        err: *mut Error,
-    ) -> bool;
-    fn api_clear_error(value: *mut Error);
-    fn api_free_object(value: Object);
-    fn api_free_array(value: Array);
-    fn api_free_luaref(ref_: LuaRef);
-    fn validate_botline_win(wp: *mut win_T);
-    fn hl_check_ns() -> bool;
-    fn decor_check_to_be_deleted();
 }
 
 #[inline]

@@ -9,7 +9,19 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::charset::{transchar, vim_isprintc};
+#[allow(unused_imports)]
+use crate::eval::vars::get_var_value;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::mbyte::{
+    utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
+};
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::strings::vim_strchr;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
 use crate::api::private::converter::sctx_T;
@@ -1897,15 +1909,6 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn utf_char2len(c: c_int) -> c_int;
-    fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
-    fn utfc_ptr2len(p: *const c_char) -> c_int;
-    fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int;
-    fn utf_ptr2char(p: *const c_char) -> c_int;
-    fn utf_ptr2len(p: *const c_char) -> c_int;
-
-    fn vim_isprintc(c: c_int) -> bool;
-    fn transchar(c: c_int) -> *mut c_char;
     fn vim_str2nr(
         start: *const c_char,
         prep: *mut c_int,
@@ -1917,10 +1920,7 @@ unsafe extern "C" {
         strict: bool,
         overflow: *mut bool,
     );
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn get_var_value(name: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
 }
 
 #[inline]

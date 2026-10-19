@@ -14,10 +14,53 @@
     clippy::useless_conversion
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{cstr_as_string, cstr_to_string};
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::funcs::tv_get_buf;
+#[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_item_alloc,
+    tv_dict_item_remove, tv_dict_set_keys_readonly, tv_dict_unref, tv_get_bool_chk, tv_get_number,
+    tv_get_number_chk, tv_item_lock, tv_list_alloc, tv_list_append_allocated_string,
+    tv_list_append_string, tv_list_append_tv, tv_list_free, tv_list_item_remove,
+    tv_list_remove_items, tv_list_unref, value_check_lock,
+};
+#[allow(unused_imports)]
+use crate::eval::userfunc::get_current_funccal_dict;
+#[allow(unused_imports)]
+use crate::eval::{
+    clear_lval, eval_isnamec1, eval_option, eval_to_string, eval1, find_name_end,
+    find_option_var_end, get_env_len, get_lval, get_name_len, handle_subscript,
+    may_call_simple_func, num_divide, num_modulus, partial_unref, set_var_lval, skip_expr,
+};
+#[allow(unused_imports)]
+use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::{check_nextcmd, ends_excmd};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_set_sctx;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::{
+    emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
+    msg_outtrans, msg_putchar, msg_puts, msg_puts_len, msg_start,
+};
+#[allow(unused_imports)]
+use crate::option::{
+    find_option, get_option_sctx, get_option_value, get_tty_option, get_winbuf_options,
+    is_option_hidden, is_tty_option, opt_from_tristate, option_has_type, optval_free,
+    set_option_value, set_option_value_give_err,
+};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::strings::{concat_str, vim_strchr};
+#[allow(unused_imports)]
+use crate::version::{highest_patch, min_vim_version};
+#[allow(unused_imports)]
+use crate::window::{find_tabpage, goto_tabpage_tp, prevwin_curwin, valid_tabpage};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -74,17 +117,7 @@ pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, boo
 type ex_unletlock_callback =
     unsafe extern "C" fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
 
-#[repr(C)]
-pub struct partial_T {
-    pub pt_refcount: c_int,
-    pub pt_copyID: c_int,
-    pub pt_name: *mut c_char,
-    pub pt_func: *mut c_void,
-    pub pt_auto: bool,
-    pub pt_argc: c_int,
-    pub pt_argv: *mut typval_T,
-    pub pt_dict: *mut dict_T,
-}
+pub use crate::api::private::converter::partial_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -540,20 +573,6 @@ static mut redir_varname: *mut c_char = ptr::null_mut();
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
-    fn internal_error(where_str: *const c_char);
-    fn message_filtered(msg: *const c_char) -> bool;
-    fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_start();
-    fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char);
-    fn msg_puts_len(str_arg: *const c_char, maxlen: isize, attr: c_int, recurse: bool);
-    fn msg_advance(col: c_int);
-    fn msg_outtrans(str_arg: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_clr_eos();
-
-    fn min_vim_version() -> c_int;
-    fn highest_patch() -> c_int;
 
     fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
     fn callback_call(
@@ -562,68 +581,16 @@ unsafe extern "C" {
         argvars_in: *mut typval_T,
         rettv: *mut typval_T,
     ) -> bool;
-    fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> c_int;
     fn eval0(
         arg: *mut c_char,
         rettv: *mut typval_T,
         eap: *mut exarg_T,
         evalarg: *mut evalarg_T,
     ) -> c_int;
-    fn eval1(arg: *mut *mut c_char, rettv: *mut typval_T, evalarg: *mut evalarg_T) -> c_int;
-    fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int;
-    fn eval_to_string(arg: *mut c_char, join_list: bool, use_simple_function: bool) -> *mut c_char;
     fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
     fn clear_evalarg(evalarg: *mut evalarg_T, eap: *mut exarg_T);
-    fn get_lval(
-        name: *mut c_char,
-        rettv: *mut typval_T,
-        lp: *mut lval_T,
-        unlet: bool,
-        skip: bool,
-        flags: c_int,
-        fne_flags: c_int,
-    ) -> *mut c_char;
-    fn clear_lval(lp: *mut lval_T);
-    fn set_var_lval(
-        lp: *mut lval_T,
-        endp: *mut c_char,
-        rettv: *mut typval_T,
-        copy: bool,
-        is_const: bool,
-        op: *const c_char,
-    );
-    fn find_name_end(
-        arg: *const c_char,
-        expr_start: *mut *const c_char,
-        expr_end: *mut *const c_char,
-        flags: c_int,
-    ) -> *const c_char;
-    fn get_env_len(arg: *mut *const c_char) -> c_int;
-    fn get_name_len(
-        arg: *mut *const c_char,
-        alias: *mut *mut c_char,
-        evaluate: bool,
-        verbose: bool,
-    ) -> c_int;
-    fn handle_subscript(
-        arg: *mut *const c_char,
-        rettv: *mut typval_T,
-        evalarg: *mut evalarg_T,
-        verbose: bool,
-    ) -> c_int;
-    fn eval_isnamec1(c: c_int) -> bool;
-    fn find_option_var_end(
-        arg: *mut *const c_char,
-        opt_idxp: *mut OptIndex,
-        opt_flags: *mut c_int,
-    ) -> *const c_char;
-    fn eval_option(arg: *mut *const c_char, rettv: *mut typval_T, evaluate: bool) -> c_int;
-    fn num_divide(n1: varnumber_T, n2: varnumber_T) -> varnumber_T;
-    fn num_modulus(n1: varnumber_T, n2: varnumber_T) -> varnumber_T;
-    fn partial_unref(pt: *mut partial_T);
 
     fn list_func_vars(first: *mut c_int);
-    fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T;
     fn find_hi_in_scoped_ht(name: *const c_char, pht: *mut *mut hashtab_T) -> *mut hashitem_T;
     fn find_var_in_scoped_ht(
         name: *const c_char,
@@ -639,87 +606,28 @@ unsafe extern "C" {
     fn function_exists(name: *const c_char, no_deref: bool) -> bool;
 
     fn tv_get_buf_from_arg(tv: *const typval_T) -> *mut buf_T;
-    fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T;
 
-    fn tv_dict_alloc() -> *mut dict_T;
-    fn tv_dict_alloc_lock(lock: VarLockStatus) -> *mut dict_T;
-    fn tv_dict_unref(d: *mut dict_T);
-    fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T;
-    fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int;
-    fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T);
     fn tv_dict_watcher_notify(
         dict: *mut dict_T,
         key: *const c_char,
         newtv: *mut typval_T,
         oldtv: *mut typval_T,
     );
-    fn tv_dict_set_keys_readonly(dict: *mut dict_T);
 
-    fn tv_list_alloc(len: isize) -> *mut list_T;
-    fn tv_list_free(l: *mut list_T);
-    fn tv_list_unref(l: *mut list_T);
     fn tv_list_find_str(l: *mut list_T, n: c_int) -> *const c_char;
     fn tv_list_find_nr(l: *mut list_T, n: c_int, ret_error: *mut bool) -> varnumber_T;
-    fn tv_list_append_allocated_string(l: *mut list_T, str_arg: *mut c_char);
-    fn tv_list_append_string(l: *mut list_T, str_arg: *const c_char, len: isize);
-    fn tv_list_append_tv(l: *mut list_T, tv: *mut typval_T);
-    fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T;
-    fn tv_list_remove_items(l: *mut list_T, item: *mut listitem_T, item2: *mut listitem_T);
 
-    fn tv_clear(tv: *mut typval_T);
-    fn tv_copy(from: *const typval_T, to: *mut typval_T);
-    fn tv_item_lock(tv: *mut typval_T, deep: c_int, lock: bool, check_refcount: bool);
-    fn value_check_lock(lock: VarLockStatus, name: *const c_char, name_len: usize) -> bool;
     fn tv_check_str_or_nr(tv: *const typval_T) -> bool;
-    fn tv_get_number(tv: *const typval_T) -> varnumber_T;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
-    fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;
     fn tv_get_string(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
     fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
 
-    fn get_option_sctx(opt_idx: OptIndex) -> *mut sctx_T;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-    fn find_option(name: *const c_char) -> OptIndex;
-    fn is_tty_option(name: *const c_char) -> bool;
-    fn is_option_hidden(opt_idx: OptIndex) -> bool;
-    fn option_has_type(opt_idx: OptIndex, opt_type: ObjectType) -> bool;
-    fn get_tty_option(name: *const c_char) -> Object;
-    fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object;
-    fn opt_from_tristate(t: TriState) -> Object;
-    fn optval_free(o: Object);
-    fn set_option_value(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-        value_replaced: bool,
-        errbuf: *const CharBuf,
-    ) -> *const c_char;
-    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
-    fn get_winbuf_options(bufopt: c_int) -> *mut dict_T;
 
-    fn ends_excmd(c: c_int) -> c_int;
-    fn check_nextcmd(p: *mut c_char) -> *mut c_char;
-    fn check_secure() -> bool;
-
-    fn prevwin_curwin() -> *mut win_T;
-    fn find_tabpage(n: c_int) -> *mut tabpage_T;
-    fn goto_tabpage_tp(
-        tp: *mut tabpage_T,
-        trigger_enter_autocmds: bool,
-        trigger_leave_autocmds: bool,
-    );
-    fn valid_tabpage(tpc: *mut tabpage_T) -> bool;
-
-    fn nlua_set_sctx(current: *mut sctx_T);
     fn new_script_item(name: *mut c_char, out_sid: *mut scid_T) -> *mut scriptitem_T;
     fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool;
     fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, show_ref: bool) -> *mut c_char;
-    fn cstr_as_string(str_arg: *const c_char) -> NvimString;
-    fn cstr_to_string(str_arg: *const c_char) -> NvimString;
 
-    fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 

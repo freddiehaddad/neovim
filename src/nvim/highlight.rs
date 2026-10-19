@@ -10,9 +10,26 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{api_dict_to_keydict, arena_array, arena_dict};
+#[allow(unused_imports)]
+use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_hl_group_set};
+#[allow(unused_imports)]
+use crate::drawscreen::screen_invalidate_highlights;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::highlight_group::{
+    highlight_attr_set_all, highlight_changed, name_to_color, name_to_ctermcolor, set_hl_group,
+    syn_check_group, syn_id2name, syn_ns_id2attr,
+};
+#[allow(unused_imports)]
+use crate::message::emsg;
+#[allow(unused_imports)]
+use crate::option::check_blending;
 use crate::option_vars::*;
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[allow(unused_imports)]
+use crate::popupmenu::pum_drawn;
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::extmark::NS;
@@ -22,7 +39,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::win_T;
 use crate::decoration_provider::get_decor_provider;
-use crate::lua::converter::{Boolean, FieldHashfn, LuaRef};
+use crate::lua::converter::{Boolean, LuaRef};
 use crate::map::{
     ColorItem, ColorKey, HlAttrs, HlEntry, Map, Set, cstr_t, map_put_ref_ColorKey_ColorItem,
     map_put_ref_int_ptr_t, map_put_ref_uint64_t_int, map_ref_ColorKey_ColorItem, map_ref_int_ptr_t,
@@ -35,7 +52,7 @@ use crate::msgpack_rpc::packer::Integer;
 pub type RgbValue = i32;
 pub type OptionalKeys = u64;
 pub type HLGroupID = Integer;
-pub type RemoteUI = c_void;
+pub use crate::msgpack_rpc::channel::RemoteUI;
 pub type HlKind = c_int;
 
 const LUA_NOREF: LuaRef = -2;
@@ -262,25 +279,7 @@ static mut ns_get_hl_recursive: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn emsg(s: *const c_char) -> bool;
     fn ui_call_hl_attr_define(id: Integer, rgb_attrs: HlAttrs, cterm_attrs: HlAttrs, info: Array);
-    fn remote_ui_hl_attr_define(
-        ui: *mut RemoteUI,
-        id: Integer,
-        rgb_attrs: HlAttrs,
-        cterm_attrs: HlAttrs,
-        info: Array,
-    );
-    fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: Integer);
-    fn set_hl_group(id: c_int, attrs: HlAttrs, dict: *mut KeyDict_highlight, link_id: c_int);
-    fn syn_id2name(id: c_int) -> *mut c_char;
-    fn syn_ns_id2attr(ns_id: c_int, hl_id: c_int, optional: *mut bool) -> c_int;
-    fn syn_check_group(name: *const c_char, len: usize) -> c_int;
-    fn highlight_attr_set_all();
-    fn highlight_changed();
-    fn screen_invalidate_highlights();
-    fn pum_drawn() -> bool;
-    fn check_blending(wp: *mut win_T);
     fn nlua_call_ref(
         ref_id: LuaRef,
         name: *const c_char,
@@ -289,17 +288,7 @@ unsafe extern "C" {
         arena: *mut Arena,
         err: *mut Error,
     ) -> Object;
-    fn api_dict_to_keydict(
-        retval: *mut c_void,
-        hashy: FieldHashfn,
-        dict: Dict,
-        err: *mut Error,
-    ) -> bool;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;
-    fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
-    fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue;
-    fn name_to_ctermcolor(name: *const c_char) -> c_int;
 }
 
 #[inline]
