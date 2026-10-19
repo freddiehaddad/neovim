@@ -395,9 +395,6 @@ file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/
 set(NLUA0_SOURCES)
 
 if(PREFER_LUA)
-  # luajit not used, use a vendored copy of the bit module
-  list(APPEND EXTERNAL_SOURCES ${PROJECT_SOURCE_DIR}/src/bit.c)
-  list(APPEND NLUA0_SOURCES ${PROJECT_SOURCE_DIR}/src/bit.c)
   target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
 endif()
 
@@ -777,12 +774,16 @@ else()
   set(NVIM_RUST_PROFILE_DIR "release")
   set(NVIM_RUST_CARGO_FLAGS "--release")
 endif()
+if(PREFER_LUA)
+  list(APPEND NVIM_RUST_CARGO_FLAGS "--features" "vendor-bit")
+endif()
 
 set(NVIM_RUST_LIB
   "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}nvim_rs${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/*.rs"
+  "${PROJECT_SOURCE_DIR}/src/bit.rs"
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
   "${PROJECT_SOURCE_DIR}/src/lpeg/*.rs"
   "${PROJECT_SOURCE_DIR}/src/mpack/*.rs"

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 
 #include "nvim/api/private/defs.h"
+#include "nvim/api/private/dispatch.h"
 #include "nvim/api/private/helpers.h"
 #include "nvim/macros_defs.h"
 #include "nvim/memory.h"
@@ -13,7 +14,13 @@
 #include "nvim/msgpack_rpc/unpacker.h"
 
 #include "api/private/api_metadata.generated.h"
+#include "api/private/dispatch_wrappers.generated.h"
 #include "api/private/helpers.c.generated.h"  // IWYU pragma: keep
+
+MsgpackRpcRequestHandler msgpack_rpc_get_handler_at(int hash)
+{
+  return method_handlers[hash];
+}
 
 const uint8_t *api_get_packed_metadata(size_t *len)
 {

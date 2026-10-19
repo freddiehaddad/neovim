@@ -1189,6 +1189,13 @@ pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is
 
         let _ = lua_cjson_new(lstate);
         lua_setfield(lstate, -2, c"json".as_ptr());
+
+        #[cfg(feature = "vendor-bit")]
+        {
+            let top = lua_gettop(lstate);
+            let _ = crate::bit::nvim_luaopen_bit(lstate);
+            lua_settop(lstate, top);
+        }
     }
 }
 

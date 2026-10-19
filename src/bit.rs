@@ -1,0 +1,405 @@
+//! Lua BitOp — a bit operations library for Lua 5.1/5.2 (`src/bit.c`).
+
+#![allow(
+    dead_code,
+    non_camel_case_types,
+    non_snake_case,
+    clippy::missing_safety_doc
+)]
+
+use std::ffi::{c_char, c_double, c_int, c_void};
+use std::ptr;
+
+pub type lua_State = c_void;
+pub type lua_Number = c_double;
+pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(L: *mut lua_State) -> c_int>;
+pub type SBits = i32;
+pub type UBits = u32;
+
+const LUA_TNONE: c_int = -1;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct luaL_Reg {
+    pub name: *const c_char,
+    pub func: lua_CFunction,
+}
+
+unsafe impl Sync for luaL_Reg {}
+
+#[cfg(not(test))]
+unsafe extern "C-unwind" {
+    fn lua_gettop(L: *mut lua_State) -> c_int;
+    fn lua_settop(L: *mut lua_State, idx: c_int);
+    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
+    fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
+    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
+    fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
+    fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
+    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
+    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
+    fn luaL_typerror(L: *mut lua_State, narg: c_int, tname: *const c_char) -> c_int;
+    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
+    fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
+}
+
+#[inline]
+pub const fn f64_to_ubits(n: f64) -> UBits {
+    // 2^52 + 2^51 = 6755399441055744.0
+    (n + 6_755_399_441_055_744.0).to_bits() as UBits
+}
+
+#[inline]
+pub fn format_tohex(mut b: UBits, mut n: UBits) -> ([c_char; 8], usize) {
+    let mut hexdigits: &[u8; 16] = b"0123456789abcdef";
+    if (n as SBits) < 0 {
+        n = (!n).wrapping_add(1);
+        hexdigits = b"0123456789ABCDEF";
+    }
+    if n > 8 {
+        n = 8;
+    }
+    let len = n as usize;
+    let mut buf = [0 as c_char; 8];
+    let mut i = len;
+    while i > 0 {
+        i -= 1;
+        buf[i] = hexdigits[(b & 15) as usize] as c_char;
+        b >>= 4;
+    }
+    (buf, len)
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn barg(L: *mut lua_State, idx: c_int) -> UBits {
+    unsafe {
+        let n = lua_tonumber(L, idx);
+        let b = f64_to_ubits(n);
+        if b == 0 && lua_isnumber(L, idx) == 0 {
+            luaL_typerror(L, idx, c"number".as_ptr());
+        }
+        b
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn bret(L: *mut lua_State, b: UBits) -> c_int {
+    unsafe {
+        lua_pushnumber(L, f64::from(b as SBits));
+        1
+    }
+}
+
+unsafe extern "C-unwind" fn bit_tobit(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        bret(L, barg(L, 1))
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_bnot(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        bret(L, !barg(L, 1))
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_band(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let mut b = barg(L, 1);
+        let mut i = lua_gettop(L);
+        while i > 1 {
+            b &= barg(L, i);
+            i -= 1;
+        }
+        bret(L, b)
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_bor(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let mut b = barg(L, 1);
+        let mut i = lua_gettop(L);
+        while i > 1 {
+            b |= barg(L, i);
+            i -= 1;
+        }
+        bret(L, b)
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_bxor(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let mut b = barg(L, 1);
+        let mut i = lua_gettop(L);
+        while i > 1 {
+            b ^= barg(L, i);
+            i -= 1;
+        }
+        bret(L, b)
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_lshift(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        let n = barg(L, 2) & 31;
+        bret(L, b.wrapping_shl(n))
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_rshift(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        let n = barg(L, 2) & 31;
+        bret(L, b.wrapping_shr(n))
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_arshift(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        let n = barg(L, 2) & 31;
+        bret(L, ((b as SBits).wrapping_shr(n)) as UBits)
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_rol(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        let n = barg(L, 2) & 31;
+        bret(L, b.rotate_left(n))
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_ror(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        let n = barg(L, 2) & 31;
+        bret(L, b.rotate_right(n))
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_bswap(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        bret(L, b.swap_bytes())
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+unsafe extern "C-unwind" fn bit_tohex(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let b = barg(L, 1);
+        let n = if lua_type(L, 2) == LUA_TNONE {
+            8
+        } else {
+            barg(L, 2)
+        };
+        let (buf, len) = format_tohex(b, n);
+        lua_pushlstring(L, buf.as_ptr(), len);
+        1
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        0
+    }
+}
+
+static BIT_FUNCS: [luaL_Reg; 13] = [
+    luaL_Reg {
+        name: c"tobit".as_ptr(),
+        func: Some(bit_tobit),
+    },
+    luaL_Reg {
+        name: c"bnot".as_ptr(),
+        func: Some(bit_bnot),
+    },
+    luaL_Reg {
+        name: c"band".as_ptr(),
+        func: Some(bit_band),
+    },
+    luaL_Reg {
+        name: c"bor".as_ptr(),
+        func: Some(bit_bor),
+    },
+    luaL_Reg {
+        name: c"bxor".as_ptr(),
+        func: Some(bit_bxor),
+    },
+    luaL_Reg {
+        name: c"lshift".as_ptr(),
+        func: Some(bit_lshift),
+    },
+    luaL_Reg {
+        name: c"rshift".as_ptr(),
+        func: Some(bit_rshift),
+    },
+    luaL_Reg {
+        name: c"arshift".as_ptr(),
+        func: Some(bit_arshift),
+    },
+    luaL_Reg {
+        name: c"rol".as_ptr(),
+        func: Some(bit_rol),
+    },
+    luaL_Reg {
+        name: c"ror".as_ptr(),
+        func: Some(bit_ror),
+    },
+    luaL_Reg {
+        name: c"bswap".as_ptr(),
+        func: Some(bit_bswap),
+    },
+    luaL_Reg {
+        name: c"tohex".as_ptr(),
+        func: Some(bit_tohex),
+    },
+    luaL_Reg {
+        name: ptr::null(),
+        func: None,
+    },
+];
+
+pub unsafe extern "C-unwind" fn nvim_luaopen_bit(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        lua_pushnumber(L, 1_437_217_655.0);
+        let b = barg(L, -1);
+        if b != 1_437_217_655 {
+            let mut msg = c"compiled with incompatible luaconf.h".as_ptr();
+            if cfg!(windows) && b == 1_610_612_736 {
+                msg = c"use D3DCREATE_FPU_PRESERVE with DirectX".as_ptr();
+            }
+            if b == 1_127_743_488 {
+                msg = c"not compiled with SWAPPED_DOUBLE".as_ptr();
+            }
+            luaL_error(L, c"bit library self-test failed (%s)".as_ptr(), msg);
+        }
+        luaL_register(L, c"bit".as_ptr(), BIT_FUNCS.as_ptr());
+        1
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        1
+    }
+}
+
+#[cfg(feature = "vendor-bit")]
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn luaopen_bit(L: *mut lua_State) -> c_int {
+    unsafe { nvim_luaopen_bit(L) }
+}
+
+const LUA_GLOBALSINDEX: c_int = -10002;
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn nvim_luaopen_nlua0(L: *mut lua_State) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        lua_getfield(L, LUA_GLOBALSINDEX, c"vim".as_ptr());
+        let _ = crate::mpack::lmpack::luaopen_mpack(L.cast());
+        lua_setfield(L, -2, c"mpack".as_ptr());
+
+        let _ = crate::lpeg::lptree::luaopen_lpeg(L.cast());
+        lua_setfield(L, -3, c"lpeg".as_ptr());
+        lua_settop(L, -3);
+
+        1
+    }
+    #[cfg(test)]
+    {
+        let _ = L;
+        1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn f64_to_ubits_and_tohex_match_bitop_semantics() {
+        assert_eq!(f64_to_ubits(1_437_217_655.0), 1_437_217_655);
+        assert_eq!(f64_to_ubits(-1.0), 0xffff_ffff);
+        assert_eq!(f64_to_ubits(0x8000_0000u32 as f64) as SBits, -2_147_483_648);
+
+        let (buf, len) = format_tohex(0xdead_beef, 8);
+        let bytes: Vec<u8> = buf[..len].iter().map(|&c| c as u8).collect();
+        assert_eq!(&bytes, b"deadbeef");
+
+        let (buf_up, len_up) = format_tohex(0xdead_beef, (-4i32) as u32);
+        let bytes_up: Vec<u8> = buf_up[..len_up].iter().map(|&c| c as u8).collect();
+        assert_eq!(&bytes_up, b"BEEF");
+        assert_eq!(BIT_FUNCS.len(), 13);
+        assert!(BIT_FUNCS[12].name.is_null());
+    }
+}

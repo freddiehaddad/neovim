@@ -8,6 +8,9 @@ name = "nvim_rs"
 path = "src/nvim/lib.rs"
 crate-type = ["staticlib", "rlib"]
 
+[features]
+vendor-bit = []
+
 [profile.dev]
 codegen-units = 256
 

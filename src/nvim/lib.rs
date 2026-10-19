@@ -3,6 +3,8 @@ pub mod arabic;
 pub mod arglist;
 pub mod autocmd;
 pub mod base64;
+#[path = "../bit.rs"]
+pub mod bit;
 pub mod buffer;
 pub mod buffer_updates;
 pub mod bufwrite;

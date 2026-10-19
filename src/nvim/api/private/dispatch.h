@@ -24,6 +24,21 @@ struct MsgpackRpcRequestHandler {
 
 extern const MsgpackRpcRequestHandler method_handlers[];
 
-#include "api/private/dispatch.h.generated.h"
+#define DEFINE_FUNC_ATTRIBUTES
+#include "nvim/func_attr.h"
+#undef DEFINE_FUNC_ATTRIBUTES
+#ifndef DLLEXPORT
+# ifdef MSWIN
+#  define DLLEXPORT __declspec(dllexport)
+# else
+#  define DLLEXPORT
+# endif
+#endif
+
+DLLEXPORT MsgpackRpcRequestHandler msgpack_rpc_get_handler(const char *name, size_t name_len);
+
+#include "nvim/func_attr.h"
+
+#include "api/private/dispatch.h.inline.generated.h"
 #include "api/private/dispatch_wrappers.h.generated.h"
 #include "keysets_defs.generated.h"
