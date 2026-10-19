@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -181,14 +182,6 @@ unsafe extern "C" {
     static mut curwin: *mut win_T;
     static mut firstwin: *mut win_T;
     static mut got_int: bool;
-
-    static e_invarg: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_argreq: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_invalid_buffer_name_str: [c_char; 0];
-    static e_dictreq: [c_char; 0];
-    static e_listreq: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

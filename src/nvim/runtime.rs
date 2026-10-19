@@ -13,6 +13,7 @@
     clippy::needless_range_loop
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
@@ -317,14 +318,6 @@ unsafe extern "C" {
     static mut msg_col: c_int;
     #[cfg(windows)]
     static mut hl_attr_active: *mut c_int;
-
-    static e_dirnotf: [c_char; 0];
-    static e_norange: [c_char; 0];
-    static e_argreq: [c_char; 0];
-    static e_notopen: [c_char; 0];
-    static e_interr: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_invargNval: [c_char; 0];
 
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;

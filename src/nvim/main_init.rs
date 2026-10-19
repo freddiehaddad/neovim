@@ -12,6 +12,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -319,8 +320,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     static mut windowsVersion: [c_char; 20];
 
-    static e_conflicting_configs: [c_char; 0];
-    static e_cannot_read_from_str_2: [c_char; 0];
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
 

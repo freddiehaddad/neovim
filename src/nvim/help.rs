@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -75,7 +76,6 @@ unsafe extern "C" {
     static mut Columns: c_int;
     static mut restart_edit: c_int;
     static mut IObuff: [c_char; IOSIZE];
-    static e_noident: [c_char; 0];
 
     fn nlua_call_typval(
         module: *const c_char,

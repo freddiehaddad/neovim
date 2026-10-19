@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -132,12 +133,6 @@ unsafe extern "C" {
     static mut cmdmod: cmdmod_T;
     static mut current_sctx: sctx_T;
     static mut IObuff: [c_char; IOSIZE];
-
-    static e_positive: [c_char; 1];
-    static e_invarg2: [c_char; 1];
-    static e_modifiable: [c_char; 1];
-    static e_resulting_text_too_long: [c_char; 1];
-    static e_interr: [c_char; 1];
 
     fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
     fn get_nolist_virtcol() -> colnr_T;

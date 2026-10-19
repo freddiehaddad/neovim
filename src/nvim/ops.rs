@@ -13,6 +13,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -248,7 +249,6 @@ unsafe extern "C" {
     static mut empty_string_option: [c_char; 1];
     static no_lines_msg: [c_char; 1];
     static mut IObuff: [c_char; IOSIZE];
-    static e_modifiable: [c_char; 1];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

@@ -13,6 +13,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -694,16 +695,6 @@ unsafe extern "C" {
     static mut bkc_flags: c_uint;
     static mut ve_flags: c_uint;
     static mut spo_flags: c_uint;
-
-    static e_invarg: [c_char; 0];
-    static e_trailing: [c_char; 0];
-    static e_sandbox: [c_char; 0];
-    static e_secure: [c_char; 0];
-    static e_scroll: [c_char; 0];
-    static e_positive: [c_char; 0];
-    static e_winheight: [c_char; 0];
-    static e_winwidth: [c_char; 0];
-    static e_unsupportedoption: [c_char; 0];
 
     static mut p_ai: c_int;
     static mut p_arshape: c_int;

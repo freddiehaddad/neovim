@@ -3,6 +3,8 @@
 
 #![allow(dead_code, clippy::missing_safety_doc)]
 
+#[cfg(not(test))]
+use crate::errors::*;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -69,7 +71,6 @@ unsafe extern "C" {
     static mut arena_alloc_count: usize;
     static mut did_outofmem_msg: bool;
     static mut emsg_silent: c_int;
-    static e_outofmem: [c_char; 0];
 
     fn clear_sb_text(all: bool);
     fn mf_release_all() -> bool;

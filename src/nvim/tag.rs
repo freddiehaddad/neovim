@@ -11,6 +11,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -385,7 +386,6 @@ unsafe extern "C" {
     static mut g_tag_at_cursor: bool;
     static mut keep_help_flag: bool;
     static mut IObuff: [c_char; IOSIZE];
-    static e_listreq: [c_char; 0];
 
     static mut p_tfu: Callback;
     static mut p_tgst: c_int;

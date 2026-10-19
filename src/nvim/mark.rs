@@ -11,6 +11,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -143,13 +144,6 @@ unsafe extern "C" {
     static mut saved_cursor: pos_T;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut IObuff: [c_char; IOSIZE];
-
-    static e_umark: [c_char; 1];
-    static e_marknotset: [c_char; 1];
-    static e_markinval: [c_char; 1];
-    static e_invarg: [c_char; 1];
-    static e_invarg2: [c_char; 1];
-    static e_argreq: [c_char; 1];
 
     fn has_event(event: c_int) -> bool;
     fn aucmd_defer(

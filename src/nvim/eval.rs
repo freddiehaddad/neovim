@@ -33,6 +33,7 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -545,29 +546,6 @@ unsafe extern "C" {
     static mut autocmd_match: *mut c_char;
     static mut autocmd_fname_full: bool;
     static mut autocmd_bufnr: c_int;
-
-    static line_msg: [c_char; 0];
-    static e_invexpr2: [c_char; 0];
-    static e_illvar: [c_char; 0];
-    static e_dictkey: [c_char; 0];
-    static e_dictkey_len: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_invargNval: [c_char; 0];
-    static e_letwrong: [c_char; 0];
-    static e_invalid_value_for_blob_nr: [c_char; 0];
-    static e_cannot_mod: [c_char; 0];
-    static e_missingparen: [c_char; 0];
-    static e_not_callable_type_str: [c_char; 0];
-    static e_using_float_as_string: [c_char; 0];
-    static e_stray_closing_curly_str: [c_char; 0];
-    static e_command_too_recursive: [c_char; 0];
-    static e_nobufnr: [c_char; 0];
-    static e_invchanjob: [c_char; 0];
-    static e_invchan: [c_char; 0];
-    static e_fast_api_disabled: [c_char; 0];
-    static e_invalblob: [c_char; 0];
 
     fn uv_handle_size(h_type: c_int) -> usize;
 

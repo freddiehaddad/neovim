@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::errors::*;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
@@ -44,7 +45,6 @@ unsafe extern "C-unwind" {
 
 unsafe extern "C" {
     static mut curwin: *mut win_T;
-    static e_no_spell: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

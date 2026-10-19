@@ -15,6 +15,7 @@ use crate::change::inserted_bytes;
 use crate::charset::{getdigits_int, skiptowhite, skipwhite};
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T};
+use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
@@ -336,8 +337,6 @@ unsafe extern "C" {
     static mut msg_scroll: c_int;
     static mut p_sps: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
-    static e_no_spell: [c_char; 1];
-    static e_notopen: [c_char; 1];
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

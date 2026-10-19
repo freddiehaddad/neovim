@@ -21,6 +21,7 @@
     clippy::while_immutable_condition
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
@@ -584,26 +585,6 @@ unsafe extern "C" {
     static mut p_mls: OptInt;
     static mut p_rtp: *mut c_char;
     static mut p_cpo: *mut c_char;
-
-    static e_openerrf: [c_char; 0];
-    static e_readerrf: [c_char; 0];
-    static e_loclist: [c_char; 0];
-    static e_winfixbuf_cannot_go_to_buffer: [c_char; 0];
-    static e_no_errors: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_invrange: [c_char; 0];
-    static e_notmp: [c_char; 0];
-    static e_noprevre: [c_char; 0];
-    static e_invalpat: [c_char; 0];
-    static e_nomatch: [c_char; 0];
-    static e_nomatch2: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_buffer_is_not_loaded: [c_char; 0];
-    static e_dictreq: [c_char; 0];
-    static e_listreq: [c_char; 0];
-    static e_au_recursive: [c_char; 0];
-    static e_string_required: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

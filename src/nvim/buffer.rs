@@ -16,6 +16,7 @@
     clippy::unnecessary_cast
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -408,18 +409,6 @@ unsafe extern "C" {
     static mut msg_loclist: *mut c_char;
     static mut msg_qflist: *mut c_char;
     static no_lines_msg: [c_char; 0];
-
-    static e_auabort: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_nobufnr: [c_char; 0];
-    static e_no_write_since_last_change_for_buffer_nr_add_bang_to_override: [c_char; 0];
-    static e_no_write_since_last_change_add_bang_to_override: [c_char; 0];
-    static e_no_write_since_last_change: [c_char; 0];
-    static e_job_still_running_add_bang_to_end_the_job: [c_char; 0];
-    static e_job_still_running: [c_char; 0];
-    static e_noalt: [c_char; 0];
-    static e_buffer_nr_not_found: [c_char; 0];
-    static e_cannot_switch_to_a_closing_buffer: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;

@@ -17,6 +17,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -602,11 +603,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     static mut p_ssl: c_int;
     static mut p_smd: c_int;
-
-    static e_invarg: [c_char; 0];
-    static e_listreq: [c_char; 0];
-    static e_notset: [c_char; 0];
-    static e_list_index_out_of_range_nr: [c_char; 0];
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

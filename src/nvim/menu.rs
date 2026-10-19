@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -188,12 +189,6 @@ unsafe extern "C" {
     static mut current_sctx: sctx_T;
     static mut p_cpo: *mut c_char;
     static mut p_sel: *mut c_char;
-
-    static e_cannot_change_menus_while_listing: [c_char; 1];
-    static e_invarg: [c_char; 1];
-    static e_invarg2: [c_char; 1];
-    static e_trailing_arg: [c_char; 1];
-    static e_menu_only_exists_in_another_mode: [c_char; 1];
 
     fn emsg(s: *const c_char) -> bool;
     fn semsg(s: *const c_char, ...) -> bool;

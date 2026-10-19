@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -122,13 +123,6 @@ unsafe extern "C" {
     static mut search_hl_has_cursor_lnum: linenr_T;
     static mut ns_hl_fast: c_int;
     static mut hl_attr_active: *mut c_int;
-    static e_invarg2: [c_char; 0];
-    static e_dictreq: [c_char; 0];
-    static e_invalwindow: [c_char; 0];
-    static e_listreq: [c_char; 0];
-    static e_listarg: [c_char; 0];
-    static e_invcmd: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
 
     fn semsg(fmt: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;

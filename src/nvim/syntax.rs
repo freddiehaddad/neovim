@@ -21,6 +21,7 @@ use crate::charset::{
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redraw_later};
+use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, syn_time_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 use crate::fold::foldmethodIsSyntax;
@@ -389,10 +390,6 @@ unsafe extern "C" {
     static mut reg_do_extmatch: c_int;
     static mut re_extmatch_in: *mut reg_extmatch_T;
     static mut re_extmatch_out: *mut reg_extmatch_T;
-    static e_invarg: [c_char; 1];
-    static e_invarg2: [c_char; 1];
-    static e_nogroup: [c_char; 1];
-    static e_notopen: [c_char; 1];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

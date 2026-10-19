@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
@@ -92,7 +93,6 @@ unsafe extern "C" {
     static mut p_ss: OptInt;
     static mut p_window: OptInt;
     static mut p_sol: c_int;
-    static e_invalid_line_number_nr: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn semsg(fmt: *const c_char, ...) -> bool;

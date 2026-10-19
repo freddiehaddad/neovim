@@ -17,6 +17,7 @@
     clippy::unnecessary_cast
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
 use std::ptr;
@@ -390,16 +391,6 @@ unsafe extern "C" {
     static mut vgetc_busy: c_int;
     static mut KeyTyped: bool;
     static mut KeyStuffed: c_int;
-
-    static e_not_allowed_to_change_window_layout_in_this_autocmd: [c_char; 1];
-    static e_winfixbuf_cannot_go_to_buffer: [c_char; 1];
-    static e_noalt: [c_char; 1];
-    static e_buffer_nr_not_found: [c_char; 1];
-    static e_noroom: [c_char; 1];
-    static e_floatexchange: [c_char; 1];
-    static e_autocmd_close: [c_char; 1];
-    static e_floatonly: [c_char; 1];
-    static e_invarg: [c_char; 1];
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

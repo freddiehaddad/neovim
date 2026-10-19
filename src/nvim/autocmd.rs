@@ -15,6 +15,7 @@
     clippy::needless_range_loop
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -1319,11 +1320,6 @@ unsafe extern "C" {
     static mut need_maketitle: bool;
     static mut starting: c_int;
     static mut secure: c_int;
-
-    static e_argreq: [c_char; 0];
-    static e_cannot_define_autocommands_for_all_events: [c_char; 0];
-    static e_buffer_nr_invalid_buffer_number: [c_char; 0];
-    static e_duparg2: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn cstr_as_string(str_: *const c_char) -> NvimString;

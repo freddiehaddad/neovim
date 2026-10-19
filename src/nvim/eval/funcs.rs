@@ -22,6 +22,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -632,35 +633,6 @@ unsafe extern "C" {
     fn vim_strsave_fnameescape(ptr: *const c_char, what: c_int) -> *mut c_char;
     fn syn_get_final_id(hl_id: c_int) -> c_int;
     fn win_col_off(wp: *mut win_T) -> c_int;
-
-    static e_toomanyarg: [c_char; 0];
-    static e_toofewarg: [c_char; 0];
-    static e_api_error: [c_char; 0];
-    static e_unknown_function_str: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_invargval: [c_char; 0];
-    static e_invargNval: [c_char; 0];
-    static e_invalwindow: [c_char; 0];
-    static e_cannot_change_readonly_variable_str: [c_char; 0];
-    static e_invexpr2: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_listarg: [c_char; 0];
-    static e_listdictarg: [c_char; 0];
-    static e_listblobarg: [c_char; 0];
-    static e_listblobreq: [c_char; 0];
-    static e_listdictblobarg: [c_char; 0];
-    static e_buffer_is_not_loaded: [c_char; 0];
-    static e_invalid_buffer_name_str: [c_char; 0];
-    static e_invalid_line_number_nr: [c_char; 0];
-    static e_invalid_column_number_nr: [c_char; 0];
-    static e_dictkey: [c_char; 0];
-    static e_channotpty: [c_char; 0];
-    static e_libcall: [c_char; 0];
-    static e_reduce_of_an_empty_str_with_no_initial_value: [c_char; 0];
-    static e_stdiochan2: [c_char; 0];
-    static e_no_spell: [c_char; 0];
-    static e_number_exp: [c_char; 0];
 
     fn strlen(s: *const c_char) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

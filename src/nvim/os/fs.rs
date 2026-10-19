@@ -13,6 +13,7 @@
     clippy::upper_case_acronyms
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -262,9 +263,6 @@ unsafe extern "C" {
     static mut os_buf: [c_char; MAXPATHL];
     static mut stdin_fd: c_int;
     static mut g_stats: NvimStats;
-
-    static e_noname: [c_char; 0];
-    static e_mkdir: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

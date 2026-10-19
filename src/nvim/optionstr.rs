@@ -15,6 +15,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -854,12 +855,6 @@ unsafe extern "C" {
     static opt_mopt_schema: [OptSchemaItem; 0];
     static opt_mousescroll_schema: [OptSchemaItem; 0];
     static opt_pvp_schema: [OptSchemaItem; 0];
-
-    static e_invarg: [c_char; 0];
-    static e_modifiable: [c_char; 0];
-    static e_unsupportedoption: [c_char; 0];
-    static e_invalid_format_string_single_percent_s: [c_char; 0];
-    static e_leadtab_requires_tab: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn valid_name(val: *const c_char, allowed: *const c_char) -> bool;

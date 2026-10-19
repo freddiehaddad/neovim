@@ -16,6 +16,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -458,13 +459,6 @@ unsafe extern "C" {
     static mut cmdwin_buf: *mut buf_T;
     static mut main_loop: Loop;
     static mut msg_didout: bool;
-
-    static e_command_too_recursive: [c_char; 0];
-    static e_textlock: [c_char; 0];
-    static e_cannot_edit_other_buf: [c_char; 0];
-    static e_intern2: [c_char; 0];
-    static e_positive: [c_char; 0];
-    static e_invarg: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
@@ -3861,7 +3855,7 @@ pub unsafe extern "C" fn text_locked_msg() {
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_text_locked_msg() -> *const c_char {
-    unsafe { e_textlock.as_ptr() }
+    e_textlock.as_ptr()
 }
 
 /// Check for text, window or buffer locked.

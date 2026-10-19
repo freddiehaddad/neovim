@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -126,7 +127,6 @@ unsafe extern "C" {
     static mut mouse_row: c_int;
     static mut mouse_col: c_int;
     static mut mouse_grid: c_int;
-    static e_invarg: [c_char; 0];
 
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

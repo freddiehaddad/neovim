@@ -14,6 +14,7 @@
     clippy::unnecessary_cast
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -269,19 +270,6 @@ unsafe extern "C" {
     static mut msg_row: c_int;
     static mut got_int: bool;
     static mut IObuff: [c_char; IOSIZE];
-
-    static e_invarg2: [c_char; 0];
-    static e_not_callable_type_str: [c_char; 0];
-    static e_unknown_function_str: [c_char; 0];
-    static e_toomanyarg: [c_char; 0];
-    static e_toofewarg: [c_char; 0];
-    static e_invexpr2: [c_char; 0];
-    static e_dictkey: [c_char; 0];
-    static e_usingsid: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_invrange: [c_char; 0];
-    static e_str_not_inside_function: [c_char; 0];
-    static e_missingparen: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

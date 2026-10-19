@@ -12,6 +12,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -314,13 +315,6 @@ unsafe extern "C" {
     static mut p_def: *mut c_char;
     static mut p_pvp: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
-    static e_nopresub: [c_char; 1];
-    static e_noprevre: [c_char; 1];
-    static e_interr: [c_char; 1];
-    static e_patnotf2: [c_char; 1];
-    static e_invarg2: [c_char; 1];
-    static top_bot_msg: [c_char; 1];
-    static bot_top_msg: [c_char; 1];
 
     fn atol(s: *const c_char) -> c_long;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

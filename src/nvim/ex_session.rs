@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -97,11 +98,6 @@ unsafe extern "C" {
     static mut first_tabpage: *mut tabpage_T;
     static mut globaldir: *mut c_char;
     static mut Search: SearchState;
-
-    static e_notopen: [c_char; 0];
-    static e_prev_dir: [c_char; 0];
-    static e_write: [c_char; 0];
-    static e_noname: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

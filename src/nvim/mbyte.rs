@@ -15,6 +15,7 @@
     clippy::enum_variant_names
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -897,7 +898,6 @@ unsafe extern "C" {
     static mut dy_escape_width: c_int;
     static mut fenc_default: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
-    static e_listreq: [c_char; 0];
 
     fn utf8proc_get_property(codepoint: i32) -> *const utf8proc_property_t;
     fn utf8proc_grapheme_break(codepoint1: i32, codepoint2: i32) -> bool;

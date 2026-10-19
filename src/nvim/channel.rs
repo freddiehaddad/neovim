@@ -15,6 +15,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -148,13 +149,6 @@ unsafe extern "C" {
     static mut embedded_mode: bool;
     static mut ui_client_channel_id: u64;
     static mut curbuf: *mut buf_T;
-
-    static e_invchan: [c_char; 0];
-    static e_invstream: [c_char; 0];
-    static e_invstreamrpc: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_jobspawn: [c_char; 0];
-    static e_streamkey: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn semsg(s: *const c_char, ...) -> bool;

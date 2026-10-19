@@ -3,6 +3,7 @@
 
 #![allow(dead_code, unused_imports, clippy::missing_safety_doc)]
 
+use crate::errors::*;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -21,7 +22,6 @@ pub struct blob_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static e_letwrong: [c_char; 0];
 
     fn tv_list_extend(l1: *mut list_T, l2: *mut list_T, bef: *mut listitem_T);
     fn tv_get_number(varp: *const typval_T) -> i64;

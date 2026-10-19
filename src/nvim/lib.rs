@@ -25,6 +25,7 @@ pub mod diff;
 pub mod digraph;
 pub mod drawline;
 pub mod drawscreen;
+pub mod errors;
 pub mod eval;
 pub mod event;
 pub mod ex_cmds;

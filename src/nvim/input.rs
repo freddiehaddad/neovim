@@ -11,6 +11,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -407,12 +408,6 @@ unsafe extern "C" {
     static mut p_tm: OptInt;
     static mut p_lz: c_int;
     static mut p_smd: c_int;
-
-    static e_command_too_complex: [c_char; 0];
-    static e_nesting: [c_char; 0];
-    static e_notopen_2: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_invargNval: [c_char; 0];
 
     fn uv_loop_size() -> usize;
     fn gettext(msgid: *const c_char) -> *mut c_char;

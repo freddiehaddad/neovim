@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
@@ -75,9 +76,6 @@ unsafe extern "C" {
     static mut curbuf: *mut buf_T;
     static mut Visual: VisualState;
     static mut cmdwin_type: c_int;
-    static e_invexpr2: [c_char; 0];
-    static e_invalwindow: [c_char; 0];
-    static e_auabort: [c_char; 0];
 
     fn tv_get_number(tv: *const typval_T) -> varnumber_T;
     fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> varnumber_T;

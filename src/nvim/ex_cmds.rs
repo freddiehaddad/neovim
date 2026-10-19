@@ -19,6 +19,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
 use std::ptr;
 
@@ -446,30 +447,6 @@ unsafe extern "C" {
     static mut g_do_tagpreview: c_int;
     static mut p_shm: *mut c_char;
     static mut p_rdt: OptInt;
-
-    static e_noprevre: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_interr: [c_char; 0];
-    static e_noprev: [c_char; 0];
-    static e_notmp: [c_char; 0];
-    static e_cant_read_file_str: [c_char; 0];
-    static e_argreq: [c_char; 0];
-    static e_bufloaded: [c_char; 0];
-    static e_isadir2: [c_char; 0];
-    static e_exists: [c_char; 0];
-    static e_readonly: [c_char; 0];
-    static e_cannot_switch_to_a_closing_buffer: [c_char; 0];
-    static e_curdir: [c_char; 0];
-    static e_sandbox: [c_char; 0];
-    static e_backslash: [c_char; 0];
-    static e_nopresub: [c_char; 0];
-    static e_zerocount: [c_char; 0];
-    static e_val_too_large_len: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_modifiable: [c_char; 0];
-    static e_invcmd: [c_char; 0];
-    static e_patnotf2: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -136,12 +137,6 @@ unsafe extern "C" {
     static mut p_verbose: OptInt;
 
     static utf8len_tab_zero: [u8; 256];
-
-    static e_notmp: [c_char; 0];
-    static e_wildexpand: [c_char; 0];
-    static e_cant_read_file_str: [c_char; 0];
-    static e_shellempty: [c_char; 0];
-    static e_cannot_read_from_str_2: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

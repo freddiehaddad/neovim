@@ -14,6 +14,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -330,9 +331,6 @@ unsafe extern "C" {
     static mut p_verbose: i64;
     static mut cmdmod: cmdmod_T;
 
-    static e_outofmem: [c_char; 0];
-    static e_fast_api_disabled: [c_char; 0];
-    static e_argreq: [c_char; 0];
     static main_exitfree: bool;
 
     fn nlua_get_builtin_modules(count: *mut usize) -> *const ModuleDef;

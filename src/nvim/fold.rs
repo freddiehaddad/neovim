@@ -15,6 +15,7 @@
     clippy::collapsible_if
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -153,8 +154,6 @@ unsafe extern "C" {
     static mut diff_context: c_int;
     static mut p_fcl: *mut c_char;
     static mut p_sel: *mut c_char;
-
-    static e_modifiable: [c_char; 0];
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

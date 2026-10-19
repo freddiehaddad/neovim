@@ -14,6 +14,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -1045,11 +1046,6 @@ unsafe extern "C" {
 
     static mut hl_attr_active: *mut c_int;
     static mut ns_hl_fast: c_int;
-
-    static e_nomatch2: [c_char; 0];
-    static e_toomany: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_invarg2: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -13,6 +13,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -269,22 +270,6 @@ unsafe extern "C" {
     static mut got_int: bool;
     static mut did_emsg: c_int;
     static mut curwin: *mut win_T;
-
-    static e_list_index_out_of_range_nr: [c_char; 0];
-    static e_listreq: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_invrange: [c_char; 0];
-    static e_listarg: [c_char; 0];
-    static e_intern2: [c_char; 0];
-    static e_blobidx: [c_char; 0];
-    static e_invalid_value_for_blob_nr: [c_char; 0];
-    static e_toomanyarg: [c_char; 0];
-    static e_dictkey: [c_char; 0];
-    static e_value_is_locked: [c_char; 0];
-    static e_value_is_locked_str: [c_char; 0];
-    static e_cannot_change_value: [c_char; 0];
-    static e_cannot_change_value_of_str: [c_char; 0];
-    static e_val_too_large: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -12,6 +12,7 @@
     clippy::if_same_then_else
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
@@ -507,9 +508,6 @@ unsafe extern "C" {
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
     static mut hl_attr_active: *mut c_int;
     static mut ns_hl_fast: NS;
-
-    static e_noident: [c_char; 0];
-    static e_modifiable: [c_char; 0];
 
     fn curbuf_locked() -> bool;
     fn ui_cursor_shape();

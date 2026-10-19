@@ -12,6 +12,7 @@
     clippy::collapsible_if
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -195,7 +196,6 @@ unsafe extern "C" {
     static mut msg_row: c_int;
     static mut did_endif: bool;
     static mut IObuff: [c_char; IOSIZE];
-    static e_interr: [c_char; 12];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;

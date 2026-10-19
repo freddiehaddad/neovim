@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -40,7 +41,6 @@ enum FilterMap {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut did_emsg: c_int;
-    static e_list_index_out_of_range_nr: [c_char; 0];
 
     fn tv_copy(from: *const typval_T, to: *mut typval_T);
     fn tv_clear(tv: *mut typval_T);

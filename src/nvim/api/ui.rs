@@ -13,6 +13,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -117,7 +118,6 @@ unsafe extern "C" {
     static mut Columns: c_int;
     static mut p_bg: *mut c_char;
     static mut ui_ext_names: [*const c_char; kUIExtCount];
-    static e_invchan: [c_char; 0];
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *mut c_char;

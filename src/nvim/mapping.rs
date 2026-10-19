@@ -12,6 +12,7 @@
     clippy::needless_range_loop
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -249,10 +250,6 @@ unsafe extern "C" {
     static mut State: c_int;
     static mut expr_map_lock: c_int;
     static mut secure: c_int;
-
-    static e_invarg: [c_char; 0];
-    static e_noabbr: [c_char; 0];
-    static e_nomap: [c_char; 0];
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

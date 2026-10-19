@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -133,11 +134,6 @@ unsafe extern "C" {
     static mut tabpage_move_disallowed: c_int;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
-    static e_cannot_change_arglist_recursively: [c_char; 0];
-    static e_nomatch2: [c_char; 0];
-    static e_nomatch: [c_char; 0];
-    static e_invarg: [c_char; 0];
-    static e_invrange: [c_char; 0];
 
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

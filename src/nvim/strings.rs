@@ -11,6 +11,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{
     CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
 };
@@ -91,11 +92,6 @@ pub struct keyvalue_T {
 unsafe extern "C" {
     #[cfg(windows)]
     static mut p_ssl: c_int;
-
-    static e_invarg: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_using_number_as_bool_nr: [c_char; 0];
-    static e_val_too_large_len: [c_char; 0];
 
     fn csh_like_shell() -> c_int;
     fn fish_like_shell() -> bool;

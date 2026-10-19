@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -231,8 +232,6 @@ unsafe extern "C" {
     static mut mouse_grid: c_int;
     static mut mouse_row: c_int;
     static mut mouse_col: c_int;
-
-    static e_menu_only_exists_in_another_mode: [c_char; 1];
 
     fn validate_cheight(wp: *mut win_T);
     fn validate_cursor_col(wp: *mut win_T);

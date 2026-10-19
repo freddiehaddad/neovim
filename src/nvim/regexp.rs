@@ -19,8 +19,9 @@
     clippy::unnecessary_cast
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::mem::{offset_of, size_of, zeroed};
+pub(super) use std::mem::{offset_of, size_of, zeroed};
 use std::ptr;
 
 use crate::api::buffer::VisualState;
@@ -953,16 +954,6 @@ unsafe extern "C" {
     pub(super) static mut reg_do_extmatch: c_int;
     pub(super) static mut re_extmatch_in: *mut reg_extmatch_T;
     pub(super) static mut re_extmatch_out: *mut reg_extmatch_T;
-
-    pub(super) static e_null: [c_char; 0];
-    pub(super) static e_re_corr: [c_char; 0];
-    pub(super) static e_re_damg: [c_char; 0];
-    pub(super) static e_resulting_text_too_long: [c_char; 0];
-    pub(super) static e_internal_error_in_regexp: [c_char; 0];
-    pub(super) static e_nopresub: [c_char; 0];
-    pub(super) static e_toomsbra: [c_char; 0];
-    pub(super) static e_command_too_complex: [c_char; 0];
-    pub(super) static e_trailing: [c_char; 0];
 
     pub(super) fn gettext(msgid: *const c_char) -> *mut c_char;
     pub(super) fn emsg(s: *const c_char) -> bool;

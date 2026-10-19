@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -190,7 +191,6 @@ unsafe extern "C" {
     static mut p_spr: c_int;
     static mut p_sb: c_int;
     static mut p_winborder: *mut c_char;
-    static e_textlock: [c_char; 0];
     static float_anchor_str: [*const c_char; 4];
     static opt_winborder_values: [*const c_char; 9];
 

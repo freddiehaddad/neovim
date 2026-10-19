@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
@@ -370,10 +371,6 @@ unsafe extern "C" {
     static mut resize_events: *mut MultiQueue;
     static mut on_print: Callback;
     static mut nvim_testing: bool;
-
-    static e_invarg: [c_char; 0];
-    static e_intern2: [c_char; 0];
-    static e_notopen: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

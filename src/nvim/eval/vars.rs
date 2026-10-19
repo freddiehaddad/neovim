@@ -14,6 +14,7 @@
     clippy::useless_conversion
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -556,21 +557,6 @@ unsafe extern "C" {
     static mut p_dex: crate::eval::deprecated::Callback;
     static mut p_pex: crate::eval::deprecated::Callback;
     static mut p_verbose: OptInt;
-
-    static e_invarg: [c_char; 0];
-    static e_invarg2: [c_char; 0];
-    static e_listreq: [c_char; 0];
-    static e_trailing_arg: [c_char; 0];
-    static e_letwrong: [c_char; 0];
-    static e_unknown_option2: [c_char; 0];
-    static e_cannot_mod: [c_char; 0];
-    static e_illvar: [c_char; 0];
-    static e_cannot_change_readonly_variable_str: [c_char; 0];
-    static e_cannot_set_variable_in_sandbox_str: [c_char; 0];
-    static e_cannot_delete_variable_str: [c_char; 0];
-    static e_string_required: [c_char; 0];
-    static e_stray_closing_curly_str: [c_char; 0];
-    static e_missing_close_curly_str: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

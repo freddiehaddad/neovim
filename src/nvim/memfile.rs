@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::errors::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -134,7 +135,6 @@ unsafe extern "C" {
     static mut got_int: bool;
     static mut did_swapwrite_msg: bool;
     static mut main_loop: u8;
-    static e_swapclose: [c_char; 0];
 
     fn emsg(s: *const c_char) -> bool;
     fn iemsg(s: *const c_char);

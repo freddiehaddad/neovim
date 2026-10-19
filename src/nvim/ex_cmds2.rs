@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -106,8 +107,6 @@ unsafe extern "C" {
     static mut got_int: bool;
     static mut no_check_timestamps: c_int;
     static mut emsg_off: c_int;
-    static e_noname: [c_char; 0];
-    static e_winfixbuf_cannot_go_to_buffer: [c_char; 0];
 
     fn bt_dontwrite(buf: *const buf_T) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);

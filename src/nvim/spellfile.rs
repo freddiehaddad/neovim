@@ -18,6 +18,7 @@ use crate::arglist::get_arglist_exp;
 use crate::charset::{getdigits_int, skipdigits, skipwhite};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
+use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::hashtab::{
@@ -349,14 +350,6 @@ unsafe extern "C" {
     static mut msg_col: c_int;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
-    static e_notopen: [c_char; 1];
-    static e_too_many_postponed_prefixes_spell: [c_char; 1];
-    static e_write: [c_char; 1];
-    static e_invarg: [c_char; 1];
-    static e_exists: [c_char; 1];
-    static e_isadir2: [c_char; 1];
-    static e_notset: [c_char; 1];
-    static e_bufloaded: [c_char; 1];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

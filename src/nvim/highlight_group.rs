@@ -10,6 +10,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::errors::*;
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
@@ -357,9 +358,6 @@ unsafe extern "C" {
     static mut include_none: c_int;
     static mut include_default: c_int;
     static mut include_link: c_int;
-    static e_invarg2: [c_char; 0];
-    static e_highlight_group_name_too_long: [c_char; 0];
-    static e_highlight_group_name_invalid_char: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -23,6 +23,7 @@ use crate::decoration::{
 };
 use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::redraw_later;
+use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
@@ -196,10 +197,6 @@ unsafe extern "C" {
     static mut sub_nlines: linenr_T;
     static mut decor_state: DecorState;
     static mut IObuff: [c_char; IOSIZE];
-    static e_no_spell: [c_char; 1];
-    static e_invarg: [c_char; 1];
-    static top_bot_msg: [c_char; 1];
-    static bot_top_msg: [c_char; 1];
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;
