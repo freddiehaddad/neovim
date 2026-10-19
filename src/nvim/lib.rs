@@ -9,6 +9,8 @@ pub mod bufwrite;
 pub mod change;
 pub mod channel;
 pub mod charset;
+#[path = "../cjson/mod.rs"]
+pub mod cjson;
 pub mod clipboard;
 pub mod cmdexpand;
 pub mod cmdhist;
