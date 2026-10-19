@@ -24,6 +24,8 @@ use crate::eval::typval::{tv_check_for_string_arg, tv_get_string, tv_get_string_
 use crate::eval::typval::{
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
 };
+#[allow(unused_imports)]
+use crate::event::r#loop::uv_translate_sys_error;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -951,8 +953,6 @@ unsafe extern "C" {
     ) -> usize;
     #[cfg(windows)]
     fn libiconv_close(cd: iconv_t) -> c_int;
-    #[cfg(windows)]
-    fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
     #[cfg(not(windows))]
     fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t;

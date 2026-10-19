@@ -13,7 +13,11 @@ use crate::eval::userfunc::{func_tbl_get, get_current_funccal};
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_err_name;
+#[allow(unused_imports)]
 use crate::fileio::vim_fgets;
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fopen, fprintf};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::message::emsg;
@@ -162,11 +166,6 @@ pub struct funccall_T {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn uv_err_name(err: c_int) -> *const c_char;
-
-    fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
-    fn fclose(stream: *mut FILE) -> c_int;
-    fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
 }
 

@@ -17,6 +17,8 @@ use crate::eval::callback_call;
 use crate::ex_docmd::do_sleep;
 #[allow(unused_imports)]
 use crate::fileio::check_timestamps;
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fprintf, fputc, fputs};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::log_get_stderr;
@@ -291,10 +293,6 @@ unsafe extern "C" {
     static mut main_loop: Loop;
 
     fn printf(format: *const c_char, ...) -> c_int;
-    fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
-    fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    fn fclose(stream: *mut FILE) -> c_int;
     fn strnlen(s: *const c_char, maxlen: usize) -> usize;
 
 }

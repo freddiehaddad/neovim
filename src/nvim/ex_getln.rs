@@ -86,6 +86,8 @@ use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
 use crate::strings::{gettext, strcmp, strcpy, strlen, strncmp};
 #[allow(unused_imports)]
+use crate::strings::{strncasecmp, strrchr};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{
@@ -462,9 +464,6 @@ static mut prev_prompt_errors: c_int = 0;
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    #[cfg(not(windows))]
-    fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn strrchr(s: *const c_char, c: c_int) -> *const c_char;
 }
 
 #[inline]

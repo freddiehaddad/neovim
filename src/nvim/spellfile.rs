@@ -27,6 +27,8 @@ use crate::fileio::{
     buf_reload, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
     vim_tempname,
 };
+#[allow(unused_imports)]
+use crate::fileio::{fclose, feof, ferror, fgetc, fputc, fread, fwrite};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -79,6 +81,8 @@ use crate::strings::vim_snprintf;
 use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strstr};
 #[allow(unused_imports)]
 use crate::strings::{has_non_ascii, vim_strchr};
+#[allow(unused_imports)]
+use crate::strings::{memchr, memcmp, strerror, strrchr};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
 #[allow(unused_imports)]
@@ -375,22 +379,11 @@ struct spellinfo_T {
 
 unsafe extern "C" {
 
-    fn fclose(stream: *mut FILE) -> c_int;
-    fn feof(stream: *mut FILE) -> c_int;
-    fn ferror(stream: *mut FILE) -> c_int;
-    fn fgetc(stream: *mut FILE) -> c_int;
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
     fn ftell(stream: *mut FILE) -> c_long;
-    fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
-    fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
     fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void;
-    fn strerror(errnum: c_int) -> *mut c_char;
-    fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn time(tloc: *mut time_t) -> time_t;
     fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
 }

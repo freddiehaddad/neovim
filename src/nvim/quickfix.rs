@@ -42,6 +42,8 @@ use crate::ex_docmd::{do_cmdline_cmd, is_loclist_cmd};
 #[allow(unused_imports)]
 use crate::fileio::readfile;
 #[allow(unused_imports)]
+use crate::fileio::{fclose, ferror, fgets};
+#[allow(unused_imports)]
 use crate::fileio::{shorten_fnames, vim_fgets, vim_tempname};
 #[allow(unused_imports)]
 use crate::fold::{foldOpenCursor, foldUpdateAll};
@@ -603,9 +605,6 @@ static mut set_qf_ll_recursive: c_int = 0;
 
 unsafe extern "C" {
 
-    fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
-    fn fclose(stream: *mut FILE) -> c_int;
-    fn ferror(stream: *mut FILE) -> c_int;
     fn time(tloc: *mut time_t) -> time_t;
 
     #[cfg(windows)]

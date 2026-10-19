@@ -41,6 +41,8 @@ use crate::eval::vars::set_vim_var_char;
 use crate::eval::{eval_to_string, last_set_msg};
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::fileio::{fputc, fputs};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{ins_typebuf, noremap_keys};
@@ -282,13 +284,6 @@ static E_MAPPING_ALREADY_EXISTS_FOR_STR: &CStr = c"E227: Mapping already exists 
 static E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT: &CStr =
     c"E460: Entries missing in mapset() dict argument";
 static E_ILLEGAL_MAP_MODE_STRING_STR: &CStr = c"E1276: Illegal map mode string: '%s'";
-
-unsafe extern "C" {
-
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-
-}
 
 #[inline]
 const fn map_hash(mode: c_int, c1: u8) -> usize {

@@ -14,6 +14,10 @@
 
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fgets, fopen, fprintf, fputc};
 use crate::globals::*;
 use crate::message::msg_schedule_semsg;
 #[allow(unused_imports)]
@@ -28,6 +32,8 @@ use crate::os::stdpaths::get_xdg_home;
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 #[allow(unused_imports)]
 use crate::path::{concat_fnames_realloc, path_tail};
+#[allow(unused_imports)]
+use crate::strings::strerror;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr;
@@ -72,23 +78,13 @@ pub static mut g_min_log_level: c_int = LOGLVL_WRN;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
-    fn uv_mutex_lock(handle: *mut c_void);
-    fn uv_mutex_unlock(handle: *mut c_void);
     fn uv_print_all_handles(loop_: *mut c_void, stream: *mut FILE);
     fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
 
-    fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
-    fn fclose(stream: *mut FILE) -> c_int;
-    fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fflush(stream: *mut FILE) -> c_int;
-    fn strerror(errnum: c_int) -> *const c_char;
 
-    #[cfg(unix)]
-    fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
     #[cfg(unix)]
     fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;
     #[cfg(unix)]

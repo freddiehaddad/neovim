@@ -23,6 +23,8 @@ use crate::eval::typval::tv_clear;
 use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
+#[allow(unused_imports)]
+use crate::fileio::fclose;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
@@ -97,11 +99,6 @@ const kOptIskeyword: OptIndex = 155;
 const kBoolVarFalse: i64 = 0;
 const kBoolVarTrue: i64 = 1;
 const kSpecialVarNull: i64 = 0;
-
-unsafe extern "C" {
-
-    fn fclose(stream: *mut c_void) -> c_int;
-}
 
 #[inline]
 const fn ascii_iswhite(c: c_char) -> bool {

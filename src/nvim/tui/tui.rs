@@ -17,6 +17,13 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
+#[allow(unused_imports)]
+use crate::event::r#loop::{
+    uv_close, uv_handle_get_type, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init,
+    uv_run, uv_strerror, uv_timer_init, uv_timer_start,
+};
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fopen, fwrite};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::g_min_log_level;
@@ -314,20 +321,12 @@ static mut urls: Set<cstr_t> = Set {
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn uv_loop_init(loop_: *mut uv_loop_t) -> c_int;
-    fn uv_loop_close(loop_: *mut uv_loop_t) -> c_int;
-    fn uv_run(loop_: *mut uv_loop_t, mode: c_int) -> c_int;
     fn uv_tty_init(loop_: *mut uv_loop_t, tty: *mut uv_tty_t, fd: c_int, readable: c_int) -> c_int;
     fn uv_tty_set_mode(tty: *mut uv_tty_t, mode: c_int) -> c_int;
     fn uv_tty_reset_mode() -> c_int;
     fn uv_tty_get_winsize(tty: *mut uv_tty_t, width: *mut c_int, height: *mut c_int) -> c_int;
     fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
     fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
-    fn uv_timer_init(loop_: *mut uv_loop_t, handle: *mut uv_timer_t) -> c_int;
-    fn uv_timer_start(handle: *mut uv_timer_t, cb: uv_timer_cb, timeout: u64, repeat: u64)
-    -> c_int;
-    fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
     fn uv_write(
         req: *mut uv_write_t,
         handle: *mut uv_stream_t,
@@ -337,15 +336,6 @@ unsafe extern "C" {
     ) -> c_int;
     fn uv_sleep(msec: c_uint);
     fn uv_chdir(dir: *const c_char) -> c_int;
-    fn uv_strerror(err: c_int) -> *const c_char;
-    #[cfg(windows)]
-    fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
-    #[cfg(windows)]
-    fn uv_handle_size(h_type: c_int) -> usize;
-
-    fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
-    fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    fn fclose(stream: *mut FILE) -> c_int;
 
     #[cfg(unix)]
     fn kill(pid: c_int, sig: c_int) -> c_int;

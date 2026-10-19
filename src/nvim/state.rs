@@ -20,6 +20,8 @@ use crate::eval::typval::tv_dict_set_keys_readonly;
 #[allow(unused_imports)]
 use crate::eval::{get_v_event, restore_v_event};
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_loop_size;
+#[allow(unused_imports)]
 use crate::ex_getln::{cmdline_overstrike, get_cmdline_info};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -108,7 +110,6 @@ pub struct save_v_event_T {
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn uv_loop_size() -> usize;
 }
 
 static mut was_safe: bool = false;

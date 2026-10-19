@@ -338,7 +338,6 @@ void f_xor(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
 #include "main.c.generated.h"
 
 #include "options.generated.h"
-#include "options_map.generated.h"
 
 PRAGMA_DIAG_PUSH_IGNORE_MISSING_PROTOTYPES
 PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH
@@ -521,13 +520,6 @@ const char *const eval_has_list[] = {
 const EvalFuncDef *eval_func_def_at(int idx)
 {
   return &functions[idx];
-}
-
-OptIndex find_option_len(const char *const name, size_t len)
-  FUNC_ATTR_NONNULL_ALL
-{
-  int index = find_option_hash(name, len);
-  return index >= 0 ? option_hash_elems[index].opt_idx : kOptInvalid;
 }
 
 vimoption_T *get_option(OptIndex opt_idx)

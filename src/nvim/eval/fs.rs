@@ -37,6 +37,8 @@ use crate::eval::vars::{prepare_vimvar, restore_vimvar};
 #[allow(unused_imports)]
 use crate::eval::{do_string_sub, eval_expr_typval};
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_strerror;
+#[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_chdir;
@@ -46,6 +48,8 @@ use crate::ex_docmd::vim_mkdir_emsg;
 use crate::fileio::file_pat_to_reg_pat;
 #[allow(unused_imports)]
 use crate::fileio::{delete_recursive, readdir_core, vim_copyfile, vim_rename, vim_tempname};
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fread};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
@@ -296,10 +300,6 @@ unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
 
 unsafe extern "C" {
 
-    fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
     fn _fileno(stream: *mut FILE) -> c_int;
     #[cfg(not(windows))]

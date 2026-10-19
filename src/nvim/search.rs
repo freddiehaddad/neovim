@@ -32,6 +32,8 @@ use crate::ex_docmd::set_no_hlsearch;
 #[allow(unused_imports)]
 use crate::ex_getln::gotocmdline;
 #[allow(unused_imports)]
+use crate::fileio::fclose;
+#[allow(unused_imports)]
 use crate::fileio::vim_fgets;
 #[allow(unused_imports)]
 use crate::fold::{foldOpenCursor, hasFolding};
@@ -323,11 +325,6 @@ static mut stat_chgtick: c_int = 0;
 static mut stat_lastpat: *mut c_char = ptr::null_mut();
 static mut stat_lastpatlen: usize = 0;
 static mut stat_lbuf: *mut buf_T = ptr::null_mut();
-
-unsafe extern "C" {
-
-    fn fclose(stream: *mut FILE) -> c_int;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

@@ -67,6 +67,8 @@ use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
+use crate::strings::memchr;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
@@ -286,10 +288,6 @@ const E_NO_WHITE_SPACE_ALLOWED_BEFORE_STR_STR: &CStr =
 const E_MISSING_HEREDOC_END_MARKER_STR: &CStr = c"E1145: Missing heredoc end marker: %s";
 const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
     c"E1300: Cannot use a partial with dictionary for :defer";
-
-unsafe extern "C" {
-    fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
-}
 
 #[inline]
 const fn ascii_isalnum(c: c_int) -> bool {

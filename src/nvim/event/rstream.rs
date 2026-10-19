@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_err_name, uv_handle_get_loop, uv_handle_get_type, uv_strerror};
+#[allow(unused_imports)]
 use crate::log::g_min_log_level;
 use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
@@ -65,8 +67,6 @@ pub struct RStreamFields {
 
 unsafe extern "C" {
 
-    fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
-    fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
     fn uv_read_start(stream: *mut uv_stream_t, alloc_cb: uv_alloc_cb, read_cb: uv_read_cb)
     -> c_int;
     fn uv_read_stop(stream: *mut uv_stream_t) -> c_int;
@@ -83,8 +83,6 @@ unsafe extern "C" {
     ) -> c_int;
     fn uv_fs_get_result(req: *const uv_fs_t) -> isize;
     fn uv_fs_req_cleanup(req: *mut uv_fs_t);
-    fn uv_err_name(err: c_int) -> *const c_char;
-    fn uv_strerror(err: c_int) -> *const c_char;
 
 }
 

@@ -81,6 +81,8 @@ use crate::eval::{
     common_job_callbacks, eval_option, find_job, save_tv_as_string, string2float, tv_to_argv,
 };
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_handle_size, uv_strerror};
+#[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_docmd::expand_filename;
@@ -558,7 +560,6 @@ unsafe extern "C" {
     #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
     fn c_mktime(tm: *mut Tm) -> time_t;
 
-    fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_kill(pid: c_int, signum: c_int) -> c_int;
     fn uv_os_environ(envitems: *mut *mut uv_env_item_t, count: *mut c_int) -> c_int;
     fn uv_os_free_environ(envitems: *mut uv_env_item_t, count: c_int);
@@ -570,12 +571,14 @@ unsafe extern "C" {
         flags: u32,
         cb: *const c_void,
     ) -> c_int;
-    fn uv_strerror(err: c_int) -> *const c_char;
 
     fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef;
     fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int;
+}
 
-    fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32);
+#[inline]
+unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32) {
+    unsafe { crate::mpack::object::mpack_parser_init(parser.cast(), capacity) }
 }
 
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};

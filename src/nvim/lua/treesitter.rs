@@ -13,6 +13,14 @@
 
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata, lua_objlen,
+    lua_pcall, lua_pushboolean, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
+    lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable,
+    lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_argerror, luaL_checkinteger,
+    luaL_checklstring, luaL_error,
+};
+#[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
@@ -525,44 +533,17 @@ static QUERY_META: [luaL_Reg; 6] = [
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_pushvalue(L: *mut lua_State, idx: c_int);
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_objlen(L: *mut lua_State, idx: c_int) -> usize;
     fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_pushnil(L: *mut lua_State);
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
     fn lua_pushcclosure(L: *mut lua_State, fn_: lua_CFunction, n: c_int);
-    fn lua_pushboolean(L: *mut lua_State, b: c_int);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_newuserdata(L: *mut lua_State, sz: usize) -> *mut c_void;
     fn lua_getfenv(L: *mut lua_State, idx: c_int);
-    fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
     fn lua_setfenv(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_pcall(L: *mut lua_State, nargs: c_int, nresults: c_int, errfunc: c_int) -> c_int;
-    fn lua_error(L: *mut lua_State) -> c_int;
-    fn lua_concat(L: *mut lua_State, n: c_int);
 
     fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-    fn luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-    fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
     fn luaL_checknumber(L: *mut lua_State, numArg: c_int) -> lua_Number;
-    fn luaL_checkinteger(L: *mut lua_State, numArg: c_int) -> lua_Integer;
     fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
     fn luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
     fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
     fn luaL_unref(L: *mut lua_State, t: c_int, ref_: c_int);
 

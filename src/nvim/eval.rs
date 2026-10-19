@@ -20,6 +20,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_handle_size;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{atol, gettext, strchr, strcmp, strlen, strncmp, strpbrk, strstr};
@@ -441,8 +443,6 @@ unsafe extern "C" {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    fn uv_handle_size(h_type: c_int) -> usize;
 
 }
 

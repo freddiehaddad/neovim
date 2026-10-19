@@ -10,6 +10,8 @@
     clippy::upper_case_acronyms
 )]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::uv_translate_sys_error;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::env::os_get_pid;
@@ -204,7 +206,6 @@ unsafe extern "C" {
     fn uv_dlopen(filename: *const c_char, lib: *mut UvLib) -> c_int;
     fn uv_dlclose(lib: *mut UvLib);
     fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
-    fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 }
 
 #[cfg(windows)]

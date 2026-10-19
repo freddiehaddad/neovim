@@ -54,10 +54,10 @@ pub type uv_timer_t = c_void;
 pub type uv_async_t = c_void;
 pub type uv_mutex_t = c_void;
 
-type uv_async_cb = Option<unsafe extern "C" fn(handle: *mut uv_async_t)>;
-type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
-type uv_walk_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t, arg: *mut c_void)>;
+pub type uv_async_cb = Option<unsafe extern "C" fn(handle: *mut uv_async_t)>;
+pub type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
+pub type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
+pub type uv_walk_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t, arg: *mut c_void)>;
 
 #[repr(C)]
 pub struct LoopQueuesAndChildren {
@@ -70,37 +70,47 @@ pub struct LoopQueuesAndChildren {
 }
 
 unsafe extern "C" {
-    fn uv_loop_size() -> usize;
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
+    pub fn uv_loop_size() -> usize;
+    pub fn uv_handle_size(h_type: c_int) -> usize;
+    pub fn uv_req_size(r_type: c_int) -> usize;
+    pub fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
+    pub fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
+    pub fn uv_guess_handle(file: c_int) -> c_int;
+    pub fn uv_strerror(err: c_int) -> *const std::ffi::c_char;
+    pub fn uv_err_name(err: c_int) -> *const std::ffi::c_char;
+    pub fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
-    fn uv_loop_init(loop_: *mut uv_loop_t) -> c_int;
-    fn uv_loop_close(loop_: *mut uv_loop_t) -> c_int;
-    fn uv_run(loop_: *mut uv_loop_t, mode: c_int) -> c_int;
-    fn uv_stop(loop_: *mut uv_loop_t);
-    fn uv_walk(loop_: *mut uv_loop_t, walk_cb: uv_walk_cb, arg: *mut c_void);
+    pub fn uv_loop_init(loop_: *mut uv_loop_t) -> c_int;
+    pub fn uv_loop_close(loop_: *mut uv_loop_t) -> c_int;
+    pub fn uv_run(loop_: *mut uv_loop_t, mode: c_int) -> c_int;
+    pub fn uv_stop(loop_: *mut uv_loop_t);
+    pub fn uv_walk(loop_: *mut uv_loop_t, walk_cb: uv_walk_cb, arg: *mut c_void);
 
-    fn uv_mutex_init(handle: *mut uv_mutex_t) -> c_int;
-    fn uv_mutex_destroy(handle: *mut uv_mutex_t);
-    fn uv_mutex_lock(handle: *mut uv_mutex_t);
-    fn uv_mutex_unlock(handle: *mut uv_mutex_t);
+    pub fn uv_mutex_init(handle: *mut uv_mutex_t) -> c_int;
+    pub fn uv_mutex_destroy(handle: *mut uv_mutex_t);
+    pub fn uv_mutex_lock(handle: *mut uv_mutex_t);
+    pub fn uv_mutex_unlock(handle: *mut uv_mutex_t);
 
-    fn uv_async_init(
+    pub fn uv_async_init(
         loop_: *mut uv_loop_t,
         async_: *mut uv_async_t,
         async_cb: uv_async_cb,
     ) -> c_int;
-    fn uv_async_send(async_: *mut uv_async_t) -> c_int;
+    pub fn uv_async_send(async_: *mut uv_async_t) -> c_int;
 
-    fn uv_signal_init(loop_: *mut uv_loop_t, handle: *mut uv_signal_t) -> c_int;
+    pub fn uv_signal_init(loop_: *mut uv_loop_t, handle: *mut uv_signal_t) -> c_int;
 
-    fn uv_timer_init(loop_: *mut uv_loop_t, handle: *mut uv_timer_t) -> c_int;
-    fn uv_timer_start(handle: *mut uv_timer_t, cb: uv_timer_cb, timeout: u64, repeat: u64)
-    -> c_int;
-    fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
+    pub fn uv_timer_init(loop_: *mut uv_loop_t, handle: *mut uv_timer_t) -> c_int;
+    pub fn uv_timer_start(
+        handle: *mut uv_timer_t,
+        cb: uv_timer_cb,
+        timeout: u64,
+        repeat: u64,
+    ) -> c_int;
+    pub fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
 
-    fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
+    pub fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
+    pub fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
 }
 

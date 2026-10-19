@@ -76,6 +76,8 @@ use crate::eval::{ex_echo, ex_echohl, ex_execute};
 #[allow(unused_imports)]
 use crate::eval::{set_ref_in_callback, skip_expr};
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_strerror;
+#[allow(unused_imports)]
 use crate::ex_cmds::{
     do_ascii, do_wqall, ex_align, ex_append, ex_change, ex_file, ex_global, ex_oldfiles, ex_sort,
     ex_substitute, ex_substitute_preview, ex_uniq, ex_update, ex_wnext, ex_write, ex_z,
@@ -92,6 +94,8 @@ use crate::ex_eval::{
 };
 #[allow(unused_imports)]
 use crate::ex_session::{ex_loadview, ex_mkrc};
+#[allow(unused_imports)]
+use crate::fileio::fclose;
 #[allow(unused_imports)]
 use crate::fileio::{readfile, shorten_fnames};
 #[allow(unused_imports)]
@@ -144,6 +148,8 @@ use crate::sign::ex_sign;
 use crate::spell::{ex_spelldump, ex_spellinfo, ex_spellrepall};
 #[allow(unused_imports)]
 use crate::spellfile::{ex_mkspell, ex_spell};
+#[allow(unused_imports)]
+use crate::strings::strrchr;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -864,9 +870,6 @@ unsafe extern "C" {
 
     static mut main_loop: Loop;
 
-    fn uv_strerror(err: c_int) -> *const c_char;
-    fn fclose(stream: *mut FILE) -> c_int;
-    fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     #[cfg(windows)]
     #[link_name = "_stricmp"]
     fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int;

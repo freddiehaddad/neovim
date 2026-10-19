@@ -16,6 +16,8 @@ use crate::eval::vars::get_vim_var_str;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_handle_get_type, uv_handle_size, uv_strerror};
+#[allow(unused_imports)]
 use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
 use crate::globals::*;
 use crate::log::logmsg;
@@ -79,10 +81,7 @@ static mut server_addr_count: u32 = 0;
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
     fn uv_freeaddrinfo(ai: *mut c_void);
-    fn uv_strerror(err: c_int) -> *const c_char;
 
 }
 

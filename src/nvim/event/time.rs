@@ -8,6 +8,10 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::{
+    uv_close, uv_handle_size, uv_loop_size, uv_timer_init, uv_timer_start, uv_timer_stop,
+};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -34,16 +38,6 @@ pub struct TimeWatcherFields {
     pub close_cb: time_cb,
     pub events: *mut MultiQueue,
     pub blockable: bool,
-}
-
-unsafe extern "C" {
-    fn uv_loop_size() -> usize;
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_timer_init(loop_: *mut uv_loop_t, handle: *mut uv_timer_t) -> c_int;
-    fn uv_timer_start(handle: *mut uv_timer_t, cb: uv_timer_cb, timeout: u64, repeat: u64)
-    -> c_int;
-    fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 }
 
 #[inline]

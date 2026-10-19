@@ -50,6 +50,8 @@ use crate::eval::vars::new_script_vars;
 use crate::ex_docmd::do_exedit;
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, getline_cookie, getline_equal};
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fgets};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::openscript;
@@ -360,8 +362,6 @@ static mut APP_BOTH: c_int = 0;
 unsafe extern "C" {
     static mut default_lib_dir: *mut c_char;
 
-    fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
-    fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
     fn _fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
     #[cfg(not(windows))]

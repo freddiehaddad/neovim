@@ -33,6 +33,14 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::g_min_log_level;
 #[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata, lua_next,
+    lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
+    lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield, lua_setmetatable, lua_settop,
+    lua_toboolean, lua_tolstring, lua_type, luaL_argerror, luaL_checkinteger, luaL_checklstring,
+    luaL_error, luaL_where,
+};
+#[allow(unused_imports)]
 use crate::mbyte::{
     convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
     mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
@@ -137,42 +145,26 @@ static REGEX_META: [luaL_Reg; 5] = [
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_gettop(lstate: *mut lua_State) -> c_int;
-    fn lua_settop(lstate: *mut lua_State, idx: c_int);
-    fn lua_pushvalue(lstate: *mut lua_State, idx: c_int);
-    fn lua_type(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_toboolean(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tolstring(lstate: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_objlen(lstate: *mut lua_State, idx: c_int) -> usize;
-    fn lua_pushnil(lstate: *mut lua_State);
-    fn lua_pushnumber(lstate: *mut lua_State, n: lua_Number);
-    fn lua_pushinteger(lstate: *mut lua_State, n: lua_Integer);
-    fn lua_pushlstring(lstate: *mut lua_State, s: *const c_char, len: usize);
-    fn lua_pushstring(lstate: *mut lua_State, s: *const c_char);
     fn lua_pushcclosure(lstate: *mut lua_State, fn_: lua_CFunction, n: c_int);
-    fn lua_getfield(lstate: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_createtable(lstate: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_newuserdata(lstate: *mut lua_State, sz: usize) -> *mut c_void;
-    fn lua_setfield(lstate: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_rawseti(lstate: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_setmetatable(lstate: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_pcall(lstate: *mut lua_State, nargs: c_int, nresults: c_int, errfunc: c_int) -> c_int;
-    fn lua_error(lstate: *mut lua_State) -> c_int;
-    fn lua_next(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_concat(lstate: *mut lua_State, n: c_int);
 
     fn luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-    fn luaL_argerror(lstate: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-    fn luaL_checklstring(lstate: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
-    fn luaL_checkinteger(lstate: *mut lua_State, numArg: c_int) -> lua_Integer;
     fn luaL_newmetatable(lstate: *mut lua_State, tname: *const c_char) -> c_int;
     fn luaL_checkudata(lstate: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-    fn luaL_where(lstate: *mut lua_State, lvl: c_int);
-    fn luaL_error(lstate: *mut lua_State, fmt: *const c_char, ...) -> c_int;
+}
 
-    fn luaopen_mpack(lstate: *mut lua_State) -> c_int;
-    fn luaopen_lpeg(lstate: *mut lua_State) -> c_int;
-    fn lua_cjson_new(lstate: *mut lua_State) -> c_int;
+#[cfg(not(test))]
+unsafe fn luaopen_mpack(lstate: *mut lua_State) -> c_int {
+    unsafe { crate::mpack::lmpack::luaopen_mpack(lstate.cast()) }
+}
+
+#[cfg(not(test))]
+unsafe fn luaopen_lpeg(lstate: *mut lua_State) -> c_int {
+    unsafe { crate::lpeg::lptree::luaopen_lpeg(lstate.cast()) }
+}
+
+#[cfg(not(test))]
+unsafe fn lua_cjson_new(lstate: *mut lua_State) -> c_int {
+    unsafe { crate::cjson::lua_cjson::lua_cjson_new(lstate.cast()) }
 }
 
 #[inline]

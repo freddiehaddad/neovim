@@ -29,7 +29,11 @@ use crate::eval::userfunc::invoke_all_defer;
 #[allow(unused_imports)]
 use crate::eval::{eval_init, set_argv_var, timer_teardown};
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_guess_handle, uv_strerror};
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
+#[allow(unused_imports)]
+use crate::fileio::fprintf;
 #[allow(unused_imports)]
 use crate::fileio::readfile;
 #[allow(unused_imports)]
@@ -316,10 +320,6 @@ unsafe extern "C" {
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
 
-    fn uv_guess_handle(file: c_int) -> c_int;
-    fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn printf(format: *const c_char, ...) -> c_int;
     fn setbuf(stream: *mut FILE, buffer: *mut c_char);
 

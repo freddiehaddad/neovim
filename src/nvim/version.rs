@@ -19,6 +19,8 @@ use crate::lua::executor::nlua_exec;
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::strings::memchr;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext, strchr, strstr};
@@ -3775,8 +3777,6 @@ unsafe extern "C" {
     static mut default_vim_dir: *mut c_char;
     static mut default_vimruntime_dir: *mut c_char;
 
-    fn memchr(s: *const c_char, c: c_int, n: usize) -> *mut c_char;
-
 }
 
 #[inline]
@@ -4225,7 +4225,7 @@ unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: b
             if *p == b'<' as c_char {
                 col += grid_line_puts(col, p, l, hlf8_attr);
             } else {
-                let colon_pos = memchr(p, b':' as c_int, l as usize);
+                let colon_pos = memchr(p.cast(), b':' as c_int, l as usize).cast::<c_char>();
                 if !colon_pos.is_null() && *p.add(l as usize) == b'<' as c_char {
                     let prefix_len = colon_pos.offset_from(p) as c_int;
                     col += grid_line_puts(col, p, prefix_len, 0);

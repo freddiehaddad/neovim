@@ -55,6 +55,8 @@ pub use crate::fileio::FILE;
 #[allow(unused_imports)]
 use crate::fileio::{buf_check_timestamp, shorten_fnames, vim_fgets, vim_gettempdir, vim_tempname};
 #[allow(unused_imports)]
+use crate::fileio::{fclose, fwrite};
+#[allow(unused_imports)]
 use crate::fold::{foldUpdate, foldUpdateAll, hasFolding, newFoldLevel};
 use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
@@ -279,10 +281,6 @@ static mut f_diff_hlid_prev_diff_flags: c_int = 0;
 static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
-unsafe extern "C" {
-    fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    fn fclose(stream: *mut FILE) -> c_int;
-}
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {
     (c as u8).is_ascii_digit()

@@ -26,6 +26,8 @@ use crate::eval::typval::tv_get_lnum;
 use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_vim_var_nr, set_vim_var_string};
 #[allow(unused_imports)]
 use crate::eval::{eval_foldexpr, eval_foldtext};
+#[allow(unused_imports)]
+use crate::fileio::fputs;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
@@ -165,11 +167,6 @@ static mut fdt_last_lnum: linenr_T = 0;
 static mut fdt_result_entered: bool = false;
 
 static E_NOFOLD: &CStr = c"E490: No fold found";
-
-unsafe extern "C" {
-
-    fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-}
 
 #[inline]
 unsafe fn ngettext_wrap(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char {

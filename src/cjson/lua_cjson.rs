@@ -251,20 +251,15 @@ const fn init_char2escape() -> [*const c_char; 256] {
 
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
+use crate::strings::{qsort, strncmp};
+
 unsafe extern "C" {
     fn malloc(size: usize) -> *mut c_void;
     fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
     fn free(ptr: *mut c_void);
     fn abort() -> !;
     fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
-    fn qsort(
-        base: *mut c_void,
-        nmemb: usize,
-        size: usize,
-        compar: unsafe extern "C" fn(*const c_void, *const c_void) -> c_int,
-    );
 }
 
 unsafe extern "C-unwind" {

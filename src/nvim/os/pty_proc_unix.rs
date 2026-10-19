@@ -12,9 +12,13 @@
 
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_to_env;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_handle_get_loop, uv_strerror};
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::fs::os_set_cloexec;
+#[allow(unused_imports)]
+use crate::strings::strerror;
 use std::ffi::{c_char, c_int, c_ulong, c_ushort, c_void};
 use std::ptr;
 
@@ -250,7 +254,6 @@ mod unix_impl {
         #[cfg(target_os = "macos")]
         fn _NSGetEnviron() -> *mut *mut *mut c_char;
 
-        fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
         fn uv_signal_start(
             handle: *mut uv_signal_t,
             signal_cb: uv_signal_cb,
@@ -260,7 +263,6 @@ mod unix_impl {
         fn uv_disable_stdio_inheritance();
         fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
         fn uv_chdir(dir: *const c_char) -> c_int;
-        fn uv_strerror(err: c_int) -> *const c_char;
 
         fn forkpty(
             amaster: *mut c_int,
@@ -282,7 +284,6 @@ mod unix_impl {
         fn signal(signum: c_int, handler: usize) -> usize;
         fn execvp(file: *const c_char, argv: *const *mut c_char) -> c_int;
         fn _exit(status: c_int) -> !;
-        fn strerror(errnum: c_int) -> *mut c_char;
         #[cfg(target_os = "linux")]
         fn poll(fds: *mut pollfd, nfds: c_ulong, timeout: c_int) -> c_int;
     }

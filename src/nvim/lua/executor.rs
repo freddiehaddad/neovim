@@ -33,9 +33,19 @@ use crate::ex_docmd::get_command_name;
 use crate::ex_getln::script_get;
 #[allow(unused_imports)]
 use crate::ex_getln::{get_user_input, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
+#[allow(unused_imports)]
+use crate::fileio::fprintf;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::log::log_get_stderr;
+#[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_checkstack, lua_concat, lua_createtable, lua_error, lua_getfield, lua_getmetatable,
+    lua_gettop, lua_newuserdata, lua_next, lua_pcall, lua_pushboolean, lua_pushinteger,
+    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti,
+    lua_rawseti, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean, lua_tolstring,
+    lua_type, luaL_checkinteger, luaL_checklstring, luaL_error, luaL_where,
+};
 #[allow(unused_imports)]
 use crate::message::msg_multihl;
 use crate::message::semsg_multiline;
@@ -277,51 +287,22 @@ unsafe extern "C-unwind" {
     fn luaL_newstate() -> *mut lua_State;
     fn luaL_openlibs(L: *mut lua_State);
     fn lua_close(L: *mut lua_State);
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_pushvalue(L: *mut lua_State, idx: c_int);
     fn lua_remove(L: *mut lua_State, idx: c_int);
     fn lua_insert(L: *mut lua_State, idx: c_int);
     fn lua_replace(L: *mut lua_State, idx: c_int);
-    fn lua_checkstack(L: *mut lua_State, sz: c_int) -> c_int;
     fn lua_iscfunction(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
     fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> lua_CFunction;
     fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_pushnil(L: *mut lua_State);
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
     fn lua_pushcclosure(L: *mut lua_State, fn_: lua_CFunction, n: c_int);
-    fn lua_pushboolean(L: *mut lua_State, b: c_int);
     fn lua_pushlightuserdata(L: *mut lua_State, p: *mut c_void);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_newuserdata(L: *mut lua_State, sz: usize) -> *mut c_void;
-    fn lua_getmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
     fn lua_call(L: *mut lua_State, nargs: c_int, nresults: c_int);
-    fn lua_pcall(L: *mut lua_State, nargs: c_int, nresults: c_int, errfunc: c_int) -> c_int;
-    fn lua_error(L: *mut lua_State) -> c_int;
-    fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_concat(L: *mut lua_State, n: c_int);
     fn lua_getstack(L: *mut lua_State, level: c_int, ar: *mut lua_Debug) -> c_int;
     fn lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
 
-    fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
-    fn luaL_checkinteger(L: *mut lua_State, numArg: c_int) -> lua_Integer;
     fn luaL_checktype(L: *mut lua_State, narg: c_int, t: c_int);
-    fn luaL_where(L: *mut lua_State, lvl: c_int);
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
     fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
     fn luaL_unref(L: *mut lua_State, t: c_int, ref_: c_int);
     fn luaL_loadbuffer(
@@ -356,8 +337,6 @@ unsafe extern "C" {
 
     fn uv_thread_self() -> uv_thread_t;
     fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
-
-    fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
 
     #[cfg(unix)]
     fn pthread_exit(retval: *mut c_void) -> !;

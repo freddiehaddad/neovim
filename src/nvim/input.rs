@@ -25,11 +25,15 @@ use crate::eval::typval::{tv_dict_has_key, tv_get_bool_chk};
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_loop_size, uv_strerror};
+#[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::ex_docmd::update_topline_cursor;
 #[allow(unused_imports)]
 use crate::ex_getln::{get_cmdline_info, putcmdline, redrawcmd, redrawcmdline, unputcmdline};
+#[allow(unused_imports)]
+use crate::fileio::fputc;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insert::{edit_putchar, edit_unputchar};
@@ -359,10 +363,6 @@ static mut VGETORPEEK_TC: c_int = 0;
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn uv_loop_size() -> usize;
-    fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
 }
 
 #[inline]

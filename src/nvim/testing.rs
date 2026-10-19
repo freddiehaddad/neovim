@@ -26,6 +26,8 @@ use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim
 use crate::eval::{garbage_collect, pattern_match};
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fgetc};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
@@ -78,13 +80,6 @@ enum AssertType {
     NotMatch,
     Fails,
     Other,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn fgetc(stream: *mut FILE) -> c_int;
-    fn fclose(stream: *mut FILE) -> c_int;
 }
 
 #[inline]

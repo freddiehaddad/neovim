@@ -88,6 +88,8 @@ use crate::regexp::{
 #[allow(unused_imports)]
 use crate::regexp::{regtilde, vim_regsub_multi};
 #[allow(unused_imports)]
+use crate::strings::strcasecmp;
+#[allow(unused_imports)]
 use crate::strings::vim_stricmp;
 #[allow(unused_imports)]
 use crate::strings::{
@@ -451,9 +453,6 @@ static mut subflags: subflags_T = subflags_T {
 static mut pre_hl_id: c_int = 0;
 
 unsafe extern "C" {
-
-    #[cfg(not(windows))]
-    fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
 
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;

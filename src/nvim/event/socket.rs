@@ -13,6 +13,10 @@
 use crate::charset::try_getdigits;
 #[allow(unused_imports)]
 use crate::event::r#loop::loop_poll_events;
+#[allow(unused_imports)]
+use crate::event::r#loop::{
+    uv_close, uv_handle_get_loop, uv_handle_get_type, uv_handle_size, uv_req_size, uv_strerror,
+};
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::fs::{os_path_exists, os_remove};
@@ -20,6 +24,8 @@ use crate::os::fs::{os_path_exists, os_remove};
 use crate::path::path_tail;
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strrchr;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -139,11 +145,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_req_size(r_type: c_int) -> usize;
-    fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
-    fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
-
     fn uv_getaddrinfo(
         loop_: *mut uv_loop_t,
         req: *mut uv_getaddrinfo_t,
@@ -182,10 +183,7 @@ unsafe extern "C" {
 
     fn uv_listen(stream: *mut uv_stream_t, backlog: c_int, cb: uv_connection_cb) -> c_int;
     fn uv_accept(server: *mut uv_stream_t, client: *mut uv_stream_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
-    fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
 }
 
 #[inline]

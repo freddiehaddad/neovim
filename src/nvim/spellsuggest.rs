@@ -23,6 +23,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::vars::{eval_spell_expr, get_spellword};
 #[allow(unused_imports)]
+use crate::fileio::fclose;
+#[allow(unused_imports)]
 use crate::fileio::vim_fgets;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -367,9 +369,6 @@ static mut spell_suggest_timeout: i64 = 5000;
 static mut sps_flags: c_int = SPS_BEST;
 static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
-unsafe extern "C" {
-    fn fclose(stream: *mut FILE) -> c_int;
-}
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {
     (c as u8).is_ascii_digit()

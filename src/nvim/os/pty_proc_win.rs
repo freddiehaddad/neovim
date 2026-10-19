@@ -13,6 +13,8 @@
 
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_to_env;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_req_size, uv_run, uv_translate_sys_error};
 use crate::log::logmsg;
 #[cfg(windows)]
 #[allow(unused_imports)]
@@ -21,6 +23,8 @@ use crate::mbyte::utf8_to_utf16;
 use crate::os::env::os_shell_is_cmdexe;
 #[allow(unused_imports)]
 use crate::os::fs::os_can_exe;
+#[allow(unused_imports)]
+use crate::strings::wcslen;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -164,8 +168,6 @@ mod win_impl {
     }
 
     unsafe extern "C" {
-        fn uv_req_size(r_type: c_int) -> usize;
-        fn uv_run(loop_: *mut uv_loop_t, mode: c_int) -> c_int;
         fn uv_pipe_connect(
             req: *mut uv_connect_t,
             handle: *mut uv_pipe_t,
@@ -174,9 +176,7 @@ mod win_impl {
         );
         fn uv_thread_create(tid: *mut uv_thread_t, entry: uv_thread_cb, arg: *mut c_void) -> c_int;
         fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
-        fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
-        fn wcslen(s: *const u16) -> usize;
     }
 
     unsafe extern "system" {

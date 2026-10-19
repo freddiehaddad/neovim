@@ -30,6 +30,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, restore_v_event};
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_strerror;
+#[allow(unused_imports)]
 use crate::event::proc::exit_on_closed_chan;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -184,8 +186,6 @@ pub struct TerminalOptions {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    fn uv_strerror(err: c_int) -> *const c_char;
 
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
 

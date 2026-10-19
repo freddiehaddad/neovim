@@ -1,5 +1,10 @@
 //! Lua `vim.base64` bindings (`src/nvim/lua/base64.c`).
 
+#[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type, luaL_argerror,
+    luaL_error,
+};
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::base64::{decode_bytes, encode_bytes};
@@ -22,13 +27,6 @@ unsafe impl Sync for luaL_Reg {}
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_gettop(lstate: *mut lua_State) -> c_int;
-    fn lua_type(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn luaL_error(lstate: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_argerror(lstate: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-    fn lua_tolstring(lstate: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_pushlstring(lstate: *mut lua_State, s: *const c_char, len: usize);
-    fn lua_createtable(lstate: *mut lua_State, narr: c_int, nrec: c_int);
     fn luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
 }
 

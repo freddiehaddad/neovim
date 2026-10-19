@@ -194,30 +194,41 @@ struct MPConvStackVal {
     data: MPConvStackData,
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_pushvalue(L: *mut lua_State, idx: c_int);
-    fn lua_checkstack(L: *mut lua_State, sz: c_int) -> c_int;
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_rawequal(L: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int;
-    fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_pushnil(L: *mut lua_State);
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
-    fn lua_pushboolean(L: *mut lua_State, b: c_int);
-    fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_getmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_rawset(L: *mut lua_State, idx: c_int);
-    fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
+    pub fn lua_gettop(L: *mut lua_State) -> c_int;
+    pub fn lua_settop(L: *mut lua_State, idx: c_int);
+    pub fn lua_pushvalue(L: *mut lua_State, idx: c_int);
+    pub fn lua_checkstack(L: *mut lua_State, sz: c_int) -> c_int;
+    pub fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
+    pub fn lua_rawequal(L: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int;
+    pub fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
+    pub fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
+    pub fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
+    pub fn lua_objlen(L: *mut lua_State, idx: c_int) -> usize;
+    pub fn lua_pushnil(L: *mut lua_State);
+    pub fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
+    pub fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
+    pub fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
+    pub fn lua_pushstring(L: *mut lua_State, s: *const c_char);
+    pub fn lua_pushboolean(L: *mut lua_State, b: c_int);
+    pub fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
+    pub fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
+    pub fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
+    pub fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
+    pub fn lua_newuserdata(L: *mut lua_State, sz: usize) -> *mut c_void;
+    pub fn lua_getmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
+    pub fn lua_rawset(L: *mut lua_State, idx: c_int);
+    pub fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
+    pub fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
+    pub fn lua_pcall(L: *mut lua_State, nargs: c_int, nresults: c_int, errfunc: c_int) -> c_int;
+    pub fn lua_error(L: *mut lua_State) -> c_int;
+    pub fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
+    pub fn lua_concat(L: *mut lua_State, n: c_int);
+    pub fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
+    pub fn luaL_checkinteger(L: *mut lua_State, numArg: c_int) -> lua_Integer;
+    pub fn luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
+    pub fn luaL_where(L: *mut lua_State, lvl: c_int);
+    pub fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
 }
 
 #[cfg(not(test))]

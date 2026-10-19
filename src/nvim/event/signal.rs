@@ -8,6 +8,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_close, uv_handle_size, uv_loop_size, uv_signal_init};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -38,12 +40,8 @@ struct SignalWatcherFields {
 }
 
 unsafe extern "C" {
-    fn uv_loop_size() -> usize;
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_signal_init(loop_: *mut uv_loop_t, handle: *mut uv_signal_t) -> c_int;
     fn uv_signal_start(handle: *mut uv_signal_t, signal_cb: uv_signal_cb, signum: c_int) -> c_int;
     fn uv_signal_stop(handle: *mut uv_signal_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 }
 
 #[inline]

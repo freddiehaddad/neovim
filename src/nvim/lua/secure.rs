@@ -9,6 +9,11 @@
 )]
 
 #[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring, lua_settop,
+    lua_toboolean, lua_tolstring,
+};
+#[allow(unused_imports)]
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 use crate::message::{semsg, smsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -23,15 +28,7 @@ pub use crate::api::command::exarg_T;
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
     fn lua_settable(L: *mut lua_State, idx: c_int);
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
 }
 
 #[inline]

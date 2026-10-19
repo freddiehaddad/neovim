@@ -26,11 +26,15 @@ use crate::eval::typval::{
     tv_list_append_dict,
 };
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_strerror;
+#[allow(unused_imports)]
 use crate::ex_docmd::expr_map_locked;
 #[allow(unused_imports)]
 use crate::ex_getln::{text_locked, text_locked_msg};
 #[allow(unused_imports)]
 use crate::fileio::read_eintr;
+#[allow(unused_imports)]
+use crate::fileio::{fclose, feof, fgetc, fread, fwrite};
 #[allow(unused_imports)]
 use crate::fileio::{get2c, get4c, get8ctime};
 #[allow(unused_imports)]
@@ -58,6 +62,8 @@ use crate::option::shortmess;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::spell::spell_check_window;
+#[allow(unused_imports)]
+use crate::strings::memcmp;
 #[allow(unused_imports)]
 use crate::strings::{gettext, ngettext, qsort, strcmp, strlen};
 #[allow(unused_imports)]
@@ -261,8 +267,6 @@ static mut lastmark: c_int = 0;
 
 unsafe extern "C" {
 
-    fn uv_strerror(err: c_int) -> *const c_char;
-
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "time")]
     fn c_time(tloc: *mut time_t) -> time_t;
@@ -283,13 +287,7 @@ unsafe extern "C" {
     #[cfg(unix)]
     fn getuid() -> u32;
 
-    fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fflush(stream: *mut FILE) -> c_int;
-    fn fclose(stream: *mut FILE) -> c_int;
-    fn fgetc(stream: *mut FILE) -> c_int;
-    fn feof(stream: *mut FILE) -> c_int;
-    fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
 }
 
 #[inline]

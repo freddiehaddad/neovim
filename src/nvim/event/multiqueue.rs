@@ -339,6 +339,31 @@ pub unsafe extern "C" fn multiqueue_size(this: *mut MultiQueue) -> usize {
     unsafe { (*this).size }
 }
 
+/// Enqueue a string pointer for unit tests (`ut_multiqueue_put`).
+///
+/// # Safety
+/// `this` must be a valid pointer to a `MultiQueue`.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ut_multiqueue_put(this: *mut MultiQueue, str_: *const std::ffi::c_char) {
+    unsafe {
+        let mut ev = Event::nil();
+        ev.argv[0] = str_.cast_mut().cast();
+        multiqueue_put_event(this, ev);
+    }
+}
+
+/// Dequeue a string pointer for unit tests (`ut_multiqueue_get`).
+///
+/// # Safety
+/// `this` must be a valid pointer to a `MultiQueue`.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ut_multiqueue_get(this: *mut MultiQueue) -> *const std::ffi::c_char {
+    unsafe {
+        let ev = multiqueue_get(this);
+        ev.argv[0].cast()
+    }
+}
+
 unsafe extern "C" fn multiqueue_oneshot_event(argv: *mut *mut c_void) {
     unsafe {
         let data = (*argv).cast::<MulticastEvent>();

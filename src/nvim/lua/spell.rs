@@ -12,6 +12,11 @@
 use crate::errors::*;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_createtable, lua_gettop, lua_pushinteger, lua_pushlstring, lua_pushstring, lua_rawseti,
+    lua_tolstring, lua_type, luaL_argerror, luaL_error,
+};
+#[allow(unused_imports)]
 use crate::message::emsg;
 #[allow(unused_imports)]
 use crate::spell::{parse_spelllang, spell_check};
@@ -36,16 +41,6 @@ const HLF_SPL: hlf_T = 40;
 const HLF_COUNT: hlf_T = 76;
 
 unsafe extern "C-unwind" {
-    fn lua_gettop(lstate: *mut lua_State) -> c_int;
-    fn lua_type(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn luaL_error(lstate: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_argerror(lstate: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-    fn lua_tolstring(lstate: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_createtable(lstate: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_pushlstring(lstate: *mut lua_State, s: *const c_char, len: usize);
-    fn lua_pushstring(lstate: *mut lua_State, s: *const c_char);
-    fn lua_pushinteger(lstate: *mut lua_State, n: lua_Integer);
-    fn lua_rawseti(lstate: *mut lua_State, idx: c_int, n: c_int);
     fn luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
 }
 

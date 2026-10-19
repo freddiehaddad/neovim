@@ -18,6 +18,8 @@ use crate::eval::fs::modify_fname;
 use crate::eval::skip_expr;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_err_name, uv_strerror};
 use crate::globals::*;
 #[cfg(windows)]
 #[allow(unused_imports)]
@@ -41,6 +43,8 @@ use crate::path::{path_to_slash, path_to_slash_save, vim_ispathsep};
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::vim_strsave_escaped;
+#[allow(unused_imports)]
+use crate::strings::wcslen;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -160,13 +164,9 @@ unsafe extern "C" {
     fn uv_os_setenv(name: *const c_char, value: *const c_char) -> c_int;
     fn uv_os_unsetenv(name: *const c_char) -> c_int;
     fn uv_os_homedir(buffer: *mut c_char, size: *mut usize) -> c_int;
-    fn uv_err_name(err: c_int) -> *const c_char;
-    fn uv_strerror(err: c_int) -> *const c_char;
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
-    #[cfg(windows)]
-    fn wcslen(s: *const u16) -> usize;
 
     #[cfg(target_os = "macos")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;

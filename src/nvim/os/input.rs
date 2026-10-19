@@ -18,6 +18,8 @@ use crate::autocmd::trigger_cursorhold;
 use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
 use crate::event::r#loop::loop_poll_events;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_guess_handle, uv_loop_size};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{before_blocking, typebuf_changed};
@@ -122,9 +124,6 @@ unsafe fn ensure_input_ptrs_init() {
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-
-    fn uv_loop_size() -> usize;
-    fn uv_guess_handle(file: c_int) -> c_int;
 
     fn sscanf(s: *const c_char, format: *const c_char, ...) -> c_int;
 }

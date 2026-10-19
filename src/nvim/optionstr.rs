@@ -841,10 +841,10 @@ unsafe extern "C" {
     static opt_mousescroll_schema: [OptSchemaItem; 0];
     static opt_pvp_schema: [OptSchemaItem; 0];
 
-    fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-
     fn strcspn(s: *const c_char, reject: *const c_char) -> usize;
 }
+
+use crate::option::get_option;
 
 #[inline]
 unsafe fn c_strlen(s: *const c_char) -> usize {

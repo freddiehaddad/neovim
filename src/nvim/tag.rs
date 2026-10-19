@@ -42,6 +42,8 @@ use crate::file_search::{
     vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
 };
 #[allow(unused_imports)]
+use crate::fileio::fclose;
+#[allow(unused_imports)]
 use crate::fileio::vim_fgets;
 #[allow(unused_imports)]
 use crate::fold::foldOpenCursor;
@@ -412,7 +414,6 @@ static mut DO_TAG_FLAGS: c_int = 0;
 
 unsafe extern "C" {
 
-    fn fclose(stream: *mut FILE) -> c_int;
     #[cfg(windows)]
     fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
     #[cfg(not(windows))]

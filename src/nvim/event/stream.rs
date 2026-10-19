@@ -10,6 +10,10 @@
 )]
 
 #[allow(unused_imports)]
+use crate::event::r#loop::{
+    uv_close, uv_guess_handle, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init, uv_run,
+};
+#[allow(unused_imports)]
 use crate::log::g_min_log_level;
 use crate::log::logmsg;
 use std::ffi::{c_int, c_void};
@@ -68,18 +72,11 @@ pub struct StreamFields {
 
 unsafe extern "C" {
 
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_loop_init(loop_: *mut uv_loop_t) -> c_int;
-    fn uv_loop_close(loop_: *mut uv_loop_t) -> c_int;
-    fn uv_run(loop_: *mut uv_loop_t, mode: c_int) -> c_int;
     fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
     fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
     fn uv_stream_set_blocking(handle: *mut uv_stream_t, blocking: c_int) -> c_int;
     fn uv_stream_get_write_queue_size(stream: *const uv_stream_t) -> usize;
     fn uv_idle_init(loop_: *mut uv_loop_t, idle: *mut uv_idle_t) -> c_int;
-    fn uv_guess_handle(file: c_int) -> c_int;
-    fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
     #[cfg(windows)]
     fn uv_tty_init(loop_: *mut uv_loop_t, tty: *mut uv_tty_t, fd: c_int, readable: c_int) -> c_int;

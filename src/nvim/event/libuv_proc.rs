@@ -11,6 +11,8 @@
 
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_to_env;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_close, uv_handle_size};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::os::env::os_free_fullenv;
@@ -98,7 +100,6 @@ struct LibuvProcTail {
 
 unsafe extern "C" {
 
-    fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_pipe(fds: *mut c_int, read_flags: c_int, write_flags: c_int) -> c_int;
     fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
     fn uv_spawn(
@@ -107,7 +108,6 @@ unsafe extern "C" {
         options: *const uv_process_options_t,
     ) -> c_int;
     fn uv_process_get_pid(handle: *const uv_process_t) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
 }
 

@@ -25,6 +25,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::eval_charconvert;
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_strerror;
+#[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::fileio::msg_add_lines;
@@ -251,8 +253,6 @@ struct bw_info {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn uv_strerror(err: c_int) -> *const c_char;
 
     #[cfg(windows)]
     fn libiconv(

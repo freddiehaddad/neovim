@@ -22,6 +22,8 @@ use crate::api::ui::remote_ui_flush_pending_data;
 #[allow(unused_imports)]
 use crate::channel::{channel_close, channel_decref, channel_event, channel_incref};
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_handle_size, uv_strerror};
+#[allow(unused_imports)]
 use crate::event::proc::exit_on_closed_chan;
 use crate::globals::*;
 use crate::log::logmsg;
@@ -288,9 +290,6 @@ type UIEventHandlerFn = unsafe extern "C" fn(args: Array);
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_strerror(err: c_int) -> *const c_char;
 
     fn handle_nvim_get_mode(
         channel_id: u64,

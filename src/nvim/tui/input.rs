@@ -11,6 +11,10 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::{
+    uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
+};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::main_init::os_exit;
@@ -116,13 +120,7 @@ static mut LAST_PRESSED_BUTTON: c_int = 0;
 unsafe extern "C" {
     static mut main_loop: u8;
 
-    fn uv_handle_size(h_type: c_int) -> usize;
-    fn uv_timer_init(loop_: *mut uv_loop_t, handle: *mut uv_timer_t) -> c_int;
-    fn uv_timer_start(handle: *mut uv_timer_t, cb: uv_timer_cb, timeout: u64, repeat: u64)
-    -> c_int;
-    fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
     fn uv_timer_get_due_in(handle: *const uv_timer_t) -> u64;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
 }
 

@@ -37,6 +37,8 @@ use crate::eval::userfunc::callback_call_retnr;
 #[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, restore_v_event};
 #[allow(unused_imports)]
+use crate::fileio::fclose;
+#[allow(unused_imports)]
 use crate::fileio::vim_fgets;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -73,6 +75,8 @@ use crate::strings::vim_snprintf;
 use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp};
+#[allow(unused_imports)]
+use crate::strings::{memcmp, strncasecmp, strrchr};
 #[allow(unused_imports)]
 use crate::strings::{strncpy, tolower};
 #[allow(unused_imports)]
@@ -605,16 +609,6 @@ struct cpt_source_T {
 }
 
 use crate::state::save_v_event_T;
-
-unsafe extern "C" {
-
-    #[cfg(unix)]
-    fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-
-    fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
-    fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
-    fn fclose(stream: *mut crate::fileio::FILE) -> c_int;
-}
 
 static mut compl_first_match: *mut compl_T = ptr::null_mut();
 static mut compl_curr_match: *mut compl_T = ptr::null_mut();

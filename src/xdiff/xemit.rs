@@ -8,9 +8,7 @@ use crate::xdiff::{
     XDL_EMIT_NO_HUNK_HDR, xdchange_t, xdemitcb_t, xdemitconf_t, xdfenv_t, xdfile_t,
 };
 
-unsafe extern "C" {
-    fn strlen(s: *const c_char) -> usize;
-}
+use crate::strings::strlen;
 
 unsafe fn xdl_get_rec(xdf: *mut xdfile_t, ri: c_long, rec: *mut *const c_char) -> c_long {
     unsafe {

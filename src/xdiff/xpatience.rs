@@ -9,10 +9,7 @@ use crate::xdiff::xprepare::xdl_prepare_env;
 use crate::xdiff::xutils::xdl_fall_back_diff;
 use crate::xdiff::{XDF_DIFF_ALGORITHM_MASK, mmfile_t, xdfenv_t, xpparam_t};
 
-unsafe extern "C" {
-    fn strlen(s: *const c_char) -> usize;
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-}
+use crate::strings::{strlen, strncmp};
 
 const NON_UNIQUE: c_ulong = c_ulong::MAX;
 

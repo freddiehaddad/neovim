@@ -8,6 +8,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_handle_get_loop, uv_req_size};
 #[cfg(windows)]
 use std::ffi::c_ulong;
 use std::ffi::{c_char, c_int, c_uint, c_void};
@@ -15,7 +17,7 @@ use std::ptr;
 
 use crate::event::stream::{
     Loop, Stream, stream_close_handle, stream_closed_ptr, stream_fields, stream_init,
-    stream_uv_ptr, stream_write_cb, uv_handle_t, uv_loop_t, uv_stream_t,
+    stream_uv_ptr, stream_write_cb, uv_loop_t, uv_stream_t,
 };
 use crate::memory::{xfree, xmalloc};
 
@@ -81,8 +83,6 @@ struct WRequestHeader {
 }
 
 unsafe extern "C" {
-    fn uv_req_size(r_type: c_int) -> usize;
-    fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
     fn uv_write(
         req: *mut uv_write_t,
         handle: *mut uv_stream_t,

@@ -597,11 +597,7 @@ static mut redir_ga: garray_T = garray_T {
 static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
 
-unsafe extern "C" {
-
-    fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-
-}
+use crate::option::get_option;
 
 #[inline]
 unsafe fn c_strlen(s: *const c_char) -> usize {

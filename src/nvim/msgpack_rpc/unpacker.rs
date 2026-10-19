@@ -105,28 +105,100 @@ pub struct AdditionalDataHeader {
 }
 
 #[cfg(not(test))]
-unsafe extern "C" {
+#[inline]
+unsafe fn mpack_parser_init(p: *mut mpack_parser_t, c: u32) {
+    unsafe { crate::mpack::object::mpack_parser_init(p.cast(), c) }
+}
 
-    fn mpack_parser_init(p: *mut mpack_parser_t, c: u32);
-    fn mpack_tokbuf_init(tb: *mut mpack_tokbuf_t);
-    fn mpack_read(
-        tb: *mut mpack_tokbuf_t,
-        b: *mut *const c_char,
-        bl: *mut usize,
-        tok: *mut mpack_token_t,
-    ) -> c_int;
-    fn mpack_rtoken(buf: *mut *const c_char, buflen: *mut usize, tok: *mut mpack_token_t) -> c_int;
-    fn mpack_parse(
-        parser: *mut mpack_parser_t,
-        b: *mut *const c_char,
-        bl: *mut usize,
-        enter_cb: mpack_walk_cb,
-        exit_cb: mpack_walk_cb,
-    ) -> c_int;
-    fn mpack_unpack_boolean(t: mpack_token_t) -> bool;
-    fn mpack_unpack_uint(t: mpack_token_t) -> u64;
-    fn mpack_unpack_sint(t: mpack_token_t) -> i64;
-    fn mpack_unpack_float_fast(t: mpack_token_t) -> f64;
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_tokbuf_init(tb: *mut mpack_tokbuf_t) {
+    unsafe { crate::mpack::mpack_core::mpack_tokbuf_init(tb.cast()) }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_read(
+    tb: *mut mpack_tokbuf_t,
+    b: *mut *const c_char,
+    bl: *mut usize,
+    tok: *mut mpack_token_t,
+) -> c_int {
+    unsafe { crate::mpack::mpack_core::mpack_read(tb.cast(), b, bl, tok.cast()) }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_rtoken(
+    buf: *mut *const c_char,
+    buflen: *mut usize,
+    tok: *mut mpack_token_t,
+) -> c_int {
+    unsafe { crate::mpack::mpack_core::mpack_rtoken(buf, buflen, tok.cast()) }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_parse(
+    parser: *mut mpack_parser_t,
+    b: *mut *const c_char,
+    bl: *mut usize,
+    enter_cb: mpack_walk_cb,
+    exit_cb: mpack_walk_cb,
+) -> c_int {
+    unsafe {
+        crate::mpack::object::mpack_parse(
+            parser.cast(),
+            b,
+            bl,
+            std::mem::transmute::<mpack_walk_cb, crate::mpack::object::mpack_walk_cb>(enter_cb),
+            std::mem::transmute::<mpack_walk_cb, crate::mpack::object::mpack_walk_cb>(exit_cb),
+        )
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_unpack_boolean(t: mpack_token_t) -> bool {
+    unsafe {
+        crate::mpack::conv::mpack_unpack_boolean(std::mem::transmute::<
+            mpack_token_t,
+            crate::mpack::mpack_core::mpack_token_t,
+        >(t))
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_unpack_uint(t: mpack_token_t) -> u64 {
+    unsafe {
+        crate::mpack::conv::mpack_unpack_uint(std::mem::transmute::<
+            mpack_token_t,
+            crate::mpack::mpack_core::mpack_token_t,
+        >(t))
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_unpack_sint(t: mpack_token_t) -> i64 {
+    unsafe {
+        crate::mpack::conv::mpack_unpack_sint(std::mem::transmute::<
+            mpack_token_t,
+            crate::mpack::mpack_core::mpack_token_t,
+        >(t))
+    }
+}
+
+#[cfg(not(test))]
+#[inline]
+unsafe fn mpack_unpack_float_fast(t: mpack_token_t) -> f64 {
+    unsafe {
+        crate::mpack::conv::mpack_unpack_float_fast(std::mem::transmute::<
+            mpack_token_t,
+            crate::mpack::mpack_core::mpack_token_t,
+        >(t))
+    }
 }
 
 #[inline]

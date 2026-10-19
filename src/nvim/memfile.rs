@@ -29,6 +29,8 @@ use crate::os::fs::{
 use crate::path::FullName_save;
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strerror;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -149,8 +151,6 @@ pub struct memfile_T {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    fn strerror(errnum: c_int) -> *mut c_char;
 
     #[cfg(windows)]
     fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;

@@ -18,9 +18,13 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_err_name, uv_strerror};
+#[allow(unused_imports)]
 use crate::ex_cmds::{check_secure, make_filter_cmd};
 #[allow(unused_imports)]
 use crate::fileio::vim_tempname;
+#[allow(unused_imports)]
+use crate::fileio::{fclose, fopen, fread};
 use crate::globals::*;
 use crate::mbyte::utf8len_tab_zero;
 #[allow(unused_imports)]
@@ -159,14 +163,8 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
-    fn uv_strerror(err: c_int) -> *const c_char;
-    fn uv_err_name(err: c_int) -> *const c_char;
-
-    fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
     fn ftell(stream: *mut FILE) -> c_long;
-    fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
-    fn fclose(stream: *mut FILE) -> c_int;
 }
 
 #[cfg(windows)]

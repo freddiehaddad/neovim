@@ -31,6 +31,8 @@ use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error};
 #[allow(unused_imports)]
+use crate::strings::strcasecmp;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_stricmp;
@@ -277,13 +279,6 @@ static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
 unsafe extern "C" {
     fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> f64;
-}
-
-unsafe extern "C" {
-
-    #[cfg(not(windows))]
-    fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
-
 }
 
 #[inline]

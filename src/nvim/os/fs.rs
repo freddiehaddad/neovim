@@ -14,6 +14,8 @@
 )]
 
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_guess_handle, uv_req_size, uv_strerror, uv_translate_sys_error};
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
@@ -39,6 +41,8 @@ use crate::path::{
 };
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::{strerror, wcslen};
 #[allow(unused_imports)]
 use crate::ui::ui_call_chdir;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -286,13 +290,9 @@ struct IPersistFile {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn uv_req_size(r_type: c_int) -> usize;
     fn uv_chdir(dir: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
     fn uv_exepath(buffer: *mut c_char, size: *mut usize) -> c_int;
-    fn uv_guess_handle(file: c_int) -> c_int;
-    fn uv_strerror(err: c_int) -> *const c_char;
-    fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
     fn uv_fs_req_cleanup(req: *mut uv_fs_t);
     fn uv_fs_get_ptr(req: *const uv_fs_t) -> *mut c_void;
@@ -437,8 +437,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn _errno() -> *mut c_int;
     #[cfg(windows)]
-    fn wcslen(s: *const u16) -> usize;
-    #[cfg(windows)]
     fn wcspbrk(s: *const u16, accept: *const u16) -> *mut u16;
     #[cfg(windows)]
     fn wcsncpy(dest: *mut u16, src: *const u16, n: usize) -> *mut u16;
@@ -457,8 +455,6 @@ unsafe extern "C" {
     fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
     #[cfg(not(windows))]
     fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
-    #[cfg(not(windows))]
-    fn strerror(errnum: c_int) -> *const c_char;
     #[cfg(not(windows))]
     #[cfg(not(windows))]
     fn getuid() -> u32;

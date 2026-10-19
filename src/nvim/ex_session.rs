@@ -34,6 +34,8 @@ use crate::file_search::vim_chdirfile;
 #[allow(unused_imports)]
 use crate::fileio::shorten_fnames;
 #[allow(unused_imports)]
+use crate::fileio::{fclose, fputc, fputs, fwrite};
+#[allow(unused_imports)]
 use crate::fold::put_folds;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -60,7 +62,7 @@ use crate::strings::gettext;
 use crate::strings::vim_strsave_escaped;
 #[allow(unused_imports)]
 use crate::window::tabpage_index;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::api::command::exarg_T;
@@ -123,14 +125,6 @@ pub struct wininfo_Prefix {
 }
 
 static mut did_lcd: bool = false;
-
-unsafe extern "C" {
-
-    fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    fn fwrite(ptr: *const c_void, size: usize, count: usize, stream: *mut FILE) -> usize;
-    fn fclose(stream: *mut FILE) -> c_int;
-}
 
 #[inline]
 const fn ascii_isdigit(c: c_int) -> bool {

@@ -17,6 +17,12 @@ use crate::api::private::helpers::{api_clear_error, api_free_string};
 #[allow(unused_imports)]
 use crate::lua::converter::nlua_pop_keydict;
 #[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_concat, lua_createtable, lua_error, lua_gettop, lua_objlen, lua_pcall, lua_pushinteger,
+    lua_pushlstring, lua_pushstring, lua_pushvalue, lua_rawseti, lua_settop, lua_tolstring,
+    lua_tonumber, lua_type, luaL_argerror, luaL_error, luaL_where,
+};
+#[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
@@ -124,25 +130,7 @@ type FieldHashfn = unsafe extern "C" fn(str_ptr: *const c_char, len: usize) -> *
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_gettop(lstate: *mut lua_State) -> c_int;
-    fn lua_settop(lstate: *mut lua_State, idx: c_int);
-    fn lua_type(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_pushvalue(lstate: *mut lua_State, idx: c_int);
-    fn lua_pushinteger(lstate: *mut lua_State, n: isize);
-    fn lua_pushstring(lstate: *mut lua_State, s: *const c_char);
-    fn lua_pushlstring(lstate: *mut lua_State, s: *const c_char, len: usize);
-    fn lua_tolstring(lstate: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
     fn lua_isnumber(lstate: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tonumber(lstate: *mut lua_State, idx: c_int) -> f64;
-    fn lua_createtable(lstate: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_rawseti(lstate: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_objlen(lstate: *mut lua_State, idx: c_int) -> usize;
-    fn lua_pcall(lstate: *mut lua_State, nargs: c_int, nresults: c_int, errfunc: c_int) -> c_int;
-    fn lua_concat(lstate: *mut lua_State, n: c_int);
-    fn lua_error(lstate: *mut lua_State) -> c_int;
-    fn luaL_error(lstate: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_argerror(lstate: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-    fn luaL_where(lstate: *mut lua_State, lvl: c_int);
 }
 
 #[cfg(not(test))]

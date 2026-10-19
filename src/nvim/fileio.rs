@@ -22,6 +22,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::eval_charconvert;
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_strerror;
+#[allow(unused_imports)]
 use crate::fold::foldUpdateAll;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -313,14 +315,17 @@ pub use crate::api::command::regmatch_T;
 
 unsafe extern "C" {
 
-    fn uv_strerror(err: c_int) -> *const c_char;
-
-    fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
-    fn ferror(stream: *mut FILE) -> c_int;
-    fn feof(stream: *mut FILE) -> c_int;
-    fn fgetc(stream: *mut FILE) -> c_int;
-    fn fputc(c: c_int, stream: *mut FILE) -> c_int;
-    fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
+    pub fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
+    pub fn fclose(stream: *mut FILE) -> c_int;
+    pub fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
+    pub fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
+    pub fn fgets(s: *mut c_char, n: c_int, stream: *mut FILE) -> *mut c_char;
+    pub fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
+    pub fn fgetc(stream: *mut FILE) -> c_int;
+    pub fn fputc(c: c_int, stream: *mut FILE) -> c_int;
+    pub fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
+    pub fn ferror(stream: *mut FILE) -> c_int;
+    pub fn feof(stream: *mut FILE) -> c_int;
 
     #[cfg(windows)]
     fn libiconv(

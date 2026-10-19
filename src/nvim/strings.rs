@@ -384,6 +384,95 @@ pub unsafe fn tolower(c: c_int) -> c_int {
     }
 }
 
+#[inline]
+pub unsafe fn strrchr(mut s: *const c_char, c: c_int) -> *mut c_char {
+    unsafe {
+        let target = c as c_char;
+        let mut last: *mut c_char = ptr::null_mut();
+        loop {
+            let cur = *s;
+            if cur == target {
+                last = s.cast_mut();
+            }
+            if cur == NUL {
+                return last;
+            }
+            s = s.add(1);
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int {
+    if n == 0 {
+        return 0;
+    }
+    unsafe {
+        let b1 = std::slice::from_raw_parts(s1.cast::<u8>(), n);
+        let b2 = std::slice::from_raw_parts(s2.cast::<u8>(), n);
+        for (&x, &y) in b1.iter().zip(b2.iter()) {
+            if x != y {
+                return c_int::from(x) - c_int::from(y);
+            }
+        }
+        0
+    }
+}
+
+#[inline]
+pub unsafe fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void {
+    if n == 0 {
+        return ptr::null_mut();
+    }
+    unsafe {
+        let target = c as u8;
+        let bytes = std::slice::from_raw_parts(s.cast::<u8>(), n);
+        match bytes.iter().position(|&b| b == target) {
+            Some(pos) => s.cast::<u8>().add(pos).cast_mut().cast(),
+            None => ptr::null_mut(),
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn wcslen(mut s: *const u16) -> usize {
+    unsafe {
+        let mut len = 0usize;
+        while *s != 0 {
+            len += 1;
+            s = s.add(1);
+        }
+        len
+    }
+}
+
+#[inline]
+pub unsafe fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int {
+    unsafe { vim_stricmp(s1, s2) }
+}
+
+#[inline]
+pub unsafe fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
+    unsafe { vim_strnicmp(s1, s2, n) }
+}
+
+#[inline]
+pub unsafe fn strerror(errnum: c_int) -> *mut c_char {
+    #[cfg(not(test))]
+    unsafe {
+        unsafe extern "C" {
+            #[link_name = "strerror"]
+            fn c_strerror(errnum: c_int) -> *mut c_char;
+        }
+        c_strerror(errnum)
+    }
+    #[cfg(test)]
+    {
+        let _ = errnum;
+        c"error".as_ptr().cast_mut()
+    }
+}
+
 #[cfg(test)]
 unsafe fn va_report_null_string() {}
 

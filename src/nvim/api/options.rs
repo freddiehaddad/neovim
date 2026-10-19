@@ -153,10 +153,7 @@ pub struct KeyDict_option {
     pub dry_run: Boolean,
 }
 
-unsafe extern "C" {
-
-    fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-}
+use crate::option::get_option;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

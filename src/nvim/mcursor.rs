@@ -66,12 +66,14 @@ use crate::register::{
 #[allow(unused_imports)]
 use crate::search::{restore_search_patterns, save_search_patterns};
 #[allow(unused_imports)]
+use crate::strings::memcmp;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{strchr, strlen, strncmp};
 #[allow(unused_imports)]
 use crate::undo::{u_forget_unchanged, u_save};
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::api::buffer::{VisualState, nvim_buf_set_text};
@@ -295,11 +297,6 @@ static mut ns_vcur: u32 = 0;
 static mut ns_vsel: u32 = 0;
 static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
-
-unsafe extern "C" {
-
-    fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
-}
 
 #[inline]
 unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {

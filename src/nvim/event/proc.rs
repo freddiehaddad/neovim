@@ -11,6 +11,8 @@
 
 #[allow(unused_imports)]
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_close, uv_handle_get_loop, uv_timer_start, uv_timer_stop};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::main_init::{os_exit, preserve_exit};
@@ -98,14 +100,9 @@ static mut exit_need_delay: c_int = 0;
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
-    fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
     fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
-    fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
     fn uv_unref(handle: *mut uv_handle_t);
     fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;
-    fn uv_timer_start(handle: *mut uv_timer_t, cb: uv_timer_cb, timeout: u64, repeat: u64)
-    -> c_int;
-    fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
 
 }
 
