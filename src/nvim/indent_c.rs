@@ -38,6 +38,8 @@ use crate::plines::getvcol;
 #[allow(unused_imports)]
 use crate::search::{findmatchlimit, linewhite};
 #[allow(unused_imports)]
+use crate::strings::tolower;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk};
@@ -83,9 +85,6 @@ const LOOKFOR_COMMA: c_int = 12;
 struct cpp_baseclass_cache_T {
     found: c_int,
     lpos: lpos_T,
-}
-unsafe extern "C" {
-    fn tolower(c: c_int) -> c_int;
 }
 static mut comment_pos_copy: pos_T = pos_T {
     lnum: 0,

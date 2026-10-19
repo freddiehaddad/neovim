@@ -122,16 +122,16 @@ macro_rules! api_set_error {
         let fmt_ptr: *const std::ffi::c_char = $fmt;
         #[cfg(not(test))]
         {
-            let len = $crate::log::snprintf(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
+            let len = $crate::strings::vim_snprintf!(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let buf = $crate::memory::xmalloc(bufsize).cast::<std::ffi::c_char>();
-            $crate::log::snprintf(buf, bufsize, fmt_ptr, $($arg),+);
+            $crate::strings::vim_snprintf!(buf, bufsize, fmt_ptr, $($arg),+);
             (*err_ptr).msg = buf;
             (*err_ptr).err_type = et;
         }
         #[cfg(test)]
         {
-            let _ = ($($arg),+);
+            let _ = ($($crate::strings::IntoFmtVal::into_fmt_val($arg)),+);
             $crate::api::private::helpers::api_set_error_str(err_ptr, et, fmt_ptr);
         }
     }};

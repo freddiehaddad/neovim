@@ -111,6 +111,8 @@ use crate::search::ignorecase;
 #[allow(unused_imports)]
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{gettext, qsort};
 #[allow(unused_imports)]
 use crate::strings::{sort_strings, strcase_save, vim_strchr, vim_strsave_escaped, xstrnsave};
@@ -1064,11 +1066,6 @@ static mut ARG1_LUA_NAMES: Object = Object {
 };
 static mut ARG1_LUA_LAST_XP_LINE: *mut c_char = ptr::null_mut();
 static mut ARG1_LUA_LAST_GEN: c_uint = 0;
-
-unsafe extern "C" {
-
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-}
 
 #[inline]
 unsafe fn c_strlen(s: *const c_char) -> usize {
@@ -4671,7 +4668,7 @@ unsafe fn ExpandFromContext(
         if (*xp).xp_context == EXPAND_USER_FUNC && c_strncmp(pat, c"^s:".as_ptr(), 3) == 0 {
             let len = c_strlen(pat) + 20;
             tofree = xmalloc(len).cast::<c_char>();
-            snprintf(tofree, len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
+            vim_snprintf!(tofree, len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
             pat = tofree;
         }
 

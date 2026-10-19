@@ -67,6 +67,8 @@ use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
 #[allow(unused_imports)]
 use crate::strings::{gettext, strchr, strcmp, strlen, strncmp, strstr};
@@ -287,7 +289,6 @@ const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
 
 unsafe extern "C" {
     fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -621,7 +622,7 @@ unsafe fn get_lambda_name() -> NvimString {
         lambda_no += 1;
         let buf_ptr = (&raw mut lambda_name).cast::<c_char>();
         let buf_size = std::mem::size_of::<[c_char; 8 + NUMBUFLEN]>();
-        let n = snprintf(buf_ptr, buf_size, c"<lambda>%d".as_ptr(), lambda_no);
+        let n = vim_snprintf!(buf_ptr, buf_size, c"<lambda>%d".as_ptr(), lambda_no);
         let size = if n < 1 {
             0
         } else {
@@ -645,7 +646,7 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
         if *name as u8 == K_SPECIAL {
             let exp_len = namelen + 3;
             (*fp).uf_name_exp = xmalloc(exp_len).cast();
-            snprintf(
+            vim_snprintf!(
                 (*fp).uf_name_exp,
                 exp_len,
                 c"<SNR>%s".as_ptr(),
@@ -1031,7 +1032,7 @@ unsafe fn fname_trans_sid(
             if current_sctx.sc_sid <= 0 {
                 *error = FCERR_SCRIPT;
             } else {
-                fname_buflen += snprintf(
+                fname_buflen += vim_snprintf!(
                     fname_buf.add(fname_buflen),
                     FLEN_FIXED + 1 - fname_buflen,
                     c"%d_".as_ptr(),
@@ -1046,7 +1047,7 @@ unsafe fn fname_trans_sid(
         } else {
             let fname = xmalloc(fnamelen + 1).cast::<c_char>();
             *tofree = fname;
-            snprintf(
+            vim_snprintf!(
                 fname,
                 fnamelen + 1,
                 c"%s%s".as_ptr(),
@@ -1130,9 +1131,9 @@ unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: *const ufunc_T) ->
         debug_assert!(uflen > 0);
 
         let len = if !func_is_global(fp) && uflen > 3 {
-            snprintf(buf, bufsize, c"<SNR>%s".as_ptr(), uf2hikey(fp).add(3))
+            vim_snprintf!(buf, bufsize, c"<SNR>%s".as_ptr(), uf2hikey(fp).add(3))
         } else {
-            snprintf(buf, bufsize, c"%s".as_ptr(), uf2hikey(fp))
+            vim_snprintf!(buf, bufsize, c"%s".as_ptr(), uf2hikey(fp))
         };
 
         debug_assert!(len > 0);
@@ -1550,7 +1551,8 @@ pub unsafe extern "C" fn call_user_func(
                 if ((*fp).uf_flags & FC_NOARGS) != 0 {
                     break;
                 }
-                namelen = snprintf(numbuf.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), ai + 1) as usize;
+                namelen =
+                    vim_snprintf!(numbuf.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), ai + 1) as usize;
                 name = numbuf.as_mut_ptr();
             }
 
@@ -2616,7 +2618,7 @@ pub unsafe extern "C" fn trans_function_name(
                     clear_lval(&raw mut lv);
                     return name;
                 }
-                sid_buflen = snprintf(
+                sid_buflen = vim_snprintf!(
                     sid_buf.as_mut_ptr(),
                     sid_buf.len(),
                     c"%d_".as_ptr(),
@@ -2681,7 +2683,7 @@ pub unsafe extern "C" fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut
         }
 
         let mut sid_buf = [0 as c_char; 25];
-        let sid_buflen = snprintf(
+        let sid_buflen = vim_snprintf!(
             sid_buf.as_mut_ptr(),
             sid_buf.len(),
             c"<SNR>%d_".as_ptr(),
@@ -2690,7 +2692,7 @@ pub unsafe extern "C" fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut
         let off = if *funcname == b's' as c_char { 2 } else { 5 };
         let newnamesize = sid_buflen + strlen(funcname.add(off)) + 1;
         let newname = xmalloc(newnamesize).cast::<c_char>();
-        snprintf(
+        vim_snprintf!(
             newname,
             newnamesize,
             c"%s%s".as_ptr(),
@@ -3470,7 +3472,8 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
 
             xfree(name.cast());
             func_nr += 1;
-            namelen = snprintf(numbuf.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), func_nr) as usize;
+            namelen =
+                vim_snprintf!(numbuf.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), func_nr) as usize;
             name = xmemdupz(numbuf.as_ptr().cast(), namelen).cast();
         }
 

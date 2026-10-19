@@ -36,6 +36,7 @@ extern const MsgpackRpcRequestHandler method_handlers[];
 #endif
 
 DLLEXPORT MsgpackRpcRequestHandler msgpack_rpc_get_handler(const char *name, size_t name_len);
+DLLEXPORT MsgpackRpcRequestHandler msgpack_rpc_get_handler_at(int hash);
 
 #include "nvim/func_attr.h"
 

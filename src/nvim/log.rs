@@ -108,9 +108,6 @@ unsafe extern "C" {
     static mut __stderrp: *mut FILE;
     #[cfg(not(any(windows, target_os = "linux")))]
     static mut __stdoutp: *mut FILE;
-
-    #[doc(hidden)]
-    pub fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -187,7 +184,7 @@ macro_rules! logmsg {
             let fmt_ptr: *const std::ffi::c_char = $fmt;
             let mut stack_buf = [0 as std::ffi::c_char; 1024];
             #[cfg(not(test))]
-            let len = $crate::log::snprintf(
+            let len = $crate::strings::vim_snprintf!(
                 (&raw mut stack_buf).cast::<std::ffi::c_char>(),
                 stack_buf.len(),
                 fmt_ptr,
@@ -195,14 +192,14 @@ macro_rules! logmsg {
             );
             #[cfg(test)]
             let len = {
-                let _ = (&raw mut stack_buf, fmt_ptr, $($arg),+);
+                let _ = (&raw mut stack_buf, fmt_ptr, $($crate::strings::IntoFmtVal::into_fmt_val($arg)),+);
                 0
             };
             if len >= stack_buf.len() as std::ffi::c_int {
                 let cap = (len as usize) + 1;
                 let heap_buf = $crate::memory::xmalloc(cap).cast::<std::ffi::c_char>();
                 #[cfg(not(test))]
-                $crate::log::snprintf(heap_buf, cap, fmt_ptr, $($arg),+);
+                $crate::strings::vim_snprintf!(heap_buf, cap, fmt_ptr, $($arg),+);
                 let ret = $crate::log::logmsg_str(
                     lvl,
                     $context,

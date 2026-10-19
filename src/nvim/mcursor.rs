@@ -66,6 +66,8 @@ use crate::register::{
 #[allow(unused_imports)]
 use crate::search::{restore_search_patterns, save_search_patterns};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{strchr, strlen, strncmp};
 #[allow(unused_imports)]
 use crate::undo::{u_forget_unchanged, u_save};
@@ -296,7 +298,6 @@ static mut ns_session: u32 = 0;
 
 unsafe extern "C" {
 
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
 }
 
@@ -475,7 +476,7 @@ pub unsafe extern "C" fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
         } else {
             c"".as_ptr()
         };
-        snprintf(
+        vim_snprintf!(
             buf,
             size,
             c"%s%zu\xc3\x97 ".as_ptr(),

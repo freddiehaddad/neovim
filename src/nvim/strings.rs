@@ -349,6 +349,41 @@ pub unsafe fn qsort(
     }
 }
 
+#[inline]
+pub unsafe fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char {
+    unsafe {
+        let mut i = 0;
+        while i < n && *src.add(i) != NUL {
+            *dst.add(i) = *src.add(i);
+            i += 1;
+        }
+        if i < n {
+            ptr::write_bytes(dst.add(i), 0, n - i);
+        }
+        dst
+    }
+}
+
+#[inline]
+pub unsafe fn tolower(c: c_int) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        unsafe extern "C" {
+            #[link_name = "tolower"]
+            fn c_tolower(c: c_int) -> c_int;
+        }
+        c_tolower(c)
+    }
+    #[cfg(test)]
+    {
+        if (b'A' as c_int..=b'Z' as c_int).contains(&c) {
+            c + 0x20
+        } else {
+            c
+        }
+    }
+}
+
 #[cfg(test)]
 unsafe fn va_report_null_string() {}
 
@@ -368,17 +403,6 @@ unsafe extern "C" {
     fn va_state_ptr(va_ptr: *mut c_void) -> *mut c_void;
     fn va_state_double(va_ptr: *mut c_void) -> c_double;
     fn va_report_null_string();
-
-    fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
-
-    #[cfg_attr(windows, link_name = "_stricmp")]
-    #[cfg_attr(not(windows), link_name = "strcasecmp")]
-    fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
-
-    #[cfg_attr(windows, link_name = "_strnicmp")]
-    #[cfg_attr(not(windows), link_name = "strncasecmp")]
-    fn c_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    fn tolower(c: c_int) -> c_int;
 }
 
 #[inline]
@@ -4024,31 +4048,19 @@ pub unsafe extern "C" fn cmp_keyvalue_value_n(a: *const c_void, b: *const c_void
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn cmp_keyvalue_value_i(a: *const c_void, b: *const c_void) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let kv1 = a.cast::<keyvalue_T>();
         let kv2 = b.cast::<keyvalue_T>();
-        c_stricmp((*kv1).value, (*kv2).value)
-    }
-    #[cfg(test)]
-    {
-        let _ = (a, b);
-        0
+        vim_stricmp((*kv1).value, (*kv2).value)
     }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn cmp_keyvalue_value_ni(a: *const c_void, b: *const c_void) -> c_int {
-    #[cfg(not(test))]
     unsafe {
         let kv1 = a.cast::<keyvalue_T>();
         let kv2 = b.cast::<keyvalue_T>();
-        c_strnicmp((*kv1).value, (*kv2).value, (*kv1).length.max((*kv2).length))
-    }
-    #[cfg(test)]
-    {
-        let _ = (a, b);
-        0
+        vim_strnicmp((*kv1).value, (*kv2).value, (*kv1).length.max((*kv2).length))
     }
 }
 

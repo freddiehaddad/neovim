@@ -553,7 +553,7 @@ unsafe fn to_slash(p: *mut c_char) {
 }
 
 #[inline]
-unsafe fn errno_ptr() -> *mut c_int {
+pub unsafe fn errno_ptr() -> *mut c_int {
     #[cfg(all(not(test), windows))]
     unsafe {
         _errno()
@@ -569,6 +569,30 @@ unsafe fn errno_ptr() -> *mut c_int {
     #[cfg(test)]
     {
         ptr::null_mut()
+    }
+}
+
+#[inline]
+pub unsafe fn os_errno() -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        *errno_ptr()
+    }
+    #[cfg(test)]
+    {
+        0
+    }
+}
+
+#[inline]
+pub unsafe fn os_set_errno(val: c_int) {
+    #[cfg(not(test))]
+    unsafe {
+        *errno_ptr() = val;
+    }
+    #[cfg(test)]
+    {
+        let _ = val;
     }
 }
 

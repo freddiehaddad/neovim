@@ -41,4 +41,6 @@ DLLEXPORT bool may_show_intro(void);
 DLLEXPORT void intro_message(bool colon);
 DLLEXPORT void ex_intro(exarg_T *eap);
 
-#include "version.h.generated.h"
+#include "nvim/func_attr.h"
+
+#include "version.h.inline.generated.h"

@@ -81,6 +81,8 @@ use crate::runtime::{new_script_item, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::gettext;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
 use crate::version::{highest_patch, min_vim_version};
@@ -599,7 +601,6 @@ unsafe extern "C" {
 
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -2915,9 +2916,9 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
         let mut rc: c_int = 0;
 
         if (*eap).force_bin == FORCE_BIN {
-            rc = snprintf(newval, newval_len, c" ++bin".as_ptr());
+            rc = vim_snprintf!(newval, newval_len, c" ++bin".as_ptr());
         } else if (*eap).force_bin == FORCE_NOBIN {
-            rc = snprintf(newval, newval_len, c" ++nobin".as_ptr());
+            rc = vim_snprintf!(newval, newval_len, c" ++nobin".as_ptr());
         } else {
             *newval = NUL;
         }
@@ -2930,7 +2931,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
         xlen += rc as usize;
 
         if (*eap).read_edit != 0 {
-            rc = snprintf(newval.add(xlen), newval_len - xlen, c" ++edit".as_ptr());
+            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++edit".as_ptr());
             if rc < 0 {
                 xfree(newval.cast());
                 xfree(oldval.cast());
@@ -2948,7 +2949,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
             } else {
                 c"mac".as_ptr()
             };
-            rc = snprintf(
+            rc = vim_snprintf!(
                 newval.add(xlen),
                 newval_len - xlen,
                 c" ++ff=%s".as_ptr(),
@@ -2963,7 +2964,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
             xlen += rc as usize;
         }
         if (*eap).force_enc != 0 {
-            rc = snprintf(
+            rc = vim_snprintf!(
                 newval.add(xlen),
                 newval_len - xlen,
                 c" ++enc=%s".as_ptr(),
@@ -2979,7 +2980,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
         }
 
         if (*eap).bad_char == BAD_KEEP {
-            rc = snprintf(newval.add(xlen), newval_len - xlen, c" ++bad=keep".as_ptr());
+            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++bad=keep".as_ptr());
             if rc < 0 {
                 xfree(newval.cast());
                 xfree(oldval.cast());
@@ -2988,7 +2989,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
             }
             xlen += rc as usize;
         } else if (*eap).bad_char == BAD_DROP {
-            rc = snprintf(newval.add(xlen), newval_len - xlen, c" ++bad=drop".as_ptr());
+            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++bad=drop".as_ptr());
             if rc < 0 {
                 xfree(newval.cast());
                 xfree(oldval.cast());
@@ -2997,7 +2998,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
             }
             xlen += rc as usize;
         } else if (*eap).bad_char != 0 {
-            rc = snprintf(
+            rc = vim_snprintf!(
                 newval.add(xlen),
                 newval_len - xlen,
                 c" ++bad=%c".as_ptr(),
@@ -3013,7 +3014,7 @@ pub unsafe extern "C" fn set_cmdarg(eap: *mut exarg_T, oldarg: *mut c_char) -> *
         }
 
         if (*eap).mkdir_p != 0 {
-            rc = snprintf(newval.add(xlen), newval_len - xlen, c" ++p".as_ptr());
+            rc = vim_snprintf!(newval.add(xlen), newval_len - xlen, c" ++p".as_ptr());
             if rc < 0 {
                 xfree(newval.cast());
                 xfree(oldval.cast());

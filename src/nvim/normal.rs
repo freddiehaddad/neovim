@@ -61,6 +61,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::quickfix::qf_view_result;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{gettext, qsort, strcat, strchr, strcmp, strcpy, strlen};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
@@ -466,7 +468,6 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    fn snprintf(buf: *mut c_char, size: usize, fmt: *const c_char, ...) -> c_int;
     fn time(tloc: *mut i64) -> i64;
 }
 
@@ -3098,7 +3099,7 @@ pub unsafe extern "C" fn clear_showcmd() {
                 );
                 p_sbr = saved_sbr;
                 (*curwin).w_onebuf_opt.wo_sbr = saved_w_sbr;
-                snprintf(
+                vim_snprintf!(
                     sc_buf,
                     SHOWCMD_BUFLEN,
                     c"%lldx%lld".as_ptr(),
@@ -3106,7 +3107,7 @@ pub unsafe extern "C" fn clear_showcmd() {
                     (i64::from(rightcol) - i64::from(leftcol) + 1) as c_longlong,
                 );
             } else if Visual.mode == b'V' as c_int || Visual.start.lnum != (*curwin).w_cursor.lnum {
-                snprintf(
+                vim_snprintf!(
                     sc_buf,
                     SHOWCMD_BUFLEN,
                     c"%lld".as_ptr(),
@@ -3141,9 +3142,9 @@ pub unsafe extern "C" fn clear_showcmd() {
                     s = s.add(l as usize);
                 }
                 if bytes == chars {
-                    snprintf(sc_buf, SHOWCMD_BUFLEN, c"%d".as_ptr(), chars);
+                    vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d".as_ptr(), chars);
                 } else {
-                    snprintf(sc_buf, SHOWCMD_BUFLEN, c"%d-%d".as_ptr(), chars, bytes);
+                    vim_snprintf!(sc_buf, SHOWCMD_BUFLEN, c"%d-%d".as_ptr(), chars, bytes);
                 }
             }
             let limit = if ui_has(kUIMessages) {
@@ -3644,7 +3645,7 @@ pub unsafe extern "C" fn find_decl(
         let pat: *mut c_char = xmalloc(patsize).cast();
 
         assert!(patsize <= c_int::MAX as usize);
-        let patlen = snprintf(
+        let patlen = vim_snprintf!(
             pat,
             patsize,
             if vim_iswordp(ptr) {
@@ -4609,9 +4610,9 @@ unsafe fn nv_K_getcmd(
         }
 
         if kp_ex {
-            *buflen = snprintf(buf, bufsize, c"%s ".as_ptr(), kp) as usize;
+            *buflen = vim_snprintf!(buf, bufsize, c"%s ".as_ptr(), kp) as usize;
             if (*cap).count0 != 0 {
-                *buflen += snprintf(
+                *buflen += vim_snprintf!(
                     buf.add(*buflen),
                     bufsize - *buflen,
                     c"%lld ".as_ptr(),
@@ -4637,7 +4638,7 @@ unsafe fn nv_K_getcmd(
         let isman = strequal(kp, c"man");
         let isman_s = strequal(kp, c"man -s");
         if (*cap).count0 != 0 && !(isman || isman_s) {
-            *buflen = snprintf(
+            *buflen = vim_snprintf!(
                 buf,
                 bufsize,
                 c".,.+%lld".as_ptr(),
@@ -4646,14 +4647,17 @@ unsafe fn nv_K_getcmd(
         }
 
         do_cmdline_cmd(c"tabnew".as_ptr());
-        *buflen += snprintf(buf.add(*buflen), bufsize - *buflen, c"terminal ".as_ptr()) as usize;
+        *buflen +=
+            vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"terminal ".as_ptr()) as usize;
         if (*cap).count0 == 0 && isman_s {
-            *buflen += snprintf(buf.add(*buflen), bufsize - *buflen, c"man ".as_ptr()) as usize;
+            *buflen +=
+                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"man ".as_ptr()) as usize;
         } else {
-            *buflen += snprintf(buf.add(*buflen), bufsize - *buflen, c"%s ".as_ptr(), kp) as usize;
+            *buflen +=
+                vim_snprintf!(buf.add(*buflen), bufsize - *buflen, c"%s ".as_ptr(), kp) as usize;
         }
         if (*cap).count0 != 0 && (isman || isman_s) {
-            *buflen += snprintf(
+            *buflen += vim_snprintf!(
                 buf.add(*buflen),
                 bufsize - *buflen,
                 c"%lld ".as_ptr(),
@@ -4775,7 +4779,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                     strcpy(buf, c"tag ".as_ptr());
                     buflen = 4;
                 } else {
-                    buflen = snprintf(
+                    buflen = vim_snprintf!(
                         buf,
                         bufsize,
                         c":%lldtag ".as_ptr(),

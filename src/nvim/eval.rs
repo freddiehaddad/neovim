@@ -435,7 +435,6 @@ pub struct caller_scope {
 
 unsafe extern "C" {
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
-    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
 }
 
@@ -5785,7 +5784,7 @@ pub unsafe extern "C" fn tv_to_argv(
         if arg0.is_null() || !os_can_exe(arg0, &raw mut exe_resolved, true) {
             if !arg0.is_null() && !executable.is_null() {
                 let mut buf = [0 as c_char; IOSIZE];
-                snprintf(
+                vim_snprintf!(
                     buf.as_mut_ptr(),
                     buf.len(),
                     c"'%s' is not executable".as_ptr(),
@@ -8010,7 +8009,7 @@ pub unsafe extern "C" fn eval_call_provider(
         }
 
         let mut func = [0 as c_char; 256];
-        let name_len = snprintf(
+        let name_len = vim_snprintf!(
             func.as_mut_ptr(),
             func.len(),
             c"provider#%s#Call".as_ptr(),
@@ -8124,19 +8123,19 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
         }
 
         let mut name = [0 as c_char; 32];
-        snprintf(name.as_mut_ptr(), name.len(), c"%s".as_ptr(), feat);
+        vim_snprintf!(name.as_mut_ptr(), name.len(), c"%s".as_ptr(), feat);
         strchrsub(name.as_mut_ptr(), b'_' as c_char, NUL);
 
         let mut buf = [0 as c_char; 256];
         let mut tv = tv_initial_value();
-        let mut len = snprintf(
+        let mut len = vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
             c"g:loaded_%s_provider".as_ptr(),
             name.as_ptr(),
         );
         if eval_variable(buf.as_ptr(), len, &raw mut tv, ptr::null_mut(), false, true) == FAIL {
-            len = snprintf(
+            len = vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"provider#%s#bogus".as_ptr(),
@@ -8144,14 +8143,14 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
             );
             script_autoload(buf.as_ptr(), len as usize, false);
 
-            len = snprintf(
+            len = vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"g:loaded_%s_provider".as_ptr(),
                 name.as_ptr(),
             );
             if eval_variable(buf.as_ptr(), len, &raw mut tv, ptr::null_mut(), false, true) == FAIL {
-                snprintf(
+                vim_snprintf!(
                     buf.as_mut_ptr(),
                     buf.len(),
                     c"provider#%s#Call".as_ptr(),
@@ -8172,7 +8171,7 @@ pub unsafe extern "C" fn eval_has_provider(feat: *const c_char, throw_if_fast: b
         let mut ok = tv.v_type == VarType::VAR_NUMBER && tv.vval.v_number == 2;
 
         if ok {
-            snprintf(
+            vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"provider#%s#Call".as_ptr(),
@@ -8204,7 +8203,7 @@ pub unsafe extern "C" fn eval_fmt_source_name_line(buf: *mut c_char, bufsize: us
                 .cast::<estack_T>()
                 .add((exestack.ga_len - 1) as usize);
             if !(*es).es_name.is_null() {
-                snprintf(
+                vim_snprintf!(
                     buf,
                     bufsize,
                     c"%s:%d".as_ptr(),
@@ -8214,7 +8213,7 @@ pub unsafe extern "C" fn eval_fmt_source_name_line(buf: *mut c_char, bufsize: us
                 return;
             }
         }
-        snprintf(buf, bufsize, c"?".as_ptr());
+        vim_snprintf!(buf, bufsize, c"?".as_ptr());
     }
 }
 

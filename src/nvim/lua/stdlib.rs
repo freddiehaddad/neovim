@@ -175,9 +175,6 @@ unsafe extern "C-unwind" {
     fn lua_cjson_new(lstate: *mut lua_State) -> c_int;
 }
 
-#[cfg(not(test))]
-unsafe extern "C" {}
-
 #[inline]
 unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
     if d.is_null() {

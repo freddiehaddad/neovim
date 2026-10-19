@@ -199,11 +199,6 @@ use crate::profile::estack_T;
 
 static mut cause_abort: bool = false;
 
-unsafe extern "C" {
-
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-}
-
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {
     let b = c as u8;
@@ -471,7 +466,7 @@ pub unsafe extern "C" fn get_exception_string(
 
                         strcat(val, p);
                         *p.sub(2) = NUL;
-                        snprintf(
+                        vim_snprintf!(
                             val.add(strlen(p)),
                             strlen(c" (%s)".as_ptr()),
                             c" (%s)".as_ptr(),

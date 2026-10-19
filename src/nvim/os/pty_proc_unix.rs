@@ -250,11 +250,6 @@ mod unix_impl {
         #[cfg(target_os = "macos")]
         fn _NSGetEnviron() -> *mut *mut *mut c_char;
 
-        #[cfg(target_os = "linux")]
-        fn __errno_location() -> *mut c_int;
-        #[cfg(not(target_os = "linux"))]
-        fn __error() -> *mut c_int;
-
         fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
         fn uv_signal_start(
             handle: *mut uv_signal_t,
@@ -294,16 +289,7 @@ mod unix_impl {
 
     #[inline]
     unsafe fn get_errno() -> c_int {
-        unsafe {
-            #[cfg(target_os = "linux")]
-            {
-                *__errno_location()
-            }
-            #[cfg(not(target_os = "linux"))]
-            {
-                *__error()
-            }
-        }
+        unsafe { crate::os::fs::os_errno() }
     }
 
     #[inline]

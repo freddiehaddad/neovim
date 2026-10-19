@@ -240,8 +240,13 @@ DLLEXPORT void api_luarefs_free_dict(Dict value);
 DLLEXPORT bool set_mark(buf_T *buf, String name, Integer line, Integer col, Error *err);
 DLLEXPORT const char *get_default_stl_hl(win_T *wp, bool use_winbar, int stc_hl_id);
 DLLEXPORT sctx_T api_set_sctx(uint64_t channel_id);
+DLLEXPORT const uint8_t *api_get_packed_metadata(size_t *len);
+DLLEXPORT void api_set_error(Error *err, ErrorType errType, const char *format, ...)
+  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PRINTF(3, 4);
 
-#include "api/private/helpers.h.generated.h"
+#include "nvim/func_attr.h"
+
+#include "api/private/helpers.h.inline.generated.h"
 
 #define WITH_SCRIPT_CONTEXT(channel_id, code) \
   do { \

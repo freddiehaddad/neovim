@@ -366,12 +366,6 @@ unsafe extern "C" {
     fn _fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
     #[cfg(not(windows))]
     fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-    #[cfg(windows)]
-    fn _errno() -> *mut c_int;
-    #[cfg(target_os = "linux")]
-    fn __errno_location() -> *mut c_int;
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    fn __error() -> *mut c_int;
 
 }
 
@@ -3947,20 +3941,7 @@ pub unsafe extern "C" fn getsourceline(
 
 #[inline]
 unsafe fn errno_ptr() -> *mut c_int {
-    unsafe {
-        #[cfg(windows)]
-        {
-            _errno()
-        }
-        #[cfg(target_os = "linux")]
-        {
-            __errno_location()
-        }
-        #[cfg(all(not(windows), not(target_os = "linux")))]
-        {
-            __error()
-        }
-    }
+    unsafe { crate::os::fs::errno_ptr() }
 }
 
 unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {

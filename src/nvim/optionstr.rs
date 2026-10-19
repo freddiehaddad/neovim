@@ -843,7 +843,6 @@ unsafe extern "C" {
 
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
 
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strcspn(s: *const c_char, reject: *const c_char) -> usize;
 }
 
@@ -2645,7 +2644,7 @@ unsafe extern "C" fn get_eventignore_name(xp: *mut expand_T, idx: c_int) -> *mut
         }
 
         let io_buff = (&raw mut IObuff).cast::<c_char>();
-        snprintf(
+        vim_snprintf!(
             io_buff,
             IOSIZE,
             c"%s%s".as_ptr(),

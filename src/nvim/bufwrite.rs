@@ -266,8 +266,6 @@ unsafe extern "C" {
     fn libiconv_close(cd: iconv_t) -> c_int;
     #[cfg(windows)]
     fn _close(fd: c_int) -> c_int;
-    #[cfg(windows)]
-    fn _errno() -> *mut c_int;
 
     #[cfg(not(windows))]
     fn iconv(
@@ -286,10 +284,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn getgid() -> u32;
 
-    #[cfg(target_os = "linux")]
-    fn __errno_location() -> *mut c_int;
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    fn __error() -> *mut c_int;
 }
 
 #[inline]
@@ -363,22 +357,7 @@ unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
 
 #[inline]
 unsafe fn iconv_errno() -> c_int {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        *_errno()
-    }
-    #[cfg(all(not(test), target_os = "linux"))]
-    unsafe {
-        *__errno_location()
-    }
-    #[cfg(all(not(test), not(windows), not(target_os = "linux")))]
-    unsafe {
-        *__error()
-    }
-    #[cfg(test)]
-    {
-        0
-    }
+    unsafe { crate::os::fs::os_errno() }
 }
 
 #[inline]

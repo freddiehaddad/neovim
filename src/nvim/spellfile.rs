@@ -389,7 +389,6 @@ unsafe extern "C" {
     fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
     fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void;
-    fn snprintf(str: *mut c_char, size: usize, format: *const c_char, ...) -> c_int;
     fn strerror(errnum: c_int) -> *mut c_char;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn time(tloc: *mut time_t) -> time_t;
@@ -2462,7 +2461,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                         if strcmp(items[4], c".".as_ptr()) != 0 {
                             let mut buf = [0 as c_char; MAXLINELEN];
                             (*aff_entry).ae_cond = getroom_save(spin, items[4]);
-                            snprintf(
+                            vim_snprintf!(
                                 buf.as_mut_ptr(),
                                 MAXLINELEN,
                                 if *items[0] == b'P' as c_char {
@@ -2517,7 +2516,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                                             (*aff_entry).ae_cond =
                                                 getroom_save(spin, buf.as_mut_ptr());
                                             if !(*aff_entry).ae_cond.is_null() {
-                                                snprintf(
+                                                vim_snprintf!(
                                                     buf.as_mut_ptr(),
                                                     MAXLINELEN,
                                                     c"^%s".as_ptr(),

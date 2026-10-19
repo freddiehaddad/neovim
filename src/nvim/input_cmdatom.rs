@@ -47,6 +47,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::register::reg_max_ts;
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
 #[allow(unused_imports)]
 use crate::strings::{strcat, strchr, strcpy, strlen, strncmp};
@@ -403,11 +405,6 @@ static mut typed: TypedState = TypedState {
     map_start: 0,
 };
 
-unsafe extern "C" {
-
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-}
-
 #[inline]
 unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
     unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
@@ -720,7 +717,7 @@ unsafe fn atom_from_cmdline(
         let mut sb: StringBuilder = KVec::new();
         if (*ca).cmdchar != b':' as c_int && (*ca).count0 != 0 {
             let mut num_buf = [0 as c_char; 32];
-            let n = snprintf(
+            let n = vim_snprintf!(
                 num_buf.as_mut_ptr(),
                 num_buf.len(),
                 c"%d".as_ptr(),
@@ -765,7 +762,7 @@ unsafe fn atom_from_frame(ca: *mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
             atom = atom_from_cmdline(kAExcmd, ca, (*root).cmdline, (*frame).visual.active);
         } else if (*ca).cmdchar == K_LUA {
             let mut lua_id = [0 as c_char; NUMBUFLEN];
-            snprintf(
+            vim_snprintf!(
                 lua_id.as_mut_ptr(),
                 lua_id.len(),
                 c"%d".as_ptr(),
@@ -1827,7 +1824,7 @@ pub unsafe extern "C" fn atom_capture_op(oap: *mut oparg_T, cap: *mut cmdarg_T, 
                 }
             } else if (*cap).cmdchar == K_LUA {
                 let mut lua_id = [0 as c_char; NUMBUFLEN];
-                let n = snprintf(
+                let n = vim_snprintf!(
                     lua_id.as_mut_ptr(),
                     lua_id.len(),
                     c"%d".as_ptr(),

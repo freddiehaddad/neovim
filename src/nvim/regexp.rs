@@ -56,11 +56,7 @@ use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
 
 pub(super) mod libc {
-    pub use crate::strings::{strcpy, strlen, strncmp};
-    use std::ffi::c_char;
-    unsafe extern "C" {
-        pub fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
-    }
+    pub use crate::strings::{strcpy, strlen, strncmp, strncpy};
 }
 
 #[path = "regexp_bt.rs"]

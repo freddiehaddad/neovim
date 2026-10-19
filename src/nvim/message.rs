@@ -290,7 +290,6 @@ use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn printf(format: *const c_char, ...) -> c_int;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
@@ -1178,7 +1177,7 @@ unsafe fn get_emsg_source() -> *mut c_char {
             let buf_len =
                 CStr::from_ptr(sname).to_bytes().len() + CStr::from_ptr(p).to_bytes().len() + 1;
             let buf = xmalloc(buf_len).cast::<c_char>();
-            snprintf(buf, buf_len, p, sname);
+            vim_snprintf!(buf, buf_len, p, sname);
             xfree(tofree.cast());
             return buf;
         }
@@ -1201,7 +1200,7 @@ unsafe fn get_emsg_lnum() -> *mut c_char {
             let p = gettext(c"line %4d:".as_ptr());
             let buf_len = 20 + CStr::from_ptr(p).to_bytes().len();
             let buf = xmalloc(buf_len).cast::<c_char>();
-            snprintf(buf, buf_len, p, slnum);
+            vim_snprintf!(buf, buf_len, p, slnum);
             return buf;
         }
         ptr::null_mut()
@@ -2530,7 +2529,7 @@ pub unsafe extern "C" fn msg_putchar_hl(c: c_int, hl_id: c_int) {
 pub unsafe extern "C" fn msg_outnum(n: c_int) {
     unsafe {
         let mut buf = [0 as c_char; 20];
-        snprintf(buf.as_mut_ptr(), buf.len(), c"%d".as_ptr(), n);
+        vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%d".as_ptr(), n);
         msg_puts(buf.as_ptr());
     }
 }

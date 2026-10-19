@@ -724,7 +724,6 @@ unsafe extern "C" {
     #[cfg(unix)]
     fn getuid() -> u32;
 
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
 
@@ -1005,7 +1004,7 @@ unsafe fn set_init_default_shell() {
             if !vim_strchr(shell, b' ' as c_int).is_null() {
                 let len = c_strlen(shell) + 3;
                 let cmd = xmalloc(len).cast::<c_char>();
-                snprintf(cmd, len, c"\"%s\"".as_ptr(), shell);
+                vim_snprintf!(cmd, len, c"\"%s\"".as_ptr(), shell);
                 set_string_default(kOptShell, cmd, true);
             } else {
                 set_string_default(kOptShell, shell, false);
@@ -4336,7 +4335,7 @@ pub unsafe extern "C" fn get_tty_option(name: *const c_char) -> Object {
                 value = xstrdup(c"".as_ptr());
             } else {
                 value = xmalloc(NUMBUFLEN).cast::<c_char>();
-                snprintf(value, NUMBUFLEN, c"%d".as_ptr(), t_colors);
+                vim_snprintf!(value, NUMBUFLEN, c"%d".as_ptr(), t_colors);
             }
         } else if strequal(name, c"term".as_ptr()) {
             value = if !P_TERM.is_null() {
@@ -4664,7 +4663,7 @@ unsafe fn optval_to_cstr(o: Object, quote: bool) -> *mut c_char {
                         .cast::<c_char>();
                 }
                 let buf = xmalloc(o.data.string.size + 3).cast::<c_char>();
-                snprintf(
+                vim_snprintf!(
                     buf,
                     o.data.string.size + 3,
                     c"\"%s\"".as_ptr(),

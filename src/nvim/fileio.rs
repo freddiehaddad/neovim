@@ -342,8 +342,6 @@ unsafe extern "C" {
     fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
     #[cfg(windows)]
     fn _umask(pmode: c_int) -> c_int;
-    #[cfg(windows)]
-    fn _errno() -> *mut c_int;
 
     #[cfg(not(windows))]
     fn iconv(
@@ -380,10 +378,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
 
-    #[cfg(target_os = "linux")]
-    fn __errno_location() -> *mut c_int;
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    fn __error() -> *mut c_int;
 }
 
 #[inline]
@@ -462,40 +456,12 @@ const fn ascii_isspace(c: c_char) -> bool {
 
 #[inline]
 unsafe fn get_errno() -> c_int {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        *_errno()
-    }
-    #[cfg(all(not(test), target_os = "linux"))]
-    unsafe {
-        *__errno_location()
-    }
-    #[cfg(all(not(test), not(windows), not(target_os = "linux")))]
-    unsafe {
-        *__error()
-    }
-    #[cfg(test)]
-    {
-        0
-    }
+    unsafe { crate::os::fs::os_errno() }
 }
 
 #[inline]
 unsafe fn set_errno(val: c_int) {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        *_errno() = val;
-    }
-    #[cfg(all(not(test), target_os = "linux"))]
-    unsafe {
-        *__errno_location() = val;
-    }
-    #[cfg(all(not(test), not(windows), not(target_os = "linux")))]
-    unsafe {
-        *__error() = val;
-    }
-    #[cfg(test)]
-    let _ = val;
+    unsafe { crate::os::fs::os_set_errno(val) }
 }
 
 #[inline]

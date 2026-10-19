@@ -114,8 +114,11 @@ DLLEXPORT int nlua_do_ucmd(ucmd_T *cmd, exarg_T *eap, bool preview);
 DLLEXPORT char *nlua_funcref_str(LuaRef ref, Arena *arena, bool show_ref);
 DLLEXPORT void nlua_init_defaults(void);
 DLLEXPORT bool nlua_func_exists(const char *lua_funcname);
+DLLEXPORT const void *nlua_get_builtin_modules(size_t *count);
 
-#include "lua/executor.h.generated.h"
+#include "nvim/func_attr.h"
+
+#include "lua/executor.h.inline.generated.h"
 
 EXTERN nlua_ref_state_t *nlua_global_refs INIT( = NULL);
 EXTERN bool nlua_disable_preload INIT( = false);

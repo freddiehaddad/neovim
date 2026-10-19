@@ -37,6 +37,8 @@ use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::optionstr::check_chars_options;
+#[allow(unused_imports)]
+use crate::strings::tolower;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -931,7 +933,6 @@ unsafe extern "C" {
     fn utf8proc_tolower(c: i32) -> i32;
 
     fn toupper(c: c_int) -> c_int;
-    fn tolower(c: c_int) -> c_int;
     fn towupper(wc: wint_t) -> wint_t;
     fn towlower(wc: wint_t) -> wint_t;
     fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
@@ -951,8 +952,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn libiconv_close(cd: iconv_t) -> c_int;
     #[cfg(windows)]
-    fn _errno() -> *mut c_int;
-    #[cfg(windows)]
     fn uv_translate_sys_error(sys_errno: c_int) -> c_int;
 
     #[cfg(not(windows))]
@@ -967,10 +966,6 @@ unsafe extern "C" {
     ) -> usize;
     #[cfg(not(windows))]
     fn iconv_close(cd: iconv_t) -> c_int;
-    #[cfg(target_os = "linux")]
-    fn __errno_location() -> *mut c_int;
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    fn __error() -> *mut c_int;
 
 }
 
@@ -1141,18 +1136,7 @@ unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
 
 #[inline]
 unsafe fn iconv_errno() -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        *_errno()
-    }
-    #[cfg(target_os = "linux")]
-    unsafe {
-        *__errno_location()
-    }
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    unsafe {
-        *__error()
-    }
+    unsafe { crate::os::fs::os_errno() }
 }
 
 #[inline]

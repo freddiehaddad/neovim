@@ -146,7 +146,9 @@ use crate::state::virtual_active;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext, strcmp, strlen, strncmp};
 #[allow(unused_imports)]
-use crate::strings::{mb_strup_buf, vim_snprintf_typval_only};
+use crate::strings::{
+    mb_strup_buf, vim_snprintf_typval_only, vim_stricmp as c_stricmp, vim_strnicmp as c_strnicmp,
+};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[allow(unused_imports)]
@@ -547,15 +549,7 @@ unsafe extern "C" {
     static mut main_loop: u8;
     static eval_has_list: [*const c_char; 0];
 
-    #[cfg_attr(target_os = "windows", link_name = "_stricmp")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "strcasecmp")]
-    fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
-    #[cfg_attr(target_os = "windows", link_name = "_strnicmp")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "strncasecmp")]
-    fn c_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-
     fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulong;
-    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "time")]
@@ -1113,7 +1107,7 @@ pub unsafe extern "C" fn lua_wrapper(
         }
 
         let mut buf = [0 as c_char; 256];
-        snprintf(
+        vim_snprintf!(
             buf.as_mut_ptr(),
             buf.len(),
             c"return require('vim._core.vimfn').%s(...)".as_ptr(),
@@ -4884,7 +4878,7 @@ pub unsafe extern "C" fn f_jobstart(
                     *iobuff.add(2) = NUL;
                 }
 
-                snprintf(
+                vim_snprintf!(
                     namebuff,
                     MAXPATHL,
                     c"term://%s//%d:%s".as_ptr(),
@@ -7835,7 +7829,7 @@ pub unsafe extern "C" fn do_searchpair(
         let pat2 = xmalloc(pat2size).cast::<c_char>();
         let pat3size = spatlen + strlen(mpat) + epatlen + 25;
         let pat3 = xmalloc(pat3size).cast::<c_char>();
-        let pat2len = snprintf(
+        let pat2len = vim_snprintf!(
             pat2,
             pat2size,
             c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)".as_ptr(),
@@ -7846,7 +7840,7 @@ pub unsafe extern "C" fn do_searchpair(
             ptr::copy_nonoverlapping(pat2, pat3, (pat2len as usize) + 1);
             pat2len
         } else {
-            snprintf(
+            vim_snprintf!(
                 pat3,
                 pat3size,
                 c"\\m\\(%s\\m\\)\\|\\(%s\\m\\)\\|\\(%s\\m\\)".as_ptr(),

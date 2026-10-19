@@ -110,8 +110,11 @@ DLLEXPORT int cmp_keyvalue_value(const void *a, const void *b);
 DLLEXPORT int cmp_keyvalue_value_n(const void *a, const void *b);
 DLLEXPORT int cmp_keyvalue_value_i(const void *a, const void *b);
 DLLEXPORT int cmp_keyvalue_value_ni(const void *a, const void *b);
+DLLEXPORT int vim_snprintf(char *str, size_t str_m, const char *fmt, ...)
+  FUNC_ATTR_PRINTF(3, 4);
 
-#include "strings.h.generated.h"
+#include "nvim/func_attr.h"
+
 #include "strings.h.inline.generated.h"
 
 /// Append string to string and return pointer to the next byte

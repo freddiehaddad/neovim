@@ -30,6 +30,8 @@ use crate::path::fix_fname;
 #[allow(unused_imports)]
 use crate::path::{path_to_slash, path_to_slash_save};
 #[allow(unused_imports)]
+use crate::strings::vim_snprintf;
+#[allow(unused_imports)]
 use crate::strings::{strcmp, strlen, strstr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -82,7 +84,6 @@ unsafe extern "C" {
     fn uv_freeaddrinfo(ai: *mut c_void);
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
 }
 
 #[inline]
@@ -202,7 +203,7 @@ pub unsafe extern "C" fn server_init(mut listen_addr: *const c_char) -> bool {
             } else {
                 c"?".as_ptr()
             };
-            snprintf(
+            vim_snprintf!(
                 ptr::addr_of_mut!(IObuff).cast(),
                 IOSIZE,
                 fmt,
@@ -263,7 +264,7 @@ pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char 
             } else {
                 ptr::addr_of!(NameBuff).cast()
             };
-            snprintf(
+            vim_snprintf!(
                 fmt.as_mut_ptr(),
                 fmt.len(),
                 c"//./pipe/%s.%llu.%u".as_ptr(),
@@ -282,7 +283,7 @@ pub unsafe extern "C" fn server_address_new(name: *const c_char) -> *mut c_char 
             } else {
                 ptr::addr_of!(NameBuff).cast()
             };
-            let r = snprintf(
+            let r = vim_snprintf!(
                 fmt.as_mut_ptr(),
                 fmt.len(),
                 c"%s/%s.%llu.%u".as_ptr(),

@@ -457,7 +457,6 @@ unsafe extern "C" {
 
     fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn time(tloc: *mut time_t) -> time_t;
     fn isalpha(c: c_int) -> c_int;
 }
@@ -2673,7 +2672,7 @@ pub unsafe extern "C" fn check_overwrite(
                 }
                 if p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [c_char; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-                    snprintf(
+                    vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
                         gettext(c"Overwrite existing file \"%s\"?".as_ptr()),
@@ -2858,7 +2857,7 @@ unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
                     gettext(c"Untitled".as_ptr())
                 };
                 if (*buf).b_p_ro != 0 {
-                    snprintf(
+                    vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
                         gettext(
@@ -2868,7 +2867,7 @@ unsafe fn check_readonly(forceit: *mut c_int, buf: *mut buf_T) -> bool {
                         fname,
                     );
                 } else {
-                    snprintf(
+                    vim_snprintf!(
                         buff.as_mut_ptr(),
                         DIALOG_MSG_SIZE,
                         gettext(
@@ -4581,7 +4580,7 @@ unsafe fn do_sub(
                                     c"replace with %s? (y)es/(n)o/(a)ll/(q)uit/(l)ast/scroll up(^E)/down(^Y)"
                                         .as_ptr(),
                                 );
-                                snprintf(iobuff_ptr, IOSIZE, p_fmt, sub);
+                                vim_snprintf!(iobuff_ptr, IOSIZE, p_fmt, sub);
                                 let p = xstrdup(iobuff_ptr);
                                 typed = prompt_for_input(p, HLF_R, true, ptr::null_mut());
                                 Search.hl_match = false;
@@ -5539,7 +5538,7 @@ unsafe fn show_sub(
                             old_line_size = line_size;
                         }
                     }
-                    snprintf(
+                    vim_snprintf!(
                         str,
                         line_size as usize,
                         c"|%*d| %s".as_ptr(),

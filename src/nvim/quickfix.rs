@@ -613,12 +613,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
 
-    #[cfg(windows)]
-    fn _errno() -> *mut c_int;
-    #[cfg(target_os = "linux")]
-    fn __errno_location() -> *mut c_int;
-    #[cfg(all(unix, not(target_os = "linux")))]
-    fn __error() -> *mut c_int;
 }
 
 #[inline]
@@ -635,34 +629,12 @@ unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {
 
 #[inline]
 unsafe fn get_errno() -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        *_errno()
-    }
-    #[cfg(target_os = "linux")]
-    unsafe {
-        *__errno_location()
-    }
-    #[cfg(all(unix, not(target_os = "linux")))]
-    unsafe {
-        *__error()
-    }
+    unsafe { crate::os::fs::os_errno() }
 }
 
 #[inline]
 unsafe fn set_errno(val: c_int) {
-    #[cfg(windows)]
-    unsafe {
-        *_errno() = val;
-    }
-    #[cfg(target_os = "linux")]
-    unsafe {
-        *__errno_location() = val;
-    }
-    #[cfg(all(unix, not(target_os = "linux")))]
-    unsafe {
-        *__error() = val;
-    }
+    unsafe { crate::os::fs::os_set_errno(val) }
 }
 
 #[inline]

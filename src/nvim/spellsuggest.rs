@@ -66,6 +66,8 @@ use crate::spell::{repl_from, repl_to, spelltab};
 #[allow(unused_imports)]
 use crate::spellfile::suggest_load_files;
 #[allow(unused_imports)]
+use crate::strings::strncpy;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp};
@@ -367,7 +369,6 @@ static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
-    fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
 }
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {

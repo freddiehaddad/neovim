@@ -34,6 +34,8 @@ use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::concat_str;
 #[allow(unused_imports)]
+use crate::strings::tolower;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
@@ -142,7 +144,6 @@ unsafe extern "C" {
 
     #[cfg(windows)]
     fn _getdrive() -> c_int;
-    fn tolower(c: c_int) -> c_int;
 
 }
 

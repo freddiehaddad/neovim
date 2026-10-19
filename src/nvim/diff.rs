@@ -89,6 +89,8 @@ use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 #[allow(unused_imports)]
+use crate::strings::tolower;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{atol, gettext, strcat, strcmp, strcpy, strlen, strncmp};
@@ -280,7 +282,6 @@ static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
     fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;
-    fn tolower(c: c_int) -> c_int;
 }
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {

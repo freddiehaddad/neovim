@@ -74,6 +74,8 @@ use crate::strings::vim_strnicmp;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp};
 #[allow(unused_imports)]
+use crate::strings::{strncpy, tolower};
+#[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_flush, ui_has, vim_beep};
@@ -609,10 +611,8 @@ unsafe extern "C" {
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 
-    fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
-    fn tolower(c: c_int) -> c_int;
     fn fclose(stream: *mut crate::fileio::FILE) -> c_int;
 }
 
