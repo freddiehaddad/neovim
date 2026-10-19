@@ -90,6 +90,7 @@ pub mod spellfile;
 pub mod spellsuggest;
 pub mod state;
 pub mod statusline;
+pub mod strings;
 pub mod syntax;
 pub mod tag;
 pub mod terminal;

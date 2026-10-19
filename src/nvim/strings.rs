@@ -1,0 +1,2494 @@
+//! String manipulation functions and Vimscript string builtins (`src/nvim/strings.c`).
+
+#![allow(
+    dead_code,
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    clashing_extern_declarations,
+    unused_imports,
+    clippy::missing_safety_doc,
+    clippy::too_many_arguments
+)]
+
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::mem::size_of;
+use std::ptr;
+
+use crate::charset::{rem_backslash, skipwhite, transstr, vim_str2nr};
+use crate::clipboard::{VarType, typval_T};
+use crate::eval::buffer::varnumber_T;
+use crate::eval::deprecated::EvalFuncData;
+use crate::eval::encode::{encode_tv2echo, encode_tv2string};
+use crate::eval::typval::{
+    float_T, tv_get_bool, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_list_alloc_ret,
+    tv_list_append_number,
+};
+use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
+use crate::math::{FAIL, OK};
+use crate::mbyte::{
+    mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
+    utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
+    utfc_ptr2len,
+};
+use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc};
+use crate::plines::linetabsize_col;
+
+const NUL: c_char = 0;
+const CTRL_V: c_char = 0x16;
+const MB_MAXBYTES: usize = 4;
+const NUMBUFLEN: usize = 65;
+
+const kListLenUnknown: isize = -1;
+
+const STR2NR_BIN: c_int = 1 << 0;
+const STR2NR_OCT: c_int = 1 << 1;
+const STR2NR_HEX: c_int = 1 << 2;
+const STR2NR_OOCT: c_int = 1 << 3;
+const STR2NR_QUOTE: c_int = 1 << 4;
+const STR2NR_FORCE: c_int = 1 << 7;
+
+pub const TYPE_UNKNOWN: c_int = -1;
+pub const TYPE_INT: c_int = 0;
+pub const TYPE_LONGINT: c_int = 1;
+pub const TYPE_LONGLONGINT: c_int = 2;
+pub const TYPE_SIGNEDSIZET: c_int = 3;
+pub const TYPE_UNSIGNEDINT: c_int = 4;
+pub const TYPE_UNSIGNEDLONGINT: c_int = 5;
+pub const TYPE_UNSIGNEDLONGLONGINT: c_int = 6;
+pub const TYPE_SIZET: c_int = 7;
+pub const TYPE_POINTER: c_int = 8;
+pub const TYPE_PERCENT: c_int = 9;
+pub const TYPE_CHAR: c_int = 10;
+pub const TYPE_STRING: c_int = 11;
+pub const TYPE_FLOAT: c_int = 12;
+
+pub const MAX_ALLOWED_STRING_WIDTH: c_uint = 1_048_576;
+
+const E_PRINTF: &CStr = c"E766: Insufficient arguments for printf()";
+const E_CANNOT_MIX_POSITIONAL: &CStr =
+    c"E1500: Cannot mix positional and non-positional arguments: %s";
+const E_FMT_ARG_NR_UNUSED: &CStr = c"E1501: format argument %d unused in $-style format: %s";
+const E_POSITIONAL_FIELD_SPEC_REUSED: &CStr =
+    c"E1502: Positional argument %d used as field width reused as different type: %s/%s";
+const E_POSITIONAL_OUT_OF_BOUNDS: &CStr = c"E1503: Positional argument %d out of bounds: %s";
+const E_POSITIONAL_TYPE_INCONSISTENT: &CStr =
+    c"E1504: Positional argument %d type used inconsistently: %s/%s";
+const E_INVALID_FORMAT_SPECIFIER: &CStr = c"E1505: Invalid format specifier: %s";
+
+#[repr(C)]
+pub struct keyvalue_T {
+    pub key: c_int,
+    pub value: *mut c_char,
+    pub length: usize,
+}
+
+#[cfg(not(test))]
+unsafe extern "C" {
+    #[cfg(windows)]
+    static mut p_ssl: c_int;
+
+    static e_invarg: [c_char; 0];
+    static e_invarg2: [c_char; 0];
+    static e_using_number_as_bool_nr: [c_char; 0];
+    static e_val_too_large_len: [c_char; 0];
+
+    fn csh_like_shell() -> c_int;
+    fn fish_like_shell() -> bool;
+    fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> c_int;
+    fn emsg(s: *const c_char) -> bool;
+    fn semsg(fmt: *const c_char, ...) -> bool;
+    fn gettext(msgid: *const c_char) -> *mut c_char;
+
+    fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_number_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_check_for_opt_bool_arg(args: *const typval_T, idx: c_int) -> c_int;
+    fn tv_get_string(tv: *const typval_T) -> *const c_char;
+    fn tv_get_string_chk(tv: *const typval_T) -> *const c_char;
+    fn tv_get_string_buf_chk(tv: *const typval_T, buf: *mut c_char) -> *const c_char;
+
+    fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
+    fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
+    fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
+    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
+    fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
+    fn qsort(
+        base: *mut c_void,
+        nmemb: usize,
+        size: usize,
+        compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
+    );
+
+    #[cfg_attr(windows, link_name = "_stricmp")]
+    #[cfg_attr(not(windows), link_name = "strcasecmp")]
+    fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
+
+    #[cfg_attr(windows, link_name = "_strnicmp")]
+    #[cfg_attr(not(windows), link_name = "strncasecmp")]
+    fn c_strnicmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
+    fn tolower(c: c_int) -> c_int;
+}
+
+#[inline]
+const fn ascii_iswhite(c: c_char) -> bool {
+    matches!(c as u8, b' ' | b'\t')
+}
+
+#[inline]
+const fn ascii_isdigit(c: c_char) -> bool {
+    (c as u8).is_ascii_digit()
+}
+
+#[inline]
+const fn tolower_asc(c: c_char) -> c_int {
+    let b = c as u8;
+    if b.is_ascii_uppercase() {
+        (b + 0x20) as c_int
+    } else {
+        b as c_int
+    }
+}
+
+/// Copy up to `len` bytes of `string` into newly allocated memory and terminate with a NUL.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
+    unsafe {
+        let dst = xmallocz(len).cast::<c_char>();
+        let mut i = 0;
+        while i < len {
+            let b = *string.add(i);
+            if b == NUL {
+                break;
+            }
+            *dst.add(i) = b;
+            i += 1;
+        }
+        while i < len {
+            *dst.add(i) = NUL;
+            i += 1;
+        }
+        dst
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strsave_escaped(
+    string: *const c_char,
+    esc_chars: *const c_char,
+) -> *mut c_char {
+    unsafe { vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false) }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strsave_escaped_ext(
+    string: *const c_char,
+    esc_chars: *const c_char,
+    cc: c_char,
+    bsl: bool,
+) -> *mut c_char {
+    unsafe {
+        let mut length: usize = 1;
+        let mut p = string;
+        while *p != NUL {
+            let l = utfc_ptr2len(p) as usize;
+            if l > 1 {
+                length += l;
+                p = p.add(l);
+                continue;
+            }
+            if !vim_strchr(esc_chars, (*p as u8) as c_int).is_null() || (bsl && rem_backslash(p)) {
+                length += 1;
+            }
+            length += 1;
+            p = p.add(1);
+        }
+
+        let escaped_string = xmalloc(length).cast::<c_char>();
+        let mut p2 = escaped_string;
+        p = string;
+        while *p != NUL {
+            let l = utfc_ptr2len(p) as usize;
+            if l > 1 {
+                ptr::copy_nonoverlapping(p, p2, l);
+                p2 = p2.add(l);
+                p = p.add(l);
+                continue;
+            }
+            if !vim_strchr(esc_chars, (*p as u8) as c_int).is_null() || (bsl && rem_backslash(p)) {
+                *p2 = cc;
+                p2 = p2.add(1);
+            }
+            *p2 = *p;
+            p2 = p2.add(1);
+            p = p.add(1);
+        }
+        *p2 = NUL;
+
+        escaped_string
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strnsave_unquoted(
+    string: *const c_char,
+    length: usize,
+) -> *mut c_char {
+    unsafe {
+        let mut ret_length: usize = 0;
+        let mut inquote = false;
+        let string_end = string.add(length);
+        let mut p = string;
+        while p < string_end {
+            if *p == b'"' as c_char {
+                inquote = !inquote;
+            } else if *p == b'\\' as c_char
+                && inquote
+                && p.add(1) < string_end
+                && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'"' as c_char)
+            {
+                ret_length += 1;
+                p = p.add(1);
+            } else {
+                ret_length += 1;
+            }
+            p = p.add(1);
+        }
+
+        let ret = xmallocz(ret_length).cast::<c_char>();
+        let mut rp = ret;
+        inquote = false;
+        p = string;
+        while p < string_end {
+            if *p == b'"' as c_char {
+                inquote = !inquote;
+            } else if *p == b'\\' as c_char
+                && inquote
+                && p.add(1) < string_end
+                && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'"' as c_char)
+            {
+                p = p.add(1);
+                *rp = *p;
+                rp = rp.add(1);
+            } else {
+                *rp = *p;
+                rp = rp.add(1);
+            }
+            p = p.add(1);
+        }
+
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strsave_shellescape(
+    string: *const c_char,
+    do_special: bool,
+    do_newline: bool,
+) -> *mut c_char {
+    #[cfg(not(test))]
+    unsafe {
+        let csh_like = csh_like_shell() != 0;
+        let fish_like = fish_like_shell();
+        #[cfg(windows)]
+        let use_double_quote = p_ssl == 0;
+        #[cfg(not(windows))]
+        let use_double_quote = false;
+
+        let mut length = CStr::from_ptr(string).to_bytes().len() + 3;
+        let mut p = string;
+        while *p != NUL {
+            if use_double_quote {
+                if *p == b'"' as c_char {
+                    length += 1;
+                }
+            } else if *p == b'\'' as c_char {
+                length += 3;
+            }
+            if (*p == b'\n' as c_char && (csh_like || do_newline))
+                || (*p == b'!' as c_char && (csh_like || do_special))
+            {
+                length += 1;
+                if csh_like && do_special {
+                    length += 1;
+                }
+            }
+            let mut l: usize = 0;
+            if do_special && find_cmdline_var(p, &raw mut l) >= 0 {
+                length += 1;
+                p = p.add(l - 1);
+            }
+            if *p == b'\\' as c_char && fish_like {
+                length += 1;
+            }
+            p = p.add(utfc_ptr2len(p) as usize);
+        }
+
+        let escaped_string = xmalloc(length).cast::<c_char>();
+        let mut d = escaped_string;
+
+        *d = if use_double_quote {
+            b'"' as c_char
+        } else {
+            b'\'' as c_char
+        };
+        d = d.add(1);
+
+        p = string;
+        while *p != NUL {
+            if use_double_quote {
+                if *p == b'"' as c_char {
+                    *d = b'"' as c_char;
+                    *d.add(1) = b'"' as c_char;
+                    d = d.add(2);
+                    p = p.add(1);
+                    continue;
+                }
+            } else if *p == b'\'' as c_char {
+                *d = b'\'' as c_char;
+                *d.add(1) = b'\\' as c_char;
+                *d.add(2) = b'\'' as c_char;
+                *d.add(3) = b'\'' as c_char;
+                d = d.add(4);
+                p = p.add(1);
+                continue;
+            }
+            if (*p == b'\n' as c_char && (csh_like || do_newline))
+                || (*p == b'!' as c_char && (csh_like || do_special))
+            {
+                *d = b'\\' as c_char;
+                d = d.add(1);
+                if csh_like && do_special {
+                    *d = b'\\' as c_char;
+                    d = d.add(1);
+                }
+                *d = *p;
+                d = d.add(1);
+                p = p.add(1);
+                continue;
+            }
+            let mut l: usize = 0;
+            if do_special && find_cmdline_var(p, &raw mut l) >= 0 {
+                *d = b'\\' as c_char;
+                d = d.add(1);
+                ptr::copy_nonoverlapping(p, d, l);
+                d = d.add(l);
+                p = p.add(l);
+                continue;
+            }
+            if *p == b'\\' as c_char && fish_like {
+                *d = b'\\' as c_char;
+                *d.add(1) = *p;
+                d = d.add(2);
+                p = p.add(1);
+                continue;
+            }
+
+            mb_copy_char(&raw mut p, &raw mut d);
+        }
+
+        *d = if use_double_quote {
+            b'"' as c_char
+        } else {
+            b'\'' as c_char
+        };
+        *d.add(1) = NUL;
+
+        escaped_string
+    }
+    #[cfg(test)]
+    {
+        let _ = (string, do_special, do_newline);
+        ptr::null_mut()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strsave_up(string: *const c_char) -> *mut c_char {
+    unsafe {
+        let len = CStr::from_ptr(string).to_bytes().len();
+        let p1 = xmalloc(len + 1).cast::<c_char>();
+        vim_strcpy_up(p1, string);
+        p1
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strnsave_up(string: *const c_char, len: usize) -> *mut c_char {
+    unsafe {
+        let p1 = xmalloc(len + 1).cast::<c_char>();
+        vim_strncpy_up(p1, string, len);
+        p1
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strup(mut p: *mut c_char) {
+    unsafe {
+        loop {
+            let c = *p as u8;
+            if c == 0 {
+                break;
+            }
+            *p = c.to_ascii_uppercase() as c_char;
+            p = p.add(1);
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strcpy_up(mut dst: *mut c_char, mut src: *const c_char) {
+    unsafe {
+        loop {
+            let c = *src as u8;
+            src = src.add(1);
+            if c == 0 {
+                break;
+            }
+            *dst = c.to_ascii_uppercase() as c_char;
+            dst = dst.add(1);
+        }
+        *dst = NUL;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strncpy_up(
+    mut dst: *mut c_char,
+    mut src: *const c_char,
+    mut n: usize,
+) {
+    unsafe {
+        while n > 0 {
+            n -= 1;
+            let c = *src as u8;
+            src = src.add(1);
+            if c == 0 {
+                break;
+            }
+            *dst = c.to_ascii_uppercase() as c_char;
+            dst = dst.add(1);
+        }
+        *dst = NUL;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_memcpy_up(mut dst: *mut c_char, mut src: *const c_char, mut n: usize) {
+    unsafe {
+        while n > 0 {
+            n -= 1;
+            let c = *src as u8;
+            src = src.add(1);
+            *dst = c.to_ascii_uppercase() as c_char;
+            dst = dst.add(1);
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
+    unsafe {
+        let mut i: usize = 0;
+        let mut p = src;
+        while *p != NUL {
+            let ci = utf_ptr2StrCharInfo(p).chr;
+            let c = if ci.value < 0 {
+                (*p as u8) as c_int
+            } else {
+                ci.value
+            };
+            i += utf_char2bytes(mb_toupper(c), dst.add(i)) as usize;
+            p = p.add(ci.len as usize);
+        }
+        *dst.add(i) = NUL;
+        i
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn strcase_save(orig: *const c_char, upper: bool) -> *mut c_char {
+    unsafe {
+        let mut orig_len = CStr::from_ptr(orig).to_bytes().len();
+        let mut res = xmalloc(orig_len + 1).cast::<c_char>();
+        let mut res_index: usize = 0;
+        let mut p = orig;
+
+        while *p != NUL {
+            let char_info = utf_ptr2StrCharInfo(p).chr;
+            let c = if char_info.value < 0 {
+                (*p as u8) as c_int
+            } else {
+                char_info.value
+            };
+            let newc = if upper { mb_toupper(c) } else { mb_tolower(c) };
+            let newl = utf_char2len(newc) as usize;
+
+            if res_index + newl > orig_len {
+                let new_size = res_index + newl + 1;
+                res = xrealloc(res.cast(), new_size).cast::<c_char>();
+                orig_len = new_size - 1;
+            }
+
+            utf_char2bytes(newc, res.add(res_index));
+            res_index += newl;
+            p = p.add(char_info.len as usize);
+        }
+
+        *res.add(res_index) = NUL;
+        res
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn del_trailing_spaces(ptr: *mut c_char) {
+    unsafe {
+        let len = CStr::from_ptr(ptr).to_bytes().len();
+        let mut q = ptr.add(len);
+        while q > ptr {
+            q = q.sub(1);
+            if q <= ptr {
+                break;
+            }
+            if ascii_iswhite(*q) && *q.sub(1) != b'\\' as c_char && *q.sub(1) != CTRL_V {
+                *q = NUL;
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_stricmp(mut s1: *const c_char, mut s2: *const c_char) -> c_int {
+    unsafe {
+        loop {
+            #[cfg(not(test))]
+            let i = tolower((*s1 as u8) as c_int) - tolower((*s2 as u8) as c_int);
+            #[cfg(test)]
+            let i = tolower_asc(*s1) - tolower_asc(*s2);
+            if i != 0 {
+                return i;
+            }
+            if *s1 == NUL {
+                break;
+            }
+            s1 = s1.add(1);
+            s2 = s2.add(1);
+        }
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strnicmp(
+    mut s1: *const c_char,
+    mut s2: *const c_char,
+    mut len: usize,
+) -> c_int {
+    unsafe {
+        while len > 0 {
+            #[cfg(not(test))]
+            let i = tolower((*s1 as u8) as c_int) - tolower((*s2 as u8) as c_int);
+            #[cfg(test)]
+            let i = tolower_asc(*s1) - tolower_asc(*s2);
+            if i != 0 {
+                return i;
+            }
+            if *s1 == NUL {
+                break;
+            }
+            s1 = s1.add(1);
+            s2 = s2.add(1);
+            len -= 1;
+        }
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn striequal(a: *const c_char, b: *const c_char) -> bool {
+    unsafe {
+        (a.is_null() && b.is_null()) || (!a.is_null() && !b.is_null() && vim_stricmp(a, b) == 0)
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strnicmp_asc(
+    mut s1: *const c_char,
+    mut s2: *const c_char,
+    mut len: usize,
+) -> c_int {
+    unsafe {
+        let mut i: c_int = 0;
+        while len > 0 {
+            i = tolower_asc(*s1) - tolower_asc(*s2);
+            if i != 0 || *s1 == NUL {
+                break;
+            }
+            s1 = s1.add(1);
+            s2 = s2.add(1);
+            len -= 1;
+        }
+        i
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
+    unsafe {
+        if c <= 0 {
+            ptr::null_mut()
+        } else if c < 0x80 {
+            let mut p = string;
+            while *p != NUL {
+                if (*p as u8) as c_int == c {
+                    return p.cast_mut();
+                }
+                p = p.add(1);
+            }
+            ptr::null_mut()
+        } else {
+            let mut u8char = [0 as c_char; MB_MAXBYTES + 1];
+            let len = utf_char2bytes(c, u8char.as_mut_ptr()) as usize;
+            let needle = std::slice::from_raw_parts(u8char.as_ptr().cast::<u8>(), len);
+            let hay = CStr::from_ptr(string).to_bytes();
+            if let Some(pos) = hay.windows(len).position(|w| w == needle) {
+                string.add(pos).cast_mut()
+            } else {
+                ptr::null_mut()
+            }
+        }
+    }
+}
+
+unsafe extern "C" fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int {
+    unsafe {
+        let a = *s1.cast::<*const c_char>();
+        let b = *s2.cast::<*const c_char>();
+        match CStr::from_ptr(a)
+            .to_bytes()
+            .cmp(CStr::from_ptr(b).to_bytes())
+        {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn sort_strings(files: *mut *mut c_char, count: c_int) {
+    #[cfg(not(test))]
+    unsafe {
+        if count > 1 && !files.is_null() {
+            qsort(
+                files.cast(),
+                count as usize,
+                size_of::<*mut c_char>(),
+                Some(sort_compare),
+            );
+        }
+    }
+    #[cfg(test)]
+    unsafe {
+        if count > 1 && !files.is_null() {
+            let slice = std::slice::from_raw_parts_mut(files, count as usize);
+            slice.sort_by(|&a, &b| {
+                CStr::from_ptr(a)
+                    .to_bytes()
+                    .cmp(CStr::from_ptr(b).to_bytes())
+            });
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn has_non_ascii(s: *const c_char) -> bool {
+    unsafe {
+        if !s.is_null() {
+            let mut p = s;
+            while *p != NUL {
+                if (*p as u8) >= 128 {
+                    return true;
+                }
+                p = p.add(1);
+            }
+        }
+        false
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn has_non_ascii_len(s: *const c_char, len: usize) -> bool {
+    unsafe {
+        if !s.is_null() {
+            for i in 0..len {
+                if (*s.add(i) as u8) >= 128 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char {
+    unsafe {
+        let b1 = CStr::from_ptr(str1).to_bytes();
+        let b2 = CStr::from_ptr(str2).to_bytes();
+        let dest = xmalloc(b1.len() + b2.len() + 1).cast::<u8>();
+        ptr::copy_nonoverlapping(b1.as_ptr(), dest, b1.len());
+        ptr::copy_nonoverlapping(b2.as_ptr(), dest.add(b1.len()), b2.len());
+        *dest.add(b1.len() + b2.len()) = 0;
+        dest.cast()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn tv_nr(tvs: *mut typval_T, idxp: *mut c_int) -> varnumber_T {
+    #[cfg(not(test))]
+    unsafe {
+        let idx = (*idxp - 1) as usize;
+        let mut n: varnumber_T = 0;
+        if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
+            emsg(gettext(E_PRINTF.as_ptr()));
+        } else {
+            *idxp += 1;
+            let mut err = false;
+            n = tv_get_number_chk(tvs.add(idx), &raw mut err);
+            if err {
+                n = 0;
+            }
+        }
+        n
+    }
+    #[cfg(test)]
+    {
+        let _ = (tvs, idxp);
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn tv_str(
+    tvs: *mut typval_T,
+    idxp: *mut c_int,
+    tofree: *mut *mut c_char,
+) -> *const c_char {
+    #[cfg(not(test))]
+    unsafe {
+        let idx = (*idxp - 1) as usize;
+        let mut s: *const c_char = ptr::null();
+        if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
+            emsg(gettext(E_PRINTF.as_ptr()));
+        } else {
+            *idxp += 1;
+            let tv = tvs.add(idx);
+            if (*tv).v_type == VarType::VAR_STRING || (*tv).v_type == VarType::VAR_NUMBER {
+                s = tv_get_string_chk(tv);
+                *tofree = ptr::null_mut();
+            } else {
+                let encoded = encode_tv2echo(tv, ptr::null_mut());
+                *tofree = encoded;
+                s = encoded;
+            }
+        }
+        s
+    }
+    #[cfg(test)]
+    {
+        let _ = (tvs, idxp, tofree);
+        ptr::null()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn tv_ptr(tvs: *const typval_T, idxp: *mut c_int) -> *const c_void {
+    #[cfg(not(test))]
+    unsafe {
+        let idx = (*idxp - 1) as usize;
+        if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
+            emsg(gettext(E_PRINTF.as_ptr()));
+            return ptr::null();
+        }
+        *idxp += 1;
+        (*tvs.add(idx)).vval.v_string.cast()
+    }
+    #[cfg(test)]
+    {
+        let _ = (tvs, idxp);
+        ptr::null()
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn tv_float(tvs: *mut typval_T, idxp: *mut c_int) -> float_T {
+    #[cfg(not(test))]
+    unsafe {
+        let idx = (*idxp - 1) as usize;
+        let mut f: float_T = 0.0;
+        if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
+            emsg(gettext(E_PRINTF.as_ptr()));
+        } else {
+            *idxp += 1;
+            let tv = tvs.add(idx);
+            if (*tv).v_type == VarType::VAR_FLOAT {
+                f = (*tv).vval.v_float;
+            } else if (*tv).v_type == VarType::VAR_NUMBER {
+                f = (*tv).vval.v_number as float_T;
+            } else {
+                emsg(gettext(
+                    c"E807: Expected Float argument for printf()".as_ptr(),
+                ));
+            }
+        }
+        f
+    }
+    #[cfg(test)]
+    {
+        let _ = (tvs, idxp);
+        0.0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn infinity_str(
+    positive: bool,
+    fmt_spec: c_char,
+    force_sign: c_int,
+    space_for_positive: c_int,
+) -> *const c_char {
+    const TABLE: [&CStr; 8] = [
+        c"-inf", c"inf", c"+inf", c" inf", c"-INF", c"INF", c"+INF", c" INF",
+    ];
+    let mut idx = if positive {
+        (1 + force_sign + force_sign * space_for_positive) as usize
+    } else {
+        0
+    };
+    if (fmt_spec as u8).is_ascii_uppercase() {
+        idx += 4;
+    }
+    TABLE[idx].as_ptr()
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn format_typeof(mut type_: *const c_char) -> c_int {
+    unsafe {
+        let mut length_modifier: u8 = 0;
+        let first = *type_ as u8;
+        if matches!(first, b'h' | b'l' | b'z') {
+            length_modifier = first;
+            type_ = type_.add(1);
+            if length_modifier == b'l' && (*type_ as u8) == b'l' {
+                length_modifier = b'L';
+                type_ = type_.add(1);
+            }
+        }
+        let mut fmt_spec = *type_ as u8;
+        match fmt_spec {
+            b'i' => fmt_spec = b'd',
+            b'*' => {
+                fmt_spec = b'd';
+                length_modifier = b'h';
+            }
+            b'D' => {
+                fmt_spec = b'd';
+                length_modifier = b'l';
+            }
+            b'U' => {
+                fmt_spec = b'u';
+                length_modifier = b'l';
+            }
+            b'O' => {
+                fmt_spec = b'o';
+                length_modifier = b'l';
+            }
+            _ => {}
+        }
+
+        match fmt_spec {
+            b'%' => TYPE_PERCENT,
+            b'c' => TYPE_CHAR,
+            b's' | b'S' => TYPE_STRING,
+            b'p' => TYPE_POINTER,
+            b'b' | b'B' => TYPE_UNSIGNEDLONGLONGINT,
+            b'd' => match length_modifier {
+                0 | b'h' => TYPE_INT,
+                b'l' => TYPE_LONGINT,
+                b'L' => TYPE_LONGLONGINT,
+                b'z' => TYPE_SIGNEDSIZET,
+                _ => TYPE_UNKNOWN,
+            },
+            b'u' | b'o' | b'x' | b'X' => match length_modifier {
+                0 | b'h' => TYPE_UNSIGNEDINT,
+                b'l' => TYPE_UNSIGNEDLONGINT,
+                b'L' => TYPE_UNSIGNEDLONGLONGINT,
+                b'z' => TYPE_SIZET,
+                _ => TYPE_UNKNOWN,
+            },
+            b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => TYPE_FLOAT,
+            _ => TYPE_UNKNOWN,
+        }
+    }
+}
+
+unsafe fn format_typename(type_: *const c_char) -> *const c_char {
+    #[cfg(not(test))]
+    unsafe {
+        match format_typeof(type_) {
+            TYPE_INT => c"int".as_ptr(),
+            TYPE_LONGINT => c"long int".as_ptr(),
+            TYPE_LONGLONGINT => c"long long int".as_ptr(),
+            TYPE_UNSIGNEDINT => c"unsigned int".as_ptr(),
+            TYPE_SIGNEDSIZET => c"signed size_t".as_ptr(),
+            TYPE_UNSIGNEDLONGINT => c"unsigned long int".as_ptr(),
+            TYPE_UNSIGNEDLONGLONGINT => c"unsigned long long int".as_ptr(),
+            TYPE_SIZET => c"size_t".as_ptr(),
+            TYPE_POINTER => gettext(c"pointer".as_ptr()),
+            TYPE_PERCENT => gettext(c"percent".as_ptr()),
+            TYPE_CHAR => c"char".as_ptr(),
+            TYPE_STRING => gettext(c"string".as_ptr()),
+            TYPE_FLOAT => c"float".as_ptr(),
+            _ => gettext(c"unknown".as_ptr()),
+        }
+    }
+    #[cfg(test)]
+    {
+        let _ = type_;
+        c"unknown".as_ptr()
+    }
+}
+
+unsafe fn adjust_types(
+    ap_types: *mut *mut *const c_char,
+    arg: c_int,
+    num_posarg: *mut c_int,
+    type_: *const c_char,
+) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        if arg <= 0 {
+            semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), type_);
+            return FAIL;
+        }
+
+        if (*ap_types).is_null() || *num_posarg < arg {
+            let new_types = if (*ap_types).is_null() {
+                xcalloc(arg as usize, size_of::<*const c_char>()).cast::<*const c_char>()
+            } else {
+                xrealloc(
+                    (*ap_types).cast(),
+                    (arg as usize) * size_of::<*const c_char>(),
+                )
+                .cast::<*const c_char>()
+            };
+            for idx in (*num_posarg as usize)..(arg as usize) {
+                *new_types.add(idx) = ptr::null();
+            }
+            *ap_types = new_types;
+            *num_posarg = arg;
+        }
+
+        let prev = *(*ap_types).add((arg - 1) as usize);
+        if !prev.is_null() {
+            if *prev == b'*' as c_char || *type_ == b'*' as c_char {
+                let mut pt = type_;
+                if *pt == b'*' as c_char {
+                    pt = prev;
+                }
+                if *pt != b'*' as c_char && !matches!(*pt as u8, b'd' | b'i') {
+                    semsg(
+                        gettext(E_POSITIONAL_FIELD_SPEC_REUSED.as_ptr()),
+                        arg,
+                        format_typename(prev),
+                        format_typename(type_),
+                    );
+                    return FAIL;
+                }
+            } else if format_typeof(type_) != format_typeof(prev) {
+                semsg(
+                    gettext(E_POSITIONAL_TYPE_INCONSISTENT.as_ptr()),
+                    arg,
+                    format_typename(type_),
+                    format_typename(prev),
+                );
+                return FAIL;
+            }
+        }
+
+        *(*ap_types).add((arg - 1) as usize) = type_;
+        OK
+    }
+    #[cfg(test)]
+    {
+        let _ = (ap_types, arg, num_posarg, type_);
+        OK
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn format_overflow_error(pstart: *const c_char) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut p = pstart;
+        while ascii_isdigit(*p) {
+            p = p.add(1);
+        }
+        semsg(
+            gettext((&raw const e_val_too_large_len).cast()),
+            p.offset_from(pstart) as c_int,
+            pstart,
+        );
+    }
+    #[cfg(test)]
+    {
+        let _ = pstart;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_unsigned_int(
+    pstart: *const c_char,
+    p: *mut *const c_char,
+    uj: *mut c_uint,
+    overflow_err: bool,
+) -> c_int {
+    unsafe {
+        *uj = ((**p as u8) - b'0') as c_uint;
+        *p = (*p).add(1);
+
+        while ascii_isdigit(**p) && *uj < MAX_ALLOWED_STRING_WIDTH {
+            *uj = 10 * (*uj) + (((**p as u8) - b'0') as c_uint);
+            *p = (*p).add(1);
+        }
+
+        if *uj > MAX_ALLOWED_STRING_WIDTH {
+            if overflow_err {
+                format_overflow_error(pstart);
+                return FAIL;
+            } else {
+                *uj = MAX_ALLOWED_STRING_WIDTH;
+            }
+        }
+        OK
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn parse_fmt_types(
+    ap_types: *mut *mut *const c_char,
+    num_posarg: *mut c_int,
+    fmt: *const c_char,
+    tvs: *mut typval_T,
+) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        if fmt.is_null() {
+            return OK;
+        }
+        let mut p = fmt;
+        let mut any_pos = false;
+        let mut any_arg = false;
+
+        macro_rules! check_pos_arg {
+            () => {
+                if any_pos && any_arg {
+                    semsg(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
+                    xfree((*ap_types).cast());
+                    *ap_types = ptr::null_mut();
+                    *num_posarg = 0;
+                    return FAIL;
+                }
+            };
+        }
+
+        macro_rules! fail {
+            () => {
+                xfree((*ap_types).cast());
+                *ap_types = ptr::null_mut();
+                *num_posarg = 0;
+                return FAIL;
+            };
+        }
+
+        while *p != NUL {
+            if *p != b'%' as c_char {
+                p = p.add(1);
+                while *p != NUL && *p != b'%' as c_char {
+                    p = p.add(1);
+                }
+            } else {
+                let mut pos_arg: c_int = -1;
+                let pstart = p.add(1);
+                p = p.add(1);
+
+                let mut ptype = p;
+                while ascii_isdigit(*ptype) {
+                    ptype = ptype.add(1);
+                }
+
+                if *ptype == b'$' as c_char {
+                    if *p == b'0' as c_char {
+                        semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                        fail!();
+                    }
+                    let mut uj: c_uint = 0;
+                    if get_unsigned_int(pstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                        fail!();
+                    }
+                    pos_arg = uj as c_int;
+                    any_pos = true;
+                    check_pos_arg!();
+                    p = p.add(1);
+                }
+
+                while matches!(*p as u8, b'0' | b'-' | b'+' | b' ' | b'#' | b'\'') {
+                    p = p.add(1);
+                }
+
+                let arg = p;
+                if *arg == b'*' as c_char {
+                    p = p.add(1);
+                    if ascii_isdigit(*p) {
+                        let mut uj: c_uint = 0;
+                        if get_unsigned_int(arg.add(1), &raw mut p, &raw mut uj, !tvs.is_null())
+                            == FAIL
+                        {
+                            fail!();
+                        }
+                        if *p != b'$' as c_char {
+                            semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                            fail!();
+                        }
+                        p = p.add(1);
+                        any_pos = true;
+                        check_pos_arg!();
+                        if adjust_types(ap_types, uj as c_int, num_posarg, arg) == FAIL {
+                            fail!();
+                        }
+                    } else {
+                        any_arg = true;
+                        check_pos_arg!();
+                    }
+                } else if ascii_isdigit(*p) {
+                    let digstart = p;
+                    let mut uj: c_uint = 0;
+                    if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                        fail!();
+                    }
+                    if *p == b'$' as c_char {
+                        semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                        fail!();
+                    }
+                }
+
+                if *p == b'.' as c_char {
+                    p = p.add(1);
+                    let arg = p;
+                    if *arg == b'*' as c_char {
+                        p = p.add(1);
+                        if ascii_isdigit(*p) {
+                            let mut uj: c_uint = 0;
+                            if get_unsigned_int(arg.add(1), &raw mut p, &raw mut uj, !tvs.is_null())
+                                == FAIL
+                            {
+                                fail!();
+                            }
+                            if *p == b'$' as c_char {
+                                any_pos = true;
+                                check_pos_arg!();
+                                p = p.add(1);
+                                if adjust_types(ap_types, uj as c_int, num_posarg, arg) == FAIL {
+                                    fail!();
+                                }
+                            } else {
+                                semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                                fail!();
+                            }
+                        } else {
+                            any_arg = true;
+                            check_pos_arg!();
+                        }
+                    } else if ascii_isdigit(*p) {
+                        let digstart = p;
+                        let mut uj: c_uint = 0;
+                        if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                            == FAIL
+                        {
+                            fail!();
+                        }
+                        if *p == b'$' as c_char {
+                            semsg(gettext(E_INVALID_FORMAT_SPECIFIER.as_ptr()), fmt);
+                            fail!();
+                        }
+                    }
+                }
+
+                if pos_arg != -1 {
+                    any_pos = true;
+                    check_pos_arg!();
+                    ptype = p;
+                }
+
+                if matches!(*p as u8, b'h' | b'l' | b'z') {
+                    let lm = *p as u8;
+                    p = p.add(1);
+                    if lm == b'l' && (*p as u8) == b'l' {
+                        p = p.add(1);
+                    }
+                }
+
+                match *p as u8 {
+                    b'i' | b'*' | b'd' | b'u' | b'o' | b'D' | b'U' | b'O' | b'x' | b'X' | b'b'
+                    | b'B' | b'c' | b's' | b'S' | b'p' | b'f' | b'F' | b'e' | b'E' | b'g'
+                    | b'G' => {
+                        if pos_arg != -1 {
+                            if adjust_types(ap_types, pos_arg, num_posarg, ptype) == FAIL {
+                                fail!();
+                            }
+                        } else {
+                            any_arg = true;
+                            check_pos_arg!();
+                        }
+                    }
+                    _ => {
+                        if pos_arg != -1 {
+                            semsg(gettext(E_CANNOT_MIX_POSITIONAL.as_ptr()), fmt);
+                            fail!();
+                        }
+                    }
+                }
+
+                if *p != NUL {
+                    p = p.add(1);
+                }
+            }
+        }
+
+        for arg_idx in 0..(*num_posarg as usize) {
+            if (*(*ap_types).add(arg_idx)).is_null() {
+                semsg(
+                    gettext(E_FMT_ARG_NR_UNUSED.as_ptr()),
+                    (arg_idx + 1) as c_int,
+                    fmt,
+                );
+                fail!();
+            }
+            if !tvs.is_null() && (*tvs.add(arg_idx)).v_type == VarType::VAR_UNKNOWN {
+                semsg(
+                    gettext(E_POSITIONAL_OUT_OF_BOUNDS.as_ptr()),
+                    (arg_idx + 1) as c_int,
+                    fmt,
+                );
+                fail!();
+            }
+        }
+
+        OK
+    }
+    #[cfg(test)]
+    {
+        let _ = (ap_types, num_posarg, fmt, tvs);
+        OK
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn reverse_text(s: *mut c_char) -> *mut c_char {
+    unsafe {
+        let len = CStr::from_ptr(s).to_bytes().len();
+        let rev = xmalloc(len + 1).cast::<c_char>();
+        let mut s_i: usize = 0;
+        let mut rev_i: usize = len;
+        while s_i < len {
+            let mb_len = utfc_ptr2len(s.add(s_i)) as usize;
+            rev_i -= mb_len;
+            ptr::copy(s.add(s_i), rev.add(rev_i), mb_len);
+            s_i += mb_len;
+        }
+        *rev.add(len) = NUL;
+        rev
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn strrep(
+    src: *const c_char,
+    what: *const c_char,
+    rep: *const c_char,
+) -> *mut c_char {
+    unsafe {
+        let src_bytes = CStr::from_ptr(src).to_bytes();
+        let what_bytes = CStr::from_ptr(what).to_bytes();
+        let rep_bytes = CStr::from_ptr(rep).to_bytes();
+
+        if what_bytes.is_empty() {
+            return ptr::null_mut();
+        }
+
+        let mut count: usize = 0;
+        let mut idx: usize = 0;
+        while idx + what_bytes.len() <= src_bytes.len() {
+            if let Some(rel) = src_bytes[idx..]
+                .windows(what_bytes.len())
+                .position(|w| w == what_bytes)
+            {
+                count += 1;
+                idx += rel + what_bytes.len();
+            } else {
+                break;
+            }
+        }
+
+        if count == 0 {
+            return ptr::null_mut();
+        }
+
+        let total_len = (src_bytes.len() + count * rep_bytes.len()) - count * what_bytes.len();
+        let ret = xmalloc(total_len + 1).cast::<u8>();
+        let mut dst = ret;
+        let mut cur: usize = 0;
+        while cur + what_bytes.len() <= src_bytes.len() {
+            if let Some(rel) = src_bytes[cur..]
+                .windows(what_bytes.len())
+                .position(|w| w == what_bytes)
+            {
+                ptr::copy_nonoverlapping(src_bytes.as_ptr().add(cur), dst, rel);
+                dst = dst.add(rel);
+                ptr::copy_nonoverlapping(rep_bytes.as_ptr(), dst, rep_bytes.len());
+                dst = dst.add(rep_bytes.len());
+                cur += rel + what_bytes.len();
+            } else {
+                break;
+            }
+        }
+        let rem = src_bytes.len() - cur;
+        ptr::copy_nonoverlapping(src_bytes.as_ptr().add(cur), dst, rem);
+        *dst.add(rem) = 0;
+
+        ret.cast()
+    }
+}
+
+unsafe fn byteidx_common(argvars: *mut typval_T, rettv: *mut typval_T, comp: bool) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = -1;
+
+        let str_ = tv_get_string_chk(argvars);
+        let mut idx = tv_get_number_chk(argvars.add(1), ptr::null_mut());
+        if str_.is_null() || idx < 0 {
+            return;
+        }
+
+        let mut utf16idx: varnumber_T = 0;
+        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            let mut error = false;
+            utf16idx = tv_get_bool_chk(argvars.add(2), &raw mut error);
+            if error {
+                return;
+            }
+            if !(0..=1).contains(&utf16idx) {
+                semsg(
+                    gettext((&raw const e_using_number_as_bool_nr).cast()),
+                    utf16idx,
+                );
+                return;
+            }
+        }
+
+        let ptr2len: unsafe extern "C" fn(*const c_char) -> c_int =
+            if comp { utf_ptr2len } else { utfc_ptr2len };
+
+        let mut t = str_;
+        while idx > 0 {
+            if *t == NUL {
+                return;
+            }
+            if utf16idx != 0 {
+                let clen = ptr2len(t);
+                let c = if clen > 1 {
+                    utf_ptr2char(t)
+                } else {
+                    *t as c_int
+                };
+                if c > 0xFFFF {
+                    idx -= 1;
+                }
+                if idx > 0 {
+                    t = t.add(clen as usize);
+                }
+            } else {
+                t = t.add(ptr2len(t) as usize);
+            }
+            idx -= 1;
+        }
+        (*rettv).vval.v_number = t.offset_from(str_) as varnumber_T;
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv, comp);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_byteidx(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    unsafe {
+        byteidx_common(argvars, rettv, false);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_byteidxcomp(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    unsafe {
+        byteidx_common(argvars, rettv, true);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_charidx(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = -1;
+
+        if tv_check_for_string_arg(argvars, 0) == FAIL
+            || tv_check_for_number_arg(argvars, 1) == FAIL
+            || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
+            || ((*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+                && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
+        {
+            return;
+        }
+
+        let str_ = tv_get_string_chk(argvars);
+        let mut idx = tv_get_number_chk(argvars.add(1), ptr::null_mut());
+        if str_.is_null() || idx < 0 {
+            return;
+        }
+
+        let mut countcc: varnumber_T = 0;
+        let mut utf16idx: varnumber_T = 0;
+        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            countcc = tv_get_bool(argvars.add(2));
+            if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
+                utf16idx = tv_get_bool(argvars.add(3));
+            }
+        }
+
+        let ptr2len: unsafe extern "C" fn(*const c_char) -> c_int = if countcc != 0 {
+            utf_ptr2len
+        } else {
+            utfc_ptr2len
+        };
+
+        let mut p = str_;
+        let mut len: c_int = 0;
+        while if utf16idx != 0 {
+            idx >= 0
+        } else {
+            p <= str_.add(idx as usize)
+        } {
+            if *p == NUL {
+                if if utf16idx != 0 {
+                    idx == 0
+                } else {
+                    p == str_.add(idx as usize)
+                } {
+                    (*rettv).vval.v_number = varnumber_T::from(len);
+                }
+                return;
+            }
+            if utf16idx != 0 {
+                idx -= 1;
+                let clen = ptr2len(p);
+                let c = if clen > 1 {
+                    utf_ptr2char(p)
+                } else {
+                    *p as c_int
+                };
+                if c > 0xFFFF {
+                    idx -= 1;
+                }
+            }
+            p = p.add(ptr2len(p) as usize);
+            len += 1;
+        }
+
+        (*rettv).vval.v_number = if len > 0 {
+            varnumber_T::from(len - 1)
+        } else {
+            0
+        };
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_str2list(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        tv_list_alloc_ret(rettv, kListLenUnknown);
+        let mut p = tv_get_string(argvars);
+        while *p != NUL {
+            tv_list_append_number((*rettv).vval.v_list, varnumber_T::from(utf_ptr2char(p)));
+            p = p.add(utf_ptr2len(p) as usize);
+        }
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_str2nr(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut base: c_int = 10;
+        let mut what: c_int = 0;
+
+        if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+            base = tv_get_number(argvars.add(1)) as c_int;
+            if !matches!(base, 2 | 8 | 10 | 16) {
+                emsg(gettext((&raw const e_invarg).cast()));
+                return;
+            }
+            if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN && tv_get_bool(argvars.add(2)) != 0
+            {
+                what |= STR2NR_QUOTE;
+            }
+        }
+
+        let mut p = skipwhite(tv_get_string(argvars));
+        let isneg = *p == b'-' as c_char;
+        if *p == b'+' as c_char || *p == b'-' as c_char {
+            p = skipwhite(p.add(1));
+        }
+        match base {
+            2 => what |= STR2NR_BIN | STR2NR_FORCE,
+            8 => what |= STR2NR_OCT | STR2NR_OOCT | STR2NR_FORCE,
+            16 => what |= STR2NR_HEX | STR2NR_FORCE,
+            _ => {}
+        }
+        let mut n: varnumber_T = 0;
+        vim_str2nr(
+            p,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            what,
+            &raw mut n,
+            ptr::null_mut(),
+            0,
+            false,
+            ptr::null_mut(),
+        );
+        (*rettv).vval.v_number = if isneg { -n } else { n };
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strgetchar(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = -1;
+
+        let str_ = tv_get_string_chk(argvars);
+        if str_.is_null() {
+            return;
+        }
+        let mut error = false;
+        let mut charidx = tv_get_number_chk(argvars.add(1), &raw mut error);
+        if error {
+            return;
+        }
+
+        let len = CStr::from_ptr(str_).to_bytes().len();
+        let mut byteidx: usize = 0;
+        while charidx >= 0 && byteidx < len {
+            if charidx == 0 {
+                (*rettv).vval.v_number = varnumber_T::from(utf_ptr2char(str_.add(byteidx)));
+                break;
+            }
+            charidx -= 1;
+            byteidx += utf_ptr2len(str_.add(byteidx)) as usize;
+        }
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_stridx(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = -1;
+
+        let mut buf = [0 as c_char; NUMBUFLEN];
+        let needle = tv_get_string_chk(argvars.add(1));
+        let mut haystack = tv_get_string_buf_chk(argvars, buf.as_mut_ptr());
+        let haystack_start = haystack;
+        if needle.is_null() || haystack.is_null() {
+            return;
+        }
+
+        let hay_len = CStr::from_ptr(haystack).to_bytes().len();
+        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            let mut error = false;
+            let start_idx = tv_get_number_chk(argvars.add(2), &raw mut error) as isize;
+            if error || start_idx >= hay_len as isize {
+                return;
+            }
+            if start_idx >= 0 {
+                haystack = haystack.add(start_idx as usize);
+            }
+        }
+
+        let hay_bytes = CStr::from_ptr(haystack).to_bytes();
+        let needle_bytes = CStr::from_ptr(needle).to_bytes();
+        if needle_bytes.is_empty() {
+            (*rettv).vval.v_number = haystack.offset_from(haystack_start) as varnumber_T;
+        } else if let Some(pos) = hay_bytes
+            .windows(needle_bytes.len())
+            .position(|w| w == needle_bytes)
+        {
+            (*rettv).vval.v_number = haystack.add(pos).offset_from(haystack_start) as varnumber_T;
+        }
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_string(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    unsafe {
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = encode_tv2string(argvars, ptr::null_mut());
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strlen(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number =
+            CStr::from_ptr(tv_get_string(argvars)).to_bytes().len() as varnumber_T;
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+unsafe fn strchar_common(argvars: *mut typval_T, rettv: *mut typval_T, skipcc: bool) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut s = tv_get_string(argvars);
+        let mut len: varnumber_T = 0;
+        let func_mb_ptr2char_adv: unsafe extern "C" fn(*mut *const c_char) -> c_int = if skipcc {
+            mb_ptr2char_adv
+        } else {
+            mb_cptr2char_adv
+        };
+        while *s != NUL {
+            func_mb_ptr2char_adv(&raw mut s);
+            len += 1;
+        }
+        (*rettv).vval.v_number = len;
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv, skipcc);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strcharlen(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    unsafe {
+        strchar_common(argvars, rettv, true);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strchars(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut skipcc: varnumber_T = 0;
+        if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+            let mut error = false;
+            skipcc = tv_get_bool_chk(argvars.add(1), &raw mut error);
+            if error {
+                return;
+            }
+            if !(0..=1).contains(&skipcc) {
+                semsg(
+                    gettext((&raw const e_using_number_as_bool_nr).cast()),
+                    skipcc,
+                );
+                return;
+            }
+        }
+        strchar_common(argvars, rettv, skipcc != 0);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strutf16len(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = -1;
+
+        if tv_check_for_string_arg(argvars, 0) == FAIL
+            || tv_check_for_opt_bool_arg(argvars, 1) == FAIL
+        {
+            return;
+        }
+
+        let mut countcc: varnumber_T = 0;
+        if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+            countcc = tv_get_bool(argvars.add(1));
+        }
+
+        let mut s = tv_get_string(argvars);
+        let mut len: varnumber_T = 0;
+        let func_mb_ptr2char_adv: unsafe extern "C" fn(*mut *const c_char) -> c_int =
+            if countcc != 0 {
+                mb_cptr2char_adv
+            } else {
+                mb_ptr2char_adv
+            };
+        while *s != NUL {
+            let ch = func_mb_ptr2char_adv(&raw mut s);
+            if ch > 0xFFFF {
+                len += 1;
+            }
+            len += 1;
+        }
+        (*rettv).vval.v_number = len;
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strdisplaywidth(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let s = tv_get_string(argvars);
+        let mut col: c_int = 0;
+        if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN {
+            col = tv_get_number(argvars.add(1)) as c_int;
+        }
+        (*rettv).vval.v_number = varnumber_T::from(linetabsize_col(col, s.cast_mut()) - col);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strwidth(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let s = tv_get_string(argvars);
+        (*rettv).vval.v_number = mb_string2cells(s) as varnumber_T;
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strcharpart(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let p = tv_get_string(argvars);
+        let slen = CStr::from_ptr(p).to_bytes().len();
+
+        let mut nbyte: c_int = 0;
+        let mut skipcc: varnumber_T = 0;
+        let mut error = false;
+        let mut nchar = tv_get_number_chk(argvars.add(1), &raw mut error);
+        if !error {
+            if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+                && (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
+            {
+                skipcc = tv_get_bool_chk(argvars.add(3), &raw mut error);
+                if error {
+                    return;
+                }
+                if !(0..=1).contains(&skipcc) {
+                    semsg(
+                        gettext((&raw const e_using_number_as_bool_nr).cast()),
+                        skipcc,
+                    );
+                    return;
+                }
+            }
+
+            if nchar > 0 {
+                while nchar > 0 && (nbyte as usize) < slen {
+                    if skipcc != 0 {
+                        nbyte += utfc_ptr2len(p.add(nbyte as usize));
+                    } else {
+                        nbyte += utf_ptr2len(p.add(nbyte as usize));
+                    }
+                    nchar -= 1;
+                }
+            } else {
+                nbyte = nchar as c_int;
+            }
+        }
+        let mut len: c_int = 0;
+        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            let mut charlen = tv_get_number(argvars.add(2)) as c_int;
+            while charlen > 0 && nbyte + len < slen as c_int {
+                let off = nbyte + len;
+                if off < 0 {
+                    len += 1;
+                } else if skipcc != 0 {
+                    len += utfc_ptr2len(p.add(off as usize));
+                } else {
+                    len += utf_ptr2len(p.add(off as usize));
+                }
+                charlen -= 1;
+            }
+        } else {
+            len = (slen as c_int) - nbyte;
+        }
+
+        if nbyte < 0 {
+            len += nbyte;
+            nbyte = 0;
+        } else if (nbyte as usize) > slen {
+            nbyte = slen as c_int;
+        }
+        if len < 0 {
+            len = 0;
+        } else if nbyte + len > slen as c_int {
+            len = (slen as c_int) - nbyte;
+        }
+
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = xmemdupz(p.add(nbyte as usize).cast(), len as usize).cast();
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strpart(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut error = false;
+        let p = tv_get_string(argvars);
+        let slen = CStr::from_ptr(p).to_bytes().len() as varnumber_T;
+
+        let mut n = tv_get_number_chk(argvars.add(1), &raw mut error);
+        let mut len = if error {
+            0
+        } else if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            tv_get_number(argvars.add(2))
+        } else {
+            slen - n
+        };
+
+        if n < 0 {
+            len += n;
+            n = 0;
+        } else if n > slen {
+            n = slen;
+        }
+        if len < 0 {
+            len = 0;
+        } else if n + len > slen {
+            len = slen - n;
+        }
+
+        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+            && (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN
+        {
+            let mut off = n;
+            while off < slen && len > 0 {
+                off += varnumber_T::from(utfc_ptr2len(p.add(off as usize)));
+                len -= 1;
+            }
+            len = off - n;
+        }
+
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = xmemdupz(p.add(n as usize).cast(), len as usize).cast();
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strridx(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut buf = [0 as c_char; NUMBUFLEN];
+        let needle = tv_get_string_chk(argvars.add(1));
+        let haystack = tv_get_string_buf_chk(argvars, buf.as_mut_ptr());
+
+        (*rettv).vval.v_number = -1;
+        if needle.is_null() || haystack.is_null() {
+            return;
+        }
+
+        let hay_bytes = CStr::from_ptr(haystack).to_bytes();
+        let needle_bytes = CStr::from_ptr(needle).to_bytes();
+        let haystack_len = hay_bytes.len();
+        let end_idx: isize = if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            let idx = tv_get_number_chk(argvars.add(2), ptr::null_mut()) as isize;
+            if idx < 0 {
+                return;
+            }
+            idx
+        } else {
+            haystack_len as isize
+        };
+
+        if needle_bytes.is_empty() {
+            (*rettv).vval.v_number = end_idx.min(haystack_len as isize) as varnumber_T;
+            return;
+        }
+
+        let max_start = (end_idx as usize).min(haystack_len);
+        let mut lastmatch: Option<usize> = None;
+        let mut cur: usize = 0;
+        while cur <= max_start && cur + needle_bytes.len() <= haystack_len {
+            if let Some(rel) = hay_bytes[cur..]
+                .windows(needle_bytes.len())
+                .position(|w| w == needle_bytes)
+            {
+                let pos = cur + rel;
+                if pos > max_start {
+                    break;
+                }
+                lastmatch = Some(pos);
+                cur = pos + 1;
+            } else {
+                break;
+            }
+        }
+
+        if let Some(pos) = lastmatch {
+            (*rettv).vval.v_number = pos as varnumber_T;
+        }
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_strtrans(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = transstr(tv_get_string(argvars), true);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_utf16idx(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).vval.v_number = -1;
+
+        if tv_check_for_string_arg(argvars, 0) == FAIL
+            || tv_check_for_opt_number_arg(argvars, 1) == FAIL
+            || tv_check_for_opt_bool_arg(argvars, 2) == FAIL
+            || ((*argvars.add(2)).v_type != VarType::VAR_UNKNOWN
+                && tv_check_for_opt_bool_arg(argvars, 3) == FAIL)
+        {
+            return;
+        }
+
+        let str_ = tv_get_string_chk(argvars);
+        let mut idx = tv_get_number_chk(argvars.add(1), ptr::null_mut());
+        if str_.is_null() || idx < 0 {
+            return;
+        }
+
+        let mut countcc: varnumber_T = 0;
+        let mut charidx: varnumber_T = 0;
+        if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+            countcc = tv_get_bool(argvars.add(2));
+            if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
+                charidx = tv_get_bool(argvars.add(3));
+            }
+        }
+
+        let ptr2len: unsafe extern "C" fn(*const c_char) -> c_int = if countcc != 0 {
+            utf_ptr2len
+        } else {
+            utfc_ptr2len
+        };
+
+        let mut p = str_;
+        let mut len: c_int = 0;
+        let mut utf16idx: c_int = 0;
+        while if charidx != 0 {
+            idx >= 0
+        } else {
+            p <= str_.add(idx as usize)
+        } {
+            if *p == NUL {
+                if if charidx != 0 {
+                    idx == 0
+                } else {
+                    p == str_.add(idx as usize)
+                } {
+                    (*rettv).vval.v_number = varnumber_T::from(len);
+                }
+                return;
+            }
+            utf16idx = len;
+            let clen = ptr2len(p);
+            let c = if clen > 1 {
+                utf_ptr2char(p)
+            } else {
+                *p as c_int
+            };
+            if c > 0xFFFF {
+                len += 1;
+            }
+            p = p.add(clen as usize);
+            if charidx != 0 {
+                idx -= 1;
+            }
+            len += 1;
+        }
+
+        (*rettv).vval.v_number = varnumber_T::from(utf16idx);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_tolower(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = strcase_save(tv_get_string(argvars), false);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_toupper(
+    argvars: *mut typval_T,
+    rettv: *mut typval_T,
+    _fptr: EvalFuncData,
+) {
+    #[cfg(not(test))]
+    unsafe {
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = strcase_save(tv_get_string(argvars), true);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_tr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut buf = [0 as c_char; NUMBUFLEN];
+        let mut buf2 = [0 as c_char; NUMBUFLEN];
+
+        let mut in_str = tv_get_string(argvars);
+        let fromstr = tv_get_string_buf_chk(argvars.add(1), buf.as_mut_ptr());
+        let tostr = tv_get_string_buf_chk(argvars.add(2), buf2.as_mut_ptr());
+
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = ptr::null_mut();
+        if fromstr.is_null() || tostr.is_null() {
+            return;
+        }
+        let mut ga: garray_T = std::mem::zeroed();
+        ga_init(&raw mut ga, size_of::<c_char>() as c_int, 80);
+
+        let mut first = true;
+        while *in_str != NUL {
+            let mut cpstr = in_str;
+            let inlen = utfc_ptr2len(in_str) as usize;
+            let mut cplen = inlen;
+            let mut idx: c_int = 0;
+            let mut p = fromstr;
+            while *p != NUL {
+                let fromlen = utfc_ptr2len(p) as usize;
+                let in_slice = std::slice::from_raw_parts(in_str.cast::<u8>(), inlen);
+                let p_slice = std::slice::from_raw_parts(p.cast::<u8>(), fromlen);
+                if fromlen == inlen && in_slice == p_slice {
+                    let mut tp = tostr;
+                    while *tp != NUL {
+                        let tolen = utfc_ptr2len(tp) as usize;
+                        if idx == 0 {
+                            idx -= 1;
+                            cplen = tolen;
+                            cpstr = tp;
+                            break;
+                        }
+                        idx -= 1;
+                        tp = tp.add(tolen);
+                    }
+                    if *tp == NUL {
+                        semsg(gettext((&raw const e_invarg2).cast()), fromstr);
+                        ga_clear(&raw mut ga);
+                        return;
+                    }
+                    break;
+                }
+                idx += 1;
+                p = p.add(fromlen);
+            }
+
+            if first && ptr::eq(cpstr, in_str) {
+                first = false;
+                let mut tp = tostr;
+                while *tp != NUL {
+                    let tolen = utfc_ptr2len(tp) as usize;
+                    idx -= 1;
+                    tp = tp.add(tolen);
+                }
+                if idx != 0 {
+                    semsg(gettext((&raw const e_invarg2).cast()), fromstr);
+                    ga_clear(&raw mut ga);
+                    return;
+                }
+            }
+
+            ga_grow(&raw mut ga, cplen as c_int);
+            ptr::copy(
+                cpstr,
+                ga.ga_data.cast::<c_char>().add(ga.ga_len as usize),
+                cplen,
+            );
+            ga.ga_len += cplen as c_int;
+
+            in_str = in_str.add(inlen);
+        }
+
+        ga_append(&raw mut ga, 0);
+        (*rettv).vval.v_string = ga.ga_data.cast();
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn f_trim(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
+    #[cfg(not(test))]
+    unsafe {
+        let mut buf1 = [0 as c_char; NUMBUFLEN];
+        let mut buf2 = [0 as c_char; NUMBUFLEN];
+        let mut head = tv_get_string_buf_chk(argvars, buf1.as_mut_ptr());
+        let mut mask: *const c_char = ptr::null();
+        let mut dir: c_int = 0;
+
+        (*rettv).v_type = VarType::VAR_STRING;
+        (*rettv).vval.v_string = ptr::null_mut();
+        if head.is_null() {
+            return;
+        }
+
+        if tv_check_for_opt_string_arg(argvars, 1) == FAIL {
+            return;
+        }
+
+        if (*argvars.add(1)).v_type == VarType::VAR_STRING {
+            mask = tv_get_string_buf_chk(argvars.add(1), buf2.as_mut_ptr());
+            if *mask == NUL {
+                mask = ptr::null();
+            }
+
+            if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
+                let mut error = false;
+                dir = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
+                if error {
+                    return;
+                }
+                if !(0..=2).contains(&dir) {
+                    semsg(
+                        gettext((&raw const e_invarg2).cast()),
+                        tv_get_string(argvars.add(2)),
+                    );
+                    return;
+                }
+            }
+        }
+
+        if dir == 0 || dir == 1 {
+            while *head != NUL {
+                let c1 = utf_ptr2char(head);
+                if mask.is_null() {
+                    if c1 > b' ' as c_int && c1 != 0xa0 {
+                        break;
+                    }
+                } else {
+                    let mut p = mask;
+                    while *p != NUL {
+                        if c1 == utf_ptr2char(p) {
+                            break;
+                        }
+                        p = p.add(utfc_ptr2len(p) as usize);
+                    }
+                    if *p == NUL {
+                        break;
+                    }
+                }
+                head = head.add(utfc_ptr2len(head) as usize);
+            }
+        }
+
+        let mut tail = head.add(CStr::from_ptr(head).to_bytes().len());
+        if dir == 0 || dir == 2 {
+            while tail > head {
+                let prev = tail.sub((utf_head_off(head, tail.sub(1)) + 1) as usize);
+                let c1 = utf_ptr2char(prev);
+                if mask.is_null() {
+                    if c1 > b' ' as c_int && c1 != 0xa0 {
+                        break;
+                    }
+                } else {
+                    let mut p = mask;
+                    while *p != NUL {
+                        if c1 == utf_ptr2char(p) {
+                            break;
+                        }
+                        p = p.add(utfc_ptr2len(p) as usize);
+                    }
+                    if *p == NUL {
+                        break;
+                    }
+                }
+                tail = prev;
+            }
+        }
+        (*rettv).vval.v_string = xstrnsave(head, tail.offset_from(head) as usize);
+    }
+    #[cfg(test)]
+    {
+        let _ = (argvars, rettv);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmp_keyvalue_value(a: *const c_void, b: *const c_void) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let kv1 = a.cast::<keyvalue_T>();
+        let kv2 = b.cast::<keyvalue_T>();
+        strcmp((*kv1).value, (*kv2).value)
+    }
+    #[cfg(test)]
+    unsafe {
+        let kv1 = a.cast::<keyvalue_T>();
+        let kv2 = b.cast::<keyvalue_T>();
+        match CStr::from_ptr((*kv1).value)
+            .to_bytes()
+            .cmp(CStr::from_ptr((*kv2).value).to_bytes())
+        {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmp_keyvalue_value_n(a: *const c_void, b: *const c_void) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let kv1 = a.cast::<keyvalue_T>();
+        let kv2 = b.cast::<keyvalue_T>();
+        strncmp((*kv1).value, (*kv2).value, (*kv1).length.max((*kv2).length))
+    }
+    #[cfg(test)]
+    {
+        let _ = (a, b);
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmp_keyvalue_value_i(a: *const c_void, b: *const c_void) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let kv1 = a.cast::<keyvalue_T>();
+        let kv2 = b.cast::<keyvalue_T>();
+        c_stricmp((*kv1).value, (*kv2).value)
+    }
+    #[cfg(test)]
+    {
+        let _ = (a, b);
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmp_keyvalue_value_ni(a: *const c_void, b: *const c_void) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let kv1 = a.cast::<keyvalue_T>();
+        let kv2 = b.cast::<keyvalue_T>();
+        c_strnicmp((*kv1).value, (*kv2).value, (*kv1).length.max((*kv2).length))
+    }
+    #[cfg(test)]
+    {
+        let _ = (a, b);
+        0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vim_strnsave_unquoted_and_strrep_and_format_typeof_work() {
+        unsafe {
+            let unquoted = vim_strnsave_unquoted(c"\"/bin/sh\"".as_ptr(), 9);
+            assert_eq!(CStr::from_ptr(unquoted).to_str().unwrap(), "/bin/sh");
+            xfree(unquoted.cast());
+
+            let rep = strrep(c"foo bar foo".as_ptr(), c"foo".as_ptr(), c"baz".as_ptr());
+            assert_eq!(CStr::from_ptr(rep).to_str().unwrap(), "baz bar baz");
+            xfree(rep.cast());
+
+            let cat = concat_str(c"hello ".as_ptr(), c"world".as_ptr());
+            assert_eq!(CStr::from_ptr(cat).to_str().unwrap(), "hello world");
+            xfree(cat.cast());
+
+            assert_eq!(vim_strnicmp_asc(c"AbC".as_ptr(), c"aBc".as_ptr(), 3), 0);
+            assert!(!has_non_ascii(c"ascii".as_ptr()));
+            assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
+            assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
+        }
+    }
+}
