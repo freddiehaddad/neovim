@@ -617,7 +617,7 @@ describe('startup', function()
         '+qall!',
         '-',
         'test/functional/fixtures/tty-test.c',
-        'test/functional/fixtures/shell-test.c',
+        'test/functional/fixtures/shell-test.rs',
       }, { 'ohyeah', '' })
     )
   end)

@@ -781,7 +781,8 @@ file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/src/mpack/*.rs"
   "${PROJECT_SOURCE_DIR}/src/tee/*.rs"
   "${PROJECT_SOURCE_DIR}/src/xdiff/*.rs"
-  "${PROJECT_SOURCE_DIR}/src/xxd/*.rs")
+  "${PROJECT_SOURCE_DIR}/src/xxd/*.rs"
+  "${PROJECT_SOURCE_DIR}/test/functional/fixtures/*.rs")
 
 add_custom_command(
   OUTPUT "${NVIM_RUST_LIB}"

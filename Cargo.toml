@@ -16,6 +16,18 @@ path = "src/tee/main.rs"
 name = "xxd"
 path = "src/xxd/main.rs"
 
+[[bin]]
+name = "printargs-test"
+path = "test/functional/fixtures/printargs-test.rs"
+
+[[bin]]
+name = "printenv-test"
+path = "test/functional/fixtures/printenv-test.rs"
+
+[[bin]]
+name = "shell-test"
+path = "test/functional/fixtures/shell-test.rs"
+
 [features]
 vendor-bit = []
 
