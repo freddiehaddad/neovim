@@ -72,6 +72,8 @@ pub mod menu;
 pub mod message;
 pub mod mouse;
 pub mod r#move;
+#[path = "../mpack/mod.rs"]
+pub mod mpack;
 pub mod msgpack_rpc;
 pub mod normal;
 pub mod ops;

@@ -389,10 +389,10 @@ file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
 file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
-file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../mpack/*.c ../klib/*.c ../lpeg/*.c)
+file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../klib/*.c ../lpeg/*.c)
 file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/*.h ../klib/*.h ../lpeg/*.h)
 
-file(GLOB NLUA0_SOURCES CONFIGURE_DEPENDS ../mpack/*.c ../lpeg/*.c)
+file(GLOB NLUA0_SOURCES CONFIGURE_DEPENDS ../lpeg/*.c)
 
 if(PREFER_LUA)
   # luajit not used, use a vendored copy of the bit module
@@ -784,6 +784,7 @@ set(NVIM_RUST_LIB
 file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/*.rs"
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
+  "${PROJECT_SOURCE_DIR}/src/mpack/*.rs"
   "${PROJECT_SOURCE_DIR}/src/xdiff/*.rs")
 
 add_custom_command(
@@ -824,6 +825,10 @@ if(WIN32)
 endif()
 
 target_sources(nlua0 PUBLIC ${NLUA0_SOURCES})
+target_link_libraries(nlua0 PRIVATE nvim_rs)
+if(WIN32)
+  target_link_libraries(nlua0 PRIVATE ws2_32 userenv bcrypt ntdll)
+endif()
 
 if(STATIC_BUILD)
   target_link_options(nvim_bin PRIVATE -static-libgcc -static-libstdc++ -static)

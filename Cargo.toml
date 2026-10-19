@@ -9,7 +9,7 @@ path = "src/nvim/lib.rs"
 crate-type = ["staticlib", "rlib"]
 
 [profile.dev]
-codegen-units = 1
+codegen-units = 256
 
 [profile.release]
-codegen-units = 1
+codegen-units = 256
