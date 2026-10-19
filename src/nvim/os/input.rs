@@ -105,9 +105,6 @@ unsafe fn ensure_input_ptrs_init() {
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-    static mut ch_before_blocking_events: *mut MultiQueue;
-
-    static mut did_cursorhold: bool;
 
     fn uv_loop_size() -> usize;
     fn uv_guess_handle(file: c_int) -> c_int;

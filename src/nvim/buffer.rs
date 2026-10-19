@@ -332,19 +332,9 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut au_pending_free_buf: *mut buf_T;
-    static mut au_new_curbuf: bufref_T;
-    static mut buffer_handles: Map<c_int, ptr_t>;
-
-    static mut updating_screen: bool;
-    static mut autocmd_busy: bool;
-    static mut autocmd_no_enter: c_int;
-    static mut autocmd_no_leave: c_int;
 
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut msg_loclist: *mut c_char;
-    static mut msg_qflist: *mut c_char;
     static no_lines_msg: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

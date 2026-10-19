@@ -309,11 +309,7 @@ static mut VGETORPEEK_TC: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut add_last_insert: c_int;
-    static mut last_insert_ga: garray_T;
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut test_disable_char_avail: bool;
-    static mut repeat_luamap: c_int;
     static mut langmap_mapchar: [u8; 256];
 
     fn uv_loop_size() -> usize;

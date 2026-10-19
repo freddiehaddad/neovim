@@ -160,13 +160,7 @@ pub struct exception_state_T {
     pub estate_did_emsg: c_int,
 }
 
-#[repr(C)]
-pub struct evalarg_T {
-    pub eval_flags: c_int,
-    pub eval_getline: *mut c_void,
-    pub eval_cookie: *mut c_void,
-    pub eval_tofree: *mut c_char,
-}
+pub use crate::eval::vars::evalarg_T;
 
 use crate::profile::estack_T;
 
@@ -199,7 +193,7 @@ unsafe extern "C" {
     fn handle_did_throw();
     fn get_return_cmd(rettv: *mut c_void) -> *mut c_char;
     fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
-    fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: c_int);
+    fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, eap: *mut exarg_T, skip: bool);
     fn eval0(
         arg: *mut c_char,
         rettv: *mut typval_T,
@@ -924,7 +918,7 @@ pub unsafe extern "C" fn ex_eval(eap: *mut exarg_T) {
         let mut tv: typval_T = std::mem::zeroed();
         let mut evalarg: evalarg_T = std::mem::zeroed();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, (*eap).skip);
+        fill_evalarg_from_eap(&mut evalarg, eap, (*eap).skip != 0);
 
         if eval0((*eap).arg, &mut tv, eap, &mut evalarg) == OK {
             tv_clear(&mut tv);
@@ -1072,7 +1066,7 @@ pub unsafe extern "C" fn ex_while(eap: *mut exarg_T) {
                 eval_to_bool((*eap).arg, &mut error, eap, skip, false)
             } else {
                 let mut evalarg: evalarg_T = std::mem::zeroed();
-                fill_evalarg_from_eap(&mut evalarg, eap, c_int::from(skip));
+                fill_evalarg_from_eap(&mut evalarg, eap, skip);
                 let fi = if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
                     error = false;
                     (*cstack).cs_forinfo[idx]

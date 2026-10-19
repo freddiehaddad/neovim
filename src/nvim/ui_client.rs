@@ -74,14 +74,6 @@ static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 
 unsafe extern "C" {
     static mut main_loop: Loop;
-    static mut ui_client_channel_id: u64;
-    static mut ui_client_attached: bool;
-    static mut ui_client_forward_stdin: bool;
-    static mut ui_client_error_exit: c_int;
-    static mut ui_client_exit_status: c_int;
-    static mut grid_line_buf_size: usize;
-    static mut grid_line_buf_char: *mut schar_T;
-    static mut grid_line_buf_attr: *mut sattr_T;
 
     fn api_metadata() -> Object;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);

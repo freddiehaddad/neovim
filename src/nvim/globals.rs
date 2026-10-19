@@ -7,21 +7,40 @@ use std::ptr;
 
 use crate::api::buffer::VisualState;
 use crate::api::command::cmdmod_T;
+use crate::api::extmark::{DecorSignHighlight, DecorState, NS};
+use crate::api::options::bufref_T;
 use crate::api::private::converter::sctx_T;
+use crate::api::private::validate::Array;
+use crate::api::tabpage::{GridView, ScreenGrid, xfmark_T};
 use crate::api::tabpage::{frame_T, tabpage_T, win_T};
 use crate::arglist::alist_T;
+use crate::context::CtxWin;
 use crate::cursor::{colnr_T, linenr_T};
+use crate::drawscreen::WinExtmark;
 use crate::eval::caller_scope;
+use crate::eval::deprecated::Callback;
 use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::vars::evalarg_T;
+use crate::event::multiqueue::MultiQueue;
 use crate::ex_eval::{except_T, msglist_T};
 use crate::ex_getln::{disptick_T, hlf_T};
 use crate::extmark::TriState;
 use crate::fileio::FILE;
 use crate::garray::garray_T;
+use crate::grid::{sattr_T, schar_T};
+use crate::highlight::RgbValue;
+use crate::kvec::KVec;
+use crate::lua::converter::nlua_ref_state_t;
+use crate::map::{Map, Set, ptr_t};
+use crate::map_glyph_cache::NvimString;
 use crate::mapping::typebuf_T;
 use crate::r#match::SearchState;
+use crate::r#match::match_T;
 use crate::menu::vimmenu_T;
+use crate::mouse::StlClickDefinition;
+use crate::msgpack_rpc::packer::handle_T;
 use crate::os::fs::NvimStats;
+use crate::popupmenu::PumWant;
 use crate::regexp::reg_extmatch_T;
 use crate::textformat::InsState;
 
@@ -36,6 +55,7 @@ const PROF_NONE: c_int = 0;
 const SEA_NONE: c_int = 0;
 const MODE_NORMAL: c_int = 0x01;
 const MAXLNUM: linenr_T = 0x7fffffff;
+const HLF_COUNT: usize = 76;
 
 const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
     let mut out = [0 as c_char; N];
@@ -551,6 +571,347 @@ pub static mut windowsVersion: [c_char; 20] = [0 as c_char; 20];
 pub static mut skip_win_fix_scroll: bool = false;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut skip_update_topline: bool = false;
+
+const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
+    mouse_enabled: true,
+    pending_comp_index_update: true,
+    ..unsafe { zeroed() }
+};
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut namespace_ids: Map<NvimString, c_int> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut namespace_localscope: Set<u32> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut next_namespace_id: handle_T = 1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut buffer_handles: Map<c_int, ptr_t> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut window_handles: Map<c_int, ptr_t> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut tabpage_handles: Map<c_int, ptr_t> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_ext_names: [*const c_char; 10] = [
+    c"ext_cmdline".as_ptr(),
+    c"ext_popupmenu".as_ptr(),
+    c"ext_tabline".as_ptr(),
+    c"ext_wildmenu".as_ptr(),
+    c"ext_messages".as_ptr(),
+    c"ext_linegrid".as_ptr(),
+    c"ext_multigrid".as_ptr(),
+    c"ext_hlstate".as_ptr(),
+    c"ext_termcolors".as_ptr(),
+    c"_debug_float".as_ptr(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut last_cursormoved_win: *mut win_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut last_cursormoved: pos_T = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_busy: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_no_enter: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_no_leave: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut au_new_curbuf: bufref_T = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut au_pending_free_buf: *mut buf_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut au_pending_free_win: *mut win_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_fname: *mut c_char = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_fname_full: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_bufnr: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut autocmd_match: *mut c_char = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut did_cursorhold: bool = true;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut deferred_events: *mut MultiQueue = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_loclist: *mut c_char = c"[Location List]".as_ptr().cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_qflist: *mut c_char = c"[Quickfix List]".as_ptr().cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut channels: Map<u64, ptr_t> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut on_print: Callback = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ctx_win_vec: KVec<CtxWin> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut virt_text_pos_str: [*const c_char; 6] = [
+    c"eol".as_ptr(),
+    c"eol_right_align".as_ptr(),
+    c"inline".as_ptr(),
+    c"overlay".as_ptr(),
+    c"right_align".as_ptr(),
+    c"win_col".as_ptr(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut hl_mode_str: [*const c_char; 4] = [
+    c"".as_ptr(),
+    c"replace".as_ptr(),
+    c"combine".as_ptr(),
+    c"blend".as_ptr(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut decor_state: DecorState = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut decor_items: KVec<DecorSignHighlight> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut diff_context: c_int = 6;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut diff_foldcolumn: c_int = 2;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut diff_need_scrollbind: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut need_diff_redraw: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut win_extmark_arr: KVec<WinExtmark> = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut updating_screen: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut redraw_not_allowed: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut screen_search_hl: match_T = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut search_hl_has_cursor_lnum: linenr_T = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static kTVCstring: usize = usize::MAX;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static kTVTranslate: usize = usize::MAX - 1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut EVALARG_EVALUATE: evalarg_T = evalarg_T {
+    eval_flags: 1,
+    eval_getline: None,
+    eval_cookie: ptr::null_mut(),
+    eval_tofree: ptr::null_mut(),
+};
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut curbuf_splice_pending: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut disable_fold_update: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut default_grid: ScreenGrid = SCREEN_GRID_INIT;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut default_gridview: GridView = GridView {
+    target: &raw mut default_grid,
+    row_offset: 0,
+    col_offset: 0,
+};
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut resizing_screen: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut linebuf_char: *mut schar_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut linebuf_attr: *mut sattr_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut linebuf_vcol: *mut colnr_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut linebuf_scratch: *mut c_char = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut hlf_names: [*const c_char; HLF_COUNT] = [
+    ptr::null(),
+    c"SpecialKey".as_ptr(),
+    c"EndOfBuffer".as_ptr(),
+    c"TermCursor".as_ptr(),
+    c"NonText".as_ptr(),
+    c"Directory".as_ptr(),
+    c"ErrorMsg".as_ptr(),
+    c"IncSearch".as_ptr(),
+    c"Search".as_ptr(),
+    c"CurSearch".as_ptr(),
+    c"MoreMsg".as_ptr(),
+    c"ModeMsg".as_ptr(),
+    c"LineNr".as_ptr(),
+    c"LineNrAbove".as_ptr(),
+    c"LineNrBelow".as_ptr(),
+    c"CursorLineNr".as_ptr(),
+    c"CursorLineSign".as_ptr(),
+    c"CursorLineFold".as_ptr(),
+    c"Question".as_ptr(),
+    c"StatusLine".as_ptr(),
+    c"StatusLineNC".as_ptr(),
+    c"WinSeparator".as_ptr(),
+    c"VertSplit".as_ptr(),
+    c"Title".as_ptr(),
+    c"Visual".as_ptr(),
+    c"VisualNC".as_ptr(),
+    c"WarningMsg".as_ptr(),
+    c"WildMenu".as_ptr(),
+    c"Folded".as_ptr(),
+    c"FoldColumn".as_ptr(),
+    c"DiffAdd".as_ptr(),
+    c"DiffChange".as_ptr(),
+    c"DiffDelete".as_ptr(),
+    c"DiffText".as_ptr(),
+    c"DiffTextAdd".as_ptr(),
+    c"SignColumn".as_ptr(),
+    c"Conceal".as_ptr(),
+    c"SpellBad".as_ptr(),
+    c"SpellCap".as_ptr(),
+    c"SpellRare".as_ptr(),
+    c"SpellLocal".as_ptr(),
+    c"Pmenu".as_ptr(),
+    c"PmenuSel".as_ptr(),
+    c"PmenuMatch".as_ptr(),
+    c"PmenuMatchSel".as_ptr(),
+    c"PmenuKind".as_ptr(),
+    c"PmenuKindSel".as_ptr(),
+    c"PmenuExtra".as_ptr(),
+    c"PmenuExtraSel".as_ptr(),
+    c"PmenuSbar".as_ptr(),
+    c"PmenuThumb".as_ptr(),
+    c"PmenuBorder".as_ptr(),
+    c"TabLine".as_ptr(),
+    c"TabLineSel".as_ptr(),
+    c"TabLineFill".as_ptr(),
+    c"CursorColumn".as_ptr(),
+    c"CursorLine".as_ptr(),
+    c"ColorColumn".as_ptr(),
+    c"QuickFixLine".as_ptr(),
+    c"Whitespace".as_ptr(),
+    c"NormalNC".as_ptr(),
+    c"MsgSeparator".as_ptr(),
+    c"NormalFloat".as_ptr(),
+    c"MsgArea".as_ptr(),
+    c"FloatBorder".as_ptr(),
+    c"WinBar".as_ptr(),
+    c"WinBarNC".as_ptr(),
+    c"Cursor".as_ptr(),
+    c"FloatTitle".as_ptr(),
+    c"FloatFooter".as_ptr(),
+    c"StatusLineTerm".as_ptr(),
+    c"StatusLineTermNC".as_ptr(),
+    c"StderrMsg".as_ptr(),
+    c"StdoutMsg".as_ptr(),
+    c"OkMsg".as_ptr(),
+    c"PreInsert".as_ptr(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut highlight_attr: [c_int; HLF_COUNT] = [0; HLF_COUNT];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut highlight_attr_last: [c_int; HLF_COUNT] = [0; HLF_COUNT];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut highlight_user: [c_int; 9] = [0; 9];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut highlight_stlnc: [c_int; 9] = [0; 9];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut cterm_normal_fg_color: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut cterm_normal_bg_color: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut normal_fg: RgbValue = -1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut normal_bg: RgbValue = -1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut normal_sp: RgbValue = -1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ns_hl_global: NS = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ns_hl_win: NS = -1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ns_hl_fast: NS = -1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ns_hl_active: NS = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut hl_attr_active: *mut c_int = (&raw mut highlight_attr).cast();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut test_disable_char_avail: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut nlua_global_refs: *mut nlua_ref_state_t = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut nlua_disable_preload: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut tslua_query_parse_count: u64 = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut repeat_luamap: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut namedfm: [xfmark_T; 36] = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut arena_alloc_count: usize = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_ext_need_clear: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_ext_skip_flush: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_ext_overwrite: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_ext_skip_verbose: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_ext_fast: bool = true;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_grid: ScreenGrid = SCREEN_GRID_INIT;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_grid_pos: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_grid_adj: GridView = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_scrolled_at_flush: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_grid_scroll_discount: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut msg_listdo_overwrite: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ch_before_blocking_events: *mut MultiQueue = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut showcmd_buf: [c_char; 51] = [0; 51];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut nvim_testing: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut pum_grid: ScreenGrid = SCREEN_GRID_INIT;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut pum_want: PumWant = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut last_insert_ga: garray_T = garray_T {
+    ga_len: 0,
+    ga_maxlen: 0,
+    ga_itemsize: 1,
+    ga_growsize: 64,
+    ga_data: ptr::null_mut(),
+};
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut add_last_insert: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut tab_page_click_defs: *mut StlClickDefinition = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut tab_page_click_defs_size: usize = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut noargs: Array = unsafe { zeroed() };
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_event_ns_id: u32 = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut resize_events: *mut MultiQueue = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_refresh_cmdheight: bool = true;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut grid_line_buf_size: usize = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut grid_line_buf_char: *mut schar_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut grid_line_buf_attr: *mut sattr_T = ptr::null_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_client_channel_id: u64 = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_client_error_exit: c_int = -1;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_client_exit_status: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_client_attached: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut ui_client_forward_stdin: bool = false;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut tabpage_move_disallowed: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut float_anchor_str: [*const c_char; 4] = [
+    c"NW".as_ptr(),
+    c"NE".as_ptr(),
+    c"SW".as_ptr(),
+    c"SE".as_ptr(),
+];
 
 #[cfg(test)]
 mod tests {

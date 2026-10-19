@@ -17,8 +17,8 @@ use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTextChunk};
-use crate::api::extmark::{DecorState, NS};
-use crate::api::tabpage::{GridView, ScreenGrid, Window, frame_T, tabpage_T, win_T};
+use crate::api::extmark::NS;
+use crate::api::tabpage::{Window, frame_T, tabpage_T, win_T};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::charset::{vim_isprintc, vim_strsize};
 use crate::context::ctx_saved_curwin;
@@ -42,13 +42,11 @@ use crate::grid::{
 };
 use crate::highlight::{hl_combine_attr, update_window_hl, win_bg_attr, win_check_ns_hl};
 use crate::highlight_group::highlight_changed;
-use crate::kvec::KVec;
 use crate::marktree::{DECOR_PRIORITY_BASE, kMTMetaSignText};
 use crate::r#match::{
-    init_search_hl, match_T, matchitem_T, prepare_search_hl, regmmatch_T, regprog_T, varnumber_T,
+    init_search_hl, matchitem_T, prepare_search_hl, regmmatch_T, regprog_T, varnumber_T,
 };
 use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
-use crate::mouse::StlClickDefinition;
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, curs_columns,
     invalidate_botline_win, plines_correct_topline, set_empty_rows, update_curswant,
@@ -202,23 +200,6 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
 };
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
-    static mut default_gridview: GridView;
-    static mut msg_grid: ScreenGrid;
-    static mut updating_screen: bool;
-    static mut redraw_not_allowed: bool;
-    static mut resizing_screen: bool;
-    static mut need_diff_redraw: bool;
-    static mut msg_scrolled_at_flush: c_int;
-    static mut msg_grid_scroll_discount: c_int;
-    static mut ns_hl_fast: NS;
-    static mut hl_attr_active: *mut c_int;
-    static mut screen_search_hl: match_T;
-    static mut search_hl_has_cursor_lnum: linenr_T;
-    static mut decor_state: DecorState;
-    static mut win_extmark_arr: KVec<WinExtmark>;
-    static mut tab_page_click_defs: *mut StlClickDefinition;
-    static mut tab_page_click_defs_size: usize;
     static mut NameBuff: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

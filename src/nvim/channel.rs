@@ -143,9 +143,6 @@ pub struct TerminalOptions {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut channels: Map<u64, ptr_t>;
-    static mut on_print: Callback;
-    static mut ui_client_channel_id: u64;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn semsg(s: *const c_char, ...) -> bool;

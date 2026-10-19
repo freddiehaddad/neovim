@@ -296,7 +296,6 @@ static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
 unsafe extern "C" {
-    static mut msg_ext_skip_flush: bool;
     static mut NameBuff: [c_char; MAXPATHL];
     static no_lines_msg: [c_char; 1];
     static mut Versions: [*mut c_char; 1];

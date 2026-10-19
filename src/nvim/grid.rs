@@ -102,14 +102,6 @@ static mut grid_line_flags: c_int = 0;
 static mut last_grid_handle: c_int = DEFAULT_GRID_HANDLE;
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
-    static mut msg_grid: ScreenGrid;
-    static mut resizing_screen: bool;
-    static mut linebuf_char: *mut schar_T;
-    static mut linebuf_attr: *mut sattr_T;
-    static mut linebuf_vcol: *mut colnr_T;
-    static mut linebuf_scratch: *mut c_char;
-    static mut hl_attr_active: *mut c_int;
     static utf8len_tab: [u8; 256];
 
     fn decor_check_invalid_glyphs();

@@ -422,14 +422,7 @@ unsafe extern "C" {
     static mut NameBuff: [c_char; MAXPATHL];
     static mut empty_string_option: [c_char; 1];
     static mut main_loop: u8;
-    static mut autocmd_busy: bool;
-    static mut autocmd_fname: *mut c_char;
-    static mut autocmd_match: *mut c_char;
-    static mut autocmd_fname_full: bool;
-    static mut autocmd_bufnr: c_int;
-    static mut on_print: Callback;
     static mut windowsVersion: [c_char; 20];
-    static mut EVALARG_EVALUATE: evalarg_T;
     static eval_has_list: [*const c_char; 0];
 
     fn tv_blob_set_range(

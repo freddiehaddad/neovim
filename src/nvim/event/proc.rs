@@ -87,8 +87,6 @@ static mut exit_need_delay: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-    static mut ui_client_channel_id: u64;
-    static mut ui_client_exit_status: c_int;
 
     fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;
     fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;

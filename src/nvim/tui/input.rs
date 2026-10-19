@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -105,7 +106,6 @@ static mut LAST_PRESSED_BUTTON: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut ui_client_channel_id: u64;
     static mut main_loop: u8;
 
     fn uv_handle_size(h_type: c_int) -> usize;

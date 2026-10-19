@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::api::private::validate::{
@@ -108,9 +109,6 @@ pub struct AdditionalDataHeader {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut grid_line_buf_size: usize;
-    static mut grid_line_buf_char: *mut schar_T;
-    static mut grid_line_buf_attr: *mut sattr_T;
 
     fn mpack_parser_init(p: *mut mpack_parser_t, c: u32);
     fn mpack_tokbuf_init(tb: *mut mpack_tokbuf_t);

@@ -248,14 +248,6 @@ unsafe extern "system" {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: Loop;
-    static mut resize_events: *mut MultiQueue;
-
-    static mut autocmd_no_enter: c_int;
-    static mut autocmd_no_leave: c_int;
-    static mut ui_client_channel_id: u64;
-    static mut ui_client_exit_status: c_int;
-    static mut ui_client_forward_stdin: bool;
-    static mut nlua_disable_preload: bool;
 
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];

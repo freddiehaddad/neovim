@@ -116,9 +116,6 @@ pub struct SearchState {
 }
 
 unsafe extern "C" {
-    static mut search_hl_has_cursor_lnum: linenr_T;
-    static mut ns_hl_fast: c_int;
-    static mut hl_attr_active: *mut c_int;
 
     fn semsg(fmt: *const c_char, ...) -> bool;
     fn emsg(s: *const c_char) -> bool;

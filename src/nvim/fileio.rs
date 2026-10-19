@@ -268,12 +268,6 @@ unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
 
-    static mut msg_listdo_overwrite: c_int;
-
-    static mut nvim_testing: bool;
-
-    static mut autocmd_busy: bool;
-
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;

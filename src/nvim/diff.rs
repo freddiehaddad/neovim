@@ -233,10 +233,6 @@ static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 unsafe extern "C" {
-    static mut diff_context: c_int;
-    static mut diff_foldcolumn: c_int;
-    static mut diff_need_scrollbind: bool;
-    static mut need_diff_redraw: bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

@@ -661,7 +661,6 @@ const SHELL_RULES: [ShellRule; 2] = [
 
 unsafe extern "C" {
 
-    static mut updating_screen: bool;
     static mut empty_string_option: [c_char; 1];
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];

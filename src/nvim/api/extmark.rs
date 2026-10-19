@@ -28,8 +28,8 @@ use crate::eval::deprecated::buf_T;
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map::{
-    Map, Set, map_put_ref_String_int, mh_delete_uint32_t, mh_get_String, mh_get_ptr_t,
-    mh_get_uint32_t, mh_put_ptr_t, mh_put_uint32_t, ptr_t,
+    Set, map_put_ref_String_int, mh_delete_uint32_t, mh_get_String, mh_get_ptr_t, mh_get_uint32_t,
+    mh_put_ptr_t, mh_put_uint32_t, ptr_t,
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::marktree::{
@@ -339,10 +339,6 @@ pub struct KeyDict_ns_opts {
 }
 
 unsafe extern "C" {
-    static mut namespace_ids: Map<NvimString, c_int>;
-    static mut namespace_localscope: Set<u32>;
-    static mut next_namespace_id: handle_T;
-    static mut decor_state: DecorState;
 
     fn copy_string(str: NvimString, arena: *mut Arena) -> NvimString;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;

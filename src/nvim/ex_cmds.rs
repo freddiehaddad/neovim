@@ -372,10 +372,6 @@ unsafe extern "C" {
 
     static mut IObuff: [c_char; IOSIZE];
     static mut msg_buf: [c_char; MSG_BUF_LEN];
-    static mut disable_fold_update: c_int;
-    static mut autocmd_busy: bool;
-    static mut au_new_curbuf: bufref_T;
-    static mut msg_listdo_overwrite: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

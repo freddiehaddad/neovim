@@ -48,13 +48,7 @@ pub struct KeyDict_exec_opts {
     pub output: Boolean,
 }
 
-#[repr(C)]
-pub struct evalarg_T {
-    pub eval_flags: c_int,
-    pub eval_getline: *mut c_void,
-    pub eval_cookie: *mut c_void,
-    pub eval_tofree: *mut c_char,
-}
+pub use crate::eval::vars::evalarg_T;
 
 #[repr(C)]
 pub struct funcexe_T {
@@ -83,7 +77,6 @@ static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut EVALARG_EVALUATE: evalarg_T;
 
     fn do_source_str(cmd: *const c_char, traceback_name: *const c_char) -> c_int;
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;

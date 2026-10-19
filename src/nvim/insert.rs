@@ -304,15 +304,6 @@ static mut pc_col: c_int = 0;
 static mut ins_esc_disabled_redraw: bool = false;
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
-    static mut hl_attr_active: *mut c_int;
-    static mut pum_want: PumWant;
-
-    static mut did_cursorhold: bool;
-    static mut disable_fold_update: c_int;
-    static mut last_cursormoved_win: *mut win_T;
-    static mut last_cursormoved: pos_T;
-    static mut test_disable_char_avail: bool;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

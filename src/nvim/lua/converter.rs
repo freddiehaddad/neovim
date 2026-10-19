@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -194,7 +195,6 @@ unsafe extern "C-unwind" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut nlua_global_refs: *mut nlua_ref_state_t;
     static eval_msgpack_type_lists: [*const list_T; NUM_MSGPACK_TYPES];
 
     fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef);

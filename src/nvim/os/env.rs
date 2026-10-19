@@ -126,7 +126,6 @@ static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut nvim_testing: bool;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut os_buf: [c_char; MAXPATHL];
     static mut IObuff: [c_char; IOSIZE];

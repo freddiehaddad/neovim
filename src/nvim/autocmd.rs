@@ -1284,19 +1284,6 @@ static mut ft_recursive: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut deferred_events: *mut MultiQueue;
-    static mut last_cursormoved_win: *mut win_T;
-    static mut last_cursormoved: pos_T;
-    static mut autocmd_busy: bool;
-    static mut autocmd_no_enter: c_int;
-    static mut autocmd_no_leave: c_int;
-    static mut au_pending_free_buf: *mut buf_T;
-    static mut au_pending_free_win: *mut win_T;
-    static mut autocmd_fname: *mut c_char;
-    static mut autocmd_fname_full: bool;
-    static mut autocmd_bufnr: c_int;
-    static mut autocmd_match: *mut c_char;
-    static mut did_cursorhold: bool;
 
     static mut last_mode: [c_char; 4];
     static mut exestack: garray_T;

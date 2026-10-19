@@ -308,17 +308,6 @@ static mut tabclosedpre_recursive: bool = false;
 static mut win_scrolled_resized_recursive: bool = false;
 
 unsafe extern "C" {
-    static mut updating_screen: bool;
-    static mut autocmd_busy: bool;
-    static mut au_pending_free_win: *mut win_T;
-    static mut diff_need_scrollbind: bool;
-    static mut default_grid: ScreenGrid;
-    static mut default_gridview: GridView;
-    static mut msg_grid_adj: GridView;
-    static mut tabpage_move_disallowed: c_int;
-    static mut window_handles: Map<c_int, ptr_t>;
-    static mut tabpage_handles: Map<c_int, ptr_t>;
-    static mut ctx_win_vec: KVec<CtxWin>;
     static float_anchor_str: [*const c_char; 4];
 
     static mut empty_string_option: [c_char; 1];

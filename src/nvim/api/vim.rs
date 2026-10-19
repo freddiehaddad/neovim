@@ -361,12 +361,6 @@ struct RuntimeCookie {
 static mut PASTE_CANCELLED: bool = false;
 
 unsafe extern "C" {
-    static mut ns_hl_global: NS;
-    static mut ns_hl_fast: NS;
-    static mut arena_alloc_count: usize;
-    static mut tslua_query_parse_count: u64;
-    static mut default_grid: ScreenGrid;
-    static mut pum_grid: ScreenGrid;
 
     fn try_enter(tstate: *mut TryState);
     fn try_leave(tstate: *const TryState, err: *mut Error);

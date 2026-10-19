@@ -20,7 +20,7 @@ use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::command::exarg_T;
 use crate::api::deprecated::VirtText;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{ScreenGrid, WinConfig, lpos_T, tabpage_T, win_T};
+use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::win_config::{UIExtension, parse_winborder};
 use crate::charset::{transstr, vim_strsize};
 use crate::cursor::{colnr_T, linenr_T};
@@ -30,8 +30,8 @@ use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::garray::{ga_clear, garray_T};
 use crate::grid::{
     get_win_by_grid_handle, grid_alloc, grid_assign_handle, grid_draw_border, grid_free,
-    grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts, sattr_T,
-    schar_T, screengrid_line_start,
+    grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts, schar_T,
+    screengrid_line_start,
 };
 use crate::highlight::{hl_combine_attr, hl_get_ui_attr};
 use crate::keycodes::{
@@ -200,14 +200,7 @@ static mut PUM_EXTERNAL: bool = false;
 static mut PUM_INVALID: bool = false;
 
 unsafe extern "C" {
-    static mut pum_grid: ScreenGrid;
-    static mut pum_want: PumWant;
-    static mut default_grid: ScreenGrid;
     static opt_winborder_values: [*const c_char; 9];
-    static mut hl_attr_active: *mut c_int;
-    static mut ns_hl_fast: c_int;
-    static mut linebuf_char: *mut schar_T;
-    static mut linebuf_attr: *mut sattr_T;
 
     fn validate_cheight(wp: *mut win_T);
     fn validate_cursor_col(wp: *mut win_T);

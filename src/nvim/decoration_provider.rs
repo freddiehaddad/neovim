@@ -14,7 +14,7 @@ use crate::globals::*;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::api::extmark::{DecorProvider, DecorState, NS, linenr_T};
+use crate::api::extmark::{DecorProvider, NS, linenr_T};
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::eval::deprecated::buf_T;
@@ -42,8 +42,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
 };
 
 unsafe extern "C" {
-    static mut ns_hl_active: NS;
-    static mut decor_state: DecorState;
 
     fn describe_ns(ns_id: NS, fail: *const c_char) -> *const c_char;
     fn logmsg(

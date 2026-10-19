@@ -26,8 +26,7 @@ use crate::clipboard::{VarType, typval_T, yankreg_T};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
 use crate::eval::encode::encode_vim_list_to_buf;
 use crate::hashtab::{hash_init, hashitem_empty, hashtab_T};
-use crate::kvec::KVec;
-use crate::map::{Map, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int, ptr_t};
+use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::memory::{Arena, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
@@ -170,9 +169,6 @@ static mut CTX_DID_CHDIR: bool = false;
 static mut CTX_MARKS_NS_ID: u32 = 0;
 
 unsafe extern "C" {
-    static mut ctx_win_vec: KVec<CtxWin>;
-    static mut buffer_handles: Map<c_int, ptr_t>;
-    static mut window_handles: Map<c_int, ptr_t>;
 
     fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool;
     fn extmark_set_pos(

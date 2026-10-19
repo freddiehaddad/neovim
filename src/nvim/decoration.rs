@@ -139,8 +139,6 @@ static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
 
 unsafe extern "C" {
-    static mut decor_state: DecorState;
-    static mut decor_items: KVec<DecorSignHighlight>;
     static virt_text_pos_str: [*const c_char; 6];
     static hl_mode_str: [*const c_char; 4];
 

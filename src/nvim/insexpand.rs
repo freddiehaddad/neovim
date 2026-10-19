@@ -95,8 +95,8 @@ use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
 use crate::path::{EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, FreeWild, expand_wildcards, path_tail};
 use crate::popupmenu::{
-    PumWant, pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay,
-    pum_visible, pumitem_T,
+    pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
+    pumitem_T,
 };
 use crate::register::{
     NUM_REGISTERS, copy_register, free_register, get_register_name, valid_yank_reg,
@@ -546,9 +546,6 @@ struct cpt_source_T {
 use crate::state::save_v_event_T;
 
 unsafe extern "C" {
-    static mut pum_want: PumWant;
-
-    static mut test_disable_char_avail: bool;
 
     static mut IObuff: [c_char; IOSIZE];
 

@@ -22,7 +22,7 @@ use std::ptr;
 
 use crate::api::command::regmatch_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, pos_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::charset::{
     backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
     transchar_byte, vim_isfilec_or_wc, vim_strsize,
@@ -62,7 +62,7 @@ use crate::path::{
     expand_wildcards, expand_wildcards_eval, match_suffix, path_is_absolute, path_tail,
 };
 use crate::popupmenu::{
-    PumWant, pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
+    pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
 };
 use crate::profile::scriptitem_T;
 use crate::runtime::script_items;
@@ -1001,13 +1001,7 @@ static mut ARG1_LUA_LAST_XP_LINE: *mut c_char = ptr::null_mut();
 static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 
 unsafe extern "C" {
-    static mut pum_want: PumWant;
-    static mut msg_grid_adj: GridView;
-    static mut default_gridview: GridView;
     static mut NameBuff: [c_char; MAXPATHL];
-
-    static mut hl_attr_active: *mut c_int;
-    static mut ns_hl_fast: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

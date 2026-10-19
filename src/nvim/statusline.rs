@@ -15,10 +15,9 @@ use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::extmark::NS;
 use crate::api::options::CharBuf;
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, ScreenGrid, win_T};
+use crate::api::tabpage::{ScreenGrid, win_T};
 use crate::charset::{getdigits_int, skipdigits, trans_characters, transstr_buf};
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
@@ -226,21 +225,10 @@ pub struct statuscol_T {
 static mut did_show_ext_ruler: bool = false;
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
-    static mut default_gridview: GridView;
-    static mut msg_grid_adj: GridView;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
-    static mut updating_screen: bool;
-    static mut redraw_not_allowed: bool;
-    static mut tab_page_click_defs: *mut StlClickDefinition;
-    static mut tab_page_click_defs_size: usize;
-    static mut hl_attr_active: *mut c_int;
-    static mut ns_hl_fast: NS;
     static mut highlight_user: [c_int; 9];
     static mut highlight_stlnc: [c_int; 9];
-    static mut msg_loclist: *mut c_char;
-    static mut msg_qflist: *mut c_char;
 
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;

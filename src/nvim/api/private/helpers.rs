@@ -101,10 +101,6 @@ pub type HlMessage = KVec<HlMessageChunk>;
 
 unsafe extern "C" {
 
-    static mut buffer_handles: Map<c_int, *mut c_void>;
-    static mut window_handles: Map<c_int, *mut c_void>;
-    static mut tabpage_handles: Map<c_int, *mut c_void>;
-
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_free_luaref(luaref: LuaRef);
     fn api_new_luaref(luaref: LuaRef) -> LuaRef;

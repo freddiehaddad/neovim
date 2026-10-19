@@ -471,8 +471,6 @@ pub struct KeyDict_tabpage_config {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut autocmd_no_enter: c_int;
-    static mut autocmd_no_leave: c_int;
 
     fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T;
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;

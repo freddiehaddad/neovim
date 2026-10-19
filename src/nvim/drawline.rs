@@ -21,7 +21,7 @@ use crate::api::autocmd::kCallbackNone;
 use crate::api::deprecated::{
     DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
 };
-use crate::api::extmark::{DecorRange, DecorState, NS};
+use crate::api::extmark::{DecorRange, NS};
 use crate::api::options::CharBuf;
 use crate::api::tabpage::{GridView, pos_T, win_T};
 use crate::charset::{
@@ -44,7 +44,7 @@ use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::extmark::TriState;
 use crate::fold::FOLD_TEXT_LEN;
 use crate::grid::{
-    grid_adjust, grid_put_linebuf, linebuf_mirror, sattr_T, schar_T, schar_cells, schar_from_char,
+    grid_adjust, grid_put_linebuf, linebuf_mirror, schar_T, schar_cells, schar_from_char,
     schar_get_adv, schar_get_ascii, schar_get_first_codepoint, schar_len,
 };
 use crate::highlight::{
@@ -52,10 +52,9 @@ use crate::highlight::{
 };
 use crate::highlight_group::syn_id2attr;
 use crate::indent::{get_breakindent_win, tabstop_padding};
-use crate::kvec::KVec;
 use crate::marktree::kMTMetaInline;
 use crate::r#match::{
-    get_prevcol_hl_flag, get_search_match_hl, match_T, prepare_search_hl_line, update_search_hl,
+    get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
     mb_charlen, mb_off_next, mb_ptr2char_adv, mb_string2cells, utf_head_off, utf_ptr2cells,
@@ -229,17 +228,7 @@ static mut stc_prev_lnum: linenr_T = 0;
 static mut stc_prev_tick: disptick_T = 0;
 
 unsafe extern "C" {
-    static mut screen_search_hl: match_T;
-    static mut decor_state: DecorState;
-    static mut win_extmark_arr: KVec<WinExtmark>;
-    static mut linebuf_char: *mut schar_T;
-    static mut linebuf_attr: *mut sattr_T;
-    static mut linebuf_vcol: *mut colnr_T;
     static mut highlight_attr: [c_int; HLF_COUNT as usize];
-    static mut hl_attr_active: *mut c_int;
-    static mut ns_hl_fast: NS;
-    static mut normal_bg: i32;
-    static mut cterm_normal_bg_color: c_int;
     static breakat_flags: [c_char; 256];
 
     fn gchar_pos(pos: *const pos_T) -> c_int;

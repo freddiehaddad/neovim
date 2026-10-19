@@ -269,12 +269,6 @@ type UIEventHandlerFn = unsafe extern "C" fn(args: Array);
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut ch_before_blocking_events: *mut MultiQueue;
-    static mut resize_events: *mut MultiQueue;
-    static mut channels: Map<u64, ptr_t>;
-    static mut ui_client_attached: bool;
-    static mut ui_client_channel_id: u64;
-    static mut ui_client_error_exit: c_int;
 
     fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_strerror(err: c_int) -> *const c_char;

@@ -242,7 +242,6 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut EVALARG_EVALUATE: evalarg_T;
     static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

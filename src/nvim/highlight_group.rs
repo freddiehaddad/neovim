@@ -21,7 +21,6 @@ use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
     Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::ScreenGrid;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
@@ -331,13 +330,6 @@ const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 
 unsafe extern "C" {
     static mut exestack: garray_T;
-    static mut cterm_normal_fg_color: c_int;
-    static mut cterm_normal_bg_color: c_int;
-    static mut normal_fg: RgbValue;
-    static mut normal_bg: RgbValue;
-    static mut normal_sp: RgbValue;
-    static mut updating_screen: bool;
-    static mut msg_grid: ScreenGrid;
     static mut hlf_names: [*const c_char; HLF_COUNT];
     static mut highlight_attr: [c_int; HLF_COUNT];
     static mut highlight_attr_last: [c_int; HLF_COUNT];

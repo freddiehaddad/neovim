@@ -308,12 +308,7 @@ unsafe extern "system" {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: Loop;
-    static mut nlua_global_refs: *mut nlua_ref_state_t;
-    static mut nlua_disable_preload: bool;
-    static mut ui_event_ns_id: u32;
-    static mut ui_refresh_cmdheight: bool;
     static mut ui_ext_names: [*const c_char; kUIGlobalCount];
-    static mut on_print: Callback;
     static mut IObuff: [c_char; IOSIZE];
 
     static main_exitfree: bool;

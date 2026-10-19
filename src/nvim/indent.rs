@@ -114,7 +114,6 @@ static mut PREV_DY_UHEX: c_uint = 0;
 static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut curbuf_splice_pending: c_int;
     static mut IObuff: [c_char; IOSIZE];
 
     fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;

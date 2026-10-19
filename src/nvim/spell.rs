@@ -10,7 +10,6 @@
     clippy::too_many_arguments
 )]
 use crate::api::command::{exarg_T, regmatch_T};
-use crate::api::extmark::DecorState;
 use crate::api::options::bufref_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
@@ -186,7 +185,6 @@ pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
-    static mut decor_state: DecorState;
     static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

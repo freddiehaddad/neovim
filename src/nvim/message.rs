@@ -23,7 +23,6 @@ use crate::api::private::helpers::{
     api_free_array, copy_string, cstr_as_string, cstr_to_string, ga_take_string,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, ScreenGrid};
 use crate::api::vim::{HlMessage, HlMessageChunk, MessageData};
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, apply_autocmds_group, has_event};
@@ -41,9 +40,7 @@ use crate::eval::vars::{
     var_redir_str,
 };
 use crate::event::r#loop::{Loop, loop_schedule_deferred};
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_process_events,
-};
+use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_process_events};
 use crate::ex_eval::cause_errthrow;
 use crate::ex_session::FILE;
 use crate::garray::{ga_append, ga_concat, ga_concat_len, ga_init, garray_T};
@@ -270,25 +267,10 @@ static mut SHOWMODE_CLEAR: bool = false;
 static mut pre_verbose_kind: *const c_char = ptr::null();
 
 unsafe extern "C" {
-    static mut msg_ext_need_clear: bool;
-    static mut msg_ext_skip_flush: bool;
-    static mut msg_ext_overwrite: bool;
-    static mut msg_ext_skip_verbose: bool;
-    static mut msg_ext_fast: bool;
-    static mut msg_grid: ScreenGrid;
-    static mut msg_grid_pos: c_int;
-    static mut msg_grid_adj: GridView;
-    static mut msg_scrolled_at_flush: c_int;
-    static mut msg_grid_scroll_discount: c_int;
 
-    static mut default_grid: ScreenGrid;
     static mut p_vfile: *mut c_char;
     static mut msg_buf: [c_char; MSG_BUF_LEN];
-    static mut hl_attr_active: *mut c_int;
     static mut main_loop: Loop;
-    static mut resize_events: *mut MultiQueue;
-    static mut on_print: Callback;
-    static mut nvim_testing: bool;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

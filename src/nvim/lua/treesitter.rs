@@ -11,6 +11,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -577,7 +578,6 @@ unsafe extern "C-unwind" {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
-    static mut tslua_query_parse_count: u64;
 
     fn uv_dlopen(filename: *const c_char, lib: *mut UvLib) -> c_int;
     fn uv_dlclose(lib: *mut UvLib);

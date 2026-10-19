@@ -84,7 +84,6 @@ const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 use crate::arglist::{aentry_T, alist_T};
 
 unsafe extern "C" {
-    static mut msg_listdo_overwrite: c_int;
 
     fn bt_dontwrite(buf: *const buf_T) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);

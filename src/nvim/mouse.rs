@@ -15,7 +15,7 @@ use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::api::tabpage::{ScreenGrid, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::charset::vim_iswordc;
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cursor::{coladvance, get_cursor_pos_ptr};
@@ -154,10 +154,6 @@ static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut tab_page_click_defs: *mut StlClickDefinition;
-    static mut msg_grid: ScreenGrid;
-    static mut msg_grid_pos: c_int;
-    static mut pum_grid: ScreenGrid;
     static utf8len_tab: [u8; 256];
 
     fn gchar_pos(pos: *mut pos_T) -> c_int;

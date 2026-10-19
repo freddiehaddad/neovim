@@ -263,14 +263,6 @@ unsafe extern "C" {
     static mut hlf_names: [*const c_char; HLF_COUNT];
     static mut highlight_attr: [c_int; HLF_COUNT];
     static mut highlight_attr_last: [c_int; HLF_COUNT];
-    static mut normal_fg: RgbValue;
-    static mut normal_bg: RgbValue;
-    static mut normal_sp: RgbValue;
-    static mut ns_hl_global: NS;
-    static mut ns_hl_win: NS;
-    static mut ns_hl_fast: NS;
-    static mut ns_hl_active: NS;
-    static mut hl_attr_active: *mut c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

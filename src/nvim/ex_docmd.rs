@@ -719,10 +719,6 @@ unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
     static mut main_loop: Loop;
-    static mut autocmd_fname: *mut c_char;
-    static mut autocmd_fname_full: bool;
-    static mut autocmd_bufnr: c_int;
-    static mut autocmd_match: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_long) -> *mut c_char;

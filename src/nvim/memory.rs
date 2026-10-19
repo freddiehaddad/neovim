@@ -72,7 +72,6 @@ pub static mut entered_free_all_mem: bool = false;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut arena_alloc_count: usize;
 
     fn clear_sb_text(all: bool);
     fn mf_release_all() -> bool;
@@ -910,7 +909,7 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::mapping::map_clear_mode;
     use crate::mark::free_all_marks;
     use crate::mcursor::mc_free_all;
-    use crate::mouse::StlClickDefinition;
+
     use crate::msgpack_rpc::channel::rpc_free_all_mem;
     use crate::os::env::free_homedir;
     use crate::os::users::free_users;
@@ -928,12 +927,6 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::window::{free_tabpage, win_free_all};
 
     unsafe extern "C" {
-        static mut buffer_handles: Map<c_int, *mut c_void>;
-        static mut window_handles: Map<c_int, *mut c_void>;
-        static mut tabpage_handles: Map<c_int, *mut c_void>;
-        static mut tab_page_click_defs: *mut StlClickDefinition;
-        static mut tab_page_click_defs_size: usize;
-        static mut ui_client_channel_id: u64;
 
         fn nlua_free_all_mem();
         fn do_cmdline_cmd(cmd: *const c_char) -> c_int;

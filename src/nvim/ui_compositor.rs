@@ -79,9 +79,6 @@ static mut dbghl_composed: c_int = 0;
 static mut dbghl_recompose: c_int = 0;
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
-    static mut msg_grid: ScreenGrid;
-    static mut hl_attr_active: *mut c_int;
 
     fn syn_check_group(pp: *const c_char, len: usize) -> c_int;
     fn ui_composed_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer);

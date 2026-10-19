@@ -22,14 +22,14 @@ use crate::api::private::helpers::{api_clear_error, arena_array, arena_dict, cst
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::{GridView, ScreenGrid};
+use crate::api::tabpage::ScreenGrid;
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array};
 use crate::drawscreen::{conceal_check_cursor_line, screen_resize};
 use crate::eval::vars::LuaRef;
 use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_put_event,
+    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_put_event,
 };
 use crate::ex_getln::cmdline_ui_flush;
 use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
@@ -141,20 +141,7 @@ static mut ui_flush_was_busy: bool = false;
 static mut ui_flush_cursor_was_obscured: bool = false;
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
-    static mut msg_grid_adj: GridView;
-    static mut resize_events: *mut MultiQueue;
-    static mut ui_client_channel_id: u64;
-    static mut ui_refresh_cmdheight: bool;
-    static mut ui_event_ns_id: u32;
     static mut ui_ext_names: [*const c_char; kUIExtCount];
-    static mut updating_screen: bool;
-    static mut msg_ext_fast: bool;
-    static mut normal_fg: c_int;
-    static mut normal_bg: c_int;
-    static mut normal_sp: c_int;
-    static mut cterm_normal_fg_color: c_int;
-    static mut cterm_normal_bg_color: c_int;
     static mut shape_table: [cursorentry_T; 18];
 
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

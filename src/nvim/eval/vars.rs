@@ -537,7 +537,6 @@ static mut redir_endp: *mut c_char = ptr::null_mut();
 static mut redir_varname: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut EVALARG_EVALUATE: evalarg_T;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

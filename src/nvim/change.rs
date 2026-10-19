@@ -114,12 +114,6 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
 };
 
 unsafe extern "C" {
-    static mut autocmd_busy: bool;
-    static mut redraw_not_allowed: bool;
-    static mut curbuf_splice_pending: c_int;
-    static mut search_hl_has_cursor_lnum: linenr_T;
-    static mut last_cursormoved_win: *mut win_T;
-    static mut last_cursormoved: pos_T;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn curbufIsChanged() -> bool;

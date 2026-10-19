@@ -298,10 +298,6 @@ static mut urls: Set<cstr_t> = Set {
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut nvim_testing: bool;
-    static mut ui_client_channel_id: u64;
-    static mut ui_client_exit_status: c_int;
-    static mut ui_client_error_exit: c_int;
     static mut g_min_log_level: c_int;
 
     fn uv_loop_init(loop_: *mut uv_loop_t) -> c_int;

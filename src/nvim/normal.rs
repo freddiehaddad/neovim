@@ -19,10 +19,9 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::extmark::NS;
 use crate::api::options::CharBuf;
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{GridView, pos_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::change::{
     changed_lines, del_chars, deleted_lines, get_leader_len, ins_char, ins_char_bytes, open_line,
@@ -408,16 +407,9 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    static mut did_cursorhold: bool;
-    static mut last_cursormoved_win: *mut win_T;
-    static mut last_cursormoved: pos_T;
-    static mut diff_need_scrollbind: bool;
     static mut empty_string_option: [c_char; 1];
-    static mut msg_grid_adj: GridView;
     static mut langmap_mapchar: [u8; 256];
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
-    static mut hl_attr_active: *mut c_int;
-    static mut ns_hl_fast: NS;
 
     fn curbuf_locked() -> bool;
     fn ui_cursor_shape();

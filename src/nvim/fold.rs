@@ -140,9 +140,6 @@ static E_NOFOLD: &CStr = c"E490: No fold found";
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut disable_fold_update: c_int;
-    static mut need_diff_redraw: bool;
-    static mut diff_context: c_int;
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

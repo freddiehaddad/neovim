@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -87,7 +88,6 @@ struct LibuvProcTail {
 }
 
 unsafe extern "C" {
-    static mut ui_client_forward_stdin: bool;
 
     fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_pipe(fds: *mut c_int, read_flags: c_int, write_flags: c_int) -> c_int;

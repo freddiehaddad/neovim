@@ -134,7 +134,6 @@ pub struct u_header_T {
 }
 
 unsafe extern "C" {
-    static mut curbuf_splice_pending: c_int;
 
     fn u_force_get_undo_header(buf: *mut buf_T) -> *mut u_header_T;
     fn buf_decor_remove(

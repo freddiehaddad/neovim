@@ -3762,8 +3762,6 @@ unsafe extern "C" {
 
     static mut default_vim_dir: *mut c_char;
     static mut default_vimruntime_dir: *mut c_char;
-    static mut default_gridview: GridView;
-    static mut hl_attr_active: *mut c_int;
 
     fn atoi(s: *const c_char) -> c_int;
     fn strchr(s: *const c_char, c: c_int) -> *const c_char;

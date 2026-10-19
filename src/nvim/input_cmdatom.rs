@@ -366,7 +366,6 @@ static mut typed: TypedState = TypedState {
 };
 
 unsafe extern "C" {
-    static mut repeat_luamap: c_int;
 
     fn nv_is(cmdchar: c_int, flags: c_int) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);

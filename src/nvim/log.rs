@@ -55,7 +55,6 @@ static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
-    static mut ui_client_channel_id: u64;
 
     fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int);
     fn os_isdir(name: *const c_char) -> bool;

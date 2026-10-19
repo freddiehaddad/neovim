@@ -115,9 +115,6 @@ static mut arglist_locked: bool = false;
 
 unsafe extern "C" {
     static mut empty_string_option: [c_char; 1];
-    static mut tabpage_move_disallowed: c_int;
-    static mut autocmd_no_enter: c_int;
-    static mut autocmd_no_leave: c_int;
 
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

@@ -16,7 +16,7 @@ use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::tabpage::{ScreenGrid, pos_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::clipboard::typval_T;
 use crate::cursor::{check_cursor, check_cursor_lnum, coladvance};
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
@@ -75,7 +75,6 @@ struct lineoff_T {
 }
 
 unsafe extern "C" {
-    static mut default_grid: ScreenGrid;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn semsg(fmt: *const c_char, ...) -> bool;

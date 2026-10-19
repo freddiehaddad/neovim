@@ -111,7 +111,7 @@ use crate::optionstr::{OptIndex, TryState, optset_T};
 use crate::os::env::{expand_T, home_replace_save};
 use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
-use crate::popupmenu::{PumWant, pum_check_clear};
+use crate::popupmenu::pum_check_clear;
 use crate::profile::{profile_setlimit, proftime_T};
 use crate::register::{cmdline_paste_reg, get_spec_reg, is_literal_register, valid_yank_reg};
 use crate::search::{
@@ -380,7 +380,6 @@ static mut prev_prompt_errors: c_int = 0;
 
 unsafe extern "C" {
     static mut wim_flags: [u8; 4];
-    static mut pum_want: PumWant;
     static mut IObuff: [c_char; IOSIZE];
     static mut main_loop: Loop;
 
