@@ -61,8 +61,10 @@ DLLEXPORT void ui_client_event__set_restart_on_crash_exit(Array args);
 DLLEXPORT void ui_client_attach_to_restarted_server(bool error_restart);
 DLLEXPORT void ui_client_event_error_exit(Array args);
 DLLEXPORT void ui_client_free_all_mem(void);
+DLLEXPORT HlAttrs ui_client_dict2hlattrs(Dict d, bool rgb);
+DLLEXPORT UIClientHandler ui_client_get_redraw_handler(const char *name, size_t name_len,
+                                                       Error *error);
 
 // uncrustify:off
-# include "ui_client.h.generated.h"
 # include "ui_events_client.h.generated.h"
 // uncrustify:on

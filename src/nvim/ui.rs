@@ -257,21 +257,53 @@ unsafe extern "C" {
     ) -> Object;
     fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimString, value: Object);
     fn remote_ui_event(ui: *mut RemoteUI, name: *mut c_char, args: Array);
-
-    fn ui_call_option_set(name: NvimString, value: Object);
-    fn ui_call_default_colors_set(
+    fn remote_ui_mode_info_set(ui: *mut RemoteUI, enabled: bool, cursor_styles: Array);
+    fn remote_ui_update_menu(ui: *mut RemoteUI);
+    fn remote_ui_busy_start(ui: *mut RemoteUI);
+    fn remote_ui_busy_stop(ui: *mut RemoteUI);
+    fn remote_ui_mouse_on(ui: *mut RemoteUI);
+    fn remote_ui_mouse_off(ui: *mut RemoteUI);
+    fn remote_ui_mode_change(ui: *mut RemoteUI, mode: NvimString, mode_idx: Integer);
+    fn remote_ui_bell(ui: *mut RemoteUI);
+    fn remote_ui_visual_bell(ui: *mut RemoteUI);
+    fn remote_ui_flush(ui: *mut RemoteUI);
+    fn remote_ui_suspend(ui: *mut RemoteUI);
+    fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimString);
+    fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString);
+    fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimString);
+    fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString);
+    fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimString);
+    fn remote_ui_default_colors_set(
+        ui: *mut RemoteUI,
         rgb_fg: Integer,
         rgb_bg: Integer,
         rgb_sp: Integer,
         cterm_fg: Integer,
         cterm_bg: Integer,
     );
-    fn ui_call_busy_start();
-    fn ui_call_busy_stop();
-    fn ui_call_visual_bell();
-    fn ui_call_bell();
-    fn ui_call_chdir(path: NvimString);
-    fn ui_call_raw_line(
+    fn remote_ui_hl_attr_define(
+        ui: *mut RemoteUI,
+        id: Integer,
+        rgb_attrs: crate::map::HlAttrs,
+        cterm_attrs: crate::map::HlAttrs,
+        info: Array,
+    );
+    fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: Integer);
+    fn remote_ui_grid_resize(ui: *mut RemoteUI, grid: Integer, width: Integer, height: Integer);
+    fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer);
+    fn remote_ui_grid_cursor_goto(ui: *mut RemoteUI, grid: Integer, row: Integer, col: Integer);
+    fn remote_ui_grid_scroll(
+        ui: *mut RemoteUI,
+        grid: Integer,
+        top: Integer,
+        bot: Integer,
+        left: Integer,
+        right: Integer,
+        rows: Integer,
+        cols: Integer,
+    );
+    fn remote_ui_raw_line(
+        ui: *mut RemoteUI,
         grid: Integer,
         row: Integer,
         startcol: Integer,
@@ -282,12 +314,68 @@ unsafe extern "C" {
         chunk: *const schar_T,
         attrs: *const sattr_T,
     );
-    fn ui_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer);
-    fn ui_call_flush();
-    fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array);
-    fn ui_call_mode_change(mode: NvimString, mode_idx: Integer);
-    fn ui_call_mouse_on();
-    fn ui_call_mouse_off();
+    fn remote_ui_msg_set_pos(
+        ui: *mut RemoteUI,
+        grid: Integer,
+        row: Integer,
+        scrolled: bool,
+        sep_char: NvimString,
+        zindex: Integer,
+        compindex: Integer,
+    );
+    fn remote_ui_win_viewport(
+        ui: *mut RemoteUI,
+        grid: Integer,
+        win: handle_T,
+        topline: Integer,
+        botline: Integer,
+        curline: Integer,
+        curcol: Integer,
+        line_count: Integer,
+        scroll_delta: Integer,
+    );
+    fn remote_ui_win_viewport_margins(
+        ui: *mut RemoteUI,
+        grid: Integer,
+        win: handle_T,
+        top: Integer,
+        bottom: Integer,
+        left: Integer,
+        right: Integer,
+    );
+    fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer);
+    fn remote_ui__set_restart_on_crash_exit(ui: *mut RemoteUI, progpath: NvimString, argv: Array);
+
+    fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer) -> bool;
+    fn ui_comp_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) -> bool;
+    fn ui_comp_grid_scroll(
+        grid: Integer,
+        top: Integer,
+        bot: Integer,
+        left: Integer,
+        right: Integer,
+        rows: Integer,
+        cols: Integer,
+    ) -> bool;
+    fn ui_comp_raw_line(
+        grid: Integer,
+        row: Integer,
+        startcol: Integer,
+        endcol: Integer,
+        clearcol: Integer,
+        clearattr: Integer,
+        flags: c_int,
+        chunk: *const schar_T,
+        attrs: *const sattr_T,
+    );
+    fn ui_comp_msg_set_pos(
+        grid: Integer,
+        row: Integer,
+        scrolled: bool,
+        sep_char: NvimString,
+        zindex: Integer,
+        compindex: Integer,
+    );
 }
 
 #[inline]
@@ -1278,6 +1366,7 @@ static mut UILOG_LAST_EVENT: *const c_char = ptr::null();
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_log(funname: *const c_char) {
+    #[cfg(debug_assertions)]
     unsafe {
         if entered_free_all_mem {
             return;
@@ -1311,4 +1400,1225 @@ pub unsafe extern "C" fn ui_log(funname: *const c_char) {
             UILOG_LAST_EVENT = funname;
         }
     }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = funname;
+    }
+}
+
+const NOARGS_ARRAY: Array = Array {
+    items: ptr::null_mut(),
+    size: 0,
+    capacity: 0,
+};
+
+#[inline]
+const fn str_obj(s: NvimString) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeString,
+        data: ObjectData { string: s },
+    }
+}
+
+#[inline]
+const fn arr_obj(a: Array) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeArray,
+        data: ObjectData { array: a },
+    }
+}
+
+#[inline]
+const fn float_obj(f: f64) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeFloat,
+        data: ObjectData { floating: f },
+    }
+}
+
+#[inline]
+const fn win_obj(w: handle_T) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeWindow,
+        data: ObjectData {
+            integer: w as Integer,
+        },
+    }
+}
+
+#[inline]
+const fn buf_obj(b: handle_T) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBuffer,
+        data: ObjectData {
+            integer: b as Integer,
+        },
+    }
+}
+
+#[inline]
+const fn tab_obj(t: handle_T) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeTabpage,
+        data: ObjectData {
+            integer: t as Integer,
+        },
+    }
+}
+
+macro_rules! ui_call_loop {
+    ($cond:expr, $funname:literal, |$ui:ident| $call:expr) => {
+        unsafe {
+            let mut any_call = false;
+            let uis_ptr = (&raw const uis).cast::<*mut RemoteUI>();
+            for i in 0..ui_count {
+                let $ui = *uis_ptr.add(i);
+                if $cond {
+                    $call;
+                    any_call = true;
+                }
+            }
+            if any_call {
+                ui_log($funname.as_ptr());
+            }
+        }
+    };
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array) {
+    ui_call_loop!(true, c"mode_info_set", |ui| {
+        remote_ui_mode_info_set(ui, enabled, cursor_styles)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_update_menu() {
+    ui_call_loop!(true, c"update_menu", |ui| remote_ui_update_menu(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_busy_start() {
+    ui_call_loop!(true, c"busy_start", |ui| remote_ui_busy_start(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_busy_stop() {
+    ui_call_loop!(true, c"busy_stop", |ui| remote_ui_busy_stop(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_mouse_on() {
+    ui_call_loop!(true, c"mouse_on", |ui| remote_ui_mouse_on(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_mouse_off() {
+    ui_call_loop!(true, c"mouse_off", |ui| remote_ui_mouse_off(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_mode_change(mode: NvimString, mode_idx: Integer) {
+    ui_call_loop!(true, c"mode_change", |ui| {
+        remote_ui_mode_change(ui, mode, mode_idx)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_bell() {
+    ui_call_loop!(true, c"bell", |ui| remote_ui_bell(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_visual_bell() {
+    ui_call_loop!(true, c"visual_bell", |ui| remote_ui_visual_bell(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_flush() {
+    ui_call_loop!(true, c"flush", |ui| remote_ui_flush(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_suspend() {
+    ui_call_loop!(true, c"suspend", |ui| remote_ui_suspend(ui));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_set_title(title: NvimString) {
+    ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_set_icon(icon: NvimString) {
+    ui_call_loop!(true, c"set_icon", |ui| remote_ui_set_icon(ui, icon));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_screenshot(path: NvimString) {
+    ui_call_loop!(true, c"screenshot", |ui| remote_ui_screenshot(ui, path));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_option_set(name: NvimString, value: Object) {
+    ui_call_loop!(true, c"option_set", |ui| {
+        remote_ui_option_set(ui, name, value)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_chdir(path: NvimString) {
+    ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_ui_send(content: NvimString) {
+    ui_call_loop!(true, c"ui_send", |ui| remote_ui_ui_send(ui, content));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_update_fg(fg: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(fg)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"update_fg".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_update_bg(bg: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(bg)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"update_bg".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_update_sp(sp: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(sp)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"update_sp".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_resize(width: Integer, height: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(width), int_obj(height)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        ui_call_event(c"resize".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_clear() {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        ui_call_event(c"clear".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_eol_clear() {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        ui_call_event(c"eol_clear".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cursor_goto(row: Integer, col: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(row), int_obj(col)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        ui_call_event(c"cursor_goto".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_put(str_in: NvimString) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [str_obj(str_in)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"put".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_set_scroll_region(
+    top: Integer,
+    bot: Integer,
+    left: Integer,
+    right: Integer,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(top), int_obj(bot), int_obj(left), int_obj(right)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 4,
+            capacity: 4,
+        };
+        ui_call_event(c"set_scroll_region".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_scroll(count: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(count)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"scroll".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_default_colors_set(
+    rgb_fg: Integer,
+    rgb_bg: Integer,
+    rgb_sp: Integer,
+    cterm_fg: Integer,
+    cterm_bg: Integer,
+) {
+    ui_call_loop!(true, c"default_colors_set", |ui| {
+        remote_ui_default_colors_set(ui, rgb_fg, rgb_bg, rgb_sp, cterm_fg, cterm_bg)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_hl_attr_define(
+    id: Integer,
+    rgb_attrs: crate::map::HlAttrs,
+    cterm_attrs: crate::map::HlAttrs,
+    info: Array,
+) {
+    ui_call_loop!(true, c"hl_attr_define", |ui| {
+        remote_ui_hl_attr_define(ui, id, rgb_attrs, cterm_attrs, info)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_hl_group_set(name: NvimString, id: Integer) {
+    ui_call_loop!(true, c"hl_group_set", |ui| {
+        remote_ui_hl_group_set(ui, name, id)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_grid_resize(grid: Integer, width: Integer, height: Integer) {
+    unsafe {
+        ui_comp_grid_resize(grid, width, height);
+    }
+    ui_call_loop!(!(*ui).composed, c"grid_resize", |ui| {
+        remote_ui_grid_resize(ui, grid, width, height)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_composed_call_grid_resize(
+    grid: Integer,
+    width: Integer,
+    height: Integer,
+) {
+    ui_call_loop!((*ui).composed, c"grid_resize", |ui| {
+        remote_ui_grid_resize(ui, grid, width, height)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_grid_clear(grid: Integer) {
+    ui_call_loop!(true, c"grid_clear", |ui| remote_ui_grid_clear(ui, grid));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) {
+    unsafe {
+        ui_comp_grid_cursor_goto(grid, row, col);
+    }
+    ui_call_loop!(!(*ui).composed, c"grid_cursor_goto", |ui| {
+        remote_ui_grid_cursor_goto(ui, grid, row, col)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_composed_call_grid_cursor_goto(
+    grid: Integer,
+    row: Integer,
+    col: Integer,
+) {
+    ui_call_loop!((*ui).composed, c"grid_cursor_goto", |ui| {
+        remote_ui_grid_cursor_goto(ui, grid, row, col)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_grid_line(
+    grid: Integer,
+    row: Integer,
+    col_start: Integer,
+    data: Array,
+    wrap: bool,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            int_obj(grid),
+            int_obj(row),
+            int_obj(col_start),
+            arr_obj(data),
+            bool_obj(wrap),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 5,
+            capacity: 5,
+        };
+        ui_call_event(c"grid_line".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_grid_scroll(
+    grid: Integer,
+    top: Integer,
+    bot: Integer,
+    left: Integer,
+    right: Integer,
+    rows: Integer,
+    cols: Integer,
+) {
+    unsafe {
+        ui_comp_grid_scroll(grid, top, bot, left, right, rows, cols);
+    }
+    ui_call_loop!(!(*ui).composed, c"grid_scroll", |ui| {
+        remote_ui_grid_scroll(ui, grid, top, bot, left, right, rows, cols)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_composed_call_grid_scroll(
+    grid: Integer,
+    top: Integer,
+    bot: Integer,
+    left: Integer,
+    right: Integer,
+    rows: Integer,
+    cols: Integer,
+) {
+    ui_call_loop!((*ui).composed, c"grid_scroll", |ui| {
+        remote_ui_grid_scroll(ui, grid, top, bot, left, right, rows, cols)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_grid_destroy(grid: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(grid)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"grid_destroy".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_raw_line(
+    grid: Integer,
+    row: Integer,
+    startcol: Integer,
+    endcol: Integer,
+    clearcol: Integer,
+    clearattr: Integer,
+    flags: c_int,
+    chunk: *const schar_T,
+    attrs: *const sattr_T,
+) {
+    unsafe {
+        ui_comp_raw_line(
+            grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
+        );
+    }
+    ui_call_loop!(!(*ui).composed, c"raw_line", |ui| {
+        remote_ui_raw_line(
+            ui, grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
+        )
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_composed_call_raw_line(
+    grid: Integer,
+    row: Integer,
+    startcol: Integer,
+    endcol: Integer,
+    clearcol: Integer,
+    clearattr: Integer,
+    flags: c_int,
+    chunk: *const schar_T,
+    attrs: *const sattr_T,
+) {
+    ui_call_loop!((*ui).composed, c"raw_line", |ui| {
+        remote_ui_raw_line(
+            ui, grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
+        )
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_pos(
+    grid: Integer,
+    win: handle_T,
+    startrow: Integer,
+    startcol: Integer,
+    width: Integer,
+    height: Integer,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            int_obj(grid),
+            win_obj(win),
+            int_obj(startrow),
+            int_obj(startcol),
+            int_obj(width),
+            int_obj(height),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 6,
+            capacity: 6,
+        };
+        ui_call_event(c"win_pos".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_float_pos(
+    grid: Integer,
+    win: handle_T,
+    anchor: NvimString,
+    anchor_grid: Integer,
+    anchor_row: f64,
+    anchor_col: f64,
+    mouse_enabled: bool,
+    zindex: Integer,
+    compindex: Integer,
+    screen_row: Integer,
+    screen_col: Integer,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            int_obj(grid),
+            win_obj(win),
+            str_obj(anchor),
+            int_obj(anchor_grid),
+            float_obj(anchor_row),
+            float_obj(anchor_col),
+            bool_obj(mouse_enabled),
+            int_obj(zindex),
+            int_obj(compindex),
+            int_obj(screen_row),
+            int_obj(screen_col),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 11,
+            capacity: 11,
+        };
+        ui_call_event(c"win_float_pos".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(grid), win_obj(win)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        ui_call_event(c"win_external_pos".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_hide(grid: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(grid)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"win_hide".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_close(grid: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(grid)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"win_close".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_set_pos(
+    grid: Integer,
+    row: Integer,
+    scrolled: bool,
+    sep_char: NvimString,
+    zindex: Integer,
+    compindex: Integer,
+) {
+    unsafe {
+        ui_comp_msg_set_pos(grid, row, scrolled, sep_char, zindex, compindex);
+    }
+    ui_call_loop!(!(*ui).composed, c"msg_set_pos", |ui| {
+        remote_ui_msg_set_pos(ui, grid, row, scrolled, sep_char, zindex, compindex)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_composed_call_msg_set_pos(
+    grid: Integer,
+    row: Integer,
+    scrolled: bool,
+    sep_char: NvimString,
+    zindex: Integer,
+    compindex: Integer,
+) {
+    ui_call_loop!((*ui).composed, c"msg_set_pos", |ui| {
+        remote_ui_msg_set_pos(ui, grid, row, scrolled, sep_char, zindex, compindex)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_viewport(
+    grid: Integer,
+    win: handle_T,
+    topline: Integer,
+    botline: Integer,
+    curline: Integer,
+    curcol: Integer,
+    line_count: Integer,
+    scroll_delta: Integer,
+) {
+    ui_call_loop!(true, c"win_viewport", |ui| {
+        remote_ui_win_viewport(
+            ui,
+            grid,
+            win,
+            topline,
+            botline,
+            curline,
+            curcol,
+            line_count,
+            scroll_delta,
+        )
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_viewport_margins(
+    grid: Integer,
+    win: handle_T,
+    top: Integer,
+    bottom: Integer,
+    left: Integer,
+    right: Integer,
+) {
+    ui_call_loop!(true, c"win_viewport_margins", |ui| {
+        remote_ui_win_viewport_margins(ui, grid, win, top, bottom, left, right)
+    });
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_win_extmark(
+    grid: Integer,
+    win: handle_T,
+    ns_id: Integer,
+    mark_id: Integer,
+    row: Integer,
+    col: Integer,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            int_obj(grid),
+            win_obj(win),
+            int_obj(ns_id),
+            int_obj(mark_id),
+            int_obj(row),
+            int_obj(col),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 6,
+            capacity: 6,
+        };
+        ui_call_event(c"win_extmark".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_popupmenu_show(
+    items_arr: Array,
+    selected: Integer,
+    row: Integer,
+    col: Integer,
+    grid: Integer,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            arr_obj(items_arr),
+            int_obj(selected),
+            int_obj(row),
+            int_obj(col),
+            int_obj(grid),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 5,
+            capacity: 5,
+        };
+        ui_call_event(c"popupmenu_show".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_popupmenu_hide() {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        ui_call_event(c"popupmenu_hide".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_popupmenu_select(selected: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(selected)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"popupmenu_select".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_tabline_update(
+    current: handle_T,
+    tabs: Array,
+    current_buffer: handle_T,
+    buffers: Array,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            tab_obj(current),
+            arr_obj(tabs),
+            buf_obj(current_buffer),
+            arr_obj(buffers),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 4,
+            capacity: 4,
+        };
+        ui_call_event(c"tabline_update".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_show(
+    content: Array,
+    pos: Integer,
+    firstc: NvimString,
+    prompt: NvimString,
+    indent: Integer,
+    level: Integer,
+    hl_id: Integer,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            arr_obj(content),
+            int_obj(pos),
+            str_obj(firstc),
+            str_obj(prompt),
+            int_obj(indent),
+            int_obj(level),
+            int_obj(hl_id),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 7,
+            capacity: 7,
+        };
+        ui_call_event(c"cmdline_show".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(pos), int_obj(level)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        ui_call_event(c"cmdline_pos".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_special_char(c: NvimString, shift: bool, level: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [str_obj(c), bool_obj(shift), int_obj(level)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 3,
+            capacity: 3,
+        };
+        ui_call_event(c"cmdline_special_char".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_hide(level: Integer, abort: bool) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(level), bool_obj(abort)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        ui_call_event(c"cmdline_hide".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_block_show(lines: Array) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(lines)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"cmdline_block_show".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_block_append(lines: Array) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(lines)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"cmdline_block_append".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_cmdline_block_hide() {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        ui_call_event(c"cmdline_block_hide".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_wildmenu_show(items_arr: Array) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(items_arr)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"wildmenu_show".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_wildmenu_select(selected: Integer) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [int_obj(selected)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"wildmenu_select".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_wildmenu_hide() {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        ui_call_event(c"wildmenu_hide".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_show(
+    kind: NvimString,
+    content: Array,
+    replace_last: bool,
+    history: bool,
+    append: bool,
+    id: Object,
+    trigger: NvimString,
+) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [
+            str_obj(kind),
+            arr_obj(content),
+            bool_obj(replace_last),
+            bool_obj(history),
+            bool_obj(append),
+            id,
+            str_obj(trigger),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 7,
+            capacity: 7,
+        };
+        ui_call_event(c"msg_show".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_clear() {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        ui_call_event(c"msg_clear".as_ptr().cast_mut(), NOARGS_ARRAY);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_showcmd(content: Array) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(content)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"msg_showcmd".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_showmode(content: Array) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(content)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"msg_showmode".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_ruler(content: Array) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(content)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        ui_call_event(c"msg_ruler".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
+    static mut ENTERED: bool = false;
+    unsafe {
+        if ENTERED {
+            return;
+        }
+        ENTERED = true;
+        let mut items = [arr_obj(entries), bool_obj(prev_cmd)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        ui_call_event(c"msg_history_show".as_ptr().cast_mut(), args);
+        ENTERED = false;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call_error_exit(status: Integer) {
+    ui_call_loop!(true, c"error_exit", |ui| remote_ui_error_exit(ui, status));
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_call__set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
+    ui_call_loop!(true, c"_set_restart_on_crash_exit", |ui| {
+        remote_ui__set_restart_on_crash_exit(ui, progpath, argv)
+    });
 }

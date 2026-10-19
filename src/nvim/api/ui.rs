@@ -1564,3 +1564,299 @@ pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _er
         ui_call_ui_send(content);
     }
 }
+
+#[inline]
+const fn win_obj(w: handle_T) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeWindow,
+        data: ObjectData {
+            integer: w as Integer,
+        },
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_mode_info_set(
+    ui: *mut RemoteUI,
+    enabled: Boolean,
+    cursor_styles: Array,
+) {
+    unsafe {
+        let mut items = [bool_obj(enabled), arr_obj(cursor_styles)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        push_call(ui, c"mode_info_set".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_update_menu(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"update_menu".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_busy_start(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"busy_start".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_busy_stop(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"busy_stop".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_mouse_on(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"mouse_on".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_mouse_off(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"mouse_off".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_mode_change(
+    ui: *mut RemoteUI,
+    mode: NvimString,
+    mode_idx: Integer,
+) {
+    unsafe {
+        let mut items = [str_obj(mode), int_obj(mode_idx)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        push_call(ui, c"mode_change".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_bell(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"bell".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_visual_bell(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"visual_bell".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_suspend(ui: *mut RemoteUI) {
+    unsafe {
+        push_call(ui, c"suspend".as_ptr(), ARRAY_INIT);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_set_title(ui: *mut RemoteUI, title: NvimString) {
+    unsafe {
+        let mut items = [str_obj(title)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        push_call(ui, c"set_title".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_set_icon(ui: *mut RemoteUI, icon: NvimString) {
+    unsafe {
+        let mut items = [str_obj(icon)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        push_call(ui, c"set_icon".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_screenshot(ui: *mut RemoteUI, path: NvimString) {
+    unsafe {
+        let mut items = [str_obj(path)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        push_call(ui, c"screenshot".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_option_set(ui: *mut RemoteUI, name: NvimString, value: Object) {
+    unsafe {
+        let mut items = [str_obj(name), value];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        push_call(ui, c"option_set".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_chdir(ui: *mut RemoteUI, path: NvimString) {
+    unsafe {
+        let mut items = [str_obj(path)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        push_call(ui, c"chdir".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_hl_group_set(ui: *mut RemoteUI, name: NvimString, id: Integer) {
+    unsafe {
+        let mut items = [str_obj(name), int_obj(id)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        push_call(ui, c"hl_group_set".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_msg_set_pos(
+    ui: *mut RemoteUI,
+    grid: Integer,
+    row: Integer,
+    scrolled: Boolean,
+    sep_char: NvimString,
+    zindex: Integer,
+    compindex: Integer,
+) {
+    unsafe {
+        let mut items = [
+            int_obj(grid),
+            int_obj(row),
+            bool_obj(scrolled),
+            str_obj(sep_char),
+            int_obj(zindex),
+            int_obj(compindex),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 6,
+            capacity: 6,
+        };
+        push_call(ui, c"msg_set_pos".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_win_viewport(
+    ui: *mut RemoteUI,
+    grid: Integer,
+    win: handle_T,
+    topline: Integer,
+    botline: Integer,
+    curline: Integer,
+    curcol: Integer,
+    line_count: Integer,
+    scroll_delta: Integer,
+) {
+    unsafe {
+        let mut items = [
+            int_obj(grid),
+            win_obj(win),
+            int_obj(topline),
+            int_obj(botline),
+            int_obj(curline),
+            int_obj(curcol),
+            int_obj(line_count),
+            int_obj(scroll_delta),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 8,
+            capacity: 8,
+        };
+        push_call(ui, c"win_viewport".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_win_viewport_margins(
+    ui: *mut RemoteUI,
+    grid: Integer,
+    win: handle_T,
+    top: Integer,
+    bottom: Integer,
+    left: Integer,
+    right: Integer,
+) {
+    unsafe {
+        let mut items = [
+            int_obj(grid),
+            win_obj(win),
+            int_obj(top),
+            int_obj(bottom),
+            int_obj(left),
+            int_obj(right),
+        ];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 6,
+            capacity: 6,
+        };
+        push_call(ui, c"win_viewport_margins".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer) {
+    unsafe {
+        let mut items = [int_obj(status)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        push_call(ui, c"error_exit".as_ptr(), args);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn remote_ui__set_restart_on_crash_exit(
+    ui: *mut RemoteUI,
+    progpath: NvimString,
+    argv: Array,
+) {
+    unsafe {
+        let mut items = [str_obj(progpath), arr_obj(argv)];
+        let args = Array {
+            items: items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        push_call(ui, c"_set_restart_on_crash_exit".as_ptr(), args);
+    }
+}

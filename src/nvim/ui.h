@@ -59,9 +59,9 @@ DLLEXPORT void ui_grid_resize(handle_T grid_handle, int width, int height, Error
 DLLEXPORT void ui_call_event(char *name, Array args);
 DLLEXPORT void ui_add_cb(uint32_t ns_id, LuaRef cb, bool *ext_widgets);
 DLLEXPORT void ui_remove_cb(uint32_t ns_id, bool checkerr);
+DLLEXPORT void ui_log(const char *funname);
 
 // uncrustify:off
-#include "ui.h.generated.h"
 #include "ui_events_call.h.generated.h"
 EXTERN Array noargs INIT(= ARRAY_DICT_INIT);
 // uncrustify:on

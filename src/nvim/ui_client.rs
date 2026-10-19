@@ -502,7 +502,7 @@ pub unsafe extern "C" fn ui_client_event_grid_resize(args: Array) {
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
-pub unsafe extern "C" fn ui_client_event_grid_line(_args: Array) -> ! {
+pub unsafe extern "C" fn ui_client_event_grid_line(_args: Array) {
     std::process::abort()
 }
 
@@ -769,8 +769,544 @@ pub struct UIClientHandler {
 }
 
 unsafe extern "C" {
-    fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int;
-    fn ui_client_get_redraw_handler_at(hash: c_int) -> UIClientHandler;
+    fn tui_mode_info_set(tui: *mut TUIData, enabled: bool, cursor_styles: Array);
+    fn tui_update_menu(tui: *mut TUIData);
+    fn tui_busy_start(tui: *mut TUIData);
+    fn tui_busy_stop(tui: *mut TUIData);
+    fn tui_mouse_on(tui: *mut TUIData);
+    fn tui_mouse_off(tui: *mut TUIData);
+    fn tui_mode_change(
+        tui: *mut TUIData,
+        mode: crate::map_glyph_cache::NvimString,
+        mode_idx: Integer,
+    );
+    fn tui_bell(tui: *mut TUIData);
+    fn tui_visual_bell(tui: *mut TUIData);
+    fn tui_flush(tui: *mut TUIData);
+    fn tui_suspend(tui: *mut TUIData);
+    fn tui_set_title(tui: *mut TUIData, title: crate::map_glyph_cache::NvimString);
+    fn tui_set_icon(tui: *mut TUIData, icon: crate::map_glyph_cache::NvimString);
+    fn tui_screenshot(tui: *mut TUIData, path: crate::map_glyph_cache::NvimString);
+    fn tui_option_set(tui: *mut TUIData, name: crate::map_glyph_cache::NvimString, value: Object);
+    fn tui_chdir(tui: *mut TUIData, path: crate::map_glyph_cache::NvimString);
+    fn tui_ui_send(tui: *mut TUIData, content: crate::map_glyph_cache::NvimString);
+    fn tui_default_colors_set(
+        tui: *mut TUIData,
+        rgb_fg: Integer,
+        rgb_bg: Integer,
+        rgb_sp: Integer,
+        cterm_fg: Integer,
+        cterm_bg: Integer,
+    );
+    fn tui_hl_attr_define(
+        tui: *mut TUIData,
+        id: Integer,
+        rgb_attrs: HlAttrs,
+        cterm_attrs: HlAttrs,
+        info: Array,
+    );
+    fn tui_grid_clear(tui: *mut TUIData, grid: Integer);
+    fn tui_grid_cursor_goto(tui: *mut TUIData, grid: Integer, row: Integer, col: Integer);
+    fn tui_grid_scroll(
+        tui: *mut TUIData,
+        grid: Integer,
+        top: Integer,
+        bot: Integer,
+        left: Integer,
+        right: Integer,
+        rows: Integer,
+        cols: Integer,
+    );
+}
+
+unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
+    unsafe {
+        logmsg(
+            LOGLVL_ERR,
+            ptr::null(),
+            func_name,
+            0,
+            true,
+            c"Error handling ui event '%s'".as_ptr(),
+            ev_name,
+        );
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_mode_info_set(args: Array) {
+    unsafe {
+        if args.size < 2
+            || (*args.items).obj_type != ObjectType::kObjectTypeBoolean
+            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeArray
+        {
+            log_ui_event_err(
+                c"ui_client_event_mode_info_set".as_ptr(),
+                c"mode_info_set".as_ptr(),
+            );
+            return;
+        }
+        tui_mode_info_set(
+            tui,
+            (*args.items).data.boolean,
+            (*args.items.add(1)).data.array,
+        );
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_update_menu(_args: Array) {
+    unsafe {
+        tui_update_menu(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_busy_start(_args: Array) {
+    unsafe {
+        tui_busy_start(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_busy_stop(_args: Array) {
+    unsafe {
+        tui_busy_stop(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_mouse_on(_args: Array) {
+    unsafe {
+        tui_mouse_on(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_mouse_off(_args: Array) {
+    unsafe {
+        tui_mouse_off(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_mode_change(args: Array) {
+    unsafe {
+        if args.size < 2
+            || (*args.items).obj_type != ObjectType::kObjectTypeString
+            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+        {
+            log_ui_event_err(
+                c"ui_client_event_mode_change".as_ptr(),
+                c"mode_change".as_ptr(),
+            );
+            return;
+        }
+        tui_mode_change(
+            tui,
+            (*args.items).data.string,
+            (*args.items.add(1)).data.integer,
+        );
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_bell(_args: Array) {
+    unsafe {
+        tui_bell(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_visual_bell(_args: Array) {
+    unsafe {
+        tui_visual_bell(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_flush(_args: Array) {
+    unsafe {
+        tui_flush(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_suspend(_args: Array) {
+    unsafe {
+        tui_suspend(tui);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_set_title(args: Array) {
+    unsafe {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+            log_ui_event_err(c"ui_client_event_set_title".as_ptr(), c"set_title".as_ptr());
+            return;
+        }
+        tui_set_title(tui, (*args.items).data.string);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_set_icon(args: Array) {
+    unsafe {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+            log_ui_event_err(c"ui_client_event_set_icon".as_ptr(), c"set_icon".as_ptr());
+            return;
+        }
+        tui_set_icon(tui, (*args.items).data.string);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_screenshot(args: Array) {
+    unsafe {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+            log_ui_event_err(
+                c"ui_client_event_screenshot".as_ptr(),
+                c"screenshot".as_ptr(),
+            );
+            return;
+        }
+        tui_screenshot(tui, (*args.items).data.string);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_option_set(args: Array) {
+    unsafe {
+        if args.size < 2 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+            log_ui_event_err(
+                c"ui_client_event_option_set".as_ptr(),
+                c"option_set".as_ptr(),
+            );
+            return;
+        }
+        tui_option_set(tui, (*args.items).data.string, *args.items.add(1));
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_chdir(args: Array) {
+    unsafe {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+            log_ui_event_err(c"ui_client_event_chdir".as_ptr(), c"chdir".as_ptr());
+            return;
+        }
+        tui_chdir(tui, (*args.items).data.string);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_ui_send(args: Array) {
+    unsafe {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeString {
+            log_ui_event_err(c"ui_client_event_ui_send".as_ptr(), c"ui_send".as_ptr());
+            return;
+        }
+        tui_ui_send(tui, (*args.items).data.string);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_default_colors_set(args: Array) {
+    unsafe {
+        if args.size < 5
+            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(3)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(4)).obj_type != ObjectType::kObjectTypeInteger
+        {
+            log_ui_event_err(
+                c"ui_client_event_default_colors_set".as_ptr(),
+                c"default_colors_set".as_ptr(),
+            );
+            return;
+        }
+        tui_default_colors_set(
+            tui,
+            (*args.items).data.integer,
+            (*args.items.add(1)).data.integer,
+            (*args.items.add(2)).data.integer,
+            (*args.items.add(3)).data.integer,
+            (*args.items.add(4)).data.integer,
+        );
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_hl_attr_define(args: Array) {
+    unsafe {
+        if args.size < 4
+            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeDict
+            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeDict
+            || (*args.items.add(3)).obj_type != ObjectType::kObjectTypeArray
+        {
+            log_ui_event_err(
+                c"ui_client_event_hl_attr_define".as_ptr(),
+                c"hl_attr_define".as_ptr(),
+            );
+            return;
+        }
+        let arg_1 = (*args.items).data.integer;
+        let arg_2 = ui_client_dict2hlattrs((*args.items.add(1)).data.dict, true);
+        let arg_3 = ui_client_dict2hlattrs((*args.items.add(2)).data.dict, false);
+        let arg_4 = (*args.items.add(3)).data.array;
+        tui_hl_attr_define(tui, arg_1, arg_2, arg_3, arg_4);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_grid_clear(args: Array) {
+    unsafe {
+        if args.size < 1 || (*args.items).obj_type != ObjectType::kObjectTypeInteger {
+            log_ui_event_err(
+                c"ui_client_event_grid_clear".as_ptr(),
+                c"grid_clear".as_ptr(),
+            );
+            return;
+        }
+        tui_grid_clear(tui, (*args.items).data.integer);
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_grid_cursor_goto(args: Array) {
+    unsafe {
+        if args.size < 3
+            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
+        {
+            log_ui_event_err(
+                c"ui_client_event_grid_cursor_goto".as_ptr(),
+                c"grid_cursor_goto".as_ptr(),
+            );
+            return;
+        }
+        tui_grid_cursor_goto(
+            tui,
+            (*args.items).data.integer,
+            (*args.items.add(1)).data.integer,
+            (*args.items.add(2)).data.integer,
+        );
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_event_grid_scroll(args: Array) {
+    unsafe {
+        if args.size < 7
+            || (*args.items).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(1)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(2)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(3)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(4)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(5)).obj_type != ObjectType::kObjectTypeInteger
+            || (*args.items.add(6)).obj_type != ObjectType::kObjectTypeInteger
+        {
+            log_ui_event_err(
+                c"ui_client_event_grid_scroll".as_ptr(),
+                c"grid_scroll".as_ptr(),
+            );
+            return;
+        }
+        tui_grid_scroll(
+            tui,
+            (*args.items).data.integer,
+            (*args.items.add(1)).data.integer,
+            (*args.items.add(2)).data.integer,
+            (*args.items.add(3)).data.integer,
+            (*args.items.add(4)).data.integer,
+            (*args.items.add(5)).data.integer,
+            (*args.items.add(6)).data.integer,
+        );
+    }
+}
+
+const EVENT_HANDLERS: [UIClientHandler; 28] = [
+    UIClientHandler {
+        name: c"bell".as_ptr(),
+        r#fn: Some(ui_client_event_bell),
+    },
+    UIClientHandler {
+        name: c"chdir".as_ptr(),
+        r#fn: Some(ui_client_event_chdir),
+    },
+    UIClientHandler {
+        name: c"flush".as_ptr(),
+        r#fn: Some(ui_client_event_flush),
+    },
+    UIClientHandler {
+        name: c"connect".as_ptr(),
+        r#fn: Some(ui_client_event_connect),
+    },
+    UIClientHandler {
+        name: c"restart".as_ptr(),
+        r#fn: Some(ui_client_event_restart),
+    },
+    UIClientHandler {
+        name: c"suspend".as_ptr(),
+        r#fn: Some(ui_client_event_suspend),
+    },
+    UIClientHandler {
+        name: c"ui_send".as_ptr(),
+        r#fn: Some(ui_client_event_ui_send),
+    },
+    UIClientHandler {
+        name: c"mouse_on".as_ptr(),
+        r#fn: Some(ui_client_event_mouse_on),
+    },
+    UIClientHandler {
+        name: c"set_icon".as_ptr(),
+        r#fn: Some(ui_client_event_set_icon),
+    },
+    UIClientHandler {
+        name: c"busy_stop".as_ptr(),
+        r#fn: Some(ui_client_event_busy_stop),
+    },
+    UIClientHandler {
+        name: c"grid_line".as_ptr(),
+        r#fn: Some(ui_client_event_grid_line),
+    },
+    UIClientHandler {
+        name: c"mouse_off".as_ptr(),
+        r#fn: Some(ui_client_event_mouse_off),
+    },
+    UIClientHandler {
+        name: c"set_title".as_ptr(),
+        r#fn: Some(ui_client_event_set_title),
+    },
+    UIClientHandler {
+        name: c"busy_start".as_ptr(),
+        r#fn: Some(ui_client_event_busy_start),
+    },
+    UIClientHandler {
+        name: c"error_exit".as_ptr(),
+        r#fn: Some(ui_client_event_error_exit),
+    },
+    UIClientHandler {
+        name: c"grid_clear".as_ptr(),
+        r#fn: Some(ui_client_event_grid_clear),
+    },
+    UIClientHandler {
+        name: c"option_set".as_ptr(),
+        r#fn: Some(ui_client_event_option_set),
+    },
+    UIClientHandler {
+        name: c"screenshot".as_ptr(),
+        r#fn: Some(ui_client_event_screenshot),
+    },
+    UIClientHandler {
+        name: c"mode_change".as_ptr(),
+        r#fn: Some(ui_client_event_mode_change),
+    },
+    UIClientHandler {
+        name: c"update_menu".as_ptr(),
+        r#fn: Some(ui_client_event_update_menu),
+    },
+    UIClientHandler {
+        name: c"visual_bell".as_ptr(),
+        r#fn: Some(ui_client_event_visual_bell),
+    },
+    UIClientHandler {
+        name: c"grid_resize".as_ptr(),
+        r#fn: Some(ui_client_event_grid_resize),
+    },
+    UIClientHandler {
+        name: c"grid_scroll".as_ptr(),
+        r#fn: Some(ui_client_event_grid_scroll),
+    },
+    UIClientHandler {
+        name: c"mode_info_set".as_ptr(),
+        r#fn: Some(ui_client_event_mode_info_set),
+    },
+    UIClientHandler {
+        name: c"hl_attr_define".as_ptr(),
+        r#fn: Some(ui_client_event_hl_attr_define),
+    },
+    UIClientHandler {
+        name: c"grid_cursor_goto".as_ptr(),
+        r#fn: Some(ui_client_event_grid_cursor_goto),
+    },
+    UIClientHandler {
+        name: c"default_colors_set".as_ptr(),
+        r#fn: Some(ui_client_event_default_colors_set),
+    },
+    UIClientHandler {
+        name: c"_set_restart_on_crash_exit".as_ptr(),
+        r#fn: Some(ui_client_event__set_restart_on_crash_exit),
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
+    if str_in.is_null() {
+        return -1;
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(str_in.cast::<u8>(), len) };
+    let low: isize = match len {
+        4 => 0,
+        5 => match bytes[0] {
+            b'c' => 1,
+            b'f' => 2,
+            _ => -1,
+        },
+        7 => match bytes[0] {
+            b'c' => 3,
+            b'r' => 4,
+            b's' => 5,
+            b'u' => 6,
+            _ => -1,
+        },
+        8 => match bytes[0] {
+            b'm' => 7,
+            b's' => 8,
+            _ => -1,
+        },
+        9 => match bytes[0] {
+            b'b' => 9,
+            b'g' => 10,
+            b'm' => 11,
+            b's' => 12,
+            _ => -1,
+        },
+        10 => match bytes[0] {
+            b'b' => 13,
+            b'e' => 14,
+            b'g' => 15,
+            b'o' => 16,
+            b's' => 17,
+            _ => -1,
+        },
+        11 => match bytes[5] {
+            b'c' => 18,
+            b'e' => 19,
+            b'l' => 20,
+            b'r' => 21,
+            b's' => 22,
+            _ => -1,
+        },
+        13 => 23,
+        14 => 24,
+        16 => 25,
+        18 => 26,
+        26 => 27,
+        _ => -1,
+    };
+    if low < 0 {
+        return -1;
+    }
+    let target =
+        unsafe { std::slice::from_raw_parts(EVENT_HANDLERS[low as usize].name.cast::<u8>(), len) };
+    if bytes != target {
+        return -1;
+    }
+    low as c_int
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -787,6 +1323,6 @@ pub unsafe extern "C" fn ui_client_get_redraw_handler(
                 r#fn: None,
             };
         }
-        ui_client_get_redraw_handler_at(hash)
+        EVENT_HANDLERS[hash as usize]
     }
 }

@@ -25,6 +25,9 @@ typedef struct {
 
 int vim_vsnprintf_typval_rs(char *str, size_t str_m, const char *fmt, void *va_ptr,
                             typval_T *const tvs);
+long long va_state_llong(void *va_ptr);  // NOLINT(runtime/int)
+unsigned long va_state_ulong(void *va_ptr);  // NOLINT(runtime/int)
+unsigned long long va_state_ullong(void *va_ptr);  // NOLINT(runtime/int)
 
 void va_state_reset(void *va_ptr)
 {
