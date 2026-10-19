@@ -18,6 +18,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::buffer::buf_ensure_loaded;
 #[allow(unused_imports)]
+use crate::buffer::do_buffer;
+#[allow(unused_imports)]
 use crate::change::changed_lines;
 #[allow(unused_imports)]
 use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos};
@@ -65,7 +67,7 @@ use crate::lua::converter::{Boolean, LuaRef};
 use crate::map_glyph_cache::NvimString;
 use crate::marktree::kMTMetaLines;
 use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz, xfree, xmemdupz};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::Integer;
 
 pub type linenr_T = i32;
 pub type colnr_T = c_int;
@@ -188,13 +190,6 @@ unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn memchrsub(data: *mut c_char, c: c_char, x: c_char, len: usize);
-    fn do_buffer(
-        action: c_int,
-        start: c_int,
-        dir: Direction,
-        count: handle_T,
-        forceit: c_int,
-    ) -> c_int;
 }
 
 unsafe extern "C-unwind" {

@@ -48,6 +48,8 @@ use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
 use crate::normal::end_visual_mode;
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
@@ -361,12 +363,6 @@ static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
     fn qsort(

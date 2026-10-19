@@ -32,6 +32,8 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, expr_map_locked};
 #[allow(unused_imports)]
 use crate::ex_getln::cmdwin_do_action;
@@ -78,12 +80,16 @@ use crate::normal::{
     start_selection,
 };
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{can_bs, get_scrolloff_value, set_iminsert_global};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::syntax::syntax_present;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::ui::{ui_cursor_shape, ui_flush, vim_beep};
 #[allow(unused_imports)]
@@ -374,12 +380,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 
     fn tabstop_at(col: colnr_T, ts: i64, vts: *const c_int, left: bool) -> c_int;
     fn tabstop_count(ts: *const c_int) -> c_int;
@@ -394,10 +394,6 @@ unsafe extern "C" {
         cache: bool,
         infop: *mut c_void,
     ) -> bool;
-
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn ui_has(ext: c_int) -> bool;
 
     fn bt_prompt(buf: *const buf_T) -> bool;
     fn buf_is_empty(buf: *const buf_T) -> bool;

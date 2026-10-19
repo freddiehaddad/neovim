@@ -21,9 +21,13 @@ use crate::buffer::{buf_inc_changedtick, buf_spname, setfname};
 #[allow(unused_imports)]
 use crate::dialog::do_dialog;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_nr;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_clear, tv_dict_add_str_len, tv_list_alloc_ret, tv_list_append_allocated_string,
 };
+#[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
 #[allow(unused_imports)]
 use crate::fileio::{buf_store_file_info, modname};
 #[allow(unused_imports)]
@@ -42,12 +46,18 @@ use crate::message::{
 };
 use crate::message::{semsg, siemsg, smsg};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
+use crate::option::set_option_value_give_err;
+#[allow(unused_imports)]
 use crate::option::{get_fileformat, set_fileformat};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
@@ -332,14 +342,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn set_option_value_give_err(opt_idx: c_int, value: Object, opt_flags: c_int);
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
-
     fn close(fd: c_int) -> c_int;
     fn uv_uptime(uptime: *mut f64) -> c_int;
     #[link_name = "uv_strerror"]
@@ -350,8 +352,6 @@ unsafe extern "C" {
     fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T;
     #[cfg(unix)]
     fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
-
-    fn ui_has(ext: c_int) -> bool;
 
     fn open_buffer(read_stdin: bool, eap: *mut c_void, flags_arg: c_int) -> c_int;
     fn readfile(
@@ -365,10 +365,6 @@ unsafe extern "C" {
         silent: bool,
     ) -> c_int;
 
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
-
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
 }
 
 #[inline]

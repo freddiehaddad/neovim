@@ -23,12 +23,16 @@ use crate::api::ui::{
     remote_ui_win_viewport_margins,
 };
 #[allow(unused_imports)]
+use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_mode_info_set, remote_ui_msg_set_pos};
+#[allow(unused_imports)]
 use crate::buffer::resettitle;
 use crate::cursor_shape::shape_table;
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::api_free_luaref;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref_ctx;
 #[allow(unused_imports)]
 use crate::message::{msg, msg_ext_ui_flush, msg_scroll_flush, msg_source, msg_ui_refresh};
 use crate::message::{msg_schedule_semsg, msg_schedule_semsg_multiline};
@@ -37,6 +41,8 @@ use crate::option::ui_refresh_options;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui_compositor::ui_comp_msg_set_pos;
 #[allow(unused_imports)]
 use crate::ui_compositor::{ui_comp_grid_cursor_goto, ui_comp_grid_resize, ui_comp_grid_scroll};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -179,32 +185,6 @@ unsafe extern "C" {
         err: *mut Error,
     ) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn nlua_call_ref_ctx(
-        fast: bool,
-        ref_: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn remote_ui_mode_info_set(ui: *mut RemoteUI, enabled: bool, cursor_styles: Array);
-    fn remote_ui_hl_attr_define(
-        ui: *mut RemoteUI,
-        id: Integer,
-        rgb_attrs: crate::map::HlAttrs,
-        cterm_attrs: crate::map::HlAttrs,
-        info: Array,
-    );
-    fn remote_ui_msg_set_pos(
-        ui: *mut RemoteUI,
-        grid: Integer,
-        row: Integer,
-        scrolled: bool,
-        sep_char: NvimString,
-        zindex: Integer,
-        compindex: Integer,
-    );
 
     fn ui_comp_raw_line(
         grid: Integer,
@@ -216,14 +196,6 @@ unsafe extern "C" {
         flags: c_int,
         chunk: *const schar_T,
         attrs: *const sattr_T,
-    );
-    fn ui_comp_msg_set_pos(
-        grid: Integer,
-        row: Integer,
-        scrolled: bool,
-        sep_char: NvimString,
-        zindex: Integer,
-        compindex: Integer,
     );
 }
 

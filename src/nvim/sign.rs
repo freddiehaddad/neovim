@@ -28,6 +28,11 @@ use crate::eval::typval::{
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{
+    tv_dict_add_nr, tv_dict_get_number, tv_dict_get_number_def, tv_get_number_chk,
+    tv_list_append_number,
+};
+#[allow(unused_imports)]
 use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::fold::foldOpenCursor;
@@ -186,11 +191,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> i64;
-    fn tv_dict_get_number_def(d: *const dict_T, key: *const c_char, def: c_int) -> i64;
-    fn tv_list_append_number(l: *mut list_T, n: i64);
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
     fn atoi(s: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

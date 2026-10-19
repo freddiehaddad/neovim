@@ -12,6 +12,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
 use crate::message::msg_schedule_semsg;
 #[allow(unused_imports)]
@@ -74,7 +76,6 @@ unsafe extern "C" {
     fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
     fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
     fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *const c_char;
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
     fn fclose(stream: *mut FILE) -> c_int;

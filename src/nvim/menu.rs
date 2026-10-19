@@ -10,7 +10,13 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::autocmd::apply_autocmds;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_bool;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_nr;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_get_string_chk;
 #[allow(unused_imports)]
@@ -29,6 +35,8 @@ use crate::input::ins_typebuf;
 #[allow(unused_imports)]
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::message::str2special_save;
 #[allow(unused_imports)]
 use crate::message::{
     emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
@@ -51,7 +59,7 @@ use crate::charset::{getdigits_int, skipwhite};
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, gchar_cursor};
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::deprecated::pos_T;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::indent::EvalFuncData;
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
@@ -207,20 +215,6 @@ unsafe extern "C" {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
-    fn str2special_save(
-        str: *const c_char,
-        replace_spaces: bool,
-        replace_others: c_int,
-    ) -> *mut c_char;
-    fn apply_autocmds(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;

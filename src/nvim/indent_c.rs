@@ -30,6 +30,8 @@ use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_pos};
 use crate::memory::{xfree, xmalloc, xstrdup};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::skip_to_option_part;
 use crate::option_vars::*;
 use crate::plines::getvcol;
@@ -81,12 +83,6 @@ struct cpp_baseclass_cache_T {
     lpos: lpos_T,
 }
 unsafe extern "C" {
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn strlen(s: *const c_char) -> usize;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

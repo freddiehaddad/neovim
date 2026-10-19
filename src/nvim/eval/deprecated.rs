@@ -15,6 +15,8 @@ use crate::eval::find_job;
 #[allow(unused_imports)]
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_bool;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_get_string;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_alloc, tv_dict_free};
@@ -485,8 +487,6 @@ pub struct buf_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
 
     fn channel_job_start(
         argv: *mut *mut c_char,

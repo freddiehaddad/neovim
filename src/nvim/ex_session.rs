@@ -11,16 +11,24 @@
 )]
 
 #[allow(unused_imports)]
+use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
 use crate::buffer::buflist_findnr;
 #[allow(unused_imports)]
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_get_string;
+#[allow(unused_imports)]
 use crate::eval::vars::get_globvar_dict;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
 use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
 #[allow(unused_imports)]
 use crate::ex_getln::vim_strsave_fnameescape;
+#[allow(unused_imports)]
+use crate::file_search::vim_chdirfile;
 #[allow(unused_imports)]
 use crate::fileio::shorten_fnames;
 #[allow(unused_imports)]
@@ -116,16 +124,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn var_flavour(varname: *mut c_char) -> c_int;
-    fn tv_get_string(tv: *const crate::clipboard::typval_T) -> *const c_char;
-    fn apply_autocmds(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-    fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     fn fwrite(ptr: *const c_void, size: usize, count: usize, stream: *mut FILE) -> usize;

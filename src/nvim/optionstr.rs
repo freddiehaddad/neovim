@@ -36,6 +36,8 @@ use crate::insexpand::set_cpt_callbacks;
 #[allow(unused_imports)]
 use crate::message::{msg_grid_validate, verbose_open, verbose_stop};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{
     did_set_title, fill_culopt_flags, get_fileformat, get_option_default, option_next_keyval,
     option_slice_eq, optval_free_read, parse_winhl_opt, redraw_titles, set_iminsert_global,
@@ -839,12 +841,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 
     fn keymap_init() -> *const c_char;
     fn spell_check_msm(p: *const c_char, do_msg: bool) -> c_int;

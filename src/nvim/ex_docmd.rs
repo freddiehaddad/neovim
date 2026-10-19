@@ -41,6 +41,8 @@ use crate::buffer::{
 #[allow(unused_imports)]
 use crate::channel::channel_event;
 #[allow(unused_imports)]
+use crate::channel::channel_job_start;
+#[allow(unused_imports)]
 use crate::cmdexpand::expand_process_user_list;
 #[allow(unused_imports)]
 use crate::cmdhist::ex_history;
@@ -120,6 +122,8 @@ use crate::quickfix::{
 #[allow(unused_imports)]
 use crate::register::ex_display;
 #[allow(unused_imports)]
+use crate::runtime::estack_sfile;
+#[allow(unused_imports)]
 use crate::runtime::{
     do_finish, ex_finish, ex_options, ex_packadd, ex_packloadall, ex_runtime, ex_scriptencoding,
     ex_scriptnames, ex_source, getsourceline, source_finished, source_runtime,
@@ -171,7 +175,6 @@ use crate::drawscreen::{
     screen_resize, setcursor_mayforce, showmode, status_redraw_all, status_redraw_curbuf,
     update_screen,
 };
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, CallbackReader, EvalFuncData};
 use crate::eval::fs::modify_fname;
 use crate::eval::funcs::create_environment;
@@ -243,7 +246,7 @@ use crate::r#move::{
     update_topline, validate_cursor,
 };
 use crate::msgpack_rpc::channel::{
-    Channel, channel_prefix, channel_stream_ptr, channel_tail, find_channel, rpc_send_call,
+    channel_prefix, channel_stream_ptr, channel_tail, find_channel, rpc_send_call,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::server::server_start;
@@ -881,27 +884,9 @@ unsafe extern "C" {
         copyID: c_int,
     ) -> *mut list_T;
 
-    fn channel_job_start(
-        argv: *mut *mut c_char,
-        exepath: *const c_char,
-        on_stdout: CallbackReader,
-        on_stderr: CallbackReader,
-        on_exit: Callback,
-        pty: bool,
-        rpc: bool,
-        overlapped: bool,
-        detach: bool,
-        stdin_mode: c_int,
-        cwd: *const c_char,
-        pty_width: u16,
-        pty_height: u16,
-        env: *mut dict_T,
-        status_out: *mut varnumber_T,
-    ) -> *mut Channel;
     fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
     fn func_has_ended(cookie: *mut c_void) -> c_int;
     fn get_func_line(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
-    fn estack_sfile(which: c_int) -> *mut c_char;
     fn ex_breakadd(eap: *mut exarg_T);
     fn ex_breakdel(eap: *mut exarg_T);
     fn ex_breaklist(eap: *mut exarg_T);

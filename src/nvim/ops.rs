@@ -32,6 +32,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
 #[allow(unused_imports)]
+use crate::insert::edit;
+#[allow(unused_imports)]
 use crate::insert::{beginline, display_dollar};
 #[allow(unused_imports)]
 use crate::memline::{
@@ -262,7 +264,6 @@ unsafe extern "C" {
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn ml_get_pos_len(pos: *const pos_T) -> colnr_T;
     fn gchar_pos(pos: *const pos_T) -> c_int;
-    fn edit(cmdchar: c_int, startln: bool, count: linenr_T) -> bool;
     fn set_ref_in_callback(
         callback: *mut Callback,
         copyID: c_int,

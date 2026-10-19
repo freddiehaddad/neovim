@@ -11,6 +11,8 @@
 #[allow(unused_imports)]
 use crate::eval::userfunc::{func_tbl_get, get_current_funccal};
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
+#[allow(unused_imports)]
 use crate::fileio::vim_fgets;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -18,6 +20,8 @@ use crate::message::emsg;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::os::env::expand_env_save_opt;
+#[allow(unused_imports)]
+use crate::os::fs::os_fopen;
 use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::runtime::get_scriptname;
@@ -156,8 +160,6 @@ pub struct funccall_T {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn set_vim_var_nr(idx: c_int, val: i64);
-    fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
     fn uv_err_name(err: c_int) -> *const c_char;
 
     fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;

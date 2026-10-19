@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::channel::channel_from_connection;
 #[allow(unused_imports)]
+use crate::eval::vars::get_vim_var_str;
+#[allow(unused_imports)]
 use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
 use crate::globals::*;
 use crate::log::logmsg;
@@ -81,7 +83,6 @@ unsafe extern "C" {
     fn path_to_slash_save(path: *const c_char) -> *mut c_char;
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;

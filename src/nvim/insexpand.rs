@@ -30,6 +30,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, restore_v_event};
+#[allow(unused_imports)]
+use crate::fileio::vim_fgets;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::using_script;
@@ -43,10 +45,14 @@ use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error, msg, msg_clr_cmdline, msg_ext_set_kind};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{can_bs, option_set_callback_func, shortmess};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::vim_regexec;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
@@ -600,20 +606,11 @@ unsafe extern "C" {
         list_stack: *mut *mut c_void,
     ) -> bool;
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::r#match::regprog_T;
-    fn vim_regfree(prog: *mut crate::r#match::regprog_T);
-    fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut crate::fileio::FILE) -> bool;
     fn callback_call_retnr(
         callback: *mut Callback,
         argcount: c_int,
         argvars: *mut typval_T,
     ) -> varnumber_T;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     #[cfg(unix)]
     fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

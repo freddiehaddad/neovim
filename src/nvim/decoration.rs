@@ -24,6 +24,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::{syn_id2attr, syn_id2name};
 #[allow(unused_imports)]
+use crate::indent::tabstop_padding;
+#[allow(unused_imports)]
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
 #[allow(unused_imports)]
 use crate::r#move::{changed_window_setting, win_col_off};
@@ -155,11 +157,6 @@ static mut decor_freelist: u32 = u32::MAX;
 static mut to_free_virt: *mut DecorVirtText = ptr::null_mut();
 static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
-
-unsafe extern "C" {
-
-    fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
-}
 
 #[inline]
 unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {

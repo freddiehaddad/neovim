@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::find_buffer_by_handle;
+#[allow(unused_imports)]
 use crate::cmdexpand::{ExpandCleanup, ExpandInit, ExpandOne, globpath};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -27,11 +29,15 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::userfunc::add_defer;
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
+#[allow(unused_imports)]
 use crate::eval::vars::{prepare_vimvar, restore_vimvar};
 #[allow(unused_imports)]
 use crate::eval::{do_string_sub, eval_expr_typval};
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_chdir;
 #[allow(unused_imports)]
 use crate::ex_docmd::vim_mkdir_emsg;
 #[allow(unused_imports)]
@@ -48,6 +54,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::{expand_env_save, home_replace};
 #[allow(unused_imports)]
+use crate::os::fs::os_fopen;
+#[allow(unused_imports)]
 use crate::os::fs::{
     os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
     os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_getperm, os_isdir, os_mkdir_recurse,
@@ -59,6 +67,8 @@ use crate::path::{
     path_tail, path_tail_with_sep, path_to_slash_save, shorten_dir_len, simplify_filename,
     vim_isAbsName, vim_ispathsep,
 };
+#[allow(unused_imports)]
+use crate::runtime::script_is_lua;
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_shellescape, xstrnsave};
 #[allow(unused_imports)]
@@ -281,10 +291,6 @@ unsafe extern "C" {
 
     fn slash_adjust(p: *mut c_char);
 
-    fn do_chdir(new_dir: *mut c_char, scope: c_int) -> bool;
-    fn find_buffer_by_handle(buffer: c_int, err: *mut Error) -> *mut buf_T;
-
-    fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
     #[cfg(windows)]
     fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
     #[cfg(windows)]
@@ -292,8 +298,6 @@ unsafe extern "C" {
     fn uv_strerror(err: c_int) -> *const c_char;
 
     fn can_add_defer() -> bool;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn script_is_lua(sid: c_int) -> bool;
 
     fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     fn fclose(stream: *mut FILE) -> c_int;

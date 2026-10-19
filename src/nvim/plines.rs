@@ -20,6 +20,8 @@ use crate::fold::{hasFolding, lineFolded};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::indent::get_breakindent_win;
+#[allow(unused_imports)]
+use crate::indent::tabstop_padding;
 use crate::mbyte::utf8len_tab;
 #[allow(unused_imports)]
 use crate::mbyte::{
@@ -113,7 +115,6 @@ pub struct ClusterInfo {
 
 unsafe extern "C" {
 
-    fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
     fn vim_strsize(s: *mut c_char) -> c_int;
     fn decor_virt_lines(
         wp: *mut win_T,

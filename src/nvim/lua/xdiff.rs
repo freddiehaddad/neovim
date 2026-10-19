@@ -12,6 +12,8 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_string};
+#[allow(unused_imports)]
+use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
@@ -150,8 +152,6 @@ unsafe extern "C" {
         arena: *mut c_void,
         err: *mut Error,
     );
-    fn nlua_pushref(lstate: *mut lua_State, ref_id: c_int);
-    fn api_free_luaref(ref_id: c_int);
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 

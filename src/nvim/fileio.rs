@@ -36,7 +36,11 @@ use crate::message::{msg_schedule_semsg, semsg, smsg};
 #[allow(unused_imports)]
 use crate::r#move::update_topline;
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::get_fileformat_force;
+#[allow(unused_imports)]
+use crate::option::set_option_direct;
 #[allow(unused_imports)]
 use crate::option::{
     default_fileformat, get_fileformat, set_fileformat, set_options_bin, shortmess,
@@ -50,6 +54,8 @@ use crate::shada::check_marks_read;
 use crate::strings::{sort_strings, vim_strchr};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -322,15 +328,6 @@ unsafe extern "C" {
         err: bool,
     ) -> *mut c_char;
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn ui_has(ext: c_int) -> bool;
-
-    fn set_option_direct(opt_idx: c_int, val: Object, opt_flags: c_int, set_sid: c_int);
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 
     fn bufIsChanged(buf: *const buf_T) -> bool;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;

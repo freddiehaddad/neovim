@@ -28,6 +28,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_get_number, tv_dict_get_string};
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
+#[allow(unused_imports)]
 use crate::eval::{callback_call, list2fpos};
 #[allow(unused_imports)]
 use crate::ex_cmds::{getfile, prepare_tagpreview};
@@ -52,6 +54,8 @@ use crate::message::{
     verbose_enter, verbose_leave, wait_return,
 };
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::optionstr::free_string_option;
@@ -401,12 +405,6 @@ unsafe extern "C" {
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn do_in_runtimepath(
         name: *mut c_char,
         flags: c_int,
@@ -420,8 +418,6 @@ unsafe extern "C" {
         ht_stack: *mut *mut c_void,
         list_stack: *mut *mut c_void,
     ) -> bool;
-
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
 
     fn do_search(
         oap: *mut c_void,

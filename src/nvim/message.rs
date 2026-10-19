@@ -30,6 +30,8 @@ use crate::runtime::estack_sfile;
 use crate::ui::{
     ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll, ui_call_msg_showmode,
 };
+#[allow(unused_imports)]
+use crate::ui::{ui_call_msg_history_show, ui_call_msg_set_pos, ui_call_msg_show};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
@@ -81,7 +83,6 @@ use crate::keycodes::{
     TAB, get_special_key, is_special, key2termcap0, key2termcap1, keychord, termcap2key,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF};
-use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -301,24 +302,6 @@ unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
     fn strnlen(s: *const c_char, maxlen: usize) -> usize;
 
-    fn ui_call_msg_set_pos(
-        grid: Integer,
-        row: Integer,
-        scrolled: Boolean,
-        sep_char: NvimString,
-        zindex: Integer,
-        compindex: Integer,
-    );
-    fn ui_call_msg_show(
-        kind: NvimString,
-        content: Array,
-        replace_last: Boolean,
-        history: Boolean,
-        append: Boolean,
-        id: Object,
-        trigger: NvimString,
-    );
-    fn ui_call_msg_history_show(entries: Array, prev_cmd: Boolean);
 }
 
 #[macro_export]

@@ -21,6 +21,11 @@ use crate::tui::tui::{
     tui_grid_cursor_goto, tui_grid_scroll, tui_hl_attr_define, tui_mode_info_set, tui_mouse_off,
     tui_mouse_on, tui_suspend, tui_update_menu, tui_visual_bell,
 };
+#[allow(unused_imports)]
+use crate::tui::tui::{
+    tui_chdir, tui_mode_change, tui_option_set, tui_screenshot, tui_set_icon, tui_set_title,
+    tui_ui_send,
+};
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -751,20 +756,6 @@ pub unsafe extern "C" fn ui_client_free_all_mem() {
 pub struct UIClientHandler {
     pub name: *const c_char,
     pub r#fn: Option<unsafe extern "C" fn(args: Array)>,
-}
-
-unsafe extern "C" {
-    fn tui_mode_change(
-        tui: *mut TUIData,
-        mode: crate::map_glyph_cache::NvimString,
-        mode_idx: Integer,
-    );
-    fn tui_set_title(tui: *mut TUIData, title: crate::map_glyph_cache::NvimString);
-    fn tui_set_icon(tui: *mut TUIData, icon: crate::map_glyph_cache::NvimString);
-    fn tui_screenshot(tui: *mut TUIData, path: crate::map_glyph_cache::NvimString);
-    fn tui_option_set(tui: *mut TUIData, name: crate::map_glyph_cache::NvimString, value: Object);
-    fn tui_chdir(tui: *mut TUIData, path: crate::map_glyph_cache::NvimString);
-    fn tui_ui_send(tui: *mut TUIData, content: crate::map_glyph_cache::NvimString);
 }
 
 unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {

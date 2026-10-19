@@ -59,8 +59,12 @@ use crate::eval::vars::opt_to_tv;
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
+use crate::ex_docmd::cmd_has_expr_args;
+#[allow(unused_imports)]
 use crate::ex_docmd::{check_nextcmd, do_cmdline, ends_excmd, set_ref_in_findfunc};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref;
 #[allow(unused_imports)]
 use crate::lua::executor::{
     nlua_is_deferred_safe, nlua_is_table_from_lua, nlua_register_table_as_callable,
@@ -91,6 +95,8 @@ use crate::register::op_global_reg_iter;
 use crate::runtime::{get_scriptname, script_autoload, sourcing_a_script};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr};
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -472,7 +478,6 @@ unsafe extern "C" {
     fn set_ref_in_functions(copyID: c_int) -> bool;
     fn set_ref_in_previous_funccal(copyID: c_int) -> bool;
 
-    fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool;
     fn call_simple_luafunc(func: *const c_char, len: usize, rettv: *mut typval_T) -> c_int;
 }
 
@@ -483,7 +488,6 @@ unsafe extern "C" {
     fn uv_handle_size(h_type: c_int) -> usize;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ui_has(ext: c_int) -> bool;
 
     fn vim_regsub(
         rmp: *mut regmatch_T,
@@ -495,15 +499,6 @@ unsafe extern "C" {
     ) -> c_int;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    fn nlua_call_ref(
-        ref_: c_int,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
 
     fn callback_copy(dest: *mut Callback, src: *const Callback);
 }

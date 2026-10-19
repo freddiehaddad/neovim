@@ -16,6 +16,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
 #[allow(unused_imports)]
+use crate::eval::vars::{set_vim_var_list, set_vim_var_string};
+#[allow(unused_imports)]
 use crate::eval::{clear_evalarg, eval_to_bool, eval0, fill_evalarg_from_eap};
 #[allow(unused_imports)]
 use crate::eval::{free_for_info, next_for_item};
@@ -28,6 +30,10 @@ use crate::message::{semsg, smsg};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::skip_regexp_err;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
+#[allow(unused_imports)]
+use crate::runtime::estack_sfile;
 use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::runtime::{do_finish, stacktrace_create};
@@ -187,9 +193,6 @@ unsafe extern "C" {
     static mut p_vfile: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn estack_sfile(which: c_int) -> *mut c_char;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn set_vim_var_list(idx: c_int, val: *mut list_T);
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn get_return_cmd(rettv: *mut c_void) -> *mut c_char;
@@ -200,9 +203,6 @@ unsafe extern "C" {
         evalarg: *const evalarg_T,
     ) -> *mut c_void;
     fn eval_to_string_skip(arg: *const c_char, eap: *mut exarg_T, skip: bool) -> *mut c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
-    fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
-    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
     fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
 
     fn strlen(s: *const c_char) -> usize;

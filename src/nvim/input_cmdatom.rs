@@ -15,7 +15,11 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_free_dict, api_free_string, cstr_to_string};
 #[allow(unused_imports)]
+use crate::autocmd::has_event;
+#[allow(unused_imports)]
 use crate::buffer::set_bufref;
+#[allow(unused_imports)]
+use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{
@@ -397,7 +401,6 @@ unsafe extern "C" {
 
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 
-    fn has_event(event: c_int) -> bool;
     fn aucmd_defer(
         event: c_int,
         fname: *mut c_char,
@@ -407,7 +410,6 @@ unsafe extern "C" {
         eap: *mut c_void,
         data: *mut Object,
     );
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strlen(s: *const c_char) -> usize;

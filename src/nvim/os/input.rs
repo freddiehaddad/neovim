@@ -11,7 +11,11 @@
 )]
 
 #[allow(unused_imports)]
+use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
 use crate::autocmd::trigger_cursorhold;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
 use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
@@ -29,7 +33,6 @@ use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::eval::deprecated::buf_T;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
     multiqueue_put_event,
@@ -122,16 +125,6 @@ unsafe extern "C" {
 
     fn uv_loop_size() -> usize;
     fn uv_guess_handle(file: c_int) -> c_int;
-
-    fn apply_autocmds(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
-
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
 
     fn sscanf(s: *const c_char, format: *const c_char, ...) -> c_int;
 }

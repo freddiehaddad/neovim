@@ -29,6 +29,8 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_free_string, api_metadata, dict_set_var,
 };
 #[allow(unused_imports)]
+use crate::api::vim::nvim_feedkeys;
+#[allow(unused_imports)]
 use crate::autocmd::{au_exists, autocmd_supported};
 #[allow(unused_imports)]
 use crate::buffer::{buf_close_terminal, buflist_findnr, buflist_findpat, setfname};
@@ -62,6 +64,8 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::vars::cat_prefix_varname;
 #[allow(unused_imports)]
+use crate::eval::{buf_byteidx_to_charidx, buf_charidx_to_byteidx};
+#[allow(unused_imports)]
 use crate::eval::{
     common_job_callbacks, eval_option, find_job, save_tv_as_string, string2float, tv_to_argv,
 };
@@ -76,6 +80,8 @@ use crate::ex_getln::{get_user_input, text_locked, text_locked_msg, vim_strsave_
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::syn_get_final_id;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_exec;
 #[allow(unused_imports)]
 use crate::lua::executor::{
     nlua_call_luaeval, nlua_call_typval, nlua_func_exists, nlua_is_table_from_lua,
@@ -102,12 +108,16 @@ use crate::normal::{find_decl, op_pending};
 #[allow(unused_imports)]
 use crate::ops::{block_prep, cursor_pos_info};
 #[allow(unused_imports)]
+use crate::ops::{charwise_block_prep, getregionpos_line, getregionpos_prep};
+#[allow(unused_imports)]
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::os_get_pid;
 #[allow(unused_imports)]
 use crate::os::stdpaths::get_appname;
+#[allow(unused_imports)]
+use crate::search::set_csearch_direction;
 #[allow(unused_imports)]
 use crate::search::{
     last_csearch_forward, last_csearch_until, set_csearch_until, set_last_csearch,
@@ -571,33 +581,6 @@ unsafe extern "C" {
         flags: *mut c_char,
         endpos: *mut *mut c_char,
     ) -> *mut c_char;
-    fn charwise_block_prep(
-        start: crate::api::tabpage::pos_T,
-        end: crate::api::tabpage::pos_T,
-        bdp: *mut block_def,
-        lnum: linenr_T,
-        inclusive: bool,
-    );
-    fn getregionpos_prep(
-        p1: *mut crate::api::tabpage::pos_T,
-        p2: *mut crate::api::tabpage::pos_T,
-        region_type: MotionType,
-        is_select_exclusive: bool,
-        block_width: c_int,
-        inclusive: *mut bool,
-        oap: *mut oparg_T,
-    );
-    fn getregionpos_line(
-        lnum: linenr_T,
-        p1: crate::api::tabpage::pos_T,
-        p2: crate::api::tabpage::pos_T,
-        inclusive: bool,
-        region_type: MotionType,
-        oap: *mut oparg_T,
-        allow_eol: bool,
-        ret_p1: *mut crate::api::tabpage::pos_T,
-        ret_p2: *mut crate::api::tabpage::pos_T,
-    );
     #[cfg_attr(target_os = "windows", link_name = "_stricmp")]
     #[cfg_attr(not(target_os = "windows"), link_name = "strcasecmp")]
     fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -642,20 +625,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg_funcname(ermsg: *const c_char, name: *const c_char);
 
-    fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: bool);
-
-    fn nlua_exec(
-        str_: NvimString,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-
-    fn buf_charidx_to_byteidx(buf: *mut buf_T, lnum: i32, charidx: c_int) -> c_int;
-    fn buf_byteidx_to_charidx(buf: *mut buf_T, lnum: i32, byteidx: c_int) -> c_int;
-
     fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16);
 
     fn do_cmdline(
@@ -666,7 +635,6 @@ unsafe extern "C" {
     ) -> c_int;
     fn function_exists(name: *const c_char, no_deref: bool) -> bool;
     fn last_csearch() -> *mut c_char;
-    fn set_csearch_direction(cdir: c_int);
     fn prompt_for_input(
         prompt: *const c_char,
         hl_id: c_int,

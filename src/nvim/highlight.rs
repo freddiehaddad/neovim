@@ -23,12 +23,16 @@ use crate::highlight_group::{
     syn_check_group, syn_id2name, syn_ns_id2attr,
 };
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref;
+#[allow(unused_imports)]
 use crate::message::emsg;
 #[allow(unused_imports)]
 use crate::option::check_blending;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::popupmenu::pum_drawn;
+#[allow(unused_imports)]
+use crate::ui::ui_call_hl_attr_define;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -279,15 +283,6 @@ static mut ns_get_hl_recursive: c_int = 0;
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ui_call_hl_attr_define(id: Integer, rgb_attrs: HlAttrs, cterm_attrs: HlAttrs, info: Array);
-    fn nlua_call_ref(
-        ref_id: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
 

@@ -53,6 +53,8 @@ use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
 use crate::ops::get_region_bytecount;
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{
     buf_copy_options, set_option_direct, set_option_value_give_err, shortmess, skip_to_option_part,
 };
@@ -604,13 +606,6 @@ unsafe extern "C" {
         tm: *mut c_void,
         timed_out: *mut c_int,
     ) -> c_long;
-
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 
     fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
 

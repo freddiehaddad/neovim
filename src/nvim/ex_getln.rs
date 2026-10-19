@@ -65,6 +65,8 @@ use crate::message::{
 #[allow(unused_imports)]
 use crate::mouse::cmdline_mousescroll;
 #[allow(unused_imports)]
+use crate::option::set_option_direct;
+#[allow(unused_imports)]
 use crate::option::{set_iminsert_global, set_imsearch_global};
 use crate::option_vars::*;
 #[allow(unused_imports)]
@@ -79,6 +81,8 @@ use crate::ui::{
     ui_call_cmdline_block_show, ui_call_cmdline_pos, ui_call_cmdline_show, ui_cursor_shape,
     ui_flush, ui_has, vim_beep,
 };
+#[allow(unused_imports)]
+use crate::ui::{ui_call_cmdline_hide, ui_call_cmdline_special_char};
 #[allow(unused_imports)]
 use crate::window::{
     close_windows, global_stl_height, may_trigger_win_scrolled_resized, win_enter,
@@ -152,7 +156,6 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, get_special_key_name, is_special, termcap2key,
 };
 use crate::kvec::KVec;
-use crate::lua::converter::Boolean;
 use crate::map::{Set, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
 use crate::map_glyph_cache::{MHPutStatus, NvimString};
 use crate::mark::setpcmark;
@@ -447,12 +450,8 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn ui_call_cmdline_special_char(c: NvimString, shift: Boolean, level: Integer);
-    fn ui_call_cmdline_hide(level: Integer, abort: Boolean);
-
     fn lastwin_nofloating(ock: *mut win_T) -> *mut win_T;
 
-    fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
     #[cfg(not(windows))]
     fn csh_like_shell() -> c_int;
 

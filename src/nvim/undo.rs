@@ -49,6 +49,8 @@ use crate::message::{
 };
 use crate::message::{semsg, smsg, smsg_keep};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::shortmess;
 use crate::option_vars::*;
 #[allow(unused_imports)]
@@ -257,12 +259,6 @@ unsafe extern "C" {
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 
     #[cfg(unix)]
     fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int;

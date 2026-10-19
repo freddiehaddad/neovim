@@ -34,6 +34,8 @@ use crate::eval::userfunc::{restore_funccal, save_funccal};
 #[allow(unused_imports)]
 use crate::eval::vars::set_cmdarg;
 #[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_vim_var_nr};
+#[allow(unused_imports)]
 use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline, ends_excmd, expand_sfile};
@@ -57,11 +59,15 @@ use crate::message::{
 use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
 use crate::option::apply_optionset_autocmd_now;
+#[allow(unused_imports)]
+use crate::option::set_option_direct;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::expand_env_save;
 #[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::estack_pop;
 use crate::runtime::exestack;
@@ -1343,8 +1349,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
     fn match_file_pat(
         pattern: *const c_char,
         prog: *mut *mut c_void,
@@ -1356,15 +1360,10 @@ unsafe extern "C" {
 
     fn callback_copy(dest: *mut Callback, src: *const Callback);
 
-    fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: isize, nr: varnumber_T)
     -> c_int;
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn get_vim_var_nr(idx: c_int) -> varnumber_T;
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
 
     fn estack_push(type_: c_int, name: *mut c_char, lnum: i32) -> *mut estack_T;
 }

@@ -46,6 +46,8 @@ use crate::ex_eval::aborting;
 #[allow(unused_imports)]
 use crate::ex_getln::text_or_buf_locked;
 #[allow(unused_imports)]
+use crate::file_search::vim_chdirfile;
+#[allow(unused_imports)]
 use crate::fileio::{buf_check_timestamp, readfile, shorten_fnames};
 #[allow(unused_imports)]
 use crate::fileio::{file_pat_to_reg_pat, is_dev_fd_file, prep_exarg};
@@ -89,6 +91,8 @@ use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 use crate::version::min_vim_version;
 #[allow(unused_imports)]
 use crate::window::one_window;
+#[allow(unused_imports)]
+use crate::window::update_cwd;
 #[allow(unused_imports)]
 use crate::window::{
     check_can_set_curbuf_forceit, close_windows, free_wininfo, global_stl_height, goto_tabpage_tp,
@@ -425,8 +429,6 @@ unsafe extern "C" {
     fn one_window(win: *const win_T, tp: *const tabpage_T) -> bool;
     fn last_window(win: *const win_T) -> bool;
 
-    fn update_cwd(cause: c_int);
-
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
@@ -435,7 +437,6 @@ unsafe extern "C" {
     #[cfg(windows)]
     fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char;
 
-    fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
     fn check_colorcolumn(errbuf: *const CharBuf, wp: *mut win_T) -> *const c_char;
     fn win_valid_any_tab(win: *const win_T) -> bool;
 }

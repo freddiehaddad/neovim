@@ -21,6 +21,8 @@ use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
 use crate::buffer::do_autochdir;
 #[allow(unused_imports)]
+use crate::buffer::{bufref_valid, set_bufref};
+#[allow(unused_imports)]
 use crate::cursor::{check_cursor, check_pos};
 #[allow(unused_imports)]
 use crate::eval::typval::tv_clear;
@@ -210,8 +212,6 @@ static mut CTX_MARKS_NS_ID: u32 = 0;
 unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn bufref_valid(bufref: *mut crate::api::options::bufref_T) -> bool;
-    fn set_bufref(bufref: *mut crate::api::options::bufref_T, buf: *mut buf_T);
 }
 
 #[inline]

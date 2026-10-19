@@ -18,6 +18,8 @@
 use crate::api::private::helpers::{cstr_as_string, cstr_to_string};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::callback_call;
+#[allow(unused_imports)]
 use crate::eval::funcs::tv_get_buf;
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -584,12 +586,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
     fn set_ref_in_ht(ht: *mut hashtab_T, copyID: c_int, list_stack: *mut *mut c_void) -> bool;
-    fn callback_call(
-        callback: *mut crate::eval::deprecated::Callback,
-        argcount_in: c_int,
-        argvars_in: *mut typval_T,
-        rettv: *mut typval_T,
-    ) -> bool;
 
     fn list_func_vars(first: *mut c_int);
     fn find_hi_in_scoped_ht(name: *const c_char, pht: *mut *mut hashtab_T) -> *mut hashitem_T;

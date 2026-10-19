@@ -30,9 +30,13 @@ use crate::drawscreen::redraw_all_later;
 use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::grid::schar_high;
+#[allow(unused_imports)]
 use crate::marktree::mt_inspect;
 #[allow(unused_imports)]
 use crate::mbyte::mb_string2cells;
+#[allow(unused_imports)]
+use crate::mbyte::utfc_ptr2schar;
 #[allow(unused_imports)]
 use crate::memline::ml_get_buf_len;
 #[allow(unused_imports)]
@@ -368,9 +372,7 @@ unsafe extern "C" {
 
     fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
-    fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> u32;
     fn init_sign_text(sp: *mut c_void, sign_text: *mut u32, text: *mut c_char) -> c_int;
-    fn schar_high(sc: u32) -> bool;
 }
 
 #[inline]

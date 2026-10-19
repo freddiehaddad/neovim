@@ -20,6 +20,10 @@ use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
 #[allow(unused_imports)]
+use crate::eval::vars::get_vim_var_tv;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_bool;
+#[allow(unused_imports)]
 use crate::ex_docmd::{
     exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
 };
@@ -45,6 +49,8 @@ use crate::r#move::{
 use crate::normal::{end_visual_mode, visualinfo};
 #[allow(unused_imports)]
 use crate::ops::{getregionpos_line, getregionpos_prep};
+#[allow(unused_imports)]
+use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
@@ -285,10 +291,7 @@ static mut ns_session: u32 = 0;
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
-    fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
-    fn set_vim_var_bool(idx: c_int, val: c_int);
     fn bufref_valid(bufref: *const crate::input_cmdatom::bufref_T) -> bool;
-    fn set_option_value_give_err(opt_idx: c_int, val: Object, opt_flags: c_int);
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

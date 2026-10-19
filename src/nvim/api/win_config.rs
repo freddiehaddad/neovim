@@ -41,6 +41,8 @@ use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::ui_compositor::ui_comp_remove_grid;
 #[allow(unused_imports)]
+use crate::window::window_layout_locked_err;
+#[allow(unused_imports)]
 use crate::window::{
     check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
     lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
@@ -223,7 +225,6 @@ unsafe extern "C" {
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *const c_char;
-    fn window_layout_locked_err(cmd: cmdidx_T, err: *mut Error) -> bool;
 }
 
 const NIL: Object = Object {
@@ -612,7 +613,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -
             );
             return false;
         }
-        if window_layout_locked_err(CMD_SIZE, err) {
+        if window_layout_locked_err(crate::cmdexpand::cmdidx_T::CMD_SIZE, err) {
             return false;
         }
         if textlock != 0 || expr_map_locked() {

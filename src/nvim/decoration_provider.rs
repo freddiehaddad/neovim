@@ -24,6 +24,8 @@ use crate::highlight::hl_check_ns;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::api_free_luaref;
+#[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref;
 use crate::message::msg_schedule_semsg_multiline;
 #[allow(unused_imports)]
 use crate::r#move::validate_botline_win;
@@ -36,7 +38,7 @@ use crate::api::tabpage::win_T;
 use crate::eval::deprecated::buf_T;
 use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
-use crate::memory::{Arena, xfree, xrealloc};
+use crate::memory::{xfree, xrealloc};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 
 const LUA_NOREF: LuaRef = -2;
@@ -56,18 +58,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
     capacity: 0,
     items: ptr::null_mut(),
 };
-
-unsafe extern "C" {
-
-    fn nlua_call_ref(
-        ref_: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-}
 
 #[inline]
 const fn error_init() -> Error {

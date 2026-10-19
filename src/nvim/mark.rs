@@ -12,12 +12,16 @@
 )]
 
 #[allow(unused_imports)]
+use crate::autocmd::{aucmd_defer, has_event};
+#[allow(unused_imports)]
 use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name};
 #[allow(unused_imports)]
 use crate::diff::diff_mark_adjust;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_list_append_number;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
@@ -177,19 +181,8 @@ static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
 
 unsafe extern "C" {
 
-    fn has_event(event: c_int) -> bool;
-    fn aucmd_defer(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        group: c_int,
-        buf: *mut buf_T,
-        eap: *mut exarg_T,
-        data: *mut Object,
-    );
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn tv_list_append_number(l: *mut list_T, n: i64);
 }
 
 #[inline]

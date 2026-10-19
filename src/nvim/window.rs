@@ -59,6 +59,8 @@ use crate::message::{
 #[allow(unused_imports)]
 use crate::r#move::{win_col_off, win_col_off2};
 #[allow(unused_imports)]
+use crate::option::get_scrolloff_value;
+#[allow(unused_imports)]
 use crate::option::{
     buf_copy_options, clear_winopt, option_was_set, set_option_value, win_copy_options,
 };
@@ -68,6 +70,11 @@ use crate::state::virtual_active;
 #[allow(unused_imports)]
 use crate::ui::{
     ui_call_grid_destroy, ui_call_win_close, ui_call_win_hide, ui_check_cursor_grid, ui_has,
+};
+#[allow(unused_imports)]
+use crate::ui::{
+    ui_call_win_external_pos, ui_call_win_float_pos, ui_call_win_pos, ui_call_win_viewport,
+    ui_call_win_viewport_margins,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
@@ -364,50 +371,8 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
     fn bt_prompt(buf: *const buf_T) -> bool;
-    fn get_scrolloff_value(wp: *mut win_T) -> OptInt;
 
     fn check_text_or_curbuf_locked(oap: *mut c_void) -> bool;
-
-    fn ui_call_win_pos(
-        grid: Integer,
-        win: Window,
-        startrow: Integer,
-        startcol: Integer,
-        width: Integer,
-        height: Integer,
-    );
-    fn ui_call_win_float_pos(
-        grid: Integer,
-        win: Window,
-        anchor: NvimString,
-        anchor_grid: Integer,
-        anchor_row: f64,
-        anchor_col: f64,
-        mouse_enabled: Boolean,
-        zindex: Integer,
-        compindex: Integer,
-        screen_row: Integer,
-        screen_col: Integer,
-    );
-    fn ui_call_win_external_pos(grid: Integer, win: Window);
-    fn ui_call_win_viewport(
-        grid: Integer,
-        win: Window,
-        topline: Integer,
-        botline: Integer,
-        curline: Integer,
-        curcol: Integer,
-        line_count: Integer,
-        scroll_delta: Integer,
-    );
-    fn ui_call_win_viewport_margins(
-        grid: Integer,
-        win: Window,
-        top: Integer,
-        bottom: Integer,
-        left: Integer,
-        right: Integer,
-    );
 
     fn apply_autocmds(
         event: event_T,

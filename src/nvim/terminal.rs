@@ -32,11 +32,15 @@ use crate::drawscreen::{
 #[allow(unused_imports)]
 use crate::eval::get_v_event;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_nr;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list, tv_list_append_string,
 };
 #[allow(unused_imports)]
 use crate::eval::vars::get_globvar_dict;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline;
 use crate::globals::*;
@@ -436,8 +440,6 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 unsafe extern "C" {
     static mut main_loop: c_void;
 
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-
     fn ml_append_buf(
         buf: *mut buf_T,
         lnum: linenr_T,
@@ -455,7 +457,6 @@ unsafe extern "C" {
     ) -> *const c_char;
 
     fn restore_v_event(v_event: *mut dict_T, sve: *const save_v_event_T);
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
     fn eval_call_provider(
         provider: *const c_char,
         method: *const c_char,

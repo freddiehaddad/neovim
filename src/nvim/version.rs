@@ -14,6 +14,8 @@
 use crate::api::private::helpers::api_free_object;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_exec;
+#[allow(unused_imports)]
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
 #[allow(unused_imports)]
@@ -24,7 +26,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::api::tabpage::GridView;
 use crate::api::win_config::UIExtension;
 use crate::buffer::buf_is_empty;
@@ -35,7 +37,7 @@ use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
-use crate::memory::{Arena, xfree, xmallocz};
+use crate::memory::{xfree, xmallocz};
 use crate::window::one_window;
 
 const NUL: c_char = 0;
@@ -3777,14 +3779,6 @@ unsafe extern "C" {
     fn memchr(s: *const c_char, c: c_int, n: usize) -> *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn nlua_exec(
-        str_: NvimString,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
 }
 
 #[inline]

@@ -25,7 +25,11 @@ use crate::cmdexpand::globpath;
 use crate::debugger::has_profiling;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::eval_to_number;
+#[allow(unused_imports)]
 use crate::eval::get_copyID;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_bool;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     tv_check_for_opt_dict_arg, tv_dict_add_func, tv_dict_copy, tv_dict_get_string, tv_get_string,
@@ -46,6 +50,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::openscript;
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_exec;
+#[allow(unused_imports)]
 use crate::lua::executor::{nlua_exec_file, nlua_is_deferred_safe};
 #[allow(unused_imports)]
 use crate::memline::ml_get;
@@ -55,7 +61,13 @@ use crate::message::{
     verbose_enter, verbose_leave,
 };
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
+use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::vim_regexec;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
@@ -358,25 +370,7 @@ unsafe extern "C" {
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;
 
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
-    fn set_option_value_give_err(opt_idx: c_int, val: Object, opt_flags: c_int);
-
-    fn nlua_exec(
-        str_val: NvimString,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
     fn nlua_exec_ga(ga: *mut garray_T, name: *const c_char);
-
-    fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> i64;
 
     fn add_win_cmd_modifiers(buf: *mut c_char, cmod: *mut cmdmod_T, multi_mods: *mut bool)
     -> usize;
@@ -384,10 +378,6 @@ unsafe extern "C" {
     fn do_exedit(eap: *mut exarg_T, old_curwin: *mut c_void);
 
     fn tv_dict_alloc_lock(lock: c_int) -> *mut dict_T;
-    fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: TriState)
-    -> c_int;
-
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
 
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char);

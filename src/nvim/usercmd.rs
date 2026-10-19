@@ -15,12 +15,16 @@ use crate::api::private::helpers::arena_dict;
 #[allow(unused_imports)]
 use crate::eval::last_set_msg;
 #[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline;
+#[allow(unused_imports)]
 use crate::ex_docmd::ends_excmd;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_do_ucmd;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
+#[allow(unused_imports)]
+use crate::mapping::set_context_in_map_cmd;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
 #[allow(unused_imports)]
@@ -39,7 +43,7 @@ use crate::runtime::exestack;
 use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
 #[allow(unused_imports)]
 use crate::window::{prevwin_curwin, tabpage_index};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
@@ -307,23 +311,8 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 
 unsafe extern "C" {
 
-    fn set_context_in_map_cmd(
-        xp: *mut expand_T,
-        cmd: *mut c_char,
-        arg: *mut c_char,
-        forceit: bool,
-        isabbrev: bool,
-        isunmap: bool,
-        cmdidx: cmdidx_T,
-    ) -> *mut c_char;
     fn message_filtered(msg: *mut c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: crate::eval::vars::LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
     fn strchr(s: *const c_char, c: c_int) -> *const c_char;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
@@ -572,7 +561,7 @@ pub unsafe extern "C" fn set_context_in_user_cmdarg(
                 forceit,
                 false,
                 false,
-                CMD_map,
+                crate::cmdexpand::cmdidx_T::CMD_map,
             );
         }
         if (argt & EX_ARGSPACE) == 0 {

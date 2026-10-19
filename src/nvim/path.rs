@@ -24,6 +24,8 @@ use crate::fileio::match_file_list;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_isalpha, mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
@@ -138,12 +140,6 @@ unsafe extern "C" {
 
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
 
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn eval_to_string(arg: *const c_char, convert: bool, use_sandbox: bool) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 }

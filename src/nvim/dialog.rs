@@ -20,6 +20,8 @@ use crate::mouse::setmouse;
 #[allow(unused_imports)]
 use crate::os::input::input_available;
 #[allow(unused_imports)]
+use crate::ui::ui_has;
+#[allow(unused_imports)]
 use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_mouse_has};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
@@ -58,8 +60,6 @@ pub static mut confirm_buttons: *mut c_char = std::ptr::null_mut();
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn ui_has(ext: c_int) -> bool;
 
     fn ins_typebuf(
         str_ptr: *const c_char,

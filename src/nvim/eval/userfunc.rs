@@ -53,11 +53,15 @@ use crate::message::{
 use crate::message::{semsg, smsg, swmsg};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::regexp::vim_regexec;
+#[allow(unused_imports)]
 use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -310,10 +314,6 @@ unsafe extern "C" {
     );
 
     fn msg_prt_line(s: *mut c_char, list: bool);
-
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: i32) -> bool;
-
-    fn ui_has(ext: c_int) -> bool;
 
     fn value_check_lock(lock: c_int, name: *const c_char, name_len: usize) -> bool;
 }

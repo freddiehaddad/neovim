@@ -42,6 +42,8 @@ use crate::fileio::{
     buf_check_timestamp, set_file_options, set_forced_fenc, vim_tempname, write_lnum_adjust,
 };
 #[allow(unused_imports)]
+use crate::fold::foldMoveRange;
+#[allow(unused_imports)]
 use crate::fold::{foldUpdate, foldUpdateAll};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -64,6 +66,10 @@ use crate::r#move::changed_line_abv_curs;
 #[allow(unused_imports)]
 use crate::normal::reset_VIsual;
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
+use crate::option::set_option_direct;
+#[allow(unused_imports)]
 use crate::option::{buf_copy_options, get_fileformat, shortmess};
 use crate::option_vars::*;
 #[allow(unused_imports)]
@@ -75,6 +81,8 @@ use crate::regexp::{
 use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
 #[allow(unused_imports)]
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
+#[allow(unused_imports)]
+use crate::window::update_cwd;
 #[allow(unused_imports)]
 use crate::window::{
     check_can_set_curbuf_forceit, check_lnums, curwin_init, win_enter, win_split, win_valid,
@@ -429,16 +437,6 @@ unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
-    fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-
-    fn update_cwd(cause: c_int);
-
     fn vim_regsub_multi(
         rmp: *mut regmmatch_T,
         lnum: linenr_T,
@@ -467,13 +465,6 @@ unsafe extern "C" {
         flags: c_int,
         silent: bool,
     ) -> c_int;
-    fn foldMoveRange(
-        wp: *mut win_T,
-        gap: *mut crate::garray::garray_T,
-        line1: linenr_T,
-        line2: linenr_T,
-        dest: linenr_T,
-    );
 
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;

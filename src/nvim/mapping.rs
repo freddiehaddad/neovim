@@ -30,6 +30,8 @@ use crate::eval::typval::{
     tv_dict_alloc_ret, tv_dict_find, tv_list_alloc_ret, tv_list_append_dict,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_get_bool, tv_dict_get_number, tv_get_bool};
+#[allow(unused_imports)]
 use crate::eval::userfunc::find_func;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_char;
@@ -41,6 +43,8 @@ use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::{ins_typebuf, noremap_keys};
 #[allow(unused_imports)]
+use crate::lua::executor::nlua_call_ref;
+#[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_set_sctx};
 #[allow(unused_imports)]
 use crate::message::{
@@ -50,6 +54,8 @@ use crate::message::{
 };
 use crate::message::{semsg, semsg_multiline, swmsg};
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::vim_regexec;
 use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::strings::{sort_strings, vim_strchr};
@@ -282,21 +288,9 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 
     fn nlua_funcref_str(luaref: LuaRef, arena: *mut c_void, inspect: bool) -> *mut c_char;
-    fn nlua_call_ref(
-        luaref: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
 
-    fn tv_get_bool(varp: *const typval_T) -> i64;
-    fn tv_dict_get_bool(d: *const dict_T, key: *const c_char, def: c_int) -> i64;
-    fn tv_dict_get_number(d: *const dict_T, key: *const c_char) -> i64;
 }
 
 #[inline]
@@ -1625,10 +1619,13 @@ pub unsafe extern "C" fn set_context_in_map_cmd(
     forceit: bool,
     isabbrev: bool,
     isunmap: bool,
-    cmdidx: cmdidx_T,
+    cmdidx: crate::cmdexpand::cmdidx_T,
 ) -> *mut c_char {
     unsafe {
-        if forceit && cmdidx != CMD_map && cmdidx != CMD_unmap {
+        if forceit
+            && cmdidx != crate::cmdexpand::cmdidx_T::CMD_map
+            && cmdidx != crate::cmdexpand::cmdidx_T::CMD_unmap
+        {
             (*xp).xp_context = EXPAND_NOTHING;
         } else {
             if isunmap {

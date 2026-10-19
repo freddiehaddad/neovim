@@ -56,6 +56,8 @@ use crate::message::{
 };
 use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{
     get_option_value, optval_free, set_option_value_give_err, shortmess, valid_name,
 };
@@ -218,12 +220,6 @@ static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn do_search(
         oap: *mut c_void,
         dirc: c_int,

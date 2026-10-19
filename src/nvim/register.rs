@@ -47,6 +47,8 @@ use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
 #[allow(unused_imports)]
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
 #[allow(unused_imports)]
+use crate::message::msgmore;
+#[allow(unused_imports)]
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
     msg_puts, msg_puts_hl, msg_puts_title,
@@ -235,7 +237,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-    fn msgmore(n: linenr_T);
     fn exec_stuffed(cap: *mut c_void);
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;

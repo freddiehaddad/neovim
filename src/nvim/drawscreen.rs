@@ -19,6 +19,8 @@ use crate::diff::diff_redraw;
 #[allow(unused_imports)]
 use crate::drawline::win_line;
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
+#[allow(unused_imports)]
 use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
 #[allow(unused_imports)]
 use crate::fold::{fold_info, hasFolding};
@@ -56,6 +58,8 @@ use crate::syntax::{
     syntax_present,
 };
 #[allow(unused_imports)]
+use crate::ui::ui_call_win_extmark;
+#[allow(unused_imports)]
 use crate::ui::{
     ui_call_grid_clear, ui_call_grid_resize, ui_call_msg_clear, ui_flush, ui_grid_cursor_goto,
     ui_has,
@@ -73,7 +77,7 @@ use std::ptr;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTextChunk};
 use crate::api::extmark::NS;
-use crate::api::tabpage::{Window, frame_T, win_T};
+use crate::api::tabpage::{frame_T, win_T};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::charset::{vim_isprintc, vim_strsize};
 use crate::context::ctx_saved_curwin;
@@ -255,15 +259,6 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ui_call_win_extmark(
-        grid: Integer,
-        win: Window,
-        ns_id: Integer,
-        mark_id: Integer,
-        row: Integer,
-        col: Integer,
-    );
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
 }
 
 #[inline]

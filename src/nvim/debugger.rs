@@ -32,6 +32,10 @@ use crate::message::{semsg, smsg};
 use crate::os::env::expand_env_save;
 #[allow(unused_imports)]
 use crate::path::fix_fname;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
+#[allow(unused_imports)]
+use crate::runtime::estack_sfile;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -150,19 +154,9 @@ pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, boo
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn estack_sfile(which: c_int) -> *mut c_char;
-
     fn eval_expr(arg: *mut c_char, eap: *mut c_void) -> *mut typval_T;
     fn typval_compare(typ1: *mut typval_T, typ2: *mut typval_T, etype: c_int, ic: bool) -> c_int;
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
-    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
-    fn vim_regexec_prog(
-        prog: *mut *mut crate::regexp::regprog_T,
-        ignore_case: bool,
-        line: *const c_char,
-        col: c_int,
-    ) -> bool;
     fn home_replace(
         buf: *const c_void,
         src: *const c_char,

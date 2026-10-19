@@ -21,6 +21,8 @@ use crate::mbyte::mb_strnicmp;
 #[allow(unused_imports)]
 use crate::message::{emsg, verbose_enter, verbose_leave};
 use crate::message::{semsg, smsg};
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::path::{
@@ -414,12 +416,6 @@ unsafe extern "C" {
     ) -> c_int;
 
     fn path_next_component(fname: *const c_char) -> *mut c_char;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     #[cfg(windows)]
     fn path_to_slash(path: *mut c_char) -> *mut c_char;
     #[cfg(windows)]

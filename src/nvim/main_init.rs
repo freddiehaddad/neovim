@@ -35,9 +35,13 @@ use crate::log::log_get_stderr;
 use crate::lua::executor::{
     get_global_lstate, nlua_exec_file, nlua_init, nlua_init_defaults, nlua_pcall,
 };
+#[allow(unused_imports)]
+use crate::lua::executor::{nlua_call_typval, nlua_exec};
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{msg_putchar, wait_return};
+#[allow(unused_imports)]
+use crate::option::set_option_direct;
 #[allow(unused_imports)]
 use crate::option::{
     reset_modifiable, set_init_1, set_init_2, set_init_3, set_init_tablocal,
@@ -298,23 +302,6 @@ unsafe extern "C" {
 
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
-
-    fn set_option_direct(opt_idx: OptIndex, val: Object, opt_flags: c_int, set_sid: c_int);
-
-    fn nlua_call_typval(
-        func_name: *const c_char,
-        sub_name: *const c_char,
-        args: *mut crate::clipboard::typval_T,
-        ret_tv: *mut crate::clipboard::typval_T,
-    );
-    fn nlua_exec(
-        str_: NvimString,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
 
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;

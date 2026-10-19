@@ -28,6 +28,8 @@ use crate::drawscreen::{compute_foldcolumn, redrawing};
 use crate::eval::eval_to_string_safe;
 #[allow(unused_imports)]
 use crate::eval::vars::{do_unlet, set_internal_string_var, set_var};
+#[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
@@ -50,6 +52,8 @@ use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
+#[allow(unused_imports)]
+use crate::ui::ui_call_tabline_update;
 #[allow(unused_imports)]
 use crate::ui::{ui_call_msg_ruler, ui_has};
 #[allow(unused_imports)]
@@ -273,10 +277,7 @@ unsafe extern "C" {
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn ui_call_tabline_update(current: c_int, tabs: Array, current_buffer: c_int, buffers: Array);
     fn lastwin_nofloating(avoid: *mut win_T) -> *mut win_T;
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn get_vim_var_nr(idx: c_int) -> varnumber_T;
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_safelen(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> usize;

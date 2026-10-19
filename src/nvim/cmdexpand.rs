@@ -30,6 +30,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::{get_expr_name, get_function_name};
 #[allow(unused_imports)]
+use crate::eval::set_context_for_expression;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_check_for_string_arg, tv_dict_get_string, tv_get_string, tv_get_string_chk,
 };
@@ -38,6 +40,8 @@ use crate::eval::typval::{
     tv_clear, tv_dict_add_list, tv_dict_add_str_len, tv_dict_alloc_ret, tv_list_alloc,
     tv_list_alloc_ret, tv_list_append_string, tv_list_unref,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_add_nr, tv_get_bool_chk};
 #[allow(unused_imports)]
 use crate::eval::vars::get_user_var_name;
 #[allow(unused_imports)]
@@ -49,6 +53,8 @@ use crate::ex_docmd::{
     ends_excmd, expand_argopt, expand_findfunc, find_nextcmd, get_command_name, set_no_hlsearch,
     skip_cmd_arg, skip_range,
 };
+#[allow(unused_imports)]
+use crate::ex_docmd::{excmd_get_argt, excmd_get_cmdidx};
 #[allow(unused_imports)]
 use crate::ex_getln::{
     cmd_screencol, cursorcmd, escape_fname, get_cmdline_info, get_cmdline_last_prompt_id,
@@ -69,6 +75,8 @@ use crate::lua::executor::{
 #[allow(unused_imports)]
 use crate::mapping::ExpandMappings;
 #[allow(unused_imports)]
+use crate::mapping::set_context_in_map_cmd;
+#[allow(unused_imports)]
 use crate::menu::{get_menu_name, get_menu_names};
 use crate::message::semsg;
 #[allow(unused_imports)]
@@ -76,6 +84,8 @@ use crate::message::{
     emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
     msg_puts, msg_puts_hl, msg_scroll_up, msg_start,
 };
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::{
     ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, csh_like_shell,
@@ -124,7 +134,6 @@ use crate::charset::{
 };
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
-use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{
@@ -1052,16 +1061,6 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T;
-    fn excmd_get_argt(idx: cmdidx_T) -> u32;
-
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
-
     fn get_users(xp: *mut expand_T, idx: c_int) -> *mut c_char;
     fn set_context_in_menu_cmd(
         xp: *mut expand_T,
@@ -1069,21 +1068,8 @@ unsafe extern "C" {
         arg: *mut c_char,
         forceit: bool,
     ) -> *const c_char;
-    fn set_context_in_map_cmd(
-        xp: *mut expand_T,
-        cmd: *mut c_char,
-        arg: *mut c_char,
-        forceit: bool,
-        isabbrev: bool,
-        isunmap: bool,
-        cmdidx: cmdidx_T,
-    ) -> *mut c_char;
 
-    fn set_context_for_expression(xp: *mut expand_T, arg: *mut c_char, cmdidx: cmdidx_T);
     fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
-
-    fn tv_get_bool_chk(tv: *const typval_T, denote: *mut bool) -> i64;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
 
     fn qsort(
         base: *mut c_void,

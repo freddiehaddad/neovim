@@ -18,6 +18,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
 #[allow(unused_imports)]
+use crate::ex_docmd::{excmd_get_argt, is_cmd_ni, is_map_cmd};
+#[allow(unused_imports)]
 use crate::ex_docmd::{
     execute_cmd, find_ex_command, getargopt, parse_cmdline, replace_makeprg, set_cmd_count,
 };
@@ -30,6 +32,8 @@ use crate::globals::*;
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 #[allow(unused_imports)]
 use crate::mbyte::mb_islower;
+#[allow(unused_imports)]
+use crate::regexp::vim_regcomp;
 #[allow(unused_imports)]
 use crate::register::valid_yank_reg;
 use crate::usercmd::ucmds;
@@ -344,14 +348,10 @@ unsafe extern "C" {
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
     fn api_typename(t: ObjectType) -> *const c_char;
 
-    fn is_map_cmd(cmdidx: cmdidx_T) -> bool;
     fn get_command_name(xp: *mut c_void, idx: c_int) -> *mut c_char;
-    fn is_cmd_ni(cmdidx: cmdidx_T) -> bool;
     fn get_user_command_name(idx: c_int, cmdidx: cmdidx_T) -> *mut c_char;
-    fn excmd_get_argt(cmdidx: cmdidx_T) -> u32;
     fn getdigits_long(pp: *mut *const c_char, strict: bool, def: c_long) -> c_long;
     fn invalid_range(eap: *const exarg_T) -> *const c_char;
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
 }
 
 #[inline]
@@ -603,7 +603,12 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         let mut args = Array::new();
         let length = CStr::from_ptr(ea.arg).to_bytes().len();
 
-        if ea.cmdidx != CMD_SIZE && is_map_cmd(ea.cmdidx) && *ea.arg != NUL {
+        if ea.cmdidx != CMD_SIZE
+            && is_map_cmd(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
+                ea.cmdidx,
+            ))
+            && *ea.arg != NUL
+        {
             args = parse_map_cmd(ea.arg, arena);
         } else if (ea.argt & EX_NOSPC) != 0 {
             if *ea.arg != NUL {
@@ -927,7 +932,11 @@ pub unsafe extern "C" fn nvim_cmd(
                 break 'end;
             }
 
-            if !(range_only || !is_cmd_ni(ea.cmdidx)) {
+            if !(range_only
+                || !is_cmd_ni(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
+                    ea.cmdidx,
+                )))
+            {
                 api_set_error(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -959,7 +968,9 @@ pub unsafe extern "C" fn nvim_cmd(
             if range_only {
                 ea.argt = EX_RANGE | EX_SBOXOK;
             } else if !is_user_cmdidx(ea.cmdidx) {
-                ea.argt = excmd_get_argt(ea.cmdidx);
+                ea.argt = excmd_get_argt(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
+                    ea.cmdidx,
+                ));
             }
 
             let mut count_from_first_arg = false;
@@ -1406,7 +1417,11 @@ pub unsafe extern "C" fn nvim_cmd(
                 while *ea.arg.add(0) == b'+' as c_char && *ea.arg.add(1) == b'+' as c_char {
                     let orig_arg = ea.arg;
                     let result = getargopt(&mut ea);
-                    if result == FAIL && !is_cmd_ni(ea.cmdidx) {
+                    if result == FAIL
+                        && !is_cmd_ni(std::mem::transmute::<c_int, crate::cmdexpand::cmdidx_T>(
+                            ea.cmdidx,
+                        ))
+                    {
                         api_err_invalid(err, c"argument ".as_ptr(), orig_arg, 0, true);
                         break 'end;
                     }

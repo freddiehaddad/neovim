@@ -16,9 +16,13 @@ use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, 
 use crate::autocmd::{apply_autocmds, has_event};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_bool;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_get_string;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_add_str, tv_dict_set_keys_readonly};
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
@@ -27,6 +31,8 @@ use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 #[allow(unused_imports)]
 use crate::message::emsg;
 use crate::message::semsg;
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::expand_env_esc;
@@ -50,7 +56,6 @@ use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_
 use crate::clipboard::typval_T;
 use crate::context::CdCause;
 use crate::cursor::get_cursor_line_ptr;
-use crate::eval::decode::dict_T;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy};
 use crate::plines::linenr_T;
@@ -173,16 +178,8 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn get_visual_text(cap: *mut c_void, pp: *mut *mut c_char, lenp: *mut usize) -> bool;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn was_set_insecurely(wp: *const win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
-    fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
 }
 
 #[inline]

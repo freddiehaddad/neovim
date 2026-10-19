@@ -25,6 +25,8 @@ use crate::eval::vars::eval_charconvert;
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
+use crate::fileio::msg_add_lines;
+#[allow(unused_imports)]
 use crate::fileio::{
     add_quoted_fname, buf_store_file_info, fname_msg_id, modname, slow_io_ns, time_differs,
     write_eintr,
@@ -41,6 +43,8 @@ use crate::memline::{make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp}
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, msg, msg_puts_hl, set_keep_msg};
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::get_fileformat_force;
 #[allow(unused_imports)]
@@ -262,16 +266,9 @@ unsafe extern "C" {
     fn get_fio_flags(name: *mut c_char) -> c_int;
     fn filemess_bufwrite(buf: *mut buf_T, name: *const c_char, id: *const c_char);
     fn get_file_in_dir(fname: *const c_char, dname: *const c_char) -> *mut c_char;
-    fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: i64);
 
     fn bufref_valid(bufref: *const bufref_T) -> bool;
 
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn vim_snprintf_add(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 

@@ -16,6 +16,8 @@ use crate::buffer::read_buffer_into;
 use crate::charset::backslash_halve;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
+#[allow(unused_imports)]
 use crate::ex_cmds::{check_secure, make_filter_cmd};
 #[allow(unused_imports)]
 use crate::fileio::vim_tempname;
@@ -23,6 +25,8 @@ use crate::globals::*;
 use crate::mbyte::utf8len_tab_zero;
 #[allow(unused_imports)]
 use crate::mbyte::utfc_ptr2len_len;
+#[allow(unused_imports)]
+use crate::memline::ml_append;
 #[allow(unused_imports)]
 use crate::message::{
     emsg, msg, msg_end, msg_ext_no_fast, msg_ext_set_append, msg_ext_set_kind, msg_multiline,
@@ -32,6 +36,8 @@ use crate::message::{
 use crate::message::{msg_schedule_semsg, semsg, smsg};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::fs::os_fopen;
+#[allow(unused_imports)]
 use crate::os::fs::{os_can_exe, os_isdir, os_path_exists, os_remove};
 #[allow(unused_imports)]
 use crate::path::{add_pathsep, path_has_wildcard, path_tail};
@@ -39,6 +45,8 @@ use crate::path::{add_pathsep, path_has_wildcard, path_tail};
 use crate::strings::{vim_strchr, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[allow(unused_imports)]
 use crate::tag::tag_freematch;
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
@@ -146,16 +154,9 @@ unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 
-    fn ui_has(ext: c_int) -> bool;
-
     #[cfg(unix)]
     fn invocation_path_tail(invocation: *const c_char, len: *mut usize) -> *const c_char;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn ml_append(lnum: linenr_T, line: *mut c_char, len: c_int, newfile: bool) -> c_int;
-
-    fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
 
     #[cfg(windows)]
     fn os_getenv(name: *const c_char) -> *mut c_char;

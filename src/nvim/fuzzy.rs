@@ -22,6 +22,8 @@ use crate::eval::typval::{
 use crate::eval::typval::{
     tv_check_for_nonnull_dict_arg, tv_dict_get_callback, tv_dict_get_string, tv_get_string,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_get_number_chk, tv_list_append_number};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
@@ -30,6 +32,8 @@ use crate::mbyte::{
     mb_charlen, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
+#[allow(unused_imports)]
+use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -96,13 +100,6 @@ struct MatchStruct {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn ml_get_buf(buf: *mut buf_T, lnum: i32) -> *mut c_char;
-    fn ml_get_buf_len(buf: *mut buf_T, lnum: i32) -> c_int;
-
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
-
-    fn tv_list_append_number(l: *mut list_T, n: i64);
 
     fn qsort(
         base: *mut c_void,

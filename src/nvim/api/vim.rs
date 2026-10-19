@@ -24,6 +24,8 @@ use crate::buffer::{buf_close_terminal, buflist_new, buflist_nr2name, do_buffer}
 #[allow(unused_imports)]
 use crate::buffer::{bufref_valid, read_buffer_into, set_bufref};
 #[allow(unused_imports)]
+use crate::channel::channel_event;
+#[allow(unused_imports)]
 use crate::cursor::get_cursor_rel_lnum;
 #[allow(unused_imports)]
 use crate::drawline::use_cursor_line_highlight;
@@ -31,6 +33,8 @@ use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::win_update_cursorline;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_find;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_chdir;
 #[allow(unused_imports)]
 use crate::ex_docmd::exec_normal;
 #[allow(unused_imports)]
@@ -47,7 +51,11 @@ use crate::insexpand::get_cot_flags;
 #[allow(unused_imports)]
 use crate::lua::executor::{api_free_luaref, nlua_get_global_ref_count, nlua_is_deferred_safe};
 #[allow(unused_imports)]
+use crate::lua::executor::{nlua_call_ref, nlua_exec};
+#[allow(unused_imports)]
 use crate::mapping::{keymap_array, modify_keymap};
+#[allow(unused_imports)]
+use crate::message::msg_multihl;
 #[allow(unused_imports)]
 use crate::message::{
     hl_msg_free, msg_ext_no_fast, msg_id_exists, verbose_enter, verbose_leave, verbose_stop,
@@ -58,6 +66,8 @@ use crate::r#move::{changed_window_setting, win_col_off};
 use crate::normal::reset_VIsual_and_resel;
 #[allow(unused_imports)]
 use crate::option::buf_copy_options;
+#[allow(unused_imports)]
+use crate::option::set_option_direct_for;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::optionstr::check_stl_option;
@@ -430,45 +440,6 @@ unsafe extern "C" {
         silent: bool,
     ) -> c_int;
 
-    fn nlua_exec(
-        str_: NvimString,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-    fn nlua_call_ref(
-        luaref: LuaRef,
-        name: *const c_char,
-        args: Array,
-        mode: c_int,
-        arena: *mut Arena,
-        err: *mut Error,
-    ) -> Object;
-
-    fn do_chdir(new_dir: *mut c_char, scope: c_int) -> bool;
-
-    fn msg_multihl(
-        id: Object,
-        hl_msg: HlMessage,
-        kind: *const c_char,
-        history: bool,
-        err: bool,
-        msg_data: *mut MessageData,
-        needs_msg_clear: *mut bool,
-        raw_for_lua_print: bool,
-    ) -> Object;
-
-    fn set_option_direct_for(
-        opt_idx: c_int,
-        val: Object,
-        opt_flags: c_int,
-        set_sid: c_int,
-        scope: c_int,
-        from: *mut c_void,
-    );
-    fn channel_event(chan: *mut Channel, event: c_int);
     fn do_in_runtimepath(
         name: *mut c_char,
         flags: c_int,

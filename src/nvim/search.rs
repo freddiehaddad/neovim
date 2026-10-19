@@ -22,6 +22,8 @@ use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_get_number_chk, tv_list_find,
 };
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
+#[allow(unused_imports)]
 use crate::ex_cmds::prepare_tagpreview;
 #[allow(unused_imports)]
 use crate::ex_docmd::set_no_hlsearch;
@@ -323,7 +325,6 @@ unsafe extern "C" {
     fn fclose(stream: *mut FILE) -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
     fn getfile(
         fnum: c_int,
         ffname_arg: *const c_char,

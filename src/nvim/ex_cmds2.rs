@@ -35,11 +35,15 @@ use crate::eval::typval::{
     tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
 };
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
+#[allow(unused_imports)]
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 #[allow(unused_imports)]
 use crate::ex_cmds::check_overwrite;
 #[allow(unused_imports)]
 use crate::ex_cmds::set_swapcommand;
+#[allow(unused_imports)]
+use crate::ex_docmd::do_cmdline;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
 #[allow(unused_imports)]
@@ -71,7 +75,7 @@ use crate::undo::bufIsChanged;
 use crate::window::{
     goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::{cmdidx_T, exarg_T};
@@ -147,19 +151,12 @@ unsafe extern "C" {
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
     fn buf_set_name(fnum: c_int, name: *const c_char);
     fn au_event_disable(what: *const c_char) -> *mut c_char;
-    fn do_cmdline(
-        cmdline: *mut c_char,
-        fgetline: crate::eval::vars::LineGetter,
-        cookie: *mut c_void,
-        flags: c_int,
-    ) -> c_int;
     fn eval_call_provider(
         provider: *const c_char,
         method: *const c_char,
         arguments: *mut list_T,
         discard: bool,
     ) -> typval_T;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
 }
 
 #[inline]

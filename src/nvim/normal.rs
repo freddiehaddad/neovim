@@ -50,6 +50,8 @@ use crate::message::{
     wait_return,
 };
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{
     get_showbreak_value, get_sidescrolloff_value, get_ve_flags, set_option_value, shortmess,
 };
@@ -58,6 +60,8 @@ use crate::option_vars::*;
 use crate::quickfix::qf_view_result;
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strsave_shellescape, xstrnsave};
+#[allow(unused_imports)]
+use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::ui::{
     ui_call_msg_showcmd, ui_cursor_shape, ui_cursor_shape_no_check_conceal, ui_flush, vim_beep,
@@ -458,14 +462,7 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    fn ui_has(ext: c_int) -> bool;
     fn msg_delay(ms: i64, ignoreinput: bool);
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn strlen(s: *const c_char) -> usize;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
     fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char;

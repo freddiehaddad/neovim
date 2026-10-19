@@ -26,6 +26,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::optionstr::check_chars_options;
 #[allow(unused_imports)]
+use crate::ui::{ui_call_grid_resize, ui_call_grid_scroll};
+#[allow(unused_imports)]
 use crate::ui::{ui_check_cursor_grid, ui_grid_cursor_goto, ui_has, ui_line};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -115,20 +117,6 @@ static mut grid_line_clear_attr: c_int = 0;
 static mut grid_line_flags: c_int = 0;
 
 static mut last_grid_handle: c_int = DEFAULT_GRID_HANDLE;
-
-unsafe extern "C" {
-
-    fn ui_call_grid_resize(grid: i64, width: i64, height: i64);
-    fn ui_call_grid_scroll(
-        grid: i64,
-        top: i64,
-        bot: i64,
-        left: i64,
-        right: i64,
-        rows: i64,
-        cols: i64,
-    );
-}
 
 #[inline]
 const fn schar_from_ascii(x: u8) -> schar_T {

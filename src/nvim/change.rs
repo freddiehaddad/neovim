@@ -27,6 +27,8 @@ use crate::drawscreen::{
     redraw_buf_status_later, redraw_later, redrawWinline, set_must_redraw, showmode,
 };
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
+#[allow(unused_imports)]
 use crate::fold::foldUpdate;
 #[allow(unused_imports)]
 use crate::fold::{find_wl_entry, hasAnyFolding};
@@ -57,6 +59,8 @@ use crate::r#move::{
     approximate_botline_win, changed_cline_bef_curs, changed_line_abv_curs_win,
     invalidate_botline_win, set_topline, sms_marker_overlap,
 };
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::get_ve_flags;
 use crate::option_vars::*;
@@ -174,7 +178,6 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
 unsafe extern "C" {
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn msg_delay(ms: i64, ignoreinput: bool);
     fn hasFoldingWin(
         win: *mut win_T,
@@ -184,12 +187,6 @@ unsafe extern "C" {
         cache: bool,
         infop: *mut c_void,
     ) -> bool;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 }
 
 #[inline]

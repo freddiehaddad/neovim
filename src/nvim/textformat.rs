@@ -20,6 +20,8 @@ use crate::drawscreen::redraw_curbuf_later;
 use crate::eval::eval_expr_option_number;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_char;
+#[allow(unused_imports)]
+use crate::eval::vars::{set_vim_var_nr, set_vim_var_string};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::indent::{
@@ -47,6 +49,8 @@ use crate::message::msgmore;
 use crate::r#move::update_topline;
 #[allow(unused_imports)]
 use crate::ops::do_join;
+#[allow(unused_imports)]
+use crate::option::was_set_insecurely;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
@@ -64,7 +68,6 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::tabpage::win_T;
 use crate::cursor::{
     check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
@@ -193,9 +196,6 @@ static mut did_add_space: bool = false;
 
 unsafe extern "C" {
 
-    fn was_set_insecurely(wp: *mut win_T, opt_idx: c_int, opt_flags: c_int) -> c_int;
-    fn set_vim_var_nr(idx: c_int, val: i64);
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
 }
 

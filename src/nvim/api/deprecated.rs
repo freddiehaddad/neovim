@@ -139,7 +139,6 @@ pub type ApiDispatchWrapper = unsafe extern "C" fn(u64, Array, *mut Arena, *mut 
 
 unsafe extern "C" {
 
-    fn hl_get_attr_by_id(attr_id: c_int, rgb: Boolean, arena: *mut Arena, err: *mut Error) -> Dict;
     fn api_typename(t: ObjectType) -> *const c_char;
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);
 }
@@ -492,7 +491,7 @@ pub unsafe extern "C" fn nvim_get_hl_by_id(
             return dic;
         }
         let attrcode = syn_id2attr(hl_id as c_int);
-        hl_get_attr_by_id(attrcode, rgb, arena, err)
+        crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, arena, err)
     }
 }
 

@@ -36,6 +36,8 @@ use crate::globals::*;
 use crate::message::{semsg, siemsg, smsg};
 #[allow(unused_imports)]
 use crate::message::{verbose_enter, verbose_leave};
+#[allow(unused_imports)]
+use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::regtilde;
@@ -669,12 +671,6 @@ unsafe extern "C" {
     fn set_ref_in_list_items(l: *mut list_T, copyID: c_int, ht_stack: *mut *mut c_void) -> bool;
 
     fn expand_env(src: *const c_char, dst: *mut c_char, dstlen: c_int) -> usize;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
 
     fn copy_string(str_: NvimString, arena: *mut c_void) -> NvimString;
 

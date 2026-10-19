@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, has_event};
+#[allow(unused_imports)]
 use crate::drawscreen::{setcursor, update_screen};
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_set_keys_readonly;
@@ -34,7 +36,7 @@ use std::ptr;
 
 use crate::api::tabpage::win_T;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T};
+use crate::eval::deprecated::Callback;
 use crate::event::multiqueue::{Event, MultiQueue, multiqueue_empty, multiqueue_get};
 use crate::extmark::TriState;
 use crate::hashtab::hashtab_T;
@@ -147,7 +149,6 @@ unsafe extern "C" {
 
     fn uv_loop_size() -> usize;
     fn get_ve_flags(wp: *const win_T) -> c_uint;
-    fn has_event(event: c_int) -> bool;
     fn tv_dict_add_str(
         d: *mut dict_T,
         key: *const c_char,
@@ -155,13 +156,6 @@ unsafe extern "C" {
         val: *const c_char,
     ) -> c_int;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-    fn apply_autocmds(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char;
 }

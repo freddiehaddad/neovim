@@ -11,6 +11,8 @@
 
 #[allow(unused_imports)]
 use crate::autocmd::do_termresponse_autocmd;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_string;
 use crate::log::logmsg;
 use std::ffi::{CStr, c_char, c_int};
 
@@ -22,7 +24,6 @@ const LOGLVL_ERR: c_int = 3;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn api_typename(t: ObjectType) -> *const c_char;
 }
 

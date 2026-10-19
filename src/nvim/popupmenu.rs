@@ -24,6 +24,10 @@ use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
 use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_add_bool;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_add_float, tv_dict_add_nr};
+#[allow(unused_imports)]
 use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::ex_cmds::prepare_tagpreview;
@@ -51,6 +55,8 @@ use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::reverse_text;
+#[allow(unused_imports)]
+use crate::ui::ui_call_win_float_pos;
 #[allow(unused_imports)]
 use crate::ui::{
     ui_call_grid_destroy, ui_call_grid_resize, ui_call_option_set, ui_call_popupmenu_hide,
@@ -83,13 +89,11 @@ use crate::keycodes::{
     CAR, ESC, K_DOWN, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_MOUSEDOWN, K_MOUSEMOVE, K_MOUSEUP,
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
-use crate::lua::converter::{Boolean, Float};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::plines::{plines_m_win, win_linetabsize};
 use crate::ui_compositor::{ui_comp_compose_grid, ui_comp_put_grid, ui_comp_remove_grid};
 use crate::winfloat::{
@@ -247,23 +251,7 @@ static mut PUM_INVALID: bool = false;
 unsafe extern "C" {
     static opt_winborder_values: [*const c_char; 9];
 
-    fn ui_call_win_float_pos(
-        grid: Integer,
-        win: handle_T,
-        anchor: NvimString,
-        anchor_grid: Integer,
-        anchor_row: Float,
-        anchor_col: Float,
-        mouse_enabled: Boolean,
-        zindex: Integer,
-        compindex: Integer,
-        screen_row: Integer,
-        screen_col: Integer,
-    );
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn tv_dict_add_float(d: *mut dict_T, key: *const c_char, key_len: usize, nr: f64) -> c_int;
-    fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
-    fn tv_dict_add_bool(d: *mut dict_T, key: *const c_char, key_len: usize, val: c_int) -> c_int;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
 }

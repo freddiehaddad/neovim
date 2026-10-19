@@ -9,6 +9,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_append_number;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc,
     tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
@@ -173,8 +175,6 @@ struct ValuesStackItem {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn tv_list_append_number(l: *mut list_T, n: i64);
 
     fn vim_str2nr(
         start: *const c_char,

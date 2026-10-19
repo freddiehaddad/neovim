@@ -17,7 +17,11 @@ use crate::eval::typval::{
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find};
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_get_float, tv_get_number_chk};
+#[allow(unused_imports)]
 use crate::eval::vars::assert_error;
+#[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim_var_string};
 #[allow(unused_imports)]
 use crate::eval::{garbage_collect, pattern_match};
 #[allow(unused_imports)]
@@ -27,6 +31,10 @@ use crate::globals::*;
 use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
 #[allow(unused_imports)]
 use crate::message::{emsg, msg_reset_scroll};
+#[allow(unused_imports)]
+use crate::os::fs::os_fopen;
+#[allow(unused_imports)]
+use crate::runtime::estack_sfile;
 use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 
@@ -73,17 +81,6 @@ enum AssertType {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn estack_sfile(which: c_int) -> *mut c_char;
-
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
-    fn tv_get_float(tv: *const typval_T) -> f64;
-
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
-    fn get_vim_var_tv(idx: c_int) -> *mut typval_T;
-    fn get_vim_var_nr(idx: c_int) -> i64;
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-
-    fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut FILE;
     fn fgetc(stream: *mut FILE) -> c_int;
     fn fclose(stream: *mut FILE) -> c_int;
     fn vim_snprintf(str_ptr: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;

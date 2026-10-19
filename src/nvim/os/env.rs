@@ -12,6 +12,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len, utf_valid_string};
@@ -150,7 +152,6 @@ unsafe extern "C" {
     fn uv_err_name(err: c_int) -> *const c_char;
     fn uv_strerror(err: c_int) -> *const c_char;
 
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
     fn skip_expr(pp: *mut *mut c_char, evalarg: *mut c_void) -> c_int;
     fn modify_fname(
         src: *const c_char,

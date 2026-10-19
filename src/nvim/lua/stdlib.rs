@@ -14,6 +14,10 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, dict_check_writable, try_enter, try_leave};
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle,
+};
+#[allow(unused_imports)]
 use crate::eval::typval::tv_dict_watcher_notify;
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -33,6 +37,8 @@ use crate::mbyte::{
 };
 #[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
+#[allow(unused_imports)]
+use crate::message::str2special;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
@@ -171,16 +177,6 @@ unsafe extern "C-unwind" {
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
-    fn find_buffer_by_handle(buffer: handle_T, err: *mut Error) -> *mut buf_T;
-    fn find_window_by_handle(window: handle_T, err: *mut Error) -> *mut win_T;
-    fn find_tab_by_handle(tabpage: handle_T, err: *mut Error) -> *mut tabpage_T;
-
-    fn str2special(
-        sp: *mut *const c_char,
-        replace_spaces: bool,
-        replace_others: c_int,
-        data: *mut keychord,
-    ) -> *const c_char;
 }
 
 #[inline]

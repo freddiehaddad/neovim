@@ -19,6 +19,8 @@ use crate::eval::typval::{
 use crate::eval::userfunc::find_func;
 #[allow(unused_imports)]
 use crate::eval::{get_copyID, partial_name};
+#[allow(unused_imports)]
+use crate::lua::executor::api_new_luaref;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::private::validate::{
@@ -95,7 +97,6 @@ pub struct partial_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    fn api_new_luaref(luaref: c_int) -> c_int;
     fn register_luafunc(luaref: c_int) -> *mut c_char;
 
 }

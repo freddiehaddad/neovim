@@ -25,12 +25,16 @@ use crate::drawscreen::{
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
 #[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
+#[allow(unused_imports)]
 use crate::eval::{call_vim_function, eval_has_provider};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
 #[allow(unused_imports)]
 use crate::fold::{closeFold, hasFolding, openFold};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::get_win_by_grid_handle;
 #[allow(unused_imports)]
 use crate::input::{
     prep_redo, redo_append_char, safe_vgetc, stuffReadbuff, stuffcharReadbuff, stuffnumReadbuff,
@@ -219,8 +223,6 @@ static mut dragwin: *mut win_T = ptr::null_mut();
 unsafe extern "C" {
 
     fn ml_get_buf(buf: *const buf_T, lnum: linenr_T) -> *mut c_char;
-    fn get_vim_var_nr(idx: c_int) -> varnumber_T;
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
     fn decor_virt_lines(
         wp: *mut win_T,
         start_row: c_int,
@@ -229,7 +231,6 @@ unsafe extern "C" {
         lines: *mut c_void,
         apply_folds: bool,
     ) -> c_int;
-    fn get_win_by_grid_handle(handle: c_int) -> *mut win_T;
 }
 
 #[inline]

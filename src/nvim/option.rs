@@ -8161,7 +8161,7 @@ pub unsafe extern "C" fn copy_option_part(
     option: *mut *mut c_char,
     buf: *mut c_char,
     maxlen: usize,
-    sep_chars: *mut c_char,
+    sep_chars: *const c_char,
 ) -> usize {
     unsafe {
         let mut len: usize = 0;

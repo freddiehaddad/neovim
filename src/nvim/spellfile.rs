@@ -47,6 +47,8 @@ use crate::message::{
 };
 use crate::message::{semsg, smsg};
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
@@ -374,12 +376,6 @@ unsafe extern "C" {
         dst: *mut c_char,
         dstlen: usize,
         one: bool,
-    ) -> usize;
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
     ) -> usize;
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
 

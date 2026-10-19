@@ -23,6 +23,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_get_lnum;
 #[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_vim_var_nr, set_vim_var_string};
+#[allow(unused_imports)]
 use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -173,11 +175,6 @@ unsafe extern "C" {
     fn libintl_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
 
     fn vim_snprintf(str_buf: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
-
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
-    fn get_vim_var_nr(idx: c_int) -> varnumber_T;
-    fn get_vim_var_str(idx: c_int) -> *mut c_char;
 
 }
 

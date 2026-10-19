@@ -11,6 +11,8 @@
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_get_number, tv_get_number_chk};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_get_string_buf, tv_get_string_chk};
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
@@ -24,6 +26,8 @@ use crate::message::{
     trunc_string,
 };
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -75,18 +79,6 @@ pub struct histentry_T {
 
 pub use crate::api::command::cmdmod_T;
 pub use crate::api::command::regmatch_T;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    fn tv_get_number(tv: *const typval_T) -> i64;
-    fn tv_get_number_chk(tv: *const typval_T, ret_error: *mut bool) -> i64;
-
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
-    fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
-    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
-
-}
 
 #[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {

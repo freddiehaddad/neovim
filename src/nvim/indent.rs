@@ -20,6 +20,8 @@ use crate::eval::eval_expr_option_number;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_get_lnum;
 #[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
+#[allow(unused_imports)]
 use crate::ex_docmd::handle_did_throw;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -39,6 +41,8 @@ use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 #[allow(unused_imports)]
 use crate::ops::shift_line;
 #[allow(unused_imports)]
+use crate::option::copy_option_part;
+#[allow(unused_imports)]
 use crate::option::{get_flp_value, get_showbreak_value, set_option_value, was_set_insecurely};
 use crate::option_vars::*;
 #[allow(unused_imports)]
@@ -47,6 +51,8 @@ use crate::optionstr::opt_keyset;
 use crate::os::input::line_breakcheck;
 #[allow(unused_imports)]
 use crate::regexp::vim_regexec;
+#[allow(unused_imports)]
+use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::search::{findmatch, linewhite};
 #[allow(unused_imports)]
@@ -155,8 +161,6 @@ static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
 
-    fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut crate::regexp::regprog_T;
-    fn vim_regfree(prog: *mut crate::regexp::regprog_T);
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn msg_progress(
@@ -169,13 +173,6 @@ unsafe extern "C" {
         trunc: bool,
         err: bool,
     ) -> *mut c_char;
-    fn set_vim_var_nr(idx: c_int, val: varnumber_T);
-    fn copy_option_part(
-        option: *mut *mut c_char,
-        buf: *mut c_char,
-        maxlen: usize,
-        sep_chars: *const c_char,
-    ) -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     fn atoi(s: *const c_char) -> c_int;

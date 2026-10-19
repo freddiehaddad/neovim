@@ -9,6 +9,10 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
+use crate::eval::vars::set_vim_var_nr;
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
@@ -17,7 +21,6 @@ use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::eval::deprecated::buf_T;
 use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
@@ -76,14 +79,6 @@ static mut rejecting_deadly: bool = false;
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
 
-    fn set_vim_var_nr(idx: c_int, val: i64);
-    fn apply_autocmds(
-        event: c_int,
-        fname: *mut c_char,
-        fname_io: *mut c_char,
-        force: bool,
-        buf: *mut buf_T,
-    ) -> bool;
     #[cfg(target_os = "linux")]
     fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool);
     fn vim_snprintf(str: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
