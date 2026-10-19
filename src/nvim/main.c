@@ -4,14 +4,9 @@
 #else
 # define EXTERN
 #endif
-#include <assert.h>
-#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #ifdef ENABLE_ASAN_UBSAN
 # include <sanitizer/asan_interface.h>
 # ifndef MSWIN
@@ -22,7 +17,6 @@
 #include "auto/config.h"  // IWYU pragma: keep
 #include "auto/pathdef.h"
 #include "nvim/event/loop.h"
-#include "nvim/log.h"
 #include "nvim/main.h"
 #include "nvim/option_defs.h"
 #include "nvim/option_vars.h"

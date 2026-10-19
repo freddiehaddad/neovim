@@ -67,10 +67,11 @@ static mut RECURSIVE: bool = false;
 static mut DID_MSG: bool = false;
 static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut g_min_log_level: c_int = LOGLVL_WRN;
+
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut g_min_log_level: c_int;
-
     fn uv_strerror(err: c_int) -> *const c_char;
     fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
     fn uv_mutex_lock(handle: *mut c_void);

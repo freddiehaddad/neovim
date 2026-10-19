@@ -18,6 +18,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::log::g_min_log_level;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_exec;
@@ -311,7 +313,6 @@ static mut urls: Set<cstr_t> = Set {
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut g_min_log_level: c_int;
 
     fn uv_loop_init(loop_: *mut uv_loop_t) -> c_int;
     fn uv_loop_close(loop_: *mut uv_loop_t) -> c_int;

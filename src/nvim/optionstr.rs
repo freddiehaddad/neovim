@@ -822,8 +822,6 @@ static PVP_TABLE: [KeySetLink; 4] = [
 
 unsafe extern "C" {
 
-    static mut p_vfile: *mut c_char;
-
     static opt_scl_values: [*const c_char; 23];
     static opt_bkc_values: [*const c_char; 6];
     static opt_cot_values: [*const c_char; 13];

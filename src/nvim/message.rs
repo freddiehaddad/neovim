@@ -286,7 +286,6 @@ static mut pre_verbose_kind: *const c_char = ptr::null();
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 
 unsafe extern "C" {
-    static mut p_vfile: *mut c_char;
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

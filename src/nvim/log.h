@@ -51,11 +51,7 @@
 # define LOG_CALLSTACK_TO_FILE(fp) log_callstack_to_file(fp, __func__, __LINE__)
 #endif
 
-#ifndef NVIM_LOG_DEBUG
-EXTERN int g_min_log_level INIT( = LOGLVL_WRN);
-#else
-EXTERN int g_min_log_level INIT( = 0);
-#endif
+extern int g_min_log_level;
 
 #define DEFINE_FUNC_ATTRIBUTES
 #include "nvim/func_attr.h"

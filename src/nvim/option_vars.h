@@ -486,11 +486,7 @@ extern int p_vb;                ///< 'visualbell'
 extern char *p_ve;              ///< 'virtualedit'
 extern unsigned ve_flags;
 extern OptInt p_verbose;        ///< 'verbose'
-#ifdef IN_OPTION_C
-char *p_vfile = empty_string_option;  ///< used before options are initialized
-#else
 extern char *p_vfile;           ///< 'verbosefile'
-#endif
 extern int p_warn;              ///< 'warn'
 extern char *p_wop;             ///< 'wildoptions'
 extern unsigned wop_flags;

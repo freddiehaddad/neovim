@@ -38,6 +38,8 @@ use crate::input::{
 };
 #[allow(unused_imports)]
 use crate::insexpand::ins_compl_active;
+#[allow(unused_imports)]
+use crate::log::g_min_log_level;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
@@ -291,7 +293,6 @@ static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
 unsafe extern "C" {
-    static mut g_min_log_level: c_int;
 
     fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

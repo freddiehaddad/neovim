@@ -31,6 +31,8 @@ use crate::ex_docmd::{apply_cmdmod, undo_cmdmod};
 use crate::fold::foldUpdate;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::log::g_min_log_level;
+#[allow(unused_imports)]
 use crate::mbyte::{
     convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
     mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
@@ -174,10 +176,7 @@ unsafe extern "C-unwind" {
 }
 
 #[cfg(not(test))]
-unsafe extern "C" {
-    static mut g_min_log_level: c_int;
-
-}
+unsafe extern "C" {}
 
 #[inline]
 unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {

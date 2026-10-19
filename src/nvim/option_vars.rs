@@ -637,6 +637,8 @@ pub static mut ve_flags: c_uint = 0;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut p_verbose: OptInt = 0;
 #[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut p_vfile: *mut c_char = (&raw mut empty_string_option).cast();
+#[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut p_warn: c_int = 0;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut p_wop: *mut c_char = ptr::null_mut();
@@ -696,6 +698,7 @@ mod tests {
             assert_eq!({ p_mousescroll_vert }, 3);
             assert_eq!({ p_mousescroll_hor }, 6);
             assert_eq!({ empty_string_option[0] }, 0);
+            assert_eq!({ *p_vfile }, 0);
         }
     }
 }

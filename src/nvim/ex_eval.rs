@@ -198,7 +198,6 @@ use crate::profile::estack_T;
 static mut cause_abort: bool = false;
 
 unsafe extern "C" {
-    static mut p_vfile: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
 

@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::log::g_min_log_level;
 use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -62,7 +64,6 @@ pub struct RStreamFields {
 }
 
 unsafe extern "C" {
-    static mut g_min_log_level: c_int;
 
     fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;
     fn uv_handle_get_loop(handle: *const uv_handle_t) -> *mut uv_loop_t;

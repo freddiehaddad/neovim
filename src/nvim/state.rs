@@ -28,6 +28,8 @@ use crate::input::{
 };
 #[allow(unused_imports)]
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
+#[allow(unused_imports)]
+use crate::log::g_min_log_level;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::option::get_ve_flags;
@@ -150,7 +152,6 @@ pub struct save_v_event_T {
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut g_min_log_level: c_int;
 
     fn uv_loop_size() -> usize;
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
