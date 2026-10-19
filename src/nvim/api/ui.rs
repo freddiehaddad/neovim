@@ -58,7 +58,7 @@ use crate::ui::{
 const MAX_SCHAR_SIZE: usize = 32;
 const UI_BUF_SIZE: usize = 4096;
 const EVENT_BUF_SIZE: usize = 256;
-const HLATTRS_DICT_SIZE: usize = 16;
+const HLATTRS_DICT_SIZE: usize = 24;
 const DEFAULT_GRID_HANDLE: Integer = 1;
 const NO_SCREEN: c_int = 2;
 const CHAN_STDIO: u64 = 1;

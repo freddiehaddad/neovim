@@ -50,6 +50,7 @@ pub mod insexpand;
 pub mod keycodes;
 pub mod kvec;
 pub mod linematch;
+pub mod log;
 pub mod lua;
 pub mod map;
 pub mod map_glyph_cache;

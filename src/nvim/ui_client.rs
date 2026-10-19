@@ -45,7 +45,7 @@ use crate::tui::tui::{
 const LOGLVL_INF: c_int = 2;
 const LOGLVL_ERR: c_int = 4;
 const UI_CLIENT_STDIN_FD: Integer = 3;
-const kChannelStdinPipe: c_int = 1;
+const kChannelStdinPipe: c_int = 0;
 const kLineFlagWrap: c_int = 1;
 const KEYSET_OPTIDX_highlight__url: u64 = 5;
 
