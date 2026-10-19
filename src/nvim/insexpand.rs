@@ -540,11 +540,7 @@ struct cpt_source_T {
     cs_flag: c_char,
 }
 
-#[repr(C)]
-struct save_v_event_T {
-    sve_did_save: bool,
-    sve_hashtab: hashtab_T,
-}
+use crate::state::save_v_event_T;
 
 unsafe extern "C" {
     static mut curwin: *mut win_T;

@@ -28,6 +28,7 @@ use crate::extmark::extmark_splice_cols;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::opt_error;
 use crate::plines::{
     CSType, CharInfo, CharsizeArg, ClusterInfo, StrCharInfo, getvcol, getvcol_nolist,
     init_charsize_arg, utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, win_charsize,
@@ -138,7 +139,6 @@ unsafe extern "C" {
     static e_resulting_text_too_long: [c_char; 1];
     static e_interr: [c_char; 1];
 
-    fn opt_error(errbuf: *const CharBuf, fmt: *const c_char, ...) -> *const c_char;
     fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;
     fn get_nolist_virtcol() -> colnr_T;
     fn ml_get(lnum: linenr_T) -> *mut c_char;

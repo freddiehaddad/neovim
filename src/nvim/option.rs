@@ -891,7 +891,35 @@ unsafe extern "C" {
 
     pub fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
     pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex;
-    pub fn opt_error(errbuf: *const CharBuf, fmt: *const c_char, ...) -> *const c_char;
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn opt_error(
+    errbuf: *const CharBuf,
+    fmt: *const c_char,
+    arg: *const c_char,
+) -> *const c_char {
+    if errbuf.is_null() {
+        return c"".as_ptr();
+    }
+    unsafe {
+        vim_snprintf((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
+        (*errbuf).data.cast_const()
+    }
+}
+
+pub unsafe fn opt_error_int(
+    errbuf: *const CharBuf,
+    fmt: *const c_char,
+    arg: c_int,
+) -> *const c_char {
+    if errbuf.is_null() {
+        return c"".as_ptr();
+    }
+    unsafe {
+        vim_snprintf((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
+        (*errbuf).data.cast_const()
+    }
 }
 
 #[inline]
@@ -4214,14 +4242,14 @@ unsafe fn check_num_option_bounds(
             kOptLines => {
                 let min_r = min_rows_for_all_tabpages();
                 if *newval < OptInt::from(min_r) && full_screen {
-                    errmsg = opt_error(errbuf, c"E593: Need at least %d lines".as_ptr(), min_r);
+                    errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines".as_ptr(), min_r);
                     *newval = OptInt::from(min_r);
                 }
                 *newval = (*newval).min(OptInt::from(c_int::MAX));
             }
             kOptColumns => {
                 if *newval < OptInt::from(MIN_COLUMNS) && full_screen {
-                    errmsg = opt_error(
+                    errmsg = opt_error_int(
                         errbuf,
                         c"E594: Need at least %d columns".as_ptr(),
                         MIN_COLUMNS,
@@ -5361,14 +5389,20 @@ pub unsafe extern "C" fn validate_and_prepare_option_value(args: *mut optset_T) 
         } else if !option_has_type(opt_idx, optval_type(*newval)) {
             let rep = optval_to_cstr(*newval, true);
             let type_str = optval_type_name((*opt).opt_type);
-            errmsg = opt_error(
-                errbuf,
-                c"Invalid value for option '%s': expected %s, got %s %s".as_ptr(),
-                (*opt).fullname,
-                type_str,
-                optval_type_name(optval_type(*newval)),
-                rep,
-            );
+            errmsg = if errbuf.is_null() {
+                c"".as_ptr()
+            } else {
+                vim_snprintf(
+                    (*errbuf).data,
+                    (*errbuf).size,
+                    gettext(c"Invalid value for option '%s': expected %s, got %s %s".as_ptr()),
+                    (*opt).fullname,
+                    type_str,
+                    optval_type_name(optval_type(*newval)),
+                    rep,
+                );
+                (*errbuf).data.cast_const()
+            };
             xfree(rep.cast());
         } else if (*newval).obj_type == ObjectType::kObjectTypeInteger {
             errmsg = validate_num_option(opt_idx, &raw mut (*newval).data.integer, win, errbuf);

@@ -127,7 +127,7 @@ const CODESET: c_int = 0;
 const CP_UTF8: u32 = 65001;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct vimconv_T {
     pub vc_type: c_int,
     pub vc_factor: c_int,

@@ -48,6 +48,7 @@ use crate::memory::{
     Arena, arena_alloc, arena_finish, arena_mem_free, xcalloc, xfree, xmemcpyz, xstrdup, xstrlcpy,
 };
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::opt_error;
 use crate::profile::estack_T;
 use crate::sign::expand_T;
 
@@ -144,10 +145,7 @@ pub struct typebuf_T {
     pub tb_change_cnt: c_int,
 }
 
-#[repr(C)]
-pub struct regmatch_T {
-    _private: [u8; 0],
-}
+pub use crate::api::command::regmatch_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -345,8 +343,6 @@ unsafe extern "C" {
     fn tv_check_for_dict_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn check_secure() -> bool;
     fn find_func(name: *const c_char) -> *mut ufunc_T;
-
-    fn opt_error(errbuf: *const CharBuf, fmt: *const c_char, ...) -> *const c_char;
 }
 
 #[inline]

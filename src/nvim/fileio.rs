@@ -257,14 +257,7 @@ static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 #[cfg(unix)]
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
-#[repr(C)]
-struct regmatch_T {
-    regprog: *mut regprog_T,
-    startp: [*mut c_char; NSUBEXP],
-    endp: [*mut c_char; NSUBEXP],
-    rm_matchcol: colnr_T,
-    rm_ic: bool,
-}
+pub use crate::api::command::regmatch_T;
 
 #[cfg(not(test))]
 unsafe extern "C" {

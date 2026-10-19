@@ -274,6 +274,7 @@ pub struct regmatch_T {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct reg_extmatch_T {
     pub refcnt: i16,
     pub matches: [*mut u8; NSUBEXP],

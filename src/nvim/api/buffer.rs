@@ -10,7 +10,7 @@
     clippy::too_many_arguments
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -25,7 +25,6 @@ use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T, fmark_T};
-use crate::kvec::KVec;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map_glyph_cache::NvimString;
@@ -148,23 +147,7 @@ pub struct VisualState {
     pub resel: VisualExtent,
 }
 
-#[repr(C)]
-pub struct u_header_T {
-    pub uh_next: *mut u_header_T,
-    pub uh_prev: *mut u_header_T,
-    pub uh_alt_next: *mut u_header_T,
-    pub uh_alt_prev: *mut u_header_T,
-    pub uh_seq: c_int,
-    pub uh_walk: c_int,
-    pub uh_entry: *mut c_void,
-    pub uh_getbot_entry: *mut c_void,
-    pub uh_cursor: pos_T,
-    pub uh_cursor_after: pos_T,
-    pub uh_cursor_vcol: colnr_T,
-    pub uh_flags: c_int,
-    pub uh_namedm: [fmark_T; 26],
-    pub uh_extmark: KVec<*mut c_void>,
-}
+pub use crate::extmark::u_header_T;
 
 unsafe extern "C" {
     static mut curbuf: *mut buf_T;

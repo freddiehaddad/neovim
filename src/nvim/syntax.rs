@@ -170,12 +170,7 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
     c"lc=".as_ptr(),
 ];
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct reg_extmatch_T {
-    pub refcnt: i16,
-    pub matches: [*mut u8; NSUBEXP],
-}
+pub use crate::regexp::reg_extmatch_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

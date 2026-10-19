@@ -171,15 +171,7 @@ pub struct tagname_T {
     pub tn_search_ctx: *mut c_void,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct regmatch_T {
-    pub regprog: *mut regprog_T,
-    pub startp: [*mut c_char; NSUBEXP],
-    pub endp: [*mut c_char; NSUBEXP],
-    pub rm_matchcol: colnr_T,
-    pub rm_ic: bool,
-}
+pub use crate::api::command::regmatch_T;
 
 pub use crate::r#match::SearchState;
 

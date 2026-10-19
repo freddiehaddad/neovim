@@ -53,6 +53,7 @@ use crate::memline::ml_setflags;
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdup, xmemdupz, xstrdup};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::opt_error;
 use crate::os::env::{expand_T, vim_unsetenv_ext};
 use crate::spell::{
     compile_cap_prog, did_set_spell_option, spell_reload, valid_spellfile, valid_spelllang,
@@ -861,7 +862,6 @@ unsafe extern "C" {
     static e_leadtab_requires_tab: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
-    fn opt_error(errbuf: *const CharBuf, fmt: *const c_char, ...) -> *const c_char;
     fn valid_name(val: *const c_char, allowed: *const c_char) -> bool;
     fn get_option(opt_idx: OptIndex) -> *mut vimoption_T;
     fn get_option_default(opt_idx: OptIndex, opt_flags: c_int) -> Object;
@@ -2379,7 +2379,7 @@ pub unsafe extern "C" fn validate_complete(args: *mut optset_T) -> *const c_char
                 }
             }
             if char_before != 0 {
-                return opt_error(
+                return crate::option::opt_error_int(
                     (*args).os_errbuf,
                     E_ILLEGAL_CHARACTER_AFTER_CHR.as_ptr(),
                     c_int::from(char_before),
@@ -2399,7 +2399,7 @@ pub unsafe extern "C" fn validate_complete(args: *mut optset_T) -> *const c_char
 pub unsafe extern "C" fn did_set_complete(args: *mut optset_T) -> *const c_char {
     unsafe {
         if set_cpt_callbacks(args) != OK {
-            return opt_error(
+            return crate::option::opt_error_int(
                 (*args).os_errbuf,
                 E_ILLEGAL_CHARACTER_AFTER_CHR.as_ptr(),
                 b'F' as c_int,

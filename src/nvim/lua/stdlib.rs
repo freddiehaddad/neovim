@@ -73,22 +73,8 @@ const kCtxKeepDirs: c_int = 2;
 const kCtxNoDisplay: c_int = 4;
 const kCtxValidate: c_int = 16;
 
-#[repr(C)]
-pub struct regmatch_T {
-    pub regprog: *mut regprog_T,
-    pub startp: [*mut c_char; NSUBEXP],
-    pub endp: [*mut c_char; NSUBEXP],
-    pub rm_matchcol: colnr_T,
-    pub rm_ic: bool,
-}
-
-#[repr(C)]
-pub struct vimconv_T {
-    pub vc_type: c_int,
-    pub vc_factor: c_int,
-    pub vc_fd: *mut c_void,
-    pub vc_fail: bool,
-}
+pub use crate::api::command::regmatch_T;
+pub use crate::mbyte::vimconv_T;
 
 static REGEX_META: [luaL_Reg; 5] = [
     luaL_Reg {

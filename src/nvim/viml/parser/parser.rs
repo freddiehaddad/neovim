@@ -7,15 +7,7 @@ use crate::memory::xfree;
 
 pub const CONV_NONE: c_int = 0;
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
-pub struct vimconv_T {
-    pub vc_type: c_int,
-    pub vc_factor: c_int,
-    pub vc_fd: *mut c_void,
-    pub vc_fail: bool,
-}
+pub use crate::mbyte::vimconv_T;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

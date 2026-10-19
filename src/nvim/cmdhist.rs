@@ -62,14 +62,7 @@ pub struct cmdmod_Prefix {
     pub cmod_flags: c_int,
 }
 
-#[repr(C)]
-pub struct regmatch_T {
-    pub regprog: *mut c_void,
-    pub startp: [*mut c_char; NSUBEXP],
-    pub endp: [*mut c_char; NSUBEXP],
-    pub rm_matchcol: c_int,
-    pub rm_ic: bool,
-}
+pub use crate::api::command::regmatch_T;
 
 #[cfg(not(test))]
 unsafe extern "C" {

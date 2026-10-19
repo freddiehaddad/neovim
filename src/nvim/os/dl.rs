@@ -5,8 +5,8 @@ use std::ffi::{c_char, c_int, c_void};
 use crate::memory::xstrdup;
 
 #[repr(C)]
-struct UvLib {
-    _opaque: [*mut c_void; 4],
+pub struct UvLib {
+    pub _opaque: [*mut c_void; 4],
 }
 
 #[cfg(not(test))]

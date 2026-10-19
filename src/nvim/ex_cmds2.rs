@@ -21,7 +21,6 @@ use crate::clipboard::{list_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
 use crate::eval::deprecated::buf_T;
-use crate::garray::garray_T;
 use crate::memory::{xfree, xmalloc, xstrdup};
 
 pub type linenr_T = i32;
@@ -79,18 +78,7 @@ const VV_SWAPCOMMAND: c_int = 49;
 
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
-#[repr(C)]
-struct alist_T {
-    al_ga: garray_T,
-    al_refcount: c_int,
-    id: c_int,
-}
-
-#[repr(C)]
-struct aentry_T {
-    ae_fname: *mut c_char,
-    ae_fnum: c_int,
-}
+use crate::arglist::{aentry_T, alist_T};
 
 unsafe extern "C" {
     static mut p_aw: c_int;

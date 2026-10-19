@@ -36,7 +36,7 @@ use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
-use crate::memory::{Arena, arena_finish, arena_mem_free, entered_free_all_mem, xcalloc, xfree};
+use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::os::time::{os_hrtime, os_sleep};
 use crate::ui_compositor::{
@@ -1333,7 +1333,7 @@ static mut UILOG_LAST_EVENT: *const c_char = ptr::null();
 pub unsafe extern "C" fn ui_log(funname: *const c_char) {
     #[cfg(debug_assertions)]
     unsafe {
-        if entered_free_all_mem {
+        if crate::memory::entered_free_all_mem {
             return;
         }
 

@@ -165,13 +165,7 @@ pub struct evalarg_T {
     pub eval_tofree: *mut c_char,
 }
 
-#[repr(C)]
-struct estack_T {
-    es_lnum: linenr_T,
-    es_name: *mut c_char,
-    es_type: c_int,
-    es_info: *mut c_void,
-}
+use crate::profile::estack_T;
 
 static mut cause_abort: bool = false;
 

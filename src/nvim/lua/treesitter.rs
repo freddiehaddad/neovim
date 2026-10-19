@@ -91,10 +91,7 @@ const TS_META_QUERY: *const c_char = c"treesitter_query".as_ptr();
 const TS_META_QUERYCURSOR: *const c_char = c"treesitter_querycursor".as_ptr();
 const TS_META_QUERYMATCH: *const c_char = c"treesitter_querymatch".as_ptr();
 
-#[repr(C)]
-struct UvLib {
-    _opaque: [*mut c_void; 4],
-}
+use crate::os::dl::UvLib;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

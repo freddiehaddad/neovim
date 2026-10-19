@@ -126,10 +126,7 @@ pub struct conpty_t {
 }
 
 #[cfg(windows)]
-#[repr(C)]
-struct UvLib {
-    _opaque: [*mut c_void; 4],
-}
+use crate::os::dl::UvLib;
 
 #[cfg(windows)]
 pub type CreatePseudoConsoleFn =

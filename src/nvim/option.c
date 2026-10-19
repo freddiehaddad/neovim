@@ -1,8 +1,7 @@
-// option.c: C generated option table and variadic wrapper for option.rs
+// option.c: C generated option table for option.rs
 
 #define IN_OPTION_C
 #include <assert.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -17,7 +16,6 @@
 #include "nvim/option_defs.h"
 #include "nvim/option_vars.h"
 #include "nvim/os/os_defs.h"
-#include "nvim/strings.h"
 #include "nvim/vim_defs.h"
 
 #ifdef BACKSLASH_IN_FILENAME
@@ -83,20 +81,6 @@ const char *did_set_xhistory(optset_T *args);
 
 #include "options.generated.h"
 #include "options_map.generated.h"
-
-/// Format an option error. Without a buffer, return a non-NULL empty message.
-const char *opt_error(const CharBuf *errbuf, const char *fmt, ...)
-  FUNC_ATTR_PRINTF(2, 3)
-{
-  if (errbuf == NULL) {
-    return "";
-  }
-  va_list arglist;
-  va_start(arglist, fmt);
-  vim_vsnprintf(errbuf->data, errbuf->size, _(fmt), arglist);
-  va_end(arglist);
-  return errbuf->data;
-}
 
 /// Find index for an option. Don't go beyond `len` length.
 ///
