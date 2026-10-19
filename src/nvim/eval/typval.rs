@@ -367,7 +367,7 @@ unsafe fn nlua_clear_ref(r: &mut LuaRef) {
 }
 
 #[inline]
-unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
+pub(crate) unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
     unsafe {
         (*hi)
             .hi_key

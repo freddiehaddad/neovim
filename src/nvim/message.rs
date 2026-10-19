@@ -123,7 +123,7 @@ const HLF_MSG: c_int = 63;
 const UPD_VALID: c_int = 10;
 const UPD_NOT_VALID: c_int = 40;
 
-const FLUSH_MINIMAL: c_int = 1;
+const FLUSH_MINIMAL: c_int = 0;
 
 const kOptBoFlagMess: c_uint = 0x1000;
 const kOptBoFlagShell: c_uint = 0x10000;

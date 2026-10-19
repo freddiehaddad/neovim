@@ -25,6 +25,7 @@ pub mod deprecated;
 pub mod encode;
 pub mod executor;
 pub mod fs;
+pub mod funcs;
 pub mod gc;
 pub mod list;
 pub mod typval;
@@ -923,7 +924,7 @@ unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
 }
 
 #[inline]
-unsafe fn timer_tail(timer: *mut timer_T) -> *mut TimerTail {
+pub(crate) unsafe fn timer_tail(timer: *mut timer_T) -> *mut TimerTail {
     unsafe {
         #[cfg(not(test))]
         let uv_sz = uv_handle_size(UV_TIMER);

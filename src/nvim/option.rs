@@ -6,6 +6,7 @@
     non_snake_case,
     non_upper_case_globals,
     clashing_extern_declarations,
+    unused_imports,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::unnecessary_cast,
