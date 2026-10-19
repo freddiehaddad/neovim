@@ -473,6 +473,18 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
     #[cfg(not(windows))]
+    fn strerror(errnum: c_int) -> *const c_char;
+    #[cfg(not(windows))]
+    fn logmsg(
+        log_level: c_int,
+        context: *const c_char,
+        func_name: *const c_char,
+        line_num: c_int,
+        eol: bool,
+        fmt: *const c_char,
+        ...
+    ) -> bool;
+    #[cfg(not(windows))]
     fn getuid() -> u32;
 
     #[cfg(target_os = "linux")]
@@ -991,9 +1003,33 @@ pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
     unsafe {
         let fdflags = fcntl(fd, F_GETFD);
         if fdflags < 0 {
+            let e = *errno_ptr();
+            let _ = logmsg(
+                4,
+                ptr::null(),
+                c"os_set_cloexec".as_ptr(),
+                line!() as c_int,
+                true,
+                c"Failed to get flags on descriptor %d: %s".as_ptr(),
+                fd,
+                strerror(e),
+            );
+            *errno_ptr() = e;
             return -1;
         }
         if (fdflags & FD_CLOEXEC) == 0 && fcntl(fd, F_SETFD, fdflags | FD_CLOEXEC) == -1 {
+            let e = *errno_ptr();
+            let _ = logmsg(
+                4,
+                ptr::null(),
+                c"os_set_cloexec".as_ptr(),
+                line!() as c_int,
+                true,
+                c"Failed to set CLOEXEC on descriptor %d: %s".as_ptr(),
+                fd,
+                strerror(e),
+            );
+            *errno_ptr() = e;
             return -1;
         }
         0

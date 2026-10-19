@@ -52,6 +52,7 @@ pub mod kvec;
 pub mod linematch;
 pub mod log;
 pub mod lua;
+pub mod main_init;
 pub mod map;
 pub mod map_glyph_cache;
 pub mod mapping;
