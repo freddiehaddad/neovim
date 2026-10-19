@@ -31,6 +31,7 @@ use crate::mbyte::{
     utfc_ptr2len,
 };
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
@@ -328,7 +329,6 @@ static mut sps_flags: c_int = SPS_BEST;
 static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
-    static mut p_sps: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

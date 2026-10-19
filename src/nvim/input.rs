@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -314,20 +315,6 @@ unsafe extern "C" {
     static mut test_disable_char_avail: bool;
     static mut repeat_luamap: c_int;
     static mut langmap_mapchar: [u8; 256];
-
-    static mut p_uc: OptInt;
-    static mut p_fs: c_int;
-    static mut p_sc: c_int;
-    static mut p_paste: c_int;
-    static mut p_mmd: OptInt;
-    static mut p_langmap: *mut c_char;
-    static mut p_lrm: c_int;
-    static mut p_timeout: c_int;
-    static mut p_ttimeout: c_int;
-    static mut p_ttm: OptInt;
-    static mut p_tm: OptInt;
-    static mut p_lz: c_int;
-    static mut p_smd: c_int;
 
     fn uv_loop_size() -> usize;
     fn gettext(msgid: *const c_char) -> *mut c_char;

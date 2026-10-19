@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -74,7 +75,6 @@ struct MatchStruct {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut p_ws: c_int;
 
     fn mb_charlen(str_ptr: *const c_char) -> c_int;
     fn utf_ptr2char(p: *const c_char) -> c_int;

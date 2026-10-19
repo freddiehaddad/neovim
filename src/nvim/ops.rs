@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -218,18 +219,6 @@ static mut addsub_hexupper: bool = false;
 unsafe extern "C" {
     static mut disable_fold_update: c_int;
     static mut curbuf_splice_pending: c_int;
-    static mut p_sr: c_int;
-    static mut p_ri: c_int;
-    static mut p_js: c_int;
-    static mut p_sol: c_int;
-    static mut p_report: OptInt;
-    static mut p_ch: OptInt;
-    static mut p_cpo: *mut c_char;
-    static mut p_sel: *mut c_char;
-    static mut p_sbr: *mut c_char;
-    static mut p_shm: *mut c_char;
-    static mut p_fp: *mut c_char;
-    static mut p_opfunc: Callback;
     static mut empty_string_option: [c_char; 1];
     static no_lines_msg: [c_char; 1];
     static mut IObuff: [c_char; IOSIZE];

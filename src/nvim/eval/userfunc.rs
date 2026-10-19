@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -241,9 +242,6 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut p_mfd: OptInt;
-    static mut p_verbose: OptInt;
-    static mut p_ic: c_int;
     static mut EVALARG_EVALUATE: evalarg_T;
     static mut IObuff: [c_char; IOSIZE];
 

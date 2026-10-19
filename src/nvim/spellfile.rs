@@ -34,6 +34,7 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::option_vars::*;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
@@ -341,9 +342,6 @@ struct spellinfo_T {
 }
 
 unsafe extern "C" {
-    static mut p_verbose: i64;
-    static mut p_enc: *mut c_char;
-    static mut p_msm: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
 

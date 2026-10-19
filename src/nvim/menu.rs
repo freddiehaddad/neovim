@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -174,8 +175,6 @@ unsafe extern "C" {
 }
 
 unsafe extern "C" {
-    static mut p_cpo: *mut c_char;
-    static mut p_sel: *mut c_char;
 
     fn emsg(s: *const c_char) -> bool;
     fn semsg(s: *const c_char, ...) -> bool;

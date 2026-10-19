@@ -24,6 +24,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -419,16 +420,6 @@ unsafe extern "system" {
 unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut p_magic: c_int;
-    static mut p_cpo: *mut c_char;
-    static mut p_verbose: i64;
-    static mut p_wic: c_int;
-    static mut p_sel: *mut c_char;
-    static mut p_tgc: c_int;
-    static mut p_spk: *mut c_char;
-    static mut p_ic: c_int;
-    static mut p_ws: c_int;
-    static mut p_enc: *mut c_char;
     static mut empty_string_option: [c_char; 1];
     static mut main_loop: u8;
     static mut autocmd_busy: bool;

@@ -19,6 +19,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::zeroed;
 use std::ptr;
@@ -320,31 +321,7 @@ unsafe extern "C" {
     static mut ctx_win_vec: KVec<CtxWin>;
     static float_anchor_str: [*const c_char; 4];
 
-    static mut p_ch: OptInt;
-    static mut p_acd: c_int;
-    static mut p_pvh: OptInt;
-    static mut p_ls: OptInt;
-    static mut p_wmh: OptInt;
-    static mut p_wmw: OptInt;
-    static mut p_wiw: OptInt;
-    static mut p_wh: OptInt;
-    static mut p_ea: c_int;
-    static mut p_ead: *mut c_char;
-    static mut p_spr: c_int;
-    static mut p_sb: c_int;
-    static mut p_spk: *mut c_char;
-    static mut p_ru: c_int;
-    static mut p_confirm: c_int;
-    static mut p_write: c_int;
-    static mut p_tpm: OptInt;
-    static mut p_window: OptInt;
-    static mut p_wbr: *mut c_char;
-    static mut p_stal: OptInt;
-    static mut swb_flags: c_uint;
-    static mut tcl_flags: c_uint;
     static mut empty_string_option: [c_char; 1];
-    static mut p_langmap: *mut c_char;
-    static mut p_lrm: c_int;
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
@@ -75,12 +76,6 @@ struct lineoff_T {
 
 unsafe extern "C" {
     static mut default_grid: ScreenGrid;
-    static mut p_cpo: *mut c_char;
-    static mut p_so: OptInt;
-    static mut p_sj: OptInt;
-    static mut p_ss: OptInt;
-    static mut p_window: OptInt;
-    static mut p_sol: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn semsg(fmt: *const c_char, ...) -> bool;

@@ -13,6 +13,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -366,7 +367,6 @@ static mut typed: TypedState = TypedState {
 
 unsafe extern "C" {
     static mut repeat_luamap: c_int;
-    static mut p_cpo: *mut c_char;
 
     fn nv_is(cmdchar: c_int, flags: c_int) -> bool;
     fn set_bufref(bufref: *mut bufref_T, buf: *mut buf_T);

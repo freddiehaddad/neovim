@@ -9,6 +9,7 @@
     clippy::needless_return
 )]
 
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
@@ -121,7 +122,6 @@ const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static cb_flags: c_uint;
 
     fn eval_has_provider(feat: *const c_char, throw_err: bool) -> c_int;
     fn eval_call_provider(

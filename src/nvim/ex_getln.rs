@@ -18,6 +18,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -378,30 +379,9 @@ static mut prev_prompt_id: c_uint = c_uint::MAX;
 static mut prev_prompt_errors: c_int = 0;
 
 unsafe extern "C" {
-    static mut p_is: c_int;
-    static mut p_magic: c_int;
-    static mut p_hls: c_int;
-    static mut p_ru: c_int;
-    static mut p_ic: c_int;
-    static mut p_scs: c_int;
-    static mut p_icm: *mut c_char;
-    static mut p_stl: *mut c_char;
-    static mut p_wbr: *mut c_char;
-    static mut p_tal: *mut c_char;
-    static mut p_ch: OptInt;
-    static mut p_wmnu: c_int;
     static mut wim_flags: [u8; 4];
-    static mut p_wc: OptInt;
-    static mut p_wcm: OptInt;
     static mut pum_want: PumWant;
-    static mut p_cpo: *mut c_char;
-    static mut p_ari: c_int;
     static mut IObuff: [c_char; IOSIZE];
-    static mut p_cwh: OptInt;
-    static mut p_arshape: c_int;
-    static mut p_tbidi: c_int;
-    static mut p_paste: c_int;
-    static mut p_cedit: *mut c_char;
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

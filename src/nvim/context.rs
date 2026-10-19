@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -172,7 +173,6 @@ unsafe extern "C" {
     static mut ctx_win_vec: KVec<CtxWin>;
     static mut buffer_handles: Map<c_int, ptr_t>;
     static mut window_handles: Map<c_int, ptr_t>;
-    static mut p_acd: c_int;
 
     fn extmark_del_id(buf: *mut buf_T, ns_id: u32, id: u32) -> bool;
     fn extmark_set_pos(

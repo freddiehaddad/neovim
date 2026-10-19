@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
@@ -142,8 +143,6 @@ unsafe extern "C" {
     static mut disable_fold_update: c_int;
     static mut need_diff_redraw: bool;
     static mut diff_context: c_int;
-    static mut p_fcl: *mut c_char;
-    static mut p_sel: *mut c_char;
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

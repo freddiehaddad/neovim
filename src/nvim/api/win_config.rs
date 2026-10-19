@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -184,9 +185,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 unsafe extern "C" {
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
-    static mut p_spr: c_int;
-    static mut p_sb: c_int;
-    static mut p_winborder: *mut c_char;
     static float_anchor_str: [*const c_char; 4];
     static opt_winborder_values: [*const c_char; 9];
 

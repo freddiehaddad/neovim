@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
@@ -110,7 +111,6 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
 
 unsafe extern "C" {
     static mut main_loop: Loop;
-    static mut p_bg: *mut c_char;
     static mut ui_ext_names: [*const c_char; kUIExtCount];
 
     fn api_set_error(err: *mut Error, err_type: ErrorType, format: *const c_char, ...);

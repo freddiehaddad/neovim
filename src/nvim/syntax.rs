@@ -40,6 +40,7 @@ use crate::r#match::regmmatch_T;
 use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::option_vars::*;
 use crate::optionstr::clear_string_option;
 use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
@@ -374,7 +375,6 @@ static mut expand_what: c_int = EXP_SUBCMD;
 
 unsafe extern "C" {
     static mut empty_string_option: [c_char; 1];
-    static mut p_cpo: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

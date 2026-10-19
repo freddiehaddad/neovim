@@ -21,6 +21,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_ulong, c_void};
 use std::ptr;
 
@@ -371,36 +372,10 @@ unsafe extern "C" {
 
     static mut IObuff: [c_char; IOSIZE];
     static mut msg_buf: [c_char; MSG_BUF_LEN];
-    static mut p_ic: c_int;
-    static mut p_report: OptInt;
     static mut disable_fold_update: c_int;
-    static mut p_shq: *mut c_char;
-    static mut p_stmp: c_int;
-    static mut p_cpo: *mut c_char;
-    static mut p_warn: c_int;
     static mut autocmd_busy: bool;
-    static mut p_sh: *mut c_char;
-    static mut p_srr: *mut c_char;
-    static mut p_wa: c_int;
-    static mut p_confirm: c_int;
-    static mut p_dir: *mut c_char;
-    static mut p_write: c_int;
-    static mut p_so: OptInt;
-    static mut p_awa: c_int;
     static mut au_new_curbuf: bufref_T;
-    static mut p_ur: OptInt;
-    static mut p_sol: c_int;
     static mut msg_listdo_overwrite: c_int;
-    static mut p_verbose: OptInt;
-    static mut p_window: OptInt;
-    static mut p_magic: c_int;
-    static mut p_gd: c_int;
-    static mut p_cwh: OptInt;
-    static mut p_lz: c_int;
-    static mut p_ch: OptInt;
-    static mut p_icm: *mut c_char;
-    static mut p_shm: *mut c_char;
-    static mut p_rdt: OptInt;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

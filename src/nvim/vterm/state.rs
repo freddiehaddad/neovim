@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[cfg(not(test))]
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -185,7 +187,6 @@ pub struct VTermSelectionCallbacks {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut dy_escape_width: c_int;
     static utf8len_tab: [u8; 256];
 
     fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut i32) -> bool;

@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -115,12 +116,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-
-    static mut p_sh: *mut c_char;
-    static mut p_shcf: *mut c_char;
-    static mut p_sxq: *mut c_char;
-    static mut p_sxe: *mut c_char;
-    static mut p_verbose: OptInt;
 
     static utf8len_tab_zero: [u8; 256];
 

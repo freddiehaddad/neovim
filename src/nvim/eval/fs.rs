@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -226,11 +227,6 @@ unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
 }
 
 unsafe extern "C" {
-
-    static mut p_fic: c_int;
-    static mut p_fs: c_int;
-    static mut p_path: *mut c_char;
-    static mut p_wic: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
@@ -329,8 +330,6 @@ const E_MISSING_EQUAL_SIGN_STR_2: &CStr = c"E416: Missing equal sign: %s";
 const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 
 unsafe extern "C" {
-    static mut p_bg: *mut c_char;
-    static mut p_verbose: OptInt;
     static mut exestack: garray_T;
     static mut cterm_normal_fg_color: c_int;
     static mut cterm_normal_bg_color: c_int;

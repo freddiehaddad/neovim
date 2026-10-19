@@ -15,6 +15,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -387,9 +388,6 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: c_void;
-
-    static mut tpf_flags: c_uint;
-    static mut p_bg: *mut c_char;
 
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn apply_autocmds_group(

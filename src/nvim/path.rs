@@ -14,6 +14,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -117,14 +118,6 @@ static mut EXPAND_RECURSIVE: bool = false;
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut NameBuff: [c_char; MAXPATHL];
-
-    static mut p_fic: c_int;
-    static mut p_path: *mut c_char;
-    static mut p_cdpath: *mut c_char;
-    static mut p_wig: *mut c_char;
-    static mut p_su: *mut c_char;
-    #[cfg(windows)]
-    static mut p_ssl: c_int;
 
     #[cfg(windows)]
     fn _getdrive() -> c_int;

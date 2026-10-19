@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -63,7 +64,6 @@ pub use crate::api::command::regmatch_T;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut p_hi: i64;
 
     fn get_cmdline_firstc() -> c_int;
     fn get_list_range(str_ptr: *mut *mut c_char, num1: *mut c_int, num2: *mut c_int) -> c_int;

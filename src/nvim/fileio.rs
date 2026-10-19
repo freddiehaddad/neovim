@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -272,16 +273,6 @@ unsafe extern "C" {
     static mut nvim_testing: bool;
 
     static mut autocmd_busy: bool;
-
-    static mut p_verbose: OptInt;
-    static mut p_cpo: *mut c_char;
-    static mut p_ffs: *mut c_char;
-    static mut p_fencs: *mut c_char;
-    static mut p_ccv: Callback;
-    static mut p_enc: *mut c_char;
-    static mut p_fic: c_int;
-    static mut p_ar: c_int;
-    static mut p_ur: OptInt;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;

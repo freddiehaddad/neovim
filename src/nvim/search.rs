@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -273,24 +274,6 @@ static mut stat_lbuf: *mut buf_T = ptr::null_mut();
 
 unsafe extern "C" {
     static mut msg_ext_overwrite: bool;
-    static mut fdo_flags: c_uint;
-    static mut p_hls: c_int;
-    static mut p_ic: c_int;
-    static mut p_scs: c_int;
-    static mut p_ws: c_int;
-    static mut p_magic: c_int;
-    static mut p_ri: c_int;
-    static mut p_js: c_int;
-    static mut p_so: OptInt;
-    static mut p_siso: OptInt;
-    static mut p_mat: OptInt;
-    static mut p_msc: OptInt;
-    static mut p_verbose: OptInt;
-    static mut p_cpo: *mut c_char;
-    static mut p_sel: *mut c_char;
-    static mut p_inc: *mut c_char;
-    static mut p_def: *mut c_char;
-    static mut p_pvp: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
 
     fn atol(s: *const c_char) -> c_long;

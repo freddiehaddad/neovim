@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -255,24 +256,6 @@ unsafe extern "C" {
     static mut ui_client_exit_status: c_int;
     static mut ui_client_forward_stdin: bool;
     static mut nlua_disable_preload: bool;
-    static mut cb_flags: c_uint;
-
-    static mut p_ch: i64;
-    static mut p_lpl: c_int;
-    static mut p_uc: i64;
-    static mut p_ut: i64;
-    static mut p_write: c_int;
-    static mut p_verbose: i64;
-    static mut p_fdls: i64;
-    static mut p_exrc: c_int;
-    static mut p_title: c_int;
-    static mut p_shada: *mut c_char;
-    static mut p_shadafile: *mut c_char;
-    static mut p_ef: *mut c_char;
-    static mut p_efm: *mut c_char;
-    static mut p_menc: *mut c_char;
-    static mut p_shm: *mut c_char;
-    static mut p_titleold: *mut c_char;
 
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];

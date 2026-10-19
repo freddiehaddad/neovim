@@ -35,6 +35,7 @@ pub mod window;
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_double, c_int, c_long, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -511,12 +512,7 @@ unsafe extern "C" {
     static mut EVALARG_EVALUATE: evalarg_T;
     static mut msg_ext_skip_verbose: bool;
     static mut ctx_win_vec: KVec<CtxWin>;
-    static mut p_cpo: *mut c_char;
     static mut empty_string_option: [c_char; 1];
-    static mut p_ic: c_int;
-    static mut p_verbose: OptInt;
-    static mut p_mfd: OptInt;
-    static mut p_lpl: c_int;
     static mut autocmd_fname: *mut c_char;
     static mut autocmd_match: *mut c_char;
     static mut autocmd_fname_full: bool;

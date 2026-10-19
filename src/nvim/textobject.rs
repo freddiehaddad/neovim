@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -46,11 +47,6 @@ const kMTLineWise: MotionType = 1;
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "C" {
-    static mut p_cpo: *mut c_char;
-    static mut p_sections: *mut c_char;
-    static mut p_para: *mut c_char;
-    static mut p_sel: *mut c_char;
-    static mut p_ws: c_int;
 
     fn incl(lp: *mut pos_T) -> c_int;
     fn decl(lp: *mut pos_T) -> c_int;

@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -232,14 +233,6 @@ unsafe extern "C" {
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
     static mut updating_screen: bool;
     static mut redraw_not_allowed: bool;
-    static mut p_ch: i64;
-    static mut p_tal: *mut c_char;
-    static mut p_wbr: *mut c_char;
-    static mut p_ruf: *mut c_char;
-    static mut p_stl: *mut c_char;
-    static mut p_sc: c_int;
-    static mut p_sloc: *mut c_char;
-    static mut p_ru: c_int;
     static mut tab_page_click_defs: *mut StlClickDefinition;
     static mut tab_page_click_defs_size: usize;
     static mut hl_attr_active: *mut c_int;

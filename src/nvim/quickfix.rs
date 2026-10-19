@@ -23,6 +23,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
@@ -544,28 +545,6 @@ unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];
     static mut empty_string_option: [c_char; 0];
-
-    static mut p_enc: *mut c_char;
-    static mut p_efm: *mut c_char;
-    static mut p_chi: OptInt;
-    static mut p_hh: OptInt;
-    static mut p_swb: *mut c_char;
-    static mut swb_flags: c_uint;
-    static mut p_magic: c_int;
-    static mut p_ch: OptInt;
-    static mut fdo_flags: c_uint;
-    static mut p_qftf: Callback;
-    static mut p_gp: *mut c_char;
-    static mut p_shq: *mut c_char;
-    static mut p_sp: *mut c_char;
-    static mut p_menc: *mut c_char;
-    static mut p_gefm: *mut c_char;
-    static mut p_mef: *mut c_char;
-    static mut p_ef: *mut c_char;
-    static mut p_ic: c_int;
-    static mut p_mls: OptInt;
-    static mut p_rtp: *mut c_char;
-    static mut p_cpo: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

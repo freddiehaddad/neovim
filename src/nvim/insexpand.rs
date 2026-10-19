@@ -19,6 +19,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -550,30 +551,6 @@ unsafe extern "C" {
     static mut test_disable_char_avail: bool;
 
     static mut IObuff: [c_char; IOSIZE];
-
-    static mut cot_flags: c_uint;
-    static mut p_ac: c_int;
-    static mut p_acl: OptInt;
-    static mut p_act: OptInt;
-    static mut p_cto: OptInt;
-    static mut p_cpt: *mut c_char;
-    static mut p_dict: *mut c_char;
-    static mut p_tsr: *mut c_char;
-    static mut p_cfu: Callback;
-    static mut p_ofu: Callback;
-    static mut p_tsrfu: Callback;
-    static mut p_ic: c_int;
-    static mut p_inf: c_int;
-    static mut p_scs: c_int;
-    static mut p_ws: c_int;
-    static mut p_magic: c_int;
-    static mut p_paste: c_int;
-    static mut p_js: c_int;
-    static mut p_fic: c_int;
-    static mut p_wic: c_int;
-    #[cfg(windows)]
-    static mut p_ssl: c_int;
-    static mut p_smd: c_int;
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

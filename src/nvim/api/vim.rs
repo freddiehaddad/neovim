@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -362,12 +363,10 @@ static mut PASTE_CANCELLED: bool = false;
 unsafe extern "C" {
     static mut ns_hl_global: NS;
     static mut ns_hl_fast: NS;
-    static mut p_cpo: *mut c_char;
     static mut arena_alloc_count: usize;
     static mut tslua_query_parse_count: u64;
     static mut default_grid: ScreenGrid;
     static mut pum_grid: ScreenGrid;
-    static mut p_lz: c_int;
 
     fn try_enter(tstate: *mut TryState);
     fn try_leave(tstate: *const TryState, err: *mut Error);

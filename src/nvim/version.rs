@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -3759,9 +3760,6 @@ unsafe extern "C" {
     static nvim_version_minor: c_int;
     static nvim_version_patch: c_int;
 
-    static mut p_verbose: i64;
-    static mut p_ls: i64;
-    static mut p_shm: *mut c_char;
     static mut default_vim_dir: *mut c_char;
     static mut default_vimruntime_dir: *mut c_char;
     static mut default_gridview: GridView;

@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -72,7 +73,6 @@ static mut rejecting_deadly: bool = false;
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
     static mut IObuff: [c_char; IOSIZE];
-    static mut p_awa: c_int;
 
     fn set_vim_var_nr(idx: c_int, val: i64);
     fn preserve_exit(reason: *const c_char) -> !;

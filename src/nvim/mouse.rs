@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -153,12 +154,6 @@ static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut p_ch: i64;
-    static mut p_mousem: *mut c_char;
-    static mut p_mousescroll_vert: i64;
-    static mut p_mousescroll_hor: i64;
-    static mut p_sel: *mut c_char;
-    static mut p_smd: c_int;
     static mut tab_page_click_defs: *mut StlClickDefinition;
     static mut msg_grid: ScreenGrid;
     static mut msg_grid_pos: c_int;

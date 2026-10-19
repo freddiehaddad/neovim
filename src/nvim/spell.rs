@@ -38,6 +38,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
+use crate::option_vars::*;
 use crate::os::fs::os_remove;
 use crate::os::input::line_breakcheck;
 #[cfg(windows)]
@@ -185,9 +186,6 @@ pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
-    static mut p_ws: c_int;
-    static mut p_ic: c_int;
-    static mut p_enc: *mut c_char;
     static mut decor_state: DecorState;
     static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;

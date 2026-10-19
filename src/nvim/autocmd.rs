@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -1297,9 +1298,6 @@ unsafe extern "C" {
     static mut autocmd_match: *mut c_char;
     static mut did_cursorhold: bool;
 
-    static mut p_verbose: i64;
-    static mut p_ei: *mut c_char;
-    static mut p_fic: c_int;
     static mut last_mode: [c_char; 4];
     static mut exestack: garray_T;
 

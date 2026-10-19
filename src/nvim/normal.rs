@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_longlong, c_uint, c_void};
 use std::ptr;
 
@@ -407,36 +408,12 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    static mut p_smd: c_int;
     static mut did_cursorhold: bool;
-    static mut p_cpo: *mut c_char;
-    static mut p_ttm: OptInt;
-    static mut p_tm: OptInt;
     static mut last_cursormoved_win: *mut win_T;
     static mut last_cursormoved: pos_T;
-    static mut fdo_flags: c_uint;
     static mut diff_need_scrollbind: bool;
-    static mut p_sc: c_int;
-    static mut p_sbr: *mut c_char;
     static mut empty_string_option: [c_char; 1];
-    static mut p_sel: *mut c_char;
-    static mut p_sloc: *mut c_char;
-    static mut p_ch: OptInt;
     static mut msg_grid_adj: GridView;
-    static mut p_sbo: *mut c_char;
-    static mut p_ws: c_int;
-    static mut p_scs: c_int;
-    static mut p_kp: *mut c_char;
-    static mut p_magic: c_int;
-    static mut p_ww: *mut c_char;
-    static mut p_hls: c_int;
-    static mut p_sta: c_int;
-    static mut jop_flags: c_uint;
-    static mut p_slm: *mut c_char;
-    static mut p_to: c_int;
-    static mut cb_flags: c_uint;
-    static mut p_langmap: *mut c_char;
-    static mut p_lrm: c_int;
     static mut langmap_mapchar: [u8; 256];
     static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
     static mut hl_attr_active: *mut c_int;

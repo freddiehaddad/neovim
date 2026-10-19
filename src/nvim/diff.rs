@@ -25,7 +25,7 @@ use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::redraw_later;
 use crate::errors::*;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
+use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::fs::FileInfo;
 use crate::extmark::extmark_adjust;
 use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
@@ -44,6 +44,7 @@ use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
     invalidate_botline_win, validate_cursor,
 };
+use crate::option_vars::*;
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
@@ -236,12 +237,6 @@ unsafe extern "C" {
     static mut diff_foldcolumn: c_int;
     static mut diff_need_scrollbind: bool;
     static mut need_diff_redraw: bool;
-    static mut p_dex: Callback;
-    static mut p_pex: Callback;
-    static mut p_srr: *mut c_char;
-    static mut p_sbo: *mut c_char;
-    static mut p_dia: *mut c_char;
-    static mut p_dip: *mut c_char;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

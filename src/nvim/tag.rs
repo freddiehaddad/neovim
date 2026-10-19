@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -366,28 +367,6 @@ static mut DO_TAG_FLAGS: c_int = 0;
 
 unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
-
-    static mut p_tfu: Callback;
-    static mut p_tgst: c_int;
-    static mut p_magic: c_int;
-    static mut p_tl: OptInt;
-    static mut p_hlg: *mut c_char;
-    static mut p_enc: *mut c_char;
-    static mut p_ic: c_int;
-    static mut p_scs: c_int;
-    static mut p_ws: c_int;
-    static mut p_sft: c_int;
-    static mut p_tbs: c_int;
-    static mut p_tr: c_int;
-    static mut p_hf: *mut c_char;
-    static mut p_tags: *mut c_char;
-    static mut p_pvp: *mut c_char;
-    static mut p_cpo: *mut c_char;
-    static mut p_verbose: OptInt;
-    static mut jop_flags: c_uint;
-    static mut fdo_flags: c_uint;
-    static mut tc_flags: c_uint;
-    static mut swb_flags: c_uint;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -15,6 +15,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -629,13 +630,6 @@ static mut default_shada_file: *mut c_char = ptr::null_mut();
 unsafe extern "C" {
     static mut namedfm: [xfmark_T; NGLOBALMARKS];
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut p_fs: c_int;
-    static mut p_verbose: OptInt;
-    static mut p_hi: OptInt;
-    static mut p_magic: c_int;
-    static mut p_shada: *mut c_char;
-    static mut p_shadafile: *mut c_char;
-    static mut p_enc: *mut c_char;
     static mut longVersion: *mut c_char;
 
     fn KeyDict__shada_buflist_item_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;

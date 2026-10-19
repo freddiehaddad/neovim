@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -202,14 +203,6 @@ unsafe extern "C" {
     static mut pum_grid: ScreenGrid;
     static mut pum_want: PumWant;
     static mut default_grid: ScreenGrid;
-    static mut p_ph: OptInt;
-    static mut p_pw: OptInt;
-    static mut p_pmw: OptInt;
-    static mut p_pb: OptInt;
-    static mut p_pvh: OptInt;
-    static mut p_pumborder: *mut c_char;
-    static mut p_mousemev: c_int;
-    static mut cia_flags: c_uint;
     static opt_winborder_values: [*const c_char; 9];
     static mut hl_attr_active: *mut c_int;
     static mut ns_hl_fast: c_int;

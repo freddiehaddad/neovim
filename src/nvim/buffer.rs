@@ -18,6 +18,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -339,32 +340,6 @@ unsafe extern "C" {
     static mut autocmd_busy: bool;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;
-
-    static mut p_cpo: *mut c_char;
-    static mut p_report: OptInt;
-    static mut p_confirm: c_int;
-    static mut p_write: c_int;
-    static mut p_acd: c_int;
-    static mut p_sol: c_int;
-    static mut p_magic: c_int;
-    static mut p_wic: c_int;
-    static mut p_fic: c_int;
-    static mut p_fdls: OptInt;
-    static mut p_ru: c_int;
-    static mut p_title: c_int;
-    static mut p_icon: c_int;
-    static mut p_titlelen: OptInt;
-    static mut p_titlestring: *mut c_char;
-    static mut p_iconstring: *mut c_char;
-    #[cfg(windows)]
-    static mut p_ssl: c_int;
-    static mut p_ch: OptInt;
-    static mut p_ea: c_int;
-    static mut p_tpm: OptInt;
-    static mut p_mls: OptInt;
-    static mut p_hid: c_int;
-    static mut jop_flags: c_uint;
-    static mut swb_flags: c_uint;
 
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];

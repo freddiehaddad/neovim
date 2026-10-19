@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -219,24 +220,6 @@ unsafe extern "C" {
     static mut tab_page_click_defs: *mut StlClickDefinition;
     static mut tab_page_click_defs_size: usize;
     static mut NameBuff: [c_char; MAXPATHL];
-    static mut p_ch: OptInt;
-    static mut p_lines: OptInt;
-    static mut p_columns: OptInt;
-    static mut p_lz: c_int;
-    static mut p_hls: c_int;
-    static mut p_rdt: OptInt;
-    static mut p_icon: c_int;
-    static mut p_title: c_int;
-    static mut p_wbr: *mut c_char;
-    static mut p_smd: c_int;
-    static mut p_ri: c_int;
-    static mut p_paste: c_int;
-    static mut p_ru: c_int;
-    static mut p_sc: c_int;
-    static mut p_sloc: *mut c_char;
-    static mut p_wmw: OptInt;
-    static mut p_cpo: *mut c_char;
-    static mut dy_flags: c_uint;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn msg_check_for_delay(check_msg_scroll: bool);

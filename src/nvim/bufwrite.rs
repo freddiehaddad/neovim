@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -197,16 +198,6 @@ struct bw_info {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
-
-    static mut p_cpo: *mut c_char;
-    static mut p_bex: *mut c_char;
-    static mut p_bdir: *mut c_char;
-    static mut p_bk: c_int;
-    static mut p_wb: c_int;
-    static mut p_pm: *mut c_char;
-    static mut p_bsk: *mut c_char;
-    static mut p_fs: c_int;
-    static mut p_ccv: Callback;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;

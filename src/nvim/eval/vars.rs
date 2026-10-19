@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -537,11 +538,6 @@ static mut redir_varname: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
     static mut EVALARG_EVALUATE: evalarg_T;
-
-    static mut p_ccv: crate::eval::deprecated::Callback;
-    static mut p_dex: crate::eval::deprecated::Callback;
-    static mut p_pex: crate::eval::deprecated::Callback;
-    static mut p_verbose: OptInt;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

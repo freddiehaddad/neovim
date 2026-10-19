@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
@@ -124,8 +125,6 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut p_guicursor: *mut c_char;
-    static mut p_sel: *mut c_char;
 
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;

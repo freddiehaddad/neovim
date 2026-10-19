@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -113,12 +114,7 @@ struct arg_all_state_T {
 static mut arglist_locked: bool = false;
 
 unsafe extern "C" {
-    static mut p_su: *mut c_char;
     static mut empty_string_option: [c_char; 1];
-    static mut p_fic: c_int;
-    static mut p_magic: c_int;
-    static mut p_ea: c_int;
-    static mut p_tpm: OptInt;
     static mut tabpage_move_disallowed: c_int;
     static mut autocmd_no_enter: c_int;
     static mut autocmd_no_leave: c_int;

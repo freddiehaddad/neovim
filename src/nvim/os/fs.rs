@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -259,8 +260,6 @@ struct IPersistFile {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut p_verbose: i64;
-    static mut p_sh: *mut c_char;
     static mut os_buf: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

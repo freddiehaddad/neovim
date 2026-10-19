@@ -25,6 +25,7 @@ use crate::keycodes::get_special_key_code;
 use crate::math::trim_to_int;
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
 use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::option_vars::*;
 use crate::plines::getvcol;
 use crate::textformat::oparg_T;
 use std::ffi::{c_char, c_int};
@@ -71,7 +72,6 @@ struct cpp_baseclass_cache_T {
     lpos: lpos_T,
 }
 unsafe extern "C" {
-    static mut p_paste: c_int;
     fn findmatchlimit(oap: *mut oparg_T, initc: c_int, flags: c_int, maxtravel: i64) -> *mut pos_T;
     fn ml_get(lnum: linenr_T) -> *mut c_char;
     fn ml_get_pos(pos: *const pos_T) -> *mut c_char;

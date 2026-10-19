@@ -21,6 +21,7 @@
 
 use crate::errors::*;
 pub(super) use crate::globals::*;
+pub(super) use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{offset_of, size_of, zeroed};
 use std::ptr;
@@ -941,11 +942,6 @@ pub(super) fn nfa_regengine_ptr() -> *mut regengine_T {
 static mut regexp_engine: c_int = 0;
 
 unsafe extern "C" {
-    pub(super) static mut p_cpo: *mut c_char;
-    pub(super) static mut p_sel: *mut c_char;
-    pub(super) static mut p_re: OptInt;
-    pub(super) static mut p_mmp: OptInt;
-    pub(super) static mut p_verbose: OptInt;
 
     pub(super) fn gettext(msgid: *const c_char) -> *mut c_char;
     pub(super) fn emsg(s: *const c_char) -> bool;

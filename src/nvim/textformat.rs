@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
@@ -143,8 +144,6 @@ pub struct InsState {
 static mut did_add_space: bool = false;
 
 unsafe extern "C" {
-    static mut p_paste: c_int;
-    static mut p_smd: c_int;
 
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;

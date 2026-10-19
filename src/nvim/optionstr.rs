@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -784,39 +785,8 @@ unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
     static mut wim_flags: [u8; 4];
 
-    static mut p_bg: *mut c_char;
-    static mut p_bkc: *mut c_char;
-    static mut bkc_flags: c_uint;
-    static mut p_bex: *mut c_char;
-    static mut p_pm: *mut c_char;
-    static mut p_breakat: *mut c_char;
     static mut breakat_flags: [c_char; 256];
-    static mut p_lcs: *mut c_char;
-    static mut p_fcs: *mut c_char;
-    static mut cia_flags: c_uint;
-    static mut p_cot: *mut c_char;
-    static mut cot_flags: c_uint;
-    #[cfg(windows)]
-    static mut p_csl: *mut c_char;
-    static mut dy_flags: c_uint;
-    static mut dy_escape_width: c_int;
-    static mut p_enc: *mut c_char;
-    static mut p_ei: *mut c_char;
-    static mut p_isk: *mut c_char;
-    static mut p_isf: *mut c_char;
-    static mut p_km: *mut c_char;
-    static mut p_mousescroll: *mut c_char;
-    static mut p_mousescroll_hor: i64;
-    static mut p_mousescroll_vert: i64;
-    static mut p_spc: *mut c_char;
-    static mut spo_flags: c_uint;
-    static mut p_tc: *mut c_char;
-    static mut tc_flags: c_uint;
-    static mut p_vts: *mut c_char;
-    static mut p_vsts: *mut c_char;
     static mut p_vfile: *mut c_char;
-    static mut p_ve: *mut c_char;
-    static mut ve_flags: c_uint;
 
     static opt_scl_values: [*const c_char; 23];
     static opt_bkc_values: [*const c_char; 6];

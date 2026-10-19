@@ -82,6 +82,7 @@ pub mod msgpack_rpc;
 pub mod normal;
 pub mod ops;
 pub mod option;
+pub mod option_vars;
 pub mod optionstr;
 pub mod os;
 pub mod path;

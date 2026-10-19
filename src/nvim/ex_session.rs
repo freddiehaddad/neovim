@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -77,15 +78,6 @@ pub struct wininfo_Prefix {
 static mut did_lcd: bool = false;
 
 unsafe extern "C" {
-    static mut ssop_flags: c_uint;
-    static mut vop_flags: c_uint;
-    static mut p_acd: c_int;
-    static mut p_stal: i64;
-    static mut p_wh: i64;
-    static mut p_wiw: i64;
-    static mut p_shm: *mut c_char;
-    static mut p_vdir: *mut c_char;
-    static mut p_hls: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

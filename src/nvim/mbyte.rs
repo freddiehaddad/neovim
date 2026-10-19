@@ -17,6 +17,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -890,11 +891,6 @@ static mut mb_unescape_buf: [c_char; 6] = [0; 6];
 static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
 
 unsafe extern "C" {
-    static mut p_ambw: *mut c_char;
-    static mut p_emoji: c_int;
-    static mut p_enc: *mut c_char;
-    static mut cmp_flags: c_uint;
-    static mut dy_escape_width: c_int;
     static mut IObuff: [c_char; IOSIZE];
 
     fn utf8proc_get_property(codepoint: i32) -> *const utf8proc_property_t;

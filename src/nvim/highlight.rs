@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -270,8 +271,6 @@ unsafe extern "C" {
     static mut ns_hl_fast: NS;
     static mut ns_hl_active: NS;
     static mut hl_attr_active: *mut c_int;
-    static mut p_pb: i64;
-    static mut p_bg: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

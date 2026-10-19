@@ -1,12 +1,8 @@
 //! Functions for Arabic language shaping (`src/nvim/arabic.c`).
 
-use std::ffi::c_int;
-
 #[cfg(not(test))]
-unsafe extern "C" {
-    static p_arshape: c_int;
-    static p_tbidi: c_int;
-}
+use crate::option_vars::*;
+use std::ffi::c_int;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicI32, Ordering};

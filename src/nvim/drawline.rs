@@ -13,6 +13,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
@@ -239,10 +240,6 @@ unsafe extern "C" {
     static mut ns_hl_fast: NS;
     static mut normal_bg: i32;
     static mut cterm_normal_bg_color: c_int;
-    static mut dy_flags: c_uint;
-    static mut dy_escape_width: c_int;
-    static mut p_cpo: *mut c_char;
-    static mut p_sel: *mut c_char;
     static breakat_flags: [c_char; 256];
 
     fn gchar_pos(pos: *const pos_T) -> c_int;

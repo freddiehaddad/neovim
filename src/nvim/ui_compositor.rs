@@ -12,6 +12,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
@@ -80,8 +81,6 @@ static mut dbghl_recompose: c_int = 0;
 unsafe extern "C" {
     static mut default_grid: ScreenGrid;
     static mut msg_grid: ScreenGrid;
-    static mut rdb_flags: c_uint;
-    static mut p_wd: OptInt;
     static mut hl_attr_active: *mut c_int;
 
     fn syn_check_group(pp: *const c_char, len: usize) -> c_int;

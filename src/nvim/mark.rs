@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -131,7 +132,6 @@ static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
 
 unsafe extern "C" {
     static mut namedfm: [xfmark_T; NGLOBALMARKS];
-    static mut jop_flags: c_uint;
     static mut NameBuff: [c_char; MAXPATHL];
     static mut IObuff: [c_char; IOSIZE];
 

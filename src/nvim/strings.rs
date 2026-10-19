@@ -12,6 +12,7 @@
 )]
 
 use crate::errors::*;
+use crate::option_vars::*;
 use std::ffi::{
     CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
 };
@@ -90,8 +91,6 @@ pub struct keyvalue_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    #[cfg(windows)]
-    static mut p_ssl: c_int;
 
     fn csh_like_shell() -> c_int;
     fn fish_like_shell() -> bool;

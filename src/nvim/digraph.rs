@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -1609,9 +1610,6 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 ];
 
 unsafe extern "C" {
-    static mut p_dg: c_int;
-    static mut p_enc: *mut c_char;
-    static mut p_cpo: *mut c_char;
 
     fn plain_vgetc() -> c_int;
     fn putcmdline(c: c_char, shift: bool);

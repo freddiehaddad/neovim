@@ -7,6 +7,8 @@
 use crate::errors::*;
 #[cfg(not(test))]
 use crate::globals::*;
+#[cfg(not(test))]
+use crate::option_vars::*;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -926,9 +928,6 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::window::{free_tabpage, win_free_all};
 
     unsafe extern "C" {
-        static mut p_ea: c_int;
-        static mut p_hi: i64;
-        static mut p_acd: c_int;
         static mut buffer_handles: Map<c_int, *mut c_void>;
         static mut window_handles: Map<c_int, *mut c_void>;
         static mut tabpage_handles: Map<c_int, *mut c_void>;

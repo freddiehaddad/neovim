@@ -20,6 +20,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
@@ -308,24 +309,10 @@ unsafe extern "C" {
     static mut pum_want: PumWant;
 
     static mut did_cursorhold: bool;
-    static mut fdo_flags: c_uint;
     static mut disable_fold_update: c_int;
     static mut last_cursormoved_win: *mut win_T;
     static mut last_cursormoved: pos_T;
     static mut test_disable_char_avail: bool;
-
-    static mut p_ri: c_int;
-    static mut p_smd: c_int;
-    static mut p_ari: c_int;
-    static mut p_paste: c_int;
-    static mut p_cpo: *mut c_char;
-    static mut p_sol: c_int;
-    static mut p_ch: i64;
-    static mut p_sta: c_int;
-    static mut p_deco: c_int;
-    static mut p_ww: *mut c_char;
-
-    static mut dy_escape_width: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

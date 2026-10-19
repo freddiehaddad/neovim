@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -87,8 +88,6 @@ pub struct ClusterInfo {
 }
 
 unsafe extern "C" {
-    static mut p_sel: *mut c_char;
-    static mut dy_escape_width: c_int;
     static utf8len_tab: [u8; 256];
     static breakat_flags: [c_char; 256];
 

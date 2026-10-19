@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -1004,21 +1005,6 @@ unsafe extern "C" {
     static mut msg_grid_adj: GridView;
     static mut default_gridview: GridView;
     static mut NameBuff: [c_char; MAXPATHL];
-
-    static mut wop_flags: c_uint;
-    static mut p_wic: c_int;
-    static mut p_wmnu: c_int;
-    static mut p_wc: OptInt;
-    static mut p_fic: c_int;
-    static mut p_ic: c_int;
-    static mut p_scs: c_int;
-    static mut p_magic: c_int;
-    static mut p_ls: OptInt;
-    static mut p_wmh: OptInt;
-    #[cfg(windows)]
-    static mut p_ssl: c_int;
-    #[cfg(windows)]
-    static mut p_csl: *mut c_char;
 
     static mut hl_attr_active: *mut c_int;
     static mut ns_hl_fast: c_int;

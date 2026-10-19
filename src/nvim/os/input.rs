@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -107,10 +108,6 @@ unsafe extern "C" {
     static mut ch_before_blocking_events: *mut MultiQueue;
 
     static mut did_cursorhold: bool;
-
-    static mut p_ut: OptInt;
-    static mut p_acl: OptInt;
-    static mut p_mouset: OptInt;
 
     fn uv_loop_size() -> usize;
     fn uv_guess_handle(file: c_int) -> c_int;

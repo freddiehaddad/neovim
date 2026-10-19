@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
@@ -281,17 +282,7 @@ unsafe extern "C" {
     static mut msg_grid_scroll_discount: c_int;
 
     static mut default_grid: ScreenGrid;
-    static mut p_ch: OptInt;
-    static mut p_more: c_int;
-    static mut p_debug: *mut c_char;
-    static mut p_eb: c_int;
-    static mut p_lz: c_int;
-    static mut p_report: OptInt;
-    static mut p_mopt: *mut c_char;
     static mut p_vfile: *mut c_char;
-    static mut p_verbose: OptInt;
-    static mut rdb_flags: c_uint;
-    static mut dy_escape_width: c_int;
     static mut msg_buf: [c_char; MSG_BUF_LEN];
     static mut hl_attr_active: *mut c_int;
     static mut main_loop: Loop;

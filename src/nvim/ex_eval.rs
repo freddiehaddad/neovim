@@ -14,6 +14,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -173,9 +174,7 @@ static mut cause_abort: bool = false;
 
 unsafe extern "C" {
     static mut exestack: garray_T;
-    static mut p_verbose: OptInt;
     static mut p_vfile: *mut c_char;
-    static mut p_cpo: *mut c_char;
     static mut empty_string_option: [c_char; 1];
     static mut IObuff: [c_char; IOSIZE];
 

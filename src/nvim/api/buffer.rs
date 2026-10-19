@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -151,7 +152,6 @@ pub struct VisualState {
 pub use crate::extmark::u_header_T;
 
 unsafe extern "C" {
-    static mut p_acd: c_int;
 
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
     fn buf_ensure_loaded(buf: *mut buf_T) -> bool;

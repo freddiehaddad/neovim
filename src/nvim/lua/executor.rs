@@ -16,6 +16,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
@@ -314,7 +315,6 @@ unsafe extern "C" {
     static mut ui_ext_names: [*const c_char; kUIGlobalCount];
     static mut on_print: Callback;
     static mut IObuff: [c_char; IOSIZE];
-    static mut p_verbose: i64;
 
     static main_exitfree: bool;
 

@@ -13,6 +13,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -212,13 +213,6 @@ static mut lastmark: c_int = 0;
 
 unsafe extern "C" {
     static mut IObuff: [c_char; IOSIZE];
-
-    static mut p_ul: OptInt;
-    static mut p_udir: *mut c_char;
-    static mut p_verbose: OptInt;
-    static mut p_fs: c_int;
-    static mut p_cpo: *mut c_char;
-    static mut fdo_flags: c_uint;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

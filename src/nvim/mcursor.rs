@@ -12,6 +12,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -243,8 +244,6 @@ static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
 unsafe extern "C" {
-    static mut p_sel: *mut c_char;
-    static mut p_ww: *mut c_char;
     static mut g_min_log_level: c_int;
 
     fn get_vim_var_tv(idx: c_int) -> *mut typval_T;

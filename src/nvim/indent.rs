@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
@@ -114,12 +115,6 @@ static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
     static mut curbuf_splice_pending: c_int;
-    static mut dy_escape_width: c_int;
-    static mut dy_flags: c_uint;
-    static mut p_report: OptInt;
-    static mut p_paste: c_int;
-    static mut p_debug: *mut c_char;
-    static mut p_lispwords: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
 
     fn opt_keyset(value: *const c_char, opt_idx: OptIndex, keyset: *mut c_void) -> *mut c_void;

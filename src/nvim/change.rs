@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -119,12 +120,6 @@ unsafe extern "C" {
     static mut search_hl_has_cursor_lnum: linenr_T;
     static mut last_cursormoved_win: *mut win_T;
     static mut last_cursormoved: pos_T;
-    static mut p_cpo: *mut c_char;
-    static mut p_sm: c_int;
-    static mut p_ri: c_int;
-    static mut p_deco: c_int;
-    static mut p_paste: c_int;
-    static mut p_sr: c_int;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn curbufIsChanged() -> bool;

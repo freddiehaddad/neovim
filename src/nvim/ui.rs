@@ -12,6 +12,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::size_of;
 use std::ptr;
@@ -143,15 +144,6 @@ unsafe extern "C" {
     static mut default_grid: ScreenGrid;
     static mut msg_grid_adj: GridView;
     static mut resize_events: *mut MultiQueue;
-    static mut p_tgc: c_int;
-    static mut p_lz: c_int;
-    static mut p_vb: c_int;
-    static mut p_wd: i64;
-    static mut p_debug: *mut c_char;
-    static mut p_guicursor: *mut c_char;
-    static mut p_mouse: *mut c_char;
-    static mut bo_flags: c_uint;
-    static mut rdb_flags: c_uint;
     static mut ui_client_channel_id: u64;
     static mut ui_refresh_cmdheight: bool;
     static mut ui_event_ns_id: u32;

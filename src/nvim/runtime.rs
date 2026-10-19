@@ -15,6 +15,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
@@ -291,16 +292,6 @@ static mut APP_BOTH: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut p_verbose: i64;
-    static mut p_rtp: *mut c_char;
-    static mut p_pp: *mut c_char;
-    static mut p_fic: c_int;
-    static mut p_lpl: c_int;
-    static mut p_enc: *mut c_char;
-    static mut p_cpo: *mut c_char;
-    static mut p_ic: c_int;
-    #[cfg(windows)]
-    static mut p_ffs: *mut c_char;
     static mut default_lib_dir: *mut c_char;
     static mut IObuff: [c_char; IOSIZE];
     static mut NameBuff: [c_char; MAXPATHL];

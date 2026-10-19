@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -83,10 +84,6 @@ const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 use crate::arglist::{aentry_T, alist_T};
 
 unsafe extern "C" {
-    static mut p_aw: c_int;
-    static mut p_awa: c_int;
-    static mut p_write: c_int;
-    static mut p_confirm: c_int;
     static mut msg_listdo_overwrite: c_int;
 
     fn bt_dontwrite(buf: *const buf_T) -> bool;

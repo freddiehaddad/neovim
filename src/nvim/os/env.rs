@@ -13,6 +13,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -129,8 +130,6 @@ unsafe extern "C" {
     static mut NameBuff: [c_char; MAXPATHL];
     static mut os_buf: [c_char; MAXPATHL];
     static mut IObuff: [c_char; IOSIZE];
-    static mut p_fic: c_int;
-    static mut p_hf: *mut c_char;
     static mut default_vim_dir: *mut c_char;
     static mut default_vimruntime_dir: *mut c_char;
 

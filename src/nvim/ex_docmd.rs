@@ -14,6 +14,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -722,28 +723,6 @@ unsafe extern "C" {
     static mut autocmd_fname_full: bool;
     static mut autocmd_bufnr: c_int;
     static mut autocmd_match: *mut c_char;
-
-    static mut p_mfd: OptInt;
-    static mut p_verbose: OptInt;
-    static mut p_ei: *mut c_char;
-    static mut p_magic: c_int;
-    static mut p_gp: *mut c_char;
-    static mut p_mp: *mut c_char;
-    static mut p_wic: c_int;
-    static mut p_cpo: *mut c_char;
-    static mut p_confirm: c_int;
-    static mut p_awa: c_int;
-    static mut p_write: c_int;
-    static mut p_ffu: Callback;
-    static mut p_cdh: c_int;
-    static mut p_lz: c_int;
-    static mut p_mmd: OptInt;
-    static mut p_pvh: OptInt;
-    static mut p_pvp: *mut c_char;
-    static mut p_shada: *mut c_char;
-    static mut p_hls: c_int;
-    static mut p_rtp: *mut c_char;
-    static mut p_sh: *mut c_char;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_long) -> *mut c_char;

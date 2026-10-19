@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
@@ -41,7 +42,6 @@ const kOptVeFlagAll: c_uint = 0x04;
 const kOptVeFlagOnemore: c_uint = 0x08;
 
 unsafe extern "C" {
-    static mut p_sel: *mut c_char;
     static utf8len_tab: [u8; 256];
 
     fn set_valid_virtcol(wp: *mut win_T, vcol: colnr_T);
