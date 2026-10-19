@@ -577,7 +577,6 @@ unsafe extern "C-unwind" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn uv_dlopen(filename: *const c_char, lib: *mut UvLib) -> c_int;
     fn uv_dlclose(lib: *mut UvLib);

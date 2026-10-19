@@ -370,9 +370,6 @@ static mut pre_hl_id: c_int = 0;
 
 unsafe extern "C" {
 
-    static mut IObuff: [c_char; IOSIZE];
-    static mut msg_buf: [c_char; MSG_BUF_LEN];
-
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

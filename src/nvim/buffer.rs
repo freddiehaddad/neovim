@@ -333,10 +333,6 @@ unsafe extern "C" {
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
-    static no_lines_msg: [c_char; 0];
-
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

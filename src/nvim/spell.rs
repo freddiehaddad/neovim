@@ -185,7 +185,6 @@ pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

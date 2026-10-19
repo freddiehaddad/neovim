@@ -374,7 +374,6 @@ static mut last_matchgroup: c_int = 0;
 static mut expand_what: c_int = EXP_SUBCMD;
 
 unsafe extern "C" {
-    static mut empty_string_option: [c_char; 1];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

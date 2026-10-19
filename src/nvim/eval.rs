@@ -508,7 +508,6 @@ unsafe extern "C" {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut empty_string_option: [c_char; 1];
 
     fn uv_handle_size(h_type: c_int) -> usize;
 

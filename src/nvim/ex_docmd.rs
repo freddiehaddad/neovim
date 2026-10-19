@@ -716,8 +716,6 @@ const CMDMODS: [CmdModInfo; 24] = [
 
 unsafe extern "C" {
 
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

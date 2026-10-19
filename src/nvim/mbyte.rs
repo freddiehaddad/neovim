@@ -891,7 +891,6 @@ static mut mb_unescape_buf: [c_char; 6] = [0; 6];
 static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn utf8proc_get_property(codepoint: i32) -> *const utf8proc_property_t;
     fn utf8proc_grapheme_break(codepoint1: i32, codepoint2: i32) -> bool;

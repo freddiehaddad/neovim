@@ -42,7 +42,6 @@ const kOptVeFlagAll: c_uint = 0x04;
 const kOptVeFlagOnemore: c_uint = 0x08;
 
 unsafe extern "C" {
-    static utf8len_tab: [u8; 256];
 
     fn set_valid_virtcol(wp: *mut win_T, vcol: colnr_T);
     fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char;

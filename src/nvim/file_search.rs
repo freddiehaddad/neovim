@@ -144,7 +144,6 @@ pub struct ff_search_ctx_T {
 static mut ff_expand_buffer: NvimString = NULL_STRING;
 
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

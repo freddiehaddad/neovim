@@ -225,10 +225,6 @@ pub struct statuscol_T {
 static mut did_show_ext_ruler: bool = false;
 
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
-    static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
-    static mut highlight_user: [c_int; 9];
-    static mut highlight_stlnc: [c_int; 9];
 
     fn toupper(c: c_int) -> c_int;
     fn atoi(s: *const c_char) -> c_int;

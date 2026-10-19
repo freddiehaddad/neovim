@@ -9,7 +9,7 @@
     clippy::missing_safety_doc
 )]
 
-#[cfg(not(test))]
+use crate::mbyte::utf8len_tab;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -187,7 +187,6 @@ pub struct VTermSelectionCallbacks {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static utf8len_tab: [u8; 256];
 
     fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut i32) -> bool;
     fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int;
@@ -237,14 +236,7 @@ unsafe fn ascii2cells(b: c_int) -> c_int {
     if (b' ' as c_int..=b'~' as c_int).contains(&b) {
         1
     } else {
-        #[cfg(not(test))]
-        {
-            unsafe { dy_escape_width }
-        }
-        #[cfg(test)]
-        {
-            2
-        }
+        unsafe { dy_escape_width }
     }
 }
 
@@ -276,10 +268,7 @@ unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
                 len: 1,
             }
         } else {
-            #[cfg(not(test))]
             let mut len = c_int::from(utf8len_tab[first as usize]);
-            #[cfg(test)]
-            let mut len = 1;
             if len > size {
                 return CharInfo { value: -1, len: 1 };
             }

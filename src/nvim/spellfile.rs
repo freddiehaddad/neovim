@@ -342,8 +342,6 @@ struct spellinfo_T {
 }
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

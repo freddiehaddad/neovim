@@ -114,7 +114,6 @@ struct arg_all_state_T {
 static mut arglist_locked: bool = false;
 
 unsafe extern "C" {
-    static mut empty_string_option: [c_char; 1];
 
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

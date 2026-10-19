@@ -13,6 +13,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::option_vars::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
@@ -329,12 +330,6 @@ const E_MISSING_EQUAL_SIGN_STR_2: &CStr = c"E416: Missing equal sign: %s";
 const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 
 unsafe extern "C" {
-    static mut exestack: garray_T;
-    static mut hlf_names: [*const c_char; HLF_COUNT];
-    static mut highlight_attr: [c_int; HLF_COUNT];
-    static mut highlight_attr_last: [c_int; HLF_COUNT];
-    static mut highlight_user: [c_int; 9];
-    static mut highlight_stlnc: [c_int; 9];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -53,7 +54,6 @@ enum AssertType {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut exestack: garray_T;
 
     fn estack_sfile(which: c_int) -> *mut c_char;
     fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int;

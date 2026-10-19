@@ -212,7 +212,6 @@ static mut undo_undoes: bool = false;
 static mut lastmark: c_int = 0;
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

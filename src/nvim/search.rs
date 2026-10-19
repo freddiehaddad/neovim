@@ -273,7 +273,6 @@ static mut stat_lastpatlen: usize = 0;
 static mut stat_lbuf: *mut buf_T = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn atol(s: *const c_char) -> c_long;
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;

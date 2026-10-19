@@ -9,6 +9,8 @@
 )]
 
 use crate::globals::*;
+use crate::runtime::exestack;
+use crate::runtime::script_items;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
@@ -146,8 +148,6 @@ pub struct funccall_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut script_items: garray_T;
-    static mut exestack: garray_T;
 
     fn func_tbl_get() -> *mut hashtab_T;
     fn get_current_funccal() -> *mut funccall_T;

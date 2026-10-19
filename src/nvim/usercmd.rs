@@ -12,6 +12,7 @@
 
 use crate::globals::*;
 use crate::option_vars::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -281,8 +282,6 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 ];
 
 unsafe extern "C" {
-    static mut exestack: garray_T;
-    static mut IObuff: [c_char; IOSIZE];
 
     fn prevwin_curwin() -> *mut win_T;
     fn set_context_in_menu_cmd(

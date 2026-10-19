@@ -10,6 +10,7 @@
     clippy::upper_case_acronyms
 )]
 
+use crate::globals::*;
 #[cfg(windows)]
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 
@@ -141,7 +142,6 @@ unsafe extern "C" {
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn ui_active() -> usize;
     fn os_getenv(name: *const c_char) -> *mut c_char;

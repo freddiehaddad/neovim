@@ -200,7 +200,6 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
 };
 
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn msg_check_for_delay(check_msg_scroll: bool);

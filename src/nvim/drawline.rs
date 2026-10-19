@@ -228,8 +228,6 @@ static mut stc_prev_lnum: linenr_T = 0;
 static mut stc_prev_tick: disptick_T = 0;
 
 unsafe extern "C" {
-    static mut highlight_attr: [c_int; HLF_COUNT as usize];
-    static breakat_flags: [c_char; 256];
 
     fn gchar_pos(pos: *const pos_T) -> c_int;
     fn get_foldtext(

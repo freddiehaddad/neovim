@@ -12,6 +12,7 @@
 
 use crate::errors::*;
 use crate::globals::*;
+use crate::mbyte::utf8len_tab_zero;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -116,8 +117,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 
 unsafe extern "C" {
     static mut main_loop: [u8; 0];
-
-    static utf8len_tab_zero: [u8; 256];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

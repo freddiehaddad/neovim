@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::usercmd::ucmds;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -322,7 +323,6 @@ unsafe extern "C-unwind" {
 }
 
 unsafe extern "C" {
-    static mut ucmds: garray_T;
 
     fn arena_array(arena: *mut Arena, max_size: usize) -> Array;
     fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict;

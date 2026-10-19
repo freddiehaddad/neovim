@@ -265,9 +265,6 @@ pub use crate::api::command::regmatch_T;
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
-
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: usize) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;

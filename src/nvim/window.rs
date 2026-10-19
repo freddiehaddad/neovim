@@ -308,9 +308,6 @@ static mut tabclosedpre_recursive: bool = false;
 static mut win_scrolled_resized_recursive: bool = false;
 
 unsafe extern "C" {
-    static float_anchor_str: [*const c_char; 4];
-
-    static mut empty_string_option: [c_char; 1];
 
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

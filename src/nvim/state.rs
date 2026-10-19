@@ -124,7 +124,6 @@ pub struct save_v_event_T {
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut last_mode: [c_char; MODE_MAX_LENGTH];
     static mut g_min_log_level: c_int;
 
     fn uv_loop_size() -> usize;

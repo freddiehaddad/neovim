@@ -628,8 +628,6 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
 static mut default_shada_file: *mut c_char = ptr::null_mut();
 
 unsafe extern "C" {
-    static mut namedfm: [xfmark_T; NGLOBALMARKS];
-    static mut NameBuff: [c_char; MAXPATHL];
     static mut longVersion: *mut c_char;
 
     fn KeyDict__shada_buflist_item_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;

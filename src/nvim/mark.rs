@@ -131,9 +131,6 @@ static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
 static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
 
 unsafe extern "C" {
-    static mut namedfm: [xfmark_T; NGLOBALMARKS];
-    static mut NameBuff: [c_char; MAXPATHL];
-    static mut IObuff: [c_char; IOSIZE];
 
     fn has_event(event: c_int) -> bool;
     fn aucmd_defer(

@@ -418,11 +418,7 @@ unsafe extern "system" {
 }
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
-    static mut empty_string_option: [c_char; 1];
     static mut main_loop: u8;
-    static mut windowsVersion: [c_char; 20];
     static eval_has_list: [*const c_char; 0];
 
     fn tv_blob_set_range(

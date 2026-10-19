@@ -117,7 +117,6 @@ static mut EXPAND_RECURSIVE: bool = false;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
 
     #[cfg(windows)]
     fn _getdrive() -> c_int;

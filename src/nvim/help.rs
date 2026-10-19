@@ -65,7 +65,6 @@ const kBoolVarTrue: i64 = 1;
 const kSpecialVarNull: i64 = 0;
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn nlua_call_typval(
         module: *const c_char,

@@ -407,10 +407,6 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 
 unsafe extern "C" {
 
-    static mut empty_string_option: [c_char; 1];
-    static mut langmap_mapchar: [u8; 256];
-    static mut showcmd_buf: [c_char; SHOWCMD_BUFLEN];
-
     fn curbuf_locked() -> bool;
     fn ui_cursor_shape();
     fn ui_cursor_shape_no_check_conceal();

@@ -329,7 +329,6 @@ static mut sps_flags: c_int = SPS_BEST;
 static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;

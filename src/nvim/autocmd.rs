@@ -18,6 +18,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::option_vars::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -1284,9 +1285,6 @@ static mut ft_recursive: c_int = 0;
 
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    static mut last_mode: [c_char; 4];
-    static mut exestack: garray_T;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn cstr_as_string(str_: *const c_char) -> NvimString;

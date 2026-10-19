@@ -183,7 +183,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 };
 
 unsafe extern "C" {
-    static float_anchor_str: [*const c_char; 4];
     static opt_winborder_values: [*const c_char; 9];
 
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

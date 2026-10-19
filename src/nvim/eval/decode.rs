@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::eval::vars::eval_msgpack_type_lists;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
@@ -162,7 +163,6 @@ struct ValuesStackItem {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static eval_msgpack_type_lists: [*const list_T; 8];
 
     fn tv_dict_alloc() -> *mut dict_T;
     fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut dictitem_T;

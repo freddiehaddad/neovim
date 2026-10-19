@@ -260,9 +260,6 @@ static mut get_attr_entry_recursive: bool = false;
 static mut ns_get_hl_recursive: c_int = 0;
 
 unsafe extern "C" {
-    static mut hlf_names: [*const c_char; HLF_COUNT];
-    static mut highlight_attr: [c_int; HLF_COUNT];
-    static mut highlight_attr_last: [c_int; HLF_COUNT];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

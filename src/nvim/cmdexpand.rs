@@ -1001,7 +1001,6 @@ static mut ARG1_LUA_LAST_XP_LINE: *mut c_char = ptr::null_mut();
 static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

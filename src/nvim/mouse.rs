@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::mbyte::utf8len_tab;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -154,7 +155,6 @@ static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
 
 unsafe extern "C" {
-    static utf8len_tab: [u8; 256];
 
     fn gchar_pos(pos: *mut pos_T) -> c_int;
     fn mb_get_class(p: *const c_char) -> c_int;

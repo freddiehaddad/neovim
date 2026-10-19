@@ -366,7 +366,6 @@ static mut DO_TAG_MATCHES: *mut *mut c_char = ptr::null_mut();
 static mut DO_TAG_FLAGS: c_int = 0;
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

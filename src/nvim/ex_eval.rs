@@ -15,6 +15,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::option_vars::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -23,7 +24,6 @@ use crate::charset::skipwhite;
 use crate::clipboard::{list_T, typval_T};
 use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;
-use crate::garray::garray_T;
 use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
 
 pub type OptInt = i64;
@@ -167,10 +167,7 @@ use crate::profile::estack_T;
 static mut cause_abort: bool = false;
 
 unsafe extern "C" {
-    static mut exestack: garray_T;
     static mut p_vfile: *mut c_char;
-    static mut empty_string_option: [c_char; 1];
-    static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char;

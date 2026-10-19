@@ -15,6 +15,7 @@
 use crate::errors::*;
 use crate::globals::*;
 use crate::option_vars::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -233,8 +234,6 @@ static E_ILLEGAL_MAP_MODE_STRING_STR: &CStr = c"E1276: Illegal map mode string: 
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut exestack: garray_T;
-    static mut langmap_mapchar: [u8; 256];
 
     fn atoi(s: *const c_char) -> c_int;
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;

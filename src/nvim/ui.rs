@@ -11,6 +11,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::cursor_shape::shape_table;
 use crate::globals::*;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -141,8 +142,6 @@ static mut ui_flush_was_busy: bool = false;
 static mut ui_flush_cursor_was_obscured: bool = false;
 
 unsafe extern "C" {
-    static mut ui_ext_names: [*const c_char; kUIExtCount];
-    static mut shape_table: [cursorentry_T; 18];
 
     fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
     fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;

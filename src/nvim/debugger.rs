@@ -9,6 +9,7 @@
 )]
 
 use crate::globals::*;
+use crate::runtime::exestack;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
@@ -125,7 +126,6 @@ pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, boo
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut exestack: garray_T;
 
     fn estack_sfile(which: c_int) -> *mut c_char;
     fn save_typeahead(tp: *mut tasave_T);

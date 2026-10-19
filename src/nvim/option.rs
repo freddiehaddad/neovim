@@ -661,11 +661,6 @@ const SHELL_RULES: [ShellRule; 2] = [
 
 unsafe extern "C" {
 
-    static mut empty_string_option: [c_char; 1];
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
-    static mut wim_flags: [u8; 4];
-
     static buf_opt_idx: [OptIndex; 93];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

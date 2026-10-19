@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -57,8 +58,6 @@ static mut server_addr_count: u32 = 0;
 
 unsafe extern "C" {
     static mut main_loop: u8;
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn uv_handle_size(h_type: c_int) -> usize;
     fn uv_handle_get_type(handle: *const uv_handle_t) -> c_int;

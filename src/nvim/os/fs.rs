@@ -260,7 +260,6 @@ struct IPersistFile {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut os_buf: [c_char; MAXPATHL];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

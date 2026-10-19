@@ -269,7 +269,6 @@ static mut pre_verbose_kind: *const c_char = ptr::null();
 unsafe extern "C" {
 
     static mut p_vfile: *mut c_char;
-    static mut msg_buf: [c_char; MSG_BUF_LEN];
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

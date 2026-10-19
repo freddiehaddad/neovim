@@ -547,8 +547,6 @@ use crate::state::save_v_event_T;
 
 unsafe extern "C" {
 
-    static mut IObuff: [c_char; IOSIZE];
-
     fn gettext(str: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(s: *const c_char, ...) -> bool;

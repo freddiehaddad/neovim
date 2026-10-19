@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::mbyte::utf8len_tab;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
@@ -59,7 +60,6 @@ static mut isi_chartab: [u64; 4] = [0; 4];
 static mut transchar_charbuf: [u8; 11] = [0; 11];
 
 unsafe extern "C" {
-    static utf8len_tab: [u8; 256];
 
     fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int;
     fn skip_to_option_part(p: *const c_char) -> *mut c_char;

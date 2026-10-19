@@ -542,9 +542,6 @@ static mut did_bufnr_emsg: bool = false;
 static mut set_qf_ll_recursive: c_int = 0;
 
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
-    static mut empty_string_option: [c_char; 0];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;

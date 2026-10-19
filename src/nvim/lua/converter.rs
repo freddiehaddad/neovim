@@ -9,6 +9,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::eval::vars::eval_msgpack_type_lists;
 use crate::globals::*;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -195,7 +196,6 @@ unsafe extern "C-unwind" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static eval_msgpack_type_lists: [*const list_T; NUM_MSGPACK_TYPES];
 
     fn nlua_pushref(lstate: *mut lua_State, ref_: LuaRef);
     fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef;
@@ -972,7 +972,7 @@ unsafe fn lua_convert_one_value(
                         let val_di = tv_dict_find(dict, c"_VAL".as_ptr(), 4);
                         if !val_di.is_null() {
                             let mut mp_idx = NUM_MSGPACK_TYPES;
-                            for (i, &tl) in eval_msgpack_type_lists.iter().enumerate() {
+                            for (i, tl) in { eval_msgpack_type_lists }.into_iter().enumerate() {
                                 if (*type_di).di_tv.vval.v_list.cast_const() == tl {
                                     mp_idx = i;
                                     break;

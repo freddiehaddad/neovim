@@ -781,11 +781,7 @@ static PVP_TABLE: [KeySetLink; 4] = [
 ];
 
 unsafe extern "C" {
-    static mut empty_string_option: [c_char; 1];
-    static mut IObuff: [c_char; IOSIZE];
-    static mut wim_flags: [u8; 4];
 
-    static mut breakat_flags: [c_char; 256];
     static mut p_vfile: *mut c_char;
 
     static opt_scl_values: [*const c_char; 23];

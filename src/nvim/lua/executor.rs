@@ -308,8 +308,6 @@ unsafe extern "system" {
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: Loop;
-    static mut ui_ext_names: [*const c_char; kUIGlobalCount];
-    static mut IObuff: [c_char; IOSIZE];
 
     static main_exitfree: bool;
 

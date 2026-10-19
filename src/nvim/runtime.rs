@@ -293,8 +293,6 @@ static mut APP_BOTH: c_int = 0;
 #[cfg(not(test))]
 unsafe extern "C" {
     static mut default_lib_dir: *mut c_char;
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
 
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;

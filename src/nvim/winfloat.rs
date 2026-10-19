@@ -114,7 +114,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 };
 
 unsafe extern "C" {
-    static mut empty_string_option: [c_char; 1];
 
     fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T;
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;

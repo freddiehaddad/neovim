@@ -11,6 +11,7 @@
 )]
 
 use crate::globals::*;
+use crate::mbyte::utf8len_tab;
 use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -102,7 +103,6 @@ static mut grid_line_flags: c_int = 0;
 static mut last_grid_handle: c_int = DEFAULT_GRID_HANDLE;
 
 unsafe extern "C" {
-    static utf8len_tab: [u8; 256];
 
     fn decor_check_invalid_glyphs();
     fn check_chars_options() -> *const c_char;

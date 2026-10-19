@@ -217,9 +217,6 @@ const OPCHARS: [[u8; 3]; 31] = [
 static mut addsub_hexupper: bool = false;
 
 unsafe extern "C" {
-    static mut empty_string_option: [c_char; 1];
-    static no_lines_msg: [c_char; 1];
-    static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;

@@ -2,6 +2,7 @@
 
 #![cfg_attr(any(test, target_os = "windows"), allow(dead_code, unused_imports))]
 
+use crate::globals::*;
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 
 use crate::memory::{xfree, xmallocz, xrealloc, xstrdup};
@@ -78,7 +79,6 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut NameBuff: [c_char; MAXPATHL];
     fn os_getenv_noalloc(name: *const c_char) -> *const c_char;
     fn os_getenv(name: *const c_char) -> *mut c_char;
     #[cfg(not(target_os = "windows"))]

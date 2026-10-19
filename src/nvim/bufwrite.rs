@@ -197,7 +197,6 @@ struct bw_info {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut IObuff: [c_char; IOSIZE];
 
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn uv_strerror(err: c_int) -> *const c_char;

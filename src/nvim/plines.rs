@@ -10,6 +10,7 @@
 )]
 
 use crate::globals::*;
+use crate::mbyte::utf8len_tab;
 use crate::option_vars::*;
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -88,8 +89,6 @@ pub struct ClusterInfo {
 }
 
 unsafe extern "C" {
-    static utf8len_tab: [u8; 256];
-    static breakat_flags: [c_char; 256];
 
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const colnr_T) -> c_int;
     fn ptr2cells(p: *const c_char) -> c_int;

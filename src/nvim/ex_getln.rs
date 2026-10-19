@@ -379,8 +379,6 @@ static mut prev_prompt_id: c_uint = c_uint::MAX;
 static mut prev_prompt_errors: c_int = 0;
 
 unsafe extern "C" {
-    static mut wim_flags: [u8; 4];
-    static mut IObuff: [c_char; IOSIZE];
     static mut main_loop: Loop;
 
     fn gettext(msgid: *const c_char) -> *mut c_char;

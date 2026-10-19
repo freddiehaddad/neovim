@@ -249,11 +249,6 @@ unsafe extern "system" {
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    static mut IObuff: [c_char; IOSIZE];
-    static mut NameBuff: [c_char; MAXPATHL];
-    #[cfg(windows)]
-    static mut windowsVersion: [c_char; 20];
-
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
 
