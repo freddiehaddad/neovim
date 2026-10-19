@@ -437,7 +437,7 @@ unsafe extern "C" {
     fn do_chdir(new_dir: *mut c_char, scope: c_int) -> bool;
     fn tv_dict_find(d: *const dict_T, key: *const c_char, len: isize) -> *mut dictitem_T;
     fn script_autoload(name: *const c_char, len: usize, reload: bool) -> bool;
-    fn aborting() -> c_int;
+    fn aborting() -> bool;
 
     fn verbose_enter();
     fn verbose_leave();
@@ -489,7 +489,7 @@ unsafe extern "C" {
     fn get_cot_flags() -> c_uint;
     fn changed_window_setting(wp: *mut win_T);
     fn win_grid_alloc(wp: *mut win_T);
-    fn win_check_ns_hl(wp: *mut win_T);
+    fn win_check_ns_hl(wp: *mut win_T) -> bool;
 
     fn prepare_yankreg_from_object(reg: *mut yankreg_T, regtype: NvimString, lines: usize) -> bool;
     fn finish_yankreg_from_object(reg: *mut yankreg_T, clipboard_adjust: bool);
@@ -503,7 +503,7 @@ unsafe extern "C" {
     );
     fn input_enqueue(channel_id: u64, keys: NvimString) -> usize;
     fn may_trigger_vim_suspend_resume(suspend: bool);
-    fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> isize;
+    fn get_cursor_rel_lnum(wp: *mut win_T, lnum: linenr_T) -> linenr_T;
     fn check_stl_option(s: *mut c_char, errbuf: *const CharBuf) -> *const c_char;
     fn global_stl_height() -> c_int;
     fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T;
@@ -1283,7 +1283,7 @@ pub unsafe extern "C" fn nvim_get_var(
     unsafe {
         let mut di = tv_dict_find(get_globvar_dict(), name.data, name.size as isize);
         if di.is_null() {
-            let found = script_autoload(name.data, name.size, false) && aborting() == 0;
+            let found = script_autoload(name.data, name.size, false) && !aborting();
             if !found {
                 api_set_error(
                     err,

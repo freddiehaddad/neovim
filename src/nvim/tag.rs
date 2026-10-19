@@ -379,7 +379,7 @@ unsafe extern "C" {
     fn msg_puts(s: *const c_char);
     fn msg_puts_title(s: *const c_char);
     fn msg_outtrans(str: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn wait_return(redraw: bool);
+    fn wait_return(redraw: c_int);
     fn verbose_enter();
     fn verbose_leave();
 
@@ -3303,7 +3303,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
                     retval = OK;
 
                     if secure == 2 {
-                        wait_return(true);
+                        wait_return(1);
                     }
                     secure = save_secure;
                     sandbox -= 1;

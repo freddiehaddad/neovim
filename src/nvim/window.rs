@@ -334,7 +334,7 @@ unsafe extern "C" {
     fn bt_quickfix(buf: *const buf_T) -> bool;
     fn bt_prompt(buf: *const buf_T) -> bool;
     fn bt_help(buf: *const buf_T) -> bool;
-    fn win_copy_options(wp_from: *mut win_T, wp_to: *mut win_T) -> c_int;
+    fn win_copy_options(wp_from: *mut win_T, wp_to: *mut win_T);
     fn buf_copy_options(buf: *mut buf_T, flags: c_int);
     fn clear_winopt(wop: *mut winopt_T);
     fn set_option_value(
@@ -351,7 +351,7 @@ unsafe extern "C" {
     fn curbuf_locked() -> bool;
     fn check_text_or_curbuf_locked(oap: *mut c_void) -> bool;
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
-    fn tabpage_close(forceit: bool);
+    fn tabpage_close(forceit: c_int);
     fn getout(r: c_int) -> !;
 
     fn ui_has(ext: UIExtension) -> bool;
@@ -437,7 +437,7 @@ unsafe extern "C" {
         lnum: linenr_T,
         flags: c_int,
     ) -> *mut buf_T;
-    fn can_abandon(buf: *mut buf_T, forceit: c_int) -> bool;
+    fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool;
     fn close_buffer(
         win: *mut win_T,
         buf: *mut buf_T,
@@ -449,7 +449,7 @@ unsafe extern "C" {
     fn do_autochdir();
     fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
     fn maketitle();
-    fn shorten_fnames(force: bool);
+    fn shorten_fnames(force: c_int);
     fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_char);
     fn getDeepestNesting(wp: *mut win_T) -> c_int;
     fn hasFolding(
@@ -3712,7 +3712,7 @@ pub unsafe extern "C" fn win_free_all() {
         cmdwin_buf = ptr::null_mut();
 
         while !(*first_tabpage).tp_next.is_null() {
-            tabpage_close(true);
+            tabpage_close(1);
         }
 
         while !lastwin.is_null() && (*lastwin).w_floating {
@@ -4545,7 +4545,7 @@ pub unsafe extern "C" fn close_others(message: c_int, forceit: c_int, ignore_pin
                 continue;
             }
 
-            let r = can_abandon((*wp).w_buffer, forceit);
+            let r = can_abandon((*wp).w_buffer, forceit != 0);
             if !win_valid(wp) {
                 wp = firstwin;
                 continue;
@@ -5676,7 +5676,7 @@ pub unsafe extern "C" fn update_cwd(cause: CdCause) {
                 do_autocmd_dirchanged(new_dir, scope, cause, false);
             }
             last_chdir_reason = ptr::null_mut();
-            shorten_fnames(true);
+            shorten_fnames(1);
         } else if !globaldir.is_null() {
             let dir_differs = !path_equal(globaldir, cwd.as_ptr(), kPathCmpLiteral);
             if p_acd == 0 && dir_differs {
@@ -5688,7 +5688,7 @@ pub unsafe extern "C" fn update_cwd(cause: CdCause) {
             xfree(globaldir.cast());
             globaldir = ptr::null_mut();
             last_chdir_reason = ptr::null_mut();
-            shorten_fnames(true);
+            shorten_fnames(1);
         }
     }
 }

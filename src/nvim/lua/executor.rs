@@ -331,8 +331,8 @@ unsafe extern "C" {
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn msg_use_printf() -> bool;
-    fn redirecting() -> bool;
+    fn msg_use_printf() -> c_int;
+    fn redirecting() -> c_int;
     fn msg_multihl(
         id: Object,
         hl_msg: HlMessage,
@@ -1606,7 +1606,7 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
 unsafe extern "C" fn nlua_print_event(argv: *mut *mut c_void) {
     unsafe {
         msg_ext_no_fast();
-        let raw = msg_use_printf() && !redirecting() && on_print.cb_type == kCallbackNone;
+        let raw = msg_use_printf() != 0 && redirecting() == 0 && on_print.cb_type == kCallbackNone;
 
         let items = xmalloc(8 * size_of::<HlMessageChunk>()).cast::<HlMessageChunk>();
         *items = HlMessageChunk {

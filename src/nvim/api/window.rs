@@ -105,8 +105,13 @@ unsafe extern "C" {
     fn emsg(s: *const c_char) -> bool;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
-    fn win_close_othertab(win: *mut win_T, free_buf: c_int, tp: *mut tabpage_T, force: bool);
-    fn ex_win_close(forceit: bool, win: *mut win_T, tp: *mut tabpage_T);
+    fn win_close_othertab(
+        win: *mut win_T,
+        free_buf: c_int,
+        tp: *mut tabpage_T,
+        force: bool,
+    ) -> bool;
+    fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T);
     fn nlua_call_ref(
         ref_id: LuaRef,
         name: *const c_char,
@@ -454,7 +459,7 @@ pub unsafe extern "C" fn nvim_win_close(win: Window, force: Boolean, err: *mut E
         let tabpage = win_find_tabpage(w);
         try_wrap(err, || {
             ex_win_close(
-                force,
+                c_int::from(force),
                 w,
                 if tabpage == curtab {
                     ptr::null_mut()

@@ -467,7 +467,7 @@ unsafe extern "C" {
         copyID: c_int,
     ) -> *mut list_T;
     fn tv_list_find_nr(l: *const list_T, n: c_int, ret_error: *mut bool) -> varnumber_T;
-    fn tv_list_flatten(l: *mut list_T, li: *mut listitem_T, maxitems: i64, maxdepth: i64) -> c_int;
+    fn tv_list_flatten(l: *mut list_T, li: *mut listitem_T, maxitems: i64, maxdepth: i64);
     fn callback_free(callback: *mut Callback);
     fn callback_from_typval(callback: *mut Callback, arg: *mut typval_T) -> bool;
     fn func_call(
@@ -482,7 +482,7 @@ unsafe extern "C" {
         required: *mut c_int,
         optional: *mut c_int,
         varargs: *mut bool,
-    );
+    ) -> c_int;
     fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;
     fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char;
     fn partial_name(pt: *mut partial_T) -> *const c_char;
@@ -511,8 +511,11 @@ unsafe extern "C" {
         skip: bool,
     ) -> *mut c_char;
     fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int;
-    fn str2special_save(str_: *const c_char, replace_spaces: bool, replace_lt: bool)
-    -> *mut c_char;
+    fn str2special_save(
+        str_: *const c_char,
+        replace_spaces: bool,
+        replace_lt: TriState,
+    ) -> *mut c_char;
     fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize;
     fn get_appname(namelike: bool) -> *const c_char;
     fn os_get_pid() -> i64;
@@ -559,7 +562,7 @@ unsafe extern "C" {
         locally: bool,
         thisblock: bool,
         flags_arg: c_int,
-    ) -> c_int;
+    ) -> bool;
     #[cfg_attr(target_os = "windows", link_name = "_stricmp")]
     #[cfg_attr(not(target_os = "windows"), link_name = "strcasecmp")]
     fn c_stricmp(s1: *const c_char, s2: *const c_char) -> c_int;
@@ -616,7 +619,7 @@ unsafe extern "C" {
     fn semsg_multiline(context: *const c_char, fmt: *const c_char, ...);
     fn emsg_funcname(ermsg: *const c_char, name: *const c_char);
     fn internal_error(where_: *const c_char);
-    fn verb_msg(s: *const c_char);
+    fn verb_msg(s: *const c_char) -> c_int;
     fn msg_ext_set_kind(msg_kind: *const c_char);
     fn msg_start();
     fn msg_clr_eos();
@@ -631,7 +634,7 @@ unsafe extern "C" {
         rettv: *mut typval_T,
         lua_special: bool,
         err: *mut Error,
-    ) -> bool;
+    );
     fn api_free_object(value: Object);
     fn api_free_string(value: NvimString);
     fn api_clear_error(value: *mut Error);
@@ -747,8 +750,8 @@ unsafe extern "C" {
         message: *const c_char,
         buttons: *const c_char,
         dfltbutton: c_int,
-        textfield: *mut c_char,
-        ex_cmd: bool,
+        textfield: *const c_char,
+        ex_cmd: c_int,
     ) -> c_int;
     fn do_cmdline_cmd(cmd: *const c_char) -> c_int;
     fn do_cmdline(
@@ -783,7 +786,7 @@ unsafe extern "C" {
     fn last_csearch_until() -> c_int;
     fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int);
     fn set_csearch_direction(cdir: c_int);
-    fn set_csearch_until(t_cmd: bool);
+    fn set_csearch_until(t_cmd: c_int);
     fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int;
     fn ui_gui_attached() -> bool;
     fn get_user_input(
@@ -817,7 +820,7 @@ unsafe extern "C" {
     fn incl(lp: *mut pos_T) -> c_int;
     fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
     fn string2float(text: *const c_char, ret_value: *mut float_T) -> usize;
-    fn recover_names(fname: *mut c_char, list: bool, ret_list: *mut list_T) -> c_int;
+    fn recover_names(fname: *mut c_char, list: bool, ret_list: *mut list_T);
     fn swapfile_dict(fname: *const c_char, d: *mut dict_T);
     fn cmdline_pum_active() -> bool;
     fn cursor_pos_info(dict: *mut dict_T);
@@ -1878,8 +1881,8 @@ pub unsafe extern "C" fn f_confirm(
                 message,
                 buttons,
                 def,
-                ptr::null_mut(),
-                false,
+                ptr::null(),
+                0,
             ));
         }
     }
@@ -5421,7 +5424,7 @@ pub unsafe extern "C" fn f_keytrans(
             return;
         }
         let escaped = vim_strsave_escape_ks((*argvars).vval.v_string);
-        (*rettv).vval.v_string = str2special_save(escaped, true, true);
+        (*rettv).vval.v_string = str2special_save(escaped, true, 1);
         xfree(escaped.cast());
     }
 }
@@ -7926,15 +7929,13 @@ pub unsafe extern "C" fn f_searchdecl(
             }
         }
         if !error && !name.is_null() {
-            (*rettv).vval.v_number = varnumber_T::from(
-                find_decl(
-                    name.cast_mut(),
-                    strlen(name),
-                    locally != 0,
-                    thisblock != 0,
-                    SEARCH_KEEP,
-                ) == FAIL,
-            );
+            (*rettv).vval.v_number = varnumber_T::from(!find_decl(
+                name.cast_mut(),
+                strlen(name),
+                locally != 0,
+                thisblock != 0,
+                SEARCH_KEEP,
+            ));
         }
     }
 }
@@ -8489,7 +8490,7 @@ pub unsafe extern "C" fn f_setcharsearch(
 
         di = tv_dict_find(d, c"until".as_ptr(), 5);
         if !di.is_null() {
-            set_csearch_until(tv_get_number(&raw const (*di).di_tv) != 0);
+            set_csearch_until(c_int::from(tv_get_number(&raw const (*di).di_tv) != 0));
         }
     }
 }

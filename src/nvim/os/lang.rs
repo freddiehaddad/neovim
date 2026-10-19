@@ -114,9 +114,9 @@ unsafe extern "C" {
 
     fn set_helplang_default(lang: *const c_char);
     fn maketitle();
-    fn buf_init_isk_chartab(buf: *mut buf_T) -> bool;
-    fn init_isf_chartab() -> bool;
-    fn init_isi_chartab() -> bool;
+    fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int;
+    fn init_isf_chartab() -> c_int;
+    fn init_isi_chartab() -> c_int;
 }
 
 #[inline]

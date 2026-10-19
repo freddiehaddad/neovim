@@ -274,8 +274,8 @@ unsafe extern "C" {
     fn remote_ui_error_exit(ui: *mut RemoteUI, status: Integer);
     fn remote_ui__set_restart_on_crash_exit(ui: *mut RemoteUI, progpath: NvimString, argv: Array);
 
-    fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer) -> bool;
-    fn ui_comp_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) -> bool;
+    fn ui_comp_grid_resize(grid: Integer, width: Integer, height: Integer);
+    fn ui_comp_grid_cursor_goto(grid: Integer, row: Integer, col: Integer);
     fn ui_comp_grid_scroll(
         grid: Integer,
         top: Integer,
@@ -284,7 +284,7 @@ unsafe extern "C" {
         right: Integer,
         rows: Integer,
         cols: Integer,
-    ) -> bool;
+    );
     fn ui_comp_raw_line(
         grid: Integer,
         row: Integer,

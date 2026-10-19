@@ -56,7 +56,7 @@ static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 unsafe extern "C" {
     static mut g_min_log_level: c_int;
 
-    fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int);
+    fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize;
     fn os_isdir(name: *const c_char) -> bool;
     fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int;
     fn get_xdg_home(idx: c_int) -> *mut c_char;

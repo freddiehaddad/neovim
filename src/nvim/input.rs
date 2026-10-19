@@ -322,7 +322,7 @@ unsafe extern "C" {
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
 
     fn check_secure() -> bool;
-    fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int);
+    fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize;
     fn clear_oparg(oap: *mut oparg_T);
     fn update_topline_cursor();
     fn normal_cmd(oap: *mut oparg_T, toplevel: bool);

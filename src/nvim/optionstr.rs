@@ -834,7 +834,7 @@ unsafe extern "C" {
     fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool;
     fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool;
 
-    fn briopt_check(wp: *mut win_T) -> c_int;
+    fn briopt_check(wp: *mut win_T);
     fn foldUpdateAll(win: *mut win_T);
     fn newFoldLevel();
     fn global_stl_height() -> c_int;

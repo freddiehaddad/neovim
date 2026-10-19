@@ -263,7 +263,7 @@ unsafe extern "C" {
         start: c_int,
         dir: Direction,
         count: handle_T,
-        forceit: bool,
+        forceit: c_int,
     ) -> c_int;
     fn mark_get(
         buf: *mut buf_T,
@@ -1470,7 +1470,7 @@ pub unsafe extern "C" fn nvim_buf_delete(
             DOBUF_FIRST,
             FORWARD,
             (*b).b_fnum,
-            force,
+            c_int::from(force),
         );
 
         if result == FAIL {

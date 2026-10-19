@@ -124,10 +124,10 @@ unsafe extern "C" {
     fn smsg(attr: c_int, fmt: *const c_char, ...) -> c_int;
     fn msg(s: *const c_char, attr: c_int) -> bool;
     fn msg_start();
-    fn msg_end();
+    fn msg_end() -> bool;
     fn msg_putchar(c: c_int);
     fn msg_puts(s: *const c_char);
-    fn msg_outnum(n: i64);
+    fn msg_outnum(n: c_int);
     fn msg_outtrans(str: *const c_char, attr: c_int, ischanged: bool) -> c_int;
     fn msg_sb_eol();
     fn msg_ext_set_kind(msg_kind: *const c_char);
@@ -829,7 +829,7 @@ pub unsafe extern "C" fn os_call_shell(
                 msg_putchar(b'\n' as c_int);
             }
             msg_puts(gettext(c"shell returned ".as_ptr()));
-            msg_outnum(i64::from(exitcode));
+            msg_outnum(exitcode);
         }
 
         State = current_state;

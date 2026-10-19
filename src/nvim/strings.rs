@@ -94,7 +94,7 @@ unsafe extern "C" {
 
     fn csh_like_shell() -> c_int;
     fn fish_like_shell() -> bool;
-    fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> c_int;
+    fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;
     fn siemsg(fmt: *const c_char, ...);

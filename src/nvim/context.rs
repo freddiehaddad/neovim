@@ -201,7 +201,7 @@ unsafe extern "C" {
     fn os_dirname(buf: *mut c_char, len: usize) -> c_int;
     fn do_autochdir();
     fn os_chdir(path: *const c_char) -> c_int;
-    fn shorten_fnames(force: bool);
+    fn shorten_fnames(force: c_int);
     fn win_alloc_ctx_win(idx: c_int);
     fn win_init_empty(wp: *mut win_T);
     fn win_append(after: *mut win_T, wp: *mut win_T, tp: *mut tabpage_T);
@@ -806,7 +806,7 @@ unsafe fn ctx_dirs_restore(cs: *mut CtxSwitch) {
             && (((*cs).cs_flags & kCtxKeepDirs) != 0 || !CTX_DID_CHDIR)
         {
             os_chdir((*cs).cs_cwd);
-            shorten_fnames(true);
+            shorten_fnames(1);
         }
         xfree((*cs).cs_cwd.cast());
         (*cs).cs_cwd = ptr::null_mut();

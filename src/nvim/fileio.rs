@@ -310,12 +310,7 @@ unsafe extern "C" {
     fn ui_has(ext: c_int) -> bool;
 
     fn shortmess(x: c_int) -> bool;
-    fn set_option_direct(
-        opt_idx: c_int,
-        val: Object,
-        opt_flags: c_int,
-        set_sid: c_int,
-    ) -> *const c_char;
+    fn set_option_direct(opt_idx: c_int, val: Object, opt_flags: c_int, set_sid: c_int);
     fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int);
     fn copy_option_part(
         option: *mut *mut c_char,
@@ -347,7 +342,7 @@ unsafe extern "C" {
     ) -> c_int;
     fn wipe_buffer(buf: *mut buf_T, aucmd: bool);
     fn foldUpdateAll(win: *mut win_T);
-    fn appended_lines_mark(lnum: linenr_T, count: isize);
+    fn appended_lines_mark(lnum: linenr_T, count: c_int);
     fn update_topline(wp: *mut win_T);
     fn check_marks_read();
     fn default_fileformat() -> c_int;
@@ -364,7 +359,7 @@ unsafe extern "C" {
         fmt: *const c_char,
         ...
     ) -> bool;
-    fn stuff_empty() -> c_int;
+    fn stuff_empty() -> bool;
     fn sort_strings(files: *mut *mut c_char, count: c_int);
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn vim_snprintf(str_: *mut c_char, str_m: usize, fmt: *const c_char, ...) -> c_int;
@@ -2256,7 +2251,7 @@ pub unsafe extern "C" fn readfile(
                     diff_invalidate(curbuf);
                     foldUpdateAll(curwin);
                 } else if linecnt != 0 {
-                    appended_lines_mark(from, linecnt as isize);
+                    appended_lines_mark(from, linecnt);
                 }
 
                 if got_int {
@@ -3538,7 +3533,7 @@ pub unsafe extern "C" fn check_timestamps(focus: c_int) -> c_int {
 
         let mut didit: c_int = 0;
 
-        if stuff_empty() == 0
+        if !stuff_empty()
             || global_busy != 0
             || typebuf_typed() == 0
             || autocmd_busy

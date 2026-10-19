@@ -90,7 +90,7 @@ unsafe extern "C" {
     ) -> bool;
     fn os_exit(r: c_int) -> !;
     #[cfg(windows)]
-    fn os_open_conin_fd();
+    fn os_open_conin_fd() -> c_int;
     #[cfg(windows)]
     #[link_name = "_close"]
     fn close_fd(fd: c_int) -> c_int;

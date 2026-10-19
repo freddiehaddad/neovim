@@ -205,7 +205,7 @@ unsafe extern "C" {
         skip: bool,
         use_simple_function: bool,
     ) -> bool;
-    fn ends_excmd(c: c_int) -> bool;
+    fn ends_excmd(c: c_int) -> c_int;
     fn eval_for_line(
         arg: *const c_char,
         errp: *mut bool,
@@ -216,11 +216,11 @@ unsafe extern "C" {
     fn free_for_info(fi_void: *mut c_void);
     fn eval_to_string_skip(arg: *const c_char, eap: *mut exarg_T, skip: bool) -> *mut c_char;
     fn find_nextcmd(p: *const c_char) -> *mut c_char;
-    fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: bool) -> *mut c_char;
+    fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut c_void;
     fn vim_regexec_nl(rmp: *mut regmatch_T, line: *const c_char, col: c_int) -> bool;
     fn vim_regfree(prog: *mut c_void);
-    fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> c_int;
+    fn do_return(eap: *mut exarg_T, reanimate: bool, is_cmd: bool, rettv: *mut c_void) -> bool;
     fn do_finish(eap: *mut exarg_T, reanimate: bool);
     fn modifier_len(cmd: *mut c_char) -> c_int;
 
@@ -1016,7 +1016,10 @@ pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
         if (*eap).cmdidx == CMD_elseif {
             let mut result = false;
             let mut error = false;
-            if skip && *(*eap).arg != b'"' as c_char && ends_excmd(c_int::from(*(*eap).arg as u8)) {
+            if skip
+                && *(*eap).arg != b'"' as c_char
+                && ends_excmd(c_int::from(*(*eap).arg as u8)) != 0
+            {
                 semsg(gettext(E_INVEXPR2.as_ptr()), (*eap).arg);
             } else {
                 result = eval_to_bool((*eap).arg, &mut error, eap, skip, false);
@@ -1300,18 +1303,18 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
             }
         }
 
-        let (pat, end): (*const c_char, *mut c_char) = if ends_excmd(c_int::from(*(*eap).arg as u8))
-        {
-            (*eap).nextcmd = find_nextcmd((*eap).arg);
-            (c".*".as_ptr(), ptr::null_mut())
-        } else {
-            let pat = (*eap).arg.add(1);
-            let end = skip_regexp_err(pat, c_int::from(*(*eap).arg as u8), true);
-            if end.is_null() {
-                give_up = true;
-            }
-            (pat, end)
-        };
+        let (pat, end): (*const c_char, *mut c_char) =
+            if ends_excmd(c_int::from(*(*eap).arg as u8)) != 0 {
+                (*eap).nextcmd = find_nextcmd((*eap).arg);
+                (c".*".as_ptr(), ptr::null_mut())
+            } else {
+                let pat = (*eap).arg.add(1);
+                let end = skip_regexp_err(pat, c_int::from(*(*eap).arg as u8), 1);
+                if end.is_null() {
+                    give_up = true;
+                }
+                (pat, end)
+            };
 
         if !give_up {
             let mut caught = false;
@@ -1326,7 +1329,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
             {
                 if !end.is_null()
                     && *end != NUL
-                    && !ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8))
+                    && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
                     semsg(gettext(E_TRAILING_ARG.as_ptr()), end);
                     return;

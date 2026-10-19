@@ -166,9 +166,9 @@ unsafe extern "C" {
     fn tabpage_move(nr: c_int);
     fn tabpage_index(ftp: *mut tabpage_T) -> c_int;
     fn find_tabpage(n: c_int) -> *mut tabpage_T;
-    fn tabpage_close(forceit: bool);
-    fn tabpage_close_other(tp: *mut tabpage_T, forceit: bool);
-    fn tabpage_new() -> c_int;
+    fn tabpage_close(forceit: c_int);
+    fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int);
+    fn tabpage_new();
     fn goto_tabpage(n: c_int);
     fn call_vim_function(
         func: *const c_char,
@@ -394,10 +394,10 @@ unsafe fn mouse_tab_close(c1: c_int) {
         let tp = if c1 == 999 { curtab } else { find_tabpage(c1) };
         if tp == curtab {
             if !(*first_tabpage).tp_next.is_null() {
-                tabpage_close(false);
+                tabpage_close(0);
             }
         } else if !tp.is_null() {
-            tabpage_close_other(tp, false);
+            tabpage_close_other(tp, 0);
         }
     }
 }

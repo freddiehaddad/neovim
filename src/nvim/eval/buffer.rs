@@ -120,7 +120,7 @@ unsafe extern "C" {
     fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
     fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut listitem_T;
     fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int;
-    fn buf_ensure_loaded(buf: *mut buf_T);
+    fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
     fn buflist_new(
         ffname_arg: *mut c_char,
         sfname_arg: *mut c_char,

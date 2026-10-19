@@ -589,8 +589,8 @@ unsafe extern "C" {
     fn nlua_expand_pat(xp: *mut expand_T);
     fn dec(lp: *mut pos_T) -> c_int;
     fn deleted_lines_mark(lnum: linenr_T, count: c_int);
-    fn using_script() -> bool;
-    fn getwhitecols(p: *const c_char) -> c_int;
+    fn using_script() -> c_int;
+    fn getwhitecols(p: *const c_char) -> isize;
     fn str_foldcase(
         str_ptr: *mut c_char,
         orglen: c_int,
@@ -6214,7 +6214,7 @@ unsafe fn check_elapsed_time() {
 pub unsafe extern "C" fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
     static mut count: c_int = 0;
     unsafe {
-        if !in_compl_func && (using_script() || ex_normal_busy != 0) {
+        if !in_compl_func && (using_script() != 0 || ex_normal_busy != 0) {
             return;
         }
 
@@ -6428,7 +6428,7 @@ unsafe fn get_normal_compl_info(
 
 unsafe fn get_wholeline_compl_info(line: *mut c_char, curs_col: colnr_T) -> c_int {
     unsafe {
-        compl_col = getwhitecols(line);
+        compl_col = getwhitecols(line) as colnr_T;
         compl_length = curs_col - compl_col;
         if compl_length < 0 {
             compl_length = 0;
@@ -6699,7 +6699,7 @@ unsafe fn ins_compl_continue_search(line: *mut c_char) {
         compl_cont_status &= !CONT_INTRPT;
         if ctrl_x_mode_normal() || ctrl_x_mode_path_patterns() || ctrl_x_mode_path_defines() {
             if compl_startpos.lnum != (*curwin).w_cursor.lnum {
-                compl_col = getwhitecols(line);
+                compl_col = getwhitecols(line) as colnr_T;
                 compl_startpos.col = compl_col;
                 compl_startpos.lnum = (*curwin).w_cursor.lnum;
                 compl_cont_status &= !CONT_SOL;

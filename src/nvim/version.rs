@@ -3772,7 +3772,7 @@ unsafe extern "C" {
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
     fn ui_has(ext: UIExtension) -> bool;
     fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char) -> c_int;
+    fn msg_puts(s: *const c_char);
     fn msg_ext_set_kind(msg_sep: *const c_char);
     fn nlua_exec(
         str_: NvimString,

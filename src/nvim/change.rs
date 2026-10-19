@@ -127,7 +127,7 @@ unsafe extern "C" {
     fn msg_start();
     fn msg_source(attr: c_int);
     fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool) -> bool;
+    fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
     fn set_vim_var_string(idx: c_int, val: *const c_char, len: isize);
     fn msg_clr_eos();
     fn msg_end() -> bool;

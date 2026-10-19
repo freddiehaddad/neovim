@@ -373,7 +373,8 @@ unsafe extern "C" {
     );
 
     fn openscript(name: *mut c_char, directly: bool);
-    fn add_win_cmd_modifiers(buf: *mut c_char, cmod: *mut cmdmod_T, multi_mods: *mut bool);
+    fn add_win_cmd_modifiers(buf: *mut c_char, cmod: *mut cmdmod_T, multi_mods: *mut bool)
+    -> usize;
     fn new_script_vars(id: scid_T);
     fn ml_get(lnum: linenr_T) -> *mut c_char;
     fn vimrc_found(fname: *mut c_char, envname: *const c_char);

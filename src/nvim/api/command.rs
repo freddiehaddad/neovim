@@ -368,7 +368,7 @@ unsafe extern "C" {
         force: bool,
         buf: *mut buf_T,
     ) -> bool;
-    fn aborting() -> c_int;
+    fn aborting() -> bool;
     fn is_cmd_ni(cmdidx: cmdidx_T) -> bool;
     fn get_user_command_name(idx: c_int, cmdidx: cmdidx_T) -> *mut c_char;
     fn excmd_get_argt(cmdidx: cmdidx_T) -> u32;
@@ -384,7 +384,7 @@ unsafe extern "C" {
     ) -> *mut c_char;
     fn getargopt(eap: *mut exarg_T) -> c_int;
     fn getargcmd(argp: *mut *mut c_char) -> *mut c_char;
-    fn execute_cmd(eap: *mut exarg_T, cmdmod: *mut cmdmod_T, preview: bool);
+    fn execute_cmd(eap: *mut exarg_T, cmdmod: *mut cmdmod_T, preview: bool) -> c_int;
     fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T;
     fn free_ucmd(cmd: *mut ucmd_T);
     fn uc_validate_name(name: *mut c_char) -> *mut c_char;
@@ -963,7 +963,7 @@ pub unsafe extern "C" fn nvim_cmd(
             {
                 p = arena_string(arena, (*cmd).cmd).data;
                 let ret = apply_autocmds(EVENT_CMDUNDEFINED, p, p, true, ptr::null_mut());
-                p = if ret && aborting() == 0 {
+                p = if ret && !aborting() {
                     find_ex_command(&mut ea, ptr::null_mut())
                 } else {
                     ea.cmd

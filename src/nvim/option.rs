@@ -690,7 +690,7 @@ unsafe extern "C" {
     fn save_file_ff(buf: *mut buf_T);
     fn bufIsChanged(buf: *const buf_T) -> bool;
     fn curbufIsChanged() -> bool;
-    fn do_filetype_autocmd(buf: *mut buf_T, force: bool);
+    fn do_filetype_autocmd(buf: *mut buf_T, force: bool) -> bool;
     fn free_findfunc_option();
     fn free_operatorfunc_option();
     fn get_scriptlocal_funcname(funcname: *mut c_char) -> *mut c_char;

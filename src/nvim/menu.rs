@@ -231,8 +231,8 @@ unsafe extern "C" {
     ) -> *mut c_char;
     fn msg_puts_title(s: *const c_char);
     fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char) -> bool;
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool) -> bool;
+    fn msg_puts(s: *const c_char);
+    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
     fn msg_outnum(n: c_int);
     fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
     fn msg_outtrans_special(strstart: *const c_char, from: bool, maxlen: c_int) -> c_int;

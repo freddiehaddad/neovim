@@ -961,8 +961,8 @@ unsafe extern "C" {
     fn tv_check_for_string_arg(argvars: *const typval_T, idx: c_int) -> c_int;
     fn tv_list_alloc(len: isize) -> *mut list_T;
     fn tv_list_alloc_ret(ret_tv: *mut typval_T, len: isize) -> *mut list_T;
-    fn tv_list_append_number(l: *mut list_T, n: varnumber_T) -> c_int;
-    fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T) -> c_int;
+    fn tv_list_append_number(l: *mut list_T, n: varnumber_T);
+    fn tv_list_append_list(l: *mut list_T, itemlist: *mut list_T);
     fn check_chars_options() -> *const c_char;
     fn changed_window_setting_all();
     fn redraw_all_later(type_: c_int);

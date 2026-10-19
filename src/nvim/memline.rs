@@ -403,7 +403,7 @@ unsafe extern "C" {
         key: *const c_char,
         key_len: usize,
         val: *const c_char,
-        val_len: isize,
+        val_len: c_int,
     ) -> c_int;
     fn tv_dict_add_nr(d: *mut dict_T, key: *const c_char, key_len: usize, nr: i64) -> c_int;
 }
@@ -1905,21 +1905,21 @@ pub unsafe extern "C" fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
                         c"user".as_ptr(),
                         4,
                         (&raw const b0.b0_uname).cast(),
-                        B0_UNAME_SIZE as isize,
+                        B0_UNAME_SIZE as c_int,
                     );
                     tv_dict_add_str_len(
                         d,
                         c"host".as_ptr(),
                         4,
                         (&raw const b0.b0_hname).cast(),
-                        B0_HNAME_SIZE as isize,
+                        B0_HNAME_SIZE as c_int,
                     );
                     tv_dict_add_str_len(
                         d,
                         c"fname".as_ptr(),
                         5,
                         (&raw const b0.b0_fname).cast(),
-                        B0_FNAME_SIZE_ORG as isize,
+                        B0_FNAME_SIZE_ORG as c_int,
                     );
 
                     tv_dict_add_nr(

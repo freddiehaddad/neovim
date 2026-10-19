@@ -145,7 +145,7 @@ unsafe extern "C" {
         invalidate: bool,
         err: *mut Error,
     );
-    fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u32) -> *mut DecorVirtText;
+    fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *mut DecorVirtText;
     fn clear_virttext(text: *mut VirtText);
     fn syn_get_final_id(hl_id: c_int) -> c_int;
     fn syn_id2attr(hl_id: c_int) -> c_int;
@@ -203,7 +203,7 @@ unsafe extern "C" {
     fn msg_ext_no_fast();
     fn emsg(s: *const c_char) -> bool;
     fn msg(s: *const c_char, attr: c_int) -> bool;
-    fn msg_end();
+    fn msg_end() -> bool;
     fn try_enter(tstate: *mut TryState);
     fn try_leave(tstate: *const TryState, err: *mut Error);
     fn win_setheight_win(height: c_int, win: *mut win_T, from_top: bool);
@@ -493,7 +493,7 @@ pub unsafe extern "C" fn nvim_buf_set_virtual_text(
             return 0;
         }
 
-        let existing = decor_find_virttext(buf, line as c_int, ns_id);
+        let existing = decor_find_virttext(buf, line as c_int, u64::from(ns_id));
         if !existing.is_null() {
             clear_virttext(&raw mut (*existing).data.virt_text);
             (*existing).data.virt_text = virt_text;

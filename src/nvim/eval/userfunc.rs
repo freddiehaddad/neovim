@@ -362,7 +362,7 @@ unsafe extern "C" {
     fn msg_start();
     fn msg_puts(s: *const c_char);
     fn msg_putchar(c: c_int);
-    fn msg_outnum(n: i64);
+    fn msg_outnum(n: c_int);
     fn msg_clr_eos();
     fn msg_prt_line(s: *mut c_char, list: bool);
     fn msg_ext_set_kind(msg_kind: *const c_char);
@@ -379,12 +379,12 @@ unsafe extern "C" {
         cookie: *mut c_void,
         flags: c_int,
     ) -> c_int;
-    fn ends_excmd(c: c_int) -> bool;
+    fn ends_excmd(c: c_int) -> c_int;
     fn check_nextcmd(p: *mut c_char) -> *mut c_char;
     fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool;
     fn skip_range(cmd: *const c_char, ctx: *mut c_int) -> *mut c_char;
-    fn skip_regexp(startp: *mut c_char, dirc: c_int, magic: bool) -> *mut c_char;
-    fn getcmdline(firstc: c_int, count: i64, indent: c_int, do_concat: c_int) -> *mut c_char;
+    fn skip_regexp(startp: *mut c_char, dirc: c_int, magic: c_int) -> *mut c_char;
+    fn getcmdline(firstc: c_int, count: c_int, indent: c_int, do_concat: bool) -> *mut c_char;
 
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
     fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: i32) -> bool;
@@ -1736,7 +1736,7 @@ pub unsafe extern "C" fn call_user_func(
                     }
                     let arg_tv = argvars.add(i as usize);
                     if (*arg_tv).v_type == VarType::VAR_NUMBER {
-                        msg_outnum((*arg_tv).vval.v_number as c_int as i64);
+                        msg_outnum((*arg_tv).vval.v_number as c_int);
                     } else {
                         emsg_off += 1;
                         let tofree = encode_tv2string(arg_tv, ptr::null_mut());
@@ -2900,7 +2900,7 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
 #[cfg(not(test))]
 unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
     unsafe {
-        let mut p = skip_regexp((*eap).arg.add(1), b'/' as c_int, true);
+        let mut p = skip_regexp((*eap).arg.add(1), b'/' as c_int, 1);
         if (*eap).skip == 0 {
             let mut regmatch: regmatch_T = std::mem::zeroed();
 
@@ -2925,7 +2925,7 @@ unsafe fn list_functions_matching_pat(eap: *mut exarg_T) -> *mut c_char {
 #[cfg(not(test))]
 unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
     unsafe {
-        if !ends_excmd(*skipwhite(p) as c_int) {
+        if ends_excmd(*skipwhite(p) as c_int) == 0 {
             semsg(gettext(e_trailing_arg.as_ptr()), p);
             return ptr::null_mut();
         }
@@ -2962,7 +2962,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
             }
             msg_putchar(b'\n' as c_int);
             if (*eap).forceit == 0 {
-                msg_outnum(i64::from(j + 1));
+                msg_outnum(j + 1);
                 if j < 9 {
                     msg_putchar(b' ' as c_int);
                 }
@@ -3036,7 +3036,7 @@ unsafe fn get_function_body(
             } else {
                 xfree((*line_to_free).cast());
                 theline = match (*eap).ea_getline {
-                    None => getcmdline(b':' as c_int, 0, indent, do_concat as c_int),
+                    None => getcmdline(b':' as c_int, 0, indent, do_concat),
                     Some(getline_fn) => getline_fn(b':' as c_int, (*eap).cookie, indent, do_concat),
                 };
                 *line_to_free = theline;
@@ -3310,7 +3310,7 @@ pub unsafe extern "C" fn ex_function(eap: *mut exarg_T) {
         let mut ht: *mut hashtab_T = ptr::null_mut();
         let mut show_block = false;
 
-        if ends_excmd(*(*eap).arg as c_int) {
+        if ends_excmd(*(*eap).arg as c_int) != 0 {
             if (*eap).skip == 0 {
                 list_functions(ptr::null_mut());
             }
@@ -3827,7 +3827,7 @@ pub unsafe extern "C" fn ex_delfunction(eap: *mut exarg_T) {
             }
             return;
         }
-        if !ends_excmd(*skipwhite(p) as c_int) {
+        if ends_excmd(*skipwhite(p) as c_int) == 0 {
             xfree(name.cast());
             semsg(gettext(e_trailing_arg.as_ptr()), p);
             return;
@@ -4360,7 +4360,7 @@ pub unsafe extern "C" fn ex_call(eap: *mut exarg_T) {
         if (!aborting() || did_throw)
             && (!failed || (*(*eap).cstack.cast::<cstack_T>()).cs_trylevel > 0)
         {
-            if !ends_excmd(*arg as c_int) {
+            if ends_excmd(*arg as c_int) == 0 {
                 if !failed && !aborting() {
                     emsg_severe = true;
                     semsg(gettext(e_trailing_arg.as_ptr()), arg);

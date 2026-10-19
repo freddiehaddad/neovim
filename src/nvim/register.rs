@@ -220,7 +220,7 @@ unsafe extern "C" {
     fn beginline(flags: c_int);
     fn u_save_cursor() -> c_int;
     fn u_save(top: linenr_T, bot: linenr_T) -> c_int;
-    fn del_chars(count: c_int, fixpos: bool) -> c_int;
+    fn del_chars(count: c_int, fixpos: c_int) -> c_int;
     fn check_fname() -> c_int;
     fn getaltfname(errmsg: bool) -> *mut c_char;
     fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut linenr_T) -> c_int;
@@ -1126,7 +1126,7 @@ pub unsafe extern "C" fn insert_reg(
                             if u_save_cursor() == FAIL {
                                 return FAIL;
                             }
-                            del_chars(mb_charlen((*(*reg).y_array).data), true);
+                            del_chars(mb_charlen((*(*reg).y_array).data), 1);
                             let curpos = (*curwin).w_cursor;
                             if oneright() == FAIL {
                                 dir = FORWARD;

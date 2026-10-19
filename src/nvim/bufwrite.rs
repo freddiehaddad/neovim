@@ -274,7 +274,7 @@ unsafe extern "C" {
         fname_to: *const c_char,
     ) -> c_int;
     fn msg_add_fileformat(eol_type: c_int) -> bool;
-    fn msg_add_lines(insert_space: c_int, lnum: isize, nchars: i64);
+    fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: i64);
     fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo);
     fn buf_set_file_id(buf: *mut buf_T);
 
@@ -2225,7 +2225,7 @@ pub unsafe extern "C" fn buf_write(
                         if msg_add_fileformat(fileformat) {
                             insert_space = true;
                         }
-                        msg_add_lines(c_int::from(insert_space), lnum as isize, nchars);
+                        msg_add_lines(c_int::from(insert_space), lnum, nchars);
                         if !shortmess(kShmWrite) {
                             if append {
                                 xstrlcat(

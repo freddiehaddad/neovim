@@ -174,7 +174,7 @@ unsafe extern "C" {
 
     fn loop_poll_events(loop_: *mut Loop, ms: i64) -> bool;
 
-    fn try_getdigits(cp: *mut *mut c_char, nr: *mut i64) -> c_int;
+    fn try_getdigits(cp: *mut *mut c_char, nr: *mut i64) -> bool;
     fn os_remove(path: *const c_char) -> c_int;
     fn os_path_exists(path: *const c_char) -> bool;
     fn path_tail(fname: *const c_char) -> *mut c_char;
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn socket_watcher_init(
             let mut iport: i64 = 0;
 
             let ok = try_getdigits(&raw mut port_scan, &raw mut iport);
-            if ok == 0 || iport < 0 || iport > i64::from(u16::MAX) {
+            if !ok || iport < 0 || iport > i64::from(u16::MAX) {
                 logmsg(
                     LOGLVL_ERR,
                     ptr::null(),

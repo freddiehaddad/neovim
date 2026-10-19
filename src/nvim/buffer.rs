@@ -373,14 +373,14 @@ unsafe extern "C" {
     ))]
     fn is_dev_fd_file(fname: *mut c_char) -> bool;
     fn save_file_ff(buf: *mut buf_T);
-    fn buf_check_timestamp(buf: *mut buf_T);
-    fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T) -> c_int;
+    fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
+    fn prep_exarg(eap: *mut exarg_T, buf: *const buf_T);
 
     fn window_layout_lock();
     fn window_layout_unlock();
     fn one_window(win: *const win_T, tp: *const tabpage_T) -> bool;
     fn last_window(win: *const win_T) -> bool;
-    fn win_locked(wp: *const win_T) -> bool;
+    fn win_locked(wp: *mut win_T) -> c_int;
     fn win_valid(win: *const win_T) -> bool;
     fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int;
     fn close_windows(buf: *mut buf_T, keep_curwin: bool);
@@ -397,7 +397,7 @@ unsafe extern "C" {
     fn tabpage_new();
     fn tabpage_index(tp: *mut tabpage_T) -> c_int;
     fn swbuf_goto_win_with_buf(buf: *mut buf_T) -> *mut win_T;
-    fn check_can_set_curbuf_forceit(forceit: bool) -> bool;
+    fn check_can_set_curbuf_forceit(forceit: c_int) -> bool;
     fn global_stl_height() -> c_int;
 
     fn end_visual_mode();
@@ -445,7 +445,7 @@ unsafe extern "C" {
         lnum: linenr_T,
         forceit: bool,
     ) -> c_int;
-    fn can_abandon(buf: *mut buf_T, forceit: c_int) -> bool;
+    fn can_abandon(buf: *mut buf_T, forceit: bool) -> bool;
     fn update_cwd(cause: c_int);
 
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
@@ -470,7 +470,7 @@ unsafe extern "C" {
     fn min_vim_version() -> c_int;
     fn qf_stack_get_bufnr() -> c_int;
     fn check_arg_idx(win: *mut win_T);
-    fn shorten_fnames(force: bool);
+    fn shorten_fnames(force: c_int);
     fn vim_chdirfile(fname: *mut c_char, cause: c_int) -> c_int;
     fn dialog_close_terminal(buf: *mut buf_T) -> bool;
     fn check_colorcolumn(errbuf: *const CharBuf, wp: *mut win_T) -> *const c_char;
@@ -479,7 +479,7 @@ unsafe extern "C" {
         pat: *const c_char,
         pat_end: *const c_char,
         allow_dirs: *mut c_char,
-        no_bslash: bool,
+        no_bslash: c_int,
     ) -> *mut c_char;
     fn win_get_fill(wp: *mut win_T, lnum: linenr_T) -> c_int;
     fn foldUpdateAll(win: *mut win_T);
@@ -1857,7 +1857,7 @@ unsafe fn do_buffer_ext(
 
         if action == DOBUF_GOTO
             && buf != curbuf
-            && !check_can_set_curbuf_forceit((flags & DOBUF_FORCEIT) != 0)
+            && !check_can_set_curbuf_forceit(flags & DOBUF_FORCEIT)
         {
             return FAIL;
         }
@@ -1936,7 +1936,7 @@ unsafe fn do_buffer_ext(
             }
 
             while buf == curbuf
-                && !(win_locked(curwin) || (*(*curwin).w_buffer).b_locked > 0)
+                && !(win_locked(curwin) != 0 || (*(*curwin).w_buffer).b_locked > 0)
                 && (is_ctx_win(lastwin) || !last_window(curwin))
             {
                 if win_close(curwin, false, false) == FAIL {
@@ -2123,7 +2123,7 @@ unsafe fn do_buffer_ext(
             return OK;
         }
 
-        if action == DOBUF_GOTO && !can_abandon(curbuf, flags & DOBUF_FORCEIT) {
+        if action == DOBUF_GOTO && !can_abandon(curbuf, (flags & DOBUF_FORCEIT) != 0) {
             if (p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && p_write != 0 {
                 let mut bufref: bufref_T = std::mem::zeroed();
                 set_bufref(&raw mut bufref, buf);
@@ -2361,7 +2361,7 @@ pub unsafe extern "C" fn do_autochdir() {
             && vim_chdirfile((*curbuf).b_ffname, kCdCauseAuto) == OK
         {
             last_chdir_reason = c"autochdir".as_ptr().cast_mut();
-            shorten_fnames(true);
+            shorten_fnames(1);
         }
     }
 }
@@ -2918,7 +2918,7 @@ pub unsafe extern "C" fn buflist_findpat(
                 match_fnum = -1;
             }
         } else {
-            let pat = file_pat_to_reg_pat(pattern, pattern_end, ptr::null_mut(), false);
+            let pat = file_pat_to_reg_pat(pattern, pattern_end, ptr::null_mut(), 0);
             if pat.is_null() {
                 return -1;
             }
@@ -4423,7 +4423,7 @@ pub unsafe extern "C" fn ex_buffer_all(eap: *mut exarg_T) {
                     || size_mismatch
                     || (had_tab > 0 && wp != firstwin))
                     && firstwin != lastwin
-                    && !(win_locked(wp) || (*(*wp).w_buffer).b_locked > 0)
+                    && !(win_locked(wp) != 0 || (*(*wp).w_buffer).b_locked > 0)
                     && !is_ctx_win(wp)
                 {
                     if win_close(wp, false, false) == FAIL {

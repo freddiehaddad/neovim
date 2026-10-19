@@ -552,13 +552,13 @@ unsafe extern "C" {
     fn msg_ext_set_kind(msg_kind: *const c_char);
     fn msg_putchar(c: c_int);
     fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
-    fn msg_puts_hl(str_: *const c_char, hl_id: c_int, hist: bool) -> bool;
-    fn msg_puts(str_: *const c_char) -> bool;
+    fn msg_puts_hl(str_: *const c_char, hl_id: c_int, hist: bool);
+    fn msg_puts(str_: *const c_char);
     fn msg_prt_line(s: *mut c_char, list: bool);
     fn msg_start();
-    fn msg_strtrunc(s: *const c_char, force: bool) -> *mut c_char;
+    fn msg_strtrunc(s: *const c_char, force: c_int) -> *mut c_char;
     fn msg_clr_eos();
-    fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: usize);
+    fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, buflen: c_int);
     fn message_filtered(msg: *const c_char) -> bool;
     fn internal_error(where_: *const c_char);
     fn ui_flush();
@@ -4141,7 +4141,7 @@ unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
             }
             xstrlcat(buf.as_mut_ptr(), title, IOSIZE);
         }
-        trunc_string(buf.as_ptr(), buf.as_mut_ptr(), Columns - 1, IOSIZE);
+        trunc_string(buf.as_ptr(), buf.as_mut_ptr(), Columns - 1, IOSIZE as c_int);
         msg(buf.as_ptr(), 0);
     }
 }
@@ -6020,7 +6020,7 @@ unsafe fn vgr_init_regmatch(regmatch: *mut regmmatch_T, s: *mut c_char) {
 unsafe fn vgr_display_fname(fname: *mut c_char) {
     unsafe {
         msg_start();
-        let p = msg_strtrunc(fname, true);
+        let p = msg_strtrunc(fname, 1);
         if p.is_null() {
             msg_outtrans(fname, 0, false);
         } else {

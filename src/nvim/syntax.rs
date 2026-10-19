@@ -383,7 +383,7 @@ unsafe extern "C" {
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
     fn msg_puts_title(s: *const c_char);
     fn msg_putchar(c: c_int);
-    fn msg_outnum(n: i64);
+    fn msg_outnum(n: c_int);
     fn msg_outtrans(str_: *const c_char, hl_id: c_int, hist: bool) -> c_int;
     fn msg_outtrans_len(str_: *const c_char, len: c_int, hl_id: c_int, hist: bool) -> c_int;
     fn msg_advance(col: c_int);
@@ -3310,7 +3310,7 @@ unsafe fn syn_cmd_list(eap: *mut exarg_T, syncing: c_int) {
                     msg_puts(gettext(c"syncing starts at the first line".as_ptr()));
                 } else {
                     msg_puts(gettext(c"syncing starts ".as_ptr()));
-                    msg_outnum((*win_s(curwin)).b_syn_sync_minlines as i64);
+                    msg_outnum((*win_s(curwin)).b_syn_sync_minlines as c_int);
                     msg_puts(gettext(c" lines before top line".as_ptr()));
                 }
                 syn_match_msg();
@@ -3364,14 +3364,14 @@ unsafe fn syn_lines_msg() {
             } else {
                 if (*win_s(curwin)).b_syn_sync_minlines > 0 {
                     msg_puts(gettext(c"minimal ".as_ptr()));
-                    msg_outnum((*win_s(curwin)).b_syn_sync_minlines as i64);
+                    msg_outnum((*win_s(curwin)).b_syn_sync_minlines as c_int);
                     if (*win_s(curwin)).b_syn_sync_maxlines != 0 {
                         msg_puts(c", ".as_ptr());
                     }
                 }
                 if (*win_s(curwin)).b_syn_sync_maxlines > 0 {
                     msg_puts(gettext(c"maximal ".as_ptr()));
-                    msg_outnum((*win_s(curwin)).b_syn_sync_maxlines as i64);
+                    msg_outnum((*win_s(curwin)).b_syn_sync_maxlines as c_int);
                 }
                 msg_puts(gettext(c" lines before top line".as_ptr()));
             }
@@ -3383,7 +3383,7 @@ unsafe fn syn_match_msg() {
     unsafe {
         if (*win_s(curwin)).b_syn_sync_linebreaks > 0 {
             msg_puts(gettext(c"; match ".as_ptr()));
-            msg_outnum((*win_s(curwin)).b_syn_sync_linebreaks as i64);
+            msg_outnum((*win_s(curwin)).b_syn_sync_linebreaks as c_int);
             msg_puts(gettext(c" line breaks".as_ptr()));
         }
     }
@@ -3641,7 +3641,7 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: *const synpat_T, hl_id: c
                 }
             }
             if n != 0 || j == SPO_LC_OFF {
-                msg_outnum(n as i64);
+                msg_outnum(n as c_int);
             }
             first = false;
         }
@@ -5906,10 +5906,10 @@ unsafe fn syntime_report() {
             msg_puts(profile_msg((*p).total));
             msg_puts(c" ".as_ptr());
             msg_advance(13);
-            msg_outnum((*p).count as i64);
+            msg_outnum((*p).count);
             msg_puts(c" ".as_ptr());
             msg_advance(20);
-            msg_outnum((*p).match_ as i64);
+            msg_outnum((*p).match_);
             msg_puts(c" ".as_ptr());
             msg_advance(26);
             msg_puts(profile_msg((*p).slowest));
@@ -5936,7 +5936,7 @@ unsafe fn syntime_report() {
             msg_puts(c"\n".as_ptr());
             msg_puts(profile_msg(total_total));
             msg_advance(13);
-            msg_outnum(total_count as i64);
+            msg_outnum(total_count);
             msg_puts(c"\n".as_ptr());
         }
     }

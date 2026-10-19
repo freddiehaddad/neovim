@@ -300,7 +300,7 @@ unsafe extern "C" {
     -> c_int;
     fn gettext(msgid: *const c_char) -> *mut c_char;
     fn emsg(s: *const c_char) -> bool;
-    fn iemsg(s: *const c_char) -> bool;
+    fn iemsg(s: *const c_char);
     fn semsg(fmt: *const c_char, ...) -> bool;
     fn smsg(hl_id: c_int, fmt: *const c_char, ...) -> bool;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;

@@ -316,7 +316,7 @@ unsafe extern "C" {
         func: *const c_char,
         args: *mut typval_T,
         rettv: *mut typval_T,
-    ) -> bool;
+    );
     fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool);
     fn end_visual_mode();
     fn beep_flush();

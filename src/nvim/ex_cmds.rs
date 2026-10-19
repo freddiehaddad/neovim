@@ -381,10 +381,10 @@ unsafe extern "C" {
     fn msg_sb_eol();
     fn msg_clr_eos();
     fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char) -> c_int;
+    fn msg_puts(s: *const c_char);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, recurse: bool);
     fn msg_outtrans(str: *const c_char, hl_id: c_int, recurse: bool) -> c_int;
-    fn msg_prt_line(s: *mut c_char, list: c_int);
+    fn msg_prt_line(s: *const c_char, list: bool);
     fn msg_multiline(
         s: NvimString,
         hl_id: c_int,
@@ -394,7 +394,7 @@ unsafe extern "C" {
     );
     fn msg_ext_no_fast();
     fn msg_ext_set_kind(msg_kind: *const c_char);
-    fn msgmore(n: c_long);
+    fn msgmore(n: c_int);
     fn set_keep_msg(s: *const c_char, hl_id: c_int);
     fn wait_return(redraw: c_int);
     fn message_filtered(msg: *const c_char) -> bool;
@@ -437,16 +437,16 @@ unsafe extern "C" {
     fn win_split(size: c_int, flags: c_int) -> c_int;
     fn win_enter(wp: *mut win_T, undo_sync: bool);
 
-    fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: bool) -> *mut c_char;
+    fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char;
     fn skip_regexp_ex(
         startp: *mut c_char,
         dirc: c_int,
-        magic: bool,
+        magic: c_int,
         newp: *mut *mut c_char,
         dropped: *mut c_int,
         magic_val: *mut magic_T,
     ) -> *mut c_char;
-    fn skip_regexp(startp: *mut c_char, dirc: c_int, magic: bool) -> *mut c_char;
+    fn skip_regexp(startp: *mut c_char, dirc: c_int, magic: c_int) -> *mut c_char;
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
     fn vim_regexec(rmp: *mut regmatch_T, line: *const c_char, col: colnr_T) -> bool;
     fn vim_regexec_multi(
@@ -481,12 +481,12 @@ unsafe extern "C" {
     fn not_exiting(save_exiting: bool);
     fn changed_line_abv_curs();
     fn beginline(flags: c_int);
-    fn dialog_changed(buf: *mut buf_T, checkall: bool) -> bool;
+    fn dialog_changed(buf: *mut buf_T, checkall: bool);
     fn write_lnum_adjust(offset: linenr_T);
-    fn redo_append_lit(str: *const c_char, len: isize);
+    fn redo_append_lit(str: *const c_char, len: c_int);
     fn do_autochdir();
     fn before_quit_all(eap: *mut exarg_T) -> c_int;
-    fn buf_check_timestamp(buf: *mut buf_T);
+    fn buf_check_timestamp(buf: *mut buf_T) -> c_int;
     fn buf_clear_file(buf: *mut buf_T);
     fn buf_ensure_loaded(buf: *mut buf_T) -> bool;
     fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool;
@@ -519,7 +519,7 @@ unsafe extern "C" {
     fn no_write_message_buf(buf: *mut buf_T);
     fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int;
     fn otherfile(ffname: *const c_char) -> bool;
-    fn set_buflisted(on: bool);
+    fn set_buflisted(on: c_int);
     fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr_T) -> *mut buf_T;
     fn setfname(buf: *mut buf_T, ffname: *mut c_char, sfname: *mut c_char, message: bool) -> c_int;
     fn prompt_for_input(
@@ -1110,7 +1110,7 @@ pub unsafe extern "C" fn ex_sort(eap: *mut exarg_T) {
                     (*eap).nextcmd = check_nextcmd(p);
                     break;
                 } else if !ascii_isalpha(*p as c_int) && regmatch.regprog.is_null() {
-                    let s = skip_regexp_err(p.add(1), (*p as u8) as c_int, true);
+                    let s = skip_regexp_err(p.add(1), (*p as u8) as c_int, 1);
                     if s.is_null() {
                         break 'sortend;
                     }
@@ -1300,7 +1300,7 @@ pub unsafe extern "C" fn ex_sort(eap: *mut exarg_T) {
                     -deleted,
                     kExtmarkNOOP,
                 );
-                msgmore(-deleted as c_long);
+                msgmore(-deleted);
             } else if deleted < 0 {
                 mark_adjust((*eap).line2, MAXLNUM, -deleted, 0, kExtmarkNOOP);
             }
@@ -1386,7 +1386,7 @@ pub unsafe extern "C" fn ex_uniq(eap: *mut exarg_T) {
                     (*eap).nextcmd = check_nextcmd(p);
                     break;
                 } else if !ascii_isalpha(*p as c_int) && regmatch.regprog.is_null() {
-                    let s = skip_regexp_err(p.add(1), (*p as u8) as c_int, true);
+                    let s = skip_regexp_err(p.add(1), (*p as u8) as c_int, 1);
                     if s.is_null() {
                         break 'uniqend;
                     }
@@ -1534,7 +1534,7 @@ pub unsafe extern "C" fn ex_uniq(eap: *mut exarg_T) {
                     kExtmarkNOOP
                 },
             );
-            msgmore(-deleted as c_long);
+            msgmore(-deleted);
 
             if change_occurred {
                 changed_lines(curbuf, (*eap).line1, 0, (*eap).line2 + 1, -deleted, true);
@@ -1774,7 +1774,7 @@ pub unsafe extern "C" fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: li
             check_pos(curbuf, &raw mut Visual.start);
         }
 
-        msgmore(count as c_long);
+        msgmore(count);
     }
 }
 
@@ -2141,7 +2141,7 @@ unsafe fn do_filter(
                                 set_keep_msg(msg_buf_ptr, 0);
                             }
                         } else {
-                            msgmore(linecount as c_long);
+                            msgmore(linecount);
                         }
                     }
                     break 'filterend;
@@ -2420,7 +2420,7 @@ pub unsafe extern "C" fn print_line_no_prefix(lnum: linenr_T, use_number: bool, 
             );
             msg_puts_hl(numbuf.as_ptr(), HLF_N + 1, false);
         }
-        msg_prt_line(ml_get(lnum), c_int::from(list));
+        msg_prt_line(ml_get(lnum), list);
     }
 }
 
@@ -3452,7 +3452,7 @@ pub unsafe extern "C" fn do_ecmd(
             if (flags & ECMD_SET_HELP) != 0 || keep_help_flag {
                 prepare_help_buffer();
             } else if !(*curbuf).b_help {
-                set_buflisted(true);
+                set_buflisted(1);
             }
 
             if buf != curbuf {
@@ -4398,7 +4398,7 @@ unsafe fn do_sub(
                 cmd = skip_regexp_ex(
                     cmd,
                     delimiter,
-                    p_magic != 0,
+                    p_magic,
                     &raw mut (*eap).arg,
                     ptr::null_mut(),
                     ptr::null_mut(),
@@ -5366,7 +5366,7 @@ pub unsafe extern "C" fn ex_global(eap: *mut exarg_T) {
             cmd = skip_regexp_ex(
                 cmd,
                 (delim as u8) as c_int,
-                p_magic != 0,
+                p_magic,
                 &raw mut (*eap).arg,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -5497,7 +5497,7 @@ pub unsafe extern "C" fn global_exe(cmd: *mut c_char) {
         }
 
         if !do_sub_msg(false) && curbuf == old_buf {
-            msgmore(((*curbuf).b_ml.ml_line_count - old_lcount) as c_long);
+            msgmore((*curbuf).b_ml.ml_line_count - old_lcount);
         }
     }
 }
@@ -5764,7 +5764,7 @@ pub unsafe extern "C" fn skip_vimgrep_pat(
                 *s = p.add(1);
             }
             let c = (*p as u8) as c_int;
-            p = skip_regexp(p.add(1), c, true);
+            p = skip_regexp(p.add(1), c, 1);
             if (*p as u8) as c_int != c {
                 return ptr::null_mut();
             }

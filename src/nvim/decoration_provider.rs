@@ -73,7 +73,7 @@ unsafe extern "C" {
     fn api_free_array(value: Array);
     fn api_free_luaref(ref_: LuaRef);
     fn validate_botline_win(wp: *mut win_T);
-    fn hl_check_ns();
+    fn hl_check_ns() -> bool;
     fn decor_check_to_be_deleted();
 }
 

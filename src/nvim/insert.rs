@@ -320,7 +320,7 @@ unsafe extern "C" {
     fn tabstop_count(ts: *const c_int) -> c_int;
     fn tabstop_first(ts: *const c_int) -> c_int;
     fn tabstop_padding(col: colnr_T, ts_arg: i64, vts: *const c_int) -> c_int;
-    fn tabstop_start(col: colnr_T, ts: i64, vts: *const c_int) -> colnr_T;
+    fn tabstop_start(col: colnr_T, ts: c_int, vts: *mut colnr_T) -> colnr_T;
 
     fn foldCheckClose();
     fn foldOpenCursor();
@@ -358,7 +358,7 @@ unsafe extern "C" {
 
     fn check_abbr(c: c_int, ptr: *mut c_char, col: c_int, mincol: c_int) -> bool;
     fn expr_map_locked() -> bool;
-    fn map_execute_lua(may_repeat: bool, visual: bool);
+    fn map_execute_lua(may_repeat: bool, visual: bool) -> bool;
     fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool;
 
     fn end_visual_mode();
@@ -381,7 +381,7 @@ unsafe extern "C" {
     fn ui_has(ext: c_int) -> bool;
     fn redrawing() -> bool;
     fn vim_beep(val: c_uint);
-    fn check_timestamps(focus: bool) -> bool;
+    fn check_timestamps(focus: c_int) -> c_int;
 
     fn bt_prompt(buf: *const buf_T) -> bool;
     fn bt_cmdwin(buf: *const buf_T) -> bool;
@@ -890,7 +890,7 @@ unsafe extern "C" fn insert_check(state: *mut VimState) -> c_int {
         if stuff_empty() {
             did_check_timestamps = false;
             if need_check_timestamps {
-                check_timestamps(false);
+                check_timestamps(0);
             }
         }
 
@@ -3615,7 +3615,7 @@ unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> boo
                 } else {
                     want_vcol = tabstop_start(
                         want_vcol,
-                        i64::from(get_sts_value()),
+                        get_sts_value() as c_int,
                         (*curbuf).b_p_vsts_array,
                     );
                 }

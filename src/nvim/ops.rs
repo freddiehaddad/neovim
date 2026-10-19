@@ -226,7 +226,7 @@ unsafe extern "C" {
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn msg_keep(s: *const c_char, attr: c_int, keep: bool, multiline: bool) -> bool;
     fn msg_start();
-    fn msgmore(n: i64);
+    fn msgmore(n: c_int);
     fn may_clear_cmdline();
     fn beep_flush();
     fn vim_beep(val: c_uint);
@@ -285,14 +285,14 @@ unsafe extern "C" {
         lastp: *mut linenr_T,
     ) -> bool;
     fn foldCreate(wp: *mut win_T, start: pos_T, end: pos_T);
-    fn opFoldRange(first: pos_T, last: pos_T, opening: bool, recurse: bool, had_visual: bool);
+    fn opFoldRange(first: pos_T, last: pos_T, opening: c_int, recurse: c_int, had_visual: bool);
     fn deleteFold(
         wp: *mut win_T,
         first: linenr_T,
         last: linenr_T,
-        recurse: bool,
+        recurse: c_int,
         had_visual: bool,
-    ) -> c_int;
+    );
     fn visualinfo() -> visualinfo_T;
     fn restore_visual_mode();
     fn unadjust_for_sel() -> bool;
@@ -1346,7 +1346,7 @@ pub unsafe extern "C" fn op_delete(oap: *mut oparg_T) -> c_int {
                 }
             }
 
-            msgmore(i64::from((*curbuf).b_ml.ml_line_count - old_lcount));
+            msgmore((*curbuf).b_ml.ml_line_count - old_lcount);
         }
 
         if (cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -4341,8 +4341,12 @@ pub unsafe extern "C" fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int,
                     opFoldRange(
                         (*oap).start,
                         (*oap).end,
-                        (*oap).op_type == OP_FOLDOPEN || (*oap).op_type == OP_FOLDOPENREC,
-                        (*oap).op_type == OP_FOLDOPENREC || (*oap).op_type == OP_FOLDCLOSEREC,
+                        c_int::from(
+                            (*oap).op_type == OP_FOLDOPEN || (*oap).op_type == OP_FOLDOPENREC,
+                        ),
+                        c_int::from(
+                            (*oap).op_type == OP_FOLDOPENREC || (*oap).op_type == OP_FOLDCLOSEREC,
+                        ),
                         (*oap).is_VIsual,
                     );
                 }
@@ -4352,7 +4356,7 @@ pub unsafe extern "C" fn do_pending_operator(cap: *mut cmdarg_T, old_col: c_int,
                         curwin,
                         (*oap).start.lnum,
                         (*oap).end.lnum,
-                        (*oap).op_type == OP_FOLDDELREC,
+                        c_int::from((*oap).op_type == OP_FOLDDELREC),
                         (*oap).is_VIsual,
                     );
                 }

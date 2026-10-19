@@ -139,7 +139,7 @@ unsafe extern "C" {
         tb_change_cnt: c_int,
         events: *mut MultiQueue,
     ) -> c_int;
-    fn input_available() -> bool;
+    fn input_available() -> usize;
     fn check_end_reg_executing(advance: bool);
     fn may_sync_undo();
     fn os_breakcheck();
@@ -222,7 +222,7 @@ pub unsafe extern "C" fn state_enter(s: *mut VimState) {
                         }
                         ui_flush();
                         input_get(ptr::null_mut(), 0, -1, typebuf.tb_change_cnt, events);
-                        if !input_available() && !multiqueue_empty(main_loop_events()) {
+                        if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
                             break K_EVENT;
                         }
                     }
@@ -278,7 +278,7 @@ pub unsafe extern "C" fn state_handle_k_event() {
             }
 
             os_breakcheck();
-            if input_available() || got_int {
+            if input_available() != 0 || got_int {
                 return;
             }
         }

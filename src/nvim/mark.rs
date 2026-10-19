@@ -191,7 +191,7 @@ unsafe extern "C" {
     fn msg_puts_title(s: *const c_char);
     fn message_filtered(msg: *const c_char) -> bool;
     fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char) -> bool;
+    fn msg_puts(s: *const c_char);
     fn msg_outtrans(str: *const c_char, attr: c_int, recurse: bool) -> c_int;
     fn os_breakcheck();
     fn qf_mark_adjust(

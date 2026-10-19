@@ -494,7 +494,7 @@ unsafe extern "C" {
     fn ui_mode_info_set();
     fn setcursor();
 
-    fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: bool) -> c_int;
+    fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
 
     fn paste_repeat(count: c_int);
     fn getcmdkeycmd(c: c_int, cookie: *mut c_void, indent: c_int, do_concat: bool) -> *mut c_char;
@@ -1610,7 +1610,7 @@ pub unsafe extern "C" fn terminal_enter() -> bool {
                 close_cb((*s.term).opts.data);
             }
             if buf_handle != 0 {
-                do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, true);
+                do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
             }
         }
 

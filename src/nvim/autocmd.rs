@@ -1295,8 +1295,8 @@ unsafe extern "C" {
     fn api_clear_error(value: *mut Error);
 
     fn msg_putchar(c: c_int);
-    fn msg_puts(s: *const c_char) -> bool;
-    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool) -> bool;
+    fn msg_puts(s: *const c_char);
+    fn msg_puts_hl(s: *const c_char, attr: c_int, recurse: bool);
     fn msg_puts_title(s: *const c_char);
     fn msg_advance(col: c_int);
     fn msg_outtrans(str_: *const c_char, attr: c_int, Marse: bool) -> c_int;
@@ -1372,7 +1372,7 @@ unsafe extern "C" {
     fn get_mode(buf: *mut c_char);
     fn unuse_tabpage(tp: *mut tabpage_T);
     fn use_tabpage(tp: *mut tabpage_T);
-    fn ends_excmd(c: c_int) -> bool;
+    fn ends_excmd(c: c_int) -> c_int;
 
     fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T;
     fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T);
@@ -1410,7 +1410,7 @@ unsafe extern "C" {
         flags: c_int,
     ) -> c_int;
     fn line_breakcheck();
-    fn check_timestamps(focus: bool) -> bool;
+    fn check_timestamps(focus: c_int) -> c_int;
 }
 
 #[inline]
@@ -2847,7 +2847,8 @@ pub unsafe extern "C" fn do_doautocmd(
 
         fname = skipwhite(fname);
 
-        while *arg != NUL && !ends_excmd(c_int::from(*arg.cast::<u8>())) && !ascii_iswhite(*arg) {
+        while *arg != NUL && ends_excmd(c_int::from(*arg.cast::<u8>())) == 0 && !ascii_iswhite(*arg)
+        {
             let ev = event_name2nr(arg, &raw mut arg);
             if apply_autocmds_group(
                 ev,
@@ -3318,7 +3319,7 @@ pub unsafe extern "C" fn apply_autocmds_group(
                     || event == EVENT_MARKSET
                 {
                     autocmd_fname = ptr::null_mut();
-                } else if !fname.is_null() && !ends_excmd(c_int::from(*fname.cast::<u8>())) {
+                } else if !fname.is_null() && ends_excmd(c_int::from(*fname.cast::<u8>())) == 0 {
                     autocmd_fname = fname;
                 } else if !buf.is_null() {
                     autocmd_fname = (*buf).b_ffname;
@@ -4379,7 +4380,7 @@ pub unsafe extern "C" fn do_autocmd_focusgained(gained: bool) {
         );
 
         if gained && focusgained_last_time + 2000 < os_now() {
-            check_timestamps(true);
+            check_timestamps(1);
             focusgained_last_time = os_now();
         }
 

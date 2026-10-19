@@ -352,7 +352,7 @@ unsafe extern "C" {
         sfname_arg: *mut c_char,
         message: bool,
     ) -> c_int;
-    fn shorten_fnames(force: bool);
+    fn shorten_fnames(force: c_int);
     fn win_new_screensize();
     fn invoke_all_defer();
     fn free_all_mem();
@@ -906,7 +906,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
             }
         }
 
-        shorten_fnames(false);
+        shorten_fnames(0);
 
         handle_tag(params.tagname);
 

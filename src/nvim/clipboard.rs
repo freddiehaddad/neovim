@@ -123,14 +123,14 @@ const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":
 #[cfg(not(test))]
 unsafe extern "C" {
 
-    fn eval_has_provider(feat: *const c_char, throw_err: bool) -> c_int;
+    fn eval_has_provider(feat: *const c_char, throw_err: bool) -> bool;
     fn eval_call_provider(
         provider: *mut c_char,
         method: *mut c_char,
         arguments: *mut list_T,
         discard: bool,
     ) -> typval_T;
-    fn redirecting() -> bool;
+    fn redirecting() -> c_int;
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn emsg(s: *const c_char) -> bool;
     fn get_y_register(reg: c_int) -> *mut yankreg_T;
@@ -181,11 +181,11 @@ pub unsafe extern "C" fn adjust_clipboard_name(
             return std::ptr::null_mut();
         }
 
-        if eval_has_provider(c"clipboard".as_ptr(), false) == 0 {
+        if !eval_has_provider(c"clipboard".as_ptr(), false) {
             if BATCH_CHANGE_COUNT.load(Ordering::Relaxed) <= 1
                 && !quiet
                 && (!CLIPBOARD_DIDWARN.load(Ordering::Relaxed)
-                    || (explicit_cb_reg && !redirecting()))
+                    || (explicit_cb_reg && redirecting() == 0))
             {
                 CLIPBOARD_DIDWARN.store(true, Ordering::Relaxed);
                 msg(MSG_NO_CLIP.as_ptr(), 0);

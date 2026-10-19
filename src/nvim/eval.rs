@@ -363,7 +363,7 @@ unsafe extern "C" {
     fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 
     fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char;
-    fn check_cursor_moved(wp: *mut win_T) -> bool;
+    fn check_cursor_moved(wp: *mut win_T);
     fn update_topline(wp: *mut win_T);
     fn validate_botline_win(wp: *mut win_T);
     fn op_global_reg_iter(
@@ -393,7 +393,7 @@ unsafe extern "C" {
         n2: varnumber_T,
         exclusive: bool,
         rettv: *mut typval_T,
-    );
+    ) -> c_int;
     fn tv_check_num(tv: *const typval_T) -> bool;
     fn tv_check_str(tv: *const typval_T) -> bool;
     fn tv_dict_copy(
@@ -498,7 +498,7 @@ unsafe extern "C" {
     fn set_ref_in_functions(copyID: c_int) -> bool;
     fn set_ref_in_previous_funccal(copyID: c_int) -> bool;
 
-    fn ends_excmd(c: c_int) -> bool;
+    fn ends_excmd(c: c_int) -> c_int;
     fn check_nextcmd(p: *mut c_char) -> *mut c_char;
     fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool;
     fn concat_str(str1: *const c_char, str2: *const c_char) -> *mut c_char;
@@ -521,13 +521,13 @@ unsafe extern "C" {
     fn internal_error(where_: *const c_char);
     fn msg(s: *const c_char, hl_id: c_int) -> bool;
     fn smsg(hl_id: c_int, s: *const c_char, ...) -> bool;
-    fn verb_msg(s: *const c_char);
+    fn verb_msg(s: *const c_char) -> c_int;
     fn msg_puts(s: *const c_char);
     fn msg_puts_hl(s: *const c_char, hl_id: c_int, hist: bool);
     fn msg_puts_len(str_: *const c_char, maxlen: isize, hl_id: c_int, hist: bool);
-    fn msg_outnum(n: i64);
+    fn msg_outnum(n: c_int);
     fn msg_start();
-    fn msg_end();
+    fn msg_end() -> bool;
     fn msg_clr_eos();
     fn msg_sb_eol();
     fn msg_multiline(
@@ -562,7 +562,7 @@ unsafe extern "C" {
     fn set_ref_in_findfunc(copyID: c_int) -> bool;
     fn set_ref_in_quickfix(copyID: c_int) -> bool;
 
-    fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> bool;
+    fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int;
     fn is_tty_option(name: *const c_char) -> bool;
     fn get_tty_option(name: *const c_char) -> Object;
     fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object;
@@ -570,11 +570,7 @@ unsafe extern "C" {
     fn optval_free(o: Object);
     fn is_option_hidden(opt_idx: OptIndex) -> bool;
     fn find_option_end(arg: *const c_char, opt_idxp: *mut OptIndex) -> *const c_char;
-    fn set_option_value_give_err(
-        opt_idx: OptIndex,
-        value: Object,
-        opt_flags: c_int,
-    ) -> *const c_char;
+    fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int);
 
     fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T;
     fn vim_regfree(prog: *mut regprog_T);
@@ -1648,7 +1644,7 @@ pub unsafe extern "C" fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int 
     #[cfg(not(test))]
     unsafe {
         let saved_sctx = current_sctx;
-        let use_sandbox = was_set_insecurely(wp, kOptFoldexpr, OPT_LOCAL);
+        let use_sandbox = was_set_insecurely(wp, kOptFoldexpr, OPT_LOCAL) != 0;
 
         current_sctx = (*wp).w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
 
@@ -1705,7 +1701,7 @@ pub unsafe extern "C" fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int 
 pub unsafe extern "C" fn eval_foldtext(wp: *mut win_T) -> Object {
     #[cfg(not(test))]
     unsafe {
-        let use_sandbox = was_set_insecurely(wp, kOptFoldtext, OPT_LOCAL);
+        let use_sandbox = was_set_insecurely(wp, kOptFoldtext, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
         let retval: Object;
         if !eval_expr_option_tv(
@@ -2198,7 +2194,7 @@ pub unsafe extern "C" fn get_lval(
         if !expr_start.is_null() {
             if unlet
                 && !ascii_iswhite(*p)
-                && !ends_excmd(c_int::from(*p as u8))
+                && ends_excmd(c_int::from(*p as u8)) == 0
                 && *p != b'[' as c_char
                 && *p != b'.' as c_char
             {
@@ -2899,7 +2895,7 @@ pub unsafe extern "C" fn eval0(
         let ret = eval1(&raw mut p, rettv, evalarg);
 
         if ret != FAIL {
-            end_error = !ends_excmd(c_int::from(*p as u8));
+            end_error = ends_excmd(c_int::from(*p as u8)) == 0;
         }
         if ret == FAIL || end_error {
             if ret != FAIL {
@@ -7921,7 +7917,7 @@ pub unsafe extern "C" fn last_set_msg(script_ctx: sctx_T) {
         msg_puts(p);
         if script_ctx.sc_lnum > 0 {
             msg_puts(gettext((&raw const line_msg).cast()));
-            msg_outnum(i64::from(script_ctx.sc_lnum));
+            msg_outnum(script_ctx.sc_lnum);
         } else if script_is_lua(script_ctx.sc_sid) {
             msg_puts(gettext(c" (run Nvim with -V1 for more details)".as_ptr()));
         }

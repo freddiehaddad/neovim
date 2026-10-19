@@ -52,7 +52,7 @@ unsafe extern "C" {
     fn ui_call_busy_stop();
     fn ui_flush();
     fn ui_active() -> usize;
-    fn input_available() -> bool;
+    fn input_available() -> usize;
     fn setmouse();
     fn msg_putchar(c: c_int);
     fn set_keep_msg(s: *const c_char, hl_id: c_int);
@@ -423,7 +423,7 @@ pub unsafe extern "C" fn do_dialog(
         let retval: c_int;
 
         loop {
-            if ui_active() == 0 && !input_available() {
+            if ui_active() == 0 && input_available() == 0 {
                 retval = dfltbutton;
                 break;
             }

@@ -444,7 +444,7 @@ unsafe extern "C" {
     fn skip_regexp_ex(
         startp: *mut c_char,
         dirc: c_int,
-        magic: bool,
+        magic: c_int,
         newp: *mut *mut c_char,
         dropped: *mut c_int,
         magic_val: *mut magic_T,
@@ -462,12 +462,12 @@ unsafe extern "C" {
     fn set_iminsert_global(buf: *mut buf_T);
     fn set_imsearch_global(buf: *mut buf_T);
     #[cfg(not(windows))]
-    fn csh_like_shell() -> bool;
+    fn csh_like_shell() -> c_int;
 
     fn get_expr_register() -> c_int;
     fn get_expr_line() -> *mut c_char;
     fn aborting() -> bool;
-    fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> c_int;
+    fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool;
     fn callback_call(
         callback: *mut Callback,
         argcount_in: c_int,
@@ -501,7 +501,7 @@ unsafe extern "C" {
     fn do_buffer(action: c_int, start: c_int, dir: c_int, count: c_int, forceit: c_int) -> c_int;
     fn redraw_custom_title_later() -> bool;
     fn rename_buffer(new_fname: *const c_char) -> c_int;
-    fn cmdline_mousescroll(dir: c_int);
+    fn cmdline_mousescroll(dir: c_int) -> bool;
     fn tv_check_for_opt_number_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_dict_get_callback(
@@ -525,7 +525,7 @@ unsafe extern "C" {
     fn string_to_key(str: *const c_char) -> c_int;
     fn check_abbr(c: c_int, ptr: *mut c_char, col: c_int, mincol: c_int) -> bool;
     fn expr_map_locked() -> bool;
-    fn map_execute_lua(may_repeat: bool, is_aborted: bool);
+    fn map_execute_lua(may_repeat: bool, is_aborted: bool) -> bool;
     fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool;
     fn set_no_hlsearch(flag: bool);
     fn parse_command_modifiers(
@@ -881,7 +881,7 @@ pub unsafe extern "C" fn parse_pattern_and_range(
         let end = skip_regexp_ex(
             p,
             delim,
-            *is_magic,
+            c_int::from(*is_magic),
             ptr::null_mut(),
             ptr::null_mut(),
             &raw mut magic,
@@ -2882,7 +2882,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
 
                     K_MIDDLEMOUSE => {
                         cmdline_paste(
-                            if eval_has_provider(c"clipboard".as_ptr(), false) != 0 {
+                            if eval_has_provider(c"clipboard".as_ptr(), false) {
                                 b'*' as c_int
                             } else {
                                 0
@@ -3182,7 +3182,7 @@ unsafe fn empty_pattern(p: *mut c_char, len: usize, delim: c_int) -> bool {
             skip_regexp_ex(
                 p,
                 delim,
-                p_magic != 0,
+                p_magic,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 &raw mut magic_val,
@@ -5057,7 +5057,7 @@ pub unsafe extern "C" fn vim_strsave_fnameescape(fname: *const c_char, what: c_i
                 PATH_ESC_CHARS.as_ptr()
             };
             let mut res = vim_strsave_escaped(fname, chars);
-            if what == VSE_SHELL && csh_like_shell() {
+            if what == VSE_SHELL && csh_like_shell() != 0 {
                 let s = vim_strsave_escaped(res, c"!".as_ptr());
                 xfree(res.cast::<c_void>());
                 res = s;
