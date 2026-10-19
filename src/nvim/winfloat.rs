@@ -27,7 +27,6 @@ use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xrealloc, xstrdup};
-use crate::msgpack_rpc::packer::Integer;
 
 pub type WinKind = c_int;
 pub type OptIndex = c_int;
@@ -75,13 +74,7 @@ const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;
 const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
-#[repr(C)]
-pub struct OptKeyDict_pvp {
-    pub is_set__pvp_: OptionalKeys,
-    pub height: Integer,
-    pub width: Integer,
-    pub border: [c_char; 8],
-}
+pub use crate::optionstr::OptKeyDict_pvp;
 
 const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,

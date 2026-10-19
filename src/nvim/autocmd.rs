@@ -302,40 +302,8 @@ pub struct funccal_entry_T {
     pub next: *mut funccal_entry_T,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct CmdSpec {
-    count: c_long,
-    regname: c_int,
-    op: c_int,
-    op_extra: c_int,
-    motion_force: c_int,
-    cmd: c_int,
-    cmd2: c_int,
-    cmdarg: c_int,
-    body: StringBuilder,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct RedoState {
-    cur: CmdSpec,
-    old: CmdSpec,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct typebuf_T {
-    tb_buf: *mut u8,
-    tb_noremap: *mut u8,
-    tb_buflen: c_int,
-    tb_off: c_int,
-    tb_len: c_int,
-    tb_maplen: c_int,
-    tb_silent: c_int,
-    tb_no_abbr_cnt: c_int,
-    tb_change_cnt: c_int,
-}
+use crate::input::RedoState;
+use crate::mapping::typebuf_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

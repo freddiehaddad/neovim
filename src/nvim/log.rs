@@ -33,12 +33,7 @@ pub const LOGLVL_ERR: c_int = 4;
 const KXDG_STATE_HOME: c_int = 3;
 const VV_SEND_SERVER: c_int = 28;
 
-#[repr(C)]
-struct NvimStats {
-    fsync: i64,
-    redraw: i64,
-    log_skip: i16,
-}
+use crate::os::fs::NvimStats;
 
 #[repr(C)]
 struct UvTimeval64 {

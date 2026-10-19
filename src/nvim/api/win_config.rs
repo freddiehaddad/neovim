@@ -113,13 +113,7 @@ const KEYSET_OPTIDX_win_config__title_pos: u64 = 22;
 const KEYSET_OPTIDX_win_config__footer_pos: u64 = 23;
 const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct bufref_T {
-    pub br_buf: *mut buf_T,
-    pub br_fnum: c_int,
-    pub br_buf_free_count: c_int,
-}
+pub use crate::api::options::bufref_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

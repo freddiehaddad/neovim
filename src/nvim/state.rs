@@ -70,19 +70,7 @@ pub struct VimState {
     pub execute: state_execute_callback,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct typebuf_T {
-    pub tb_buf: *mut u8,
-    pub tb_noremap: *mut u8,
-    pub tb_buflen: c_int,
-    pub tb_off: c_int,
-    pub tb_len: c_int,
-    pub tb_maplen: c_int,
-    pub tb_silent: c_int,
-    pub tb_no_abbr_cnt: c_int,
-    pub tb_change_cnt: c_int,
-}
+pub use crate::mapping::typebuf_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

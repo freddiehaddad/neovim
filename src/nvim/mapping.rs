@@ -131,6 +131,7 @@ pub struct mapblock_T {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct typebuf_T {
     pub tb_buf: *mut u8,
     pub tb_noremap: *mut u8,

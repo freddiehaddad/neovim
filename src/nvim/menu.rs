@@ -15,7 +15,6 @@ use std::ptr;
 
 use crate::api::buffer::VisualState;
 use crate::api::command::exarg_T;
-use crate::api::deprecated::StringBuilder;
 use crate::api::private::converter::sctx_T;
 use crate::api::tabpage::win_T;
 use crate::charset::{getdigits_int, skipwhite};
@@ -131,47 +130,8 @@ struct menutrans_T {
     to: *mut c_char,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct StuffBuf {
-    pub keys: StringBuilder,
-    pub read: usize,
-    pub insert: usize,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct typebuf_T {
-    pub tb_buf: *mut u8,
-    pub tb_noremap: *mut u8,
-    pub tb_buflen: c_int,
-    pub tb_off: c_int,
-    pub tb_len: c_int,
-    pub tb_maplen: c_int,
-    pub tb_silent: c_int,
-    pub tb_no_abbr_cnt: c_int,
-    pub tb_change_cnt: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct UngotKey {
-    pub c: c_int,
-    pub mod_mask: c_int,
-    pub mouse_grid: c_int,
-    pub mouse_row: c_int,
-    pub mouse_col: c_int,
-    pub stuffed: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct tasave_T {
-    pub save_typebuf: typebuf_T,
-    pub ungot: UngotKey,
-    pub save_readbuf1: StuffBuf,
-    pub save_readbuf2: StuffBuf,
-}
+pub use crate::input::{RedoState, StuffBuf, UngotKey, tasave_T};
+pub use crate::mapping::typebuf_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

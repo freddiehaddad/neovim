@@ -268,13 +268,7 @@ const INIT_FMARK: fmark_T = fmark_T {
     additional_data: ptr::null_mut(),
 };
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct bufref_T {
-    pub br_buf: *mut buf_T,
-    pub br_fnum: c_int,
-    pub br_buf_free_count: c_int,
-}
+pub use crate::api::options::bufref_T;
 
 #[repr(C)]
 struct memfile_head_T {

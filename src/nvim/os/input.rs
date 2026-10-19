@@ -66,19 +66,7 @@ const PROF_YES: c_int = 1;
 const UV_TTY: c_int = 14;
 const BREAKCHECK_SKIP: c_int = 1000;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct typebuf_T {
-    pub tb_buf: *mut u8,
-    pub tb_noremap: *mut u8,
-    pub tb_buflen: c_int,
-    pub tb_off: c_int,
-    pub tb_len: c_int,
-    pub tb_maplen: c_int,
-    pub tb_silent: c_int,
-    pub tb_no_abbr_cnt: c_int,
-    pub tb_change_cnt: c_int,
-}
+pub use crate::mapping::typebuf_T;
 
 static mut input_buffer: [c_char; INPUT_BUFFER_SIZE] = [0; INPUT_BUFFER_SIZE];
 static mut input_read_pos: *mut c_char = ptr::null_mut();

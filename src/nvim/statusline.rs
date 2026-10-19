@@ -208,12 +208,7 @@ pub struct foldinfo_T {
     pub fi_lines: linenr_T,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct SignTextAttrs {
-    pub text: [schar_T; SIGN_WIDTH],
-    pub hl_id: c_int,
-}
+pub use crate::decoration::SignTextAttrs;
 
 #[repr(C)]
 pub struct statuscol_T {

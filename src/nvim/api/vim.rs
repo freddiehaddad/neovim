@@ -348,12 +348,7 @@ pub struct typebuf_T {
     pub tb_change_cnt: c_int,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct HlMessageChunk {
-    pub text: NvimString,
-    pub hl_id: c_int,
-}
+pub use crate::api::private::helpers::HlMessageChunk;
 
 pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
 pub type ArrayBuilder = KVecWithInit<Object, 16>;

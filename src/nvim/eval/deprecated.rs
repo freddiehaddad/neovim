@@ -78,7 +78,7 @@ pub struct pos_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct FileID {
     pub inode: u64,
     pub device_id: u64,

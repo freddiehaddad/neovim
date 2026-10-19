@@ -181,18 +181,7 @@ pub struct regmatch_T {
     pub rm_ic: bool,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct SearchState {
-    pub hl_match: bool,
-    pub match_lines: linenr_T,
-    pub match_endcol: colnr_T,
-    pub first_line: linenr_T,
-    pub last_line: linenr_T,
-    pub no_smartcase: bool,
-    pub cmdlen: c_int,
-    pub no_hlsearch: bool,
-}
+pub use crate::r#match::SearchState;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

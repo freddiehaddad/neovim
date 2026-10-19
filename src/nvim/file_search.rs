@@ -92,12 +92,7 @@ const NULL_STRING: NvimString = NvimString {
 
 const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completion";
 
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct FileID {
-    pub inode: u64,
-    pub device_id: u64,
-}
+pub use crate::eval::deprecated::FileID;
 
 #[repr(C)]
 pub struct ff_stack_T {

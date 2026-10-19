@@ -270,13 +270,7 @@ pub struct frame_T {
     pub fr_win: *mut win_T,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ScopeDictDictItem {
-    pub di_tv: typval_T,
-    pub di_flags: u8,
-    pub di_key: [c_char; 1],
-}
+pub use crate::eval::deprecated::ScopeDictDictItem;
 
 #[repr(C)]
 pub struct win_T {
