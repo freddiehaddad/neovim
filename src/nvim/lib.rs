@@ -98,6 +98,7 @@ pub mod tui;
 pub mod ui_compositor;
 pub mod undo;
 pub mod usercmd;
+pub mod version;
 pub mod viml;
 pub mod vterm;
 pub mod window;
