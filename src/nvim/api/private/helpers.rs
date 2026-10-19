@@ -39,10 +39,11 @@ use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_alloc, arena_memdupz, memchrsub, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
-    xstrndup, xstrnlen,
+    Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmalloc, xmemdupz,
+    xrealloc, xstrdup, xstrndup, xstrnlen,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::script_is_lua;
 
 const NUL: c_char = 0;
@@ -1452,6 +1453,52 @@ pub unsafe extern "C" fn api_set_sctx(channel_id: u64) -> sctx_T {
             }
         }
         old_current_sctx
+    }
+}
+
+static mut MEM_FOR_METADATA: ArenaMem = ptr::null_mut();
+static mut METADATA_OBJ: Object = OBJECT_NIL;
+
+unsafe extern "C" {
+    fn api_get_packed_metadata(len: *mut usize) -> *const u8;
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn api_metadata() -> Object {
+    unsafe {
+        if METADATA_OBJ.obj_type == ObjectType::kObjectTypeNil {
+            let mut arena = Arena {
+                cur_blk: ptr::null_mut(),
+                pos: 0,
+                size: 0,
+            };
+            let mut err = Error {
+                err_type: ErrorType::kErrorTypeNone,
+                msg: ptr::null_mut(),
+            };
+            let mut len: usize = 0;
+            let ptr = api_get_packed_metadata(&mut len).cast::<c_char>();
+            METADATA_OBJ = unpack(ptr, len, &mut arena, &mut err);
+            if error_set(&err) || METADATA_OBJ.obj_type != ObjectType::kObjectTypeDict {
+                std::process::abort();
+            }
+            MEM_FOR_METADATA = arena_finish(&mut arena);
+        }
+        METADATA_OBJ
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn api_metadata_raw() -> NvimString {
+    unsafe {
+        let mut len: usize = 0;
+        let ptr = api_get_packed_metadata(&mut len)
+            .cast::<c_char>()
+            .cast_mut();
+        NvimString {
+            data: ptr,
+            size: len,
+        }
     }
 }
 

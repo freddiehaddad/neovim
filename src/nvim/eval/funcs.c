@@ -220,9 +220,6 @@ PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH
 PRAGMA_DIAG_POP
 PRAGMA_DIAG_POP
 
-/// Dummy va_list for passing to vim_vsnprintf_typval
-static va_list dummy_ap;
-
 const char *const eval_has_list[] = {
 #ifdef __ANDROID__
   "android",
@@ -364,9 +361,4 @@ const char *const eval_has_list[] = {
 const EvalFuncDef *eval_func_def_at(int idx)
 {
   return &functions[idx];
-}
-
-int vim_snprintf_typval_only(char *str, size_t str_m, const char *fmt, typval_T *const tvs)
-{
-  return vim_vsnprintf_typval(str, str_m, fmt, dummy_ap, tvs);
 }

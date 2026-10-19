@@ -21,27 +21,7 @@ extern RemoteUI *uis[MAX_UI_COUNT];
 extern size_t ui_count;
 
 #ifdef NVIM_LOG_DEBUG
-static size_t uilog_seen = 0;
-static const char *uilog_last_event = NULL;
-
-static void ui_log(const char *funname)
-{
-  if (entered_free_all_mem) {
-    return;  // do nothing, we cannot log now
-  }
-
-  if (uilog_last_event == funname) {
-    uilog_seen++;
-  } else {
-    if (uilog_seen > 0) {
-      logmsg(LOGLVL_DBG, "UI: ", NULL, -1, true,
-             "%s (+%zu times...)", uilog_last_event, uilog_seen);
-    }
-    logmsg(LOGLVL_DBG, "UI: ", NULL, -1, true, "%s", funname);
-    uilog_seen = 0;
-    uilog_last_event = funname;
-  }
-}
+void ui_log(const char *funname);
 #else
 # define ui_log(funname)
 #endif

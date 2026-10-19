@@ -11,7 +11,9 @@
     clippy::too_many_arguments
 )]
 
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{
+    CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
+};
 use std::mem::size_of;
 use std::ptr;
 
@@ -25,13 +27,15 @@ use crate::eval::typval::{
     tv_list_append_number,
 };
 use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
-use crate::math::{FAIL, OK};
+use crate::math::{FAIL, OK, xisinf, xisnan};
 use crate::mbyte::{
     mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
-    utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char,
+    utf_ptr2len, utfc_ptr2len,
 };
-use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc};
+use crate::memory::{
+    xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xrealloc, xstrchrnul, xstrlcpy,
+};
 use crate::plines::linetabsize_col;
 
 const NUL: c_char = 0;
@@ -98,7 +102,23 @@ unsafe extern "C" {
     fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> c_int;
     fn emsg(s: *const c_char) -> bool;
     fn semsg(fmt: *const c_char, ...) -> bool;
+    fn siemsg(fmt: *const c_char, ...);
     fn gettext(msgid: *const c_char) -> *mut c_char;
+    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
+
+    fn va_state_reset(va_ptr: *mut c_void);
+    fn va_state_int(va_ptr: *mut c_void) -> c_int;
+    fn va_state_long(va_ptr: *mut c_void) -> c_long;
+    fn va_state_llong(va_ptr: *mut c_void) -> c_longlong;
+    fn va_state_ptrdiff(va_ptr: *mut c_void) -> isize;
+    fn va_state_uint(va_ptr: *mut c_void) -> c_uint;
+    fn va_state_ulong(va_ptr: *mut c_void) -> c_ulong;
+    fn va_state_ullong(va_ptr: *mut c_void) -> c_ulonglong;
+    fn va_state_size(va_ptr: *mut c_void) -> usize;
+    fn va_state_str(va_ptr: *mut c_void) -> *const c_char;
+    fn va_state_ptr(va_ptr: *mut c_void) -> *mut c_void;
+    fn va_state_double(va_ptr: *mut c_void) -> c_double;
+    fn va_report_null_string();
 
     fn tv_check_for_string_arg(args: *const typval_T, idx: c_int) -> c_int;
     fn tv_check_for_opt_string_arg(args: *const typval_T, idx: c_int) -> c_int;
@@ -1296,6 +1316,1017 @@ pub unsafe extern "C" fn parse_fmt_types(
         let _ = (ap_types, num_posarg, fmt, tvs);
         OK
     }
+}
+
+const E_APTYPES_IS_NULL_NR_STR: &CStr =
+    c"E1507: Internal error: ap_types or ap_types[idx] is NULL: %d: %s";
+const E_TOO_MANY_ARGS: &CStr = c"E767: Too many arguments to printf()";
+const TMP_LEN: usize = 350;
+
+#[cfg(not(test))]
+unsafe fn skip_to_arg(
+    ap_types: *const *const c_char,
+    va_ptr: *mut c_void,
+    arg_idx: *mut c_int,
+    arg_cur: *mut c_int,
+    fmt: *const c_char,
+) {
+    unsafe {
+        let mut arg_min: c_int = 0;
+
+        if *arg_cur + 1 == *arg_idx {
+            *arg_cur += 1;
+            *arg_idx += 1;
+            return;
+        }
+
+        if *arg_cur >= *arg_idx {
+            va_state_reset(va_ptr);
+        } else {
+            arg_min = *arg_cur;
+        }
+
+        *arg_cur = arg_min;
+        while *arg_cur < *arg_idx - 1 {
+            if ap_types.is_null() || (*ap_types.add(*arg_cur as usize)).is_null() {
+                siemsg(E_APTYPES_IS_NULL_NR_STR.as_ptr(), fmt, *arg_cur);
+                return;
+            }
+
+            let p = *ap_types.add(*arg_cur as usize);
+            match format_typeof(p) {
+                TYPE_PERCENT | TYPE_UNKNOWN => {}
+                TYPE_CHAR | TYPE_INT => {
+                    let _ = va_state_int(va_ptr);
+                }
+                TYPE_STRING => {
+                    let _ = va_state_str(va_ptr);
+                }
+                TYPE_POINTER => {
+                    let _ = va_state_ptr(va_ptr);
+                }
+                TYPE_LONGINT => {
+                    let _ = va_state_long(va_ptr);
+                }
+                TYPE_LONGLONGINT => {
+                    let _ = va_state_llong(va_ptr);
+                }
+                TYPE_SIGNEDSIZET => {
+                    let _ = va_state_ptrdiff(va_ptr);
+                }
+                TYPE_UNSIGNEDINT => {
+                    let _ = va_state_uint(va_ptr);
+                }
+                TYPE_UNSIGNEDLONGINT => {
+                    let _ = va_state_ulong(va_ptr);
+                }
+                TYPE_UNSIGNEDLONGLONGINT => {
+                    let _ = va_state_ullong(va_ptr);
+                }
+                TYPE_SIZET => {
+                    let _ = va_state_size(va_ptr);
+                }
+                TYPE_FLOAT => {
+                    let _ = va_state_double(va_ptr);
+                }
+                _ => {}
+            }
+            *arg_cur += 1;
+        }
+
+        *arg_cur += 1;
+        *arg_idx += 1;
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_vsnprintf_typval_rs(
+    str_out: *mut c_char,
+    str_m: usize,
+    fmt: *const c_char,
+    va_ptr: *mut c_void,
+    tvs: *mut typval_T,
+) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        let mut str_l: usize = 0;
+        let mut str_avail = str_l < str_m;
+        let mut p = fmt;
+        let mut arg_cur: c_int = 0;
+        let mut num_posarg: c_int = 0;
+        let mut arg_idx: c_int = 1;
+        let mut ap_types: *mut *const c_char = ptr::null_mut();
+
+        if parse_fmt_types(&raw mut ap_types, &raw mut num_posarg, fmt, tvs) == FAIL {
+            return 0;
+        }
+
+        if p.is_null() {
+            p = c"".as_ptr();
+        }
+
+        let mut had_error = false;
+
+        'fmt_loop: while *p != NUL {
+            if *p != b'%' as c_char {
+                let next_pct = xstrchrnul(p.add(1), b'%' as c_char);
+                let n = next_pct.offset_from(p) as usize;
+                if str_avail {
+                    let avail = str_m - str_l;
+                    ptr::copy(p, str_out.add(str_l), n.min(avail));
+                    str_avail = n < avail;
+                }
+                p = p.add(n);
+                str_l += n;
+            } else {
+                let mut min_field_width: usize = 0;
+                let mut precision: usize = 0;
+                let mut zero_padding = false;
+                let mut precision_specified = false;
+                let mut justify_left = false;
+                let mut alternate_form = false;
+                let mut force_sign = false;
+                let mut space_for_positive: c_int = 1;
+                let mut length_modifier: c_char = NUL;
+                let mut tmp = [0 as c_char; TMP_LEN];
+                let mut str_arg: *const c_char = ptr::null();
+                let mut str_arg_l: usize;
+                let uchar_arg: u8;
+                let mut number_of_zeros_to_pad: usize = 0;
+                let mut zero_padding_insertion_ind: usize = 0;
+                let mut tofree: *mut c_char = ptr::null_mut();
+                let mut pos_arg: c_int = -1;
+
+                p = p.add(1);
+
+                let mut ptype = p;
+                while ascii_isdigit(*ptype) {
+                    ptype = ptype.add(1);
+                }
+
+                if *ptype == b'$' as c_char {
+                    let digstart = p;
+                    let mut uj: c_uint = 0;
+                    if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                        had_error = true;
+                        break 'fmt_loop;
+                    }
+                    pos_arg = uj as c_int;
+                    p = p.add(1);
+                }
+
+                loop {
+                    match *p as u8 {
+                        b'0' => {
+                            zero_padding = true;
+                            p = p.add(1);
+                        }
+                        b'-' => {
+                            justify_left = true;
+                            p = p.add(1);
+                        }
+                        b'+' => {
+                            force_sign = true;
+                            space_for_positive = 0;
+                            p = p.add(1);
+                        }
+                        b' ' => {
+                            force_sign = true;
+                            p = p.add(1);
+                        }
+                        b'#' => {
+                            alternate_form = true;
+                            p = p.add(1);
+                        }
+                        b'\'' => {
+                            p = p.add(1);
+                        }
+                        _ => break,
+                    }
+                }
+
+                if *p == b'*' as c_char {
+                    let digstart = p.add(1);
+                    p = p.add(1);
+
+                    if ascii_isdigit(*p) {
+                        let mut uj: c_uint = 0;
+                        if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                            == FAIL
+                        {
+                            had_error = true;
+                            break 'fmt_loop;
+                        }
+                        arg_idx = uj as c_int;
+                        p = p.add(1);
+                    }
+
+                    let mut j = if !tvs.is_null() {
+                        tv_nr(tvs, &raw mut arg_idx) as c_int
+                    } else {
+                        skip_to_arg(ap_types, va_ptr, &raw mut arg_idx, &raw mut arg_cur, fmt);
+                        va_state_int(va_ptr)
+                    };
+
+                    if j > MAX_ALLOWED_STRING_WIDTH as c_int {
+                        if !tvs.is_null() {
+                            format_overflow_error(digstart);
+                            had_error = true;
+                            break 'fmt_loop;
+                        } else {
+                            j = MAX_ALLOWED_STRING_WIDTH as c_int;
+                        }
+                    }
+
+                    if j >= 0 {
+                        min_field_width = j as usize;
+                    } else {
+                        min_field_width = (-j) as usize;
+                        justify_left = true;
+                    }
+                } else if ascii_isdigit(*p) {
+                    let digstart = p;
+                    let mut uj: c_uint = 0;
+                    if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                        had_error = true;
+                        break 'fmt_loop;
+                    }
+                    min_field_width = uj as usize;
+                }
+
+                if *p == b'.' as c_char {
+                    p = p.add(1);
+                    precision_specified = true;
+
+                    if ascii_isdigit(*p) {
+                        let digstart = p;
+                        let mut uj: c_uint = 0;
+                        if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                            == FAIL
+                        {
+                            had_error = true;
+                            break 'fmt_loop;
+                        }
+                        precision = uj as usize;
+                    } else if *p == b'*' as c_char {
+                        let digstart = p;
+                        p = p.add(1);
+
+                        if ascii_isdigit(*p) {
+                            let mut uj: c_uint = 0;
+                            if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                                == FAIL
+                            {
+                                had_error = true;
+                                break 'fmt_loop;
+                            }
+                            arg_idx = uj as c_int;
+                            p = p.add(1);
+                        }
+
+                        let mut j = if !tvs.is_null() {
+                            tv_nr(tvs, &raw mut arg_idx) as c_int
+                        } else {
+                            skip_to_arg(ap_types, va_ptr, &raw mut arg_idx, &raw mut arg_cur, fmt);
+                            va_state_int(va_ptr)
+                        };
+
+                        if j > MAX_ALLOWED_STRING_WIDTH as c_int {
+                            if !tvs.is_null() {
+                                format_overflow_error(digstart);
+                                had_error = true;
+                                break 'fmt_loop;
+                            } else {
+                                j = MAX_ALLOWED_STRING_WIDTH as c_int;
+                            }
+                        }
+
+                        if j >= 0 {
+                            precision = j as usize;
+                        } else {
+                            precision_specified = false;
+                            precision = 0;
+                        }
+                    }
+                }
+
+                if matches!(*p as u8, b'h' | b'l' | b'z') {
+                    length_modifier = *p;
+                    p = p.add(1);
+                    if length_modifier == b'l' as c_char && *p == b'l' as c_char {
+                        length_modifier = b'L' as c_char;
+                        p = p.add(1);
+                    }
+                }
+
+                let mut fmt_spec = *p;
+                match fmt_spec as u8 {
+                    b'i' => fmt_spec = b'd' as c_char,
+                    b'D' => {
+                        fmt_spec = b'd' as c_char;
+                        length_modifier = b'l' as c_char;
+                    }
+                    b'U' => {
+                        fmt_spec = b'u' as c_char;
+                        length_modifier = b'l' as c_char;
+                    }
+                    b'O' => {
+                        fmt_spec = b'o' as c_char;
+                        length_modifier = b'l' as c_char;
+                    }
+                    _ => {}
+                }
+
+                if matches!(fmt_spec as u8, b'd' | b'u' | b'o' | b'x' | b'X')
+                    && !tvs.is_null()
+                    && length_modifier == NUL
+                {
+                    length_modifier = b'L' as c_char;
+                }
+
+                if pos_arg != -1 {
+                    arg_idx = pos_arg;
+                }
+
+                match fmt_spec as u8 {
+                    b'%' | b'c' | b's' | b'S' => {
+                        str_arg_l = 1;
+                        match fmt_spec as u8 {
+                            b'%' => {
+                                str_arg = p;
+                            }
+                            b'c' => {
+                                let j = if !tvs.is_null() {
+                                    tv_nr(tvs, &raw mut arg_idx) as c_int
+                                } else {
+                                    skip_to_arg(
+                                        ap_types,
+                                        va_ptr,
+                                        &raw mut arg_idx,
+                                        &raw mut arg_cur,
+                                        fmt,
+                                    );
+                                    va_state_int(va_ptr)
+                                };
+                                uchar_arg = j as u8;
+                                str_arg = (&raw const uchar_arg).cast::<c_char>();
+                            }
+                            b's' | b'S' => {
+                                str_arg = if !tvs.is_null() {
+                                    tv_str(tvs, &raw mut arg_idx, &raw mut tofree)
+                                } else {
+                                    skip_to_arg(
+                                        ap_types,
+                                        va_ptr,
+                                        &raw mut arg_idx,
+                                        &raw mut arg_cur,
+                                        fmt,
+                                    );
+                                    va_state_str(va_ptr)
+                                };
+
+                                if str_arg.is_null() {
+                                    if tvs.is_null() {
+                                        va_report_null_string();
+                                    }
+                                    str_arg = c"[NULL]".as_ptr();
+                                    str_arg_l = 6;
+                                } else if !precision_specified {
+                                    str_arg_l = CStr::from_ptr(str_arg).to_bytes().len();
+                                } else if precision == 0 {
+                                    str_arg_l = 0;
+                                } else {
+                                    let end =
+                                        xmemscan(str_arg.cast(), NUL, precision.min(0x7fffffff))
+                                            .cast::<c_char>();
+                                    str_arg_l = end.offset_from(str_arg) as usize;
+                                }
+
+                                if fmt_spec == b'S' as c_char {
+                                    let mut p1 = str_arg;
+                                    let mut i: usize = 0;
+                                    while *p1 != NUL {
+                                        let cell = utf_ptr2cells(p1) as usize;
+                                        if precision_specified && i + cell > precision {
+                                            break;
+                                        }
+                                        i += cell;
+                                        p1 = p1.add(utfc_ptr2len(p1) as usize);
+                                    }
+                                    str_arg_l = p1.offset_from(str_arg) as usize;
+                                    if min_field_width != 0 {
+                                        min_field_width =
+                                            min_field_width.wrapping_add(str_arg_l).wrapping_sub(i);
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    b'd' | b'u' | b'b' | b'B' | b'o' | b'x' | b'X' | b'p' => {
+                        let mut arg_sign: c_int = 0;
+                        let mut arg: i64 = 0;
+                        let mut uarg: u64 = 0;
+                        let mut ptr_arg: *const c_void = ptr::null();
+
+                        if fmt_spec == b'p' as c_char {
+                            ptr_arg = if !tvs.is_null() {
+                                tv_ptr(tvs, &raw mut arg_idx)
+                            } else {
+                                skip_to_arg(
+                                    ap_types,
+                                    va_ptr,
+                                    &raw mut arg_idx,
+                                    &raw mut arg_cur,
+                                    fmt,
+                                );
+                                va_state_ptr(va_ptr)
+                            };
+                            if !ptr_arg.is_null() {
+                                arg_sign = 1;
+                            }
+                        } else if fmt_spec == b'b' as c_char || fmt_spec == b'B' as c_char {
+                            uarg = if !tvs.is_null() {
+                                tv_nr(tvs, &raw mut arg_idx) as c_ulonglong
+                            } else {
+                                skip_to_arg(
+                                    ap_types,
+                                    va_ptr,
+                                    &raw mut arg_idx,
+                                    &raw mut arg_cur,
+                                    fmt,
+                                );
+                                va_state_ullong(va_ptr)
+                            };
+                            arg_sign = c_int::from(uarg != 0);
+                        } else if fmt_spec == b'd' as c_char {
+                            match length_modifier as u8 {
+                                0 => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_int
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_int(va_ptr)
+                                    };
+                                    arg = i64::from(v);
+                                }
+                                b'h' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_int
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_int(va_ptr)
+                                    };
+                                    arg = i64::from(v as i16);
+                                }
+                                b'l' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_long
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_long(va_ptr)
+                                    };
+                                    arg = v as i64;
+                                }
+                                b'L' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_longlong
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_llong(va_ptr)
+                                    };
+                                    arg = v;
+                                }
+                                b'z' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as isize
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_ptrdiff(va_ptr)
+                                    };
+                                    arg = v as i64;
+                                }
+                                _ => {}
+                            }
+                            if arg > 0 {
+                                arg_sign = 1;
+                            } else if arg < 0 {
+                                arg_sign = -1;
+                            }
+                        } else {
+                            match length_modifier as u8 {
+                                0 => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_uint
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_uint(va_ptr)
+                                    };
+                                    uarg = u64::from(v);
+                                }
+                                b'h' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_uint
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_uint(va_ptr)
+                                    };
+                                    uarg = u64::from(v as u16);
+                                }
+                                b'l' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_ulong
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_ulong(va_ptr)
+                                    };
+                                    uarg = v as u64;
+                                }
+                                b'L' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as c_ulonglong
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_ullong(va_ptr)
+                                    };
+                                    uarg = v;
+                                }
+                                b'z' => {
+                                    let v = if !tvs.is_null() {
+                                        tv_nr(tvs, &raw mut arg_idx) as usize
+                                    } else {
+                                        skip_to_arg(
+                                            ap_types,
+                                            va_ptr,
+                                            &raw mut arg_idx,
+                                            &raw mut arg_cur,
+                                            fmt,
+                                        );
+                                        va_state_size(va_ptr)
+                                    };
+                                    uarg = v as u64;
+                                }
+                                _ => {}
+                            }
+                            arg_sign = c_int::from(uarg != 0);
+                        }
+
+                        str_arg = tmp.as_ptr();
+                        str_arg_l = 0;
+
+                        if precision_specified {
+                            zero_padding = false;
+                        }
+
+                        if fmt_spec == b'd' as c_char {
+                            if force_sign && arg_sign >= 0 {
+                                tmp[str_arg_l] = if space_for_positive != 0 {
+                                    b' ' as c_char
+                                } else {
+                                    b'+' as c_char
+                                };
+                                str_arg_l += 1;
+                            }
+                        } else if alternate_form
+                            && arg_sign != 0
+                            && matches!(fmt_spec as u8, b'x' | b'X' | b'b' | b'B')
+                        {
+                            tmp[str_arg_l] = b'0' as c_char;
+                            str_arg_l += 1;
+                            tmp[str_arg_l] = fmt_spec;
+                            str_arg_l += 1;
+                        }
+
+                        zero_padding_insertion_ind = str_arg_l;
+                        if !precision_specified {
+                            precision = 1;
+                        }
+                        if precision == 0 && arg_sign == 0 {
+                            // empty
+                        } else {
+                            match fmt_spec as u8 {
+                                b'p' => {
+                                    str_arg_l += snprintf(
+                                        tmp.as_mut_ptr().add(str_arg_l),
+                                        tmp.len() - str_arg_l,
+                                        c"%p".as_ptr(),
+                                        ptr_arg,
+                                    ) as usize;
+                                }
+                                b'd' => {
+                                    str_arg_l += snprintf(
+                                        tmp.as_mut_ptr().add(str_arg_l),
+                                        tmp.len() - str_arg_l,
+                                        c"%lld".as_ptr(),
+                                        arg as c_longlong,
+                                    ) as usize;
+                                }
+                                b'b' | b'B' => {
+                                    let mut bits = 64usize;
+                                    while bits > 0 {
+                                        if ((uarg >> (bits - 1)) & 1) != 0 {
+                                            break;
+                                        }
+                                        bits -= 1;
+                                    }
+                                    while bits > 0 {
+                                        bits -= 1;
+                                        tmp[str_arg_l] = if ((uarg >> bits) & 1) != 0 {
+                                            b'1' as c_char
+                                        } else {
+                                            b'0' as c_char
+                                        };
+                                        str_arg_l += 1;
+                                    }
+                                }
+                                _ => {
+                                    let mut f = [
+                                        b'%' as c_char,
+                                        b'l' as c_char,
+                                        b'l' as c_char,
+                                        fmt_spec,
+                                        0,
+                                    ];
+                                    str_arg_l += snprintf(
+                                        tmp.as_mut_ptr().add(str_arg_l),
+                                        tmp.len() - str_arg_l,
+                                        f.as_mut_ptr(),
+                                        uarg as c_ulonglong,
+                                    ) as usize;
+                                }
+                            }
+
+                            if zero_padding_insertion_ind < str_arg_l
+                                && tmp[zero_padding_insertion_ind] == b'-' as c_char
+                            {
+                                zero_padding_insertion_ind += 1;
+                            }
+                            if zero_padding_insertion_ind + 1 < str_arg_l
+                                && tmp[zero_padding_insertion_ind] == b'0' as c_char
+                                && matches!(
+                                    tmp[zero_padding_insertion_ind + 1] as u8,
+                                    b'x' | b'X' | b'b' | b'B'
+                                )
+                            {
+                                zero_padding_insertion_ind += 2;
+                            }
+                        }
+
+                        {
+                            let num_of_digits = str_arg_l - zero_padding_insertion_ind;
+                            if alternate_form
+                                && fmt_spec == b'o' as c_char
+                                && !(zero_padding_insertion_ind < str_arg_l
+                                    && tmp[zero_padding_insertion_ind] == b'0' as c_char)
+                                && (!precision_specified || precision < num_of_digits + 1)
+                            {
+                                precision = num_of_digits + 1;
+                            }
+                            if num_of_digits < precision {
+                                number_of_zeros_to_pad = precision - num_of_digits;
+                            }
+                        }
+
+                        if !justify_left && zero_padding {
+                            let n = (min_field_width as isize)
+                                - ((str_arg_l + number_of_zeros_to_pad) as isize);
+                            if n > 0 {
+                                number_of_zeros_to_pad += n as usize;
+                            }
+                        }
+                    }
+                    b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => {
+                        let mut format = [0 as c_char; 40];
+                        let mut remove_trailing_zeroes = false;
+
+                        let f = if !tvs.is_null() {
+                            tv_float(tvs, &raw mut arg_idx)
+                        } else {
+                            skip_to_arg(ap_types, va_ptr, &raw mut arg_idx, &raw mut arg_cur, fmt);
+                            va_state_double(va_ptr)
+                        };
+
+                        let abs_f = f.abs();
+
+                        if fmt_spec == b'g' as c_char || fmt_spec == b'G' as c_char {
+                            if (0.001..10_000_000.0).contains(&abs_f) || abs_f == 0.0 {
+                                fmt_spec = if (fmt_spec as u8).is_ascii_uppercase() {
+                                    b'F' as c_char
+                                } else {
+                                    b'f' as c_char
+                                };
+                            } else {
+                                fmt_spec = if fmt_spec == b'g' as c_char {
+                                    b'e' as c_char
+                                } else {
+                                    b'E' as c_char
+                                };
+                            }
+                            remove_trailing_zeroes = true;
+                        }
+
+                        if xisinf(f) != 0
+                            || (matches!(fmt_spec as u8, b'f' | b'F') && abs_f > 1.0e307)
+                        {
+                            xstrlcpy(
+                                tmp.as_mut_ptr(),
+                                infinity_str(
+                                    f > 0.0,
+                                    fmt_spec,
+                                    c_int::from(force_sign),
+                                    space_for_positive,
+                                ),
+                                tmp.len(),
+                            );
+                            str_arg_l = CStr::from_ptr(tmp.as_ptr()).to_bytes().len();
+                            zero_padding = false;
+                        } else if xisnan(f) != 0 {
+                            let nan_s = if (fmt_spec as u8).is_ascii_uppercase() {
+                                c"NAN"
+                            } else {
+                                c"nan"
+                            };
+                            ptr::copy_nonoverlapping(nan_s.as_ptr(), tmp.as_mut_ptr(), 4);
+                            str_arg_l = 3;
+                            zero_padding = false;
+                        } else {
+                            format[0] = b'%' as c_char;
+                            let mut l = 1usize;
+                            if force_sign {
+                                format[l] = if space_for_positive != 0 {
+                                    b' ' as c_char
+                                } else {
+                                    b'+' as c_char
+                                };
+                                l += 1;
+                            }
+                            if precision_specified {
+                                let mut max_prec = TMP_LEN - 10;
+                                if matches!(fmt_spec as u8, b'f' | b'F') && abs_f > 1.0 {
+                                    max_prec -= abs_f.log10() as usize;
+                                }
+                                if precision > max_prec {
+                                    precision = max_prec;
+                                }
+                                l += snprintf(
+                                    format.as_mut_ptr().add(l),
+                                    format.len() - l,
+                                    c".%d".as_ptr(),
+                                    precision as c_int,
+                                ) as usize;
+                            }
+
+                            format[l] = if fmt_spec == b'F' as c_char {
+                                b'f' as c_char
+                            } else {
+                                fmt_spec
+                            };
+                            format[l + 1] = NUL;
+
+                            str_arg_l =
+                                snprintf(tmp.as_mut_ptr(), tmp.len(), format.as_ptr(), f) as usize;
+
+                            if remove_trailing_zeroes {
+                                let mut tp: *mut c_char;
+                                if matches!(fmt_spec as u8, b'f' | b'F') {
+                                    tp = tmp.as_mut_ptr().add(str_arg_l - 1);
+                                } else {
+                                    tp = vim_strchr(
+                                        tmp.as_ptr(),
+                                        if fmt_spec == b'e' as c_char {
+                                            b'e' as c_int
+                                        } else {
+                                            b'E' as c_int
+                                        },
+                                    );
+                                    if !tp.is_null() {
+                                        if *tp.add(1) == b'+' as c_char {
+                                            let rem_len =
+                                                CStr::from_ptr(tp.add(2)).to_bytes().len() + 1;
+                                            ptr::copy(tp.add(2), tp.add(1), rem_len);
+                                            str_arg_l -= 1;
+                                        }
+                                        let i = if *tp.add(1) == b'-' as c_char { 2 } else { 1 };
+                                        while *tp.add(i) == b'0' as c_char {
+                                            let rem_len =
+                                                CStr::from_ptr(tp.add(i + 1)).to_bytes().len() + 1;
+                                            ptr::copy(tp.add(i + 1), tp.add(i), rem_len);
+                                            str_arg_l -= 1;
+                                        }
+                                        tp = tp.sub(1);
+                                    }
+                                }
+
+                                if !tp.is_null() && !precision_specified {
+                                    while tp > tmp.as_mut_ptr().add(2)
+                                        && *tp == b'0' as c_char
+                                        && *tp.sub(1) != b'.' as c_char
+                                    {
+                                        let rem_len =
+                                            CStr::from_ptr(tp.add(1)).to_bytes().len() + 1;
+                                        ptr::copy(tp.add(1), tp, rem_len);
+                                        tp = tp.sub(1);
+                                        str_arg_l -= 1;
+                                    }
+                                }
+                            } else {
+                                let tp = vim_strchr(
+                                    tmp.as_ptr(),
+                                    if fmt_spec == b'e' as c_char {
+                                        b'e' as c_int
+                                    } else {
+                                        b'E' as c_int
+                                    },
+                                );
+                                if !tp.is_null()
+                                    && (*tp.add(1) == b'+' as c_char
+                                        || *tp.add(1) == b'-' as c_char)
+                                    && *tp.add(2) == b'0' as c_char
+                                    && ascii_isdigit(*tp.add(3))
+                                    && ascii_isdigit(*tp.add(4))
+                                {
+                                    let rem_len = CStr::from_ptr(tp.add(3)).to_bytes().len() + 1;
+                                    ptr::copy(tp.add(3), tp.add(2), rem_len);
+                                    str_arg_l -= 1;
+                                }
+                            }
+                        }
+
+                        if zero_padding
+                            && min_field_width > str_arg_l
+                            && (tmp[0] == b'-' as c_char || force_sign)
+                        {
+                            number_of_zeros_to_pad = min_field_width - str_arg_l;
+                            zero_padding_insertion_ind = 1;
+                        }
+                        str_arg = tmp.as_ptr();
+                    }
+                    _ => {
+                        zero_padding = false;
+                        justify_left = true;
+                        min_field_width = 0;
+                        str_arg = p;
+                        str_arg_l = usize::from(*p != NUL);
+                    }
+                }
+
+                if *p != NUL {
+                    p = p.add(1);
+                }
+
+                if !justify_left && min_field_width > str_arg_l + number_of_zeros_to_pad {
+                    let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+                    if str_avail {
+                        let avail = str_m - str_l;
+                        ptr::write_bytes(
+                            str_out.add(str_l),
+                            if zero_padding { b'0' } else { b' ' },
+                            pn.min(avail),
+                        );
+                        str_avail = pn < avail;
+                    }
+                    str_l += pn;
+                }
+
+                if number_of_zeros_to_pad == 0 {
+                    zero_padding_insertion_ind = 0;
+                } else {
+                    if zero_padding_insertion_ind > 0 {
+                        let zn = zero_padding_insertion_ind;
+                        if str_avail {
+                            let avail = str_m - str_l;
+                            ptr::copy(str_arg, str_out.add(str_l), zn.min(avail));
+                            str_avail = zn < avail;
+                        }
+                        str_l += zn;
+                    }
+
+                    let zn = number_of_zeros_to_pad;
+                    if str_avail {
+                        let avail = str_m - str_l;
+                        ptr::write_bytes(str_out.add(str_l), b'0', zn.min(avail));
+                        str_avail = zn < avail;
+                    }
+                    str_l += zn;
+                }
+
+                if str_arg_l > zero_padding_insertion_ind {
+                    let sn = str_arg_l - zero_padding_insertion_ind;
+                    if str_avail {
+                        let avail = str_m - str_l;
+                        ptr::copy(
+                            str_arg.add(zero_padding_insertion_ind),
+                            str_out.add(str_l),
+                            sn.min(avail),
+                        );
+                        str_avail = sn < avail;
+                    }
+                    str_l += sn;
+                }
+
+                if justify_left && min_field_width > str_arg_l + number_of_zeros_to_pad {
+                    let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+                    if str_avail {
+                        let avail = str_m - str_l;
+                        ptr::write_bytes(str_out.add(str_l), b' ', pn.min(avail));
+                        str_avail = pn < avail;
+                    }
+                    str_l += pn;
+                }
+
+                xfree(tofree.cast());
+            }
+        }
+
+        if !had_error {
+            if str_m > 0 {
+                *str_out.add(str_l.min(str_m - 1)) = NUL;
+            }
+
+            if !tvs.is_null() {
+                let check_idx = if num_posarg != 0 {
+                    num_posarg as usize
+                } else {
+                    (arg_idx - 1) as usize
+                };
+                if (*tvs.add(check_idx)).v_type != VarType::VAR_UNKNOWN {
+                    emsg(gettext(E_TOO_MANY_ARGS.as_ptr()));
+                }
+            }
+        }
+
+        xfree(ap_types.cast());
+        str_l as c_int
+    }
+    #[cfg(test)]
+    {
+        let _ = (str_out, str_m, fmt, va_ptr, tvs);
+        0
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn vim_snprintf_typval_only(
+    str_out: *mut c_char,
+    str_m: usize,
+    fmt: *const c_char,
+    tvs: *mut typval_T,
+) -> c_int {
+    unsafe { vim_vsnprintf_typval_rs(str_out, str_m, fmt, ptr::null_mut(), tvs) }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

@@ -760,3 +760,33 @@ pub unsafe extern "C" fn ui_client_free_all_mem() {
         xfree(grid_line_buf_attr.cast());
     }
 }
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct UIClientHandler {
+    pub name: *const c_char,
+    pub r#fn: Option<unsafe extern "C" fn(args: Array)>,
+}
+
+unsafe extern "C" {
+    fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int;
+    fn ui_client_get_redraw_handler_at(hash: c_int) -> UIClientHandler;
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_client_get_redraw_handler(
+    name: *const c_char,
+    name_len: usize,
+    _error: *mut Error,
+) -> UIClientHandler {
+    unsafe {
+        let hash = ui_client_handler_hash(name, name_len);
+        if hash < 0 {
+            return UIClientHandler {
+                name: ptr::null(),
+                r#fn: None,
+            };
+        }
+        ui_client_get_redraw_handler_at(hash)
+    }
+}

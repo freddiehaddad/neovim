@@ -36,7 +36,7 @@ use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
-use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
+use crate::memory::{Arena, arena_finish, arena_mem_free, entered_free_all_mem, xcalloc, xfree};
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, handle_T};
 use crate::os::time::{os_hrtime, os_sleep};
 use crate::ui_compositor::{
@@ -1268,6 +1268,47 @@ pub unsafe extern "C" fn ui_remove_cb(ns_id: u32, checkerr: bool) {
                     ns,
                 );
             }
+        }
+    }
+}
+
+const LOGLVL_DBG: c_int = 1;
+static mut UILOG_SEEN: usize = 0;
+static mut UILOG_LAST_EVENT: *const c_char = ptr::null();
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ui_log(funname: *const c_char) {
+    unsafe {
+        if entered_free_all_mem {
+            return;
+        }
+
+        if UILOG_LAST_EVENT == funname {
+            UILOG_SEEN += 1;
+        } else {
+            if UILOG_SEEN > 0 {
+                logmsg(
+                    LOGLVL_DBG,
+                    c"UI: ".as_ptr(),
+                    ptr::null(),
+                    -1,
+                    true,
+                    c"%s (+%zu times...)".as_ptr(),
+                    UILOG_LAST_EVENT,
+                    UILOG_SEEN,
+                );
+            }
+            logmsg(
+                LOGLVL_DBG,
+                c"UI: ".as_ptr(),
+                ptr::null(),
+                -1,
+                true,
+                c"%s".as_ptr(),
+                funname,
+            );
+            UILOG_SEEN = 0;
+            UILOG_LAST_EVENT = funname;
         }
     }
 }

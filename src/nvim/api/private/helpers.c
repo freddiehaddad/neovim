@@ -15,30 +15,10 @@
 #include "api/private/api_metadata.generated.h"
 #include "api/private/helpers.c.generated.h"  // IWYU pragma: keep
 
-// initialized once, never freed
-static ArenaMem mem_for_metadata = NULL;
-
-/// @returns a shared value. caller must not modify it!
-Object api_metadata(void)
+const uint8_t *api_get_packed_metadata(size_t *len)
 {
-  static Object metadata = OBJECT_INIT;
-
-  if (metadata.type == kObjectTypeNil) {
-    Arena arena = ARENA_EMPTY;
-    Error err = ERROR_INIT;
-    metadata = unpack((char *)packed_api_metadata, sizeof(packed_api_metadata), &arena, &err);
-    if (ERROR_SET(&err) || metadata.type != kObjectTypeDict) {
-      abort();
-    }
-    mem_for_metadata = arena_finish(&arena);
-  }
-
-  return metadata;
-}
-
-String api_metadata_raw(void)
-{
-  return cbuf_as_string((char *)packed_api_metadata, sizeof(packed_api_metadata));
+  *len = sizeof(packed_api_metadata);
+  return packed_api_metadata;
 }
 
 void api_set_error(Error *err, ErrorType errType, const char *format, ...)

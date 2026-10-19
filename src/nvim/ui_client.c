@@ -20,11 +20,7 @@ HlAttrs ui_client_dict2hlattrs(Dict d, bool rgb);
 #include "ui_events_client.generated.h"
 // uncrustify:on
 
-UIClientHandler ui_client_get_redraw_handler(const char *name, size_t name_len, Error *error)
+UIClientHandler ui_client_get_redraw_handler_at(int hash)
 {
-  int hash = ui_client_handler_hash(name, name_len);
-  if (hash < 0) {
-    return (UIClientHandler){ NULL, NULL };
-  }
   return event_handlers[hash];
 }
