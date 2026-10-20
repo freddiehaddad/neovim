@@ -1,9 +1,3 @@
-add_library(test_lib INTERFACE)
-if(WIN32)
-  target_compile_definitions(test_lib INTERFACE MSWIN)
-endif()
-target_link_libraries(test_lib INTERFACE nvim_bin)
-
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR NOT CMAKE_BUILD_TYPE)
   set(FIXTURE_RUST_PROFILE_DIR "debug")
 else()

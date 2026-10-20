@@ -6,7 +6,7 @@ set(GENERATED_SYN_VIM ${GENERATED_RUNTIME_DIR}/syntax/vim/generated.vim)
 set(SYN_VIM_GENERATOR ${PROJECT_SOURCE_DIR}/src/gen/gen_vimvim.lua)
 
 if(NOT NVIM_HOST_PRG)
-  set(NVIM_HOST_PRG $<TARGET_FILE:nvim_bin>)
+  set(NVIM_HOST_PRG "${NVIM_BIN_FILE}")
 endif()
 file(MAKE_DIRECTORY ${GENERATED_RUNTIME_DIR}/syntax/vim)
 

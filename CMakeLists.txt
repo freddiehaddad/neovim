@@ -53,6 +53,7 @@ endif()
 #-------------------------------------------------------------------------------
 set(TOUCHES_DIR ${PROJECT_BINARY_DIR}/touches)
 set(VTERM_TEST_FILE ${PROJECT_BINARY_DIR}/test/vterm_test_output)
+set(NVIM_BIN_FILE "${CMAKE_BINARY_DIR}/bin/nvim${CMAKE_EXECUTABLE_SUFFIX}")
 
 file(GLOB DOCFILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/runtime/doc/*.txt)
 
@@ -264,11 +265,11 @@ add_custom_target(lintquery)
 add_dependencies(lintquery lintquery-compilation lintquery-format)
 
 add_custom_target(lintcommit
-  COMMAND $<TARGET_FILE:nvim_bin> --clean -l ${PROJECT_SOURCE_DIR}/scripts/lintcommit.lua main)
+  COMMAND "${NVIM_BIN_FILE}" --clean -l ${PROJECT_SOURCE_DIR}/scripts/lintcommit.lua main)
 add_dependencies(lintcommit nvim_bin)
 
 add_custom_target(linterrcodes
-  COMMAND $<TARGET_FILE:nvim_bin> --clean -l ${PROJECT_SOURCE_DIR}/scripts/linterrcodes.lua
+  COMMAND "${NVIM_BIN_FILE}" --clean -l ${PROJECT_SOURCE_DIR}/scripts/linterrcodes.lua
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 add_dependencies(linterrcodes nvim_bin)
 

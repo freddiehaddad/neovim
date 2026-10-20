@@ -1,179 +1,7 @@
-add_library(main_lib INTERFACE)
-
-# Internally we need to make a distinction between "nvim without runtime files"
-# (nvim_bin) and "nvim with runtime files" (nvim).
-add_executable(nvim_bin EXCLUDE_FROM_ALL)
-
-set_target_properties(nvim_bin
-  PROPERTIES
-  EXPORT_COMPILE_COMMANDS ON
-  ENABLE_EXPORTS TRUE
-  LINKER_LANGUAGE C
-  OUTPUT_NAME nvim)
-
-#-------------------------------------------------------------------------------
-# Dependencies
-#-------------------------------------------------------------------------------
-
-add_library(nvim_rs STATIC IMPORTED GLOBAL)
-target_link_libraries(main_lib INTERFACE nvim_rs)
-
-# TODO(dundargoc): unittest stops working if I create an pseudo-imported
-# library "luv" as with the other dependencies. Figure out why and fix.
-find_package(Luv 1.43.0 REQUIRED)
-target_include_directories(main_lib SYSTEM BEFORE INTERFACE ${LUV_INCLUDE_DIR})
-target_link_libraries(main_lib INTERFACE ${LUV_LIBRARY})
-
-find_package(Iconv REQUIRED)
-find_package(Libuv 1.46.0 REQUIRED)
-find_package(Treesitter 0.25.0 REQUIRED)
-find_package(UTF8proc REQUIRED)
-
-target_link_libraries(main_lib INTERFACE
-  iconv
-  treesitter
-  utf8proc)
-
-if(ENABLE_LIBINTL)
-  find_package(Libintl REQUIRED) # Libintl (not Intl) selects our FindLibintl.cmake script. #8464
-  target_link_libraries(main_lib INTERFACE libintl)
-endif()
-
-if(ENABLE_UNIBILIUM)
-  find_package(Unibilium 2.0 REQUIRED)
-  target_compile_definitions(nvim_bin PRIVATE HAVE_UNIBILIUM)
-  target_link_libraries(main_lib INTERFACE unibilium)
-endif()
-
-if(ENABLE_WASMTIME)
-  find_package(Wasmtime 48.0 EXACT REQUIRED)
-  target_link_libraries(main_lib INTERFACE wasmtime)
-  target_compile_definitions(nvim_bin PRIVATE HAVE_WASMTIME)
-endif()
-
-# The unit test lib requires LuaJIT; it will be skipped if LuaJIT is missing.
 option(PREFER_LUA "Prefer Lua over LuaJIT in the nvim executable." OFF)
-if(PREFER_LUA)
-  find_package(Lua 5.1 EXACT REQUIRED)
-  target_include_directories(main_lib SYSTEM BEFORE INTERFACE ${LUA_INCLUDE_DIR})
-  target_link_libraries(main_lib INTERFACE ${LUA_LIBRARIES})
-  # Passive (not REQUIRED): if LUAJIT_FOUND is not set, fixtures for unittests is skipped.
-  find_package(Luajit)
-else()
-  find_package(Luajit REQUIRED)
-  target_include_directories(main_lib SYSTEM BEFORE INTERFACE ${LUAJIT_INCLUDE_DIR})
-  target_link_libraries(main_lib INTERFACE ${LUAJIT_LIBRARY})
-endif()
-
-#-------------------------------------------------------------------------------
-# Compiler and linker options
-#-------------------------------------------------------------------------------
-
-if(NOT MSVC)
-  # For O_CLOEXEC, O_DIRECTORY, and O_NOFOLLOW flags on older systems
-  # (pre POSIX.1-2008: glibc 2.11 and earlier). #4042
-  # For ptsname(). #6743
-  target_compile_definitions(main_lib INTERFACE _GNU_SOURCE)
-endif()
-
-# Compiler specific options
-if(MSVC)
-  target_compile_definitions(main_lib INTERFACE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
-
-  target_sources(main_lib INTERFACE ${CMAKE_CURRENT_LIST_DIR}/os/nvim.manifest)
-elseif(MINGW)
-  # Use POSIX compatible stdio in Mingw
-  target_compile_definitions(main_lib INTERFACE __USE_MINGW_ANSI_STDIO)
-
-  # wrapper for nvim.manifest
-  target_sources(main_lib INTERFACE ${CMAKE_CURRENT_LIST_DIR}/os/nvim.rc)
-elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  target_link_options(nvim_bin PRIVATE -Wno-free-nonheap-object) # see #37250
-elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-  # workaround for clang-11 on macOS, supported on later versions
-  if(NOT APPLE AND NOT CMAKE_CROSSCOMPILING)
-    target_link_libraries(nvim_bin PRIVATE -Wl,--no-undefined)
-  endif()
-endif()
-
-# Platform specific options
-if(UNIX)
-  target_link_libraries(main_lib INTERFACE m)
-  if (CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-    target_link_libraries(main_lib INTERFACE bsd)
-    target_link_libraries(nvim_bin PRIVATE -lnetwork)
-  elseif (NOT CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND NOT CMAKE_CROSSCOMPILING)
-    target_link_libraries(main_lib INTERFACE util)
-  endif()
-endif()
-
-if(CMAKE_SYSTEM_NAME MATCHES "Windows")
-  target_compile_definitions(main_lib INTERFACE _WIN32_WINNT=0x0602 MSWIN WIN32_LEAN_AND_MEAN)
-  target_link_libraries(main_lib INTERFACE netapi32)
-elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-  target_link_libraries(nvim_bin PRIVATE "-framework CoreServices")
-
-  # Actually export symbols - symbols may not be visible even though
-  # ENABLE_EXPORTS is set. https://github.com/neovim/neovim/issues/25295
-  target_link_options(nvim_bin PRIVATE "-Wl,-export_dynamic")
-elseif(CMAKE_SYSTEM_NAME MATCHES "OpenBSD")
-  target_link_libraries(main_lib INTERFACE pthread c++abi)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
-  target_link_libraries(nvim_bin PRIVATE -lsocket)
-endif()
-
-# Remove --sort-common from linker flags, as this seems to cause bugs (see #2641, #3374).
-# TODO: Figure out the root cause.
-if(CMAKE_EXE_LINKER_FLAGS MATCHES "--sort-common" OR
-   CMAKE_SHARED_LINKER_FLAGS MATCHES "--sort-common" OR
-   CMAKE_MODULE_LINKER_FLAGS MATCHES "--sort-common")
-  message(STATUS "Removing --sort-common from linker flags")
-  string(REGEX REPLACE ",--sort-common(=[^,]+)?" "" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
-  string(REGEX REPLACE ",--sort-common(=[^,]+)?" "" CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
-  string(REGEX REPLACE ",--sort-common(=[^,]+)?" "" CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}")
-
-  # If no linker flags remain for a -Wl argument, remove it.
-  # '-Wl$' will match LDFLAGS="-Wl,--sort-common",
-  # '-Wl ' will match LDFLAGS="-Wl,--sort-common -Wl,..."
-  string(REGEX REPLACE "-Wl($| )" "" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
-  string(REGEX REPLACE "-Wl($| )" "" CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
-  string(REGEX REPLACE "-Wl($| )" "" CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}")
-endif()
-
-#-------------------------------------------------------------------------------
-# Cmake options
-#-------------------------------------------------------------------------------
-
-if(ENABLE_ASAN_UBSAN)
-  message(STATUS "Enabling address sanitizer and undefined behavior sanitizer for nvim.")
-  target_link_libraries(nvim_bin PRIVATE -fsanitize=address -fsanitize=undefined)
-  target_compile_definitions(nvim_bin PRIVATE ENABLE_ASAN_UBSAN)
-endif()
-
-if(ENABLE_MSAN)
-  message(STATUS "Enabling memory sanitizer for nvim.")
-  target_link_libraries(nvim_bin PRIVATE -fsanitize=memory -fsanitize-memory-track-origins)
-endif()
-
-if(ENABLE_TSAN)
-  message(STATUS "Enabling thread sanitizer for nvim.")
-  target_link_libraries(nvim_bin PRIVATE -fsanitize=thread)
-endif()
-
 option(CI_BUILD "CI, extra flags will be set" OFF)
 if(CI_BUILD)
   message(STATUS "CI build enabled")
-endif()
-
-option(ENABLE_GCOV "Enable gcov support" OFF)
-if(ENABLE_GCOV)
-  if(ENABLE_TSAN)
-    # GCOV and TSAN results in false data race reports
-    message(FATAL_ERROR "ENABLE_GCOV cannot be used with ENABLE_TSAN")
-  endif()
-  message(STATUS "Enabling gcov support")
-  target_link_libraries(main_lib INTERFACE --coverage)
-  target_compile_definitions(main_lib INTERFACE USE_GCOV)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -185,30 +13,11 @@ set(GENERATOR_DIR ${PROJECT_SOURCE_DIR}/src/gen)
 set(GEN_EVAL_TOUCH ${TOUCHES_DIR}/gen_doc_eval)
 set(LUAJIT_RUNTIME_DIR ${DEPS_PREFIX}/share/luajit-2.1/jit)
 set(NVIM_RUNTIME_DIR ${PROJECT_SOURCE_DIR}/runtime)
-
-# GENERATOR_DIR
 set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.rs)
 
 file(MAKE_DIRECTORY ${TOUCHES_DIR})
-
-if(PREFER_LUA)
-  target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
-endif()
-
-# Log level (NVIM_LOG_DEBUG in log.h)
-if(CI_BUILD)
-  # Don't debug log on CI, it gets too verbose in the main build log.
-  # TODO(bfredl): debug log level also exposes some errors with EXITFREE in ASAN build.
-else()
-  # Minimize logging for release-type builds.
-  target_compile_definitions(nvim_bin PRIVATE $<$<CONFIG:Debug>:NVIM_LOG_DEBUG>)
-endif()
-
-if(ENABLE_ASAN_UBSAN OR ENABLE_MSAN OR ENABLE_TSAN)
-  target_compile_definitions(main_lib INTERFACE EXITFREE)
-endif()
 
 set(NVIM_VERSION
     "v${NVIM_VERSION_MAJOR}.${NVIM_VERSION_MINOR}.${NVIM_VERSION_PATCH}${NVIM_VERSION_PRERELEASE}")
@@ -229,17 +38,12 @@ if(NOT RES)
 endif()
 message(STATUS "Using NVIM_VERSION: ${NVIM_VERSION}")
 
-set(NVIM_LUA $<TARGET_FILE:nvim_bin> -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SOURCE_DIR})
+set(NVIM_LUA "${NVIM_BIN_FILE}" -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SOURCE_DIR})
 set(NVIM_LUA_DEPS nvim_bin nvim_runtime_deps ${NVIM_LUA_PRELOAD})
 
 if(PREFER_LUA)
   message(STATUS "luajit not used, skipping unit tests")
-else()
-  target_compile_definitions(nvim_bin PRIVATE UNIT_TESTING)
 endif()
-
-target_sources(main_lib INTERFACE
-  ${CMAKE_CURRENT_LIST_DIR}/main_init.rs)
 
 find_program(CARGO_PRG cargo
   HINTS "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin"
@@ -257,13 +61,14 @@ if(PREFER_LUA)
   list(APPEND NVIM_RUST_CARGO_FLAGS "--features" "vendor-bit")
 endif()
 
-set(NVIM_RUST_LIB
-  "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}nvim_rs${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(NVIM_CARGO_BIN
+  "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/nvim${CMAKE_EXECUTABLE_SUFFIX}")
 
 file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/*.rs"
   "${NVIM_RUNTIME_DIR}/lua/vim/*.lua"
   "${NVIM_RUNTIME_DIR}/lua/vim/_core/*.lua"
+  "${PROJECT_SOURCE_DIR}/build.rs"
   "${PROJECT_SOURCE_DIR}/src/bit.rs"
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
   "${PROJECT_SOURCE_DIR}/src/lpeg/*.rs"
@@ -285,9 +90,10 @@ else()
 endif()
 
 add_custom_command(
-  OUTPUT "${NVIM_RUST_LIB}"
+  OUTPUT "${NVIM_CARGO_BIN}"
   COMMAND ${CMAKE_COMMAND} -E env
     "CARGO_TARGET_DIR=${NVIM_RUST_TARGET_DIR}"
+    "DEPS_PREFIX=${DEPS_PREFIX}"
     "VTERM_TEST_FILE=${VTERM_TEST_FILE}"
     "NVIM_VERSION_LONG=NVIM ${NVIM_VERSION}"
     "NVIM_VERSION_BUILD=${NVIM_VERSION_BUILD}"
@@ -306,15 +112,15 @@ add_custom_command(
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   USES_TERMINAL)
 
-add_custom_target(nvim_rs_build DEPENDS "${NVIM_RUST_LIB}")
+add_custom_target(nvim_rs_build DEPENDS "${NVIM_CARGO_BIN}")
 
-set_target_properties(nvim_rs PROPERTIES IMPORTED_LOCATION "${NVIM_RUST_LIB}")
-add_dependencies(nvim_rs nvim_rs_build)
-if(WIN32)
-  target_link_libraries(main_lib INTERFACE ws2_32 userenv bcrypt ntdll)
-elseif(UNIX AND NOT APPLE)
-  target_link_libraries(main_lib INTERFACE ${CMAKE_DL_LIBS} pthread)
-endif()
+add_custom_command(
+  OUTPUT "${NVIM_BIN_FILE}"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
+  COMMAND ${CMAKE_COMMAND} -E copy "${NVIM_CARGO_BIN}" "${NVIM_BIN_FILE}"
+  DEPENDS nvim_rs_build)
+
+add_custom_target(nvim_bin DEPENDS "${NVIM_BIN_FILE}")
 
 add_custom_target(testrust
   COMMAND ${CMAKE_COMMAND} -E env
@@ -324,36 +130,9 @@ add_custom_target(testrust
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   USES_TERMINAL)
 
-if(WIN32)
-  # add windows resource file pointing to the neovim icon
-  # this makes the icon appear for the neovim exe and associated filetypes
-  target_sources(nvim_bin PRIVATE ${NVIM_RUNTIME_DIR}/windows_icon.rc)
-endif()
-
-if(STATIC_BUILD)
-  target_link_options(nvim_bin PRIVATE -static-libgcc -static-libstdc++ -static)
-endif()
+install(PROGRAMS "${NVIM_BIN_FILE}" DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(MSVC)
-  target_link_options(nvim_bin PRIVATE /INCLUDE:main /DEFAULTLIB:msvcrt /DEFAULTLIB:ucrt /NODEFAULTLIB:libcmt /NODEFAULTLIB:libucrt)
-elseif(UNIX AND NOT APPLE)
-  target_link_libraries(nvim_bin PRIVATE -Wl,--whole-archive "${NVIM_RUST_LIB}" -Wl,--no-whole-archive)
-endif()
-target_link_libraries(nvim_bin PRIVATE main_lib PUBLIC libuv)
-
-install_helper(TARGETS nvim_bin)
-if(MSVC)
-  install(FILES $<TARGET_PDB_FILE:nvim_bin> DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
-endif()
-
-if(ENABLE_LTO)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT IPO_SUPPORTED)
-  if(IPO_SUPPORTED)
-    set_target_properties(nvim_bin PROPERTIES
-      INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE
-      INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE
-      INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL TRUE)
-  endif()
+  install(FILES "${NVIM_RUST_TARGET_DIR}/${NVIM_RUST_PROFILE_DIR}/nvim.pdb" DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
 endif()
 
 add_custom_target(nvim_runtime_deps)
@@ -370,16 +149,12 @@ if(WIN32)
     COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/windows_runtime_deps
     COMMAND ${CMAKE_COMMAND}
       -D CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
-      -D BINARY="${PROJECT_BINARY_DIR}/bin/nvim${CMAKE_EXECUTABLE_SUFFIX}"
+      -D BINARY="${NVIM_BIN_FILE}"
       -D DST=${PROJECT_BINARY_DIR}/windows_runtime_deps
       -D CI_BUILD=${CI_BUILD}
       -P ${PROJECT_SOURCE_DIR}/cmake/WindowsDllCopy.cmake)
   add_dependencies(nvim_runtime_deps nvim_dll_deps)
 
-  # A CMake script is used for copying the files to avoid the
-  # "command line is too long" error that occurs when Ninja tries running
-  # a command that exceeds the length limit (8191 characters) on Windows.
-  # See https://developercommunity.visualstudio.com/content/problem/212207/file-open-cmake-the-command-line-is-too-long.html
   set(EXTERNAL_BLOBS_SCRIPT
     "file(MAKE_DIRECTORY \"${PROJECT_BINARY_DIR}/windows_runtime_deps/platforms\")")
   foreach(DEP_FILE IN ITEMS
@@ -428,21 +203,6 @@ if(NOT PREFER_LUA)
       USE_SOURCE_PERMISSIONS)
   endif()
 endif()
-
-add_library(libnvim STATIC EXCLUDE_FROM_ALL)
-if(MSVC)
-  set(LIBNVIM_NAME libnvim)
-else()
-  set(LIBNVIM_NAME nvim)
-endif()
-set_target_properties(
-  libnvim
-  PROPERTIES
-    LINKER_LANGUAGE C
-    OUTPUT_NAME ${LIBNVIM_NAME}
-)
-target_compile_definitions(libnvim PRIVATE MAKE_LIB)
-target_link_libraries(libnvim PRIVATE main_lib PUBLIC libuv)
 
 #-------------------------------------------------------------------------------
 # Lint

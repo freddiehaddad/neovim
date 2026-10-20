@@ -6,8 +6,13 @@ edition = "2024"
 [lib]
 name = "nvim_rs"
 path = "src/nvim/lib.rs"
-crate-type = ["staticlib", "rlib"]
+crate-type = ["rlib"]
 doctest = false
+
+[[bin]]
+name = "nvim"
+path = "src/nvim/main.rs"
+test = false
 
 [[bin]]
 name = "tee"

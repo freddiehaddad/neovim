@@ -92,7 +92,7 @@ if(ENABLE_LIBINTL AND GETTEXT_FOUND AND XGETTEXT_PRG AND ICONV_PRG)
     set(poFile ${CMAKE_CURRENT_SOURCE_DIR}/${name}.po)
 
     add_custom_target(check-po-${name}
-      COMMAND $<TARGET_FILE:nvim_bin> -u NONE -n -e
+      COMMAND "${NVIM_BIN_FILE}" -u NONE -n -e
           -S ${CMAKE_CURRENT_SOURCE_DIR}/check.vim
           -c "if error == 0 | q | endif" -c cq ${poFile} ||
           ${CMAKE_COMMAND} -E echo "${name}.po failed the check."
