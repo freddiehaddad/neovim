@@ -336,6 +336,12 @@ use crate::fileio::kill;
 unsafe extern "C" {
     fn uv_tty_reset_mode() -> c_int;
     fn uv_tty_get_winsize(tty: *mut uv_tty_t, width: *mut c_int, height: *mut c_int) -> c_int;
+    #[cfg(unix)]
+    fn getppid() -> c_int;
+    #[cfg(unix)]
+    fn getpgid(pid: c_int) -> c_int;
+    #[cfg(unix)]
+    fn getpgrp() -> c_int;
 }
 
 #[cfg(windows)]
@@ -2457,6 +2463,10 @@ unsafe extern "C" fn tui_suspend_cb(tui: *mut TUIData) {
         tui_terminal_stop(tui);
         stream_set_blocking((*input_prefix(input)).in_fd, true);
 
+        let ppid = getppid();
+        if getpgid(ppid) == getpgrp() {
+            kill(ppid, SIGSTOP);
+        }
         kill(0, SIGSTOP);
 
         tui_terminal_start(tui);

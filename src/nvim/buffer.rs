@@ -582,11 +582,13 @@ pub unsafe extern "C" fn buf_ensure_loaded(buf: *mut buf_T) -> bool {
             return true;
         }
 
+        let mut bufref: bufref_T = std::mem::zeroed();
+        set_bufref(&raw mut bufref, buf);
         let mut aco: CtxSwitch = std::mem::zeroed();
         ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         let status = open_buffer(false, ptr::null_mut(), 0);
         ctx_restore(&raw mut aco);
-        status != FAIL
+        status != FAIL && bufref_valid(&raw mut bufref) && !(*buf).b_ml.ml_mfp.is_null()
     }
 }
 

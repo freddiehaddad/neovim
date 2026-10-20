@@ -16945,6 +16945,7 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
 
 use crate::api::buffer::nvim_buf_call;
 use crate::api::extmark::nvim_set_decoration_provider;
+use crate::api::options::nvim__option_to_object;
 use crate::api::private::helpers::{
     api_clear_error, api_free_dict, api_free_object, api_free_string, api_luarefs_free_dict,
     api_luarefs_free_keydict, api_luarefs_free_object,
@@ -21094,6 +21095,55 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_get(lstate: *mut lua_State) -> c_i
                 (&raw const ns_opts_table).cast_mut().cast(),
             );
             active_lstate = save_active_lstate;
+        }
+        nlua_finish_api_call(lstate, &raw mut arena, &raw mut err, err_param, 1)
+    }
+}
+
+unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_State) -> c_int {
+    unsafe {
+        let mut err = Error {
+            err_type: ErrorType::kErrorTypeNone,
+            msg: ptr::null_mut(),
+        };
+        let mut arena: Arena = zeroed();
+        let mut err_param: *mut c_char = ptr::null_mut();
+        let mut arg2: Object = zeroed();
+        let mut arg1: NvimString = zeroed();
+        'exit_0: {
+            'exit_1: {
+                if lua_gettop(lstate) != 2 {
+                    api_set_error_str(
+                        &raw mut err,
+                        ErrorType::kErrorTypeValidation,
+                        c"Expected 2 arguments".as_ptr(),
+                    );
+                    break 'exit_0;
+                }
+                if !nlua_is_deferred_safe() {
+                    return luaL_error(
+                        lstate,
+                        e_fast_api_disabled.as_ptr(),
+                        c"nvim__option_to_object".as_ptr(),
+                    );
+                }
+                arg2 = nlua_pop_Object(lstate, true, &raw mut arena, &raw mut err);
+                if err.err_type != ErrorType::kErrorTypeNone {
+                    err_param = c"value".as_ptr().cast_mut();
+                    break 'exit_0;
+                }
+                arg1 = nlua_pop_String(lstate, &raw mut arena, &raw mut err);
+                if err.err_type != ErrorType::kErrorTypeNone {
+                    err_param = c"name".as_ptr().cast_mut();
+                    break 'exit_1;
+                }
+                let save_active_lstate = active_lstate;
+                active_lstate = lstate;
+                let mut ret = nvim__option_to_object(arg1, arg2, &raw mut arena, &raw mut err);
+                nlua_push_Object(lstate, &raw mut ret, kNluaPushFreeRefs);
+                active_lstate = save_active_lstate;
+            }
+            api_luarefs_free_object(arg2);
         }
         nlua_finish_api_call(lstate, &raw mut arena, &raw mut err, err_param, 1)
     }
@@ -26585,6 +26635,8 @@ pub unsafe extern "C-unwind" fn nlua_add_api_functions(lstate: *mut lua_State) {
         lua_setfield(lstate, -2, c"nvim__ns_get".as_ptr());
         lua_pushcclosure(lstate, Some(nlua_api_nvim_get_option_value), 0);
         lua_setfield(lstate, -2, c"nvim_get_option_value".as_ptr());
+        lua_pushcclosure(lstate, Some(nlua_api_nvim__option_to_object), 0);
+        lua_setfield(lstate, -2, c"nvim__option_to_object".as_ptr());
         lua_pushcclosure(lstate, Some(nlua_api_nvim_set_option_value), 0);
         lua_setfield(lstate, -2, c"nvim_set_option_value".as_ptr());
         lua_pushcclosure(lstate, Some(nlua_api_nvim_get_all_options_info), 0);

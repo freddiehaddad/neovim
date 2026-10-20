@@ -20,8 +20,9 @@ use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::static_cstr_as_obj;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
-    api_free_object, api_set_sctx, copy_object, find_buffer_by_handle, find_tab_by_handle,
-    find_window_by_handle, try_enter, try_leave,
+    add_c, api_free_object, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
+    boolean_obj, copy_object, cstr_as_string, dict_obj, find_buffer_by_handle, find_tab_by_handle,
+    find_window_by_handle, put_c, string_obj, try_enter, try_leave,
 };
 #[allow(unused_imports)]
 use crate::autocmd::{block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds};
@@ -34,12 +35,14 @@ use crate::globals::*;
 use crate::memline::ml_open;
 #[allow(unused_imports)]
 use crate::option::{
-    escape_option_str_cmdline, find_option, free_option_prepared, get_all_options_info,
-    get_option_info, get_option_newval, get_option_value_for, get_option_varp_scope_from,
-    get_varp_from, opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj,
-    optval_own, optval_to_obj, set_option_direct, set_option_value_for,
-    validate_and_prepare_option_value,
+    copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
+    get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
+    get_option_varp_scope_from, get_varp_from, kOptFlagColon, kOptFlagComma, kOptFlagFlagList,
+    opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own,
+    set_option_direct, set_option_value_for, validate_and_prepare_option_value,
 };
+#[allow(unused_imports)]
+use crate::strings::{strchr, strlen};
 #[allow(unused_imports)]
 use crate::window::close_windows;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -53,7 +56,7 @@ use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
+use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 
 pub use crate::api::autocmd::event_T;
@@ -157,7 +160,7 @@ pub struct KeyDict_option {
     pub dry_run: Boolean,
 }
 
-use crate::option::get_option;
+const NUL: c_char = 0;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
@@ -553,6 +556,110 @@ pub unsafe extern "C" fn nvim_get_option_value(
     }
 }
 
+/// Convert an already validated option value without reading or changing the option.
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn nvim__option_to_object(
+    name: NvimString,
+    value: Object,
+    arena: *mut Arena,
+    err: *mut Error,
+) -> Object {
+    unsafe {
+        let opt_idx = find_option(name.data);
+        if opt_idx == kOptInvalid {
+            api_set_error!(
+                err,
+                ErrorType::kErrorTypeValidation,
+                c"Unknown option '%s'".as_ptr(),
+                name.data,
+            );
+            return NIL;
+        }
+
+        if value.obj_type != ObjectType::kObjectTypeString {
+            return copy_object(value, arena);
+        }
+
+        let option = get_option(opt_idx);
+        let flags = (*option).flags;
+        let schema = (*option).schema;
+
+        let str_ptr = if !value.data.string.data.is_null() {
+            value.data.string.data
+        } else {
+            c"".as_ptr().cast_mut()
+        };
+
+        if (flags & (kOptFlagComma | kOptFlagFlagList)) == 0 {
+            string_obj(arena_string(arena, cstr_as_string(str_ptr)))
+        } else if (flags & kOptFlagFlagList) != 0 && (flags & kOptFlagComma) == 0 {
+            let n = strlen(str_ptr);
+            let mut d = arena_dict(arena, n);
+            for i in 0..n {
+                put_c(
+                    &mut d,
+                    arena_memdupz(arena, str_ptr.add(i), 1),
+                    boolean_obj(true),
+                );
+            }
+            dict_obj(d)
+        } else {
+            let mut nparts: usize = 1;
+            let mut p = str_ptr;
+            while *p != NUL {
+                if *p == b',' as c_char {
+                    nparts += 1;
+                }
+                p = p.add(1);
+            }
+            let as_map = (flags & kOptFlagColon) != 0
+                || (flags & kOptFlagFlagList) != 0
+                || !schema.is_null();
+            let mut d = if as_map {
+                arena_dict(arena, nparts)
+            } else {
+                Dict::new()
+            };
+            let mut a = if as_map {
+                Array::new()
+            } else {
+                arena_array(arena, nparts)
+            };
+            let str_len = strlen(str_ptr);
+            let item = xmalloc(str_len + 1).cast::<c_char>();
+            p = str_ptr;
+            while *p != NUL {
+                copy_option_part(&raw mut p, item, str_len + 1, c",".as_ptr().cast_mut());
+                if *item == NUL {
+                    continue;
+                }
+                if !as_map {
+                    add_c(
+                        &mut a,
+                        string_obj(arena_string(arena, cstr_as_string(item))),
+                    );
+                    continue;
+                }
+                let colon = strchr(item, b':' as c_int);
+                let mut val: *mut c_char = ptr::null_mut();
+                if !colon.is_null() {
+                    *colon = NUL;
+                    val = colon.add(1);
+                }
+                let key = arena_string(arena, cstr_as_string(item));
+                let v = if (flags & kOptFlagFlagList) != 0 || val.is_null() {
+                    boolean_obj(true)
+                } else {
+                    string_obj(arena_string(arena, cstr_as_string(val)))
+                };
+                put_c(&mut d, key.data, v);
+            }
+            xfree(item.cast());
+            if as_map { dict_obj(d) } else { array_obj(a) }
+        }
+    }
+}
+
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_set_option_value(
     channel_id: u64,
@@ -762,7 +869,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
             });
         }
 
-        let rv = optval_to_obj(opt_idx, merged_val, arena);
+        let rv = nvim__option_to_object(name, merged_val, arena, err);
         optval_free(merged_val);
         rv
     }

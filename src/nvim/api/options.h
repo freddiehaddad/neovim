@@ -40,6 +40,9 @@
 DLLEXPORT Object nvim_get_option_value(String name, Dict(option) *opts, Error *err)
   FUNC_API_SINCE(9) FUNC_API_RET_ALLOC;
 
+DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
+  FUNC_API_LUA_ONLY;
+
 /// Sets the value of an option. The behavior of this function matches that of
 /// |:set|: for global-local options, both the global and local value are set
 /// unless otherwise specified with {scope}.

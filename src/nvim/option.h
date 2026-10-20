@@ -112,7 +112,6 @@ DLLEXPORT bool option_equal(Object o1, Object o2);
 DLLEXPORT Object opt_from_tristate(TriState t);
 DLLEXPORT Object optval_own(OptIndex opt_idx, Object value);
 DLLEXPORT Object opt_from_varp(OptIndex opt_idx, void *varp) FUNC_ATTR_NONNULL_ARG(2);
-DLLEXPORT Object optval_to_obj(OptIndex opt_idx, Object value, Arena *arena);
 DLLEXPORT Object optval_from_obj(OptIndex opt_idx, Object o, set_op_T op, bool *error);
 DLLEXPORT bool is_option_hidden(OptIndex opt_idx);
 DLLEXPORT bool option_has_type(OptIndex opt_idx, ObjectType type);

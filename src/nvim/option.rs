@@ -267,10 +267,10 @@ const kOptFlagRedrStat: u32 = 1 << 7;
 const kOptFlagRedrWin: u32 = 1 << 8;
 const kOptFlagRedrBuf: u32 = 1 << 9;
 const kOptFlagRedrAll: u32 = kOptFlagRedrBuf | kOptFlagRedrWin;
-const kOptFlagComma: u32 = 1 << 10;
+pub const kOptFlagComma: u32 = 1 << 10;
 const kOptFlagOneComma: u32 = (1 << 11) | kOptFlagComma;
 const kOptFlagNoDup: u32 = 1 << 12;
-const kOptFlagFlagList: u32 = 1 << 13;
+pub const kOptFlagFlagList: u32 = 1 << 13;
 const kOptFlagSecure: u32 = 1 << 14;
 const kOptFlagGettext: u32 = 1 << 15;
 const kOptFlagNoGlob: u32 = 1 << 16;
@@ -282,7 +282,7 @@ const kOptFlagNDname: u32 = 1 << 21;
 const kOptFlagHLOnly: u32 = 1 << 22;
 const kOptFlagMLE: u32 = 1 << 23;
 const kOptFlagFunc: u32 = 1 << 24;
-const kOptFlagColon: u32 = 1 << 25;
+pub const kOptFlagColon: u32 = 1 << 25;
 const kOptFlagExpr: u32 = 1 << 26;
 
 const kOptInvalid: OptIndex = -1;
@@ -5762,101 +5762,6 @@ unsafe fn optval_to_cstr(o: Object, quote: bool) -> *mut c_char {
                 nlua_funcref_str(o.data.luaref, ptr::null_mut(), false)
             }
             _ => std::process::abort(),
-        }
-    }
-}
-
-/// Converts an option value to its structured form.
-#[cfg_attr(not(test), unsafe(no_mangle))]
-pub unsafe extern "C" fn optval_to_obj(
-    opt_idx: OptIndex,
-    value: Object,
-    arena: *mut Arena,
-) -> Object {
-    unsafe {
-        if value.obj_type == ObjectType::kObjectTypeLuaRef {
-            return luaref_obj(api_new_luaref(value.data.luaref));
-        }
-        if value.obj_type != ObjectType::kObjectTypeString {
-            return value;
-        }
-
-        let opt = get_option(opt_idx);
-        let flags = (*opt).flags;
-        let schema = (*opt).schema;
-
-        let str_ptr = if !value.data.string.data.is_null() {
-            value.data.string.data
-        } else {
-            c"".as_ptr().cast_mut()
-        };
-
-        if (flags & (kOptFlagComma | kOptFlagFlagList)) == 0 {
-            string_obj(arena_string(arena, cstr_as_string(str_ptr)))
-        } else if (flags & kOptFlagFlagList) != 0 && (flags & kOptFlagComma) == 0 {
-            let n = c_strlen(str_ptr);
-            let mut d = arena_dict(arena, n);
-            for i in 0..n {
-                put_c(
-                    &mut d,
-                    arena_memdupz(arena, str_ptr.add(i), 1),
-                    boolean_obj(true),
-                );
-            }
-            dict_obj(d)
-        } else {
-            let mut nparts: usize = 1;
-            let mut p = str_ptr;
-            while *p != NUL {
-                if *p == b',' as c_char {
-                    nparts += 1;
-                }
-                p = p.add(1);
-            }
-            let as_map = (flags & kOptFlagColon) != 0
-                || (flags & kOptFlagFlagList) != 0
-                || !schema.is_null();
-            let mut d = if as_map {
-                arena_dict(arena, nparts)
-            } else {
-                Dict::new()
-            };
-            let mut a = if as_map {
-                Array::new()
-            } else {
-                arena_array(arena, nparts)
-            };
-            let str_len = c_strlen(str_ptr);
-            let item = xmalloc(str_len + 1).cast::<c_char>();
-            p = str_ptr;
-            while *p != NUL {
-                copy_option_part(&raw mut p, item, str_len + 1, c",".as_ptr().cast_mut());
-                if *item == NUL {
-                    continue;
-                }
-                if !as_map {
-                    add_c(
-                        &mut a,
-                        string_obj(arena_string(arena, cstr_as_string(item))),
-                    );
-                    continue;
-                }
-                let colon = strchr(item, b':' as c_int);
-                let mut val: *mut c_char = ptr::null_mut();
-                if !colon.is_null() {
-                    *colon = NUL;
-                    val = colon.add(1);
-                }
-                let key = arena_string(arena, cstr_as_string(item));
-                let v = if (flags & kOptFlagFlagList) != 0 || val.is_null() {
-                    boolean_obj(true)
-                } else {
-                    string_obj(arena_string(arena, cstr_as_string(val)))
-                };
-                put_c(&mut d, key.data, v);
-            }
-            xfree(item.cast());
-            if as_map { dict_obj(d) } else { array_obj(a) }
         }
     }
 }

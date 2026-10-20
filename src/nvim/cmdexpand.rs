@@ -3785,6 +3785,9 @@ pub unsafe extern "C" fn set_cmd_context(
         }
         let mut nextcomm: *const c_char = str_arg;
 
+        filetype_expand_what = FiletypeExpandWhat::All;
+        breakpt_expand_what = BreakptExpandWhat::Add;
+
         if use_ccline != 0 && (*ccline).cmdfirstc == b'=' as c_int {
             set_context_for_expression(xp, str_arg, cmdidx_T::CMD_SIZE);
         } else if use_ccline != 0 && (*ccline).input_fn != 0 {
@@ -5632,6 +5635,9 @@ pub unsafe extern "C" fn f_getcompletion(
                 }
                 EXPAND_FILETYPECMD => {
                     filetype_expand_what = FiletypeExpandWhat::All;
+                }
+                EXPAND_BREAKPOINT => {
+                    breakpt_expand_what = BreakptExpandWhat::Add;
                 }
                 _ => {}
             }

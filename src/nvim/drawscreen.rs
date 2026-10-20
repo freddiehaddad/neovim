@@ -522,7 +522,9 @@ pub unsafe extern "C" fn screen_resize(mut width: c_int, mut height: c_int) {
                     }
                 }
             }
-            ui_flush();
+            if State != MODE_ASKMORE {
+                ui_flush();
+            }
         }
         resizing_screen = false;
     }
