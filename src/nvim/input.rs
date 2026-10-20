@@ -16,6 +16,8 @@ use crate::api::private::helpers::api_clear_error;
 #[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
+use crate::charset::to_special;
+#[allow(unused_imports)]
 use crate::cursor::get_cursor_line_ptr;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -381,17 +383,6 @@ const fn k_third(c: c_int) -> c_int {
         KE_FILLER as c_int
     } else {
         key2termcap1(c)
-    }
-}
-
-#[inline]
-const fn to_special(a: c_int, b: c_int) -> c_int {
-    if a == KS_SPECIAL as c_int {
-        K_SPECIAL as c_int
-    } else if a == KS_ZERO as c_int {
-        K_ZERO
-    } else {
-        termcap2key(a, b)
     }
 }
 

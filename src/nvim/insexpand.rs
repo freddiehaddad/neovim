@@ -18,6 +18,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::api_clear_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::copy_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
@@ -25,6 +27,8 @@ use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
 use crate::buffer::{bt_cmdwin, buf_spname};
 #[allow(unused_imports)]
 use crate::change::deleted_lines_mark;
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite_or_nul;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
@@ -435,14 +439,6 @@ const fn empty_nvim_string() -> NvimString {
 }
 
 #[inline]
-unsafe fn api_clear_string(s: *mut NvimString) {
-    unsafe {
-        xfree((*s).data.cast());
-        *s = empty_nvim_string();
-    }
-}
-
-#[inline]
 unsafe fn kv_destroy_extmarks(v: *mut KVec<ExtmarkUndoObject>) {
     unsafe {
         xfree((*v).items.cast());
@@ -462,11 +458,6 @@ unsafe fn cstr_as_string(str_ptr: *mut c_char) -> NvimString {
             }
         }
     }
-}
-
-#[inline]
-const fn ascii_iswhite_or_nul(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char || c == NUL
 }
 
 #[inline]

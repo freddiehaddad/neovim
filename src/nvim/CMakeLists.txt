@@ -429,9 +429,6 @@ list(SORT NVIM_SOURCES)
 list(SORT NVIM_HEADERS)
 
 list(APPEND UNCRUSTIFY_NVIM_SOURCES ${NVIM_SOURCES} ${NVIM_HEADERS})
-list(APPEND UNCRUSTIFY_NVIM_SOURCES
-  ${PROJECT_SOURCE_DIR}/src/wasm/wasm_stubs.c
-)
 
 foreach(hfile ${NVIM_HEADERS})
   get_filename_component(f ${hfile} NAME)

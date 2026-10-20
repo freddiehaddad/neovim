@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+pub use crate::charset::is_special;
+#[allow(unused_imports)]
 use crate::charset::vim_str2nr;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalpha, ascii_isdigit};
@@ -166,10 +168,7 @@ pub const fn key2termcap1(x: c_int) -> c_int {
     (((-x) as u32 >> 8) & 0xff) as c_int
 }
 
-#[inline]
-pub const fn is_special(c: c_int) -> bool {
-    c < 0
-}
+pub use crate::charset::to_special;
 
 pub const K_ZERO: c_int = termcap2key(KS_ZERO as c_int, KE_FILLER as c_int);
 pub const K_UP: c_int = termcap2key(b'k' as c_int, b'u' as c_int);

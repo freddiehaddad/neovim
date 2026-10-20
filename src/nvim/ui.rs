@@ -16,6 +16,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::float_obj;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{bool_obj, int_obj};
+#[allow(unused_imports)]
 use crate::api::ui::{
     remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
     remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
@@ -183,22 +185,6 @@ static mut beep_count: c_int = 0;
 static mut beep_start_time: u64 = 0;
 static mut ui_flush_was_busy: bool = false;
 static mut ui_flush_cursor_was_obscured: bool = false;
-
-#[inline]
-const fn bool_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn int_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_init() {

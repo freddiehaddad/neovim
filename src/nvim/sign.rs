@@ -52,6 +52,8 @@ use crate::insert::beginline;
 #[allow(unused_imports)]
 use crate::mark::setpcmark;
 #[allow(unused_imports)]
+use crate::marktree::mt_end;
+#[allow(unused_imports)]
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
 #[allow(unused_imports)]
 use crate::message::{emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title};
@@ -91,9 +93,9 @@ use crate::map::{
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::marktree::{
     DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_SIGNHL,
-    MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_END, MTKey, MTPair, MarkTreeIter, kMTMetaSignHL,
-    kMTMetaSignText, marktree_itr_current, marktree_itr_get, marktree_itr_get_overlap,
-    marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
+    MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, kMTMetaSignHL, kMTMetaSignText,
+    marktree_itr_current, marktree_itr_get, marktree_itr_get_overlap, marktree_itr_next,
+    marktree_itr_step_overlap, marktree_lookup_ns,
 };
 use crate::memory::{xcalloc, xfree, xstrdup};
 use crate::msgpack_rpc::packer::Integer;
@@ -198,11 +200,6 @@ const CMDS: [*const c_char; 7] = [
     c"jump".as_ptr(),
     ptr::null(),
 ];
-
-#[inline]
-const fn mt_end(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_END) != 0
-}
 
 #[inline]
 const fn mt_decor_sign(key: MTKey) -> bool {

@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 #[allow(unused_imports)]
+use crate::event::r#loop::main_loop_ptr;
+#[allow(unused_imports)]
 use crate::event::r#loop::uv_pipe_init;
 #[allow(unused_imports)]
 use crate::event::r#loop::{uv_close, uv_handle_get_loop, uv_timer_start, uv_timer_stop};
@@ -96,8 +98,6 @@ pub struct ProcTail {
     pub events: *mut MultiQueue,
 }
 
-use crate::globals::main_loop;
-
 static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
 
@@ -105,11 +105,6 @@ unsafe extern "C" {
     fn uv_unref(handle: *mut uv_handle_t);
     fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;
 
-}
-
-#[inline]
-unsafe fn main_loop_ptr() -> *mut Loop {
-    (&raw mut main_loop).cast()
 }
 
 #[inline]

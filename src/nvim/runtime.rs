@@ -399,7 +399,7 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
 }
 
 #[inline]
-unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
+pub unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
     unsafe { *(script_items.ga_data as *mut *mut scriptitem_T).add((id - 1) as usize) }
 }
 
@@ -416,7 +416,7 @@ unsafe fn script_id_valid(id: scid_T) -> bool {
 }
 
 #[inline]
-unsafe fn sourcing_name() -> *mut c_char {
+pub unsafe fn sourcing_name() -> *mut c_char {
     unsafe { (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_name }
 }
 

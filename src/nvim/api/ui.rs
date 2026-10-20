@@ -21,6 +21,8 @@ use crate::api::private::helpers::api_typename;
 use crate::api::private::helpers::dict_obj;
 #[allow(unused_imports)]
 use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{bool_obj, int_obj};
 use crate::errors::*;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -122,22 +124,6 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
     },
     values: ptr::null_mut(),
 };
-
-#[inline]
-const fn int_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn bool_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
 
 #[inline]
 const fn str_obj(s: NvimString) -> Object {

@@ -28,6 +28,8 @@ use crate::charset::ascii_isspace;
 #[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
+use crate::charset::{is_special, k_second};
+#[allow(unused_imports)]
 use crate::cmdexpand::cmdline_fuzzy_complete;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -305,11 +307,6 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 }
 
 #[inline]
-const fn is_special(c: c_int) -> bool {
-    c < 0
-}
-
-#[inline]
 const fn termcap2key(a: c_int, b: c_int) -> c_int {
     -(a + (b << 8))
 }
@@ -322,17 +319,6 @@ const fn key2termcap0(x: c_int) -> c_int {
 #[inline]
 const fn key2termcap1(x: c_int) -> c_int {
     (((-x) as u32) >> 8) as c_int & 0xff
-}
-
-#[inline]
-const fn k_second(c: c_int) -> u8 {
-    if c == K_SPECIAL as c_int {
-        KS_SPECIAL
-    } else if c == NUL as c_int {
-        KS_ZERO
-    } else {
-        key2termcap0(c) as u8
-    }
 }
 
 #[inline]

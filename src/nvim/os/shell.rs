@@ -20,6 +20,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
+use crate::event::r#loop::main_loop_ptr;
+#[allow(unused_imports)]
 use crate::event::r#loop::{uv_err_name, uv_strerror};
 #[allow(unused_imports)]
 use crate::ex_cmds::{check_secure, make_filter_cmd};
@@ -70,7 +72,7 @@ use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
+use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_free, multiqueue_new_child,
     multiqueue_put_event,
@@ -161,19 +163,12 @@ static mut throttle_pulse_msg: [c_char; 4] = [b' ' as c_char, b' ' as c_char, b'
 static mut last_skipped: [c_char; MAX_CHUNK_SIZE] = [0; MAX_CHUNK_SIZE];
 static mut last_skipped_len: usize = 0;
 
-use crate::globals::main_loop;
-
 #[cfg(windows)]
 unsafe extern "system" {
     fn GetConsoleOutputCP() -> u32;
     fn GetConsoleCP() -> u32;
     fn SetConsoleOutputCP(wCodePageID: u32) -> c_int;
     fn SetConsoleCP(wCodePageID: u32) -> c_int;
-}
-
-#[inline]
-unsafe fn main_loop_ptr() -> *mut Loop {
-    (&raw mut main_loop).cast()
 }
 
 #[inline]

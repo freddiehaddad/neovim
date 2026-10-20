@@ -17,6 +17,8 @@ use crate::decoration::{
 };
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::marktree::{mt_end, mt_invalid, mt_paired, mt_right};
+#[allow(unused_imports)]
 use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 #[allow(unused_imports)]
 use crate::memline::ml_find_line_or_offset;
@@ -37,7 +39,7 @@ use crate::map::{
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MARKTREE_END_FLAG, MT_FLAG_DECOR_EXT,
     MT_FLAG_DECOR_HL, MT_FLAG_DECOR_MASK, MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_END,
-    MT_FLAG_EXTERNAL_MASK, MT_FLAG_INVALID, MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MT_FLAG_PAIRED,
+    MT_FLAG_EXTERNAL_MASK, MT_FLAG_INVALID, MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO,
     MT_FLAG_RIGHT_GRAVITY, MTKey, MTPair, MTPos, MarkTreeIter, marktree_clear, marktree_del_itr,
     marktree_get_alt, marktree_get_altpos, marktree_itr_current, marktree_itr_get,
     marktree_itr_get_ext, marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap,
@@ -139,21 +141,6 @@ const fn mt_lookup_key(key: MTKey) -> u64 {
 }
 
 #[inline]
-const fn mt_paired(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_PAIRED) != 0
-}
-
-#[inline]
-const fn mt_end(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_END) != 0
-}
-
-#[inline]
-const fn mt_right(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_RIGHT_GRAVITY) != 0
-}
-
-#[inline]
 const fn mt_no_undo(key: MTKey) -> bool {
     (key.flags & MT_FLAG_NO_UNDO) != 0
 }
@@ -161,11 +148,6 @@ const fn mt_no_undo(key: MTKey) -> bool {
 #[inline]
 const fn mt_invalidate(key: MTKey) -> bool {
     (key.flags & MT_FLAG_INVALIDATE) != 0
-}
-
-#[inline]
-const fn mt_invalid(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_INVALID) != 0
 }
 
 #[inline]

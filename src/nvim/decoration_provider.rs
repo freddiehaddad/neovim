@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::extmark::describe_ns;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_init;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, api_object_to_bool,
 };
@@ -60,14 +62,6 @@ static mut decor_providers: KVec<DecorProvider> = KVec {
     capacity: 0,
     items: ptr::null_mut(),
 };
-
-#[inline]
-const fn error_init() -> Error {
-    Error {
-        err_type: ErrorType::kErrorTypeNone,
-        msg: ptr::null_mut(),
-    }
-}
 
 #[inline]
 const fn error_set(err: &Error) -> bool {

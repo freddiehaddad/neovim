@@ -17,6 +17,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::error_set;
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, arena_dict, buf_get_text, dict_get_value, dict_set_var,
     find_buffer_by_handle, normalize_index, set_mark, try_enter, try_leave,
@@ -202,15 +204,6 @@ const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
-
-#[inline]
-const fn static_cstr_as_obj(s: &'static CStr) -> Object {
-    let bytes = s.to_bytes();
-    string_obj(NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    })
-}
 
 #[inline]
 const fn cstr_literal(s: &'static CStr) -> NvimString {

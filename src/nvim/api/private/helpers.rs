@@ -256,8 +256,33 @@ macro_rules! api_set_error {
 }
 pub use api_set_error;
 
+pub use boolean_obj as bool_obj;
+pub use integer_obj as int_obj;
+
 #[inline]
-unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
+pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
+    string_obj(static_cstr_as_string(s))
+}
+
+#[inline]
+pub const fn error_init() -> Error {
+    Error {
+        err_type: ErrorType::kErrorTypeNone,
+        msg: ptr::null_mut(),
+    }
+}
+
+#[inline]
+pub unsafe fn api_clear_string(s: *mut NvimString) {
+    unsafe {
+        xfree((*s).data.cast());
+        (*s).data = ptr::null_mut();
+        (*s).size = 0;
+    }
+}
+
+#[inline]
+pub unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
     unsafe { !d.is_null() && (*d).watchers[0].cast_const() != (&raw const (*d).watchers).cast() }
 }
 

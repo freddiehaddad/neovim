@@ -34,6 +34,8 @@ use crate::highlight_group::{syn_id2attr, syn_id2name};
 #[allow(unused_imports)]
 use crate::indent::tabstop_padding;
 #[allow(unused_imports)]
+use crate::marktree::{mt_end, mt_invalid};
+#[allow(unused_imports)]
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
 #[allow(unused_imports)]
 use crate::r#move::{changed_window_setting, win_col_off};
@@ -61,11 +63,10 @@ use crate::kvec::KVec;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorHighlightInline, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_MASK,
-    MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_END, MT_FLAG_INVALID, MTKey, MTPair,
-    MarkTreeIter, kMTMetaConcealLines, kMTMetaCount, kMTMetaLines, kMTMetaSignText,
-    marktree_get_altpos, marktree_itr_current, marktree_itr_get, marktree_itr_get_filter,
-    marktree_itr_get_overlap, marktree_itr_next, marktree_itr_next_filter,
-    marktree_itr_step_out_filter, marktree_itr_step_overlap,
+    MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, kMTMetaConcealLines,
+    kMTMetaCount, kMTMetaLines, kMTMetaSignText, marktree_get_altpos, marktree_itr_current,
+    marktree_itr_get, marktree_itr_get_filter, marktree_itr_get_overlap, marktree_itr_next,
+    marktree_itr_next_filter, marktree_itr_step_out_filter, marktree_itr_step_overlap,
 };
 use crate::memory::{Arena, xcalloc, xfree, xmalloc};
 use crate::msgpack_rpc::packer::Integer;
@@ -164,16 +165,6 @@ static mut decor_freelist: u32 = u32::MAX;
 static mut to_free_virt: *mut DecorVirtText = ptr::null_mut();
 static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
-
-#[inline]
-const fn mt_invalid(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_INVALID) != 0
-}
-
-#[inline]
-const fn mt_end(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_END) != 0
-}
 
 #[inline]
 const fn mt_decor_any(key: MTKey) -> bool {

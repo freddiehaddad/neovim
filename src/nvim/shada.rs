@@ -29,6 +29,8 @@ use crate::buffer::{buflist_findnr, buflist_new, buflist_setfpos};
 #[allow(unused_imports)]
 use crate::eval::typval::tv_copy;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_dict_hi2di;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_list_len;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
@@ -77,7 +79,7 @@ use crate::cmdhist::{
     hist_get_array, hist_iter, histentry_T,
 };
 use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::decode::{MPACK_OK, decode_string, dictitem_T, unpack_typval};
+use crate::eval::decode::{MPACK_OK, decode_string, unpack_typval};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
@@ -699,16 +701,6 @@ unsafe fn file_fd(fp: *const FileDescriptor) -> c_int {
 #[inline]
 unsafe fn file_space(fp: *const FileDescriptor) -> usize {
     unsafe { (((*fp).buffer as usize) + ARENA_BLOCK_SIZE).saturating_sub((*fp).write_pos as usize) }
-}
-
-#[inline]
-unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
-    unsafe {
-        (*hi)
-            .hi_key
-            .byte_sub(std::mem::offset_of!(dictitem_T, di_key))
-            .cast::<dictitem_T>()
-    }
 }
 
 #[inline]

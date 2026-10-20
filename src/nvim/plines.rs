@@ -32,6 +32,8 @@ use crate::globals::*;
 use crate::indent::get_breakindent_win;
 #[allow(unused_imports)]
 use crate::indent::tabstop_padding;
+#[allow(unused_imports)]
+use crate::marktree::{mt_invalid, mt_right};
 use crate::mbyte::utf8len_tab;
 #[allow(unused_imports)]
 use crate::mbyte::{
@@ -55,9 +57,8 @@ use crate::api::extmark::ns_in_win;
 use crate::api::tabpage::{pos_T, win_T};
 use crate::eval::deprecated::buf_T;
 use crate::marktree::{
-    MT_FLAG_DECOR_EXT, MT_FLAG_INVALID, MT_FLAG_RIGHT_GRAVITY, MTKey, MarkTreeIter, kMTMetaCount,
-    kMTMetaInline, kMTMetaLines, marktree_itr_current, marktree_itr_get_filter,
-    marktree_itr_next_filter,
+    MT_FLAG_DECOR_EXT, MTKey, MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines,
+    marktree_itr_current, marktree_itr_get_filter, marktree_itr_next_filter,
 };
 
 pub use crate::cursor::colnr_T;
@@ -121,16 +122,6 @@ pub struct StrCharInfo {
 pub struct ClusterInfo {
     pub next: StrCharInfo,
     pub cells: c_int,
-}
-
-#[inline]
-const fn mt_invalid(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_INVALID) != 0
-}
-
-#[inline]
-const fn mt_right(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_RIGHT_GRAVITY) != 0
 }
 
 #[inline]

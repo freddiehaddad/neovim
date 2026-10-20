@@ -19,6 +19,8 @@ use crate::eval::vars::set_vim_var_nr;
 #[allow(unused_imports)]
 use crate::event::r#loop::loop_poll_events;
 #[allow(unused_imports)]
+use crate::event::r#loop::main_loop_ptr;
+#[allow(unused_imports)]
 use crate::event::r#loop::{uv_guess_handle, uv_loop_size};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -171,11 +173,6 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
 }
 
 use crate::event::r#loop::main_loop_events;
-
-#[inline]
-unsafe fn main_loop_ptr() -> *mut Loop {
-    (&raw mut main_loop).cast()
-}
 
 unsafe extern "C" fn cursorhold_event(_argv: *mut *mut c_void) {
     unsafe {

@@ -24,6 +24,8 @@ use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
 use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
+use crate::charset::to_special;
+#[allow(unused_imports)]
 use crate::cursor::{equalpos, lt, ltoreq};
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
@@ -49,6 +51,8 @@ use crate::log::g_min_log_level;
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::marktree::mt_end;
 #[allow(unused_imports)]
 use crate::memline::{dec, inc, ml_get_len, ml_region_text};
 #[allow(unused_imports)]
@@ -104,15 +108,13 @@ use crate::input_cmdatom::{
     atom_push_raw, atom_suppress, atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T,
     g_atoms, kAInsertSpan, kAMotion, kAVisualSpan, kKeyInsFlush,
 };
-use crate::keycodes::{
-    K_COMMAND, K_SPECIAL, K_ZERO, KE_LUA, KS_EXTRA, KS_SPECIAL, KS_ZERO, termcap2key,
-};
+use crate::keycodes::{K_COMMAND, K_SPECIAL, KE_LUA, KS_EXTRA, termcap2key};
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::mark_get_visual;
 use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MT_FLAG_END, MTKey, MTPair,
-    MarkTreeIter, marktree_itr_current, marktree_itr_get, marktree_itr_next,
+    DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MTPair, MarkTreeIter,
+    marktree_itr_current, marktree_itr_get, marktree_itr_next,
 };
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmemdupz, xstrdup};
 use crate::menu::save_state_T;
@@ -303,22 +305,6 @@ static mut ns_vcur: u32 = 0;
 static mut ns_vsel: u32 = 0;
 static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
-
-#[inline]
-const fn to_special(a: c_int, b: c_int) -> c_int {
-    if a == KS_SPECIAL as c_int {
-        K_SPECIAL as c_int
-    } else if a == KS_ZERO as c_int {
-        K_ZERO
-    } else {
-        termcap2key(a, b)
-    }
-}
-
-#[inline]
-const fn mt_end(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_END) != 0
-}
 
 #[inline]
 const fn op_reg_index(regname: c_int) -> c_int {

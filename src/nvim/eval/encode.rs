@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::eval::typval::tv_blob_get;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_blob_len;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item};
@@ -140,11 +142,6 @@ struct MPConvStackVal {
     tv: *mut typval_T,
     saved_copy_id: c_int,
     data: MPConvStackData,
-}
-
-#[inline]
-unsafe fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
-    unsafe { *(*b).bv_ga.ga_data.cast::<u8>().add(idx as usize) }
 }
 
 #[inline]

@@ -15,6 +15,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::tv_dict_is_watched;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{cstr_as_string, cstr_to_string};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{nil_obj, string_obj};
@@ -44,6 +46,8 @@ use crate::eval::typval::{
     tv_list_append_string, tv_list_append_tv, tv_list_free, tv_list_item_remove,
     tv_list_remove_items, tv_list_unref, value_check_lock,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_hi2di, tv_is_func, tv_list_set_ret};
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
@@ -89,6 +93,8 @@ use crate::option::{
 };
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::runtime::script_item;
+#[allow(unused_imports)]
 use crate::runtime::{new_script_item, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::gettext;
@@ -96,6 +102,8 @@ use crate::strings::gettext;
 use crate::strings::strcmp as c_strcmp;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
+#[allow(unused_imports)]
+use crate::strings::strncmp as c_strncmp;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -616,24 +624,6 @@ static mut redir_varname: *mut c_char = ptr::null_mut();
 use crate::option::get_option;
 
 #[inline]
-unsafe fn c_strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe {
-        let mut p1 = s1.cast::<u8>();
-        let mut p2 = s2.cast::<u8>();
-        for _ in 0..n {
-            let b1 = *p1;
-            let b2 = *p2;
-            if b1 != b2 || b1 == 0 {
-                return c_int::from(b1) - c_int::from(b2);
-            }
-            p1 = p1.add(1);
-            p2 = p2.add(1);
-        }
-        0
-    }
-}
-
-#[inline]
 unsafe fn c_strcpy(mut dst: *mut c_char, mut src: *const c_char) {
     unsafe {
         loop {
@@ -662,25 +652,11 @@ unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
 }
 
 #[inline]
-fn tv_is_func(tv: typval_T) -> bool {
-    tv.v_type == VarType::VAR_FUNC || tv.v_type == VarType::VAR_PARTIAL
-}
-
-#[inline]
 unsafe fn tv_init(tv: *mut typval_T) {
     if !tv.is_null() {
         unsafe {
             ptr::write_bytes(tv, 0, 1);
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_LIST;
-        (*tv).vval.v_list = l;
-        tv_list_ref(l);
     }
 }
 
@@ -702,29 +678,6 @@ unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
             (*d).dv_refcount += 1;
         }
     }
-}
-
-#[inline]
-unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
-    if d.is_null() {
-        return false;
-    }
-    unsafe { (*d).watchers[0] != (&raw const (*d).watchers).cast_mut().cast() }
-}
-
-#[inline]
-unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
-    unsafe {
-        (*hi)
-            .hi_key
-            .byte_sub(std::mem::offset_of!(dictitem_T, di_key))
-            .cast::<dictitem_T>()
-    }
-}
-
-#[inline]
-unsafe fn script_item(id: scid_T) -> *mut scriptitem_T {
-    unsafe { *(script_items.ga_data as *mut *mut scriptitem_T).add((id - 1) as usize) }
 }
 
 #[inline]

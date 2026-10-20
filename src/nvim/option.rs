@@ -81,6 +81,8 @@ use crate::strings::strcmp as c_strcmp;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
+use crate::strings::strncmp as c_strncmp;
+#[allow(unused_imports)]
 use crate::strings::{gettext, strchr, strcmp, strncmp, strstr};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
@@ -774,11 +776,6 @@ pub unsafe fn opt_error_int(
         vim_snprintf!((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
         (*errbuf).data.cast_const()
     }
-}
-
-#[inline]
-unsafe fn c_strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe { strncmp(s1, s2, n) }
 }
 
 #[inline]

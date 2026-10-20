@@ -21,6 +21,8 @@ use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
 use crate::api::private::helpers::cbuf_as_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_init;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, arena_array, try_enter, try_leave,
 };
@@ -488,14 +490,6 @@ unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, len: usize) -> c_int 
     #[cfg(not(windows))]
     unsafe {
         strncasecmp(s1, s2, len)
-    }
-}
-
-#[inline]
-const fn error_init() -> Error {
-    Error {
-        err_type: ErrorType::kErrorTypeNone,
-        msg: ptr::null_mut(),
     }
 }
 

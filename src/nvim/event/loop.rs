@@ -165,6 +165,11 @@ pub unsafe fn loop_queues(loop_: *mut Loop) -> *mut LoopQueuesAndChildren {
 }
 
 #[inline]
+pub unsafe fn main_loop_ptr() -> *mut Loop {
+    (&raw mut crate::globals::main_loop).cast()
+}
+
+#[inline]
 pub unsafe fn main_loop_events() -> *mut MultiQueue {
     unsafe { (*loop_queues((&raw mut crate::globals::main_loop).cast())).events }
 }

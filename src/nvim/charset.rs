@@ -110,6 +110,22 @@ pub fn ascii_islower<C: AsciiInt>(c: C) -> bool {
     (b'a' as c_int..=b'z' as c_int).contains(&ch)
 }
 
+#[inline]
+pub fn ascii_iswhite_or_nul<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    ascii_iswhite(ch) || ch == 0
+}
+
+#[inline]
+pub const fn is_special(c: c_int) -> bool {
+    c < 0
+}
+
+#[inline]
+pub const fn to_special(a: c_int, b: c_int) -> c_int {
+    -((a & 0xff) | ((b & 0xff) << 8))
+}
+
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const NL: c_char = b'\n' as c_char;
@@ -192,18 +208,13 @@ const fn nr2hex(n: u32) -> u8 {
 }
 
 #[inline]
-const fn is_special(c: c_int) -> bool {
-    c < 0
-}
-
-#[inline]
-const fn k_second(c: c_int) -> c_int {
+pub const fn k_second(c: c_int) -> u8 {
     if c == K_SPECIAL {
-        KS_SPECIAL
+        KS_SPECIAL as u8
     } else if c == 0 {
-        KS_ZERO
+        KS_ZERO as u8
     } else {
-        (-c) & 0xff
+        ((-c) & 0xff) as u8
     }
 }
 
@@ -583,7 +594,7 @@ pub unsafe extern "C" fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut 
             *charbuf_ptr = b'~';
             *charbuf_ptr.add(1) = b'@';
             i = 2;
-            c = k_second(c);
+            c = c_int::from(k_second(c));
         }
 
         if c <= 0xFF && vim_isprintc(c) {

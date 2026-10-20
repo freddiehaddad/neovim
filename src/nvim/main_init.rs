@@ -15,6 +15,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_metadata_raw;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{bool_obj, int_obj};
+#[allow(unused_imports)]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
@@ -386,22 +388,6 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
         }
         let bytes = CStr::from_ptr(a).to_bytes();
         bytes.len() >= b.len() && bytes[..b.len()].eq_ignore_ascii_case(b)
-    }
-}
-
-#[inline]
-const fn bool_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn int_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
     }
 }
 

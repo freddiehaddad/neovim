@@ -43,11 +43,12 @@ use crate::message::{
 #[allow(unused_imports)]
 use crate::option::{option_was_set, reset_option_was_set, set_option_value_give_err};
 use crate::option_vars::*;
-use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::runtime::source_runtime_vim_lua;
 #[allow(unused_imports)]
 use crate::runtime::sourcing_lnum;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_name;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext, strchr, strncmp};
 #[allow(unused_imports)]
@@ -84,7 +85,6 @@ use crate::memory::{
 use crate::msgpack_rpc::packer::Integer;
 use crate::os::env::expand_T;
 use crate::os::time::os_delay;
-use crate::profile::estack_T;
 use crate::viml::parser::expressions::SyncCStrArray;
 
 type OptIndex = c_int;
@@ -399,21 +399,6 @@ unsafe fn hl_table() -> *mut HlGroup {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn sourcing_name() -> *mut c_char {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            ptr::null_mut()
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_name
-        }
-    }
 }
 
 #[inline]

@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
+use crate::charset::is_special;
+#[allow(unused_imports)]
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -1645,11 +1647,6 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
         dg_header: None,
     },
 ];
-
-#[inline]
-const fn is_special(c: c_int) -> bool {
-    c < 0
-}
 
 /// Handle digraphs after typing a character (`do_digraph`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

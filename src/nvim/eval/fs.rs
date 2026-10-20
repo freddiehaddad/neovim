@@ -17,6 +17,8 @@ use crate::api::private::helpers::find_buffer_by_handle;
 use crate::cmdexpand::{ExpandCleanup, ExpandInit, ExpandOne, globpath};
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_set_ret;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_blob_alloc_ret, tv_blob_free, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk,
     tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_item_remove,
@@ -258,15 +260,6 @@ fn s_issock(m: u64) -> bool {
 #[cfg(not(unix))]
 fn s_issock(_m: u64) -> bool {
     false
-}
-
-#[inline]
-unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_LIST;
-        (*tv).vval.v_list = l;
-        tv_list_ref(l);
-    }
 }
 
 #[inline]

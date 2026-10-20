@@ -14,6 +14,8 @@
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
 use crate::charset::ascii2cells;
+#[allow(unused_imports)]
+use crate::charset::k_second;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::callback_call;
@@ -40,6 +42,8 @@ use crate::option_vars::*;
 use crate::runtime::estack_sfile;
 #[allow(unused_imports)]
 use crate::runtime::sourcing_lnum;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_name;
 #[allow(unused_imports)]
 use crate::strings::{gettext, ngettext};
 #[allow(unused_imports)]
@@ -95,7 +99,7 @@ use crate::keycodes::{
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
     K_X2MOUSE, K_ZERO, KE_FILLER, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_SHIFT, NL,
-    TAB, get_special_key, is_special, key2termcap0, key2termcap1, keychord, termcap2key,
+    TAB, get_special_key, is_special, key2termcap1, keychord, termcap2key,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF};
 use crate::map_glyph_cache::NvimString;
@@ -115,7 +119,6 @@ use crate::os::env::home_replace_save;
 use crate::os::fs::os_fopen;
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_delay;
-use crate::profile::estack_T;
 use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
 use crate::runtime::{ESTACK_NONE, TriState, exestack};
@@ -489,17 +492,6 @@ macro_rules! swmsg {
 pub use swmsg;
 
 #[inline]
-const fn k_second(c: c_int) -> u8 {
-    if c == K_SPECIAL as c_int {
-        KS_SPECIAL
-    } else if c == NUL as c_int {
-        KS_ZERO
-    } else {
-        key2termcap0(c) as u8
-    }
-}
-
-#[inline]
 const fn k_third(c: c_int) -> u8 {
     if c == K_SPECIAL as c_int || c == NUL as c_int {
         KE_FILLER
@@ -522,17 +514,6 @@ const fn to_special(a: u8, b: u8) -> c_int {
 #[inline]
 unsafe fn have_sourcing_info() -> bool {
     unsafe { !exestack.ga_data.is_null() && exestack.ga_len > 0 }
-}
-
-#[inline]
-unsafe fn sourcing_name() -> *mut c_char {
-    unsafe {
-        if have_sourcing_info() {
-            (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_name
-        } else {
-            ptr::null_mut()
-        }
-    }
 }
 
 #[inline]

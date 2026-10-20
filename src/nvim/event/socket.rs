@@ -9,7 +9,8 @@
     clippy::missing_safety_doc
 )]
 
-use crate::globals::main_loop;
+#[allow(unused_imports)]
+use crate::event::r#loop::main_loop_ptr;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 
@@ -175,11 +176,6 @@ unsafe extern "C" {
     fn uv_listen(stream: *mut uv_stream_t, backlog: c_int, cb: uv_connection_cb) -> c_int;
     fn uv_accept(server: *mut uv_stream_t, client: *mut uv_stream_t) -> c_int;
 
-}
-
-#[inline]
-unsafe fn main_loop_ptr() -> *mut Loop {
-    (&raw mut main_loop).cast()
 }
 
 #[inline]

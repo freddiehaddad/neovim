@@ -19,3 +19,4 @@ pub mod signal;
 pub mod stdpaths;
 pub mod time;
 pub mod users;
+pub mod wasm_stubs;

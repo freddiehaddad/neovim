@@ -15,6 +15,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::int_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{dict_get_value, dict_set_var};
@@ -571,14 +573,6 @@ unsafe fn sb_concat_len(sb: *mut StringBuilder, data: *const c_char, len: usize)
         }
         ptr::copy_nonoverlapping(data, (*sb).items.add((*sb).size), len);
         (*sb).size += len;
-    }
-}
-
-#[inline]
-const fn int_obj(val: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: val },
     }
 }
 

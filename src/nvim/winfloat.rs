@@ -15,6 +15,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_obj;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_init;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, find_buffer_by_handle, find_window_by_handle};
 #[allow(unused_imports)]
 use crate::api::vim::nvim_create_buf;
@@ -154,14 +156,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
     hide: false,
     _cmdline_offset: c_int::MAX,
 };
-
-#[inline]
-const fn error_init() -> Error {
-    Error {
-        err_type: ErrorType::kErrorTypeNone,
-        msg: ptr::null_mut(),
-    }
-}
 
 #[inline]
 const fn error_set(err: &Error) -> bool {

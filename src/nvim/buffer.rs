@@ -19,6 +19,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::tv_dict_is_watched;
+#[allow(unused_imports)]
 use crate::arglist::check_arg_idx;
 #[allow(unused_imports)]
 use crate::buffer_updates::buf_free_callbacks;
@@ -462,17 +464,6 @@ pub unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
 #[inline]
 pub unsafe fn modifiable(buf: *const buf_T) -> bool {
     unsafe { (*buf).b_p_ma != 0 && (*buf).b_ro_locked == 0 }
-}
-
-#[inline]
-unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
-    unsafe {
-        !d.is_null()
-            && !ptr::eq(
-                (*d).watchers[0],
-                (&raw const (*d).watchers).cast_mut().cast::<c_void>(),
-            )
-    }
 }
 
 #[inline]

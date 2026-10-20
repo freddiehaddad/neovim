@@ -13,6 +13,8 @@
 use crate::api::private::helpers::api_metadata;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{bool_obj, int_obj};
 #[cfg(not(windows))]
 #[allow(unused_imports)]
 use crate::fileio::dup;
@@ -106,22 +108,6 @@ unsafe extern "C" {
 }
 
 pub use crate::fileio::FILE;
-
-#[inline]
-const fn int_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn bool_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
 
 #[inline]
 unsafe fn cstr_obj(s: *const c_char) -> Object {

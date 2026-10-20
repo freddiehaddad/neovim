@@ -14,6 +14,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_init;
+#[allow(unused_imports)]
 use crate::api::private::helpers::error_set;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
@@ -178,9 +180,7 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::ui::{remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others};
 use crate::api::win_config::bufref_T;
@@ -5038,14 +5038,6 @@ unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
                 size: strlen(s),
             }
         }
-    }
-}
-
-#[inline]
-const fn error_init() -> Error {
-    Error {
-        err_type: ErrorType::kErrorTypeNone,
-        msg: ptr::null_mut(),
     }
 }
 

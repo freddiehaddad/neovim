@@ -19,6 +19,8 @@ use crate::buffer::modifiable;
 #[allow(unused_imports)]
 use crate::change::{changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str};
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite_or_nul;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::cursor::lt;
@@ -173,11 +175,6 @@ static mut PREV_FLP: *mut c_char = ptr::null_mut();
 #[inline]
 const fn ascii_iswhite_cint(c: c_int) -> bool {
     c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-fn ascii_iswhite_or_nul(c: c_char) -> bool {
-    ascii_iswhite(c) || c == NUL
 }
 
 #[inline]

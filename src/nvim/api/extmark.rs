@@ -46,6 +46,8 @@ use crate::grid::schar_high;
 #[allow(unused_imports)]
 use crate::marktree::mt_inspect;
 #[allow(unused_imports)]
+use crate::marktree::{mt_invalid, mt_paired, mt_right};
+#[allow(unused_imports)]
 use crate::mbyte::mb_string2cells;
 #[allow(unused_imports)]
 use crate::mbyte::utfc_ptr2schar;
@@ -79,8 +81,7 @@ use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL,
     MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE,
-    MT_FLAG_INVALID, MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MT_FLAG_PAIRED, MT_FLAG_RIGHT_GRAVITY,
-    MTKey, MTPair, MarkTreeIter,
+    MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MTKey, MTPair, MarkTreeIter,
 };
 use crate::memory::{Arena, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
@@ -490,16 +491,6 @@ pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
 }
 
 #[inline]
-const fn mt_right(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_RIGHT_GRAVITY) != 0
-}
-
-#[inline]
-const fn mt_paired(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_PAIRED) != 0
-}
-
-#[inline]
 const fn mt_no_undo(key: MTKey) -> bool {
     (key.flags & MT_FLAG_NO_UNDO) != 0
 }
@@ -507,11 +498,6 @@ const fn mt_no_undo(key: MTKey) -> bool {
 #[inline]
 const fn mt_invalidate(key: MTKey) -> bool {
     (key.flags & MT_FLAG_INVALIDATE) != 0
-}
-
-#[inline]
-const fn mt_invalid(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_INVALID) != 0
 }
 
 #[inline]
@@ -1950,6 +1936,7 @@ pub unsafe extern "C" fn nvim__ns_get(
 mod tests {
     use super::*;
     use crate::marktree::MTPos;
+    use crate::marktree::{MT_FLAG_PAIRED, MT_FLAG_RIGHT_GRAVITY};
 
     #[test]
     fn mt_key_flag_predicates() {

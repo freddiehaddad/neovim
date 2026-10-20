@@ -573,12 +573,6 @@ pub fn build(b: *std.Build) !void {
     };
     nvim_mod.addCSourceFiles(.{ .files = src_paths, .flags = &flags });
 
-    if (is_wasm) {
-        nvim_mod.addCSourceFiles(.{ .files = &.{
-            "src/wasm/wasm_stubs.c",
-        }, .flags = &flags });
-    }
-
     if (is_windows) {
         nvim_mod.addWin32ResourceFile(.{ .file = b.path("src/nvim/os/nvim.rc") });
     }

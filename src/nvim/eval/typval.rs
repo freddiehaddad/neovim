@@ -296,13 +296,28 @@ unsafe fn nlua_clear_ref(r: &mut LuaRef) {
 }
 
 #[inline]
-pub(crate) unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
+pub unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
     unsafe {
         (*hi)
             .hi_key
             .sub(offset_of!(dictitem_T, di_key))
             .cast::<dictitem_T>()
     }
+}
+
+#[inline]
+pub unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
+    unsafe { tv_list_set_ret_inline(tv, l) }
+}
+
+#[inline]
+pub unsafe fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
+    unsafe { tv_blob_get_inline(b, idx) }
+}
+
+#[inline]
+pub const fn tv_is_func(tv: typval_T) -> bool {
+    tv_is_func_inline(tv)
 }
 
 #[inline]

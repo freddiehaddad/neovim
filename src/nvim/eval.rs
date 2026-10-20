@@ -22,9 +22,15 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::tv_dict_is_watched;
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite_or_nul;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 #[allow(unused_imports)]
 use crate::charset::{ascii_islower, ascii_isupper};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_get, tv_dict_hi2di, tv_is_func, tv_list_set_ret};
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_blob_len, tv_list_ref, tv_list_set_lock};
 #[allow(unused_imports)]
@@ -448,22 +454,12 @@ pub struct caller_scope {
 }
 
 #[inline]
-fn ascii_iswhite_or_nul(c: c_char) -> bool {
-    ascii_iswhite(c) || c == NUL
-}
-
-#[inline]
 const fn tv_initial_value() -> typval_T {
     typval_T {
         v_type: VarType::VAR_UNKNOWN,
         v_lock: VAR_UNLOCKED,
         vval: TypvalVval { v_number: 0 },
     }
-}
-
-#[inline]
-const fn tv_is_func(tv: typval_T) -> bool {
-    matches!(tv.v_type, VarType::VAR_FUNC | VarType::VAR_PARTIAL)
 }
 
 #[inline]
@@ -488,11 +484,6 @@ unsafe fn tv_set_partial(tv: *mut typval_T, pt: *mut partial_T) {
 }
 
 #[inline]
-unsafe fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
-    unsafe { *(*b).bv_ga.ga_data.cast::<u8>().add(idx as usize) }
-}
-
-#[inline]
 unsafe fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
     unsafe {
         (*tv).v_type = VarType::VAR_BLOB;
@@ -510,29 +501,6 @@ unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
         (*tv).vval.v_dict = d;
         if !d.is_null() {
             (*d).dv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
-    if d.is_null() {
-        false
-    } else {
-        unsafe {
-            let q = dict_watchers_queue(d);
-            (*q).next != q
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_LIST;
-        (*tv).vval.v_list = l;
-        if !l.is_null() {
-            (*l).lv_refcount += 1;
         }
     }
 }
@@ -560,16 +528,6 @@ unsafe fn tv_list_item_tv(li: *mut listitem_T) -> *mut typval_T {
 #[inline]
 unsafe fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut listitem_T {
     unsafe { (*li).li_next }
-}
-
-#[inline]
-unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
-    unsafe {
-        (*hi)
-            .hi_key
-            .sub(offset_of!(dictitem_T, di_key))
-            .cast::<dictitem_T>()
-    }
 }
 
 #[inline]

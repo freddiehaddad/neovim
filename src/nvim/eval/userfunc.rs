@@ -26,6 +26,8 @@ use crate::eval::funcs::{
     call_internal_func, call_internal_method, check_internal_func, find_internal_func,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::tv_is_func;
+#[allow(unused_imports)]
 use crate::eval::typval::tv_list_set_lock;
 #[allow(unused_imports)]
 use crate::eval::typval::value_check_lock;
@@ -72,6 +74,8 @@ use crate::regexp::vim_regexec;
 use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::sourcing_lnum;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_name;
 #[allow(unused_imports)]
 use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
@@ -349,17 +353,6 @@ unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
 }
 
 #[inline]
-unsafe fn sourcing_name() -> *mut c_char {
-    unsafe {
-        (*exestack
-            .ga_data
-            .cast::<estack_T>()
-            .add((exestack.ga_len - 1) as usize))
-        .es_name
-    }
-}
-
-#[inline]
 unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     unsafe {
         (*exestack
@@ -368,11 +361,6 @@ unsafe fn set_sourcing_lnum(lnum: linenr_T) {
             .add((exestack.ga_len - 1) as usize))
         .es_lnum = lnum;
     }
-}
-
-#[inline]
-const fn tv_is_func(tv: typval_T) -> bool {
-    matches!(tv.v_type, VarType::VAR_FUNC | VarType::VAR_PARTIAL)
 }
 
 #[inline]

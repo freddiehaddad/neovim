@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::tv_dict_is_watched;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, dict_check_writable, try_enter, try_leave};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -158,15 +160,6 @@ unsafe fn luaopen_lpeg(lstate: *mut lua_State) -> c_int {
 #[cfg(not(test))]
 unsafe fn lua_cjson_new(lstate: *mut lua_State) -> c_int {
     unsafe { crate::cjson::lua_cjson::lua_cjson_new(lstate.cast()) }
-}
-
-#[inline]
-unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
-    if d.is_null() {
-        false
-    } else {
-        unsafe { !ptr::eq((*d).watchers[0], (&raw const (*d).watchers).cast()) }
-    }
 }
 
 #[inline]

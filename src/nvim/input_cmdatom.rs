@@ -27,6 +27,8 @@ use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
 use crate::buffer::set_bufref;
 #[allow(unused_imports)]
+use crate::charset::is_special;
+#[allow(unused_imports)]
 use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
@@ -410,11 +412,6 @@ static mut typed: TypedState = TypedState {
     keys: KVec::new(),
     map_start: 0,
 };
-
-#[inline]
-const fn is_special(c: c_int) -> bool {
-    c < 0
-}
 
 #[inline]
 unsafe fn sb_concat(sb: &mut StringBuilder, s: *const c_char) {

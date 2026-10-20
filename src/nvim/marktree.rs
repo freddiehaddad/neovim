@@ -237,28 +237,33 @@ const fn mt_lookup_key(key: MTKey) -> u64 {
 }
 
 #[inline]
-const fn mt_paired(key: MTKey) -> bool {
+pub const fn mt_paired(key: MTKey) -> bool {
     (key.flags & MT_FLAG_PAIRED) != 0
 }
 
 #[inline]
-const fn mt_end(key: MTKey) -> bool {
+pub const fn mt_end(key: MTKey) -> bool {
     (key.flags & MT_FLAG_END) != 0
 }
 
 #[inline]
-const fn mt_start(key: MTKey) -> bool {
+pub const fn mt_start(key: MTKey) -> bool {
     mt_paired(key) && !mt_end(key)
 }
 
 #[inline]
-const fn mt_right(key: MTKey) -> bool {
+pub const fn mt_right(key: MTKey) -> bool {
     (key.flags & MT_FLAG_RIGHT_GRAVITY) != 0
 }
 
 #[inline]
-const fn mt_invalid(key: MTKey) -> bool {
+pub const fn mt_invalid(key: MTKey) -> bool {
     (key.flags & MT_FLAG_INVALID) != 0
+}
+
+#[inline]
+pub const fn mt_decor(key: MTKey) -> bool {
+    (key.flags & MT_FLAG_DECOR_EXT) != 0
 }
 
 #[inline]

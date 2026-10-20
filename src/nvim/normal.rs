@@ -23,6 +23,8 @@ use crate::buffer::modifiable;
 #[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_getfile, fileinfo};
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite_or_nul;
+#[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
@@ -483,11 +485,6 @@ static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {
     unsafe { gettext(s) }
-}
-
-#[inline]
-fn ascii_iswhite_or_nul(c: c_int) -> bool {
-    ascii_iswhite(c) || c == NUL as c_int
 }
 
 #[inline]

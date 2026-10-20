@@ -16,7 +16,8 @@ use crate::api::command::{cmd_addr_T, cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
 #[allow(unused_imports)]
 use crate::api::private::helpers::boolean_obj;
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+#[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_obj;
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::autocmd::apply_autocmds;
 #[allow(unused_imports)]
@@ -70,7 +71,6 @@ use crate::fold::{foldmethodIsDiff, foldmethodIsManual};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::linematch::{linematch_nbuffers, mmfile_t};
-use crate::map_glyph_cache::NvimString;
 use crate::mark::{mark_adjust, setpcmark};
 use crate::mbyte::{
     mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold, utf_head_off,
@@ -289,18 +289,6 @@ static mut f_diff_hlid_prev_diff_flags: c_int = 0;
 static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
-#[inline]
-const fn static_cstr_as_obj(s: &'static std::ffi::CStr) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData {
-            string: NvimString {
-                data: s.as_ptr().cast_mut(),
-                size: s.count_bytes(),
-            },
-        },
-    }
-}
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
     (v.is_set__dip_ & (1u64 << idx)) != 0

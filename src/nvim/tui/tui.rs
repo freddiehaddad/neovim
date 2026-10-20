@@ -16,6 +16,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::static_cstr_as_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
@@ -404,11 +406,6 @@ unsafe fn tui_winch_handle(tui: *mut TUIData) -> *mut SignalWatcher {
 #[inline]
 unsafe fn tui_startup_delay_timer(tui: *mut TUIData) -> *mut uv_timer_t {
     unsafe { (*tui).startup_delay_timer.as_mut_ptr().cast::<uv_timer_t>() }
-}
-
-#[inline]
-fn static_cstr_as_obj(s: &'static CStr) -> Object {
-    string_obj(static_cstr_as_string(s))
 }
 
 #[inline]

@@ -72,6 +72,8 @@ use crate::eval::typval::{
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_copy, tv_list_flatten,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_get, tv_is_func, tv_list_set_ret};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_blob_len, tv_list_ref, tv_list_set_lock};
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_blob_set_range, tv_dict_extend, tv_list_find_nr};
@@ -625,15 +627,6 @@ fn tv_initial_value() -> typval_T {
 }
 
 #[inline]
-unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_LIST;
-        (*tv).vval.v_list = l;
-        tv_list_ref(l);
-    }
-}
-
-#[inline]
 unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
     if l.is_null() {
         VAR_FIXED
@@ -673,11 +666,6 @@ unsafe fn tv_dict_len(d: *const dict_T) -> i64 {
 }
 
 #[inline]
-unsafe fn tv_blob_get(b: *const blob_T, idx: c_int) -> u8 {
-    unsafe { *(*b).bv_ga.ga_data.cast::<u8>().add(idx as usize) }
-}
-
-#[inline]
 unsafe fn tv_get_float_chk(tv: *const typval_T, ret_f: *mut float_T) -> bool {
     unsafe {
         if (*tv).v_type == VarType::VAR_FLOAT {
@@ -702,11 +690,6 @@ unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
         let ph = proc_header(proc_);
         (*ph).status >= 0 || (*ph).stopped_time != 0
     }
-}
-
-#[inline]
-fn tv_is_func(tv: typval_T) -> bool {
-    tv.v_type == VarType::VAR_FUNC || tv.v_type == VarType::VAR_PARTIAL
 }
 
 #[inline]

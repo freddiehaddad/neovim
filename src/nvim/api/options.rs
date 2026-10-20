@@ -17,6 +17,8 @@ use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::error_set;
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_object, api_set_sctx, copy_object, find_buffer_by_handle, find_tab_by_handle,
     find_window_by_handle, try_enter, try_leave,
@@ -173,20 +175,6 @@ unsafe fn strequal(a: *const c_char, b: &str) -> bool {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-const fn static_cstr_as_obj(s: &'static CStr) -> Object {
-    let bytes = s.to_bytes();
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData {
-            string: NvimString {
-                data: bytes.as_ptr() as *mut c_char,
-                size: bytes.len(),
-            },
-        },
-    }
 }
 
 unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
