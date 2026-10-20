@@ -22,15 +22,10 @@ endif()
 # Point CMake at any custom modules we may ship
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-include(CheckCCompilerFlag)
-include(CheckCSourceCompiles)
-include(CheckLibraryExists)
 include(ExternalProject)
-include(FindPackageHandleStandardArgs)
 include(GNUInstallDirs)
 
 include(Deps)
-include(Find)
 include(InstallHelpers)
 include(PreventInTreeBuilds)
 include(Util)
@@ -59,10 +54,6 @@ file(GLOB DOCFILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/runtime/doc/*.txt)
 
 if(NOT CI_BUILD)
   set(CMAKE_INSTALL_MESSAGE NEVER)
-endif()
-
-if(${CMAKE_VERSION} VERSION_LESS 3.20)
-  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL 3.26)
@@ -118,19 +109,6 @@ if(APPLE)
   message(STATUS "Using deployment target ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 endif()
 
-if(WIN32 OR APPLE)
-  # Handle case-insensitive filenames for Windows and Mac.
-  set(CASE_INSENSITIVE_FILENAME TRUE)
-endif()
-
-if (MINGW)
-  # Disable LTO by default as it may not compile
-  # See https://github.com/Alexpux/MINGW-packages/issues/3516
-  # and https://github.com/neovim/neovim/pull/8654#issuecomment-402316672
-  option(ENABLE_LTO "enable link time optimization" OFF)
-else()
-  option(ENABLE_LTO "enable link time optimization" ON)
-endif()
 option(ENABLE_LIBINTL "enable libintl" ON)
 option(ENABLE_UNIBILIUM "enable unibilium" ON)
 option(ENABLE_WASMTIME "enable wasmtime" OFF)
@@ -138,12 +116,6 @@ option(ENABLE_WASMTIME "enable wasmtime" OFF)
 message(STATUS "CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
 
 set_default_buildtype(Debug)
-get_property(isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-if(NOT isMultiConfig)
-  # Unlike build dependencies in cmake.deps, we want dev dependencies such as
-  # Uncrustify to always be built with Release.
-  list(APPEND DEPS_CMAKE_ARGS -D CMAKE_BUILD_TYPE=Release)
-endif()
 
 # If not in a git repo (e.g., a tarball) these tokens define the complete
 # version string, else they are combined with the result of `git describe`.
@@ -156,13 +128,6 @@ set(NVIM_VERSION_PRERELEASE "-dev") # for package maintainers
 set(NVIM_API_LEVEL 15)        # Bump this after any API/stdlib change.
 set(NVIM_API_LEVEL_COMPAT 0)  # Adjust this after a _breaking_ API change.
 set(NVIM_API_PRERELEASE true)
-
-# We _want_ assertions in RelWithDebInfo build-type.
-if(CMAKE_C_FLAGS_RELWITHDEBINFO MATCHES DNDEBUG)
-  string(REPLACE "-DNDEBUG" "-DRELDEBUG" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-  string(REPLACE "/DNDEBUG" "/DRELDEBUG" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-  string(REPLACE "  " " " CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}") # Remove duplicate whitespace
-endif()
 
 option(ENABLE_ASAN_UBSAN "Enable Clang address & undefined behavior sanitizer for nvim binary." OFF)
 option(ENABLE_MSAN "Enable Clang memory sanitizer for nvim binary." OFF)
@@ -195,19 +160,6 @@ if(NOT LUA_PRG)
   message(FATAL_ERROR "Failed to find a Lua 5.1-compatible interpreter")
 endif()
 message(STATUS "Using Lua interpreter: ${LUA_PRG}")
-
-# Some of the code generation still relies on stable table ordering in order to
-# produce reproducible output - specifically the msgpack'ed data in
-# funcs_metadata.generated.h and ui_events_metadata.generated.h. This should
-# ideally be fixed in the generators, but until then as a workaround you may provide
-# a specific lua implementation that provides the needed stability by setting LUA_GEN_PRG:
-if(NOT LUA_GEN_PRG)
-  set(LUA_GEN_PRG "${LUA_PRG}" CACHE FILEPATH "Path to the lua used for code generation.")
-endif()
-mark_as_advanced(LUA_GEN_PRG)
-message(STATUS "Using Lua interpreter for code generation: ${LUA_GEN_PRG}")
-
-option(COMPILE_LUA "Pre-compile Lua sources into bytecode (for sources that are included in the binary)" ON)
 
 # Lint
 option(CI_LINT "Abort if lint programs not found" OFF)

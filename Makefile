@@ -101,9 +101,6 @@ SINGLE_MAKE = export MAKEFLAGS= ; $(MAKE)
 nvim: build/.ran-cmake deps
 	$(CMAKE) --build build
 
-libnvim: build/.ran-cmake deps
-	$(CMAKE) --build build --target libnvim
-
 cmake:
 	$(TOUCH) CMakeLists.txt
 	$(MAKE) build/.ran-cmake
@@ -149,7 +146,7 @@ functionaltest-lua: | nvim
 FORMAT=formatrust formatlua formatquery format
 LINT=lintlua lintsh lintrust lintcommit lintdoc lintdocurls lint emmylua-check lintquery linterrcodes
 TEST=functionaltest unittest
-generated-sources benchmark $(FORMAT) $(LINT) $(TEST) doc: | build/.ran-cmake
+benchmark $(FORMAT) $(LINT) $(TEST) doc: | build/.ran-cmake
 	$(CMAKE) --build build --target $@
 
 test: $(TEST)
@@ -177,4 +174,4 @@ appimage:
 appimage-%:
 	bash scripts/genappimage.sh $*
 
-.PHONY: test clean distclean nvim libnvim cmake deps install appimage checkprefix benchmark $(FORMAT) $(LINT) $(TEST)
+.PHONY: test clean distclean nvim cmake deps install appimage checkprefix benchmark $(FORMAT) $(LINT) $(TEST)
