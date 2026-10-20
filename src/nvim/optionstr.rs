@@ -14,7 +14,8 @@ use crate::api::command::regmatch_T;
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{WinConfig, fcs_chars_T, lcs_chars_T, lpos_T, pos_T, win_T};
+use crate::api::tabpage::{fcs_chars_T, lcs_chars_T, pos_T, win_T};
+use crate::api::win_config::WIN_CONFIG_INIT;
 use crate::api::win_config::parse_winborder;
 use crate::autocmd::{check_ei, get_event_name_no_group};
 use crate::buffer::{MAXLNUM, STL_IN_ICON, STL_IN_TITLE, kUIMessages, modifiable};
@@ -3674,48 +3675,6 @@ pub unsafe extern "C" fn did_set_wildmode(args: *mut optset_T) -> *const c_char 
 pub unsafe extern "C" fn did_set_winbar(args: *mut optset_T) -> *const c_char {
     unsafe { did_set_statustabline_rulerformat(args, false, false) }
 }
-
-const WIN_CONFIG_INIT: WinConfig = WinConfig {
-    window: 0,
-    bufpos: lpos_T { lnum: -1, col: 0 },
-    height: 0,
-    width: 0,
-    row: 0.0,
-    col: 0.0,
-    anchor: 0,
-    relative: 0,
-    external: false,
-    focusable: true,
-    mouse: true,
-    split: 0,
-    zindex: 50,
-    style: 0,
-    border: false,
-    shadow: false,
-    border_chars: [[0; 32]; 8],
-    border_hl_ids: [0; 8],
-    border_attr: [0; 8],
-    title: false,
-    title_pos: 0,
-    title_chunks: crate::api::deprecated::VirtText {
-        items: ptr::null_mut(),
-        size: 0,
-        capacity: 0,
-    },
-    title_width: 0,
-    footer: false,
-    footer_pos: 0,
-    footer_chunks: crate::api::deprecated::VirtText {
-        items: ptr::null_mut(),
-        size: 0,
-        capacity: 0,
-    },
-    footer_width: 0,
-    noautocmd: false,
-    fixed: false,
-    hide: false,
-    _cmdline_offset: 0,
-};
 
 /// Validate the 'winborder' or 'pumborder' option.
 #[cfg_attr(not(test), unsafe(no_mangle))]

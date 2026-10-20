@@ -28,12 +28,20 @@ use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::{strequal, xfree};
 #[cfg(not(test))]
+use crate::xdiff::XDF_HISTOGRAM_DIFF;
+#[cfg(not(test))]
+use crate::xdiff::XDF_IGNORE_CR_AT_EOL;
+#[cfg(not(test))]
+use crate::xdiff::XDF_INDENT_HEURISTIC;
+#[cfg(not(test))]
+use crate::xdiff::XDF_NEED_MINIMAL;
+#[cfg(not(test))]
+use crate::xdiff::XDF_PATIENCE_DIFF;
+#[cfg(not(test))]
 use crate::xdiff::xdiffi::xdl_diff;
 #[cfg(not(test))]
 use crate::xdiff::{mmbuffer_t, xdemitcb_t, xdemitconf_t, xpparam_t};
 use std::ffi::c_int;
-#[cfg(not(test))]
-use std::ffi::c_ulong;
 #[cfg(not(test))]
 use std::ffi::{c_char, c_long, c_void};
 
@@ -41,17 +49,6 @@ use std::ffi::{c_char, c_long, c_void};
 const COMPARED_BUFFER0: c_int = 1 << 0;
 #[cfg(not(test))]
 const COMPARED_BUFFER1: c_int = 1 << 1;
-
-#[cfg(not(test))]
-const XDF_NEED_MINIMAL: c_ulong = 1 << 0;
-#[cfg(not(test))]
-const XDF_IGNORE_CR_AT_EOL: c_ulong = 1 << 4;
-#[cfg(not(test))]
-const XDF_PATIENCE_DIFF: c_ulong = 1 << 14;
-#[cfg(not(test))]
-const XDF_HISTOGRAM_DIFF: c_ulong = 1 << 15;
-#[cfg(not(test))]
-const XDF_INDENT_HEURISTIC: c_ulong = 1 << 23;
 
 #[cfg(not(test))]
 const KEYSET_OPTIDX_CTXLEN: u64 = 1;

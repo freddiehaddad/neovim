@@ -118,6 +118,7 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
+use crate::os::fs::CASE_INSENSITIVE_FILENAME;
 use crate::os::fs::{os_file_is_writable, os_file_mkdir, os_isdir, os_path_exists, os_remove};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::shell::call_shell;
@@ -222,8 +223,6 @@ pub const ECMD_ONE: linenr_T = 1;
 pub const VGR_GLOBAL: c_int = 1;
 pub const VGR_NOJUMP: c_int = 2;
 pub const VGR_FUZZY: c_int = 4;
-
-const CASE_INSENSITIVE_FILENAME: bool = cfg!(any(target_os = "windows", target_os = "macos"));
 
 const E_NON_NUMERIC_ARGUMENT_TO_Z: &CStr = c"E144: Non-numeric argument to :z";
 

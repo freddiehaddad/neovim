@@ -31,6 +31,8 @@ use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
     BUF_DIFF_FILTER, WILD_BUFLASTUSED, WILD_HOME_REPLACE, cmdidx_T, cmdline_fuzzy_complete, exarg_T,
 };
+use crate::context::INIT_FMARK;
+use crate::context::INIT_FMARKV;
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor_col, check_cursor_lnum, colnr_T, linenr_T};
 use crate::diff::{diff_buf_add, diff_buf_delete, diff_mode_buf, diffopt_hiddenoff};
@@ -38,7 +40,7 @@ use crate::digraph::{keymap_ga_clear, keymap_init};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawing, status_redraw_all};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{ChangedtickDictItem, FileID, buf_T, fmark_T, fmarkv_T, synblock_T};
+use crate::eval::deprecated::{ChangedtickDictItem, FileID, buf_T, fmark_T, synblock_T};
 use crate::eval::typval::{
     callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_copy,
     tv_dict_watcher_notify,
@@ -96,6 +98,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::{UIExtension, clear_string_option};
 use crate::os::env::{home_replace, home_replace_save};
+use crate::os::fs::CASE_INSENSITIVE_FILENAME;
 #[cfg(unix)]
 use crate::os::fs::os_getperm;
 #[cfg(all(not(test), windows))]
@@ -237,25 +240,6 @@ const kOptTitlestring: OptIndex = 331;
 
 pub(crate) const SID_MODELINE: c_int = -1;
 pub(crate) const OPT_MODELINE: c_int = 0x04;
-
-const CASE_INSENSITIVE_FILENAME: bool = cfg!(any(target_os = "windows", target_os = "macos"));
-
-const INIT_FMARKV: fmarkv_T = fmarkv_T {
-    topline_offset: MAXLNUM,
-    skipcol: 0,
-};
-
-const INIT_FMARK: fmark_T = fmark_T {
-    mark: pos_T {
-        lnum: 0,
-        col: 0,
-        coladd: 0,
-    },
-    fnum: 0,
-    timestamp: 0,
-    view: INIT_FMARKV,
-    additional_data: ptr::null_mut(),
-};
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{FORWARD, NL, NUL};

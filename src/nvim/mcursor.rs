@@ -15,13 +15,15 @@ use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
     api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
 };
-use crate::api::private::validate::{Array, Error, ErrorType};
+use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::pos_T;
 use crate::api::vim::{REMAP_NONE, kCtxRegs, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{MAXLNUM, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
+use crate::context::CONTEXT_INIT;
+use crate::context::INIT_POS;
 use crate::context::{
     Context, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor, kCtxMarks, kCtxMergeReg,
     kCtxVisual,
@@ -31,7 +33,7 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
+use crate::eval::deprecated::{buf_T, visualinfo_T};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
 use crate::ex_docmd::{
@@ -107,63 +109,6 @@ const ESC: c_char = 27;
 pub(crate) const kOptFollow: c_int = 114;
 
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
-
-const INIT_POS: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
-
-const INIT_FMARK: fmark_T = fmark_T {
-    mark: INIT_POS,
-    fnum: 0,
-    timestamp: 0,
-    view: fmarkv_T {
-        topline_offset: MAXLNUM,
-        skipcol: 0,
-    },
-    additional_data: ptr::null_mut(),
-};
-
-const CONTEXT_INIT: Context = Context {
-    pos: INIT_POS,
-    mark: 0,
-    curswant: -1,
-    visual_mode_eval: 0,
-    visual: visualinfo_T {
-        vi_start: INIT_POS,
-        vi_end: INIT_POS,
-        vi_mode: 0,
-        vi_curswant: 0,
-    },
-    op_start: INIT_POS,
-    op_end: INIT_POS,
-    last_change: INIT_FMARK,
-    last_insert: INIT_FMARK,
-    pos_marks: [0; 6],
-    buf: 0,
-    regs: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    jumps: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    bufs: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    gvars: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    funcs: Array {
-        items: ptr::null_mut(),
-        size: 0,
-        capacity: 0,
-    },
-};
 
 use crate::api::command::CMOD_KEEPJUMPS;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};

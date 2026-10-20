@@ -9,8 +9,9 @@
 )]
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, buf_collect_lines};
+use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::{arena_array, array_obj, boolean_obj, buffer_obj, integer_obj};
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object, ObjectType};
 use crate::buffer::buf_get_changedtick;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::globals::*;
@@ -34,11 +35,6 @@ pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::lua::executor::LuaRetMode;
 
 const LOG_ERROR: c_int = 3;
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 #[inline]
 pub unsafe fn luaret_truthy(res: Object) -> bool {

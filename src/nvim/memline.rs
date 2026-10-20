@@ -58,6 +58,7 @@ use crate::message::{
 use crate::option::{copy_option_part, get_fileformat, set_fileformat, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_hostname, os_get_pid};
+use crate::os::fs::O_RDWR;
 use crate::os::fs::{
     os_fileinfo, os_fileinfo_inode, os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_isdir,
     os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_cloexec,
@@ -135,8 +136,6 @@ const MLCS_MINL: c_int = 400;
 
 const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
 pub(crate) const MFS_FLUSH: c_int = 4;
-
-const O_RDWR: c_int = 2;
 
 const BF_RECOVERED: c_int = 0x01;
 

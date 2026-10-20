@@ -13,6 +13,7 @@ use crate::api::deprecated::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText,
     VirtTextPos, kVPosEndOfLine,
 };
+use crate::api::extmark::DECOR_SIGN_HIGHLIGHT_INIT;
 use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
     DecorState, colnr_T, kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign,
@@ -42,7 +43,7 @@ use crate::highlight_group::{syn_id2attr, syn_id2name};
 use crate::indent::tabstop_padding;
 use crate::kvec::KVec;
 use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorHighlightInline, DecorInlineData,
+    DECOR_HIGHLIGHT_INLINE_INIT, DecorHighlightInline, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
     MTKey, MTPair, MarkTreeIter, kMTMetaConcealLines, kMTMetaCount, kMTMetaLines, kMTMetaSignText,
     marktree_get_altpos, marktree_itr_current, marktree_itr_get, marktree_itr_get_filter,
@@ -84,20 +85,6 @@ static CONCEAL_FILTER: [u32; kMTMetaCount] = [0, 0, 0, 0, kMTFilterSelect];
 static SIGN_FILTER: [u32; kMTMetaCount] = [0, 0, kMTFilterSelect, kMTFilterSelect, 0];
 static SIGNTEXT_FILTER: [u32; kMTMetaCount] = [0, 0, 0, kMTFilterSelect, 0];
 static LINES_FILTER: [u32; kMTMetaCount] = [0, kMTFilterSelect, 0, 0, 0];
-
-const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
-    flags: 0,
-    priority: DECOR_PRIORITY_BASE,
-    hl_id: 0,
-    text: [0, 0],
-    sign_name: ptr::null_mut(),
-    sign_add_id: 0,
-    number_hl_id: 0,
-    line_hl_id: 0,
-    cursorline_hl_id: 0,
-    next: DECOR_ID_INVALID,
-    url: ptr::null(),
-};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

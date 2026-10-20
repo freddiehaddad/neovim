@@ -11,6 +11,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::with_script_context;
@@ -135,11 +136,6 @@ pub struct KeyDict_option {
     pub operation: NvimString,
     pub dry_run: Boolean,
 }
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 #[inline]
 unsafe fn strequal(a: *const c_char, b: &str) -> bool {

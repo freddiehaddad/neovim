@@ -18,6 +18,7 @@ use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
 };
+use crate::context::INIT_FMARKV;
 use crate::cursor::{
     check_cursor_lnum, check_visual_pos, coladvance_force, get_cursor_line_len,
     get_cursor_line_ptr, get_cursor_pos_ptr, getviscol,
@@ -125,11 +126,6 @@ pub(crate) const kCpoListwm: c_int = b'L' as c_int;
 const kFoNoOpenComs: c_int = b'/' as c_int;
 
 pub(crate) const HLF_W: c_int = 26;
-
-const INIT_FMARKV: fmarkv_T = fmarkv_T {
-    topline_offset: MAXLNUM,
-    skipcol: 0,
-};
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

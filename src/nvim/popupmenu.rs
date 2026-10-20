@@ -10,14 +10,15 @@
 
 use crate::api::buffer::{NUL, nvim_buf_set_lines};
 use crate::api::command::exarg_T;
-use crate::api::deprecated::{OPT_LOCAL, VirtText};
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,
     cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
-use crate::api::tabpage::{WinConfig, lpos_T, win_T};
-use crate::api::win_config::{kUIMultigrid, kZIndexFloatDefault, parse_winborder};
+use crate::api::tabpage::win_T;
+use crate::api::win_config::WIN_CONFIG_INIT;
+use crate::api::win_config::{kUIMultigrid, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
 use crate::charset::{transstr, vim_strsize};
@@ -130,48 +131,6 @@ const kZIndexPopupMenu: c_int = 100;
 const kZIndexCmdlinePopupMenu: c_int = 250;
 
 const kOptCotFlagPreview: c_uint = 0x800;
-
-const WIN_CONFIG_INIT: WinConfig = WinConfig {
-    window: 0,
-    bufpos: lpos_T { lnum: -1, col: 0 },
-    height: 0,
-    width: 0,
-    row: 0.0,
-    col: 0.0,
-    anchor: 0,
-    relative: 0,
-    external: false,
-    focusable: true,
-    mouse: true,
-    split: 0,
-    zindex: kZIndexFloatDefault,
-    style: 0,
-    border: false,
-    shadow: false,
-    title: false,
-    footer: false,
-    border_chars: [[0; 32]; 8],
-    border_hl_ids: [0; 8],
-    border_attr: [0; 8],
-    title_chunks: VirtText {
-        items: ptr::null_mut(),
-        size: 0,
-        capacity: 0,
-    },
-    title_pos: 0,
-    title_width: 0,
-    footer_chunks: VirtText {
-        items: ptr::null_mut(),
-        size: 0,
-        capacity: 0,
-    },
-    footer_pos: 0,
-    footer_width: 0,
-    noautocmd: false,
-    fixed: false,
-    hide: false,
-    _cmdline_offset: 0,
-};
 
 static mut PUM_ARRAY: *mut pumitem_T = ptr::null_mut();
 static mut PUM_SIZE: c_int = 0;

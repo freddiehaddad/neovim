@@ -17,17 +17,18 @@ use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, Obje
 use crate::api::tabpage::{pos_T, xfmark_T};
 use crate::arglist::alist_T;
 use crate::buffer::{
-    BLN_LISTED, JUMPLISTSIZE, MAXLNUM, NMARKS, bt_quickfix, bt_terminal, buflist_findnr,
-    buflist_new, buflist_setfpos,
+    BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buflist_findnr, buflist_new,
+    buflist_setfpos,
 };
 use crate::clipboard::{MotionType, TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, clr_history,
     hist_get_array, hist_iter, histentry_T,
 };
+use crate::context::INIT_FMARKV;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::eval::decode::{MPACK_OK, decode_string, unpack_typval};
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
+use crate::eval::deprecated::{buf_T, fmark_T};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
 use crate::eval::typval::{
@@ -80,6 +81,7 @@ use crate::os::fileio::{
     K_FILE_READ_ONLY, K_FILE_TRUNCATE, file_close, file_flush, file_open, file_open_buffer,
     file_read, file_skip, file_try_read_buffered,
 };
+use crate::os::fs::UV_ENOENT;
 use crate::os::fs::{os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove};
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
@@ -125,27 +127,16 @@ const SHADA_MPACK_FREE_SPACE: usize = 4 * MPACK_ITEM_SIZE;
 
 #[cfg(unix)]
 const ROOT_UID: u32 = 0;
-
-#[cfg(windows)]
-const UV_ENOENT: c_int = -4058;
 #[cfg(windows)]
 const UV_EEXIST: c_int = -4075;
 #[cfg(windows)]
 const UV_ELOOP: c_int = -4067;
-
-#[cfg(not(windows))]
-const UV_ENOENT: c_int = -2;
 #[cfg(not(windows))]
 const UV_EEXIST: c_int = -17;
 #[cfg(target_os = "linux")]
 const UV_ELOOP: c_int = -40;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_ELOOP: c_int = -62;
-
-const INIT_FMARKV: fmarkv_T = fmarkv_T {
-    topline_offset: MAXLNUM,
-    skipcol: 0,
-};
 
 const DEFAULT_POS: pos_T = pos_T {
     lnum: 1,

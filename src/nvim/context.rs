@@ -115,24 +115,26 @@ pub struct CtxWin {
     pub cw_used: bool,
 }
 
-const INIT_POS: pos_T = pos_T {
+pub const INIT_POS: pos_T = pos_T {
     lnum: 0,
     col: 0,
     coladd: 0,
 };
 
-const INIT_FMARK: fmark_T = fmark_T {
+pub const INIT_FMARKV: fmarkv_T = fmarkv_T {
+    topline_offset: MAXLNUM,
+    skipcol: 0,
+};
+
+pub const INIT_FMARK: fmark_T = fmark_T {
     mark: INIT_POS,
     fnum: 0,
     timestamp: 0,
-    view: fmarkv_T {
-        topline_offset: MAXLNUM,
-        skipcol: 0,
-    },
+    view: INIT_FMARKV,
     additional_data: ptr::null_mut(),
 };
 
-const CONTEXT_INIT: Context = Context {
+pub const CONTEXT_INIT: Context = Context {
     pos: INIT_POS,
     mark: 0,
     curswant: -1,

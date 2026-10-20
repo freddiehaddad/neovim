@@ -15,14 +15,15 @@ use crate::api::command::{cmdmod_T, exarg_T, ucmd_T};
 #[cfg(not(test))]
 use crate::api::extmark::ns_initialized;
 use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::OBJECT_NIL;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     HlMessageChunk, TryState, api_clear_error, api_free_array, api_set_error, api_set_sctx,
     arena_array, error_set, string_to_cstr, try_enter, try_leave,
 };
+use crate::api::private::validate::{Array, Error, Object};
 #[cfg(not(test))]
-use crate::api::private::validate::ErrorType;
-use crate::api::private::validate::{Array, Error, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{ErrorType, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::change::inserted_bytes;
 #[cfg(not(test))]
@@ -206,11 +207,6 @@ const kUIGlobalCount: usize = 5;
 
 #[cfg(not(test))]
 const CMD_equal: c_int = 559;
-
-const OBJECT_NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 #[derive(Clone, Copy)]
 struct BuiltinModule {

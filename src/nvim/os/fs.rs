@@ -94,21 +94,17 @@ const UV_EOF: c_int = -4095;
 #[cfg(not(test))]
 const UV_UNKNOWN: isize = -4094;
 
+pub(crate) const UV_ENOENT: c_int = if cfg!(windows) { -4058 } else { -2 };
+#[cfg(any(not(test), not(windows)))]
+pub(crate) const UV_EINTR: c_int = if cfg!(windows) { -4072 } else { -4 };
+pub(crate) const UV_EINVAL: c_int = if cfg!(windows) { -4071 } else { -22 };
+
 #[cfg(all(not(test), windows))]
 const UV_EAGAIN: c_int = -4088;
-#[cfg(all(not(test), windows))]
-const UV_EINTR: c_int = -4072;
-#[cfg(windows)]
-const UV_EINVAL: c_int = -4071;
-
 #[cfg(all(not(test), target_os = "linux"))]
 const UV_EAGAIN: c_int = -11;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_EAGAIN: c_int = -35;
-#[cfg(all(not(test), not(windows)))]
-const UV_EINTR: c_int = -4;
-#[cfg(not(windows))]
-const UV_EINVAL: c_int = -22;
 
 #[cfg(all(not(test), unix))]
 const S_IFBLK: u64 = 0o060000;
@@ -123,14 +119,47 @@ const W_OK: c_int = 2;
 const X_OK: c_int = 1;
 
 pub(crate) const O_WRONLY: c_int = 1;
-const O_RDWR: c_int = 2;
+pub(crate) const O_RDWR: c_int = 2;
+pub(crate) const O_CREAT: c_int = if cfg!(windows) {
+    0x0100
+} else if cfg!(target_os = "linux") {
+    0o100
+} else {
+    0x0200
+};
+pub(crate) const O_TRUNC: c_int = if cfg!(any(windows, target_os = "linux")) {
+    0x0200
+} else {
+    0x0400
+};
+pub(crate) const O_EXCL: c_int = if cfg!(windows) {
+    0x0400
+} else if cfg!(target_os = "linux") {
+    0o200
+} else {
+    0x0800
+};
+pub(crate) const O_APPEND: c_int = if cfg!(target_os = "linux") {
+    0o2000
+} else {
+    0x0008
+};
+pub(crate) const O_NOFOLLOW: c_int = if cfg!(windows) {
+    0
+} else if cfg!(all(
+    target_os = "linux",
+    any(target_arch = "arm", target_arch = "aarch64")
+)) {
+    0o100000
+} else if cfg!(target_os = "linux") {
+    0o400000
+} else {
+    0x0100
+};
+pub(crate) const TEMP_FILE_PATH_MAXLEN: usize = if cfg!(windows) { 260 } else { 256 };
+pub(crate) const CASE_INSENSITIVE_FILENAME: bool =
+    cfg!(any(target_os = "windows", target_os = "macos"));
 
-#[cfg(windows)]
-const O_APPEND: c_int = 0x0008;
-#[cfg(windows)]
-const O_CREAT: c_int = 0x0100;
-#[cfg(windows)]
-const O_TRUNC: c_int = 0x0200;
 #[cfg(windows)]
 const O_BINARY: c_int = 0x8000;
 #[cfg(all(not(test), windows))]
@@ -139,29 +168,11 @@ const ENV_SEPCHAR: u8 = b';';
 const ENV_SEPSTR: &CStr = c";";
 #[cfg(all(not(test), windows))]
 const PATHSEP: c_char = b'\\' as c_char;
-#[cfg(all(not(test), windows))]
-const TEMP_FILE_PATH_MAXLEN: usize = 260;
-
-#[cfg(target_os = "linux")]
-const O_CREAT: c_int = 0o100;
-#[cfg(target_os = "linux")]
-const O_TRUNC: c_int = 0o1000;
-#[cfg(target_os = "linux")]
-const O_APPEND: c_int = 0o2000;
-
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_APPEND: c_int = 0x0008;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_CREAT: c_int = 0x0200;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_TRUNC: c_int = 0x0400;
 
 #[cfg(all(not(test), not(windows)))]
 const ENV_SEPCHAR: u8 = b':';
 #[cfg(all(not(test), not(windows)))]
 const PATHSEP: c_char = b'/' as c_char;
-#[cfg(all(not(test), not(windows)))]
-const TEMP_FILE_PATH_MAXLEN: usize = 256;
 #[cfg(all(not(test), not(windows)))]
 const F_GETFD: c_int = 1;
 #[cfg(all(not(test), not(windows)))]

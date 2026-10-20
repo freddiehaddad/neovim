@@ -19,6 +19,8 @@ use crate::buffer::{
 };
 use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::clipboard::list_T;
+use crate::context::INIT_FMARK;
+use crate::context::INIT_FMARKV;
 use crate::cursor::{check_cursor, colnr_T, equalpos, linenr_T, lt};
 use crate::diff::diff_mark_adjust;
 use crate::errors::*;
@@ -109,23 +111,6 @@ const kOptJopFlagStack: c_uint = 0x01;
 
 pub(crate) const BUF_HAS_QF_ENTRY: c_int = 1;
 pub(crate) const BUF_HAS_LL_ENTRY: c_int = 2;
-
-const INIT_FMARKV: fmarkv_T = fmarkv_T {
-    topline_offset: MAXLNUM,
-    skipcol: 0,
-};
-
-const INIT_FMARK: fmark_T = fmark_T {
-    mark: pos_T {
-        lnum: 0,
-        col: 0,
-        coladd: 0,
-    },
-    fnum: 0,
-    timestamp: 0,
-    view: INIT_FMARKV,
-    additional_data: ptr::null_mut(),
-};
 
 const INIT_XFMARK: xfmark_T = xfmark_T {
     fmark: INIT_FMARK,

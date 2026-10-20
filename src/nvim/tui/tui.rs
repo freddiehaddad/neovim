@@ -57,6 +57,8 @@ use crate::msgpack_rpc::channel::rpc_send_event;
 #[cfg(windows)]
 use crate::os::env::os_setenv;
 use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
+#[cfg(not(windows))]
+use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
 use crate::os::time::{os_hrtime, uv_sleep};
 use crate::tui::input::{
@@ -121,8 +123,6 @@ const DEL: c_char = 0x7f;
 const UV_TTY_MODE_NORMAL: c_int = 0;
 #[cfg(unix)]
 const UV_TTY_MODE_IO: c_int = 2;
-#[cfg(not(windows))]
-const UV_EINTR: c_int = -4;
 #[cfg(target_os = "linux")]
 const SIGSTOP: c_int = 19;
 #[cfg(all(unix, not(target_os = "linux")))]

@@ -161,7 +161,7 @@ pub struct DecorSignHighlight {
     pub url: *const c_char,
 }
 
-const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
+pub const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
     flags: 0,
     priority: DECOR_PRIORITY_BASE,
     hl_id: 0,

@@ -8,20 +8,20 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::deprecated::{OPT_LOCAL, VirtText, kOptScopeBuf};
+use crate::api::deprecated::{OPT_LOCAL, kOptScopeBuf};
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_obj, error_init, find_buffer_by_handle,
     find_window_by_handle,
 };
 use crate::api::private::validate::{Error, ErrorType};
-use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
+use crate::api::tabpage::{WinConfig, tabpage_T, win_T};
 use crate::api::vim::{MAXPATHL, nvim_create_buf};
+use crate::api::win_config::WIN_CONFIG_INIT;
 use crate::api::win_config::{
     kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeCursor,
     kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse, kFloatRelativeWindow,
-    kUIMultigrid, kWinStyleMinimal, kWinStyleUnused, kZIndexFloatDefault, parse_bordertext,
-    parse_winborder,
+    kUIMultigrid, kWinStyleMinimal, parse_bordertext, parse_winborder,
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::decoration::clear_virttext;
@@ -64,43 +64,8 @@ const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
 use crate::api::buffer::NUL;
 use crate::api::options::kOptBufhidden;
-use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::ex_cmds::kWinPreview;
 use crate::math::FAIL;
-
-const WIN_CONFIG_INIT: WinConfig = WinConfig {
-    window: 0,
-    bufpos: lpos_T { lnum: -1, col: 0 },
-    height: 0,
-    width: 0,
-    row: 0.0,
-    col: 0.0,
-    anchor: 0,
-    relative: 0,
-    external: false,
-    focusable: true,
-    mouse: true,
-    split: 0,
-    zindex: kZIndexFloatDefault,
-    style: kWinStyleUnused,
-    border: false,
-    shadow: false,
-    border_chars: [[0; MAX_SCHAR_SIZE]; 8],
-    border_hl_ids: [0; 8],
-    border_attr: [0; 8],
-    title: false,
-    title_pos: 0,
-    title_chunks: VirtText::new(),
-    title_width: 0,
-    footer: false,
-    footer_pos: 0,
-    footer_chunks: VirtText::new(),
-    footer_width: 0,
-    noautocmd: false,
-    fixed: false,
-    hide: false,
-    _cmdline_offset: c_int::MAX,
-};
 
 #[inline]
 const fn error_set(err: &Error) -> bool {

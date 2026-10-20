@@ -9,7 +9,8 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::deprecated::{DECOR_ID_INVALID, DecorInline};
+use crate::api::deprecated::DecorInline;
+use crate::api::extmark::DECOR_SIGN_HIGHLIGHT_INIT;
 use crate::api::extmark::{
     DecorPriority, DecorSignHighlight, NS, describe_ns, kSHIsSign, linenr_T, nvim_create_namespace,
 };
@@ -49,10 +50,10 @@ use crate::map::{
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::mark::setpcmark;
 use crate::marktree::{
-    DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT,
-    MTKey, MTPair, MarkTreeIter, kMTMetaSignHL, kMTMetaSignText, marktree_itr_current,
-    marktree_itr_get, marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap,
-    marktree_lookup_ns, mt_decor, mt_decor_sign, mt_end,
+    DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair,
+    MarkTreeIter, kMTMetaSignHL, kMTMetaSignText, marktree_itr_current, marktree_itr_get,
+    marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
+    mt_decor, mt_decor_sign, mt_end,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memory::{xcalloc, xfree, xstrdup};
@@ -83,20 +84,6 @@ const EXP_LIST: c_int = 3;
 const EXP_UNPLACE: c_int = 4;
 const EXP_SIGN_NAMES: c_int = 5;
 const EXP_SIGN_GROUPS: c_int = 6;
-
-const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
-    flags: 0,
-    priority: DECOR_PRIORITY_BASE,
-    hl_id: 0,
-    text: [0, 0],
-    sign_name: ptr::null_mut(),
-    sign_add_id: 0,
-    number_hl_id: 0,
-    line_hl_id: 0,
-    cursorline_hl_id: 0,
-    next: DECOR_ID_INVALID,
-    url: ptr::null(),
-};
 
 #[repr(C)]
 pub struct sign_T {

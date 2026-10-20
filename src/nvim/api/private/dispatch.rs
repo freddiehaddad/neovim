@@ -51,15 +51,14 @@ use crate::api::options::{
     KeyDict_option, nvim__option_to_object, nvim_get_all_options_info, nvim_get_option_info2,
     nvim_get_option_value, nvim_set_option_value,
 };
+use crate::api::private::helpers::OBJECT_NIL;
 use crate::api::private::helpers::{
     api_clear_error, api_dict_to_keydict, api_free_dict, api_free_object, api_free_string,
     api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object, api_set_error,
     api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj,
     string_obj, tabpage_obj, window_obj,
 };
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, Object, ObjectType};
 use crate::api::tabpage::{
     Buffer, KeyDict_tabpage_config, Tabpage, Window, nvim_open_tabpage, nvim_tabpage_del_var,
     nvim_tabpage_get_number, nvim_tabpage_get_var, nvim_tabpage_get_win, nvim_tabpage_is_valid,
@@ -131,11 +130,6 @@ use std::mem::{offset_of, zeroed};
 use std::ptr;
 
 const kUnpackTypeStringArray: c_int = -1;
-
-const OBJECT_NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 pub type ApiDispatchWrapper = Option<
     unsafe extern "C" fn(

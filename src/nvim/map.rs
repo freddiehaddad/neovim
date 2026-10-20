@@ -5,6 +5,7 @@
 use crate::api::vim::MAXPATHL;
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::memory::{xcalloc, xfree, xrealloc};
+use crate::os::fs::CASE_INSENSITIVE_FILENAME;
 use crate::path::{path_cmp, path_fold_char, vim_ispathsep, vim_ispathsep_nocolon};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
@@ -137,8 +138,6 @@ unsafe fn equal_cstr(a: *const c_char, b: *const c_char) -> bool {
     }
     unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
-
-const CASE_INSENSITIVE_FILENAME: bool = cfg!(any(target_os = "windows", target_os = "macos"));
 
 unsafe fn hash_path(mut p: *const c_char) -> u32 {
     let mut h: u32 = 0;

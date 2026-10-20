@@ -34,7 +34,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
 };
-use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, pos_T, win_T};
+use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, win_T};
 use crate::api::win_config::bufref_T;
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFNEW, EVENT_CHANINFO, apply_autocmds, block_autocmds,
@@ -50,9 +50,8 @@ use crate::channel::{
     channel_incref, channel_info, channel_send,
 };
 use crate::clipboard::yankreg_T;
-use crate::context::{
-    Context, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
-};
+use crate::context::CONTEXT_INIT;
+use crate::context::{CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict};
 use crate::cursor::{get_cursor_rel_lnum, linenr_T};
 use crate::decoration::decor_redraw_signs;
 use crate::drawline::use_cursor_line_highlight;
@@ -200,59 +199,6 @@ const KEYSET_OPTIDX_redraw__win: u32 = 2;
 const KEYSET_OPTIDX_redraw__flush: u32 = 3;
 const KEYSET_OPTIDX_redraw__range: u32 = 4;
 const KEYSET_OPTIDX_redraw__valid: u32 = 5;
-
-const INIT_POS: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
-
-const INIT_FMARK: crate::eval::deprecated::fmark_T = crate::eval::deprecated::fmark_T {
-    mark: INIT_POS,
-    fnum: 0,
-    timestamp: 0,
-    view: crate::eval::deprecated::fmarkv_T {
-        topline_offset: 0x7fffffff,
-        skipcol: 0,
-    },
-    additional_data: ptr::null_mut(),
-};
-
-const CONTEXT_INIT: Context = Context {
-    pos: INIT_POS,
-    mark: 0,
-    curswant: -1,
-    visual_mode_eval: 0,
-    visual: crate::eval::deprecated::visualinfo_T {
-        vi_start: INIT_POS,
-        vi_end: INIT_POS,
-        vi_mode: 0,
-        vi_curswant: 0,
-    },
-    op_start: INIT_POS,
-    op_end: INIT_POS,
-    last_change: INIT_FMARK,
-    last_insert: INIT_FMARK,
-    pos_marks: [0; 6],
-    buf: 0,
-    regs: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    jumps: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    bufs: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    gvars: NvimString {
-        data: ptr::null_mut(),
-        size: 0,
-    },
-    funcs: Array::new(),
-};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

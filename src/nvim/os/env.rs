@@ -39,6 +39,8 @@ use crate::message::{emsg, internal_error};
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
+use crate::os::fs::UV_EINVAL;
+#[cfg(not(test))]
 use crate::os::fs::os_isdir;
 #[cfg(all(not(test), unix))]
 use crate::os::fs::{os_dirname, os_realpath};
@@ -82,24 +84,12 @@ const ENV_SEPSTR: &CStr = c":";
 const PATHSEPSTR: &CStr = c"/";
 #[cfg(all(not(test), not(windows)))]
 const MAX_ENVPATHLEN: usize = c_int::MAX as usize;
-
-#[cfg(unix)]
-#[cfg(windows)]
-const UV_ENOENT: c_int = -4058;
 #[cfg(all(not(test), windows))]
 const UV_ENOBUFS: c_int = -4060;
-#[cfg(all(not(test), windows))]
-const UV_EINVAL: c_int = -4071;
-
-#[cfg(windows)]
-#[cfg(not(windows))]
-const UV_ENOENT: c_int = -2;
 #[cfg(all(not(test), target_os = "linux"))]
 const UV_ENOBUFS: c_int = -105;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_ENOBUFS: c_int = -55;
-#[cfg(all(not(test), not(windows)))]
-const UV_EINVAL: c_int = -22;
 
 #[repr(C)]
 pub struct expand_T {

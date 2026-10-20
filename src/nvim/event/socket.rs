@@ -18,6 +18,8 @@ use crate::event::stream::{
 };
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::os::fs::UV_EINVAL;
+use crate::os::fs::UV_ENOENT;
 use crate::os::fs::{os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
@@ -53,16 +55,6 @@ const UV_EADDRINUSE: c_int = -4091;
 const UV_EADDRINUSE: c_int = -98;
 #[cfg(not(any(windows, target_os = "linux")))]
 const UV_EADDRINUSE: c_int = -48;
-
-#[cfg(windows)]
-const UV_EINVAL: c_int = -4071;
-#[cfg(not(windows))]
-const UV_EINVAL: c_int = -22;
-
-#[cfg(windows)]
-const UV_ENOENT: c_int = -4058;
-#[cfg(not(windows))]
-const UV_ENOENT: c_int = -2;
 
 pub use crate::event::r#loop::{
     Loop, uv_close_cb, uv_connect_cb, uv_connect_t, uv_handle_t, uv_loop_t,

@@ -75,6 +75,16 @@ use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, short
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
+use crate::os::fs::O_APPEND;
+#[cfg(not(test))]
+use crate::os::fs::O_CREAT;
+#[cfg(not(test))]
+use crate::os::fs::O_EXCL;
+#[cfg(not(test))]
+use crate::os::fs::O_NOFOLLOW;
+#[cfg(not(test))]
+use crate::os::fs::O_TRUNC;
+#[cfg(not(test))]
 use crate::os::fs::{
     O_WRONLY, os_close, os_copy, os_copy_xattr, os_errno as iconv_errno, os_file_is_writable,
     os_fileinfo, os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl,
@@ -177,45 +187,6 @@ const UV_ENOTSUP: c_int = -4049;
 const UV_ENOTSUP: c_int = -95;
 #[cfg(not(any(windows, target_os = "linux")))]
 const UV_ENOTSUP: c_int = -45;
-
-#[cfg(all(not(test), windows))]
-const O_APPEND: c_int = 0x0008;
-#[cfg(all(not(test), windows))]
-const O_CREAT: c_int = 0x0100;
-#[cfg(all(not(test), windows))]
-const O_TRUNC: c_int = 0x0200;
-#[cfg(all(not(test), windows))]
-const O_EXCL: c_int = 0x0400;
-#[cfg(all(not(test), windows))]
-const O_NOFOLLOW: c_int = 0;
-
-#[cfg(all(not(test), target_os = "linux"))]
-const O_CREAT: c_int = 0o100;
-#[cfg(all(not(test), target_os = "linux"))]
-const O_EXCL: c_int = 0o200;
-#[cfg(all(not(test), target_os = "linux"))]
-const O_TRUNC: c_int = 0o1000;
-#[cfg(all(not(test), target_os = "linux"))]
-const O_APPEND: c_int = 0o2000;
-#[cfg(all(
-    target_os = "linux",
-    not(any(target_arch = "arm", target_arch = "aarch64"))
-))]
-#[cfg(not(test))]
-const O_NOFOLLOW: c_int = 0o400000;
-#[cfg(all(target_os = "linux", any(target_arch = "arm", target_arch = "aarch64")))]
-const O_NOFOLLOW: c_int = 0o100000;
-
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_APPEND: c_int = 0x0008;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_NOFOLLOW: c_int = 0x0100;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_CREAT: c_int = 0x0200;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_TRUNC: c_int = 0x0400;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_EXCL: c_int = 0x0800;
 
 #[cfg(not(test))]
 #[repr(C)]

@@ -50,12 +50,12 @@ use crate::strings::{gettext, setlocale};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+pub(crate) const LC_CTYPE: c_int = if cfg!(target_os = "linux") { 0 } else { 2 };
+
 #[cfg(all(not(test), windows))]
 const LC_ALL: c_int = 0;
 #[cfg(windows)]
 const LC_COLLATE: c_int = 1;
-#[cfg(all(not(test), windows))]
-const LC_CTYPE: c_int = 2;
 #[cfg(all(not(test), windows))]
 const LC_NUMERIC: c_int = 4;
 #[cfg(all(not(test), windows))]
@@ -63,8 +63,6 @@ const LC_TIME: c_int = 5;
 #[cfg(all(not(test), windows))]
 const VIM_LC_MESSAGES: c_int = 6789;
 
-#[cfg(all(not(test), target_os = "linux"))]
-const LC_CTYPE: c_int = 0;
 #[cfg(all(not(test), target_os = "linux"))]
 const LC_NUMERIC: c_int = 1;
 #[cfg(all(not(test), target_os = "linux"))]
@@ -82,8 +80,6 @@ const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
 const LC_ALL: c_int = 0;
 #[cfg(not(any(windows, target_os = "linux")))]
 const LC_COLLATE: c_int = 1;
-#[cfg(not(any(windows, target_os = "linux")))]
-const LC_CTYPE: c_int = 2;
 #[cfg(not(any(windows, target_os = "linux")))]
 const LC_NUMERIC: c_int = 4;
 #[cfg(not(any(windows, target_os = "linux")))]

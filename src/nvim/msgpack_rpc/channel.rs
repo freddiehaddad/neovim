@@ -8,6 +8,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::cstr_as_string;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
@@ -87,11 +88,6 @@ const kClientTypeEmbedder: ClientType = 2;
 const kClientTypeHost: ClientType = 3;
 const kClientTypePlugin: ClientType = 4;
 const kClientTypeMsgpackRpc: ClientType = 5;
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { boolean: false },
-};
 
 #[inline]
 unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {

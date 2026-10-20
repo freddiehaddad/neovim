@@ -34,10 +34,11 @@ use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
 #[cfg(not(test))]
 use crate::message::{emsg, iemsg, semsg};
+use crate::os::fs::{O_CREAT, O_EXCL, O_RDWR, O_TRUNC};
 #[cfg(not(test))]
 use crate::os::fs::{
-    os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync, os_open, os_remove,
-    os_set_cloexec,
+    O_NOFOLLOW, os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync, os_open,
+    os_remove, os_set_cloexec,
 };
 #[cfg(not(test))]
 use crate::os::input::os_breakcheck;
@@ -70,53 +71,14 @@ const MF_DIRTY_NO: mfdirty_T = 0;
 pub(crate) const MFS_ALL: c_int = 1;
 pub(crate) const MFS_STOP: c_int = 2;
 pub(crate) const MFS_ZERO: c_int = 8;
-
-#[cfg(windows)]
-const O_RDWR: c_int = 0x0002;
-#[cfg(windows)]
-const O_CREAT: c_int = 0x0100;
-#[cfg(windows)]
-const O_TRUNC: c_int = 0x0200;
-#[cfg(windows)]
-const O_EXCL: c_int = 0x0400;
-#[cfg(all(not(test), windows))]
-const O_NOFOLLOW: c_int = 0;
 #[cfg(all(not(test), windows))]
 const S_IREAD: c_int = 0x0100;
 #[cfg(all(not(test), windows))]
 const S_IWRITE: c_int = 0x0080;
-
-#[cfg(target_os = "linux")]
-const O_RDWR: c_int = 0o2;
-#[cfg(target_os = "linux")]
-const O_CREAT: c_int = 0o100;
-#[cfg(target_os = "linux")]
-const O_EXCL: c_int = 0o200;
-#[cfg(target_os = "linux")]
-const O_TRUNC: c_int = 0o1000;
-#[cfg(all(
-    target_os = "linux",
-    not(any(target_arch = "arm", target_arch = "aarch64"))
-))]
-#[cfg(not(test))]
-const O_NOFOLLOW: c_int = 0o400000;
-#[cfg(all(target_os = "linux", any(target_arch = "arm", target_arch = "aarch64")))]
-const O_NOFOLLOW: c_int = 0o100000;
 #[cfg(all(not(test), target_os = "linux"))]
 const S_IREAD: c_int = 0o400;
 #[cfg(all(not(test), target_os = "linux"))]
 const S_IWRITE: c_int = 0o200;
-
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_RDWR: c_int = 0x0002;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_CREAT: c_int = 0x0200;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_TRUNC: c_int = 0x0400;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_EXCL: c_int = 0x0800;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_NOFOLLOW: c_int = 0x0100;
 #[cfg(not(any(windows, target_os = "linux")))]
 const S_IREAD: c_int = 0o400;
 #[cfg(not(any(windows, target_os = "linux")))]

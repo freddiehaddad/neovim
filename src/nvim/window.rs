@@ -10,20 +10,18 @@
 )]
 
 use crate::api::autocmd::TryState;
-use crate::api::deprecated::VirtText;
 use crate::api::options::{CtxSwitch, optset_T};
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_string, dict_obj, find_window_by_handle, integer_obj,
     try_enter, try_leave,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
-use crate::api::tabpage::{
-    GridView, ScreenGrid, WinConfig, frame_T, lpos_T, pos_T, tabpage_T, win_T,
-};
+use crate::api::tabpage::{GridView, ScreenGrid, WinConfig, frame_T, pos_T, tabpage_T, win_T};
+use crate::api::win_config::WIN_CONFIG_INIT;
 use crate::api::win_config::{
     FR_COL, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
     kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kUIMultigrid,
-    kWinStyleMinimal, kWinStyleUnused, kZIndexFloatDefault,
+    kWinStyleMinimal,
 };
 use crate::arglist::{alist_T, alist_unlink};
 use crate::autocmd::{
@@ -145,7 +143,6 @@ pub type WinKind = c_int;
 use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::CMOD_CONFIRM;
 use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{BCO_ENTER, BCO_NOHELP, MAXPATHL, kCdScopeGlobal};
 use crate::api::window::kCtxKeepCwd;
 pub use crate::context::CdCause;
@@ -194,40 +191,6 @@ const kOptTclFlagUselast: c_uint = 0x02;
 const kWinOptScroll: usize = 33;
 
 const kWinNormal: WinKind = 0;
-
-const WIN_CONFIG_INIT: WinConfig = WinConfig {
-    window: 0,
-    bufpos: lpos_T { lnum: -1, col: 0 },
-    height: 0,
-    width: 0,
-    row: 0.0,
-    col: 0.0,
-    anchor: 0,
-    relative: 0,
-    external: false,
-    focusable: true,
-    mouse: true,
-    split: 0,
-    zindex: kZIndexFloatDefault,
-    style: kWinStyleUnused,
-    border: false,
-    shadow: false,
-    border_chars: [[0; MAX_SCHAR_SIZE]; 8],
-    border_hl_ids: [0; 8],
-    border_attr: [0; 8],
-    title: false,
-    title_pos: 0,
-    title_chunks: VirtText::new(),
-    title_width: 0,
-    footer: false,
-    footer_pos: 0,
-    footer_chunks: VirtText::new(),
-    footer_width: 0,
-    noautocmd: false,
-    fixed: false,
-    hide: false,
-    _cmdline_offset: c_int::MAX,
-};
 
 const E_CANNOT_CLOSE_LAST_WINDOW: &CStr = c"E444: Cannot close last window";
 const E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER: &CStr =

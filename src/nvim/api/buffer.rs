@@ -14,6 +14,7 @@
 use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::try_wrap;
@@ -24,8 +25,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_invalid,
-    check_string_array,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, api_err_invalid, check_string_array,
 };
 use crate::api::tabpage::{Buffer, pos_T, win_T};
 use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_ensure_loaded, do_buffer};
@@ -160,11 +160,6 @@ pub struct VisualState {
 use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
 use crate::state::MODE_INSERT;
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 #[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
@@ -2079,6 +2074,7 @@ pub unsafe extern "C" fn buf_collect_lines(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::private::validate::ObjectType;
 
     #[test]
     fn internal_call_constants_and_boolean_obj() {

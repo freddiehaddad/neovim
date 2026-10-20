@@ -16,6 +16,7 @@ use crate::api::buffer::{NL, NUL, nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::options::{OptIndex, OptScope};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
+use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
@@ -26,7 +27,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
+    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
@@ -130,11 +131,6 @@ pub use crate::api::private::dispatch::ApiDispatchWrapper;
 
 static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
 static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 /// @deprecated Use nvim_exec2() instead.
 /// @see nvim_exec2

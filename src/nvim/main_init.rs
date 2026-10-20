@@ -158,6 +158,8 @@ use crate::os::env::{
 };
 #[cfg(all(not(test), windows))]
 use crate::os::env::{os_homedir, os_setenv_append_path};
+#[cfg(not(test))]
+use crate::os::fs::CASE_INSENSITIVE_FILENAME;
 #[cfg(all(not(test), windows))]
 use crate::os::fs::os_dup_cloexec;
 #[cfg(not(test))]
@@ -260,9 +262,6 @@ const kOptVerbosefile: OptIndex = 344;
 const PATHSEP: u8 = b'\\';
 #[cfg(all(not(test), not(windows)))]
 const PATHSEP: u8 = b'/';
-
-#[cfg(not(test))]
-const CASE_INSENSITIVE_FILENAME: bool = cfg!(any(target_os = "windows", target_os = "macos"));
 
 #[cfg(not(test))]
 const ERR_ARG_MISSING: &CStr = c"Argument missing after";

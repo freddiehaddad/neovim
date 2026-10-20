@@ -12,6 +12,7 @@
 
 use crate::api::autocmd::OptionalKeys;
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::NIL;
 use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
@@ -20,8 +21,8 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_conflict,
-    api_err_exp, api_err_invalid, api_err_required,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_conflict, api_err_exp,
+    api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
@@ -79,11 +80,6 @@ pub struct KeyDict_win_resize {
     pub is_set__win_resize_: OptionalKeys,
     pub anchor: NvimString,
 }
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 #[inline]
 const fn cstr_as_string(s: &'static CStr) -> NvimString {

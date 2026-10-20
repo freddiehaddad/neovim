@@ -73,6 +73,9 @@ use crate::message::{
 };
 use crate::option::{copy_option_part, shortmess};
 use crate::option_vars::*;
+use crate::os::fs::O_CREAT;
+use crate::os::fs::O_EXCL;
+use crate::os::fs::O_NOFOLLOW;
 use crate::os::fs::{
     O_WRONLY, os_close, os_fileinfo_fd, os_fileinfo_size, os_fopen, os_free_acl, os_fsync,
     os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_open, os_path_exists, os_remove,
@@ -120,32 +123,6 @@ const UF_ENTRY_END_MAGIC: c_int = 0x3581;
 const UF_VERSION: c_int = 3;
 const UF_LAST_SAVE_NR: c_int = 1;
 const UHP_SAVE_NR: c_int = 1;
-
-#[cfg(windows)]
-const O_CREAT: c_int = 0x0100;
-#[cfg(windows)]
-const O_EXCL: c_int = 0x0400;
-#[cfg(windows)]
-const O_NOFOLLOW: c_int = 0;
-
-#[cfg(target_os = "linux")]
-const O_CREAT: c_int = 0o100;
-#[cfg(target_os = "linux")]
-const O_EXCL: c_int = 0o200;
-#[cfg(all(
-    target_os = "linux",
-    not(any(target_arch = "arm", target_arch = "aarch64"))
-))]
-const O_NOFOLLOW: c_int = 0o400000;
-#[cfg(all(target_os = "linux", any(target_arch = "arm", target_arch = "aarch64")))]
-const O_NOFOLLOW: c_int = 0o100000;
-
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_NOFOLLOW: c_int = 0x0100;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_CREAT: c_int = 0x0200;
-#[cfg(not(any(windows, target_os = "linux")))]
-const O_EXCL: c_int = 0x0800;
 
 const E_UNDO_LIST_CORRUPT: &CStr = c"E439: Undo list corrupt";
 const E_UNDO_LINE_MISSING: &CStr = c"E440: Undo line missing";

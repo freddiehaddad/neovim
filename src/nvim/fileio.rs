@@ -78,6 +78,8 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
+use crate::os::fs::TEMP_FILE_PATH_MAXLEN;
+use crate::os::fs::UV_ENOENT;
 use crate::os::fs::os_errno as get_errno;
 use crate::os::fs::os_set_errno as set_errno;
 use crate::os::fs::{
@@ -191,11 +193,6 @@ const LOG_ERR: c_int = 4;
 const NONASCII_MASK: u64 = (u64::MAX / 0xFF) * 0x80;
 
 #[cfg(windows)]
-const UV_ENOENT: c_int = -4058;
-#[cfg(not(windows))]
-const UV_ENOENT: c_int = -2;
-
-#[cfg(windows)]
 const UV_EFBIG: c_int = -4036;
 #[cfg(not(windows))]
 const UV_EFBIG: c_int = -27;
@@ -209,11 +206,6 @@ const EOVERFLOW: c_int = 84;
 const BASENAMELEN: usize = 260 - 5;
 #[cfg(not(windows))]
 const BASENAMELEN: usize = 255 - 5;
-
-#[cfg(windows)]
-const TEMP_FILE_PATH_MAXLEN: usize = 260;
-#[cfg(not(windows))]
-const TEMP_FILE_PATH_MAXLEN: usize = 256;
 
 #[cfg(windows)]
 const PATHSEPSTR: &CStr = c"\\";

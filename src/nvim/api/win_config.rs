@@ -164,7 +164,7 @@ pub struct KeyDict_win_config {
     pub _cmdline_offset: Integer,
 }
 
-const WIN_CONFIG_INIT: WinConfig = WinConfig {
+pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,
     bufpos: lpos_T { lnum: -1, col: 0 },
     height: 0,

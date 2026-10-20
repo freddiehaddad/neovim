@@ -8,6 +8,7 @@
 )]
 
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
+use crate::api::private::helpers::OBJECT_NIL;
 use crate::api::private::helpers::cstr_obj;
 use crate::api::private::helpers::{
     api_dict_to_keydict, api_free_array, api_metadata, api_set_error, bool_obj, copy_array,
@@ -54,11 +55,6 @@ use std::ptr;
 
 const UI_CLIENT_STDIN_FD: Integer = 3;
 const KEYSET_OPTIDX_highlight__url: u64 = 5;
-
-const OBJECT_NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 const ARRAY_INIT: Array = Array {
     items: ptr::null_mut(),

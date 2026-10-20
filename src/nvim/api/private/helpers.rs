@@ -59,10 +59,11 @@ pub(crate) const HLF_E: c_int = 6;
 pub(crate) const SID_API_CLIENT: scid_T = -9;
 pub(crate) const SID_LUA: scid_T = -8;
 
-const OBJECT_NIL: Object = Object {
+pub const OBJECT_NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
+pub use OBJECT_NIL as NIL;
 
 #[inline]
 pub const fn nil_obj() -> Object {

@@ -43,6 +43,7 @@ use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
 use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::os::fs::os_errno as iconv_errno;
+use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::strings::{setlocale, tolower, toupper};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -105,13 +106,6 @@ const ICONV_EILSEQ: c_int = 42;
 const ICONV_EILSEQ: c_int = 84;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const ICONV_EILSEQ: c_int = 92;
-
-#[cfg(windows)]
-const LC_CTYPE: c_int = 2;
-#[cfg(target_os = "linux")]
-const LC_CTYPE: c_int = 0;
-#[cfg(all(not(windows), not(target_os = "linux")))]
-const LC_CTYPE: c_int = 2;
 
 #[cfg(target_os = "linux")]
 const CODESET: c_int = 14;
