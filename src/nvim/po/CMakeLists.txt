@@ -12,7 +12,7 @@ mark_as_advanced(
   ICONV_PRG
   XGETTEXT_PRG)
 
-if(HAVE_WORKING_LIBINTL AND GETTEXT_FOUND AND XGETTEXT_PRG AND ICONV_PRG)
+if(ENABLE_LIBINTL AND GETTEXT_FOUND AND XGETTEXT_PRG AND ICONV_PRG)
   set(LANGUAGES
     af
     az
@@ -45,8 +45,9 @@ if(HAVE_WORKING_LIBINTL AND GETTEXT_FOUND AND XGETTEXT_PRG AND ICONV_PRG)
   set(ENV{OLD_PO_FILE_INPUT} yes)
   set(ENV{OLD_PO_FILE_OUTPUT} yes)
 
+  file(GLOB_RECURSE NVIM_PO_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/nvim/*.rs)
   set(NVIM_RELATIVE_SOURCES)
-  foreach(SRC ${NVIM_SOURCES} ${NVIM_HEADERS})
+  foreach(SRC ${NVIM_PO_SOURCES})
     file(RELATIVE_PATH RELATIVE_SRC ${CMAKE_CURRENT_SOURCE_DIR} ${SRC})
     list(APPEND NVIM_RELATIVE_SOURCES ${RELATIVE_SRC})
   endforeach()
@@ -56,15 +57,16 @@ if(HAVE_WORKING_LIBINTL AND GETTEXT_FOUND AND XGETTEXT_PRG AND ICONV_PRG)
   list(SORT NVIM_RELATIVE_SOURCES)
   add_custom_command(
     OUTPUT ${NVIM_POT}
-    COMMAND ${XGETTEXT_PRG} -o ${NVIM_POT} --default-domain=nvim
-      --keyword=_ --keyword=N_ --keyword=NGETTEXT:1,2 --no-location
+    COMMAND ${XGETTEXT_PRG} -o ${NVIM_POT} --default-domain=nvim --language=C
+      --keyword=_ --keyword=N_ --keyword=NGETTEXT:1,2 --keyword=gettext --keyword=ngettext:1,2
+      --no-location
       -D ${CMAKE_CURRENT_SOURCE_DIR} -D ${CMAKE_CURRENT_BINARY_DIR}
       ${NVIM_RELATIVE_SOURCES} ${PROJECT_SOURCE_DIR}/runtime/scripts/optwin.lua
       ${PROJECT_SOURCE_DIR}/runtime/lua/vim/_core/ex_cmd.lua
       ${PROJECT_SOURCE_DIR}/runtime/lua/vim/_core/time.lua
       ${PROJECT_SOURCE_DIR}/runtime/lua/vim/pack.lua
     VERBATIM
-    DEPENDS ${NVIM_SOURCES} nvim_bin nvim_runtime_deps)
+    DEPENDS ${NVIM_PO_SOURCES} nvim_bin nvim_runtime_deps)
 
   set(LANGUAGE_MO_FILES)
   set(UPDATE_PO_TARGETS)

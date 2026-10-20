@@ -35,15 +35,6 @@
       "inherits": ["base"]
     },
     {
-      "name": "iwyu",
-      "displayName": "IWYU",
-      "description": "Run include-what-you-use",
-      "cacheVariables": {
-        "ENABLE_IWYU": "ON"
-      },
-      "inherits": ["base"]
-    },
-    {
       "name": "ci",
       "cacheVariables": {
         "CI_BUILD": "ON"
