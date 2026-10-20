@@ -1760,6 +1760,7 @@ pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
 pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) -> bool {
     #[cfg(not(test))]
     unsafe {
+        debug_assert!(uv_req_size(UV_FS) + size_of::<uv_dirent_t>() <= size_of::<Directory>());
         let req = dir.cast::<uv_fs_buf_t>();
         let r = uv_fs_scandir(ptr::null_mut(), req, path, 0, ptr::null());
         if r < 0 {

@@ -234,7 +234,7 @@ pub struct TUIData {
     pub write_loop: [u64; 256],
     pub ti: TerminfoEntry,
     pub term: *mut c_char,
-    pub output_handle: [u64; 64],
+    pub output_handle: [u64; 80],
     pub out_isatty: bool,
     pub winch_handle: [u64; 40],
     pub startup_delay_timer: [u64; 32],
@@ -1015,6 +1015,12 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
 
         let write_loop = tui_write_loop(tui);
         let output_handle = tui_output_handle(tui);
+        debug_assert!(crate::event::r#loop::uv_loop_size() <= size_of::<[u64; 256]>());
+        debug_assert!(
+            crate::event::r#loop::uv_handle_size(crate::event::stream::UV_NAMED_PIPE).max(
+                crate::event::r#loop::uv_handle_size(crate::event::stream::UV_TTY)
+            ) <= size_of::<[u64; 80]>()
+        );
         uv_loop_init(write_loop);
         if (*tui).out_isatty {
             let ret = uv_tty_init(write_loop, output_handle.cast(), (*tui).out_fd, 0);

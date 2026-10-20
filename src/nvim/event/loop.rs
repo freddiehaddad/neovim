@@ -260,6 +260,13 @@ pub unsafe fn loop_closing_ptr(loop_: *mut Loop) -> *mut bool {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn loop_init(loop_: *mut Loop, _data: *mut c_void) {
     unsafe {
+        debug_assert!(
+            (loop_closing_ptr(loop_)
+                .cast::<u8>()
+                .offset_from(loop_.cast::<u8>()) as usize)
+                + size_of::<bool>()
+                <= size_of::<crate::globals::MainLoopStorage>()
+        );
         uv_loop_init(loop_.cast());
         *loop_recursive_ptr(loop_) = 0;
         *loop_closing_ptr(loop_) = false;

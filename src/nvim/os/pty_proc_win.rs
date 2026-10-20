@@ -129,8 +129,6 @@ pub(crate) unsafe fn quote_cmd_arg(
 #[cfg(windows)]
 mod win_impl {
     use super::*;
-    #[cfg(unix)]
-    use crate::event::r#loop::uv_connect_cb;
     use crate::event::r#loop::{uv_connect_t, uv_thread_t};
     use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 
