@@ -13,31 +13,6 @@ pub fn nvim_gen_sources(
 ) !struct { *std.Build.Step.WriteFile, LazyPath } {
     const gen_headers = b.addWriteFiles();
 
-    {
-        const gen_step = b.addRunArtifact(nlua0);
-        gen_step.addFileArg(b.path("src/gen/gen_ex_cmds.lua"));
-        _ = gen_header(b, gen_step, "ex_cmds_enum.generated.h", gen_headers);
-        gen_step.addFileArg(b.path("src/nvim/ex_cmds.lua"));
-    }
-
-    {
-        const gen_step = b.addRunArtifact(nlua0);
-        gen_step.addFileArg(b.path("src/gen/gen_options.lua"));
-        _ = gen_header(b, gen_step, "options_enum.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "option_vars.generated.h", gen_headers);
-        gen_step.addFileArg(b.path("src/nvim/options.lua"));
-
-        const test_gen_step = b.step("wipopt", "debug one nlua0 (options)");
-        test_gen_step.dependOn(&gen_step.step);
-    }
-
-    {
-        const gen_step = b.addRunArtifact(nlua0);
-        gen_step.addFileArg(b.path("src/gen/gen_events.lua"));
-        _ = gen_header(b, gen_step, "auevents_enum.generated.h", gen_headers);
-        gen_step.addFileArg(b.path("src/nvim/auevents.lua"));
-    }
-
     _ = precompile;
 
     const ui_metadata = ui_step: {
