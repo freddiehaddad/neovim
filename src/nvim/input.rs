@@ -362,13 +362,7 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
-#[inline]
-unsafe fn main_loop_events() -> *mut MultiQueue {
-    unsafe {
-        let base = (&raw mut main_loop).cast::<u8>();
-        *(base.add(uv_loop_size()).cast::<*mut MultiQueue>())
-    }
-}
+use crate::event::r#loop::main_loop_events;
 
 #[inline]
 const fn k_second(c: c_int) -> c_int {

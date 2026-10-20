@@ -47,7 +47,7 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::api::tabpage::win_T;
-use crate::event::multiqueue::{Event, MultiQueue, multiqueue_empty, multiqueue_get};
+use crate::event::multiqueue::{Event, multiqueue_empty, multiqueue_get};
 use crate::extmark::TriState;
 use crate::hashtab::hashtab_T;
 use crate::keycodes::{KE_EVENT, KS_EXTRA, get_special_key_name, termcap2key};
@@ -107,15 +107,9 @@ pub struct save_v_event_T {
     pub sve_hashtab: hashtab_T,
 }
 
-static mut was_safe: bool = false;
+use crate::event::r#loop::main_loop_events;
 
-#[inline]
-unsafe fn main_loop_events() -> *mut MultiQueue {
-    unsafe {
-        let base = ptr::addr_of_mut!(main_loop);
-        *(base.add(uv_loop_size()).cast::<*mut MultiQueue>())
-    }
-}
+static mut was_safe: bool = false;
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn state_enter(s: *mut VimState) {

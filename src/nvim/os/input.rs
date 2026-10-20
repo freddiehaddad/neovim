@@ -170,19 +170,11 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
     }
 }
 
+use crate::event::r#loop::main_loop_events;
+
 #[inline]
 unsafe fn main_loop_ptr() -> *mut Loop {
     (&raw mut main_loop).cast()
-}
-
-#[inline]
-unsafe fn main_loop_events() -> *mut MultiQueue {
-    unsafe {
-        *(&raw mut main_loop)
-            .cast::<u8>()
-            .add(uv_loop_size())
-            .cast::<*mut MultiQueue>()
-    }
 }
 
 unsafe extern "C" fn cursorhold_event(_argv: *mut *mut c_void) {
