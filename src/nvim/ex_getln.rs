@@ -151,7 +151,7 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::{get_globvar_dict, set_vim_var_char};
 use crate::eval::window::viewstate_T;
-use crate::event::r#loop::{Loop, loop_schedule_deferred};
+use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::Event;
 use crate::extmark::extmark_clear;
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_init, garray_T};
@@ -460,11 +460,6 @@ static mut cmdpreview_ns: c_int = 0;
 
 static mut prev_prompt_id: c_uint = c_uint::MAX;
 static mut prev_prompt_errors: c_int = 0;
-
-unsafe extern "C" {
-    static mut main_loop: Loop;
-
-}
 
 #[inline]
 unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, len: usize) -> c_int {
@@ -5544,7 +5539,7 @@ unsafe fn open_cmdwin() -> c_int {
         let mut ev = Event::nil();
         ev.handler = Some(open_cmdwin_event);
         ev.argv[0] = a.cast::<c_void>();
-        loop_schedule_deferred(&raw mut main_loop, ev);
+        loop_schedule_deferred((&raw mut main_loop).cast(), ev);
         Ctrl_C
     }
 }

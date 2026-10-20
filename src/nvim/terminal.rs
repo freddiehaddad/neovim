@@ -443,12 +443,6 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
     keys: ptr::null_mut(),
 };
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    static mut main_loop: c_void;
-
-}
-
 #[inline]
 unsafe fn buf_get_changedtick(buf: *const buf_T) -> i64 {
     unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
@@ -762,7 +756,7 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
         argv[7] = ((*term).termrequest_terminator as isize) as *mut c_void;
 
         multiqueue_put_event(
-            (*loop_queues(&raw mut main_loop)).events,
+            (*loop_queues((&raw mut main_loop).cast())).events,
             Event {
                 handler: Some(emit_termrequest),
                 argv,
@@ -931,9 +925,9 @@ pub unsafe extern "C" fn terminal_init() {
     #[cfg(not(test))]
     unsafe {
         let timer = refresh_timer_ptr();
-        time_watcher_init(&raw mut main_loop, timer, ptr::null_mut());
+        time_watcher_init((&raw mut main_loop).cast(), timer, ptr::null_mut());
         (*watcher_fields(timer)).events =
-            multiqueue_new_child((*loop_queues(&raw mut main_loop)).events);
+            multiqueue_new_child((*loop_queues((&raw mut main_loop).cast())).events);
     }
 }
 
@@ -1979,7 +1973,7 @@ pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_ch
             let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
             argv[0] = ((*term).buf_handle as isize) as *mut c_void;
             multiqueue_put_event(
-                (*loop_queues(&raw mut main_loop)).events,
+                (*loop_queues((&raw mut main_loop).cast())).events,
                 Event {
                     handler: Some(on_sync_flush),
                     argv,
@@ -2539,7 +2533,7 @@ unsafe extern "C" fn term_selection_set(
             argv[0] = (mask as isize) as *mut c_void;
             argv[1] = data;
             multiqueue_put_event(
-                (*loop_queues(&raw mut main_loop)).events,
+                (*loop_queues((&raw mut main_loop).cast())).events,
                 Event {
                     handler: Some(term_clipboard_set),
                     argv,
@@ -2902,7 +2896,7 @@ unsafe fn refresh_terminal(term: *mut Terminal) {
         }
 
         multiqueue_move_events(
-            (*loop_queues(&raw mut main_loop)).events,
+            (*loop_queues((&raw mut main_loop).cast())).events,
             (*term).pending.events,
         );
     }

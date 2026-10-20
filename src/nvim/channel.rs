@@ -185,7 +185,6 @@ pub struct TerminalOptions {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut main_loop: u8;
 
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
 

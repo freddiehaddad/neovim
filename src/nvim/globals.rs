@@ -67,6 +67,12 @@ const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
     out
 }
 
+#[repr(C, align(16))]
+pub struct MainLoopStorage(pub [u8; 4096]);
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut main_loop: MainLoopStorage = MainLoopStorage([0; 4096]);
+
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut g_stats: NvimStats = unsafe { zeroed() };
 #[cfg_attr(not(test), unsafe(no_mangle))]

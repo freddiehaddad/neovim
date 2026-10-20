@@ -315,7 +315,6 @@ unsafe extern "system" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut main_loop: Loop;
 
     static version_sys_vimrc_file: *const c_char;
     static main_exitfree: bool;
@@ -457,9 +456,9 @@ unsafe fn garglist() -> *mut aentry_T {
 pub unsafe extern "C" fn event_init() {
     #[cfg(not(test))]
     unsafe {
-        loop_init(&raw mut main_loop, ptr::null_mut());
+        loop_init((&raw mut main_loop).cast(), ptr::null_mut());
         env_init();
-        let queues = loop_queues(&raw mut main_loop);
+        let queues = loop_queues((&raw mut main_loop).cast());
         resize_events = multiqueue_new_child((*queues).events);
 
         autocmd_init();
@@ -474,21 +473,21 @@ pub unsafe extern "C" fn event_init() {
 unsafe fn event_teardown() -> bool {
     #[cfg(not(test))]
     unsafe {
-        let queues = loop_queues(&raw mut main_loop);
+        let queues = loop_queues((&raw mut main_loop).cast());
         if (*queues).events.is_null() {
             return true;
         }
 
         multiqueue_process_events((*queues).events);
-        loop_poll_events(&raw mut main_loop, 0);
+        loop_poll_events((&raw mut main_loop).cast(), 0);
         server_teardown();
         channel_teardown();
-        proc_teardown(&raw mut main_loop);
+        proc_teardown((&raw mut main_loop).cast());
         timer_teardown();
         signal_teardown();
         terminal_teardown();
 
-        loop_close(&raw mut main_loop, true)
+        loop_close((&raw mut main_loop).cast(), true)
     }
     #[cfg(test)]
     {

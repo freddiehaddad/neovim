@@ -319,7 +319,6 @@ static mut urls: Set<cstr_t> = Set {
 };
 
 unsafe extern "C" {
-    static mut main_loop: u8;
 
     fn uv_tty_init(loop_: *mut uv_loop_t, tty: *mut uv_tty_t, fd: c_int, readable: c_int) -> c_int;
     fn uv_tty_set_mode(tty: *mut uv_tty_t, mode: c_int) -> c_int;

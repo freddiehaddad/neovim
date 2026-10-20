@@ -548,7 +548,6 @@ unsafe extern "system" {
 }
 
 unsafe extern "C" {
-    static mut main_loop: u8;
     static eval_has_list: [*const c_char; 0];
 
     fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulong;

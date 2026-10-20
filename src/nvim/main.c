@@ -1,13 +1,6 @@
-#include <assert.h>
-#include <lauxlib.h>  // IWYU pragma: keep
-#include <lua.h>  // IWYU pragma: keep
-#include <lualib.h>  // IWYU pragma: keep
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #ifdef ENABLE_ASAN_UBSAN
 # include <sanitizer/asan_interface.h>
 # ifndef MSWIN
@@ -19,24 +12,11 @@
 #include "auto/pathdef.h"
 #include "auto/versiondef.h"
 #include "auto/versiondef_git.h"
-#include "nvim/api/private/defs.h"
-#include "nvim/api/private/dispatch.h"
 #include "nvim/api/private/helpers.h"
-#include "nvim/assert_defs.h"
-#include "nvim/errors.h"  // IWYU pragma: keep
-#include "nvim/event/loop.h"
-#include "nvim/ex_docmd.h"  // IWYU pragma: keep
-#include "nvim/ex_getln.h"  // IWYU pragma: keep
-#include "nvim/func_attr.h"  // IWYU pragma: keep
-#include "nvim/globals.h"  // IWYU pragma: keep
-#include "nvim/lua/converter.h"  // IWYU pragma: keep
 #include "nvim/lua/executor.h"
 #include "nvim/macros_defs.h"
 #include "nvim/main.h"
-#include "nvim/memory.h"
-#include "nvim/memory_defs.h"
 #include "nvim/os/os_defs.h"
-#include "nvim/types_defs.h"
 
 #ifdef MSWIN
 # ifndef _UCRT
@@ -52,7 +32,6 @@ typedef struct {
 
 #include "api/private/api_metadata.generated.h"
 #include "lua/vim_module.generated.h"
-#include "lua_api_c_bindings.generated.h"  // IWYU pragma: keep
 #include "main.c.generated.h"
 
 // for ":version", ":intro", and "nvim --version"
@@ -78,8 +57,6 @@ const char *version_sys_vimrc_file = NULL;
 const int nvim_version_major = NVIM_VERSION_MAJOR;
 const int nvim_version_minor = NVIM_VERSION_MINOR;
 const int nvim_version_patch = NVIM_VERSION_PATCH;
-
-Loop main_loop;
 
 #ifdef EXITFREE
 const bool main_exitfree = true;

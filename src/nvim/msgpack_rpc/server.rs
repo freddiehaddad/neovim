@@ -79,7 +79,6 @@ static mut watchers: garray_T = garray_T {
 static mut server_addr_count: u32 = 0;
 
 unsafe extern "C" {
-    static mut main_loop: u8;
 
     fn uv_freeaddrinfo(ai: *mut c_void);
 

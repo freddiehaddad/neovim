@@ -43,7 +43,7 @@ use crate::api::private::validate::{
 };
 use crate::channel::{channel_connect, channel_job_start};
 use crate::eval::deprecated::{Callback, CallbackReader};
-use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
+use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_process_events,
     multiqueue_put_event,
@@ -95,7 +95,6 @@ static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
 
 unsafe extern "C" {
-    static mut main_loop: Loop;
 
     fn uv_os_getpid() -> c_int;
     #[cfg(windows)]
@@ -361,11 +360,11 @@ pub unsafe extern "C" fn ui_client_run() -> ! {
         time_finish();
 
         loop {
-            let events = (*loop_queues(&raw mut main_loop)).events;
+            let events = (*loop_queues((&raw mut main_loop).cast())).events;
             if !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events(&raw mut main_loop, -1);
+                loop_poll_events((&raw mut main_loop).cast(), -1);
                 multiqueue_process_events(events);
             }
         }
@@ -537,7 +536,7 @@ pub unsafe extern "C" fn ui_client_event_connect(args: Array) {
             [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
         argv[0] = server_addr.cast();
         multiqueue_put_event(
-            (*loop_queues(&raw mut main_loop)).fast_events,
+            (*loop_queues((&raw mut main_loop).cast())).fast_events,
             Event {
                 handler: Some(channel_connect_event),
                 argv,

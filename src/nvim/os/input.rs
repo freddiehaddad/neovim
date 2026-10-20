@@ -123,8 +123,6 @@ unsafe fn ensure_input_ptrs_init() {
 }
 
 unsafe extern "C" {
-    static mut main_loop: [u8; 0];
-
     fn sscanf(s: *const c_char, format: *const c_char, ...) -> c_int;
 }
 

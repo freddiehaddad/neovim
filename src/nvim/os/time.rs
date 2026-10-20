@@ -38,7 +38,6 @@ static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut main_loop: c_void;
 
     fn uv_hrtime() -> u64;
     fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
@@ -103,7 +102,7 @@ pub extern "C" fn os_realtime() -> i64 {
 pub extern "C" fn os_now() -> u64 {
     #[cfg(not(test))]
     unsafe {
-        uv_now(&raw const main_loop)
+        uv_now((&raw const main_loop).cast())
     }
     #[cfg(test)]
     1
@@ -132,7 +131,7 @@ pub extern "C" fn os_delay(ms: u64, ignoreinput: bool) {
             if cond {
                 break;
             }
-            loop_poll_events(&raw mut main_loop, remaining);
+            loop_poll_events((&raw mut main_loop).cast(), remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {

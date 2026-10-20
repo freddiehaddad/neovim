@@ -150,7 +150,6 @@ pub struct memfile_T {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut main_loop: u8;
 
     #[cfg(windows)]
     fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;

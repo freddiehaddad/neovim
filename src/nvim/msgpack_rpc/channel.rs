@@ -292,11 +292,6 @@ use crate::api::private::dispatch::{
     handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
 };
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    static mut main_loop: u8;
-}
-
 #[inline]
 pub unsafe fn channel_stream_union_size() -> usize {
     unsafe {

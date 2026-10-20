@@ -440,12 +440,6 @@ unsafe extern "C" {
 
 }
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    static mut main_loop: u8;
-
-}
-
 #[inline]
 const fn ascii_isdigit(c: c_char) -> bool {
     let b = c as u8;

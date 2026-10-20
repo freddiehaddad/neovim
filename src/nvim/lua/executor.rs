@@ -313,8 +313,9 @@ unsafe extern "C-unwind" {
     ) -> c_int;
 
     fn luaopen_luv(L: *mut lua_State) -> c_int;
-    fn nlua_add_api_functions(lstate: *mut lua_State);
 }
+
+pub use crate::api::private::dispatch::nlua_add_api_functions;
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "system" {
@@ -323,7 +324,6 @@ unsafe extern "system" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut main_loop: Loop;
 
     static main_exitfree: bool;
 
@@ -776,7 +776,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
 
             let mut len: usize = 0;
             let error = nlua_get_error(lstate, &raw mut len);
-            let queues = loop_queues(&raw mut main_loop);
+            let queues = loop_queues((&raw mut main_loop).cast());
             put_event(
                 (*queues).events,
                 nlua_luv_error_event,
@@ -875,7 +875,7 @@ unsafe fn nlua_luv_thread_common_cfpcall(
             } else {
                 kThread
             }) as *mut c_void;
-            loop_schedule_deferred(&raw mut main_loop, ev);
+            loop_schedule_deferred((&raw mut main_loop).cast(), ev);
             lua_pop(lstate, 1);
             -status
         } else {
@@ -989,13 +989,13 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
         }
 
         lua_pushnil(lstate);
-        if *loop_closing_ptr(&raw mut main_loop) {
+        if *loop_closing_ptr((&raw mut main_loop).cast()) {
             lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
             return 2;
         }
 
         let cb = nlua_ref_global(lstate, 1);
-        let queues = loop_queues(&raw mut main_loop);
+        let queues = loop_queues((&raw mut main_loop).cast());
         put_event(
             (*queues).events,
             nlua_schedule_event,
@@ -1013,7 +1013,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         let timeout = luaL_checkinteger(lstate, 1) as i64;
         let fast_only = lua_toboolean(lstate, 2) != 0;
 
-        let queues = loop_queues(&raw mut main_loop);
+        let queues = loop_queues((&raw mut main_loop).cast());
         let loop_events = if fast_only {
             (*queues).fast_events
         } else {
@@ -1022,7 +1022,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         if !loop_events.is_null() && !multiqueue_empty(loop_events) {
             multiqueue_process_events(loop_events);
         } else {
-            loop_poll_events(&raw mut main_loop, timeout);
+            loop_poll_events((&raw mut main_loop).cast(), timeout);
         }
 
         0
@@ -1640,9 +1640,9 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             };
             ev.argv[0] = msg_ga.ga_data;
             ev.argv[1] = msg_ga.ga_len as isize as *mut c_void;
-            loop_schedule_deferred(&raw mut main_loop, ev);
+            loop_schedule_deferred((&raw mut main_loop).cast(), ev);
         } else if IN_FAST_CALLBACK != 0 {
-            let queues = loop_queues(&raw mut main_loop);
+            let queues = loop_queues((&raw mut main_loop).cast());
             put_event(
                 (*queues).events,
                 nlua_print_event,

@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+use crate::globals::main_loop;
+
 #[allow(unused_imports)]
 use crate::charset::try_getdigits;
 #[allow(unused_imports)]
@@ -143,8 +145,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 }
 
 unsafe extern "C" {
-    static mut main_loop: [u8; 0];
-
     fn uv_getaddrinfo(
         loop_: *mut uv_loop_t,
         req: *mut uv_getaddrinfo_t,

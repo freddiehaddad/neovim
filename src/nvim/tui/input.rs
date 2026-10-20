@@ -118,7 +118,6 @@ static mut LAST_PRESSED_BUTTON: c_int = 0;
 
 #[cfg(not(test))]
 unsafe extern "C" {
-    static mut main_loop: u8;
 
     fn uv_timer_get_due_in(handle: *const uv_timer_t) -> u64;
 

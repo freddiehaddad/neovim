@@ -208,7 +208,7 @@ use crate::eval::vars::{
     v_exception, v_throwpoint, var_redir_start, var_redir_stop,
 };
 use crate::eval::window::{win_find_nr, win_has_winnr};
-use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
+use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::proc::{Proc, proc_stop, proc_wait};
 use crate::ex_cmds::{
@@ -867,8 +867,6 @@ const CMDMODS: [CmdModInfo; 24] = [
 ];
 
 unsafe extern "C" {
-
-    static mut main_loop: Loop;
 
     #[cfg(windows)]
     #[link_name = "_stricmp"]
@@ -11555,7 +11553,7 @@ pub unsafe extern "C" fn do_sleep(msec: i64, hide_cursor: bool) {
         }
 
         ui_flush();
-        let main_loop_ptr = &raw mut main_loop;
+        let main_loop_ptr = (&raw mut main_loop).cast();
         let events = (*loop_queues(main_loop_ptr)).events;
         let mut remaining = msec;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };

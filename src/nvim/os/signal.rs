@@ -78,11 +78,11 @@ static mut ststp: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
 #[cfg(target_os = "linux")]
 static mut spwr: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
 
+use crate::globals::main_loop;
+
 static mut rejecting_deadly: bool = false;
 
 unsafe extern "C" {
-    static mut main_loop: [u8; 0];
-
     #[cfg(unix)]
     fn sigemptyset(set: *mut c_void) -> c_int;
     #[cfg(unix)]

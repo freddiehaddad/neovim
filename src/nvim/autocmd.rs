@@ -1356,11 +1356,6 @@ static mut focusgained_recursive: bool = false;
 static mut focusgained_last_time: Timestamp = 0;
 static mut ft_recursive: c_int = 0;
 
-unsafe extern "C" {
-    static mut main_loop: u8;
-
-}
-
 #[inline]
 unsafe fn tr(s: &CStr) -> *mut c_char {
     unsafe { gettext(s.as_ptr()) }

@@ -107,11 +107,6 @@ pub struct save_v_event_T {
     pub sve_hashtab: hashtab_T,
 }
 
-unsafe extern "C" {
-    static mut main_loop: u8;
-
-}
-
 static mut was_safe: bool = false;
 
 #[inline]

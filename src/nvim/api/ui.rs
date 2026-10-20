@@ -117,11 +117,6 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
     values: ptr::null_mut(),
 };
 
-unsafe extern "C" {
-    static mut main_loop: Loop;
-
-}
-
 #[inline]
 const fn error_set(e: *const Error) -> bool {
     unsafe { !matches!((*e).err_type, ErrorType::kErrorTypeNone) }
@@ -366,11 +361,11 @@ pub unsafe extern "C" fn remote_ui_free_all_mem() {
 pub unsafe extern "C" fn remote_ui_wait_for_attach() {
     unsafe {
         while ui_active() == 0 {
-            let events = (*loop_queues(&raw mut main_loop)).events;
+            let events = (*loop_queues((&raw mut main_loop).cast())).events;
             if !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events(&raw mut main_loop, -1);
+                loop_poll_events((&raw mut main_loop).cast(), -1);
                 multiqueue_process_events(events);
             }
         }

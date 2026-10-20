@@ -360,15 +360,10 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
-unsafe extern "C" {
-    static mut main_loop: u8;
-
-}
-
 #[inline]
 unsafe fn main_loop_events() -> *mut MultiQueue {
     unsafe {
-        let base = &raw mut main_loop;
+        let base = (&raw mut main_loop).cast::<u8>();
         *(base.add(uv_loop_size()).cast::<*mut MultiQueue>())
     }
 }

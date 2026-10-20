@@ -94,12 +94,12 @@ pub struct ProcTail {
     pub events: *mut MultiQueue,
 }
 
+use crate::globals::main_loop;
+
 static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
 
 unsafe extern "C" {
-    static mut main_loop: [u8; 0];
-
     fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
     fn uv_unref(handle: *mut uv_handle_t);
     fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;

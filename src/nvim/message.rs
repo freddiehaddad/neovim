@@ -61,7 +61,7 @@ use crate::eval::vars::{
     VV_ERRMSG, VV_SCROLLSTART, VV_STATUSMSG, VV_WARNINGMSG, get_vim_var_str, set_vim_var_string,
     var_redir_str,
 };
-use crate::event::r#loop::{Loop, loop_schedule_deferred};
+use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_process_events};
 use crate::ex_eval::cause_errthrow;
 use crate::ex_session::FILE;
@@ -290,7 +290,6 @@ static mut pre_verbose_kind: *const c_char = ptr::null();
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 
 unsafe extern "C" {
-    static mut main_loop: Loop;
 
     fn printf(format: *const c_char, ...) -> c_int;
     fn strnlen(s: *const c_char, maxlen: usize) -> usize;
@@ -1474,7 +1473,7 @@ pub unsafe extern "C" fn msg_schedule_semsg_cstr(s: *const c_char) {
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
         argv[0] = dup.cast();
         loop_schedule_deferred(
-            &raw mut main_loop,
+            (&raw mut main_loop).cast(),
             Event {
                 handler: Some(msg_semsg_event),
                 argv,
@@ -1498,7 +1497,7 @@ pub unsafe extern "C" fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
         let mut argv = [ptr::null_mut(); EVENT_HANDLER_MAX_ARGC];
         argv[0] = dup.cast();
         loop_schedule_deferred(
-            &raw mut main_loop,
+            (&raw mut main_loop).cast(),
             Event {
                 handler: Some(msg_semsg_multiline_event),
                 argv,

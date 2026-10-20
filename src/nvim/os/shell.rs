@@ -160,9 +160,9 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
     unsafe { CStr::from_ptr(s).to_bytes().len() }
 }
 
-unsafe extern "C" {
-    static mut main_loop: [u8; 0];
+use crate::globals::main_loop;
 
+unsafe extern "C" {
     fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
     fn ftell(stream: *mut FILE) -> c_long;
 }
