@@ -283,7 +283,6 @@ endif()
 # Variables
 #-------------------------------------------------------------------------------
 
-set(EVAL_FUNCS_METADATA ${PROJECT_BINARY_DIR}/eval_funcs_metadata.mpack)
 set(BINARY_LIB_DIR ${PROJECT_BINARY_DIR}/lib/nvim)
 set(GENERATED_DIR ${PROJECT_BINARY_DIR}/src/nvim/auto)
 set(GENERATED_INCLUDES_DIR ${PROJECT_BINARY_DIR}/include)
@@ -293,14 +292,10 @@ set(LUAJIT_RUNTIME_DIR ${DEPS_PREFIX}/share/luajit-2.1/jit)
 set(NVIM_RUNTIME_DIR ${PROJECT_SOURCE_DIR}/runtime)
 
 # GENERATOR_DIR
-set(API_DISPATCH_GENERATOR ${GENERATOR_DIR}/gen_api_dispatch.lua)
-set(FUNCS_GENERATOR ${GENERATOR_DIR}/gen_eval.lua)
-set(GENERATOR_C_GRAMMAR ${GENERATOR_DIR}/c_grammar.lua)
 set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.h)
 list(REMOVE_ITEM API_HEADERS ${CMAKE_CURRENT_LIST_DIR}/api/ui_events.in.h)
-file(GLOB MSGPACK_RPC_HEADERS CONFIGURE_DEPENDS msgpack_rpc/*.h)
 
 target_include_directories(main_lib INTERFACE
   ${GENERATED_DIR}
@@ -405,26 +400,6 @@ message(STATUS "Using NVIM_VERSION: ${NVIM_VERSION}")
 
 set(NVIM_LUA $<TARGET_FILE:nvim_bin> -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SOURCE_DIR})
 set(NVIM_LUA_DEPS nvim_bin nvim_runtime_deps ${NVIM_LUA_PRELOAD})
-
-add_custom_command(
-  OUTPUT ${EVAL_FUNCS_METADATA}
-  COMMAND ${NVIM_LUA} ${API_DISPATCH_GENERATOR}
-                      ${EVAL_FUNCS_METADATA}
-                      ${CMAKE_CURRENT_LIST_DIR}/api/dispatch_deprecated.lua
-                      ${API_HEADERS}
-  DEPENDS
-    ${NVIM_LUA_DEPS}
-    ${API_HEADERS}
-    ${MSGPACK_RPC_HEADERS}
-    ${API_DISPATCH_GENERATOR}
-    ${GENERATOR_C_GRAMMAR}
-    ${CMAKE_CURRENT_LIST_DIR}/api/dispatch_deprecated.lua
-)
-
-add_custom_command(OUTPUT ${FUNCS_DATA}
-  COMMAND ${NVIM_LUA} ${FUNCS_GENERATOR} ${EVAL_FUNCS_METADATA} ${FUNCS_DATA} ${CMAKE_CURRENT_LIST_DIR}/eval.lua
-  DEPENDS ${NVIM_LUA_DEPS} ${FUNCS_GENERATOR} ${CMAKE_CURRENT_LIST_DIR}/eval.lua ${EVAL_FUNCS_METADATA}
-)
 
 if(PREFER_LUA)
   message(STATUS "luajit not used, skipping unit tests")
@@ -719,10 +694,10 @@ add_target(doc-vim
   )
 
 add_target(doc-eval
-  COMMAND ${NVIM_LUA} ${PROJECT_SOURCE_DIR}/src/gen/gen_eval_files.lua ${EVAL_FUNCS_METADATA} ${PROJECT_BINARY_DIR}/runtime/doc/tags
+  COMMAND ${NVIM_LUA} ${PROJECT_SOURCE_DIR}/src/gen/gen_eval_files.lua ${PROJECT_BINARY_DIR}/runtime/doc/tags
   DEPENDS
     nvim
-    ${EVAL_FUNCS_METADATA}
+    ${API_HEADERS}
     ${PROJECT_SOURCE_DIR}/src/gen/gen_eval_files.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/eval.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/options.lua

@@ -14,7 +14,8 @@ get_directory_property(NVIM_LUA DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINIT
 get_directory_property(NVIM_LUA_DEPS DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINITION NVIM_LUA_DEPS)
 
 add_custom_command(OUTPUT ${GENERATED_SYN_VIM}
-  COMMAND ${NVIM_LUA} ${SYN_VIM_GENERATOR} ${GENERATED_SYN_VIM} ${FUNCS_DATA}
+  COMMAND ${NVIM_LUA} ${SYN_VIM_GENERATOR} ${GENERATED_SYN_VIM}
+    ${PROJECT_SOURCE_DIR}/src/nvim/eval.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/options.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/auevents.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/ex_cmds.lua
@@ -22,12 +23,12 @@ add_custom_command(OUTPUT ${GENERATED_SYN_VIM}
   DEPENDS
     ${NVIM_LUA_DEPS}
     ${SYN_VIM_GENERATOR}
+    ${PROJECT_SOURCE_DIR}/src/nvim/eval.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/ex_cmds.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/auevents.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/options.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/vvars.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/eval.rs
-    ${FUNCS_DATA}
 )
 
 file(GLOB PACKAGES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/runtime/pack/dist/opt/*)

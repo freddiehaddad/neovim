@@ -1,8 +1,6 @@
 ---@diagnostic disable: no-unknown
-local mpack = vim.mpack
-
 local syntax_file = arg[1]
-local funcs_file = arg[2]
+local eval_file = arg[2]
 local options_file = arg[3]
 local auevents_file = arg[4]
 local ex_cmds_file = arg[5]
@@ -155,7 +153,19 @@ w(nvimau_end .. '\n')
 w('\nsyn case match')
 local vimfun_start = 'syn keyword vimFuncName contained '
 w('\n\n' .. vimfun_start)
-local funcs = mpack.decode(io.open(funcs_file, 'rb'):read('*all'))
+local eval_funcs = loadfile(eval_file)().funcs
+for name, func in pairs(eval_funcs) do
+  local n = (func.func_float and 1 or 0) + (func.func_lua and 1 or 0) + (func.func and 1 or 0)
+  assert(n <= 1, name .. ': only one of func, func_float, func_lua can be set')
+end
+for _, item in ipairs(vim.fn.getcompletion('nvim_', 'function')) do
+  local name = item:gsub('%(%)?$', '')
+  eval_funcs[name] = true
+end
+local funcs = vim.tbl_filter(function(name)
+  return name:match('__%d*$') == nil
+end, vim.tbl_keys(eval_funcs))
+table.sort(funcs)
 for _, name in ipairs(funcs) do
   if name then
     if lld.line_length > 850 then

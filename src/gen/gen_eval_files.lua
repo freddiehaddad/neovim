@@ -7,8 +7,7 @@ local lint = require('gen.lint')
 local api_type = require('gen.api_types')
 local fmt = string.format
 
-local DEP_API_METADATA = arg[1]
-local TAGS_FILE = arg[2]
+local TAGS_FILE = arg[1]
 local TEXT_WIDTH = 78
 
 --- @class vim.api.metadata
@@ -387,13 +386,45 @@ end
 
 --- @return table<string, vim.EvalFn>
 local function get_api_keysets_meta()
-  local mpack_f = assert(io.open(DEP_API_METADATA, 'rb'))
-  local metadata = assert(vim.mpack.decode(mpack_f:read('*all')))
-
-  local ret = {} --- @type table<string, vim.EvalFn>
+  local c_grammar = require('gen.c_grammar')
+  local input = assert(io.open('src/nvim/api/keysets_defs.h', 'rb'))
+  local text = input:read('*all')
+  input:close()
 
   --- @type {name: string, keys: string[], types: table<string,string>}[]
-  local keysets = metadata.keysets
+  local keysets = {}
+  for _, val in ipairs(c_grammar.grammar:match(text)) do
+    if val.keyset_name then
+      --- @cast val nvim.c_grammar.Keyset
+      local keys = {} --- @type string[]
+      local types = {} --- @type table<string, string>
+      local is_set_name = 'is_set__' .. val.keyset_name .. '_'
+      for i, field in ipairs(val.fields) do
+        local dict_key = field.dict_key or field.name
+        if field.type ~= 'Object' then
+          types[dict_key] = field.type
+        end
+        if field.name ~= is_set_name and field.type ~= 'OptionalKeys' then
+          table.insert(keys, dict_key)
+        else
+          if i > 1 then
+            error("'is_set__{type}_' must be first if present")
+          elseif field.name ~= is_set_name then
+            error(val.keyset_name .. ': name of first key should be ' .. is_set_name)
+          elseif field.type ~= 'OptionalKeys' then
+            error("'" .. is_set_name .. "' must have type 'OptionalKeys'")
+          end
+        end
+      end
+      keysets[#keysets + 1] = {
+        name = val.keyset_name,
+        keys = keys,
+        types = types,
+      }
+    end
+  end
+
+  local ret = {} --- @type table<string, vim.EvalFn>
   local event_type = 'vim.api.keyset.events|vim.api.keyset.events[]'
 
   lint.lint_names('src/nvim/api/keysets_defs.h', nil, keysets)

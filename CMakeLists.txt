@@ -51,7 +51,6 @@ endif()
 #-------------------------------------------------------------------------------
 # Variables
 #-------------------------------------------------------------------------------
-set(FUNCS_DATA ${PROJECT_BINARY_DIR}/funcs_data.mpack)
 set(TOUCHES_DIR ${PROJECT_BINARY_DIR}/touches)
 set(VTERM_TEST_FILE ${PROJECT_BINARY_DIR}/test/vterm_test_output)
 

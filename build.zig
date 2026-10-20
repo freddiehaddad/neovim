@@ -2,7 +2,6 @@ const std = @import("std");
 const LazyPath = std.Build.LazyPath;
 const Compile = std.Build.Step.Compile;
 const build_lua = @import("src/build_lua.zig");
-const gen = @import("src/gen/gen_steps.zig");
 const runtime = @import("runtime/gen_runtime.zig");
 const tests = @import("test/run_tests.zig");
 const zcc = @import("compile_commands");
@@ -226,7 +225,7 @@ pub fn build(b: *std.Build) !void {
     };
 
     // source names _relative_ src/nvim/, not including other src/ subdircs
-    var nvim_sources = try std.ArrayList(gen.SourceItem).initCapacity(b.allocator, 100);
+    var nvim_sources = try std.ArrayList(runtime.SourceItem).initCapacity(b.allocator, 100);
     var nvim_headers = try std.ArrayList([]u8).initCapacity(b.allocator, 100);
 
     // both source headers and the {module}.h.generated.h files
@@ -360,12 +359,8 @@ pub fn build(b: *std.Build) !void {
         try unittest_include_path.append(b.allocator, dep.artifact("iconv").getEmittedIncludeTree());
     }
 
-    const gen_headers, const funcs_data = try gen.nvim_gen_sources(
-        b,
-        nlua0,
-        &api_headers,
-        !cross_compiling,
-    );
+    const gen_headers = b.addWriteFiles();
+    _ = api_headers;
 
     const test_config_step = b.addWriteFiles();
     _ = test_config_step.add("test/cmakeconfig/paths.lua", try test_config(b));
@@ -484,7 +479,7 @@ pub fn build(b: *std.Build) !void {
 
     const nvim_exe_step = b.step("nvim_bin", "only the binary (not a fully working install!)");
     const nvim_exe_install = b.addInstallArtifact(nvim_exe, .{ .dest_dir = if (is_wasm) .{ .override = .{ .custom = "wasm" } } else .default });
-    const gen_runtime = try runtime.nvim_gen_runtime(b, nlua0, funcs_data);
+    const gen_runtime = try runtime.nvim_gen_runtime(b, nlua0);
 
     if (is_wasm) {
         const s = emscripten_sysroot orelse @panic("-Demscripten-sysroot required for wasm target");
