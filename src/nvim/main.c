@@ -1,9 +1,3 @@
-// Make sure extern symbols are exported on Windows
-#ifdef WIN32
-# define EXTERN __declspec(dllexport)
-#else
-# define EXTERN
-#endif
 #include <assert.h>
 #include <lauxlib.h>  // IWYU pragma: keep
 #include <lua.h>  // IWYU pragma: keep
@@ -25,14 +19,6 @@
 
 #include "auto/config.h"  // IWYU pragma: keep
 #include "auto/pathdef.h"
-#include "nvim/option_defs.h"
-#include "nvim/option_vars.h"
-
-#undef EXTERN
-#undef INIT
-#define EXTERN extern
-#define INIT(...)
-
 #include "auto/versiondef.h"
 #include "auto/versiondef_git.h"
 #include "nvim/api/private/defs.h"
@@ -58,6 +44,8 @@
 #include "nvim/message.h"
 #include "nvim/msgpack_rpc/unpacker.h"
 #include "nvim/option.h"
+#include "nvim/option_defs.h"
+#include "nvim/option_vars.h"
 #include "nvim/os/os_defs.h"
 #include "nvim/strings.h"
 #include "nvim/types_defs.h"
@@ -79,11 +67,6 @@ typedef struct {
   const uint8_t *data;
   size_t size;
 } ModuleDef;
-
-typedef struct {
-  va_list ap_start;
-  va_list ap;
-} VaState;
 
 #ifdef _MSC_VER
 # pragma function(ceil)
@@ -321,108 +304,6 @@ void api_set_error(Error *err, ErrorType errType, const char *format, ...)
   va_end(args2);
 
   err->type = errType;
-}
-
-int vim_vsnprintf_typval_rs(char *str, size_t str_m, const char *fmt, void *va_ptr,
-                            typval_T *const tvs);
-long long va_state_llong(void *va_ptr);  // NOLINT(runtime/int)
-unsigned long va_state_ulong(void *va_ptr);  // NOLINT(runtime/int)
-unsigned long long va_state_ullong(void *va_ptr);  // NOLINT(runtime/int)
-
-void va_state_reset(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  va_end(va->ap);
-  va_copy(va->ap, va->ap_start);
-}
-
-int va_state_int(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, int);
-}
-
-long va_state_long(void *va_ptr)  // NOLINT(runtime/int)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, long);  // NOLINT(runtime/int)
-}
-
-long long va_state_llong(void *va_ptr)  // NOLINT(runtime/int)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, long long);  // NOLINT(runtime/int)
-}
-
-ptrdiff_t va_state_ptrdiff(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, ptrdiff_t);
-}
-
-unsigned va_state_uint(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, unsigned);
-}
-
-unsigned long va_state_ulong(void *va_ptr)  // NOLINT(runtime/int)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, unsigned long);  // NOLINT(runtime/int)
-}
-
-unsigned long long va_state_ullong(void *va_ptr)  // NOLINT(runtime/int)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, unsigned long long);  // NOLINT(runtime/int)
-}
-
-size_t va_state_size(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, size_t);
-}
-
-const char *va_state_str(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, const char *);
-}
-
-void *va_state_ptr(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, void *);
-}
-
-double va_state_double(void *va_ptr)
-{
-  VaState *va = va_ptr;
-  return va_arg(va->ap, double);
-}
-
-void va_report_null_string(void)
-{
-#ifdef ENABLE_ASAN_UBSAN
-  __sanitizer_print_stack_trace();
-  __sanitizer_report_error_summary("SUMMARY: NULL argument passed to %s");
-#endif
-}
-
-int vim_snprintf(char *str, size_t str_m, const char *fmt, ...)
-  FUNC_ATTR_PRINTF(3, 4)
-{
-  va_list ap;
-  va_start(ap, fmt);
-  VaState va;
-  va_copy(va.ap_start, ap);
-  va_copy(va.ap, ap);
-  const int str_l = vim_vsnprintf_typval_rs(str, str_m, fmt, &va, NULL);
-  va_end(va.ap);
-  va_end(va.ap_start);
-  va_end(ap);
-  return str_l;
 }
 
 #ifndef MAKE_LIB

@@ -1,6 +1,7 @@
 //! Window configuration API functions (`src/nvim/api/win_config.c`).
 
 #![allow(
+    static_mut_refs,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -223,11 +224,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
     hide: false,
     _cmdline_offset: c_int::MAX,
 };
-
-unsafe extern "C" {
-    static opt_winborder_values: [*const c_char; 9];
-
-}
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

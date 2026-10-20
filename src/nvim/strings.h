@@ -108,10 +108,18 @@ DLLEXPORT void f_tr(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
 DLLEXPORT void f_trim(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
 DLLEXPORT int cmp_keyvalue_value(const void *a, const void *b);
 DLLEXPORT int cmp_keyvalue_value_n(const void *a, const void *b);
+typedef struct {
+  int tag;
+  int64_t i;
+  uint64_t u;
+  double f;
+  const void *p;
+} VimFmtArg;
+
 DLLEXPORT int cmp_keyvalue_value_i(const void *a, const void *b);
 DLLEXPORT int cmp_keyvalue_value_ni(const void *a, const void *b);
-DLLEXPORT int vim_snprintf(char *str, size_t str_m, const char *fmt, ...)
-  FUNC_ATTR_PRINTF(3, 4);
+DLLEXPORT int vim_snprintf_args(char *str, size_t str_m, const char *fmt, const VimFmtArg *args,
+                                size_t argc);
 
 #include "nvim/func_attr.h"
 

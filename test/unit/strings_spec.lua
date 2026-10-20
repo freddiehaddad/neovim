@@ -147,46 +147,61 @@ describe('vim_strchr()', function()
 end)
 
 describe('vim_snprintf()', function()
+  local function uv(n)
+    return { tag = 1, u = n }
+  end
+  local function i(n)
+    return { tag = 0, i = n }
+  end
+  local function l(n)
+    return { tag = 0, i = n }
+  end
+  local function ll(n)
+    return { tag = 0, i = n }
+  end
+  local function z(n)
+    return { tag = 0, i = n }
+  end
+  local function u(n)
+    return { tag = 1, u = n }
+  end
+  local function ul(n)
+    return { tag = 1, u = n }
+  end
+  local function ull(n)
+    return { tag = 1, u = n }
+  end
+  local function uz(n)
+    return { tag = 1, u = n }
+  end
+
   local function a(expected, buf, bsize, fmt, ...)
     local args = { ... }
     local ctx = string.format('snprintf(buf, %d, "%s"', bsize, fmt)
-    for _, x in ipairs(args) do
+    local c_args = ffi.new('VimFmtArg[?]', #args)
+    for idx, x in ipairs(args) do
       ctx = ctx .. ', ' .. tostring(x)
+      if type(x) == 'number' then
+        c_args[idx - 1].tag = 2
+        c_args[idx - 1].f = x
+      elseif type(x) == 'string' then
+        c_args[idx - 1].tag = 3
+        c_args[idx - 1].p = ffi.cast('const void *', x)
+      elseif type(x) == 'table' then
+        c_args[idx - 1].tag = x.tag
+        c_args[idx - 1].i = x.i or 0
+        c_args[idx - 1].u = x.u or 0
+      else
+        c_args[idx - 1].tag = 3
+        c_args[idx - 1].p = ffi.cast('const void *', x)
+      end
     end
     ctx = ctx .. string.format(') = %s', expected)
-    eq(#expected, strings.vim_snprintf(buf, bsize, fmt, ...), ctx)
+    eq(#expected, strings.vim_snprintf_args(buf, bsize, fmt, c_args, #args), ctx)
     if bsize > 0 then
       local actual = ffi.string(buf, math.min(#expected + 1, bsize))
       eq(expected:sub(1, bsize - 1) .. '\0', actual, ctx)
     end
-  end
-
-  local function uv(n)
-    return ffi.cast(UVARNUM_TYPE, n)
-  end
-  local function i(n)
-    return ffi.cast('int', n)
-  end
-  local function l(n)
-    return ffi.cast('long', n)
-  end
-  local function ll(n)
-    return ffi.cast('long long', n)
-  end
-  local function z(n)
-    return ffi.cast('ptrdiff_t', n)
-  end
-  local function u(n)
-    return ffi.cast('unsigned', n)
-  end
-  local function ul(n)
-    return ffi.cast('unsigned long', n)
-  end
-  local function ull(n)
-    return ffi.cast('unsigned long long', n)
-  end
-  local function uz(n)
-    return ffi.cast('size_t', n)
   end
 
   itp('truncation', function()

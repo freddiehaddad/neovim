@@ -1,6 +1,7 @@
 //! String option validation, handling, and completion (`src/nvim/optionstr.c`).
 
 #![allow(
+    static_mut_refs,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -162,6 +163,7 @@ pub struct KeySetLink {
     pub is_hlgroup: bool,
 }
 
+unsafe impl Sync for OptSchemaItem {}
 unsafe impl Sync for KeySetLink {}
 
 pub use crate::lua::converter::OptKeySet;
@@ -819,28 +821,6 @@ static PVP_TABLE: [KeySetLink; 4] = [
 ];
 
 unsafe extern "C" {
-
-    static opt_scl_values: [*const c_char; 23];
-    static opt_bkc_values: [*const c_char; 6];
-    static opt_cot_values: [*const c_char; 13];
-    #[cfg(windows)]
-    static opt_csl_values: [*const c_char; 4];
-    static opt_dip_algorithm_values: [*const c_char; 5];
-    static opt_dip_inline_values: [*const c_char; 5];
-    static opt_ff_values: [*const c_char; 4];
-    static opt_ssop_values: [*const c_char; 19];
-    static opt_spo_values: [*const c_char; 3];
-    static opt_tc_values: [*const c_char; 6];
-    static opt_ve_values: [*const c_char; 7];
-    static opt_pvp_values: [*const c_char; 4];
-    static opt_pvp_border_values: [*const c_char; 8];
-
-    static opt_briopt_schema: [OptSchemaItem; 0];
-    static opt_dip_schema: [OptSchemaItem; 0];
-    static opt_mopt_schema: [OptSchemaItem; 0];
-    static opt_mousescroll_schema: [OptSchemaItem; 0];
-    static opt_pvp_schema: [OptSchemaItem; 0];
-
     fn strcspn(s: *const c_char, reject: *const c_char) -> usize;
 }
 

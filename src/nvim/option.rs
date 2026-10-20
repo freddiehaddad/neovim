@@ -714,8 +714,6 @@ const SHELL_RULES: [ShellRule; 2] = [
 
 unsafe extern "C" {
 
-    static buf_opt_idx: [OptIndex; 93];
-
     #[cfg(windows)]
     fn libintl_bind_textdomain_codeset(
         domainname: *const c_char,

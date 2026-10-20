@@ -687,6 +687,785 @@ pub static mut p_wd: OptInt = 0;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut p_cdh: c_int = 0;
 
+use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static global_opt_idx: [OptIndex; 267] = [
+    0, 1, 2, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 23, 26, 31, 32, 33, 34, 36,
+    37, 43, 44, 45, 47, 50, 53, 54, 56, 59, 61, 66, 67, 68, 69, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+    80, 83, 84, 85, 86, 87, 88, 91, 93, 95, 96, 98, 99, 101, 107, 112, 118, 119, 120, 121, 122,
+    123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141,
+    142, 145, 146, 148, 152, 153, 154, 156, 157, 158, 160, 161, 162, 163, 164, 165, 166, 167, 170,
+    171, 174, 176, 177, 178, 179, 180, 181, 183, 184, 185, 186, 187, 188, 189, 190, 191, 193, 194,
+    197, 198, 199, 200, 201, 202, 203, 204, 205, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219,
+    221, 222, 224, 225, 226, 227, 228, 229, 230, 231, 234, 235, 236, 238, 239, 240, 243, 244, 245,
+    249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267,
+    268, 269, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 282, 284, 292, 293, 294, 295, 296,
+    298, 299, 302, 305, 306, 307, 309, 310, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321, 323,
+    324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334, 335, 337, 338, 339, 340, 343, 344, 345,
+    346, 347, 348, 349, 350, 351, 352, 353, 354, 355, 356, 357, 358, 359, 361, 362, 366, 368, 369,
+    371, 374, 375, 376, 377, 378,
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static buf_opt_idx: [OptIndex; 93] = [
+    6, 9, 10, 16, 21, 22, 27, 28, 29, 30, 35, 38, 39, 40, 41, 42, 48, 49, 51, 52, 54, 55, 60, 67,
+    69, 71, 81, 82, 84, 87, 90, 92, 94, 97, 99, 100, 114, 115, 116, 117, 118, 119, 121, 122, 143,
+    144, 146, 147, 149, 150, 151, 155, 159, 161, 172, 173, 174, 180, 181, 182, 192, 195, 196, 206,
+    209, 219, 220, 232, 233, 247, 270, 283, 286, 288, 289, 290, 291, 300, 301, 303, 304, 308, 310,
+    311, 314, 322, 323, 324, 336, 337, 341, 342, 373,
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static win_opt_idx: [OptIndex; 53] = [
+    3, 24, 25, 46, 57, 58, 62, 63, 64, 65, 70, 89, 98, 102, 103, 104, 105, 106, 108, 109, 110, 111,
+    113, 168, 169, 175, 176, 207, 208, 223, 237, 241, 242, 246, 248, 250, 251, 272, 280, 281, 285,
+    287, 297, 298, 347, 359, 360, 363, 364, 365, 367, 370, 372,
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static tab_opt_idx: [OptIndex; 1] = [44];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_ambw_values: [*const c_char; 3] =
+    [c"single".as_ptr(), c"double".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_bg_values: [*const c_char; 3] =
+    [c"light".as_ptr(), c"dark".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_bs_values: [*const c_char; 5] = [
+    c"indent".as_ptr(),
+    c"eol".as_ptr(),
+    c"start".as_ptr(),
+    c"nostop".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_bkc_values: [*const c_char; 6] = [
+    c"yes".as_ptr(),
+    c"auto".as_ptr(),
+    c"no".as_ptr(),
+    c"breaksymlink".as_ptr(),
+    c"breakhardlink".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_bo_values: [*const c_char; 21] = [
+    c"all".as_ptr(),
+    c"backspace".as_ptr(),
+    c"cursor".as_ptr(),
+    c"complete".as_ptr(),
+    c"copy".as_ptr(),
+    c"ctrlg".as_ptr(),
+    c"error".as_ptr(),
+    c"esc".as_ptr(),
+    c"ex".as_ptr(),
+    c"hangul".as_ptr(),
+    c"insertmode".as_ptr(),
+    c"lang".as_ptr(),
+    c"mess".as_ptr(),
+    c"showmatch".as_ptr(),
+    c"operator".as_ptr(),
+    c"register".as_ptr(),
+    c"shell".as_ptr(),
+    c"spell".as_ptr(),
+    c"term".as_ptr(),
+    c"wildmode".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_briopt_values: [*const c_char; 6] = [
+    c"shift:".as_ptr(),
+    c"min:".as_ptr(),
+    c"sbr".as_ptr(),
+    c"list:".as_ptr(),
+    c"column:".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static opt_briopt_schema: [OptSchemaItem; 6] = [
+    OptSchemaItem {
+        name: c"shift".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaSNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"min".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"sbr".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"list".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaSNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"column".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaSNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: ptr::null(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_bh_values: [*const c_char; 6] = [
+    c"".as_ptr(),
+    c"hide".as_ptr(),
+    c"unload".as_ptr(),
+    c"delete".as_ptr(),
+    c"wipe".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_bt_values: [*const c_char; 9] = [
+    c"".as_ptr(),
+    c"acwrite".as_ptr(),
+    c"help".as_ptr(),
+    c"nofile".as_ptr(),
+    c"nowrite".as_ptr(),
+    c"quickfix".as_ptr(),
+    c"terminal".as_ptr(),
+    c"prompt".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_cmp_values: [*const c_char; 3] =
+    [c"internal".as_ptr(), c"keepascii".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_cb_values: [*const c_char; 3] =
+    [c"unnamed".as_ptr(), c"unnamedplus".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_cpt_values: [*const c_char; 16] = [
+    c".".as_ptr(),
+    c"w".as_ptr(),
+    c"b".as_ptr(),
+    c"u".as_ptr(),
+    c"k".as_ptr(),
+    c"kspell".as_ptr(),
+    c"s".as_ptr(),
+    c"i".as_ptr(),
+    c"d".as_ptr(),
+    c"]".as_ptr(),
+    c"t".as_ptr(),
+    c"U".as_ptr(),
+    c"f".as_ptr(),
+    c"F".as_ptr(),
+    c"o".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_cot_values: [*const c_char; 13] = [
+    c"fuzzy".as_ptr(),
+    c"longest".as_ptr(),
+    c"menu".as_ptr(),
+    c"menuone".as_ptr(),
+    c"nearest".as_ptr(),
+    c"noinsert".as_ptr(),
+    c"noselect".as_ptr(),
+    c"nosort".as_ptr(),
+    c"popup".as_ptr(),
+    c"preinsert".as_ptr(),
+    c"preselect".as_ptr(),
+    c"preview".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_csl_values: [*const c_char; 4] = [
+    c"".as_ptr(),
+    c"slash".as_ptr(),
+    c"backslash".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_culopt_values: [*const c_char; 5] = [
+    c"line".as_ptr(),
+    c"screenline".as_ptr(),
+    c"number".as_ptr(),
+    c"both".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_debug_values: [*const c_char; 4] = [
+    c"msg".as_ptr(),
+    c"throw".as_ptr(),
+    c"beep".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_dip_values: [*const c_char; 20] = [
+    c"filler".as_ptr(),
+    c"anchor".as_ptr(),
+    c"context:".as_ptr(),
+    c"iblank".as_ptr(),
+    c"icase".as_ptr(),
+    c"iwhite".as_ptr(),
+    c"iwhiteall".as_ptr(),
+    c"iwhiteeol".as_ptr(),
+    c"horizontal".as_ptr(),
+    c"vertical".as_ptr(),
+    c"closeoff".as_ptr(),
+    c"hiddenoff".as_ptr(),
+    c"foldcolumn:".as_ptr(),
+    c"followwrap".as_ptr(),
+    c"internal".as_ptr(),
+    c"indent-heuristic".as_ptr(),
+    c"algorithm:".as_ptr(),
+    c"inline:".as_ptr(),
+    c"linematch:".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_dip_algorithm_values: [*const c_char; 5] = [
+    c"myers".as_ptr(),
+    c"minimal".as_ptr(),
+    c"patience".as_ptr(),
+    c"histogram".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_dip_inline_values: [*const c_char; 5] = [
+    c"none".as_ptr(),
+    c"simple".as_ptr(),
+    c"char".as_ptr(),
+    c"word".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static opt_dip_schema: [OptSchemaItem; 20] = [
+    OptSchemaItem {
+        name: c"filler".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"anchor".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"context".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"iblank".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"icase".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"iwhite".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"iwhiteall".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"iwhiteeol".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"horizontal".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"vertical".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"closeoff".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"hiddenoff".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"foldcolumn".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"followwrap".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"internal".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"indent-heuristic".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"algorithm".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaEnum,
+        enum_values: (&raw const opt_dip_algorithm_values).cast(),
+    },
+    OptSchemaItem {
+        name: c"inline".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaEnum,
+        enum_values: (&raw const opt_dip_inline_values).cast(),
+    },
+    OptSchemaItem {
+        name: c"linematch".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: ptr::null(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_dy_values: [*const c_char; 5] = [
+    c"lastline".as_ptr(),
+    c"truncate".as_ptr(),
+    c"uhex".as_ptr(),
+    c"msgsep".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_ead_values: [*const c_char; 4] = [
+    c"both".as_ptr(),
+    c"ver".as_ptr(),
+    c"hor".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_ff_values: [*const c_char; 4] = [
+    c"unix".as_ptr(),
+    c"dos".as_ptr(),
+    c"mac".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_fcl_values: [*const c_char; 2] = [c"all".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_fdc_values: [*const c_char; 21] = [
+    c"auto".as_ptr(),
+    c"auto:1".as_ptr(),
+    c"auto:2".as_ptr(),
+    c"auto:3".as_ptr(),
+    c"auto:4".as_ptr(),
+    c"auto:5".as_ptr(),
+    c"auto:6".as_ptr(),
+    c"auto:7".as_ptr(),
+    c"auto:8".as_ptr(),
+    c"auto:9".as_ptr(),
+    c"0".as_ptr(),
+    c"1".as_ptr(),
+    c"2".as_ptr(),
+    c"3".as_ptr(),
+    c"4".as_ptr(),
+    c"5".as_ptr(),
+    c"6".as_ptr(),
+    c"7".as_ptr(),
+    c"8".as_ptr(),
+    c"9".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_fdm_values: [*const c_char; 7] = [
+    c"manual".as_ptr(),
+    c"expr".as_ptr(),
+    c"marker".as_ptr(),
+    c"indent".as_ptr(),
+    c"syntax".as_ptr(),
+    c"diff".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_fdo_values: [*const c_char; 12] = [
+    c"all".as_ptr(),
+    c"block".as_ptr(),
+    c"hor".as_ptr(),
+    c"mark".as_ptr(),
+    c"percent".as_ptr(),
+    c"quickfix".as_ptr(),
+    c"search".as_ptr(),
+    c"tag".as_ptr(),
+    c"insert".as_ptr(),
+    c"undo".as_ptr(),
+    c"jump".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_icm_values: [*const c_char; 4] = [
+    c"nosplit".as_ptr(),
+    c"split".as_ptr(),
+    c"".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_jop_values: [*const c_char; 4] = [
+    c"stack".as_ptr(),
+    c"view".as_ptr(),
+    c"clean".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_km_values: [*const c_char; 3] =
+    [c"startsel".as_ptr(), c"stopsel".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_lop_values: [*const c_char; 3] =
+    [c"expr:0".as_ptr(), c"expr:1".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_mopt_values: [*const c_char; 8] = [
+    c"hit-enter".as_ptr(),
+    c"history:".as_ptr(),
+    c"maxheight:".as_ptr(),
+    c"pager:".as_ptr(),
+    c"progress:".as_ptr(),
+    c"timeout:".as_ptr(),
+    c"wait:".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_mopt_progress_values: [*const c_char; 3] =
+    [c"".as_ptr(), c"c".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static opt_mopt_schema: [OptSchemaItem; 8] = [
+    OptSchemaItem {
+        name: c"hit-enter".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"history".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"maxheight".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"pager".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaStr,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"progress".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaEnum,
+        enum_values: (&raw const opt_mopt_progress_values).cast(),
+    },
+    OptSchemaItem {
+        name: c"timeout".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"wait".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: ptr::null(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_mousem_values: [*const c_char; 4] = [
+    c"extend".as_ptr(),
+    c"popup".as_ptr(),
+    c"popup_setpos".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_mousescroll_values: [*const c_char; 3] =
+    [c"hor:".as_ptr(), c"ver:".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static opt_mousescroll_schema: [OptSchemaItem; 3] = [
+    OptSchemaItem {
+        name: c"hor".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"ver".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: ptr::null(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_nf_values: [*const c_char; 7] = [
+    c"bin".as_ptr(),
+    c"octal".as_ptr(),
+    c"hex".as_ptr(),
+    c"alpha".as_ptr(),
+    c"unsigned".as_ptr(),
+    c"blank".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_pvp_values: [*const c_char; 4] = [
+    c"height:".as_ptr(),
+    c"width:".as_ptr(),
+    c"border:".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_pvp_border_values: [*const c_char; 8] = [
+    c"double".as_ptr(),
+    c"single".as_ptr(),
+    c"shadow".as_ptr(),
+    c"rounded".as_ptr(),
+    c"solid".as_ptr(),
+    c"bold".as_ptr(),
+    c"none".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static opt_pvp_schema: [OptSchemaItem; 4] = [
+    OptSchemaItem {
+        name: c"height".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"width".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaNum,
+        enum_values: ptr::null(),
+    },
+    OptSchemaItem {
+        name: c"border".as_ptr(),
+        kind: OptSchemaKind::kOptSchemaEnum,
+        enum_values: (&raw const opt_pvp_border_values).cast(),
+    },
+    OptSchemaItem {
+        name: ptr::null(),
+        kind: OptSchemaKind::kOptSchemaFlag,
+        enum_values: ptr::null(),
+    },
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_pumborder_values: [*const c_char; 9] = [
+    c"".as_ptr(),
+    c"double".as_ptr(),
+    c"single".as_ptr(),
+    c"shadow".as_ptr(),
+    c"rounded".as_ptr(),
+    c"solid".as_ptr(),
+    c"bold".as_ptr(),
+    c"none".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_rdb_values: [*const c_char; 7] = [
+    c"compositor".as_ptr(),
+    c"nothrottle".as_ptr(),
+    c"invalid".as_ptr(),
+    c"nodelta".as_ptr(),
+    c"line".as_ptr(),
+    c"flush".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_rlc_values: [*const c_char; 2] = [c"search".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_sbo_values: [*const c_char; 4] = [
+    c"ver".as_ptr(),
+    c"hor".as_ptr(),
+    c"jump".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_sel_values: [*const c_char; 4] = [
+    c"inclusive".as_ptr(),
+    c"exclusive".as_ptr(),
+    c"old".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_slm_values: [*const c_char; 4] = [
+    c"mouse".as_ptr(),
+    c"key".as_ptr(),
+    c"cmd".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_ssop_values: [*const c_char; 19] = [
+    c"buffers".as_ptr(),
+    c"winpos".as_ptr(),
+    c"resize".as_ptr(),
+    c"winsize".as_ptr(),
+    c"localoptions".as_ptr(),
+    c"options".as_ptr(),
+    c"help".as_ptr(),
+    c"blank".as_ptr(),
+    c"globals".as_ptr(),
+    c"slash".as_ptr(),
+    c"unix".as_ptr(),
+    c"sesdir".as_ptr(),
+    c"curdir".as_ptr(),
+    c"folds".as_ptr(),
+    c"cursor".as_ptr(),
+    c"tabpages".as_ptr(),
+    c"terminal".as_ptr(),
+    c"skiprtp".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_sloc_values: [*const c_char; 4] = [
+    c"last".as_ptr(),
+    c"statusline".as_ptr(),
+    c"tabline".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_scl_values: [*const c_char; 23] = [
+    c"yes".as_ptr(),
+    c"no".as_ptr(),
+    c"auto".as_ptr(),
+    c"auto:1".as_ptr(),
+    c"auto:2".as_ptr(),
+    c"auto:3".as_ptr(),
+    c"auto:4".as_ptr(),
+    c"auto:5".as_ptr(),
+    c"auto:6".as_ptr(),
+    c"auto:7".as_ptr(),
+    c"auto:8".as_ptr(),
+    c"auto:9".as_ptr(),
+    c"yes:1".as_ptr(),
+    c"yes:2".as_ptr(),
+    c"yes:3".as_ptr(),
+    c"yes:4".as_ptr(),
+    c"yes:5".as_ptr(),
+    c"yes:6".as_ptr(),
+    c"yes:7".as_ptr(),
+    c"yes:8".as_ptr(),
+    c"yes:9".as_ptr(),
+    c"number".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_spo_values: [*const c_char; 3] =
+    [c"camel".as_ptr(), c"noplainbuffer".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_sps_values: [*const c_char; 7] = [
+    c"best".as_ptr(),
+    c"fast".as_ptr(),
+    c"double".as_ptr(),
+    c"expr:".as_ptr(),
+    c"file:".as_ptr(),
+    c"timeout:".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_spk_values: [*const c_char; 4] = [
+    c"cursor".as_ptr(),
+    c"screen".as_ptr(),
+    c"topline".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_swb_values: [*const c_char; 7] = [
+    c"useopen".as_ptr(),
+    c"usetab".as_ptr(),
+    c"split".as_ptr(),
+    c"newtab".as_ptr(),
+    c"vsplit".as_ptr(),
+    c"uselast".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_tcl_values: [*const c_char; 3] =
+    [c"left".as_ptr(), c"uselast".as_ptr(), ptr::null()];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_tc_values: [*const c_char; 6] = [
+    c"followic".as_ptr(),
+    c"ignore".as_ptr(),
+    c"match".as_ptr(),
+    c"followscs".as_ptr(),
+    c"smart".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_tpf_values: [*const c_char; 8] = [
+    c"BS".as_ptr(),
+    c"HT".as_ptr(),
+    c"FF".as_ptr(),
+    c"ESC".as_ptr(),
+    c"DEL".as_ptr(),
+    c"C0".as_ptr(),
+    c"C1".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_ve_values: [*const c_char; 7] = [
+    c"block".as_ptr(),
+    c"insert".as_ptr(),
+    c"all".as_ptr(),
+    c"onemore".as_ptr(),
+    c"none".as_ptr(),
+    c"NONE".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_wim_values: [*const c_char; 7] = [
+    c"full".as_ptr(),
+    c"longest".as_ptr(),
+    c"list".as_ptr(),
+    c"lastused".as_ptr(),
+    c"noselect".as_ptr(),
+    c"noinsert".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_wop_values: [*const c_char; 5] = [
+    c"fuzzy".as_ptr(),
+    c"tagfile".as_ptr(),
+    c"pum".as_ptr(),
+    c"exacttext".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_wak_values: [*const c_char; 4] = [
+    c"yes".as_ptr(),
+    c"menu".as_ptr(),
+    c"no".as_ptr(),
+    ptr::null(),
+];
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut opt_winborder_values: [*const c_char; 9] = [
+    c"".as_ptr(),
+    c"double".as_ptr(),
+    c"single".as_ptr(),
+    c"shadow".as_ptr(),
+    c"rounded".as_ptr(),
+    c"solid".as_ptr(),
+    c"bold".as_ptr(),
+    c"none".as_ptr(),
+    ptr::null(),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;

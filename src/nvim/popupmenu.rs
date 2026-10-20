@@ -1,6 +1,7 @@
 //! Popup menu (PUM) (`src/nvim/popupmenu.c`).
 
 #![allow(
+    static_mut_refs,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -249,11 +250,6 @@ static mut PUM_IS_VISIBLE: bool = false;
 static mut PUM_IS_DRAWN: bool = false;
 static mut PUM_EXTERNAL: bool = false;
 static mut PUM_INVALID: bool = false;
-
-unsafe extern "C" {
-    static opt_winborder_values: [*const c_char; 9];
-
-}
 
 #[inline]
 unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
