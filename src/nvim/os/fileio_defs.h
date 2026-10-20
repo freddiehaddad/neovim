@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "nvim/func_attr.h"
+
 /// Structure used to read from/write to file
 typedef struct {
   int fd;             ///< File descriptor. Can be -1 if no backing file (file_open_buffer)
@@ -14,8 +16,6 @@ typedef struct {
   bool non_blocking;  ///< True if EAGAIN should not restart syscalls.
   uint64_t bytes_read;  ///< total bytes read so far
 } FileDescriptor;
-
-#include "os/fileio_defs.h.inline.generated.h"
 
 /// Check whether end of file was encountered
 ///

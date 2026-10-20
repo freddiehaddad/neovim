@@ -89,8 +89,6 @@ DLLEXPORT int win_max_displaywidth(win_T *wp, linenr_T first, linenr_T last, int
 
 #include "nvim/func_attr.h"
 
-#include "plines.h.inline.generated.h"
-
 /// Get the number of cells taken up on the screen by the given character at vcol.
 static inline CharSize win_charsize(CSType cstype, int vcol, const char *ptr, int32_t chr,
                                     CharsizeArg *csarg, int mb_width)

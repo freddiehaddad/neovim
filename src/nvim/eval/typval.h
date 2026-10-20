@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "nvim/eval/typval_defs.h"  // IWYU pragma: keep
+#include "nvim/func_attr.h"
 #include "nvim/gettext_defs.h"
 #include "nvim/hashtab.h"
 #include "nvim/lib/queue_defs.h"
@@ -14,8 +15,6 @@
 #include "nvim/mbyte_defs.h"  // IWYU pragma: keep
 #include "nvim/message.h"
 #include "nvim/types_defs.h"
-
-#include "eval/typval.h.inline.generated.h"
 
 // In a hashtab item "hi_key" points to "di_key" in a dictitem.
 // This avoids adding a pointer to the hashtab item.

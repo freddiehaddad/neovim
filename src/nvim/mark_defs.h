@@ -7,8 +7,6 @@
 #include "nvim/pos_defs.h"
 #include "nvim/types_defs.h"
 
-#include "mark_defs.h.inline.generated.h"
-
 // marks: positions in a file
 // (a normal mark is a lnum/col pair, the same as a file position)
 

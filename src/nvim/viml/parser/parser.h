@@ -5,10 +5,9 @@
 #include <stddef.h>
 
 #include "klib/kvec.h"
+#include "nvim/func_attr.h"
 #include "nvim/mbyte_defs.h"
 #include "nvim/viml/parser/parser_defs.h"  // IWYU pragma: keep
-
-#include "viml/parser/parser.h.inline.generated.h"
 
 void parser_simple_get_line(void *cookie, ParserLine *ret_pline);
 bool viml_parser_get_remaining_line(ParserState *const pstate, ParserLine *const ret_pline);

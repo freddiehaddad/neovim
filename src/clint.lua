@@ -812,10 +812,8 @@ local function check_includes(filename, lines, error)
 
       if
         not should_skip
-        and not name:match('%.h%.generated%.h$')
         and not name:match('/defs%.h$')
         and not name:match('_defs%.h$')
-        and not name:match('%.h%.inline%.generated%.h$')
         and not name:match('_defs%.generated%.h$')
         and not name:match('_enum%.generated%.h$')
       then

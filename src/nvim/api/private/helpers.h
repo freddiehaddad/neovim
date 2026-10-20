@@ -246,8 +246,6 @@ DLLEXPORT void api_set_error_str(Error *err, ErrorType errType, const char *msg)
 
 #include "nvim/func_attr.h"
 
-#include "api/private/helpers.h.inline.generated.h"
-
 #define WITH_SCRIPT_CONTEXT(channel_id, code) \
   do { \
     const sctx_T save_current_sctx = api_set_sctx(channel_id); \

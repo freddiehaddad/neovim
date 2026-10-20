@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "klib/kvec.h"
+#include "nvim/func_attr.h"
 #include "nvim/types_defs.h"
 
 #define ARRAY_DICT_INIT KV_INITIAL_VALUE
@@ -25,7 +26,6 @@
 #define LuaRefOf(...) LuaRef
 #define Union(...) Object
 #define Tuple(...) Array
-#include "api/private/defs.h.inline.generated.h"
 
 // Basic types
 typedef enum {

@@ -316,7 +316,6 @@ set(FUNCS_GENERATOR ${GENERATOR_DIR}/gen_eval.lua)
 set(GENERATOR_C_GRAMMAR ${GENERATOR_DIR}/c_grammar.lua)
 set(GENERATOR_PRELOAD ${GENERATOR_DIR}/preload_nlua.lua)
 set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
-set(HEADER_GENERATOR ${GENERATOR_DIR}/gen_declarations.lua)
 set(OPTIONS_GENERATOR ${GENERATOR_DIR}/gen_options.lua)
 
 # GENERATED_DIR and GENERATED_INCLUDES_DIR
@@ -462,29 +461,6 @@ endif()
 
 # Like LUA_GEN but includes also vim.fn, vim.api, vim.uv, etc
 set(NVIM_LUA $<TARGET_FILE:nvim_bin> -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SOURCE_DIR})
-
-# NVIM_GENERATED_FOR_HEADERS: generated headers to be included in headers
-# NVIM_GENERATED_FOR_SOURCES: generated headers to be included in sources
-# These lists must be mutually exclusive.
-foreach(sfile ${NVIM_HEADERS})
-  get_filename_component(ext ${sfile} EXT)
-  if("${ext}" STREQUAL ".c.h")
-    continue()
-  endif()
-  get_filename_component(full_d ${sfile} DIRECTORY)
-  file(RELATIVE_PATH d "${CMAKE_CURRENT_LIST_DIR}" "${full_d}")
-  get_filename_component(r ${sfile} NAME_WE)
-  if(NOT ${d} EQUAL ".")
-    set(r "${d}/${r}")
-  endif()
-  set(gf_basename "${r}.h.inline.generated.h")
-  set(gf_c_h "${GENERATED_INCLUDES_DIR}/${r}.h.inline.generated.h")
-  add_custom_command(
-    OUTPUT "${gf_c_h}"
-    COMMAND ${LUA_GEN} "${HEADER_GENERATOR}" "${sfile}" "${gf_c_h}" "SKIP" "${gf_basename}"
-    DEPENDS "${HEADER_GENERATOR}" "${sfile}" "${LUA_GEN_DEPS}" "${GENERATOR_C_GRAMMAR}")
-  list(APPEND NVIM_GENERATED_FOR_SOURCES "${gf_c_h}")
-endforeach()
 
 set(NVIM_VERSION_LUA ${PROJECT_BINARY_DIR}/nvim_version.lua)
 configure_file(${GENERATOR_DIR}/nvim_version.lua.in ${NVIM_VERSION_LUA})

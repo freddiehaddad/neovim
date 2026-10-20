@@ -166,7 +166,7 @@ DLLEXPORT void decor_to_dict_legacy(Dict *dict, DecorInline decor, bool hl_name,
 DLLEXPORT uint16_t decor_type_flags(DecorInline decor);
 DLLEXPORT Object hl_group_name(int hl_id, bool hl_name);
 
-#include "decoration.h.inline.generated.h"
+#include "nvim/func_attr.h"
 
 static inline int decor_redraw_col(win_T *wp, int col, int win_col, bool hidden, DecorState *state,
                                    int max_col_last)

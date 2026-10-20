@@ -101,5 +101,3 @@ DLLEXPORT bcount_t get_region_bytecount(buf_T *buf, linenr_T start_lnum, linenr_
                                         colnr_T start_col, colnr_T end_col);
 
 #include "nvim/func_attr.h"
-
-#include "ops.h.inline.generated.h"

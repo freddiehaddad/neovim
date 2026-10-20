@@ -172,7 +172,7 @@ DLLEXPORT void buf_set_changedtick(buf_T *const buf, const varnumber_T changedti
 DLLEXPORT void read_buffer_into(buf_T *buf, linenr_T start, linenr_T end, StringBuilder *sb)
   FUNC_ATTR_NONNULL_ALL;
 
-#include "buffer.h.inline.generated.h"
+#include "nvim/func_attr.h"
 
 /// Get b:changedtick value
 ///

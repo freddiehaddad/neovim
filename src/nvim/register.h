@@ -82,8 +82,6 @@ DLLEXPORT void finish_yankreg_from_object(yankreg_T *reg, bool clipboard_adjust)
 
 #include "nvim/func_attr.h"
 
-#include "register.h.inline.generated.h"
-
 /// @see get_yank_register
 /// @return  true when register should be inserted literally
 /// (selection or clipboard)

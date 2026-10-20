@@ -109,7 +109,7 @@ DLLEXPORT bool rem_backslash(const char *str)
 DLLEXPORT void backslash_halve(char *p);
 DLLEXPORT char *backslash_halve_save(const char *p) FUNC_ATTR_NONNULL_ALL FUNC_ATTR_NONNULL_RET;
 
-#include "charset.h.inline.generated.h"
+#include "nvim/func_attr.h"
 
 /// Check if `c` is one of the characters in 'breakat'.
 /// Used very often if 'linebreak' is set

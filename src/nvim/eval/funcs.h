@@ -74,5 +74,3 @@ DLLEXPORT void api_wrapper(typval_T *argvars, typval_T *rettv, EvalFuncData fptr
 DLLEXPORT void lua_wrapper(typval_T *argvars, typval_T *rettv, EvalFuncData fptr);
 
 #include "nvim/func_attr.h"
-
-#include "eval/funcs.h.inline.generated.h"

@@ -81,7 +81,7 @@ DLLEXPORT void get_buf_local_marks(const buf_T *buf, list_T *l) FUNC_ATTR_NONNUL
 DLLEXPORT xfmark_T get_raw_global_mark(char name);
 DLLEXPORT void get_global_marks(list_T *l) FUNC_ATTR_NONNULL_ALL;
 
-#include "mark.h.inline.generated.h"
+#include "nvim/func_attr.h"
 
 /// Convert mark name to the offset
 static inline int mark_global_index(const char name)

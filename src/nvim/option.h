@@ -194,5 +194,3 @@ DLLEXPORT OptIndex find_option_len(const char *const name, size_t len)
 DLLEXPORT vimoption_T *get_option(OptIndex opt_idx);
 
 #include "nvim/func_attr.h"
-
-#include "option.h.inline.generated.h"

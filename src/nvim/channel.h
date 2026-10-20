@@ -93,8 +93,6 @@ DLLEXPORT Array channel_all_info(Arena *arena);
 
 #include "nvim/func_attr.h"
 
-#include "channel.h.inline.generated.h"
-
 static inline bool callback_reader_set(CallbackReader reader)
 {
   return reader.cb.type != kCallbackNone || reader.self;

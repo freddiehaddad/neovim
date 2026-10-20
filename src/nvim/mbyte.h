@@ -132,8 +132,6 @@ DLLEXPORT int mb_strcmp_ic(bool ic, const char *s1, const char *s2)
 
 #include "nvim/func_attr.h"
 
-#include "mbyte.h.inline.generated.h"
-
 enum {
   kInvalidByteCells = 4,
 };

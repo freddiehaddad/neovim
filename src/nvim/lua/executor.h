@@ -117,8 +117,6 @@ DLLEXPORT bool nlua_func_exists(const char *lua_funcname);
 
 #include "nvim/func_attr.h"
 
-#include "lua/executor.h.inline.generated.h"
-
 EXTERN nlua_ref_state_t *nlua_global_refs INIT( = NULL);
 EXTERN bool nlua_disable_preload INIT( = false);
 

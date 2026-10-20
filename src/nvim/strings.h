@@ -123,8 +123,6 @@ DLLEXPORT int vim_snprintf_args(char *str, size_t str_m, const char *fmt, const 
 
 #include "nvim/func_attr.h"
 
-#include "strings.h.inline.generated.h"
-
 /// Append string to string and return pointer to the next byte
 ///
 /// Unlike strcat, this one does *not* add NUL byte and returns pointer to the

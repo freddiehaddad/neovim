@@ -21,12 +21,12 @@
 
 #include <stddef.h>
 
+#include "nvim/func_attr.h"
+
 typedef struct queue {
   struct queue *next;
   struct queue *prev;
 } QUEUE;
-
-#include "lib/queue_defs.h.inline.generated.h"
 
 // Public macros.
 #define QUEUE_DATA(ptr, type, field) \

@@ -209,29 +209,27 @@
 # endif
 #endif
 
-#if defined(DEFINE_FUNC_ATTRIBUTES) || defined(DEFINE_EMPTY_ATTRIBUTES)
 /// Fast (non-deferred) API function.
-# define FUNC_API_FAST
+#define FUNC_API_FAST
 /// Return value needs to be freed
-# define FUNC_API_RET_ALLOC
+#define FUNC_API_RET_ALLOC
 /// Internal C function not exposed in the RPC API.
-# define FUNC_API_NOEXPORT
+#define FUNC_API_NOEXPORT
 /// API function not exposed in Vimscript/eval.
-# define FUNC_API_REMOTE_ONLY
+#define FUNC_API_REMOTE_ONLY
 /// API function not exposed in Vimscript/remote.
-# define FUNC_API_LUA_ONLY
+#define FUNC_API_LUA_ONLY
 /// API function fails during textlock.
-# define FUNC_API_TEXTLOCK
+#define FUNC_API_TEXTLOCK
 /// API function introduced at the given API level.
-# define FUNC_API_SINCE(X)
+#define FUNC_API_SINCE(X)
 /// API function deprecated since the given API level.
-# define FUNC_API_DEPRECATED_SINCE(X)
+#define FUNC_API_DEPRECATED_SINCE(X)
 
-# define FUNC_API_REMOTE_IMPL
-# define FUNC_API_CLIENT_IMPL
-# define FUNC_API_CLIENT_IGNORE
-# define FUNC_API_COMPOSITOR_IMPL
-#endif
+#define FUNC_API_REMOTE_IMPL
+#define FUNC_API_CLIENT_IMPL
+#define FUNC_API_CLIENT_IGNORE
+#define FUNC_API_COMPOSITOR_IMPL
 
 #ifdef DEFINE_FUNC_ATTRIBUTES
 # define FUNC_ATTR_MALLOC REAL_FATTR_MALLOC
@@ -250,7 +248,7 @@
 # define FUNC_ATTR_NO_SANITIZE_UNDEFINED REAL_FATTR_NO_SANITIZE_UNDEFINED
 # define FUNC_ATTR_NO_SANITIZE_ADDRESS REAL_FATTR_NO_SANITIZE_ADDRESS
 # define FUNC_ATTR_PRINTF(x, y) REAL_FATTR_PRINTF(x, y)
-#elif defined(DEFINE_EMPTY_ATTRIBUTES)
+#else
 # define FUNC_ATTR_MALLOC
 # define FUNC_ATTR_ALLOC_SIZE(x)
 # define FUNC_ATTR_ALLOC_SIZE_PROD(x, y)

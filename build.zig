@@ -454,8 +454,6 @@ pub fn build(b: *std.Build) !void {
     const gen_headers, const funcs_data = try gen.nvim_gen_sources(
         b,
         nlua0,
-        &nvim_sources,
-        &nvim_headers,
         &api_headers,
         versiondef_git,
         version_lua,
