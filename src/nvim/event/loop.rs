@@ -8,19 +8,16 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::log::log_uv_handles;
-use crate::log::logmsg;
-use std::ffi::{c_int, c_void};
-use std::ptr;
-
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
     multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
     multiqueue_put_event, multiqueue_size,
 };
+use crate::log::{log_uv_handles, logmsg};
 use crate::memory::{xfree, xmalloc};
 use crate::os::time::os_hrtime;
+use std::ffi::{c_int, c_void};
+use std::ptr;
 
 const UV_ASYNC: c_int = 1;
 const UV_TIMER: c_int = 13;

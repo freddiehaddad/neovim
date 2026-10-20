@@ -1,12 +1,9 @@
 //! Functions for handling growing arrays (`src/nvim/garray.c`).
 
-#[allow(unused_imports)]
+use crate::memory::{xfree, xmallocz, xrealloc};
 use crate::path::path_equal;
-#[allow(unused_imports)]
 use crate::strings::sort_strings;
 use std::ffi::{CStr, c_char, c_int, c_void};
-
-use crate::memory::{xfree, xmallocz, xrealloc};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

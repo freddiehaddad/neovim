@@ -8,17 +8,6 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_watcher_notify;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, api_new_luaref};
-#[allow(unused_imports)]
-use crate::message::hl_msg_free;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::{size_of, zeroed};
-use std::ptr;
-
 use crate::api::private::converter::{object_to_vim, sctx_T, vim_to_object};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
@@ -30,6 +19,7 @@ use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::buf_T;
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
+    tv_dict_watcher_notify,
 };
 use crate::eval::vars::{LuaRef, before_set_vvar, get_vimvar_dict, scid_T};
 use crate::ex_eval::{
@@ -37,8 +27,10 @@ use crate::ex_eval::{
     msglist_T,
 };
 use crate::garray::garray_T;
+use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
 use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, OptKeySet};
+use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map::{Map, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::mark::setmark_pos;
@@ -47,9 +39,13 @@ use crate::memory::{
     Arena, ArenaMem, arena_alloc, arena_finish, arena_memdupz, memchrsub, xfree, xmalloc, xmemdupz,
     xrealloc, xstrdup, xstrndup, xstrnlen,
 };
+use crate::message::hl_msg_free;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::runtime::script_is_lua;
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::mem::{size_of, zeroed};
+use std::ptr;
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;

@@ -9,78 +9,46 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_dict_to_keydict, api_set_sctx, arena_array, arena_dict, arena_string,
-    find_buffer_by_handle, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    boolean_obj, cstr_as_string, dict_obj, integer_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::autocmd::{apply_autocmds, has_event};
-#[allow(unused_imports)]
-use crate::charset::ascii_isupper;
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::getdigits_long;
-#[allow(unused_imports)]
-use crate::ex_docmd::get_command_name;
-#[allow(unused_imports)]
-use crate::ex_docmd::invalid_range;
-#[allow(unused_imports)]
-use crate::ex_docmd::{excmd_get_argt, is_cmd_ni, is_map_cmd};
-#[allow(unused_imports)]
-use crate::ex_docmd::{
-    execute_cmd, find_ex_command, getargopt, parse_cmdline, replace_makeprg, set_cmd_count,
-};
-#[allow(unused_imports)]
-use crate::ex_docmd::{getargcmd, undo_cmdmod};
-#[allow(unused_imports)]
-use crate::ex_eval::aborting;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, api_new_luaref};
-#[allow(unused_imports)]
-use crate::mbyte::mb_islower;
-#[allow(unused_imports)]
-use crate::regexp::vim_regcomp;
-#[allow(unused_imports)]
-use crate::register::valid_yank_reg;
-#[allow(unused_imports)]
-use crate::usercmd::get_user_command_name;
-use crate::usercmd::ucmds;
-#[allow(unused_imports)]
-use crate::usercmd::{
-    commands_array, free_ucmd, parse_addr_type_arg, parse_compl_arg, uc_add_command,
-    uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name,
-};
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::deprecated::{KeyDict_empty, StringBuilder};
 use crate::api::private::converter::sctx_T;
+use crate::api::private::dispatch::{
+    KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
+};
+use crate::api::private::helpers::{
+    add_c, api_dict_to_keydict, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
+    arena_string, boolean_obj, cstr_as_string, dict_obj, error_set, find_buffer_by_handle,
+    integer_obj, string_obj, try_enter, try_leave,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
 };
 use crate::api::tabpage::Buffer;
+use crate::autocmd::{apply_autocmds, has_event};
+use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_long};
+use crate::ex_docmd::{
+    excmd_get_argt, execute_cmd, find_ex_command, get_command_name, getargcmd, getargopt,
+    invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline, replace_makeprg, set_cmd_count,
+    undo_cmdmod,
+};
+use crate::ex_eval::aborting;
 use crate::garray::{ga_clear, ga_init, garray_T};
+use crate::globals::*;
 use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map_glyph_cache::NvimString;
+use crate::mbyte::mb_islower;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
+use crate::regexp::vim_regcomp;
+use crate::register::valid_yank_reg;
+use crate::usercmd::{
+    commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
+    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds,
+};
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
@@ -359,10 +327,6 @@ pub struct KeyDict_user_command {
 pub struct KeyDict_get_commands {
     pub builtin: Boolean,
 }
-
-use crate::api::private::dispatch::{
-    KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
-};
 
 #[inline]
 unsafe fn cstrn_as_string(s: *const c_char, maxsize: usize) -> NvimString {
@@ -925,7 +889,10 @@ pub unsafe extern "C" fn nvim_cmd(
                         let val = getdigits_long((&raw mut endptr).cast(), false, 0);
                         if *endptr == 0 && first_arg.data.string.size > 0 {
                             is_numeric = true;
-                            count_value = i64::from(val);
+                            #[allow(clippy::useless_conversion)]
+                            {
+                                count_value = i64::from(val);
+                            }
                         }
                     }
 

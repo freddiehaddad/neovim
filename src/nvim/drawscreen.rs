@@ -9,84 +9,14 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::buf_meta_total;
-#[allow(unused_imports)]
-use crate::buffer::maketitle;
-#[allow(unused_imports)]
-use crate::cmdexpand::cmdline_pum_display;
-#[allow(unused_imports)]
-use crate::diff::diff_redraw;
-#[allow(unused_imports)]
-use crate::drawline::win_line;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
-use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
-#[allow(unused_imports)]
-use crate::fold::{fold_info, hasFolding};
-#[allow(unused_imports)]
-use crate::fold::{foldmethodIsSyntax, hasAnyFolding};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::highlight::win_hl_attr;
-#[allow(unused_imports)]
-use crate::input::char_avail;
-#[allow(unused_imports)]
-use crate::insexpand::ins_compl_show_pum;
-#[allow(unused_imports)]
-use crate::memline::{ml_get_buf, ml_get_buf_len};
-#[allow(unused_imports)]
-use crate::message::{
-    msg_check_for_delay, msg_clr_cmdline, msg_clr_eos, msg_ext_flush_showmode, msg_ext_ui_flush,
-    msg_grid_set_pos, msg_grid_validate, msg_puts_hl, msg_reset_scroll, msg_scrollsize,
-    msg_use_grid, repeat_message,
-};
-#[allow(unused_imports)]
-use crate::normal::{clear_showcmd, do_check_scrollbind};
-#[allow(unused_imports)]
-use crate::option::{get_ve_flags, shortmess};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::{re_multiline, vim_regfree};
-#[allow(unused_imports)]
-use crate::search::last_pat_prog;
-#[allow(unused_imports)]
-use crate::spell::spell_check_window;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::syntax::{
-    syn_set_timeout, syn_stack_apply_changes, syntax_check_changed, syntax_end_parsing,
-    syntax_present,
-};
-#[allow(unused_imports)]
-use crate::ui::ui_call_win_extmark;
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_grid_clear, ui_call_grid_resize, ui_call_msg_clear, ui_flush, ui_grid_cursor_goto,
-    ui_has,
-};
-#[allow(unused_imports)]
-use crate::version::{intro_message, may_show_intro};
-#[allow(unused_imports)]
-use crate::window::{
-    frame2win, global_stl_height, last_stl_height, min_rows, min_rows_for_all_tabpages,
-    win_fdccol_count, win_new_screensize, win_ui_flush,
-};
-use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::ptr;
-
 use crate::api::autocmd::kCallbackNone;
 use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTextChunk};
 use crate::api::extmark::NS;
 use crate::api::tabpage::{frame_T, win_T};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
+use crate::buffer::{buf_meta_total, maketitle};
 use crate::charset::{vim_isprintc, vim_strsize};
+use crate::cmdexpand::cmdline_pum_display;
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::decoration::{
@@ -97,29 +27,51 @@ use crate::decoration_provider::{
     decor_providers_invoke_buf, decor_providers_invoke_end, decor_providers_invoke_win,
     decor_providers_start,
 };
+use crate::diff::diff_redraw;
 use crate::digraph::get_keymap_str;
+use crate::drawline::win_line;
 use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::vars::set_vim_var_nr;
+use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
 use crate::extmark::TriState;
+use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
+use crate::globals::*;
 use crate::grid::{
     UIExtension, grid_adjust, grid_alloc, grid_clear, grid_clear_line, grid_del_lines,
     grid_draw_border, grid_ins_lines, grid_invalidate, grid_line_clear_end, grid_line_fill,
     grid_line_flush, grid_line_getchar, grid_line_mirror, grid_line_put_schar, grid_line_start,
-    schar_T, schar_cache_clear_if_full, win_grid_alloc, wline_T,
+    schar_T, schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, wline_T,
 };
-use crate::highlight::{hl_combine_attr, update_window_hl, win_bg_attr, win_check_ns_hl};
+use crate::highlight::{
+    hl_combine_attr, update_window_hl, win_bg_attr, win_check_ns_hl, win_hl_attr,
+};
 use crate::highlight_group::highlight_changed;
+use crate::input::char_avail;
+use crate::insexpand::ins_compl_show_pum;
 use crate::marktree::{DECOR_PRIORITY_BASE, kMTMetaSignText};
 use crate::r#match::{init_search_hl, matchitem_T, prepare_search_hl, varnumber_T};
 use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
+use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::message::{
+    msg_check_for_delay, msg_clr_cmdline, msg_clr_eos, msg_ext_flush_showmode, msg_ext_ui_flush,
+    msg_grid_set_pos, msg_grid_validate, msg_puts_hl, msg_reset_scroll, msg_scrollsize,
+    msg_use_grid, repeat_message,
+};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, curs_columns,
     invalidate_botline_win, plines_correct_topline, set_empty_rows, update_curswant,
     update_topline, validate_cursor, validate_virtcol, win_col_off, win_col_off2,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::normal::{clear_showcmd, do_check_scrollbind};
+use crate::option::{get_ve_flags, shortmess};
+use crate::option_vars::*;
 use crate::plines::{getvcols, getvvcol, plines_m_win, plines_win, win_get_fill, win_may_fill};
 use crate::popupmenu::{pum_check_clear, pum_drawn, pum_invalidate, pum_redraw};
 use crate::profile::profile_setlimit;
+use crate::regexp::{re_multiline, vim_regfree};
+use crate::search::last_pat_prog;
+use crate::spell::spell_check_window;
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP,
     MODE_NORMAL, MODE_SETWSIZE, MODE_TERMINAL, MODE_VISUAL, REPLACE_FLAG, VREPLACE_FLAG,
@@ -129,8 +81,24 @@ use crate::statusline::{
     draw_tabline, foldinfo_T, hlf_T, redraw_ruler, stl_alloc_click_defs, stl_clear_click_defs,
     win_redr_status, win_redr_winbar,
 };
+use crate::strings::{gettext, vim_strchr};
+use crate::syntax::{
+    syn_set_timeout, syn_stack_apply_changes, syntax_check_changed, syntax_end_parsing,
+    syntax_present,
+};
 use crate::terminal::{Terminal, terminal_check_size, terminal_suspended};
+use crate::ui::{
+    ui_call_grid_clear, ui_call_grid_resize, ui_call_msg_clear, ui_call_win_extmark, ui_flush,
+    ui_grid_cursor_goto, ui_has,
+};
 use crate::ui_compositor::ui_comp_set_screen_valid;
+use crate::version::{intro_message, may_show_intro};
+use crate::window::{
+    frame2win, global_stl_height, last_stl_height, min_rows, min_rows_for_all_tabpages,
+    win_fdccol_count, win_new_screensize, win_ui_flush,
+};
+use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ptr;
 
 pub use crate::ex_getln::disptick_T;
 pub use crate::option::OptInt;

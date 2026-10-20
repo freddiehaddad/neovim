@@ -5,24 +5,25 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::upper_case_acronyms
 )]
 
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
-use std::ptr;
-
+#[cfg(not(test))]
 use crate::charset::kv_transstr;
+#[cfg(not(test))]
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_strdup, strequal};
-use crate::os::env::os_env_exists;
+#[cfg(not(test))]
+use crate::memory::arena_strdup;
+use crate::memory::{Arena, strequal};
+#[cfg(not(test))]
+use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
 };
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ptr;
 
 pub type unibi_term = c_void;
 pub use crate::api::deprecated::StringBuilder;

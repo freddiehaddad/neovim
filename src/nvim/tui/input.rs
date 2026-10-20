@@ -5,40 +5,33 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_unsafe,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
-#[allow(unused_imports)]
+use crate::api::private::validate::Array;
+#[cfg(not(test))]
 use crate::event::r#loop::{
-    uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
+    loop_schedule_fast, uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
 };
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::main_init::os_exit;
-#[allow(unused_imports)]
-use crate::msgpack_rpc::channel::rpc_send_event;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::tui::tui::{
-    tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
-};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
-use crate::event::r#loop::loop_schedule_fast;
+#[cfg(not(test))]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
 use crate::event::rstream::{
     RStream, rstream_available, rstream_consume, rstream_fields, rstream_init_fd,
     rstream_may_close, rstream_size, rstream_start, rstream_stop,
 };
-use crate::event::stream::{Loop, uv_handle_t, uv_loop_t};
+use crate::event::stream::Loop;
 use crate::event::time::uv_timer_t;
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
+use crate::main_init::os_exit;
 use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
+use crate::msgpack_rpc::channel::rpc_send_event;
+#[cfg(not(test))]
+use crate::option_vars::*;
 use crate::tui::termkey::driver_csi::{
     TERMKEY_MOUSE_DRAG, TERMKEY_MOUSE_PRESS, TERMKEY_MOUSE_RELEASE, TERMKEY_MOUSE_UNKNOWN,
     TermKeyCsiParam, TermKeyMouseEvent, termkey_interpret_csi, termkey_interpret_csi_param,
@@ -60,8 +53,13 @@ use crate::tui::termkey::termkey::{
     termkey_new_abstract, termkey_push_bytes, termkey_set_buffer_size, termkey_set_canonflags,
     termkey_start, termkey_strfkey,
 };
+#[cfg(not(test))]
+use crate::tui::tui::{
+    tui_enable_extended_underline, tui_handle_term_mode, tui_query_bg_color, tui_set_size,
+};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
 
-use crate::event::r#loop::{uv_close_cb, uv_timer_cb};
 pub use crate::option::OptInt;
 pub use crate::tui::tui::TUIData;
 pub use crate::tui::tui::TermMode;

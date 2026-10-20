@@ -11,57 +11,32 @@
     clippy::collapsible_if
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::eval_for_line;
-#[allow(unused_imports)]
-use crate::eval::eval_to_string_skip;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_ref;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
-#[allow(unused_imports)]
-use crate::eval::userfunc::{do_return, get_return_cmd};
-#[allow(unused_imports)]
-use crate::eval::vars::{set_vim_var_list, set_vim_var_string};
-#[allow(unused_imports)]
-use crate::eval::{clear_evalarg, eval_to_bool, eval0, fill_evalarg_from_eap};
-#[allow(unused_imports)]
-use crate::eval::{free_for_info, next_for_item};
-#[allow(unused_imports)]
-use crate::ex_docmd::{ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::message::{emsg, internal_error, msg_puts, verbose_enter, verbose_leave};
-use crate::message::{semsg, smsg};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::skip_regexp_err;
-#[allow(unused_imports)]
-use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
-#[allow(unused_imports)]
-use crate::runtime::estack_sfile;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
-use crate::runtime::{do_finish, stacktrace_create};
-#[allow(unused_imports)]
-use crate::strings::{concat_str, xstrnsave};
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcat, strcpy, strlen, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
 use crate::api::command::{exarg_T, regmatch_T};
-use crate::charset::skipwhite;
+use crate::charset::{ascii_isdigit, skipwhite};
 use crate::clipboard::{list_T, typval_T};
 use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;
+use crate::errors::*;
+use crate::eval::typval::{tv_clear, tv_free, tv_list_ref, tv_list_unref};
+use crate::eval::userfunc::{do_return, get_return_cmd};
+use crate::eval::vars::{set_vim_var_list, set_vim_var_string};
+use crate::eval::{
+    clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
+    free_for_info, next_for_item,
+};
+use crate::ex_docmd::{ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
+use crate::globals::*;
 use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
+use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
+use crate::option_vars::*;
+use crate::regexp::{skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree};
+use crate::runtime::{do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
+use crate::strings::{
+    concat_str, gettext, strcat, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    xstrnsave,
+};
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
 
 pub use crate::option::OptInt;
 

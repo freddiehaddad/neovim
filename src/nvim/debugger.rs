@@ -4,57 +4,51 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::charset::getdigits_int32;
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_all_later;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_free;
-#[allow(unused_imports)]
-use crate::eval::typval_tostring;
-#[allow(unused_imports)]
-use crate::eval::{eval_expr, typval_compare};
-#[allow(unused_imports)]
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
-#[allow(unused_imports)]
-use crate::ex_getln::{getcmdline_prompt, getexline};
-#[allow(unused_imports)]
-use crate::fileio::file_pat_to_reg_pat;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::{restore_typeahead, save_typeahead};
-#[allow(unused_imports)]
-use crate::message::{emsg, msg, msg_starthere};
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
-use crate::os::env::expand_env_save;
-#[allow(unused_imports)]
-use crate::os::env::home_replace;
-#[allow(unused_imports)]
-use crate::path::fix_fname;
-#[allow(unused_imports)]
-use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
-#[allow(unused_imports)]
-use crate::runtime::estack_sfile;
-use crate::runtime::exestack;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-
 use crate::clipboard::typval_T;
-use crate::cursor_shape::pos_T;
-use crate::eval::deprecated::{Callback, memline_T};
-use crate::garray::{ga_clear, ga_grow, garray_T};
-use crate::map::Set;
+#[cfg(not(test))]
+use crate::drawscreen::redraw_all_later;
+#[cfg(not(test))]
+use crate::eval::deprecated::Callback;
+#[cfg(not(test))]
+use crate::eval::typval::tv_free;
+#[cfg(not(test))]
+use crate::eval::{eval_expr, typval_compare, typval_tostring};
+#[cfg(not(test))]
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
+#[cfg(not(test))]
+use crate::ex_getln::{getcmdline_prompt, getexline};
+#[cfg(not(test))]
+use crate::fileio::file_pat_to_reg_pat;
+use crate::garray::garray_T;
+#[cfg(not(test))]
+use crate::garray::{ga_clear, ga_grow};
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
+use crate::input::{restore_typeahead, save_typeahead};
+#[cfg(not(test))]
 use crate::math::{FAIL, OK};
+#[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
-use crate::msgpack_rpc::packer::handle_T;
-use crate::profile::estack_T;
+#[cfg(not(test))]
+use crate::message::{emsg, msg, msg_starthere, semsg, smsg};
+#[cfg(not(test))]
+use crate::os::env::{expand_env_save, home_replace};
+#[cfg(not(test))]
+use crate::path::fix_fname;
+#[cfg(not(test))]
+use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
+#[cfg(not(test))]
+use crate::runtime::{estack_sfile, sourcing_lnum};
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 const MODE_NORMAL: c_int = 0x01;
 const ESTACK_NONE: c_int = 0;

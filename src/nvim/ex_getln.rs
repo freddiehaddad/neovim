@@ -15,121 +15,14 @@
     clippy::useless_conversion
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::cbuf_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_init;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, api_free_array, arena_array, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, cstr_as_obj, cstr_as_string, integer_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::buffer::{buf_clear, buflist_findnr, do_buffer};
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::charset::{ascii_islower, ascii_isspace, ascii_isupper};
-#[allow(unused_imports)]
-use crate::cursor::clearpos;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt};
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_custom_title_later;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::callback_free;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_dict_get_callback, tv_dict_get_number,
-    tv_dict_get_string_buf_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::vars::heredoc_get;
-#[allow(unused_imports)]
-use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
-#[allow(unused_imports)]
-use crate::ex_cmds::rename_buffer;
-#[allow(unused_imports)]
-use crate::ex_docmd::{do_cmdline, expr_map_locked, set_no_hlsearch, skip_range, undo_cmdmod};
-#[allow(unused_imports)]
-use crate::ex_docmd::{execute_cmd, parse_cmd_address, parse_cmdline, parse_command_modifiers};
-#[allow(unused_imports)]
-use crate::ex_eval::aborting;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::{beep_flush, map_execute_lua};
-#[allow(unused_imports)]
-use crate::insert::get_literal;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_typval;
-#[allow(unused_imports)]
-use crate::mapping::{check_abbr, map_to_exists_mode};
-#[allow(unused_imports)]
-use crate::mbyte::ptr2cells;
-#[allow(unused_imports)]
-use crate::memline::{decl, incl};
-use crate::message::smsg;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
-    msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
-    sb_text_restart_cmdline, sb_text_start_cmdline,
-};
-#[allow(unused_imports)]
-use crate::mouse::cmdline_mousescroll;
-#[allow(unused_imports)]
-use crate::option::csh_like_shell;
-#[allow(unused_imports)]
-use crate::option::set_option_direct;
-#[allow(unused_imports)]
-use crate::option::string_to_key;
-#[allow(unused_imports)]
-use crate::option::{set_iminsert_global, set_imsearch_global};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::skip_regexp_ex;
-#[allow(unused_imports)]
-use crate::register::get_expr_line;
-#[allow(unused_imports)]
-use crate::register::get_expr_register;
-#[allow(unused_imports)]
-use crate::strings::vim_strnicmp;
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcmp, strcpy, strlen, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{strncasecmp, strrchr};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, vim_strsave_escaped, xstrnsave};
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,
-    ui_call_cmdline_block_show, ui_call_cmdline_pos, ui_call_cmdline_show, ui_cursor_shape,
-    ui_flush, ui_has, vim_beep,
-};
-#[allow(unused_imports)]
-use crate::ui::{ui_call_cmdline_hide, ui_call_cmdline_special_char};
-#[allow(unused_imports)]
-use crate::window::lastwin_nofloating;
-#[allow(unused_imports)]
-use crate::window::{
-    close_windows, global_stl_height, may_trigger_win_scrolled_resized, win_enter,
-    win_size_restore, win_size_save, win_split,
-};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::api::autocmd::event_T;
 use crate::api::command::{cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::{
+    add_c, api_clear_error, api_free_array, arena_array, array_obj, cbuf_as_string, cstr_as_obj,
+    cstr_as_string, error_init, integer_obj, string_obj, try_enter, try_leave,
+};
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::api::vim::nvim_create_buf;
@@ -137,10 +30,11 @@ use crate::autocmd::{
     EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE, EVENT_CMDLINELEAVEPRE,
     EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, has_event, unblock_autocmds,
 };
-use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, buf_valid};
-#[cfg(windows)]
-use crate::charset::vim_isfilec;
-use crate::charset::{skipwhite, vim_isIDc, vim_isprintc, vim_iswordc, vim_str2nr};
+use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, buf_clear, buf_valid, buflist_findnr, do_buffer};
+use crate::charset::{
+    ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, skipwhite, vim_isIDc, vim_isprintc,
+    vim_iswordc, vim_str2nr,
+};
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
     CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL,
@@ -156,30 +50,46 @@ use crate::cmdhist::{
     hist_char2type, init_history,
 };
 use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::{coladvance, colnr_T, gchar_cursor, get_cursor_pos_ptr, linenr_T};
+use crate::cursor::{
+    clearpos, coladvance, colnr_T, equalpos, gchar_cursor, get_cursor_pos_ptr, linenr_T, lt,
+};
 use crate::digraph::{do_digraph, get_digraph};
 use crate::drawscreen::{
-    UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_later, redraw_statuslines,
-    set_must_redraw, status_redraw_all, status_redraw_curbuf, update_screen,
+    UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_custom_title_later,
+    redraw_later, redraw_statuslines, set_must_redraw, status_redraw_all, status_redraw_curbuf,
+    update_screen,
 };
+use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str, tv_dict_find,
-    tv_dict_set_keys_readonly, tv_get_number, tv_get_number_chk, tv_list_free,
+    callback_free, tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_clear, tv_copy,
+    tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str, tv_dict_find, tv_dict_get_callback,
+    tv_dict_get_number, tv_dict_get_string_buf_chk, tv_dict_set_keys_readonly, tv_get_number,
+    tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first,
+    tv_list_free, tv_list_last, tv_list_len,
 };
-use crate::eval::vars::{get_globvar_dict, set_vim_var_char};
+use crate::eval::vars::{get_globvar_dict, heredoc_get, set_vim_var_char};
 use crate::eval::window::viewstate_T;
+use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::Event;
+use crate::ex_cmds::rename_buffer;
+use crate::ex_docmd::{
+    do_cmdline, execute_cmd, expr_map_locked, parse_cmd_address, parse_cmdline,
+    parse_command_modifiers, set_no_hlsearch, skip_range, undo_cmdmod,
+};
+use crate::ex_eval::aborting;
 use crate::extmark::extmark_clear;
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_init, garray_T};
+use crate::globals::*;
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::{
-    char_avail, getcmdkeycmd, ins_typebuf, plain_vgetc, stuff_empty, stuffReadbuffSpecial,
-    stuffcharReadbuff, vgetc, vpeekc, vpeekc_any, vungetc,
+    beep_flush, char_avail, getcmdkeycmd, ins_typebuf, map_execute_lua, plain_vgetc, stuff_empty,
+    stuffReadbuffSpecial, stuffcharReadbuff, vgetc, vpeekc, vpeekc_any, vungetc,
 };
 use crate::input_cmdatom::{atom_cmdline_set, atom_payload_end, atom_payload_start};
+use crate::insert::get_literal;
 use crate::keycodes::{
     CAR, ESC, K_BS, K_C_END, K_C_HOME, K_C_LEFT, K_C_RIGHT, K_COMMAND, K_DEL, K_DOWN, K_END,
     K_HOME, K_IGNORE, K_INS, K_KDEL, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KPAGEDOWN, K_KPAGEUP,
@@ -191,31 +101,47 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, get_special_key_name, is_special, termcap2key,
 };
 use crate::kvec::KVec;
+use crate::lua::executor::nlua_call_typval;
 use crate::map::{Set, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
 use crate::map_glyph_cache::{MHPutStatus, NvimString};
+use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_get_class, mb_off_next, mb_prevptr, mb_tolower, utf_char2bytes,
+    mb_cptr2char_adv, mb_get_class, mb_off_next, mb_prevptr, mb_tolower, ptr2cells, utf_char2bytes,
     utf_char2len, utf_head_off, utf_iscomposing_first, utf_ptr2cells, utf_ptr2char,
     utf8len_tab_zero, utfc_ptr2len,
 };
+use crate::memline::{decl, incl};
 use crate::memory::{
     Arena, arena_alloc, arena_finish, arena_mem_free, xfree, xmalloc, xmallocz, xmemdupz, xrealloc,
     xstrdup,
 };
-use crate::mouse::{MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, setmouse};
+use crate::message::{
+    emsg, msg, msg_check, msg_clr_eos, msg_cursor_goto, msg_grid_validate, msg_outtrans_len,
+    msg_putchar, msg_puts_hl, msg_puts_len, msg_start, msg_starthere, sb_text_end_cmdline,
+    sb_text_restart_cmdline, sb_text_start_cmdline, smsg,
+};
+use crate::mouse::{MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, cmdline_mousescroll, setmouse};
 use crate::r#move::{
     changed_cline_bef_curs, restore_viewstate, save_viewstate, update_topline, validate_cursor,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+#[cfg(unix)]
+use crate::option::csh_like_shell;
+use crate::option::{set_iminsert_global, set_imsearch_global, set_option_direct, string_to_key};
+use crate::option_vars::*;
 use crate::optionstr::{OptIndex, TryState, optset_T};
 use crate::os::env::{expand_T, home_replace_save};
 use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
 use crate::popupmenu::pum_check_clear;
 use crate::profile::{profile_setlimit, proftime_T};
-use crate::register::{cmdline_paste_reg, get_spec_reg, is_literal_register, valid_yank_reg};
+use crate::regexp::skip_regexp_ex;
+use crate::register::{
+    cmdline_paste_reg, get_expr_line, get_expr_register, get_spec_reg, is_literal_register,
+    valid_yank_reg,
+};
 use crate::search::{
     Direction, SearchOffset, do_search, parse_search_pattern_offset, pat_has_uppercase,
     restore_last_search_pattern, restore_search_patterns, save_last_search_pattern,
@@ -225,6 +151,18 @@ use crate::state::{
     MODE_CMDLINE, MODE_LANGMAP, VimState, may_trigger_modechanged, may_trigger_safestate,
     save_v_event_T, state_enter, state_handle_k_event,
 };
+#[cfg(unix)]
+use crate::strings::strncasecmp;
+#[cfg(windows)]
+use crate::strings::vim_strnicmp;
+use crate::strings::{
+    gettext, strcmp, strcpy, strlen, strncmp, strrchr, vim_strchr, vim_strsave_escaped, xstrnsave,
+};
+use crate::ui::{
+    ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,
+    ui_call_cmdline_block_show, ui_call_cmdline_hide, ui_call_cmdline_pos, ui_call_cmdline_show,
+    ui_call_cmdline_special_char, ui_cursor_shape, ui_flush, ui_has, vim_beep,
+};
 use crate::undo::{UndoCheckpoint, u_checkpoint, u_rollback, u_sync};
 use crate::usercmd::{cmdcomplete_type_to_str, parse_compl_arg};
 use crate::viml::parser::expressions::{ExprAST, viml_pexpr_free_ast, viml_pexpr_parse};
@@ -232,6 +170,15 @@ use crate::viml::parser::parser::{
     CONV_NONE, ParserHighlight, ParserHighlightChunk, ParserInputReader, ParserLine,
     ParserPosition, ParserState, parser_simple_get_line, vimconv_T, viml_parser_destroy,
 };
+use crate::window::{
+    close_windows, global_stl_height, lastwin_nofloating, may_trigger_win_scrolled_resized,
+    win_enter, win_size_restore, win_size_save, win_split,
+};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
+
+#[cfg(windows)]
+use crate::charset::vim_isfilec;
 
 pub use crate::api::win_config::UIExtension;
 pub use crate::option::OptInt;

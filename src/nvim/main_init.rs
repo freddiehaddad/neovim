@@ -5,183 +5,218 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_metadata_raw;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{bool_obj, int_obj};
-#[allow(unused_imports)]
-use crate::api::ui::remote_ui_wait_for_attach;
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::open_buffer;
-#[allow(unused_imports)]
-use crate::buffer::{
-    buf_set_changedtick, buflist_new, do_autochdir, do_modelines, handle_swap_exists,
-    set_buflisted, set_curbuf, setfname,
-};
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::userfunc::invoke_all_defer;
-#[allow(unused_imports)]
-use crate::eval::{eval_init, set_argv_var, timer_teardown};
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_guess_handle, uv_strerror};
-#[allow(unused_imports)]
-use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
-#[allow(unused_imports)]
-use crate::fileio::fprintf;
-#[allow(unused_imports)]
-use crate::fileio::readfile;
-#[allow(unused_imports)]
-use crate::fileio::shorten_fnames;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::log::log_get_stderr;
-#[allow(unused_imports)]
-use crate::lua::executor::{
-    get_global_lstate, nlua_exec_file, nlua_init, nlua_init_defaults, nlua_pcall,
-};
-#[allow(unused_imports)]
-use crate::lua::executor::{nlua_call_typval, nlua_exec};
+use crate::api::private::helpers::cstr_as_string;
 #[cfg(not(test))]
-#[allow(unused_imports)]
-use crate::memory::free_all_mem;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{msg_putchar, wait_return};
-#[allow(unused_imports)]
-use crate::option::set_option_direct;
-#[allow(unused_imports)]
-use crate::option::{
-    reset_modifiable, set_init_1, set_init_2, set_init_3, set_init_tablocal,
-    set_option_value_give_err, set_options_bin,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::{os_get_pid, os_hint_priority};
-#[allow(unused_imports)]
-use crate::os::fs::os_write;
-#[allow(unused_imports)]
-use crate::os::input::os_isatty;
-#[allow(unused_imports)]
-use crate::os::stdpaths::{appname_is_valid, get_appname};
-#[allow(unused_imports)]
-use crate::register::get_default_register_name;
-#[allow(unused_imports)]
-use crate::runtime::{do_source, load_plugins};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::syntax::syn_maybe_enable;
-#[allow(unused_imports)]
-use crate::ui::{ui_call_error_exit, ui_call_set_title};
-#[allow(unused_imports)]
-use crate::window::win_new_screensize;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::io::Write;
-use std::mem::{size_of, zeroed};
-use std::ptr;
-
-use crate::api::private::converter::sctx_T;
-use crate::api::private::helpers::{api_free_object, cstr_as_string};
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
-};
-use crate::api::tabpage::{tabpage_T, win_T};
-use crate::arglist::{aentry_T, alist_T, alist_add, alist_init, alist_name, linenr_T};
+use crate::api::private::helpers::{api_free_object, api_metadata_raw, bool_obj, int_obj};
+#[cfg(not(test))]
+use crate::api::private::validate::{Array, Dict, Error, ErrorType};
+use crate::api::private::validate::{Object, ObjectData, ObjectType};
+#[cfg(not(test))]
+use crate::api::tabpage::tabpage_T;
+#[cfg(not(test))]
+use crate::api::ui::remote_ui_wait_for_attach;
+use crate::arglist::{aentry_T, linenr_T};
+#[cfg(not(test))]
+use crate::arglist::{alist_add, alist_init, alist_name};
+#[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
     EVENT_VIMLEAVEPRE, apply_autocmds, apply_autocmds_win, autocmd_init, block_autocmds,
     is_autocmd_blocked, unblock_autocmds,
 };
-use crate::buffer::{BLN_LISTED, buf_is_empty, buf_valid, bufref_T, bufref_valid, set_bufref};
+#[cfg(not(test))]
+use crate::buffer::{
+    BLN_LISTED, buf_get_changedtick, buf_is_empty, buf_set_changedtick, buf_valid, buflist_new,
+    bufref_T, bufref_valid, do_autochdir, do_modelines, handle_swap_exists, open_buffer,
+    set_buflisted, set_bufref, set_curbuf, setfname,
+};
+#[cfg(not(test))]
 use crate::channel::{channel_connect, channel_from_stdio, channel_init, channel_teardown};
+use crate::charset::ascii_isdigit;
+#[cfg(not(test))]
 use crate::diff::{diff_win_options, diffopt_horizontal};
+#[cfg(not(test))]
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, default_grid_alloc, redraw_all_later, redraw_later, screenclear,
 };
+#[cfg(not(test))]
+use crate::errors::*;
+#[cfg(not(test))]
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{CallbackReader, buf_T};
+#[cfg(not(test))]
+use crate::eval::deprecated::CallbackReader;
+#[cfg(not(test))]
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string};
+#[cfg(not(test))]
+use crate::eval::userfunc::invoke_all_defer;
+use crate::eval::vars::OptIndex;
+#[cfg(not(test))]
 use crate::eval::vars::{
-    OptIndex, OptInt, VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
-    VV_SEND_SERVER, VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT, VimVarIndex,
+    OptInt, VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
+    VV_SEND_SERVER, VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT,
     get_vim_var_list, get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr,
     set_vim_var_string, set_vim_var_type,
 };
-use crate::eval::{eval_has_provider, garbage_collect};
-use crate::event::r#loop::{Loop, loop_close, loop_init, loop_poll_events, loop_queues};
-use crate::event::multiqueue::{MultiQueue, multiqueue_new_child, multiqueue_process_events};
+#[cfg(not(test))]
+use crate::eval::{eval_has_provider, eval_init, garbage_collect, set_argv_var, timer_teardown};
+#[cfg(not(test))]
+use crate::event::r#loop::{
+    loop_close, loop_init, loop_poll_events, loop_queues, uv_guess_handle, uv_strerror,
+};
+#[cfg(not(test))]
+use crate::event::multiqueue::{multiqueue_new_child, multiqueue_process_events};
+#[cfg(not(test))]
 use crate::event::proc::proc_teardown;
+#[cfg(not(test))]
 use crate::event::socket::socket_address_tcp_host_end;
+#[cfg(not(test))]
 use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
+#[cfg(not(test))]
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd};
+#[cfg(not(test))]
+use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
+#[cfg(not(test))]
 use crate::ex_getln::cmdline_init;
 use crate::extmark::TriState;
-use crate::fileio::{READ_NEW, READ_STDIN};
+#[cfg(not(test))]
+use crate::fileio::{READ_NEW, READ_STDIN, fprintf, readfile, shorten_fnames};
+#[cfg(not(test))]
 use crate::garray::ga_grow;
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
 use crate::hashtab::hash_debug_results;
+#[cfg(not(test))]
 use crate::highlight::highlight_init;
+#[cfg(not(test))]
 use crate::highlight_group::init_highlight;
+#[cfg(not(test))]
 use crate::input::{open_scriptin, stuffcharReadbuff, vgetc};
+#[cfg(not(test))]
 use crate::keycodes::K_NOP;
-use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_init, logmsg_str};
-use crate::lua::base64::lua_State;
+#[cfg(not(test))]
+use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, log_init, logmsg_str};
+#[cfg(not(test))]
+use crate::lua::converter::{lua_getfield, lua_pushstring, lua_tolstring};
+#[cfg(not(test))]
+use crate::lua::executor::{
+    get_global_lstate, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init, nlua_init_defaults,
+    nlua_pcall,
+};
+#[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::mark::setpcmark;
-use crate::math::{FAIL, OK};
+use crate::math::FAIL;
+#[cfg(not(test))]
+use crate::math::OK;
+#[cfg(not(test))]
 use crate::mcursor::mc_init;
+#[cfg(not(test))]
 use crate::memfile::memfile_T;
+#[cfg(not(test))]
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{Arena, entered_free_all_mem, strequal, xfree, xmalloc, xstrdup};
+#[cfg(not(test))]
+use crate::memory::free_all_mem;
+#[cfg(not(test))]
+use crate::memory::{entered_free_all_mem, strequal, xfree, xmalloc, xstrdup};
+#[cfg(not(test))]
+use crate::message::{msg_putchar, semsg, wait_return};
+#[cfg(not(test))]
 use crate::mouse::setmouse;
+#[cfg(not(test))]
 use crate::r#move::update_topline;
+#[cfg(not(test))]
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+#[cfg(not(test))]
 use crate::msgpack_rpc::server::{server_init, server_teardown};
+#[cfg(not(test))]
 use crate::normal::{check_scrollbind, init_normal_cmds, normal_enter};
+#[cfg(not(test))]
+use crate::option::{
+    reset_modifiable, set_init_1, set_init_2, set_init_3, set_init_tablocal, set_option_direct,
+    set_option_value_give_err, set_options_bin,
+};
+#[cfg(not(test))]
+use crate::option_vars::*;
+#[cfg(not(test))]
 use crate::os::env::{
-    env_init, init_homedir, os_getenv, os_getenv_noalloc, os_homedir, os_setenv_append_path,
+    env_init, init_homedir, os_get_pid, os_getenv, os_getenv_noalloc, os_hint_priority,
     vim_env_iter,
 };
-use crate::os::fs::{os_dup_cloexec, os_exepath, os_fopen, os_isdir, os_path_exists};
-use crate::os::input::os_breakcheck;
+#[cfg(all(not(test), windows))]
+use crate::os::env::{os_homedir, os_setenv_append_path};
+#[cfg(all(not(test), windows))]
+use crate::os::fs::os_dup_cloexec;
+#[cfg(not(test))]
+use crate::os::fs::{os_exepath, os_fopen, os_isdir, os_path_exists, os_write};
+#[cfg(not(test))]
+use crate::os::input::{os_breakcheck, os_isatty};
+#[cfg(not(test))]
 use crate::os::lang::{init_locale, set_lang_var};
-#[cfg(windows)]
-use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_title_save};
+#[cfg(not(test))]
 use crate::os::signal::{signal_init, signal_reject_deadly, signal_stop, signal_teardown};
-use crate::os::stdpaths::{XDGVarType, stdpaths_get_xdg_var, stdpaths_user_conf_subpath};
+#[cfg(not(test))]
+use crate::os::stdpaths::{
+    XDGVarType, appname_is_valid, get_appname, stdpaths_get_xdg_var, stdpaths_user_conf_subpath,
+};
+#[cfg(not(test))]
 use crate::os::time::os_realtime;
+#[cfg(windows)]
+use crate::path::path_to_slash;
+#[cfg(not(test))]
 use crate::path::{
-    concat_fnames, path_equal, path_fix_case, path_guess_exepath, path_tail, path_to_slash,
-    vim_FullName,
+    concat_fnames, path_equal, path_fix_case, path_guess_exepath, path_tail, vim_FullName,
 };
+#[cfg(not(test))]
 use crate::profile::{FILE, profile_dump, time_finish, time_init, time_msg, time_start};
+#[cfg(not(test))]
 use crate::quickfix::{qf_init, qf_init_stack, qf_jump};
+#[cfg(not(test))]
+use crate::register::get_default_register_name;
+#[cfg(not(test))]
 use crate::runtime::{
-    DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, estack_init, estack_pop, estack_push,
-    runtime_init,
+    DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, do_source, estack_init, estack_pop, estack_push,
+    load_plugins, runtime_init,
 };
+#[cfg(not(test))]
 use crate::shada::{shada_read_everything, shada_write_file};
+#[cfg(not(test))]
+use crate::strings::{gettext, vim_snprintf};
+#[cfg(not(test))]
+use crate::syntax::syn_maybe_enable;
+#[cfg(not(test))]
 use crate::terminal::{terminal_init, terminal_teardown};
-use crate::ui::{do_autocmd_uienter_all, ui_flush, ui_init};
+#[cfg(not(test))]
+use crate::ui::{do_autocmd_uienter_all, ui_call_error_exit, ui_call_set_title, ui_flush, ui_init};
+#[cfg(not(test))]
 use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
+#[cfg(not(test))]
 use crate::ui_compositor::ui_comp_syn_init;
+#[cfg(not(test))]
 use crate::version::list_version;
+#[cfg(not(test))]
 use crate::window::{
     goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first, win_close,
-    win_count, win_enter, win_equal, win_init_size, win_valid,
+    win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int, c_uint};
+#[cfg(not(test))]
+use std::io::Write;
+#[cfg(not(test))]
+use std::mem::size_of;
+use std::mem::zeroed;
+use std::ptr;
+
+#[cfg(all(not(test), windows))]
+use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_title_save};
 
 pub const MAX_ARG_CMDS: usize = 10;
 
@@ -310,12 +345,14 @@ static mut REALLY_EXITING: bool = false;
 #[cfg(all(not(test), windows))]
 use crate::fileio::_close as close;
 #[cfg(all(not(test), not(windows)))]
+#[cfg(windows)]
 use crate::fileio::close;
+#[cfg(all(not(test), windows))]
+use crate::fileio::dup2;
 #[cfg(not(test))]
-use crate::fileio::{dup2, printf};
-use crate::lua::converter::{lua_getfield, lua_pushstring, lua_tolstring};
+use crate::fileio::printf;
 #[cfg(not(test))]
-use crate::version::{main_exitfree, version_sys_vimrc_file};
+use crate::version::main_exitfree;
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "system" {

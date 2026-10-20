@@ -1,13 +1,11 @@
 //! Msgpack-RPC serializer (`src/nvim/msgpack_rpc/packer.c`).
 
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
-use std::ffi::{CStr, c_char, c_int, c_void};
-
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::kvec::KVecWithInit;
+use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xrealloc};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;

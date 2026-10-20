@@ -11,68 +11,47 @@
 )]
 
 use crate::api::command::exarg_T;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{cstr_as_obj, cstr_as_string, string_obj};
+use crate::api::private::helpers::cstr_as_obj;
 use crate::api::tabpage::win_T;
 use crate::arglist::get_arglist_exp;
-#[allow(unused_imports)]
 use crate::buffer::buflist_findname_exp;
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-use crate::charset::{getdigits_int, skipdigits, skipwhite};
+use crate::charset::{ascii_isdigit, getdigits_int, skipdigits, skipwhite};
 use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
-#[allow(unused_imports)]
 use crate::fileio::{
-    buf_reload, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
-    vim_tempname,
+    buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell, fwrite, get2c, get3c,
+    get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets, vim_tempname,
 };
-#[allow(unused_imports)]
-use crate::fileio::{fclose, feof, ferror, fgetc, fputc, fread, fwrite};
-#[allow(unused_imports)]
-use crate::fileio::{fseek, ftell};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
     hash_lookup, hashitem_T, hashitem_empty, hashtab_T,
 };
-#[allow(unused_imports)]
-use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{
-    convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr2char_adv, mb_toupper,
-    string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
-    utf_valid_string, utfc_ptr2len, vimconv_T,
+    convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr2char_adv,
+    mb_toupper, string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char,
+    utf_ptr2len, utf_valid_string, utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
-#[allow(unused_imports)]
 use crate::message::{
-    emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, verbose_enter, verbose_leave,
+    emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
+    verbose_leave,
 };
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::set_option_value_give_err;
+use crate::option::{copy_option_part, set_option_value_give_err};
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::os::env::home_replace;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
-#[allow(unused_imports)]
-use crate::os::time::c_time as time;
-use crate::os::time::{Timestamp, os_time};
-#[allow(unused_imports)]
-use crate::path::FreeWild;
+use crate::os::time::{Timestamp, c_time as time, os_time};
 use crate::path::{
-    dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail, path_tail_with_sep,
-    vim_ispathsep,
+    FreeWild, dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail,
+    path_tail_with_sep, vim_ispathsep,
 };
-#[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
@@ -82,19 +61,11 @@ use crate::spell::{
     slang_free, spell_casefold, spell_enc, spell_soundfold, spelltab,
 };
 use crate::spellsuggest::{fromto_T, idx_T, langp_T, salfirst_T, salitem_T, slang_T, spelltab_T};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strstr};
-#[allow(unused_imports)]
-use crate::strings::{has_non_ascii, vim_strchr};
-#[allow(unused_imports)]
-use crate::strings::{memchr, memcmp, strerror, strrchr};
-#[allow(unused_imports)]
-use crate::strings::{memcpy, memmove, memset};
-#[allow(unused_imports)]
+use crate::strings::{
+    atoi, gettext, has_non_ascii, memchr, memcmp, memcpy, memmove, memset, qsort, strcat, strcmp,
+    strcpy, strerror, strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
+};
 use crate::ui::ui_flush;
-#[allow(unused_imports)]
 use crate::undo::bufIsChanged;
 use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
 use std::mem::{offset_of, size_of};

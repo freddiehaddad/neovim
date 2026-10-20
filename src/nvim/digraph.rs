@@ -9,59 +9,38 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::charset::is_special;
-#[allow(unused_imports)]
-use crate::drawscreen::status_redraw_curbuf;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::eval_to_string;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_check_for_opt_bool_arg, tv_get_string_buf_chk, tv_get_string_chk};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_get_bool, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_string,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-#[allow(unused_imports)]
-use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
-#[allow(unused_imports)]
-use crate::ex_getln::putcmdline;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::plain_vgetc;
-#[allow(unused_imports)]
-use crate::mapping::do_map;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar};
-#[allow(unused_imports)]
-use crate::normal::add_to_showcmd;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::input::fast_breakcheck;
-#[allow(unused_imports)]
-use crate::runtime::{getsourceline, source_runtime};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
-use crate::charset::{char2cells, getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{
+    ascii_isdigit, char2cells, getdigits_int, is_special, skiptowhite, skipwhite,
+};
 use crate::clipboard::{VarType, list_T, typval_T};
+use crate::drawscreen::status_redraw_curbuf;
+use crate::errors::*;
+use crate::eval::eval_to_string;
+use crate::eval::typval::{
+    tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk, tv_get_string_chk,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_string, tv_list_first,
+    tv_list_len,
+};
+use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
+use crate::ex_getln::putcmdline;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::indent::EvalFuncData;
+use crate::input::plain_vgetc;
 use crate::keycodes::K_BS;
+use crate::mapping::do_map;
+use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
 use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
+use crate::message::{emsg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar, semsg};
+use crate::normal::add_to_showcmd;
+use crate::option_vars::*;
+use crate::os::input::fast_breakcheck;
+use crate::runtime::{getsourceline, source_runtime};
+use crate::strings::{gettext, vim_snprintf};
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub type result_T = c_int;
 pub use crate::cmdexpand::LineGetter;

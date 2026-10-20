@@ -4,55 +4,56 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalnum, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::charset::{vim_iswordc, vim_iswordp};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
+#[cfg(not(test))]
+use crate::clipboard::{TypvalVval, VarType};
+use crate::clipboard::{list_T, listitem_T, typval_T};
+#[cfg(not(test))]
 use crate::cursor::equalpos;
-#[allow(unused_imports)]
+use crate::cursor_shape::pos_T;
+#[cfg(not(test))]
 use crate::eval::callback_call;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_len;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::eval::decode::dict_T;
+#[cfg(not(test))]
+use crate::eval::deprecated::Callback;
+use crate::eval::deprecated::{EvalFuncData, buf_T};
+#[cfg(not(test))]
 use crate::eval::typval::{
-    callback_free, tv_clear, tv_dict_find, tv_dict_has_key, tv_dict_unref, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_list, tv_list_append_tv, tv_list_find,
+    callback_free, tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
+    tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
+    tv_list_append_tv, tv_list_find, tv_list_len,
 };
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_check_for_nonnull_dict_arg, tv_dict_get_callback, tv_dict_get_string, tv_get_string,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_get_number_chk, tv_list_append_number};
+use crate::garray::garray_T;
+#[cfg(not(test))]
+use crate::garray::{ga_append_via_ptr, ga_clear, ga_init};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::math::{FAIL, OK};
+#[cfg(not(test))]
 use crate::mbyte::{
     mb_charlen, mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
+#[cfg(not(test))]
 use crate::message::semsg;
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
-
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::cursor_shape::pos_T;
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
-use crate::garray::{ga_append_via_ptr, ga_clear, ga_init, garray_T};
-use crate::math::{FAIL, OK};
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
 pub const FUZZY_SCORE_NONE: c_int = c_int::MIN;

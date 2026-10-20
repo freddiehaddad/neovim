@@ -10,89 +10,54 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::autocmd::{aucmd_defer, has_event};
-#[allow(unused_imports)]
-use crate::buffer::bt_prompt;
-#[allow(unused_imports)]
-use crate::buffer::first_win_in_tab;
-#[allow(unused_imports)]
-use crate::buffer::{buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name};
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::charset::{ascii_islower, ascii_isupper};
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt};
-#[allow(unused_imports)]
-use crate::diff::diff_mark_adjust;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_append_number;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
-    tv_list_append_dict,
-};
-#[allow(unused_imports)]
-use crate::fold::{foldMarkAdjust, hasFolding};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::insert::beginline;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_excmd;
-#[allow(unused_imports)]
-use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::mcursor::mc_replaying;
-#[allow(unused_imports)]
-use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
-#[allow(unused_imports)]
-use crate::memory::xstrlcpy;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
-};
-#[allow(unused_imports)]
-use crate::r#move::set_topline;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::expand_env;
-#[allow(unused_imports)]
-use crate::os::fs::os_dirname;
-#[allow(unused_imports)]
-use crate::os::input::os_breakcheck;
-#[allow(unused_imports)]
-use crate::path::{path_equal, path_shorten_fname, vim_ispathsep_nocolon};
-#[allow(unused_imports)]
-use crate::quickfix::qf_mark_adjust;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::xstrnsave;
-#[allow(unused_imports)]
-use crate::tag::tagstack_clear_entry;
-#[allow(unused_imports)]
-use crate::undo::u_update_named_mark;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{win_T, winopt_T, xfmark_T};
-use crate::charset::{skipwhite, vim_isprintc};
+use crate::autocmd::{aucmd_defer, has_event};
+use crate::buffer::{
+    bt_prompt, buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name, first_win_in_tab,
+};
+use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::clipboard::list_T;
-use crate::cursor::{check_cursor, colnr_T, linenr_T};
+use crate::cursor::{check_cursor, colnr_T, equalpos, linenr_T, lt};
+use crate::diff::diff_mark_adjust;
+use crate::errors::*;
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T};
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
+    tv_list_append_dict, tv_list_append_number,
+};
 use crate::extmark::extmark_adjust;
+use crate::fold::{foldMarkAdjust, hasFolding};
 use crate::garray::garray_T;
+use crate::globals::*;
+use crate::insert::beginline;
+use crate::lua::executor::nlua_call_excmd;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{xfree, xstrdup};
+use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::mcursor::mc_replaying;
+use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
+use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::message::{
+    emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
+    semsg,
+};
+use crate::r#move::set_topline;
+use crate::option_vars::*;
+use crate::os::env::expand_env;
+use crate::os::fs::os_dirname;
+use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_time};
+use crate::path::{path_equal, path_shorten_fname, vim_ispathsep_nocolon};
 use crate::plines::linetabsize_eol;
+use crate::quickfix::qf_mark_adjust;
+use crate::strings::{gettext, xstrnsave};
+use crate::tag::tagstack_clear_entry;
 use crate::textformat::oparg_T;
 use crate::textobject::{findpar, findsent};
+use crate::undo::u_update_named_mark;
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;

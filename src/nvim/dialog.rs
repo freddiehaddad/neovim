@@ -4,31 +4,32 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::ex_getln::getcmdline_prompt;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::ins_typebuf;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::message::{display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
-#[allow(unused_imports)]
-use crate::mouse::setmouse;
-#[allow(unused_imports)]
-use crate::os::input::input_available;
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_mouse_has};
-use std::ffi::{CStr, c_char, c_int, c_void};
-
+#[cfg(not(test))]
 use crate::eval::deprecated::Callback;
+#[cfg(not(test))]
+use crate::ex_getln::getcmdline_prompt;
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
+use crate::input::ins_typebuf;
+#[cfg(not(test))]
+use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
+#[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
+#[cfg(not(test))]
+use crate::message::{display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
+#[cfg(not(test))]
+use crate::mouse::setmouse;
+#[cfg(not(test))]
+use crate::os::input::input_available;
+#[cfg(not(test))]
+use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_has, ui_mouse_has};
+#[cfg(not(test))]
+use std::ffi::{CStr, c_void};
+use std::ffi::{c_char, c_int};
 
 const DLG_BUTTON_SEP: u8 = b'\n';
 const DLG_HOTKEY_CHAR: u8 = b'&';

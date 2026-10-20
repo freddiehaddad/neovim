@@ -6,7 +6,6 @@
     non_snake_case,
     non_upper_case_globals,
     unused_assignments,
-    unused_imports,
     unused_mut,
     unused_labels,
     unused_variables,
@@ -14,29 +13,6 @@
     clippy::missing_safety_doc,
     clippy::too_many_lines
 )]
-
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj, string_obj, tabpage_obj,
-    window_obj,
-};
-use std::ffi::{c_char, c_int};
-use std::mem::{offset_of, zeroed};
-use std::ptr;
-
-use crate::api::private::helpers::{
-    api_dict_to_keydict, api_keydict_to_dict, api_set_error, api_set_error_str,
-};
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
-};
-use crate::api::tabpage::{Buffer, Tabpage, Window};
-use crate::ex_getln::{get_text_locked_msg, text_locked};
-use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink};
-use crate::map_glyph_cache::NvimString;
-use crate::memory::Arena;
-use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::ui_client::handle_ui_client_redraw;
 
 use crate::api::autocmd::{
     KeyDict_clear_autocmds, KeyDict_create_augroup, KeyDict_create_autocmd, KeyDict_exec_autocmds,
@@ -80,10 +56,17 @@ use crate::api::options::{
     KeyDict_option, nvim_get_all_options_info, nvim_get_option_info2, nvim_get_option_value,
     nvim_set_option_value,
 };
+use crate::api::private::helpers::{
+    api_dict_to_keydict, api_keydict_to_dict, api_set_error, api_set_error_str, array_obj,
+    boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj, string_obj, tabpage_obj, window_obj,
+};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
+};
 use crate::api::tabpage::{
-    KeyDict_tabpage_config, nvim_open_tabpage, nvim_tabpage_del_var, nvim_tabpage_get_number,
-    nvim_tabpage_get_var, nvim_tabpage_get_win, nvim_tabpage_is_valid, nvim_tabpage_list_wins,
-    nvim_tabpage_set_var, nvim_tabpage_set_win,
+    Buffer, KeyDict_tabpage_config, Tabpage, Window, nvim_open_tabpage, nvim_tabpage_del_var,
+    nvim_tabpage_get_number, nvim_tabpage_get_var, nvim_tabpage_get_win, nvim_tabpage_is_valid,
+    nvim_tabpage_list_wins, nvim_tabpage_set_var, nvim_tabpage_set_win,
 };
 use crate::api::ui::{
     nvim_ui_attach, nvim_ui_detach, nvim_ui_pum_set_bounds, nvim_ui_pum_set_height, nvim_ui_send,
@@ -123,13 +106,23 @@ use crate::api::window::{
     nvim_win_hide, nvim_win_is_valid, nvim_win_resize, nvim_win_set_buf, nvim_win_set_cursor,
     nvim_win_set_hl_ns, nvim_win_set_var, nvim_win_text_height,
 };
+use crate::ex_getln::{get_text_locked_msg, text_locked};
 use crate::highlight::{KeyDict_highlight, KeyDict_highlight_cterm};
 use crate::highlight_group::KeyDict_get_highlight;
+use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink};
 use crate::lua::xdiff::KeyDict_xdl_diff;
+use crate::map_glyph_cache::NvimString;
+use crate::memory::Arena;
+use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::shada::{
     KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
     KeyDict__shada_search_pat,
 };
+#[cfg(not(test))]
+use crate::ui_client::handle_ui_client_redraw;
+use std::ffi::{c_char, c_int};
+use std::mem::{offset_of, zeroed};
+use std::ptr;
 
 const kUnpackTypeStringArray: c_int = -1;
 
@@ -16946,8 +16939,8 @@ use crate::api::buffer::nvim_buf_call;
 use crate::api::extmark::nvim_set_decoration_provider;
 use crate::api::options::nvim__option_to_object;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_dict, api_free_object, api_free_string, api_luarefs_free_dict,
-    api_luarefs_free_keydict, api_luarefs_free_object,
+    api_clear_error, api_free_dict, api_free_object, api_free_string, api_luarefs_free_keydict,
+    api_luarefs_free_object,
 };
 use crate::api::window::nvim_win_call;
 use crate::errors::e_fast_api_disabled;

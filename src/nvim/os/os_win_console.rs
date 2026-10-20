@@ -5,27 +5,28 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::upper_case_acronyms
 )]
 
+#[cfg(all(not(test), windows))]
 use crate::globals::*;
+#[cfg(all(not(test), windows))]
 use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::os::env::os_getenv;
-#[allow(unused_imports)]
-use crate::os::env::os_getenv_noalloc;
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
+use crate::os::env::{os_getenv, os_getenv_noalloc};
+#[cfg(all(not(test), windows))]
 use crate::os::fs::os_path_exists;
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::ui::ui_active;
+#[cfg(all(not(test), windows))]
+use std::ffi::CStr;
 #[cfg(windows)]
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use crate::memory::xfree;
 
 #[cfg(windows)]
@@ -149,7 +150,9 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
-use crate::fileio::{_close, _get_osfhandle};
+use crate::fileio::_close;
+#[cfg(all(not(test), windows))]
+use crate::fileio::_get_osfhandle;
 
 #[cfg(windows)]
 unsafe extern "C" {

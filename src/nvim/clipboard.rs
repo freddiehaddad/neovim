@@ -3,28 +3,29 @@
 #![allow(
     dead_code,
     non_snake_case,
-    unused_imports,
     unused_mut,
     clippy::missing_safety_doc,
     clippy::needless_return
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::typval::{tv_list_alloc, tv_list_append_list, tv_list_append_string};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::{eval_call_provider, eval_has_provider};
-#[allow(unused_imports)]
+use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::mcursor::mc_replaying;
-#[allow(unused_imports)]
+use crate::memory::xstrdup;
+#[cfg(not(test))]
+use crate::memory::{xcalloc, xfree};
+#[cfg(not(test))]
 use crate::message::{emsg, msg, redirecting};
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::register::{free_register, get_y_previous, get_y_register, update_yankreg_width};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{xcalloc, xfree, xstrdup};
 
 const STAR_REGISTER: c_int = 37;
 const PLUS_REGISTER: c_int = 38;

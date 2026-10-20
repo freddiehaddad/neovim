@@ -10,34 +10,25 @@
     clippy::too_many_arguments
 )]
 
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::grid::{schar_from_buf, schar_from_char};
-#[allow(unused_imports)]
-use crate::highlight::hl_blend_attrs;
-#[allow(unused_imports)]
-use crate::highlight_group::{syn_check_group, syn_id2attr};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::ui::ui_composed_call_raw_line;
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_flush, ui_composed_call_grid_cursor_goto, ui_composed_call_grid_resize,
-    ui_composed_call_grid_scroll, ui_has,
-};
-use std::ffi::{c_int, c_uint};
-use std::ptr;
-
 use crate::api::tabpage::ScreenGrid;
 use crate::api::win_config::UIExtension;
+use crate::globals::*;
+use crate::grid::{schar_from_ascii, schar_from_buf, schar_from_char};
+use crate::highlight::hl_blend_attrs;
+use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xrealloc};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::option_vars::*;
 use crate::os::time::os_sleep;
+use crate::ui::{
+    ui_call_flush, ui_composed_call_grid_cursor_goto, ui_composed_call_grid_resize,
+    ui_composed_call_grid_scroll, ui_composed_call_raw_line, ui_has,
+};
+use std::ffi::{c_int, c_uint};
+use std::ptr;
 
 pub use crate::grid::sattr_T;
 pub use crate::grid::schar_T;

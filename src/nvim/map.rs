@@ -1,11 +1,9 @@
 //! Hash maps and sets (`src/nvim/map.c`, `src/nvim/map_key_impl.c.h`, `src/nvim/map_value_impl.c.h`).
 
-#[allow(unused_imports)]
-use crate::path::{path_cmp, path_fold_char, vim_ispathsep, vim_ispathsep_nocolon};
-use std::ffi::{CStr, c_char, c_int, c_void};
-
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::memory::{xcalloc, xfree, xrealloc};
+use crate::path::{path_cmp, path_fold_char, vim_ispathsep, vim_ispathsep_nocolon};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
 const UPPER_FILL: f64 = 0.77;
 const MAXPATHL: usize = 4096;

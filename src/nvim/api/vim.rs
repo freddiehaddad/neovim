@@ -9,99 +9,6 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::put_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_metadata, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
-    arena_take_arraybuilder, copy_array, copy_dict, copy_object, copy_string, cstr_as_string,
-    dict_get_value, dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle,
-    get_default_stl_hl, parse_hl_msg, set_mark, string_to_array, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, boolean_obj, buffer_obj, cstr_as_obj, dict_obj, integer_obj, nil_obj, string_obj,
-    tabpage_obj, window_obj,
-};
-#[allow(unused_imports)]
-use crate::autocmd::may_trigger_vim_suspend_resume;
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::{buf_close_terminal, buflist_new, buflist_nr2name, do_buffer};
-#[allow(unused_imports)]
-use crate::buffer::{bufref_valid, read_buffer_into, set_bufref};
-#[allow(unused_imports)]
-use crate::channel::channel_event;
-#[allow(unused_imports)]
-use crate::cursor::get_cursor_rel_lnum;
-#[allow(unused_imports)]
-use crate::drawline::use_cursor_line_highlight;
-#[allow(unused_imports)]
-use crate::drawscreen::win_update_cursorline;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_find;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_chdir;
-#[allow(unused_imports)]
-use crate::ex_docmd::exec_normal;
-#[allow(unused_imports)]
-use crate::ex_eval::aborting;
-#[allow(unused_imports)]
-use crate::fold::fold_info;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::{get_win_by_grid_handle, win_grid_alloc};
-#[allow(unused_imports)]
-use crate::highlight::win_check_ns_hl;
-#[allow(unused_imports)]
-use crate::input::ins_typebuf;
-#[allow(unused_imports)]
-use crate::insexpand::get_cot_flags;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, nlua_get_global_ref_count, nlua_is_deferred_safe};
-#[allow(unused_imports)]
-use crate::lua::executor::{nlua_call_ref, nlua_exec};
-#[allow(unused_imports)]
-use crate::mapping::{keymap_array, modify_keymap};
-#[allow(unused_imports)]
-use crate::message::msg_multihl;
-#[allow(unused_imports)]
-use crate::message::{
-    hl_msg_free, msg_ext_no_fast, msg_id_exists, verbose_enter, verbose_leave, verbose_stop,
-};
-#[allow(unused_imports)]
-use crate::r#move::{changed_window_setting, win_col_off};
-#[allow(unused_imports)]
-use crate::normal::reset_VIsual_and_resel;
-#[allow(unused_imports)]
-use crate::option::buf_copy_options;
-#[allow(unused_imports)]
-use crate::option::set_option_direct_for;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::optionstr::check_stl_option;
-#[allow(unused_imports)]
-use crate::os::input::input_enqueue;
-#[allow(unused_imports)]
-use crate::register::{finish_yankreg_from_object, prepare_yankreg_from_object};
-#[allow(unused_imports)]
-use crate::runtime::do_in_runtimepath;
-#[allow(unused_imports)]
-use crate::runtime::{do_source, get_lib_dir, runtime_get_named, runtime_inspect, script_autoload};
-#[allow(unused_imports)]
-use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
-#[allow(unused_imports)]
-use crate::window::{global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_find_tabpage};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::api::buffer::{
     KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
@@ -109,6 +16,14 @@ use crate::api::deprecated::{KeyDict_empty, buffer_del_line, buffer_get_line, bu
 use crate::api::extmark::NS;
 use crate::api::options::CharBuf;
 use crate::api::private::converter::vim_to_object;
+use crate::api::private::helpers::{
+    add_c, api_metadata, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
+    arena_string, arena_take_arraybuilder, array_obj, boolean_obj, buffer_obj, copy_array,
+    copy_dict, copy_object, copy_string, cstr_as_obj, cstr_as_string, dict_get_value, dict_obj,
+    dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle,
+    get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark, static_cstr_as_string,
+    string_obj, string_to_array, tabpage_obj, try_enter, try_leave, window_obj,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
@@ -116,35 +31,47 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, pos_T, win_T};
 use crate::api::win_config::bufref_T;
 use crate::autocmd::{
-    EVENT_BUFADD, EVENT_BUFNEW, apply_autocmds, block_autocmds, unblock_autocmds,
+    EVENT_BUFADD, EVENT_BUFNEW, apply_autocmds, block_autocmds, may_trigger_vim_suspend_resume,
+    unblock_autocmds,
+};
+use crate::buffer::{
+    buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, bufref_valid, do_buffer,
+    read_buffer_into, set_bufref,
 };
 use crate::channel::{
-    InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref,
+    InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
     channel_incref, channel_info, channel_send,
 };
 use crate::clipboard::yankreg_T;
 use crate::context::{
     Context, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
 };
-use crate::cursor::linenr_T;
+use crate::cursor::{get_cursor_rel_lnum, linenr_T};
 use crate::decoration::decor_redraw_signs;
+use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::{
     redraw_all_later, redraw_buf_later, redraw_buf_range_later, redraw_later, setcursor_mayforce,
-    update_screen,
+    update_screen, win_update_cursorline,
 };
 use crate::eval::deprecated::buf_T;
+use crate::eval::typval::tv_dict_find;
 use crate::eval::vars::{get_globvar_dict, get_vimvar_dict, set_vim_var_nr};
-use crate::grid::{schar_T, schar_cache_clear, schar_get};
+use crate::ex_docmd::{do_chdir, exec_normal};
+use crate::ex_eval::aborting;
+use crate::fold::fold_info;
+use crate::globals::*;
+use crate::grid::{get_win_by_grid_handle, schar_T, schar_cache_clear, schar_get, win_grid_alloc};
 use crate::highlight::{
     KeyDict_highlight, OptionalKeys, dict2hlattrs, highlight_use_hlstate, hl_check_ns,
-    hl_get_attr_by_id, hl_inspect, hl_ns_get_attrs, ns_hl_def,
+    hl_get_attr_by_id, hl_inspect, hl_ns_get_attrs, ns_hl_def, win_check_ns_hl,
 };
 use crate::highlight_group::{
     KeyDict_get_highlight, color_name_table, name_to_color, ns_get_hl_defs, syn_check_group,
     syn_id2name,
 };
-use crate::input::paste_store;
+use crate::input::{ins_typebuf, paste_store};
 use crate::input_cmdatom::StringBuilder;
+use crate::insexpand::get_cot_flags;
 use crate::keycodes::{
     KE_LEFTDRAG, KE_LEFTMOUSE, KE_LEFTRELEASE, KE_MIDDLEMOUSE, KE_MOUSEDOWN, KE_MOUSELEFT,
     KE_MOUSEMOVE, KE_MOUSERIGHT, KE_MOUSEUP, KE_RIGHTMOUSE, KE_X1MOUSE, KE_X2MOUSE, REPTERM_DO_LT,
@@ -152,28 +79,42 @@ use crate::keycodes::{
     vim_strsave_escape_ks,
 };
 use crate::lua::converter::{Boolean, Float, LuaRef};
+use crate::lua::executor::{
+    api_free_luaref, nlua_call_ref, nlua_exec, nlua_get_global_ref_count, nlua_is_deferred_safe,
+};
 use crate::map::HlAttrs;
 use crate::map_glyph_cache::NvimString;
-use crate::mapping::MAPTYPE_MAP;
+use crate::mapping::{MAPTYPE_MAP, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memfile::memfile_T;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_alloc, arena_strdup, memchrsub, strequal, xfree};
-use crate::r#move::{update_topline, validate_cursor};
+use crate::message::{
+    hl_msg_free, msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave,
+    verbose_stop,
+};
+use crate::r#move::{changed_window_setting, update_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::channel::{
     Channel, ChannelStreamType, channel_prefix, channel_stream_ptr, channel_tail, find_channel,
     rpc_set_client_info,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
-use crate::os::input::{input_blocking, input_enqueue_mouse, input_enqueue_raw};
+use crate::normal::reset_VIsual_and_resel;
+use crate::option::{buf_copy_options, set_option_direct_for};
+use crate::option_vars::*;
+use crate::optionstr::check_stl_option;
+use crate::os::input::{input_blocking, input_enqueue, input_enqueue_mouse, input_enqueue_raw};
 use crate::os::proc::os_proc_children;
-#[cfg(windows)]
-use crate::os::proc::os_proc_info;
 use crate::popupmenu::{pum_ext_select_item, pum_set_info};
-use crate::register::{PUT_CURSEND, do_put};
+use crate::register::{
+    PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object,
+};
+use crate::runtime::{
+    do_in_runtimepath, do_source, get_lib_dir, runtime_get_named, runtime_inspect, script_autoload,
+};
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
     SignTextAttrs, build_stl_str_hl, draw_tabline, fillchar_status, foldinfo_T, hlf_T, statuscol_T,
@@ -183,6 +124,13 @@ use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_check_size, terminal_destroy, terminal_open,
     terminal_running, terminal_set_streamed_paste,
 };
+use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
+use crate::window::{global_stl_height, goto_tabpage_tp, goto_tabpage_win, win_find_tabpage};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
+
+#[cfg(windows)]
+use crate::os::proc::os_proc_info;
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;

@@ -7,132 +7,143 @@
     non_upper_case_globals,
     unpredictable_function_pointer_comparisons,
     unused_assignments,
-    unused_imports,
     unused_mut,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+use crate::api::command::{cmdmod_T, exarg_T, ucmd_T};
+#[cfg(not(test))]
 use crate::api::extmark::ns_initialized;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
+use crate::api::private::converter::sctx_T;
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    HlMessageChunk, TryState, api_clear_error, api_free_array, api_set_error, api_set_sctx,
+    arena_array, error_set, string_to_cstr, try_enter, try_leave,
+};
+#[cfg(not(test))]
+use crate::api::private::validate::ErrorType;
+use crate::api::private::validate::{Array, Error, Object, ObjectData, ObjectType};
+#[cfg(not(test))]
+use crate::change::inserted_bytes;
+#[cfg(not(test))]
+use crate::clipboard::TypvalVval;
+use crate::clipboard::{VarType, typval_T};
+#[cfg(not(test))]
+use crate::cursor::{check_cursor, colnr_T};
+#[cfg(not(test))]
+use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
+#[cfg(not(test))]
 use crate::errors::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
-#[allow(unused_imports)]
-use crate::eval::userfunc::{call_func, register_luafunc};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::eval::typval::tv_clear;
+use crate::eval::userfunc::FCERR_NONE;
+#[cfg(not(test))]
+use crate::eval::userfunc::{EvalFuncDef, FCERR_OTHER, call_func, funcexe_T, register_luafunc};
+use crate::event::r#loop::uv_thread_t;
+#[cfg(not(test))]
+use crate::event::r#loop::{
+    loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred,
+};
+use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
+#[cfg(not(test))]
+use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
+#[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline;
-#[allow(unused_imports)]
-use crate::ex_docmd::get_command_name;
-#[allow(unused_imports)]
-use crate::ex_getln::script_get;
-#[allow(unused_imports)]
-use crate::ex_getln::{get_user_input, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::ex_docmd::{do_cmdline, get_command_name};
+#[cfg(not(test))]
+use crate::ex_getln::{
+    cmdpreview_get_bufnr, cmdpreview_get_ns, get_user_input, script_get,
+    ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave,
+};
+#[cfg(not(test))]
 use crate::fileio::fprintf;
+#[cfg(not(test))]
+use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init};
+use crate::garray::{ga_concat_strings, garray_T};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::input::vgetc;
+#[cfg(not(test))]
+use crate::keycodes::{special_to_buf, vim_unescape_ks};
+#[cfg(not(test))]
 use crate::log::log_get_stderr;
-#[allow(unused_imports)]
+use crate::lua::base64::{lua_CFunction, lua_State};
+use crate::lua::converter::{LuaRef, nlua_ref_state_t};
+#[cfg(not(test))]
 use crate::lua::converter::{
-    lua_checkstack, lua_concat, lua_createtable, lua_error, lua_getfield, lua_getmetatable,
-    lua_gettop, lua_newuserdata, lua_next, lua_pcall, lua_pushboolean, lua_pushinteger,
-    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti,
-    lua_rawseti, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean, lua_tolstring,
-    lua_type, luaL_checkinteger, luaL_checklstring, luaL_error, luaL_where,
+    lua_Integer, lua_checkstack, lua_concat, lua_createtable, lua_error, lua_getfield,
+    lua_getmetatable, lua_gettop, lua_isnumber, lua_isstring, lua_newuserdata, lua_next, lua_pcall,
+    lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield,
+    lua_setmetatable, lua_settop, lua_toboolean, lua_tointeger, lua_tolstring, lua_touserdata,
+    lua_type, luaL_checkinteger, luaL_checklstring, luaL_error, luaL_ref, luaL_unref, luaL_where,
+    nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object, nlua_pop_typval,
+    nlua_push_Array, nlua_push_Object, nlua_push_typval,
 };
-#[allow(unused_imports)]
-use crate::lua::converter::{
-    lua_isnumber, lua_isstring, lua_pushcclosure, lua_tointeger, lua_touserdata, luaL_ref,
-    luaL_unref,
+#[cfg(not(test))]
+use crate::lua::stdlib::nlua_state_add_stdlib;
+#[cfg(not(test))]
+use crate::lua::treesitter::{nlua_treesitter_free, nlua_treesitter_init};
+#[cfg(not(test))]
+use crate::main_init::{getout, os_exit, preserve_exit};
+use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
+use crate::math::{FAIL, OK};
+#[cfg(not(test))]
+use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
+use crate::memory::{Arena, xfree};
+#[cfg(not(test))]
+use crate::memory::{
+    ArenaMem, arena_finish, arena_mem_free, strequal, xcalloc, xmalloc, xmallocz, xmemdupz, xstrdup,
 };
-#[allow(unused_imports)]
-use crate::message::msg_multihl;
-use crate::message::semsg_multiline;
-#[allow(unused_imports)]
-use crate::message::{emsg, msg_ext_no_fast, msg_putchar, msg_use_printf, redirecting};
+#[cfg(not(test))]
+use crate::message::{
+    emsg, msg_ext_no_fast, msg_multihl, msg_putchar, msg_use_printf, redirecting, semsg_multiline,
+};
+#[cfg(not(test))]
+use crate::msgpack_rpc::channel::{rpc_send_call, rpc_send_event};
+#[cfg(not(test))]
+use crate::msgpack_rpc::packer::handle_T;
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+use crate::os::env::expand_T;
+#[cfg(not(test))]
 use crate::os::env::home_replace_save;
-#[allow(unused_imports)]
-use crate::runtime::{cmd_source_buffer, new_script_item};
-#[allow(unused_imports)]
-use crate::runtime::{runtime_get_named_thread, runtime_search_path_validate};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
+#[cfg(all(not(test), windows))]
+use crate::os::env::os_getenv_noalloc;
+#[cfg(not(test))]
+use crate::os::fileio::{FileDescriptor, file_close, file_open_stdin, file_read};
+#[cfg(not(test))]
+use crate::path::fix_fname;
+#[cfg(not(test))]
+use crate::profile::{proftime_T, scriptitem_T, time_msg, time_pop, time_push};
+#[cfg(not(test))]
+use crate::runtime::{
+    cmd_source_buffer, find_script_by_name, new_script_item, runtime_get_named_thread,
+    runtime_search_path_validate, script_is_lua,
+};
+#[cfg(not(test))]
+use crate::strings::{gettext, vim_snprintf};
+#[cfg(not(test))]
+use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
+#[cfg(not(test))]
+use crate::undo::u_save;
+#[cfg(not(test))]
+use crate::usercmd::{uc_mods, uc_split_args_iter};
 use std::ffi::{CStr, c_char, c_int, c_void};
+#[cfg(not(test))]
 use std::io::Write;
+#[cfg(not(test))]
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-use crate::api::command::{cmdmod_T, exarg_T, ucmd_T};
-use crate::api::private::converter::sctx_T;
-use crate::api::private::helpers::{
-    HlMessageChunk, TryState, api_clear_error, api_free_array, api_set_sctx, arena_array,
-    string_to_cstr, try_enter, try_leave,
-};
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::win_T;
-use crate::arglist::linenr_T;
-use crate::change::inserted_bytes;
-use crate::clipboard::{TypvalVval, VarType, typval_T};
-use crate::cursor::{check_cursor, colnr_T};
-use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
-use crate::eval::deprecated::{Callback, buf_T};
-use crate::eval::typval::tv_clear;
-use crate::eval::userfunc::{EvalFuncDef, FCERR_NONE, FCERR_OTHER, funcexe_T};
-use crate::event::r#loop::{
-    Loop, loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred,
-};
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
-    multiqueue_put_event,
-};
-use crate::ex_getln::{cmdpreview_get_bufnr, cmdpreview_get_ns};
-use crate::garray::{
-    ga_append, ga_clear, ga_concat_len, ga_concat_strings, ga_grow, ga_init, garray_T,
-};
-use crate::input::vgetc;
-use crate::keycodes::{special_to_buf, vim_unescape_ks};
-use crate::kvec::KVec;
-use crate::lua::base64::{lua_CFunction, lua_State};
-use crate::lua::converter::{
-    LuaRef, lua_Integer, lua_Number, nlua_init_types, nlua_pop_Array, nlua_pop_Integer,
-    nlua_pop_Object, nlua_pop_typval, nlua_push_Array, nlua_push_Object, nlua_push_typval,
-    nlua_ref_state_t,
-};
-use crate::lua::stdlib::nlua_state_add_stdlib;
-use crate::lua::treesitter::{nlua_treesitter_free, nlua_treesitter_init};
-use crate::main_init::{getout, os_exit, preserve_exit};
-use crate::map_glyph_cache::NvimString;
-use crate::math::{FAIL, OK};
-use crate::memline::{ml_get_buf, ml_get_buf_len, ml_replace};
-use crate::memory::{
-    Arena, ArenaMem, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xmallocz,
-    xmemdupz, xstrdup,
-};
-use crate::msgpack_rpc::channel::{rpc_send_call, rpc_send_event};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::os::env::{expand_T, os_getenv_noalloc};
-use crate::os::fileio::{FileDescriptor, file_close, file_open_stdin, file_read};
-use crate::path::fix_fname;
-use crate::profile::{FILE, proftime_T, scriptitem_T, time_msg, time_pop, time_push};
-use crate::runtime::{find_script_by_name, script_is_lua};
-use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
-use crate::undo::u_save;
-use crate::usercmd::{uc_mods, uc_split_args_iter};
-
 pub use crate::api::vim::HlMessage;
 pub use crate::cmdexpand::LineGetter;
-use crate::event::r#loop::uv_thread_t;
 pub type LuaRetMode = c_int;
 
 type luv_CFpcall = Option<

@@ -10,85 +10,38 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::api_clear_error;
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::to_special;
-#[allow(unused_imports)]
-use crate::cursor::get_cursor_line_ptr;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::garbage_collect;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_has_key, tv_get_bool_chk};
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_loop_size, uv_strerror};
-#[allow(unused_imports)]
-use crate::ex_cmds::check_secure;
-#[allow(unused_imports)]
-use crate::ex_docmd::update_topline_cursor;
-#[allow(unused_imports)]
-use crate::ex_getln::{get_cmdline_info, putcmdline, redrawcmd, redrawcmdline, unputcmdline};
-#[allow(unused_imports)]
-use crate::fileio::fputc;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::insert::{edit_putchar, edit_unputchar};
-#[allow(unused_imports)]
-use crate::insexpand::{
-    compl_status_local, ctrl_x_mode_eval, ctrl_x_mode_not_default, vim_is_ctrl_x_key,
-};
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_ref;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_exec_on_key;
-#[allow(unused_imports)]
-use crate::mapping::{eval_map_expr, get_buf_maphash_list, map_luaid_get};
-#[allow(unused_imports)]
-use crate::memline::ml_sync_all;
-#[allow(unused_imports)]
-use crate::message::{emsg, internal_error};
-use crate::message::{semsg, semsg_multiline};
-#[allow(unused_imports)]
-use crate::r#move::win_col_off;
-#[allow(unused_imports)]
-use crate::normal::{add_to_showcmd, normal_cmd, pop_showcmd, push_showcmd};
-#[allow(unused_imports)]
-use crate::ops::clear_oparg;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::expand_env;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, strcmp, strlen, strncmp};
-#[allow(unused_imports)]
-use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
-use std::ptr;
-
 use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::vim::nvim_paste;
-use crate::charset::skipwhite;
+use crate::charset::{ascii_iswhite, skipwhite, to_special};
 use crate::clipboard::{VarType, typval_T};
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
 use crate::drawscreen::{setcursor, showmode, unshowmode, update_screen};
+use crate::errors::*;
 use crate::eval::deprecated::EvalFuncData;
+use crate::eval::garbage_collect;
+use crate::eval::typval::{
+    tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string, tv_dict_has_key,
+    tv_get_bool_chk,
+};
+use crate::eval::vars::set_vim_var_nr;
+use crate::event::r#loop::uv_strerror;
 use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
+use crate::ex_cmds::check_secure;
+use crate::ex_docmd::update_topline_cursor;
+use crate::ex_getln::{get_cmdline_info, putcmdline, redrawcmd, redrawcmdline, unputcmdline};
 use crate::extmark::TriState;
+use crate::fileio::fputc;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::input_cmdatom::{
     CmdSpec, StringBuilder, atom_cmdline_set, atom_composite_abort, atom_map_start,
     atom_payload_end, atom_payload_start, atom_redo_cancel, atom_redo_prepped, atom_typed_add,
     atom_typed_del,
+};
+use crate::insert::{edit_putchar, edit_unputchar};
+use crate::insexpand::{
+    compl_status_local, ctrl_x_mode_eval, ctrl_x_mode_not_default, vim_is_ctrl_x_key,
 };
 use crate::keycodes::{
     CAR, DEL, ESC, K_C_END, K_C_HOME, K_COMMAND, K_DOWN, K_END, K_HOME, K_IGNORE, K_K0, K_K1, K_K2,
@@ -102,16 +55,26 @@ use crate::keycodes::{
 };
 use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
+use crate::lua::executor::{nlua_call_ref, nlua_exec_on_key};
 use crate::map_glyph_cache::NvimString;
-use crate::mapping::{MAXMAPLEN, get_maphash_list, langmap_adjust_mb, mapblock_T};
+use crate::mapping::{
+    MAXMAPLEN, eval_map_expr, get_buf_maphash_list, get_maphash_list, langmap_adjust_mb,
+    map_luaid_get, mapblock_T,
+};
 use crate::mbyte::{
     mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo,
     utf_ptr2cells, utf_ptr2char,
 };
 use crate::mcursor::mc_replaying;
+use crate::memline::ml_sync_all;
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xmemdupz, xrealloc};
+use crate::message::{emsg, internal_error, semsg, semsg_multiline};
 use crate::mouse::{is_mouse_key, mouse_comp_pos, mouse_find_win_inner};
-use crate::r#move::validate_cursor;
+use crate::r#move::{validate_cursor, win_col_off};
+use crate::normal::{add_to_showcmd, normal_cmd, pop_showcmd, push_showcmd};
+use crate::ops::clear_oparg;
+use crate::option_vars::*;
+use crate::os::env::expand_env;
 use crate::os::fileio::{
     FileDescriptor, K_FILE_NON_BLOCKING, K_FILE_READ_ONLY, file_close, file_open, file_open_stdin,
     file_read,
@@ -125,8 +88,12 @@ use crate::state::{
     MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
     state_no_longer_safe, typebuf_T,
 };
+use crate::strings::{atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::option::OptInt;

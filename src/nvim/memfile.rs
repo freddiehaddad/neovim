@@ -5,51 +5,50 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     clippy::missing_safety_doc
 )]
 
+#[cfg(not(test))]
 use crate::errors::*;
-#[cfg(windows)]
-#[allow(unused_imports)]
+use crate::eval::deprecated::buf_T;
+#[cfg(not(test))]
+use crate::eval::fs::FileInfo;
+#[cfg(not(test))]
+use crate::event::r#loop::loop_recursive_ptr;
+#[cfg(all(not(test), windows))]
 use crate::fileio::{_close, _lseeki64};
 #[cfg(not(windows))]
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::fileio::{close, lseek};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::fileio::{read_eintr, write_eintr};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::memline::{ml_get_buf, ml_open_file};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, iemsg};
-#[allow(unused_imports)]
-use crate::os::fs::{
-    os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync, os_open, os_remove,
-    os_set_cloexec,
-};
-#[allow(unused_imports)]
-use crate::path::FullName_save;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::strerror;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
-use crate::cursor::linenr_T;
-use crate::eval::deprecated::buf_T;
-use crate::eval::fs::FileInfo;
-use crate::event::r#loop::loop_recursive_ptr;
 use crate::map::{
     Map, Set, map_del_int64_t_int64_t, map_del_int64_t_ptr_t, map_put_ref_int64_t_int64_t,
     map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t, mh_get_int64_t, ptr_t,
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
+#[cfg(not(test))]
+use crate::memline::{ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
-use crate::os::input::{os_breakcheck, os_char_avail};
+#[cfg(not(test))]
+use crate::message::{emsg, iemsg, semsg};
+#[cfg(not(test))]
+use crate::os::fs::{
+    os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync, os_open, os_remove,
+    os_set_cloexec,
+};
+#[cfg(not(test))]
+use crate::os::input::os_breakcheck;
+use crate::os::input::os_char_avail;
+#[cfg(not(test))]
+use crate::path::FullName_save;
+#[cfg(not(test))]
+use crate::strings::{gettext, strerror};
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;

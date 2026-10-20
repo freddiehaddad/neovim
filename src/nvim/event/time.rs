@@ -8,16 +8,14 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::event::r#loop::{
     uv_close, uv_handle_size, uv_loop_size, uv_timer_init, uv_timer_start, uv_timer_stop,
 };
-use std::ffi::{c_int, c_void};
-use std::ptr;
-
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_put_event,
 };
+use std::ffi::{c_int, c_void};
+use std::ptr;
 
 const UV_TIMER: c_int = 13;
 

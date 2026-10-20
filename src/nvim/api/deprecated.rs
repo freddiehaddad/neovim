@@ -9,65 +9,43 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, api_free_object, api_set_sctx, arena_array, copy_object, copy_string,
-    dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, try_enter,
-    try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{array_obj, cstr_as_string, dict_obj, integer_obj, string_obj};
-#[allow(unused_imports)]
-use crate::decoration::{clear_virttext, decor_find_virttext};
-#[allow(unused_imports)]
-use crate::eval::vars::get_globvar_dict;
-#[allow(unused_imports)]
-use crate::extmark::extmark_set;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_exec;
-#[allow(unused_imports)]
-use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
-#[allow(unused_imports)]
-use crate::option::{
-    find_option, get_option_info, get_option_value_for, option_has_scope, set_option_value_for,
-};
-#[allow(unused_imports)]
-use crate::window::{win_setheight_win, win_setwidth_win};
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
-
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::options::{OptIndex, OptScope};
+use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
+use crate::api::private::helpers::{
+    add_c, api_clear_error, api_free_object, api_set_error, api_set_sctx, api_typename,
+    arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
+    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
+    static_cstr_as_string, string_obj, try_enter, try_leave,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
+use crate::decoration::{clear_virttext, decor_find_virttext};
+use crate::eval::vars::get_globvar_dict;
+use crate::extmark::extmark_set;
+use crate::globals::*;
+use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
+use crate::lua::executor::nlua_exec;
 use crate::map_glyph_cache::NvimString;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
 };
 use crate::memory::{Arena, xmalloc, xrealloc};
+use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::{
+    find_option, get_option_info, get_option_value_for, option_has_scope, set_option_value_for,
+};
+use crate::window::{win_setheight_win, win_setwidth_win};
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::lua::executor::LuaRetMode;

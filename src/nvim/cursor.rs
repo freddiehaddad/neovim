@@ -9,40 +9,28 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+use crate::api::tabpage::win_T;
 use crate::change::inserted_bytes;
-#[allow(unused_imports)]
 use crate::drawscreen::redraw_later;
-#[allow(unused_imports)]
-use crate::fold::hasAnyFolding;
-#[allow(unused_imports)]
-use crate::fold::hasFolding;
+use crate::eval::deprecated::{buf_T, pos_T};
+use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::mark::mark_mb_adjustpos;
-#[allow(unused_imports)]
 use crate::mbyte::{utf_head_off, utf_ptr2char};
-#[allow(unused_imports)]
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
 };
-#[allow(unused_imports)]
+use crate::memory::xmallocz;
 use crate::r#move::{changed_cline_bef_curs, set_valid_virtcol, validate_virtcol, win_col_off};
-#[allow(unused_imports)]
 use crate::option::{get_sidescrolloff_value, get_ve_flags};
 use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::state::virtual_active;
-use std::ffi::{c_char, c_int, c_uint};
-use std::ptr;
-
-use crate::api::tabpage::win_T;
-use crate::eval::deprecated::{buf_T, pos_T};
-use crate::memory::xmallocz;
 use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg, linetabsize,
     linetabsize_eol, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
 };
+use crate::state::virtual_active;
+use std::ffi::{c_char, c_int, c_uint};
+use std::ptr;
 
 pub type colnr_T = i32;
 pub type linenr_T = i32;

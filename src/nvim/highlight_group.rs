@@ -9,84 +9,58 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::arena_dict;
-#[allow(unused_imports)]
-use crate::api::private::helpers::put_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, nil_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_all_later;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::last_set_msg;
-#[allow(unused_imports)]
-use crate::eval::vars::{do_unlet, get_var_value};
-#[allow(unused_imports)]
-use crate::ex_docmd::ends_excmd;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_set_sctx;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
-    msg_puts_hl, msg_source,
-};
-#[allow(unused_imports)]
-use crate::option::{option_was_set, reset_option_was_set, set_option_value_give_err};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::runtime::source_runtime_vim_lua;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_name;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, strchr, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_memcpy_up, vim_strup};
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
-    ui_rgb_attached,
-};
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::extmark::NS;
 use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::{
+    api_set_error, arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
+};
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
-use crate::charset::{getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize};
+use crate::charset::{
+    ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
+};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration_provider::decor_provider_invalidate_hl;
+use crate::drawscreen::redraw_all_later;
+use crate::errors::*;
+use crate::eval::last_set_msg;
+use crate::eval::vars::{do_unlet, get_var_value};
+use crate::ex_docmd::ends_excmd;
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
+use crate::globals::*;
 use crate::grid::UIExtension;
 use crate::highlight::{
     HLATTRS_INIT, KeyDict_highlight, OptionalKeys, RgbValue, hl_add_font_idx, hl_get_font,
     hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
 };
 use crate::lua::converter::Boolean;
+use crate::lua::executor::nlua_set_sctx;
 use crate::map::{HlAttrs, Map, Set, cstr_t, map_put_ref_cstr_t_int, map_ref_cstr_t_int};
 use crate::map_glyph_cache::{MapHash, NvimString};
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xmalloc, xmemrchr, xstrdup, xstrlcat,
 };
+use crate::message::{
+    emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
+    msg_puts_hl, msg_source, semsg,
+};
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::{option_was_set, reset_option_was_set, set_option_value_give_err};
+use crate::option_vars::*;
+use crate::optionstr::OptIndex;
 use crate::os::env::expand_T;
 use crate::os::time::os_delay;
+use crate::runtime::{source_runtime_vim_lua, sourcing_lnum, sourcing_name};
+use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up, vim_strup};
+use crate::ui::{
+    ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
+    ui_rgb_attached,
+};
 use crate::viml::parser::expressions::SyncCStrArray;
-
-use crate::optionstr::OptIndex;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 const NUL: c_char = 0;
 const OK: c_int = 1;
@@ -367,8 +341,6 @@ const E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED: &CStr =
 const E_UNEXPECTED_EQUAL_SIGN_STR: &CStr = c"E415: Unexpected equal sign: %s";
 const E_MISSING_EQUAL_SIGN_STR_2: &CStr = c"E416: Missing equal sign: %s";
 const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
-
-use crate::strings::strtol;
 
 #[inline]
 unsafe fn write_hex6(buf: *mut c_char, val: c_int) {

@@ -9,69 +9,13 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
 use crate::buffer::read_buffer_into;
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::backslash_halve;
+use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
-#[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
-use crate::event::r#loop::main_loop_ptr;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_err_name, uv_strerror};
-#[allow(unused_imports)]
-use crate::ex_cmds::{check_secure, make_filter_cmd};
-#[allow(unused_imports)]
-use crate::fileio::vim_tempname;
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fopen, fread};
-#[allow(unused_imports)]
-use crate::fileio::{fseek, ftell};
-use crate::globals::*;
-use crate::mbyte::utf8len_tab_zero;
-#[allow(unused_imports)]
-use crate::mbyte::utfc_ptr2len_len;
-#[allow(unused_imports)]
-use crate::memline::ml_append;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, msg, msg_end, msg_ext_no_fast, msg_ext_set_append, msg_ext_set_kind, msg_multiline,
-    msg_outnum, msg_outtrans, msg_putchar, msg_puts, msg_sb_eol, msg_start, verbose_enter,
-    verbose_leave,
+use crate::event::r#loop::{
+    loop_poll_events, loop_queues, main_loop_ptr, uv_err_name, uv_strerror,
 };
-use crate::message::{msg_schedule_semsg, semsg, smsg};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::{os_getenv, os_setenv, restore_env_var};
-#[allow(unused_imports)]
-use crate::os::fs::os_fopen;
-#[allow(unused_imports)]
-use crate::os::fs::{os_can_exe, os_isdir, os_path_exists, os_remove};
-#[allow(unused_imports)]
-use crate::path::invocation_path_tail;
-#[allow(unused_imports)]
-use crate::path::{add_pathsep, path_has_wildcard, path_tail};
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcat, strcpy, strstr};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, vim_strnsave_unquoted, vim_strsave_escaped_ext};
-#[allow(unused_imports)]
-use crate::tag::tag_freematch;
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
-use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_free, multiqueue_new_child,
     multiqueue_put_event,
@@ -84,12 +28,37 @@ use crate::event::stream::{Stream, stream_fields, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
+use crate::ex_cmds::{check_secure, make_filter_cmd};
+use crate::fileio::{fclose, fopen, fread, fseek, ftell, vim_tempname};
+use crate::globals::*;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
+use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
+use crate::memline::ml_append;
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::message::{
+    emsg, msg, msg_end, msg_ext_no_fast, msg_ext_set_append, msg_ext_set_kind, msg_multiline,
+    msg_outnum, msg_outtrans, msg_putchar, msg_puts, msg_sb_eol, msg_schedule_semsg, msg_start,
+    semsg, smsg, verbose_enter, verbose_leave,
+};
+use crate::option_vars::*;
+#[cfg(windows)]
+use crate::os::env::{os_getenv, os_setenv, restore_env_var};
+use crate::os::fs::{os_can_exe, os_fopen, os_isdir, os_path_exists, os_remove};
 use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
 use crate::os::time::{os_delay, os_hrtime};
+#[cfg(unix)]
+use crate::path::invocation_path_tail;
+use crate::path::{add_pathsep, path_has_wildcard, path_tail};
 use crate::profile::{prof_child_enter, prof_child_exit};
+use crate::strings::{
+    gettext, strcat, strcpy, strlen as c_strlen, strstr, vim_snprintf, vim_strchr,
+    vim_strnsave_unquoted, vim_strsave_escaped_ext,
+};
+use crate::tag::tag_freematch;
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
 pub use crate::cursor::linenr_T;

@@ -10,22 +10,17 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::vim_str2nr;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
-#[allow(unused_imports)]
-use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int};
-
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, vim_str2nr};
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, trans_special};
 use crate::kvec::KVecWithInit;
+use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 use crate::memory::{xfree, xmalloc, xmallocz};
+#[cfg(not(test))]
+use crate::strings::vim_snprintf;
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
+use std::ffi::{CStr, c_char, c_int};
 
 pub use crate::charset::uvarnumber_T;
 pub use crate::eval::typval::float_T;

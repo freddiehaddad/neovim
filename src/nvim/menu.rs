@@ -9,69 +9,46 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+use crate::api::command::exarg_T;
 use crate::autocmd::apply_autocmds;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
+use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
+use crate::clipboard::{VarType, list_T, typval_T};
+use crate::cursor::{check_cursor, colnr_T, gchar_cursor};
 use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_bool;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_nr;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_string_chk;
-#[allow(unused_imports)]
+use crate::eval::decode::dict_T;
+use crate::eval::deprecated::pos_T;
 use crate::eval::typval::{
-    tv_dict_add_allocated_str, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_str,
-    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret, tv_list_alloc, tv_list_append_dict,
-    tv_list_append_string,
+    tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list,
+    tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret,
+    tv_get_string_chk, tv_list_alloc, tv_list_append_dict, tv_list_append_string,
 };
-#[allow(unused_imports)]
 use crate::eval::vars::del_menutrans_vars;
-#[allow(unused_imports)]
 use crate::ex_docmd::{ends_excmd, exec_normal_cmd, restore_current_state, save_current_state};
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-#[allow(unused_imports)]
+use crate::indent::EvalFuncData;
 use crate::input::ins_typebuf;
-#[allow(unused_imports)]
+use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::str2special_save;
-#[allow(unused_imports)]
+use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
 use crate::message::{
     emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
-    msg_puts_title,
+    msg_puts_title, semsg, str2special_save,
 };
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::popupmenu::pum_show_popupmenu;
-#[allow(unused_imports)]
+use crate::sign::expand_T;
 use crate::state::get_real_state;
-#[allow(unused_imports)]
+#[cfg(unix)]
 use crate::strings::strcasecmp;
-#[allow(unused_imports)]
+#[cfg(windows)]
 use crate::strings::vim_stricmp;
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcat, strcmp, strcpy, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
-#[allow(unused_imports)]
+use crate::strings::{
+    gettext, strcat, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
+};
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-
-use crate::api::command::exarg_T;
-use crate::charset::{getdigits_int, skipwhite};
-use crate::clipboard::{VarType, list_T, typval_T};
-use crate::cursor::{check_cursor, colnr_T, gchar_cursor};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::pos_T;
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
-use crate::indent::EvalFuncData;
-use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
-use crate::sign::expand_T;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;

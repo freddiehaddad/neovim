@@ -8,44 +8,22 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::channel::channel_from_connection;
-#[allow(unused_imports)]
-use crate::eval::vars::get_vim_var_str;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_string;
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_freeaddrinfo;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_handle_get_type, uv_handle_size, uv_strerror};
-#[allow(unused_imports)]
+use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::event::r#loop::{uv_freeaddrinfo, uv_handle_get_type, uv_handle_size, uv_strerror};
 use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
+use crate::extmark::TriState;
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::memory::strequal;
-#[allow(unused_imports)]
-use crate::os::env::os_getenv_noalloc;
-#[allow(unused_imports)]
-use crate::os::env::{os_env_exists, os_get_pid, os_unsetenv};
-#[allow(unused_imports)]
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
+use crate::os::env::{os_env_exists, os_get_pid, os_getenv_noalloc, os_unsetenv};
 use crate::os::stdpaths::get_appname;
-#[allow(unused_imports)]
-use crate::path::fix_fname;
-#[allow(unused_imports)]
-use crate::path::{path_to_slash, path_to_slash_save};
-#[allow(unused_imports)]
-use crate::path::{to_slash, to_slash_save};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{strcmp, strlen, strstr};
+use crate::path::{fix_fname, to_slash, to_slash_save};
+use crate::strings::{strcmp, strlen, strstr, vim_snprintf};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::extmark::TriState;
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
 #[cfg(not(windows))]
 use crate::os::stdpaths::{XDGVarType, stdpaths_get_xdg_var};
 

@@ -13,65 +13,13 @@
     clippy::unnecessary_cast
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::copy_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_free_dict, api_free_string};
-#[allow(unused_imports)]
-use crate::buffer::{bt_quickfix, bt_terminal};
-#[allow(unused_imports)]
-use crate::buffer::{buflist_findnr, buflist_new, buflist_setfpos};
-#[allow(unused_imports)]
-use crate::eval::typval::tv_copy;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_hi2di;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_len;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
-#[allow(unused_imports)]
-use crate::eval::{get_copyID, var_flavour, var_set_global};
-#[allow(unused_imports)]
-use crate::eval::{set_ref_in_ht, set_ref_in_list_items};
-#[allow(unused_imports)]
-use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
-#[allow(unused_imports)]
-use crate::ex_docmd::set_no_hlsearch;
-#[allow(unused_imports)]
-use crate::fileio::modname;
-#[allow(unused_imports)]
-use crate::fileio::vim_rename;
-#[cfg(unix)]
-#[allow(unused_imports)]
-use crate::fileio::{getgid, getuid};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::memory::strequal;
-use crate::message::{semsg, siemsg, smsg};
-#[allow(unused_imports)]
-use crate::message::{verbose_enter, verbose_leave};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::expand_env;
-#[allow(unused_imports)]
-use crate::regexp::regtilde;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-use std::cmp::Ordering;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
+use crate::api::private::helpers::{
+    api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
+};
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, xfmark_T};
 use crate::arglist::alist_T;
+use crate::buffer::{bt_quickfix, bt_terminal, buflist_findnr, buflist_new, buflist_setfpos};
 use crate::clipboard::{MotionType, TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, clr_history,
@@ -82,7 +30,17 @@ use crate::eval::decode::{MPACK_OK, decode_string, unpack_typval};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
+use crate::eval::typval::{
+    tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_append_allocated_string, tv_list_len,
+};
 use crate::eval::vars::{VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list};
+use crate::eval::{get_copyID, set_ref_in_ht, set_ref_in_list_items, var_flavour, var_set_global};
+use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
+use crate::ex_docmd::set_no_hlsearch;
+#[cfg(unix)]
+use crate::fileio::{getgid, getuid};
+use crate::fileio::{modname, vim_rename};
+use crate::globals::*;
 use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::lua::converter::Boolean;
 use crate::map::{
@@ -97,7 +55,8 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
+use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
 use crate::msgpack_rpc::packer::{
     Integer, MPACK_ITEM_SIZE, PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer,
     mpack_integer, mpack_map, mpack_raw, mpack_str, mpack_uint, mpack_uint64, packer_string_buffer,
@@ -107,22 +66,21 @@ use crate::msgpack_rpc::unpacker::{
     AdditionalDataBuilder, AdditionalDataHeader, StringArray, push_additional_data, unpack_array,
     unpack_integer, unpack_keydict, unpack_skip, unpack_string,
 };
-use crate::os::env::{home_replace, home_replace_save, os_get_pid};
+use crate::option::copy_option_part;
+use crate::option_vars::*;
+use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_pid};
 use crate::os::fileio::{
     ARENA_BLOCK_SIZE, FileDescriptor, K_FILE_CREATE, K_FILE_CREATE_ONLY, K_FILE_NO_SYMLINK,
     K_FILE_READ_ONLY, K_FILE_TRUNCATE, file_close, file_flush, file_open, file_open_buffer,
     file_read, file_skip, file_try_read_buffered,
 };
-#[cfg(unix)]
-use crate::os::fs::os_fchown;
 use crate::os::fs::{os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove};
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
-#[cfg(windows)]
-use crate::path::path_to_slash;
 use crate::path::{
     concat_fnames_realloc, kPathCmpLiteral, path_equal, path_tail_with_sep, path_try_shorten_fname,
 };
+use crate::regexp::regtilde;
 use crate::register::{
     NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set, reg_empty,
 };
@@ -131,6 +89,15 @@ use crate::search::{
     get_substitute_pattern, search_pattern_cleared, search_was_last_used, set_last_used_pattern,
     set_search_pattern, set_substitute_pattern,
 };
+use crate::strings::{gettext, vim_strchr};
+use std::cmp::Ordering;
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
+
+#[cfg(unix)]
+use crate::os::fs::os_fchown;
+#[cfg(windows)]
+use crate::path::path_to_slash;
 
 pub use crate::highlight::OptionalKeys;
 pub use crate::option::OptInt;

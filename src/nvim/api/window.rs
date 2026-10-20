@@ -8,57 +8,40 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::integer_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, arena_array, arena_dict, dict_get_value, dict_set_var, find_buffer_by_handle,
-    find_window_by_handle, normalize_index, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::cursor::check_cursor_col;
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_later;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::ex_docmd::ex_win_close;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_ref;
-#[allow(unused_imports)]
-use crate::message::emsg;
-#[allow(unused_imports)]
-use crate::r#move::{update_topline, validate_cursor};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::window::{
-    win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
-    win_setheight_win, win_setwidth_win,
-};
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::{
+    add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value, dict_set_var,
+    error_set, find_buffer_by_handle, find_window_by_handle, integer_obj, normalize_index,
+    try_enter, try_leave,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_conflict,
     api_err_exp, api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::cursor::check_cursor_col;
+use crate::drawscreen::redraw_later;
+use crate::errors::*;
+use crate::ex_docmd::ex_win_close;
+use crate::globals::*;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::executor::nlua_call_ref;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
+use crate::message::emsg;
+use crate::r#move::{update_topline, validate_cursor};
 use crate::msgpack_rpc::packer::Integer;
 use crate::plines::{win_get_fill, win_text_height};
+use crate::strings::gettext;
+use crate::window::{
+    win_close, win_close_othertab, win_find_tabpage, win_get_tabwin, win_set_buf,
+    win_setheight_win, win_setwidth_win,
+};
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

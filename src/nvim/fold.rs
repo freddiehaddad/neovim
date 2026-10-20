@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::needless_range_loop,
@@ -14,74 +13,50 @@
     clippy::collapsible_if
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, api_free_object};
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::cursor::ltoreq;
-#[allow(unused_imports)]
-use crate::diff::{diff_infold, diff_lnum_win};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_lnum;
-#[allow(unused_imports)]
-use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_vim_var_nr, set_vim_var_string};
-#[allow(unused_imports)]
-use crate::eval::{eval_foldexpr, eval_foldtext};
-#[allow(unused_imports)]
-use crate::fileio::fputs;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
-#[allow(unused_imports)]
-use crate::message::emsg;
-#[allow(unused_imports)]
-use crate::ops::skip_comment;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::search::linewhite;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, strstr};
-#[allow(unused_imports)]
-use crate::strings::{concat_str, vim_strchr};
-#[allow(unused_imports)]
-use crate::syntax::syn_get_foldlevel;
-#[allow(unused_imports)]
-use crate::undo::u_save;
-use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
-use std::ptr;
-
-use crate::api::buffer::VisualState;
 use crate::api::deprecated::VirtText;
 use crate::api::extmark::parse_virt_text;
-use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::{api_clear_error, api_free_object};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{pos_T, win_T};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::changed_lines;
-use crate::charset::{skipwhite, transstr, vim_isprintc};
-use crate::clipboard::{TypvalVval, VarType, typval_T};
-use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
+use crate::charset::{ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
+use crate::clipboard::{VarType, typval_T};
+use crate::cursor::{check_cursor_col, colnr_T, linenr_T, ltoreq};
 use crate::decoration::{clear_virttext, next_virt_text_chunk};
+use crate::diff::{diff_infold, diff_lnum_win};
 use crate::drawscreen::{redraw_buf_later, redraw_later, redraw_win_range_later};
+use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::typval::tv_get_lnum;
+use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_vim_var_nr, set_vim_var_string};
+use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::ex_session::{FILE, put_eol, put_line};
 use crate::extmark::extmark_splice_cols;
+use crate::fileio::fputs;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::grid::wline_T;
 use crate::indent::{get_indent_buf, get_sw_value};
 use crate::mark::setpcmark;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
+use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
 use crate::memory::{xfree, xmalloc, xmemcpyz, xstrdup};
+use crate::message::emsg;
 use crate::r#move::changed_window_setting;
+use crate::ops::skip_comment;
+use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
+use crate::search::linewhite;
 use crate::statusline::foldinfo_T;
+use crate::strings::{atoi, concat_str, gettext, strstr, vim_snprintf, vim_strchr};
+use crate::syntax::syn_get_foldlevel;
+use crate::undo::u_save;
+use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
+use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::extmark::ExtmarkOp;

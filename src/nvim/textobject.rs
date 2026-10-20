@@ -9,50 +9,31 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::cursor::clearpos;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt, ltoreq};
-#[allow(unused_imports)]
+use crate::charset::{ascii_iswhite, skipwhite};
+use crate::cursor::{
+    clearpos, coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,
+    get_cursor_pos_ptr, inc_cursor, linenr_T, lt, ltoreq,
+};
 use crate::drawscreen::{redraw_curbuf_later, showmode};
-#[allow(unused_imports)]
+use crate::eval::deprecated::pos_T;
 use crate::eval::funcs::do_searchpair;
-#[allow(unused_imports)]
 use crate::fold::hasFolding;
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::indent::inindent;
-#[allow(unused_imports)]
 use crate::insert::oneleft;
-#[allow(unused_imports)]
 use crate::mark::setpcmark;
-#[allow(unused_imports)]
 use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
-#[allow(unused_imports)]
 use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
-#[allow(unused_imports)]
+use crate::memory::{xfree, xmalloc};
 use crate::r#move::adjust_skipcol;
-#[allow(unused_imports)]
 use crate::normal::unadjust_for_sel;
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::search::{findmatch, findmatchlimit, linewhite};
-#[allow(unused_imports)]
 use crate::strings::vim_strchr;
+use crate::textformat::{MotionType, oparg_T};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-
-use crate::charset::skipwhite;
-use crate::cursor::{
-    coladvance, colnr_T, dec_cursor, gchar_cursor, get_cursor_line_ptr, get_cursor_pos_ptr,
-    inc_cursor, linenr_T,
-};
-use crate::eval::deprecated::pos_T;
-use crate::memory::{xfree, xmalloc};
-use crate::textformat::{MotionType, oparg_T};
 
 pub use crate::search::Direction;
 

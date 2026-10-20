@@ -4,36 +4,37 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, api_free_string};
-#[allow(unused_imports)]
-use crate::lua::converter::lua_isnumber;
-#[allow(unused_imports)]
-use crate::lua::converter::nlua_pop_keydict;
-#[allow(unused_imports)]
-use crate::lua::converter::{
-    lua_concat, lua_createtable, lua_error, lua_gettop, lua_objlen, lua_pcall, lua_pushinteger,
-    lua_pushlstring, lua_pushstring, lua_pushvalue, lua_rawseti, lua_settop, lua_tolstring,
-    lua_tonumber, lua_type, luaL_argerror, luaL_error, luaL_where,
-};
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, nlua_pushref};
-use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
-
-use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers, mmfile_t};
+#[cfg(not(test))]
+use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
+#[cfg(not(test))]
+use crate::api::private::validate::ErrorType;
+use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
+use crate::linematch::mmfile_t;
+#[cfg(not(test))]
+use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::base64::lua_State;
+#[cfg(not(test))]
+use crate::lua::converter::{
+    lua_concat, lua_createtable, lua_error, lua_gettop, lua_isnumber, lua_objlen, lua_pcall,
+    lua_pushinteger, lua_pushlstring, lua_pushstring, lua_pushvalue, lua_rawseti, lua_settop,
+    lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error, luaL_where, nlua_pop_keydict,
+};
+#[cfg(not(test))]
+use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::memory::{strequal, xfree};
+#[cfg(not(test))]
 use crate::xdiff::xdiffi::xdl_diff;
+#[cfg(not(test))]
 use crate::xdiff::{mmbuffer_t, xdemitcb_t, xdemitconf_t, xpparam_t};
+#[cfg(not(test))]
+use std::ffi::{c_char, c_long, c_void};
+use std::ffi::{c_int, c_ulong};
 
 const COMPARED_BUFFER0: c_int = 1 << 0;
 const COMPARED_BUFFER1: c_int = 1 << 1;

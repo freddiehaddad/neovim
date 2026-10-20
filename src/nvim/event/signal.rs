@@ -8,14 +8,12 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_close, uv_handle_size, uv_loop_size, uv_signal_init};
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_signal_start, uv_signal_stop};
+use crate::event::r#loop::{
+    uv_close, uv_handle_size, uv_loop_size, uv_signal_init, uv_signal_start, uv_signal_stop,
+};
+use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 use std::ffi::{c_int, c_void};
 use std::ptr;
-
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 
 const UV_HANDLE: c_int = 5;
 const UV_SIGNAL: c_int = 16;

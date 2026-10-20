@@ -5,23 +5,23 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::upper_case_acronyms
 )]
 
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_translate_sys_error;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym};
+#[cfg(all(not(test), windows))]
+use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym, uv_translate_sys_error};
+#[cfg(all(not(test), windows))]
 use crate::log::logmsg;
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::os::env::os_get_pid;
 #[cfg(windows)]
-use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
+use std::ffi::{c_char, c_int, c_long, c_void};
 
 #[cfg(windows)]
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
+use crate::memory::xfree;
+#[cfg(all(not(test), windows))]
+use crate::memory::{xcalloc, xmalloc, xstrdup};
 
 #[cfg(windows)]
 pub use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
@@ -128,7 +128,7 @@ pub struct conpty_t {
     pub si_ex: STARTUPINFOEXW,
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use crate::os::dl::UvLib;
 
 #[cfg(windows)]
@@ -197,7 +197,7 @@ unsafe extern "system" {
     ) -> BOOL;
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]

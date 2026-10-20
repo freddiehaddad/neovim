@@ -8,43 +8,44 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::vars::get_vim_var_str;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
-#[allow(unused_imports)]
-use crate::fileio::fflush;
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fgets, fopen, fprintf, fputc};
+#[cfg(all(not(test), unix))]
+use crate::fileio::fgets;
+#[cfg(not(test))]
+use crate::fileio::{fclose, fflush, fopen, fprintf, fputc};
+#[cfg(not(test))]
 use crate::globals::*;
+#[cfg(not(test))]
+use crate::memory::{entered_free_all_mem, xfree, xstrlcpy};
+#[cfg(not(test))]
 use crate::message::msg_schedule_semsg;
-#[allow(unused_imports)]
-use crate::os::env::os_getenv_buf;
-#[allow(unused_imports)]
-use crate::os::env::{expand_env, os_get_pid, os_setenv};
-#[allow(unused_imports)]
-use crate::os::fs::{os_exepath, os_isdir, os_mkdir_recurse};
-#[allow(unused_imports)]
-use crate::os::stdpaths::get_xdg_home;
-#[allow(unused_imports)]
-use crate::os::stdpaths::stdpaths_user_state_subpath;
-#[allow(unused_imports)]
-use crate::os::time::strftime;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
+#[cfg(all(not(test), unix))]
+use crate::os::fs::os_exepath;
+#[cfg(not(test))]
+use crate::os::fs::{os_isdir, os_mkdir_recurse};
+#[cfg(not(test))]
+use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
+#[cfg(not(test))]
+use crate::os::time::{Tm, os_localtime, strftime};
+#[cfg(not(test))]
 use crate::path::{concat_fnames_realloc, path_tail};
-#[allow(unused_imports)]
+use crate::profile::FILE;
+#[cfg(not(test))]
 use crate::strings::strerror;
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int, c_void};
+#[cfg(not(test))]
 use std::io::Write;
 use std::ptr;
-
-use crate::memory::{entered_free_all_mem, xfree, xstrlcat, xstrlcpy};
-use crate::os::time::{Tm, os_localtime};
-use crate::profile::FILE;
 
 const NUL: c_char = 0;
 const MAXPATHL: usize = 4096;
@@ -58,8 +59,6 @@ pub const LOGLVL_ERR: c_int = 4;
 
 const KXDG_STATE_HOME: c_int = 3;
 const VV_SEND_SERVER: c_int = 28;
-
-use crate::os::fs::NvimStats;
 
 #[repr(C)]
 struct UvTimeval64 {

@@ -13,174 +13,87 @@
     clippy::useless_conversion
 )]
 
-#[allow(unused_imports)]
+use crate::api::command::regmatch_T;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, cstr_as_string, cstrn_to_string,
 };
-#[allow(unused_imports)]
+use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::tabpage::pos_T;
 use crate::arglist::get_arglist_name;
-#[allow(unused_imports)]
 use crate::autocmd::{aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name};
-#[allow(unused_imports)]
 use crate::buffer::ExpandBufnames;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::charset::{ascii_isspace, ascii_isupper};
-#[allow(unused_imports)]
+use crate::charset::{
+    ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite,
+    backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
+    transchar_byte, vim_isfilec_or_wc, vim_strsize,
+};
+use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cmdhist::get_history_arg;
-#[allow(unused_imports)]
 use crate::cursor::ltoreq;
+use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::eval::funcs::{get_expr_name, get_function_name};
-#[allow(unused_imports)]
-use crate::eval::set_context_for_expression;
-#[allow(unused_imports)]
 use crate::eval::typval::{
-    tv_check_for_string_arg, tv_dict_get_string, tv_get_string, tv_get_string_chk,
+    tv_check_for_string_arg, tv_clear, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str_len,
+    tv_dict_alloc_ret, tv_dict_get_string, tv_get_bool_chk, tv_get_string, tv_get_string_chk,
+    tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_unref,
 };
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_clear, tv_dict_add_list, tv_dict_add_str_len, tv_dict_alloc_ret, tv_list_alloc,
-    tv_list_alloc_ret, tv_list_append_string, tv_list_unref,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_add_nr, tv_get_bool_chk};
-#[allow(unused_imports)]
 use crate::eval::userfunc::get_user_func_name;
-#[allow(unused_imports)]
 use crate::eval::vars::get_user_var_name;
-#[allow(unused_imports)]
-use crate::eval::{call_func_retlist, call_func_retstr};
-#[allow(unused_imports)]
+use crate::eval::{call_func_retlist, call_func_retstr, set_context_for_expression};
 use crate::ex_cmds::skip_vimgrep_pat;
-#[allow(unused_imports)]
 use crate::ex_docmd::{
-    ends_excmd, expand_argopt, expand_findfunc, find_nextcmd, get_command_name, set_no_hlsearch,
-    skip_cmd_arg, skip_range,
+    ends_excmd, excmd_get_argt, excmd_get_cmdidx, expand_argopt, expand_findfunc, find_nextcmd,
+    get_command_name, set_no_hlsearch, skip_cmd_arg, skip_range,
 };
-#[allow(unused_imports)]
-use crate::ex_docmd::{excmd_get_argt, excmd_get_cmdidx};
-#[allow(unused_imports)]
 use crate::ex_getln::{
     cmd_screencol, cursorcmd, escape_fname, get_cmdline_info, get_cmdline_last_prompt_id,
     parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff, redrawcmd, tilde_replace,
     vim_strsave_fnameescape,
 };
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight::{hl_attr, win_hl_attr};
-#[allow(unused_imports)]
-use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
-#[allow(unused_imports)]
-use crate::input::beep_flush;
-#[allow(unused_imports)]
-use crate::insexpand::find_word_end;
-#[allow(unused_imports)]
-use crate::lua::executor::{
-    nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
-};
-#[allow(unused_imports)]
-use crate::mapping::ExpandMappings;
-#[allow(unused_imports)]
-use crate::mapping::set_context_in_map_cmd;
-#[allow(unused_imports)]
-use crate::menu::set_context_in_menu_cmd;
-#[allow(unused_imports)]
-use crate::menu::{get_menu_name, get_menu_names};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
-    msg_puts, msg_puts_hl, msg_scroll_up, msg_start,
-};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::{
-    ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, csh_like_shell,
-    get_findfunc, set_context_in_set_cmd,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::users::get_users;
-#[allow(unused_imports)]
-use crate::profile::{get_profile_name, set_context_in_profile_cmd};
-#[allow(unused_imports)]
-use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree};
-#[allow(unused_imports)]
-use crate::runtime::{
-    ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, set_context_in_runtime_cmd,
-};
-#[allow(unused_imports)]
-use crate::search::ignorecase;
-#[allow(unused_imports)]
-use crate::sign::{get_sign_name, set_context_in_sign_cmd};
-#[allow(unused_imports)]
-use crate::strings::strcmp as c_strcmp;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::strncmp as c_strncmp;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{gettext, qsort};
-#[allow(unused_imports)]
-use crate::strings::{sort_strings, strcase_save, vim_strchr, vim_strsave_escaped, xstrnsave};
-#[allow(unused_imports)]
-use crate::syntax::{
-    get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
-    set_context_in_syntax_cmd,
-};
-#[allow(unused_imports)]
-use crate::ui::{ui_flush, ui_has, vim_beep};
-#[allow(unused_imports)]
-use crate::usercmd::find_ucmd;
-#[allow(unused_imports)]
-use crate::usercmd::{
-    get_user_cmd_addr_type, get_user_cmd_complete, get_user_cmd_flags, get_user_cmd_nargs,
-    get_user_commands, set_context_in_user_cmd, set_context_in_user_cmdarg,
-};
-#[allow(unused_imports)]
-use crate::window::{global_stl_height, last_status};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
-use crate::api::command::regmatch_T;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::pos_T;
-use crate::charset::{
-    backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
-    transchar_byte, vim_isfilec_or_wc, vim_strsize,
-};
-use crate::clipboard::{VarType, list_T, typval_T};
-use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
-use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear_strings, ga_concat_len, ga_grow, ga_init, garray_T,
 };
+use crate::globals::*;
 use crate::grid::{grid_line_fill, grid_line_flush, grid_line_puts, grid_line_start};
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
 };
 use crate::help::{cleanup_help_tags, find_help_tags};
-use crate::input::{char_avail, vpeekc};
+use crate::highlight::{hl_attr, win_hl_attr};
+use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
+use crate::input::{beep_flush, char_avail, vpeekc};
+use crate::insexpand::find_word_end;
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
+use crate::lua::executor::{
+    nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
+};
 use crate::map_glyph_cache::NvimString;
+use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xstpcpy, xstrdup};
-use crate::menu::menu_is_separator;
+use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
+use crate::message::{
+    emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
+    msg_puts, msg_puts_hl, msg_scroll_up, msg_start, semsg,
+};
+#[cfg(unix)]
+use crate::option::csh_like_shell;
+use crate::option::{
+    ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, copy_option_part,
+    get_findfunc, set_context_in_set_cmd,
+};
+use crate::option_vars::*;
 use crate::os::env::{
     env_name_len, expand_T, expand_env_save_opt, get_env_name, home_replace, vim_getenv,
 };
 use crate::os::fs::os_isdir;
 use crate::os::lang::{get_lang_arg, get_locales};
-use crate::os::users::match_user;
+use crate::os::users::{get_users, match_user};
 use crate::path::{
     EW_ADDSLASH, EW_ALLLINKS, EW_CDPATH, EW_DIR, EW_EXEC, EW_FILE, EW_ICASE, EW_KEEPALL,
     EW_NOERROR, EW_NOTFOUND, EW_PATH, EW_SHELLCMD, EW_SILENT, FreeWild, after_pathsep,
@@ -189,12 +102,32 @@ use crate::path::{
 use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
 };
-use crate::profile::scriptitem_T;
-use crate::runtime::script_items;
-use crate::search::{Direction, pat_has_uppercase, searchit};
+use crate::profile::{get_profile_name, scriptitem_T, set_context_in_profile_cmd};
+use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree};
+use crate::runtime::{
+    ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, script_items, set_context_in_runtime_cmd,
+};
+use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
+use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
+use crate::strings::{
+    gettext, qsort, sort_strings, strcase_save, strcmp as c_strcmp, strlen as c_strlen,
+    strncmp as c_strncmp, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
+};
+use crate::syntax::{
+    get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
+    set_context_in_syntax_cmd,
+};
 use crate::tag::expand_tags;
-use crate::usercmd::{cmdcomplete_str_to_type, cmdcomplete_type_to_str};
+use crate::ui::{ui_flush, ui_has, vim_beep};
+use crate::usercmd::{
+    cmdcomplete_str_to_type, cmdcomplete_type_to_str, find_ucmd, get_user_cmd_addr_type,
+    get_user_cmd_complete, get_user_cmd_flags, get_user_cmd_nargs, get_user_commands,
+    set_context_in_user_cmd, set_context_in_user_cmdarg,
+};
+use crate::window::{global_stl_height, last_status};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub use crate::api::win_config::UIExtension;
 pub use crate::ex_getln::hlf_T;

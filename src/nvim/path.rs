@@ -5,65 +5,70 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
+#[cfg(not(test))]
 use crate::cmdexpand::globpath;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::eval_to_string;
-#[allow(unused_imports)]
+use crate::eval::fs::FileInfo;
+#[cfg(not(test))]
 use crate::ex_docmd::eval_vars;
-#[allow(unused_imports)]
-use crate::fileio::file_pat_to_reg_pat;
-#[allow(unused_imports)]
-use crate::fileio::match_file_list;
+#[cfg(not(test))]
+use crate::file_search::FileID;
+#[cfg(not(test))]
+use crate::fileio::{file_pat_to_reg_pat, match_file_list};
+use crate::garray::{ga_append_via_ptr, garray_T};
+#[cfg(not(test))]
+use crate::garray::{ga_clear_strings, ga_concat_strings, ga_init, ga_remove_duplicate_strings};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_isalpha, mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::lua::stdlib::regmatch_T;
+use crate::map_glyph_cache::NvimString;
+#[cfg(all(not(test), unix))]
+use crate::mbyte::mb_isalpha;
+#[cfg(not(test))]
+use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
+#[cfg(not(test))]
+use crate::memory::{xcalloc, xmemcpyz, xmemdupz, xstrlcat};
+use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
+#[cfg(not(test))]
 use crate::option::copy_option_part;
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv, vim_env_iter};
+use crate::os::fs::{
+    Directory, os_can_exe, os_dirname, os_fileinfo_link, os_isdir, os_path_exists, os_realpath,
+    os_scandir_next,
+};
+#[cfg(not(test))]
+use crate::os::fs::{
+    os_closedir, os_file_is_readable, os_fileid, os_fileid_equal, os_fileinfo,
+    os_fileinfo_id_equal, os_scandir,
+};
+#[cfg(not(test))]
+use crate::os::input::os_breakcheck;
+#[cfg(not(test))]
+use crate::os::shell::get_cmd_output;
+#[cfg(all(not(test), unix))]
+use crate::os::shell::os_expand_wildcards;
+#[cfg(not(test))]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
-#[allow(unused_imports)]
-use crate::strings::concat_str;
-#[allow(unused_imports)]
-use crate::strings::tolower;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
 use crate::strings::vim_strchr;
+#[cfg(not(test))]
+use crate::strings::{concat_str, tolower, vim_snprintf};
+#[cfg(not(test))]
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-
-use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
-use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::deprecated::buf_T;
-use crate::eval::fs::FileInfo;
-use crate::file_search::FileID;
-use crate::garray::{
-    ga_append_via_ptr, ga_clear_strings, ga_concat_strings, ga_init, ga_remove_duplicate_strings,
-    garray_T,
-};
-use crate::lua::stdlib::{regmatch_T, regprog_T};
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{
-    xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
-};
-use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv, vim_env_iter};
-use crate::os::fs::{
-    Directory, os_can_exe, os_closedir, os_dirname, os_file_is_readable, os_fileid,
-    os_fileid_equal, os_fileinfo, os_fileinfo_id_equal, os_fileinfo_link, os_isdir, os_path_exists,
-    os_realpath, os_scandir, os_scandir_next,
-};
-use crate::os::input::os_breakcheck;
-use crate::os::shell::{get_cmd_output, os_expand_wildcards};
 
 pub type PathCmpFlags = c_int;
 

@@ -5,36 +5,29 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+use crate::charset::ascii_isalpha;
 pub use crate::charset::is_special;
-#[allow(unused_imports)]
-use crate::charset::vim_str2nr;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalpha, ascii_isdigit};
-#[allow(unused_imports)]
-use crate::charset::{transchar, vim_isprintc};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::charset::{ascii_isdigit, transchar, vim_isprintc, vim_str2nr};
+#[cfg(not(test))]
 use crate::eval::vars::get_var_value;
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
 };
-#[allow(unused_imports)]
-use crate::message::emsg;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-use std::ffi::{CStr, c_char, c_int, c_uint};
-
-use crate::api::private::converter::sctx_T;
-use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::memory::{xmalloc, xrealloc};
+#[cfg(not(test))]
+use crate::message::emsg;
+#[cfg(not(test))]
+use crate::strings::{vim_snprintf, vim_strchr};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 
 pub use crate::eval::vars::scid_T;
 

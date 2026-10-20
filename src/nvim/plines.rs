@@ -8,57 +8,32 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii2cells;
-#[allow(unused_imports)]
-use crate::charset::vim_isprintc;
-#[allow(unused_imports)]
-use crate::charset::vim_strsize;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt, ltoreq};
-#[allow(unused_imports)]
-use crate::decoration::decor_conceal_line;
-#[allow(unused_imports)]
-use crate::decoration::decor_virt_lines;
-#[allow(unused_imports)]
-use crate::diff::{diff_check_fill, diffopt_filler};
-#[allow(unused_imports)]
-use crate::fold::hasFoldingWin;
-#[allow(unused_imports)]
-use crate::fold::{hasFolding, lineFolded};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::indent::get_breakindent_win;
-#[allow(unused_imports)]
-use crate::indent::tabstop_padding;
-#[allow(unused_imports)]
-use crate::marktree::{mt_invalid, mt_right};
-use crate::mbyte::utf8len_tab;
-#[allow(unused_imports)]
-use crate::mbyte::{
-    ptr2cells, utf_ClusterInfo_impl, utf_char2cells, utf_ptr2CharInfo_impl, utf_ptr2char,
-    utfc_ptr2len,
-};
-#[allow(unused_imports)]
-use crate::memline::{ml_get_buf, ml_get_buf_len};
-#[allow(unused_imports)]
-use crate::r#move::{win_col_off, win_col_off2};
-#[allow(unused_imports)]
-use crate::option::get_showbreak_value;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::state::virtual_active;
-use std::ffi::{c_char, c_int, c_long};
-use std::ptr;
-
 use crate::api::deprecated::{DecorInline, DecorVirtText, VirtTextPos};
 use crate::api::extmark::ns_in_win;
 use crate::api::tabpage::{pos_T, win_T};
+use crate::charset::{ascii2cells, vim_isprintc, vim_strsize};
+use crate::cursor::{lt, ltoreq};
+use crate::decoration::{decor_conceal_line, decor_virt_lines};
+use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::eval::deprecated::buf_T;
+use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
+use crate::globals::*;
+use crate::indent::{get_breakindent_win, tabstop_padding};
 use crate::marktree::{
     MT_FLAG_DECOR_EXT, MTKey, MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines,
-    marktree_itr_current, marktree_itr_get_filter, marktree_itr_next_filter,
+    marktree_itr_current, marktree_itr_get_filter, marktree_itr_next_filter, mt_invalid, mt_right,
 };
+use crate::mbyte::{
+    ptr2cells, utf_ClusterInfo_impl, utf_char2cells, utf_ptr2CharInfo_impl, utf_ptr2char,
+    utf8len_tab, utfc_ptr2len,
+};
+use crate::memline::{ml_get_buf, ml_get_buf_len};
+use crate::r#move::{win_col_off, win_col_off2};
+use crate::option::get_showbreak_value;
+use crate::option_vars::*;
+use crate::state::virtual_active;
+use std::ffi::{c_char, c_int, c_long};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

@@ -9,18 +9,13 @@
 )]
 use crate::api::autocmd::kCallbackNone;
 use crate::api::tabpage::lpos_T;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::charset::{
-    getdigits_int, getwhitecols_curline, skiptowhite, skipwhite, vim_isIDc, vim_iswordc,
-    vim_iswordp, vim_strsize,
+    ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
+    vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
 };
 use crate::clipboard::typval_T;
-#[allow(unused_imports)]
-use crate::cursor::lt;
-use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T};
+use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lt};
 use crate::eval::deprecated::{buf_T, pos_T};
-#[allow(unused_imports)]
 use crate::eval::typval::tv_get_lnum;
 use crate::globals::*;
 use crate::indent::{
@@ -29,23 +24,13 @@ use crate::indent::{
 use crate::keycodes::get_special_key_code;
 use crate::math::trim_to_int;
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
-#[allow(unused_imports)]
 use crate::memline::{ml_get, ml_get_pos};
 use crate::memory::{xfree, xmalloc, xstrdup};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::skip_to_option_part;
+use crate::option::{copy_option_part, skip_to_option_part};
 use crate::option_vars::*;
 use crate::plines::getvcol;
-#[allow(unused_imports)]
 use crate::search::{findmatchlimit, linewhite};
-#[allow(unused_imports)]
-use crate::strings::tolower;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk};
+use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk, tolower, vim_strchr};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 const NUL: c_char = 0;

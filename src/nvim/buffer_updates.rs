@@ -9,29 +9,21 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::arena_array;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{array_obj, boolean_obj, buffer_obj, integer_obj};
-#[allow(unused_imports)]
+use crate::api::buffer::buf_collect_lines;
+use crate::api::private::helpers::{arena_array, array_obj, boolean_obj, buffer_obj, integer_obj};
+use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::buffer::buf_get_changedtick;
+use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::globals::*;
 use crate::log::logmsg;
-#[allow(unused_imports)]
+use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, nlua_call_ref};
-#[allow(unused_imports)]
 use crate::memline::ml_flush_deleted_bytes;
-#[allow(unused_imports)]
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
+use crate::msgpack_rpc::packer::Integer;
 use std::ffi::c_int;
 use std::ptr;
-
-use crate::api::buffer::buf_collect_lines;
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
-use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
-use crate::lua::converter::LuaRef;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
-use crate::msgpack_rpc::packer::Integer;
 
 const ARENA_EMPTY: Arena = Arena {
     cur_blk: ptr::null_mut(),

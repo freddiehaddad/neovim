@@ -11,65 +11,26 @@
     clippy::if_same_then_else
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_free_dict, api_free_string, cstr_to_string};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{array_obj, boolean_obj, dict_obj, integer_obj};
-#[allow(unused_imports)]
-use crate::autocmd::aucmd_defer;
-#[allow(unused_imports)]
-use crate::autocmd::has_event;
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::bufref_valid;
-#[allow(unused_imports)]
-use crate::buffer::set_bufref;
-#[allow(unused_imports)]
+use crate::api::buffer::VisualState;
+use crate::api::private::helpers::{
+    api_free_dict, api_free_string, array_obj, boolean_obj, cstr_to_string, dict_obj, integer_obj,
+};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::tabpage::{pos_T, win_T};
+use crate::autocmd::{aucmd_defer, has_event};
+use crate::buffer::{buf_get_changedtick, bufref_valid, set_bufref};
 use crate::charset::is_special;
-#[allow(unused_imports)]
 use crate::cursor::equalpos;
-#[allow(unused_imports)]
+use crate::eval::buffer::varnumber_T;
+use crate::eval::deprecated::buf_T;
 use crate::eval::vars::get_vim_var_str;
+use crate::extmark::TriState;
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::input::{
     prep_redo, prep_redo_visual, redo_append_lit, redo_append_spec, redo_append_str, redo_keys,
     redo_new, redo_spec, sb_add_char, sb_add_lit, sb_add_spec, stuff_empty, typebuf_typed,
 };
-#[allow(unused_imports)]
 use crate::insert::get_last_insert_save;
-#[allow(unused_imports)]
-use crate::mbyte::utf_char2bytes;
-#[allow(unused_imports)]
-use crate::mcursor::{
-    mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
-    mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
-};
-#[allow(unused_imports)]
-use crate::normal::nv_is;
-#[allow(unused_imports)]
-use crate::ops::{get_extra_op_char, get_op_char, op_redoable, op_self_select};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::register::reg_max_ts;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{concat_str, vim_strchr};
-#[allow(unused_imports)]
-use crate::strings::{strcat, strchr, strcpy, strlen, strncmp};
-#[allow(unused_imports)]
-use crate::window::win_valid;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
-use std::ptr;
-
-use crate::api::buffer::VisualState;
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, win_T};
-use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::buf_T;
-use crate::extmark::TriState;
 use crate::keycodes::{
     K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_HOME, K_IGNORE, K_LEFT, K_LEFTMOUSE, K_LEFTMOUSE_NM,
     K_MIDDLEMOUSE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSERIGHT, K_MOUSEUP, K_RIGHT, K_RIGHTMOUSE,
@@ -78,9 +39,24 @@ use crate::keycodes::{
 };
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
+use crate::mbyte::utf_char2bytes;
+use crate::mcursor::{
+    mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
+    mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
+};
 use crate::memory::{xfree, xmemdupz, xrealloc, xstrdup};
+use crate::normal::nv_is;
+use crate::ops::{get_extra_op_char, get_op_char, op_redoable, op_self_select};
+use crate::option_vars::*;
+use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
+use crate::strings::{
+    concat_str, strcat, strchr, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
+};
 use crate::textformat::oparg_T;
+use crate::window::win_valid;
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
 pub type CmdAtomVec = KVec<CmdAtom>;
@@ -813,7 +789,8 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
             xfree(cmd.cast());
         }
         if spec.count > 0 {
-            dict_put(&mut d, c"count", integer_obj(spec.count as i64));
+            #[allow(clippy::useless_conversion)]
+            dict_put(&mut d, c"count", integer_obj(i64::from(spec.count)));
         }
         if (*atom).origin.pos.lnum > 0 {
             dict_put(&mut d, c"moved", boolean_obj((*atom).moved));

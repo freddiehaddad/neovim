@@ -1,24 +1,21 @@
 //! Operating system user information (`src/nvim/os/users.c`).
 
-#![cfg_attr(test, allow(dead_code, unused_imports))]
+#![cfg_attr(test, allow(dead_code))]
 
 #[cfg(unix)]
-#[allow(unused_imports)]
 use crate::fileio::getuid;
-#[cfg(windows)]
-#[allow(unused_imports)]
+use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::math::{FAIL, OK};
+#[cfg(all(not(test), windows))]
 use crate::mbyte::utf16_to_utf8;
-#[cfg(windows)]
+use crate::memory::{xfree, xstrdup};
+#[cfg(all(not(test), windows))]
 use crate::message::semsg;
-#[allow(unused_imports)]
+#[cfg(all(not(test), unix))]
 use crate::os::env::os_getenv_noalloc;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
-
-use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
-use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xstrdup};
 
 pub use crate::event::r#loop::uv_uid_t;
 

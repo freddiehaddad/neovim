@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
@@ -16,102 +15,16 @@
     clippy::unnecessary_cast
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, cstr_as_string, find_window_by_handle, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{dict_obj, integer_obj};
-#[allow(unused_imports)]
-use crate::autocmd::{apply_autocmds, apply_autocmds_win};
-#[allow(unused_imports)]
-use crate::buffer::bt_prompt;
-#[allow(unused_imports)]
-use crate::buffer::{bt_help, bt_quickfix};
-#[allow(unused_imports)]
-use crate::buffer::{
-    buf_hide, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, close_buffer,
-    do_autochdir, do_buffer, maketitle,
-};
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::cursor::equalpos;
-#[allow(unused_imports)]
-use crate::drawscreen::{comp_col, showmode};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_extend;
-#[allow(unused_imports)]
-use crate::ex_cmds::do_ecmd;
-#[allow(unused_imports)]
-use crate::ex_cmds2::can_abandon;
-#[allow(unused_imports)]
-use crate::ex_docmd::{do_cmdline_cmd, tabpage_close};
-#[allow(unused_imports)]
-use crate::ex_getln::{compute_cmdrow, curbuf_locked};
-#[allow(unused_imports)]
-use crate::file_search::do_autocmd_dirchanged;
-#[allow(unused_imports)]
-use crate::fileio::shorten_fnames;
-#[allow(unused_imports)]
-use crate::fold::{getDeepestNesting, hasFolding};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::beep_flush;
-#[allow(unused_imports)]
-use crate::main_init::getout;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, iemsg, internal_error, msg, msg_clr_eos_force, msg_grid_validate, msg_ui_flush,
-    set_keep_msg,
-};
-#[allow(unused_imports)]
-use crate::r#move::{win_col_off, win_col_off2};
-#[allow(unused_imports)]
-use crate::normal::check_text_or_curbuf_locked;
-#[allow(unused_imports)]
-use crate::option::get_scrolloff_value;
-#[allow(unused_imports)]
-use crate::option::{
-    buf_copy_options, clear_winopt, option_was_set, set_option_value, win_copy_options,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::state::virtual_active;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_grid_destroy, ui_call_win_close, ui_call_win_hide, ui_check_cursor_grid, ui_has,
-};
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_win_external_pos, ui_call_win_float_pos, ui_call_win_pos, ui_call_win_viewport,
-    ui_call_win_viewport_margins,
-};
-#[allow(unused_imports)]
-use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::mem::zeroed;
-use std::ptr;
-
-use crate::api::autocmd::{OptionalKeys, TryState, event_T};
-use crate::api::buffer::VisualState;
-use crate::api::command::cmdmod_T;
+use crate::api::autocmd::TryState;
 use crate::api::deprecated::VirtText;
-use crate::api::options::{CharBuf, CtxSwitch, optset_T};
-use crate::api::private::validate::{
-    Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+use crate::api::options::{CtxSwitch, optset_T};
+use crate::api::private::helpers::{
+    api_clear_error, api_set_error, cstr_as_string, dict_obj, find_window_by_handle, integer_obj,
+    try_enter, try_leave,
 };
+use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
 use crate::api::tabpage::{
-    GridView, ScopeDictDictItem, ScreenGrid, WinConfig, Window, frame_T, lpos_T, pos_T, tabpage_T,
-    taggy_T, win_T, winopt_T,
+    GridView, ScreenGrid, WinConfig, frame_T, lpos_T, pos_T, tabpage_T, win_T,
 };
 use crate::api::win_config::{FloatAnchor, FloatRelative, UIExtension, WinStyle};
 use crate::arglist::{alist_T, alist_unlink};
@@ -119,81 +32,111 @@ use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
     EVENT_TABENTER, EVENT_TABLEAVE, EVENT_TABMOVED, EVENT_TABNEW, EVENT_TABNEWENTERED,
     EVENT_WINCLOSED, EVENT_WINENTER, EVENT_WINLEAVE, EVENT_WINNEW, EVENT_WINNEWPRE,
-    EVENT_WINRESIZED, EVENT_WINSCROLLED, aucmd_defer, block_autocmds, event_ignored, has_event,
-    unblock_autocmds,
+    EVENT_WINRESIZED, EVENT_WINSCROLLED, apply_autocmds, apply_autocmds_win, aucmd_defer,
+    block_autocmds, event_ignored, has_event, unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, buf_valid, bufref_T, bufref_valid,
-    set_bufref,
+    BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, bt_help, bt_prompt, bt_quickfix,
+    buf_hide, buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new,
+    bufref_T, bufref_valid, close_buffer, do_autochdir, do_buffer, maketitle, set_bufref,
 };
-use crate::charset::getdigits_int;
+use crate::charset::{ascii_isdigit, getdigits_int};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::{cmdidx_T, exarg_T};
-use crate::context::{CtxSwitchFlags, CtxWin, ctx_restore, ctx_switch, is_ctx_win};
-use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T};
+use crate::cmdexpand::cmdidx_T;
+use crate::context::{CtxSwitchFlags, ctx_restore, ctx_switch, is_ctx_win};
+use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T};
 use crate::decoration::{clear_virttext, decor_conceal_line};
 use crate::diff::{diff_clear, diffopt_closeoff};
 use crate::drawscreen::{
-    UPD_SOME_VALID, redraw_all_later, redraw_later, redrawWinline, status_redraw_all,
+    UPD_SOME_VALID, comp_col, redraw_all_later, redraw_later, redrawWinline, showmode,
+    status_redraw_all,
 };
+use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::buf_T;
 use crate::eval::typval::{
-    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_tv, tv_dict_alloc, tv_dict_set_keys_readonly,
-    tv_dict_unref, tv_list_alloc, tv_list_append_owned_tv,
+    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_tv, tv_dict_alloc, tv_dict_extend,
+    tv_dict_set_keys_readonly, tv_dict_unref, tv_list_alloc, tv_list_append_owned_tv,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::eval::window::win_has_winnr;
 use crate::eval::{get_v_event, restore_v_event};
-use crate::ex_cmds::ECMD_LASTL;
-use crate::ex_cmds2::dialog_changed;
+use crate::ex_cmds::{ECMD_LASTL, do_ecmd};
+use crate::ex_cmds2::{can_abandon, dialog_changed};
+use crate::ex_docmd::{do_cmdline_cmd, tabpage_close};
 use crate::ex_eval::aborting;
-use crate::ex_getln::{is_in_cmdwin, text_locked, text_locked_msg, text_or_buf_locked};
-use crate::file_search::grab_file_name;
-use crate::fold::{clearFolding, copyFoldingState, deleteFoldRecurse, foldInitWin};
+use crate::ex_getln::{
+    compute_cmdrow, curbuf_locked, is_in_cmdwin, text_locked, text_locked_msg, text_or_buf_locked,
+};
+use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
+use crate::fileio::shorten_fnames;
+use crate::fold::{
+    clearFolding, copyFoldingState, deleteFoldRecurse, foldInitWin, getDeepestNesting, hasFolding,
+};
 use crate::garray::{ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::grid::{grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc};
-use crate::hashtab::{hash_init, hashtab_T};
-use crate::input::{InsState, plain_vgetc, typebuf_maplen};
+use crate::hashtab::hash_init;
+use crate::input::{beep_flush, plain_vgetc, typebuf_maplen};
 use crate::insert::{beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::kvec::KVec;
-use crate::lua::converter::Boolean;
-use crate::map::{Map, Set, StcClick, StcClicks, map_del_int_ptr_t, map_put_ref_int_ptr_t, ptr_t};
-use crate::map_glyph_cache::NvimString;
+use crate::main_init::getout;
+use crate::map::{StcClick, StcClicks, map_del_int_ptr_t, map_put_ref_int_ptr_t};
 use crate::mapping::langmap_adjust_mb;
 use crate::mark::{WinInfo, copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
+use crate::message::{
+    emsg, iemsg, internal_error, msg, msg_clr_eos_force, msg_grid_validate, msg_ui_flush, semsg,
+    set_keep_msg,
+};
 use crate::mouse::{StlClickDefinition, reset_dragwin, setmouse};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, curs_columns, invalidate_botline_win,
     set_topline, textpos2screenpos, update_topline, validate_botline_win, validate_cursor,
+    win_col_off, win_col_off2,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::normal::{
-    FIND_IDENT, add_to_showcmd, do_nv_ident, find_ident_under_cursor, reset_VIsual_and_resel,
+    FIND_IDENT, add_to_showcmd, check_text_or_curbuf_locked, do_nv_ident, find_ident_under_cursor,
+    reset_VIsual_and_resel,
 };
+use crate::option::{
+    buf_copy_options, clear_winopt, get_scrolloff_value, option_was_set, set_option_value,
+    win_copy_options,
+};
+use crate::option_vars::*;
 use crate::os::fs::{os_chdir, os_dirname};
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::plines::{plines_win, plines_win_col, plines_win_nofill, win_text_height};
 use crate::popupmenu::pum_pos_ui_flush;
 use crate::quickfix::{copy_loclist_stack, qf_free_all, qf_view_result};
-use crate::search::{Direction, find_pattern_in_path};
+use crate::search::find_pattern_in_path;
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_NORMAL, MODE_TERMINAL, get_real_state, save_v_event_T,
+    virtual_active,
 };
 use crate::statusline::stl_clear_click_defs;
+use crate::strings::{gettext, vim_snprintf};
 use crate::syntax::reset_synblock;
 use crate::tag::tagstack_clear_entry;
 use crate::terminal::{Terminal, terminal_check_size};
+use crate::ui::{
+    ui_call_grid_destroy, ui_call_win_close, ui_call_win_external_pos, ui_call_win_float_pos,
+    ui_call_win_hide, ui_call_win_pos, ui_call_win_viewport, ui_call_win_viewport_margins,
+    ui_check_cursor_grid, ui_has,
+};
 use crate::ui_compositor::{ui_comp_layers_adjust, ui_comp_put_grid, ui_comp_remove_grid};
-use crate::undo::u_sync;
+use crate::undo::{bufIsChanged, u_sync};
 use crate::winfloat::{
     win_border_height, win_border_width, win_config_float, win_float_anchor_laststatus,
     win_float_find_altwin, win_float_update_statusline, win_new_float, win_reconfig_floats,
 };
+use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::mem::zeroed;
+use std::ptr;
 
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;

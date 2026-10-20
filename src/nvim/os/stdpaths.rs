@@ -1,23 +1,25 @@
 //! XDG standard directory paths (`src/nvim/os/stdpaths.c`).
 
-#![cfg_attr(any(test, target_os = "windows"), allow(dead_code, unused_imports))]
+#![cfg_attr(any(test, target_os = "windows"), allow(dead_code))]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::fileio::vim_gettempdir;
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::os::env::os_getenv_noalloc;
-#[allow(unused_imports)]
-use crate::os::env::{expand_env_save, os_env_exists, os_getenv};
+#[cfg(all(not(test), unix))]
+use crate::memory::xstrdup;
+use crate::memory::{xfree, xmallocz, xrealloc};
+#[cfg(all(not(test), unix))]
+use crate::os::env::os_env_exists;
+#[cfg(not(test))]
+use crate::os::env::{expand_env_save, os_getenv, os_getenv_noalloc};
 #[cfg(all(not(test), windows))]
 use crate::os::fs::os_realpath;
-#[allow(unused_imports)]
-use crate::path::path_equal;
-#[allow(unused_imports)]
-use crate::path::{concat_fnames_realloc, path_is_absolute};
-use std::ffi::{CStr, CString, c_char, c_int, c_void};
-
-use crate::memory::{xfree, xmallocz, xrealloc, xstrdup};
+#[cfg(not(test))]
+use crate::path::{concat_fnames_realloc, path_equal, path_is_absolute};
+#[cfg(not(test))]
+use std::ffi::CString;
+use std::ffi::{CStr, c_char, c_int, c_void};
 
 const MAXPATHL: usize = 4096;
 const K_PATH_CMP_LITERAL: c_int = 1 << 0;

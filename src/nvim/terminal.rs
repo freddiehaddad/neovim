@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::missing_safety_doc,
@@ -13,162 +12,179 @@
     clippy::while_immutable_condition
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::int_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, api_free_object};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{dict_get_value, dict_set_var};
-#[allow(unused_imports)]
-use crate::autocmd::apply_autocmds_group;
-#[allow(unused_imports)]
-use crate::autocmd::{
-    apply_autocmds, block_autocmds, has_event, is_autocmd_blocked, unblock_autocmds,
+#[cfg(not(test))]
+use crate::api::options::CtxSwitch;
+use crate::api::options::{Buffer, OptIndex};
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj,
 };
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::do_buffer;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, KeyValuePair};
+use crate::api::private::validate::{Object, ObjectData, ObjectType};
+use crate::api::tabpage::win_T;
+#[cfg(not(test))]
+use crate::api::tabpage::{pos_T as tab_pos_T, winopt_T};
+#[cfg(not(test))]
+use crate::autocmd::{
+    apply_autocmds, apply_autocmds_group, block_autocmds, has_event, is_autocmd_blocked,
+    unblock_autocmds,
+};
+#[cfg(not(test))]
+use crate::buffer::{buf_get_changedtick, do_buffer};
+#[cfg(not(test))]
+use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
+use crate::channel::{OptInt, TerminalOptions};
+#[cfg(not(test))]
+use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win};
+#[cfg(not(test))]
+use crate::cursor::coladvance;
+use crate::cursor::linenr_T;
+#[cfg(not(test))]
+use crate::cursor_shape::{
+    CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table,
+};
+#[cfg(not(test))]
 use crate::drawscreen::{
     redraw_buf_line_later, redraw_later, redraw_statuslines, setcursor, show_cursor_info_later,
     showmode, status_redraw_buf, unshowmode, update_screen,
 };
-#[allow(unused_imports)]
-use crate::eval::eval_call_provider;
-#[allow(unused_imports)]
-use crate::eval::get_v_event;
-#[allow(unused_imports)]
-use crate::eval::restore_v_event;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_nr;
-#[allow(unused_imports)]
+use crate::eval::deprecated::buf_T;
+#[cfg(not(test))]
 use crate::eval::typval::{
-    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list, tv_list_append_string,
+    tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list,
+    tv_list_append_string,
 };
-#[allow(unused_imports)]
-use crate::eval::vars::get_globvar_dict;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_string;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::eval::vars::{get_globvar_dict, set_vim_var_string};
+#[cfg(not(test))]
+use crate::eval::{eval_call_provider, get_v_event, restore_v_event};
+#[cfg(not(test))]
+use crate::event::r#loop::loop_queues;
+use crate::event::multiqueue::MultiQueue;
+#[cfg(not(test))]
+use crate::event::multiqueue::{
+    EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_move_events, multiqueue_new,
+    multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
+};
+use crate::event::time::TimeWatcher;
+#[cfg(not(test))]
+use crate::event::time::{
+    time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop, watcher_fields,
+};
+#[cfg(not(test))]
 use crate::ex_docmd::do_cmdline;
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+use crate::grid::schar_get_adv;
+#[cfg(not(test))]
+use crate::highlight::{hl_add_url, hl_combine_attr, hl_get_term_attr};
+#[cfg(not(test))]
 use crate::highlight_group::name_to_color;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::input::{getcmdkeycmd, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
-#[allow(unused_imports)]
-use crate::mbyte::mb_check_adjust_col;
-#[allow(unused_imports)]
-use crate::mbyte::{utf_ptr2char, utf_ptr2len};
-#[allow(unused_imports)]
-use crate::memline::ml_append_buf;
-#[allow(unused_imports)]
-use crate::memline::{ml_delete_buf, ml_replace_buf};
-#[allow(unused_imports)]
-use crate::memory::strequal;
-#[allow(unused_imports)]
-use crate::r#move::win_col_off;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::input_cmdatom::{atom_term_enter, cmdarg_T};
+use crate::keycodes::{
+    ESC, K_BS, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10,
+    K_F11, K_F12, K_F13, K_F14, K_F15, K_F16, K_F17, K_F18, K_F19, K_F20, K_F21, K_F22, K_F23,
+    K_F24, K_F25, K_F26, K_F27, K_F28, K_F29, K_F30, K_F31, K_F32, K_F33, K_F34, K_F35, K_F36,
+    K_F37, K_F38, K_F39, K_F40, K_F41, K_F42, K_F43, K_F44, K_F45, K_F46, K_F47, K_F48, K_F49,
+    K_F50, K_F51, K_F52, K_F53, K_F54, K_F55, K_F56, K_F57, K_F58, K_F59, K_F60, K_F61, K_F62,
+    K_F63, K_HOME, K_INS, K_K0, K_K1, K_K2, K_K3, K_K4, K_K5, K_K6, K_K7, K_K8, K_K9, K_KDEL,
+    K_KDIVIDE, K_KDOWN, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KLEFT, K_KMINUS, K_KMULTIPLY,
+    K_KORIGIN, K_KPAGEDOWN, K_KPAGEUP, K_KPLUS, K_KPOINT, K_KRIGHT, K_KUP, K_LEFT, K_PAGEDOWN,
+    K_PAGEUP, K_RIGHT, K_TAB, K_UP, KE_EVENT, KE_LUA, KS_EXTRA, MOD_MASK_ALT, MOD_MASK_CTRL,
+    MOD_MASK_SHIFT, TAB, termcap2key, unsimplify_key,
+};
+#[cfg(not(test))]
+use crate::keycodes::{
+    K_COMMAND, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG, K_MIDDLEMOUSE,
+    K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP, K_NOP,
+    K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
+    K_X2MOUSE, K_X2RELEASE, K_ZERO, is_special,
+};
+use crate::kvec::KVec;
+#[cfg(not(test))]
+use crate::map::HlAttrs;
+use crate::map::{Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
+use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
+#[cfg(not(test))]
+use crate::mark::{WinInfo, mark_adjust_buf};
+#[cfg(not(test))]
+use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
+#[cfg(not(test))]
+use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
+#[cfg(not(test))]
+use crate::memory::{strequal, xcalloc, xmalloc, xmemdup, xmemdupz, xstrdup};
+use crate::memory::{xfree, xrealloc};
+#[cfg(not(test))]
+use crate::mouse::{do_mousescroll, mouse_find_win_inner};
+#[cfg(not(test))]
+use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
+use crate::msgpack_rpc::channel::event_T;
+use crate::msgpack_rpc::packer::handle_T;
+#[cfg(not(test))]
 use crate::ops::clear_oparg;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::option::set_option_value;
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::optionstr::free_string_option;
-#[allow(unused_imports)]
-use crate::state::may_trigger_modechanged;
-#[allow(unused_imports)]
+use crate::state::VimState;
+#[cfg(not(test))]
+use crate::state::{may_trigger_modechanged, save_v_event_T, state_enter, state_handle_k_event};
+#[cfg(not(test))]
 use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::textformat::oparg_T;
+#[cfg(not(test))]
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
-#[allow(unused_imports)]
-use crate::window::{may_trigger_win_scrolled_resized, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
-use crate::api::command::exarg_T;
-use crate::api::options::{Buffer, CtxSwitch, OptIndex};
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
-};
-use crate::api::tabpage::{pos_T as tab_pos_T, tabpage_T, win_T, winopt_T};
-use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
-use crate::channel::{OptInt, TerminalOptions};
-use crate::clipboard::{list_T, typval_T};
-use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win};
-use crate::cursor::{coladvance, linenr_T};
-use crate::cursor_shape::{
-    CursorShape, SHAPE_CURSOR, SHAPE_IDX_TERM, parse_shape_opt, shape_table,
-};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{buf_T, pos_T};
-use crate::event::r#loop::loop_queues;
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
-    multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
-};
-use crate::event::time::{
-    TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
-    watcher_fields,
-};
-use crate::grid::schar_get_adv;
-use crate::highlight::{RgbValue, hl_add_url, hl_combine_attr, hl_get_term_attr};
-use crate::input_cmdatom::{atom_term_enter, cmdarg_T};
-use crate::keycodes::{
-    ESC, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8,
-    K_F9, K_F10, K_F11, K_F12, K_F13, K_F14, K_F15, K_F16, K_F17, K_F18, K_F19, K_F20, K_F21,
-    K_F22, K_F23, K_F24, K_F25, K_F26, K_F27, K_F28, K_F29, K_F30, K_F31, K_F32, K_F33, K_F34,
-    K_F35, K_F36, K_F37, K_F38, K_F39, K_F40, K_F41, K_F42, K_F43, K_F44, K_F45, K_F46, K_F47,
-    K_F48, K_F49, K_F50, K_F51, K_F52, K_F53, K_F54, K_F55, K_F56, K_F57, K_F58, K_F59, K_F60,
-    K_F61, K_F62, K_F63, K_HOME, K_IGNORE, K_INS, K_K0, K_K1, K_K2, K_K3, K_K4, K_K5, K_K6, K_K7,
-    K_K8, K_K9, K_KDEL, K_KDIVIDE, K_KDOWN, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KLEFT, K_KMINUS,
-    K_KMULTIPLY, K_KORIGIN, K_KPAGEDOWN, K_KPAGEUP, K_KPLUS, K_KPOINT, K_KRIGHT, K_KUP, K_LEFT,
-    K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG, K_MIDDLEMOUSE, K_MIDDLERELEASE,
-    K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP, K_NOP, K_PAGEDOWN, K_PAGEUP,
-    K_RIGHT, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_TAB, K_UP, K_X1DRAG, K_X1MOUSE,
-    K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, KE_EVENT, KE_LUA, KS_EXTRA,
-    MOD_MASK_ALT, MOD_MASK_CTRL, MOD_MASK_SHIFT, TAB, is_special, termcap2key, unsimplify_key,
-};
-use crate::kvec::KVec;
-use crate::map::{HlAttrs, Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
-use crate::mark::{WinInfo, mark_adjust_buf};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
-use crate::mouse::{do_mousescroll, mouse_find_win_inner};
-use crate::r#move::{curs_columns, set_topline, validate_cursor};
-use crate::msgpack_rpc::channel::event_T;
-use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::state::{VimState, save_v_event_T, state_enter, state_handle_k_event};
-use crate::textformat::{InsState, oparg_T};
+use crate::vterm::keyboard::{VTermColor, VTermStateFull as VTermState};
+#[cfg(not(test))]
 use crate::vterm::keyboard::{
-    VTermColor, VTermStateFull as VTermState, vterm_keyboard_end_paste, vterm_keyboard_key,
-    vterm_keyboard_start_paste, vterm_keyboard_unichar,
+    vterm_keyboard_end_paste, vterm_keyboard_key, vterm_keyboard_start_paste,
+    vterm_keyboard_unichar,
 };
 use crate::vterm::mouse::{VTerm, VTermModifier, VTermPos, vterm_mouse_button, vterm_mouse_move};
-use crate::vterm::parser::{VTermStringFragment, VTermTerminator, vterm_input_write};
+#[cfg(not(test))]
+use crate::vterm::parser::vterm_input_write;
+use crate::vterm::parser::{VTermStringFragment, VTermTerminator};
 use crate::vterm::pen::{
     VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType, vterm_state_convert_color_to_rgb,
-    vterm_state_set_palette_color, vterm_state_set_penattr,
 };
+#[cfg(not(test))]
+use crate::vterm::pen::{vterm_state_set_palette_color, vterm_state_set_penattr};
 use crate::vterm::screen::{
     VTermDamageSize, VTermScreen, VTermScreenCallbacks, VTermScreenCell, VTermScreenCellAttrs,
+    vterm_screen_get_cell,
+};
+#[cfg(not(test))]
+use crate::vterm::screen::{
     vterm_obtain_screen, vterm_screen_enable_altscreen, vterm_screen_enable_reflow,
-    vterm_screen_flush_damage, vterm_screen_get_cell, vterm_screen_reset,
-    vterm_screen_set_callbacks, vterm_screen_set_damage_merge,
-    vterm_screen_set_unrecognised_fallbacks,
+    vterm_screen_flush_damage, vterm_screen_reset, vterm_screen_set_callbacks,
+    vterm_screen_set_damage_merge, vterm_screen_set_unrecognised_fallbacks,
 };
 use crate::vterm::state::{
     VTermSelectionCallbacks, VTermSelectionMask, VTermStateFallbacks, vterm_obtain_state,
-    vterm_state_focus_in, vterm_state_focus_out, vterm_state_set_selection_callbacks,
-    vterm_state_set_termprop,
+    vterm_state_focus_in, vterm_state_focus_out,
 };
+#[cfg(not(test))]
+use crate::vterm::state::{vterm_state_set_selection_callbacks, vterm_state_set_termprop};
+use crate::vterm::vterm::vterm_get_size;
+#[cfg(not(test))]
 use crate::vterm::vterm::{
-    vterm_free, vterm_get_size, vterm_new, vterm_output_set_callback, vterm_set_size,
-    vterm_set_utf8,
+    vterm_free, vterm_new, vterm_output_set_callback, vterm_set_size, vterm_set_utf8,
 };
+#[cfg(not(test))]
+use crate::window::{may_trigger_win_scrolled_resized, win_valid};
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
 pub use crate::cmdexpand::LineGetter;

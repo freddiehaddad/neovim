@@ -9,24 +9,17 @@
     clippy::too_many_arguments
 )]
 use crate::change::inserted_bytes;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
-use crate::charset::{getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
 use crate::clipboard::{TypvalVval, VarType, listitem_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
-#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_clear, tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str,
     tv_dict_alloc, tv_list_alloc_ret, tv_list_append_tv, tv_list_unref,
 };
-#[allow(unused_imports)]
 use crate::eval::vars::{eval_spell_expr, get_spellword};
-#[allow(unused_imports)]
-use crate::fileio::fclose;
-#[allow(unused_imports)]
-use crate::fileio::vim_fgets;
+use crate::fileio::{fclose, vim_fgets};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -35,51 +28,33 @@ use crate::hashtab::{
 };
 use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
 use crate::input_cmdatom::CmdSpec;
-#[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
-#[allow(unused_imports)]
-use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{
-    mb_charlen, mb_cptr2char_adv, mb_isupper, mb_stricmp, utf_byte2len, utf_char2bytes,
+    mb_charlen, mb_cptr2char_adv, mb_isupper, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
     utf_char2len, utf_fold, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-#[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_replace};
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
-#[allow(unused_imports)]
-use crate::message::{emsg, internal_error, msg, msg_ext_set_kind};
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
+use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::{option_next_keyval, option_slice_eq};
+use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
-#[allow(unused_imports)]
 use crate::spell::{
     allcap_copy, byte_in_str, can_compound, captype, check_need_cap, make_case_word,
-    match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang, spell_casefold,
-    spell_check, spell_iswordp, spell_iswordp_nmw, spell_move_to, spell_soundfold,
-    spell_valid_case, valid_word_prefix,
+    match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang, repl_from,
+    repl_to, spell_casefold, spell_check, spell_iswordp, spell_iswordp_nmw, spell_move_to,
+    spell_soundfold, spell_valid_case, spelltab, valid_word_prefix,
 };
-use crate::spell::{repl_from, repl_to, spelltab};
-#[allow(unused_imports)]
 use crate::spellfile::suggest_load_files;
-#[allow(unused_imports)]
-use crate::strings::strncpy;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, xstrnsave};
+use crate::strings::{
+    atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strncpy, vim_snprintf,
+    vim_strchr, xstrnsave,
+};
 use crate::tag::BoolVarValue;
-#[allow(unused_imports)]
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use std::ffi::{c_char, c_int, c_uint, c_void};

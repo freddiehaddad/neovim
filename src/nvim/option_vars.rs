@@ -7,6 +7,7 @@ use std::ptr;
 
 use crate::eval::deprecated::Callback;
 use crate::option::OptInt;
+use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut empty_string_option: [c_char; 1] = [0 as c_char; 1];
@@ -687,7 +688,6 @@ pub static mut p_wd: OptInt = 0;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut p_cdh: c_int = 0;
 
-use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static global_opt_idx: [OptIndex; 267] = [
     0, 1, 2, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 23, 26, 31, 32, 33, 34, 36,

@@ -10,96 +10,39 @@
     clippy::deref_addrof
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, api_free_string, cstr_to_string, string_to_array,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{boolean_obj, cstr_as_string};
-#[allow(unused_imports)]
-use crate::autocmd::{block_autocmds, unblock_autocmds};
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::bufref_valid;
-#[allow(unused_imports)]
-use crate::charset::to_special;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt, ltoreq};
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_all_later;
-#[allow(unused_imports)]
-use crate::eval::vars::get_vim_var_tv;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_bool;
-#[allow(unused_imports)]
-use crate::ex_docmd::{
-    exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
-};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::syn_check_group;
-#[allow(unused_imports)]
-use crate::input::{
-    beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
-};
-#[allow(unused_imports)]
-use crate::insexpand::ins_compl_active;
-#[allow(unused_imports)]
-use crate::log::g_min_log_level;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_typval;
-#[allow(unused_imports)]
-use crate::marktree::mt_end;
-#[allow(unused_imports)]
-use crate::memline::{dec, inc, ml_get_len, ml_region_text};
-#[allow(unused_imports)]
-use crate::r#move::{
-    restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
-};
-#[allow(unused_imports)]
-use crate::normal::{end_visual_mode, visualinfo};
-#[allow(unused_imports)]
-use crate::ops::{getregionpos_line, getregionpos_prep};
-#[allow(unused_imports)]
-use crate::option::set_option_value_give_err;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::input::line_breakcheck;
-#[allow(unused_imports)]
-use crate::register::{
-    get_reg_contents, get_unname_register, get_y_previous, get_y_register, reg_max_ts,
-    write_reg_contents_ex,
-};
-#[allow(unused_imports)]
-use crate::search::{restore_search_patterns, save_search_patterns};
-#[allow(unused_imports)]
-use crate::strings::memcmp;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{strchr, strlen, strncmp};
-#[allow(unused_imports)]
-use crate::undo::{u_forget_unchanged, u_save};
-use std::ffi::{c_char, c_int, c_long};
-use std::ptr;
-
 use crate::api::buffer::{VisualState, nvim_buf_set_text};
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::nvim_create_namespace;
+use crate::api::private::helpers::{
+    api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
+};
 use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::tabpage::pos_T;
 use crate::api::vim::nvim_feedkeys;
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+use crate::buffer::{buf_get_changedtick, bufref_valid};
+use crate::charset::to_special;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
 use crate::context::{Context, ctx_free, ctx_load, ctx_save, handle_get_buffer};
-use crate::cursor::{check_cursor, check_cursor_col, check_pos, colnr_T, getvpos, linenr_T};
+use crate::cursor::{
+    check_cursor, check_cursor_col, check_pos, colnr_T, equalpos, getvpos, linenr_T, lt, ltoreq,
+};
+use crate::drawscreen::redraw_all_later;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
+use crate::eval::vars::{get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
+use crate::ex_docmd::{
+    exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
+};
 use crate::extmark::{
     TriState, extmark_clear, extmark_del_id, extmark_from_id, extmark_get_pos, extmark_set,
     extmark_set_pos, u_header_T,
+};
+use crate::globals::*;
+use crate::highlight_group::syn_check_group;
+use crate::input::{
+    beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
 };
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, StringBuilder, Timestamp, atom_cmd_spec, atom_composite_active,
@@ -107,23 +50,44 @@ use crate::input_cmdatom::{
     atom_push_raw, atom_suppress, atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T,
     g_atoms, kAInsertSpan, kAMotion, kAVisualSpan, kKeyInsFlush,
 };
+use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, KE_LUA, KS_EXTRA, termcap2key};
 use crate::kvec::KVec;
+use crate::log::{g_min_log_level, logmsg};
+use crate::lua::executor::nlua_call_typval;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::mark_get_visual;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MTPair, MarkTreeIter,
-    marktree_itr_current, marktree_itr_get, marktree_itr_next,
+    marktree_itr_current, marktree_itr_get, marktree_itr_next, mt_end,
 };
+use crate::memline::{dec, inc, ml_get_len, ml_region_text};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmemdupz, xstrdup};
 use crate::menu::save_state_T;
+use crate::r#move::{
+    restore_viewstate, save_viewstate, set_topline, update_curswant, update_topline,
+};
 use crate::msgpack_rpc::packer::handle_T;
+use crate::normal::{end_visual_mode, visualinfo};
+use crate::ops::{getregionpos_line, getregionpos_prep};
+use crate::option::set_option_value_give_err;
+use crate::option_vars::*;
+use crate::os::input::line_breakcheck;
 use crate::os::time::os_realtime;
 use crate::plines::getvcols;
 use crate::popupmenu::pum_visible;
+use crate::register::{
+    get_reg_contents, get_unname_register, get_y_previous, get_y_register, reg_max_ts,
+    write_reg_contents_ex,
+};
+use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
+use crate::strings::{memcmp, strchr, strlen, strncmp, vim_snprintf};
 use crate::textformat::{InsState, MotionType, oparg_T};
+use crate::undo::{u_forget_unchanged, u_save};
+use std::ffi::{c_char, c_int, c_long};
+use std::ptr;
 
 const DECOR_INLINE_INIT: DecorInline = DecorInline {
     ext: false,

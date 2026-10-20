@@ -9,66 +9,31 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    arena_array, arena_dict, copy_string, find_buffer_by_handle, find_window_by_handle,
-    object_to_hl_id,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, boolean_obj, cstr_as_string, dict_obj, integer_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::charset::{transstr, vim_isprintc};
-#[allow(unused_imports)]
-use crate::decoration::{
-    clear_virtlines, clear_virttext, decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh,
-    decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
-};
-#[allow(unused_imports)]
-use crate::decoration_provider::{decor_provider_clear, get_decor_provider};
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_all_later;
-#[allow(unused_imports)]
-use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_high;
-#[allow(unused_imports)]
-use crate::marktree::mt_inspect;
-#[allow(unused_imports)]
-use crate::marktree::{mt_invalid, mt_paired, mt_right};
-#[allow(unused_imports)]
-use crate::mbyte::mb_string2cells;
-#[allow(unused_imports)]
-use crate::mbyte::utfc_ptr2schar;
-#[allow(unused_imports)]
-use crate::memline::ml_get_buf_len;
-#[allow(unused_imports)]
-use crate::r#move::changed_window_setting;
-#[allow(unused_imports)]
-use crate::sign::init_sign_text;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{
     DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow, VirtLines, VirtText,
     VirtTextChunk, VirtTextPos,
 };
+use crate::api::private::helpers::{
+    add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
+    copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
+    integer_obj, object_to_hl_id, string_obj,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
 };
 use crate::api::tabpage::{Buffer, Window, win_T};
+use crate::charset::{transstr, vim_isprintc};
+use crate::decoration::{
+    clear_virtlines, clear_virttext, decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh,
+    decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
+};
+use crate::decoration_provider::{decor_provider_clear, get_decor_provider};
+use crate::drawscreen::redraw_all_later;
 use crate::eval::deprecated::buf_T;
+use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
+use crate::globals::*;
+use crate::grid::schar_high;
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map::{
@@ -80,10 +45,17 @@ use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL,
     MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE,
-    MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MTKey, MTPair, MarkTreeIter,
+    MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MTKey, MTPair, MarkTreeIter, mt_inspect, mt_invalid,
+    mt_paired, mt_right,
 };
+use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
+use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena, xfree, xmemdupz};
+use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::sign::init_sign_text;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub type NS = handle_T;
 pub type HLGroupID = Integer;

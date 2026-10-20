@@ -6,7 +6,6 @@
     non_snake_case,
     non_upper_case_globals,
     unused_assignments,
-    unused_imports,
     unused_mut,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
@@ -18,33 +17,23 @@
     clippy::unnecessary_cast
 )]
 
-#[allow(unused_imports)]
-use crate::cursor::lt;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-pub(super) use crate::globals::*;
-pub(super) use crate::message::semsg;
-pub(super) use crate::option_vars::*;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-pub(super) use std::mem::{offset_of, size_of, zeroed};
-use std::ptr;
-
-use crate::api::buffer::VisualState;
 use crate::api::private::converter::{partial_T, ufunc_T};
-use crate::api::tabpage::{lpos_T, pos_T, win_T};
+use crate::api::tabpage::{lpos_T, win_T};
 use crate::charset::{
     getdigits_int, hex2nr, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,
 };
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::deprecated::{buf_T, fmark_T};
+use crate::clipboard::{VarType, list_T, typval_T};
+use crate::cursor::{colnr_T, linenr_T, lt};
+use crate::errors::*;
+use crate::eval::deprecated::buf_T;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_init_static10,
+    staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
+    tv_list_init_static10, tv_list_len,
 };
 use crate::eval::userfunc::funcexe_T;
 use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
+pub(super) use crate::globals::*;
 use crate::keycodes::K_SPECIAL;
 use crate::mark::mark_get;
 use crate::mbyte::{
@@ -54,9 +43,14 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup};
+pub(super) use crate::message::semsg;
+pub(super) use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+pub(super) use std::mem::{size_of, zeroed};
+use std::ptr;
 
 pub(super) mod libc {
     pub use crate::strings::{strcpy, strlen, strncmp, strncpy};

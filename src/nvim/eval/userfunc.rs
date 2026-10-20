@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
@@ -13,113 +12,58 @@
     clippy::unnecessary_cast
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_islower;
-#[allow(unused_imports)]
-use crate::charset::vim_strsize;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalnum, ascii_iswhite};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::funcs::{
-    call_internal_func, call_internal_method, check_internal_func, find_internal_func,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::tv_is_func;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_set_lock;
-#[allow(unused_imports)]
-use crate::eval::typval::value_check_lock;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_list_append, tv_list_init_static,
-};
-#[allow(unused_imports)]
-use crate::eval::vars::skip_var_list;
-#[allow(unused_imports)]
-use crate::eval::{
-    callback_call, check_luafunc_name, clear_lval, eval_isnamec, eval_isnamec1, eval1,
-    garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
-    partial_name, partial_unref, skip_expr,
-};
-#[allow(unused_imports)]
-use crate::eval::{clear_evalarg, eval0, fill_evalarg_from_eap};
-#[allow(unused_imports)]
-use crate::eval::{find_name_end, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items};
-#[allow(unused_imports)]
-use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
-#[allow(unused_imports)]
-use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::insexpand::ins_compl_active;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_vlua;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, nlua_exec_typval_callable, nlua_set_sctx};
-#[allow(unused_imports)]
-use crate::message::msg_prt_line;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
-    msg_putchar, msg_puts, msg_start, trunc_string, verbose_enter_scroll, verbose_leave_scroll,
-};
-use crate::message::{semsg, smsg, swmsg};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::vim_regexec;
-#[allow(unused_imports)]
-use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_name;
-#[allow(unused_imports)]
-use crate::runtime::{get_sourced_lnum, script_autoload};
-#[allow(unused_imports)]
-use crate::strings::memchr;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{concat_str, vim_strchr, xstrnsave};
-#[allow(unused_imports)]
-use crate::strings::{gettext, strchr, strcmp, strlen, strncmp, strstr};
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
-use crate::api::private::converter::{partial_T, sctx_T, ufunc_T};
-use crate::api::tabpage::win_T;
+use crate::api::private::converter::{partial_T, ufunc_T};
 use crate::autocmd::{apply_autocmds, funccal_entry_T};
-use crate::charset::{getdigits, skiptowhite, skipwhite};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::charset::{
+    ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite, vim_strsize,
+};
+use crate::clipboard::{VarType, listitem_T, typval_T};
 use crate::cmdexpand::{cmdidx_T, exarg_T};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
+use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
+use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
-use crate::eval::eval_lavars_used;
+use crate::eval::funcs::{
+    call_internal_func, call_internal_method, check_internal_func, find_internal_func,
+};
+use crate::eval::typval::{
+    tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_append,
+    tv_list_init_static, tv_list_set_lock, value_check_lock,
+};
 use crate::eval::vars::{
     LuaRef, VV_TESTING, evalarg_T, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr,
-    init_var_dict, list_hashtable_vars, lval_T, scid_T, vars_clear, vars_clear_ext,
+    init_var_dict, list_hashtable_vars, lval_T, skip_var_list, vars_clear, vars_clear_ext,
 };
+use crate::eval::{
+    callback_call, check_luafunc_name, clear_evalarg, clear_lval, eval_isnamec, eval_isnamec1,
+    eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end, garbage_collect,
+    get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg, partial_name, partial_unref,
+    set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
+};
+use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
 use crate::ex_eval::{
     CSTP_RETURN, aborted_in_try, aborting, cleanup_conditionals, cstack_T, exception_state_T,
     exception_state_clear, exception_state_restore, exception_state_save, report_make_pending,
     update_force_abort,
 };
+use crate::ex_getln::{getcmdline, ui_ext_cmdline_block_append, ui_ext_cmdline_block_leave};
 use crate::garray::{ga_append_via_ptr, ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_remove, hashitem_T,
     hashitem_empty, hashtab_T,
 };
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
+use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
-use crate::lua::stdlib::{regmatch_T, regprog_T};
+#[cfg(not(test))]
+use crate::lua::executor::api_free_luaref;
+use crate::lua::executor::{nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx};
+use crate::lua::stdlib::regmatch_T;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
@@ -127,6 +71,14 @@ use crate::memory::{
     entered_free_all_mem, xcalloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup,
     xstrlcpy,
 };
+use crate::message::{
+    emsg, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum, msg_prt_line, msg_putchar,
+    msg_puts, msg_start, semsg, smsg, swmsg, trunc_string, verbose_enter_scroll,
+    verbose_leave_scroll,
+};
+#[cfg(not(test))]
+use crate::message::{iemsg, internal_error};
+use crate::option_vars::*;
 use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::path::{kPathCmpLiteral, path_equal};
@@ -135,8 +87,19 @@ use crate::profile::{
     prof_def_func, profile_add, profile_end, profile_self, profile_start, profile_sub_wait,
     profile_zero, proftime_T, script_prof_restore, script_prof_save,
 };
-use crate::runtime::{autoload_name, estack_pop, estack_push_ufunc, exestack, script_items};
+use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+use crate::runtime::{
+    autoload_name, estack_pop, estack_push_ufunc, exestack, get_sourced_lnum, script_autoload,
+    script_items, sourcing_lnum, sourcing_name,
+};
 use crate::search::{restore_search_patterns, save_search_patterns};
+use crate::strings::{
+    concat_str, gettext, memchr, strchr, strcmp, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
+    xstrnsave,
+};
+use crate::ui::ui_has;
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
 
 pub use crate::option::OptInt;
 pub type FnameTransError = c_int;

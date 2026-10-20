@@ -4,48 +4,46 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+use crate::api::private::converter::ufunc_T;
+use crate::clipboard::{list_T, listitem_T, typval_T};
+#[cfg(not(test))]
+use crate::debugger::{ex_breakadd, exarg_Full};
+use crate::eval::decode::{dict_T, dictitem_T};
+#[cfg(not(test))]
 use crate::eval::userfunc::{func_tbl_get, get_current_funccal};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::event::r#loop::uv_err_name;
-#[allow(unused_imports)]
-use crate::fileio::vim_fgets;
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fopen, fprintf};
+#[cfg(not(test))]
+use crate::fileio::{fclose, fopen, fprintf, vim_fgets};
+#[cfg(not(test))]
+use crate::garray::{ga_clear, ga_grow};
+use crate::garray::{ga_init, garray_T};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::hashtab::hashitem_empty;
+use crate::lua::secure::exarg_T;
+use crate::memory::xcalloc;
+#[cfg(not(test))]
+use crate::memory::{xfree, xmalloc};
+#[cfg(not(test))]
+use crate::message::{emsg, semsg};
+#[cfg(not(test))]
 use crate::os::env::expand_env_save_opt;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::os::fs::os_fopen;
-use crate::runtime::exestack;
-#[allow(unused_imports)]
-use crate::runtime::get_scriptname;
-use crate::runtime::script_items;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
+use crate::os::time::os_hrtime;
+#[cfg(not(test))]
+use crate::runtime::{get_scriptname, script_items, sourcing_lnum};
+#[cfg(not(test))]
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
-
-use crate::api::private::converter::{sctx_T, ufunc_T};
-use crate::clipboard::{list_T, listitem_T, typval_T};
-use crate::debugger::{ex_breakadd, exarg_Full};
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
-use crate::hashtab::{hashitem_empty, hashtab_T};
-use crate::lua::secure::exarg_T;
-use crate::memory::{xcalloc, xfree, xmalloc};
-use crate::os::time::os_hrtime;
 
 pub type proftime_T = u64;
 pub use crate::fileio::FILE;

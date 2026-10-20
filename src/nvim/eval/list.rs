@@ -4,58 +4,56 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
+#[cfg(not(test))]
+use crate::clipboard::{TypvalVval, listitem_T};
+use crate::clipboard::{VarType, list_T, typval_T};
+#[cfg(not(test))]
 use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_blob_copy, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_item_remove,
-    tv_dict_unref, tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_tv, tv_list_extend,
-    tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_reverse, tv_list_unref,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_blob_get, tv_list_set_ret};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_blob_len, tv_list_set_lock};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_dict_extend, tv_dict_remove,
-    tv_equal, tv_get_string, tv_get_string_chk, tv_list_remove,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_copy, tv_list_copy, value_check_lock};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_get_bool_chk, tv_get_number_chk};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::vars::{get_vim_var_tv, set_vim_var_nr, set_vim_var_string, set_vim_var_type};
-#[allow(unused_imports)]
-use crate::eval::vars::{prepare_vimvar, restore_vimvar, var_check_fixed, var_check_ro};
-#[allow(unused_imports)]
-use crate::eval::{eval_expr_typval, get_copyID};
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline_cmd;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::strings::reverse_text;
-use std::ffi::{CStr, c_char, c_int, c_void};
-
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+#[cfg(not(test))]
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::EvalFuncData;
 use crate::eval::executor::blob_T;
+#[cfg(not(test))]
+use crate::eval::typval::{
+    tv_blob_copy, tv_blob_get, tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_clear,
+    tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_copy, tv_dict_extend, tv_dict_item_remove,
+    tv_dict_remove, tv_dict_unref, tv_equal, tv_get_bool_chk, tv_get_number_chk, tv_get_string,
+    tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy,
+    tv_list_extend, tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_remove,
+    tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
+};
+use crate::eval::typval::{tv_blob_len, tv_list_first, tv_list_len};
+#[cfg(not(test))]
+use crate::eval::vars::{
+    get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr, set_vim_var_string,
+    set_vim_var_type, var_check_fixed, var_check_ro,
+};
+#[cfg(not(test))]
+use crate::eval::{eval_expr_typval, get_copyID};
+#[cfg(not(test))]
+use crate::ex_docmd::do_cmdline_cmd;
+#[cfg(not(test))]
 use crate::garray::{ga_append, ga_concat, ga_grow, ga_init, garray_T};
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
 use crate::hashtab::{hash_lock, hash_unlock, hashitem_empty};
+#[cfg(not(test))]
 use crate::math::{FAIL, OK};
+#[cfg(not(test))]
+use crate::mbyte::{mb_strnicmp, utf_ptr2len, utfc_ptr2len};
+#[cfg(not(test))]
 use crate::memory::xmemdupz;
+#[cfg(not(test))]
+use crate::message::{emsg, semsg};
+#[cfg(not(test))]
+use crate::strings::reverse_text;
+#[cfg(not(test))]
+use std::ffi::{CStr, c_char};
+use std::ffi::{c_int, c_void};
 
 const VAR_UNLOCKED: c_int = 0;
 const VAR_LOCKED: c_int = 1;

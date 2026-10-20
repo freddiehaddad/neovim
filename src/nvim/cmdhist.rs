@@ -4,40 +4,41 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::charset::vim_strsize;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_get_number, tv_get_number_chk};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_get_string_buf, tv_get_string_chk};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::clipboard::VarType;
+use crate::clipboard::typval_T;
+use crate::eval::deprecated::EvalFuncData;
+#[cfg(not(test))]
+use crate::eval::typval::{tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk};
+#[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
+#[cfg(not(test))]
 use crate::globals::*;
-use crate::message::semsg;
-#[allow(unused_imports)]
+use crate::lua::secure::exarg_T;
+use crate::math::{FAIL, OK};
+use crate::memory::{xfree, xmallocz};
+#[cfg(not(test))]
+use crate::memory::{xmalloc, xstrlcpy};
+#[cfg(not(test))]
 use crate::message::{
-    message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title,
+    message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
 };
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+use crate::os::time::os_time;
+use crate::profile::expand_T;
+#[cfg(not(test))]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
-
-use crate::clipboard::{VarType, typval_T};
-use crate::eval::deprecated::EvalFuncData;
-use crate::lua::secure::exarg_T;
-use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmalloc, xmallocz, xstrlcpy};
-use crate::os::time::os_time;
-use crate::profile::expand_T;
 
 pub const HIST_DEFAULT: c_int = -2;
 pub const HIST_INVALID: c_int = -1;

@@ -5,62 +5,66 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::missing_safety_doc,
     clippy::upper_case_acronyms
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::helpers::cstr_as_string;
+#[cfg(not(test))]
 use crate::errors::*;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_guess_handle, uv_req_size, uv_strerror, uv_translate_sys_error};
+use crate::eval::fs::{FileInfo, uv_stat_t};
+#[cfg(all(not(test), windows))]
+use crate::event::r#loop::uv_guess_handle;
+#[cfg(not(test))]
+use crate::event::r#loop::{uv_req_size, uv_strerror, uv_translate_sys_error};
+use crate::file_search::FileID;
+#[cfg(not(test))]
 use crate::globals::*;
+#[cfg(all(not(test), unix))]
 use crate::log::logmsg;
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::mbyte::mb_strnicmp;
-#[cfg(windows)]
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::mbyte::{utf8_to_utf16, utf16_to_utf8};
-#[allow(unused_imports)]
-use crate::message::{emsg, verbose_enter, verbose_leave};
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
+use crate::memory::xmallocz;
+#[cfg(not(test))]
+use crate::memory::{memcnt, xfree, xmalloc, xmemcpyz, xmemdupz, xstrchrnul, xstrdup, xstrlcpy};
+#[cfg(not(test))]
+use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
+#[cfg(all(not(test), windows))]
 use crate::option::copy_option_part;
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::path::path_next_component;
-#[allow(unused_imports)]
-use crate::path::path_to_slash;
-#[allow(unused_imports)]
-use crate::path::to_slash;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::os::env::os_getenv;
+#[cfg(all(not(test), windows))]
+use crate::os::env::{os_env_exists, os_getenv_noalloc};
+#[cfg(not(test))]
 use crate::path::{
     FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
-    path_tail, path_tail_with_sep, path_with_url, save_abs_path, vim_ispathsep,
-    vim_ispathsep_nocolon,
+    path_tail_with_sep, path_with_url, save_abs_path, to_slash, vim_ispathsep,
 };
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
+use crate::path::{path_next_component, path_tail, vim_ispathsep_nocolon};
+#[cfg(not(test))]
 use crate::strings::gettext;
-#[allow(unused_imports)]
+#[cfg(all(not(test), unix))]
+use crate::strings::strerror;
 use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::{strerror, wcslen};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ui::ui_call_chdir;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+#[cfg(windows)]
+use std::ffi::CStr;
+#[cfg(all(not(test), windows))]
+use std::ffi::c_uint;
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::eval::fs::{FileInfo, uv_stat_t};
-use crate::file_search::FileID;
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{
-    memcnt, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrchrnul, xstrdup, xstrlcpy,
-};
-use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use crate::os::os_win_console::os_redirect_stdin_to_conin;
 
 #[repr(C)]
@@ -288,7 +292,7 @@ use crate::event::r#loop::{uv_chdir, uv_cwd, uv_fs_req_cleanup};
 #[cfg(all(not(test), windows))]
 use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
 #[cfg(all(not(test), not(windows)))]
-use crate::fileio::{close, dup, fcntl, fdopen, getuid, read, write};
+use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
 
 #[cfg(not(test))]
 unsafe extern "C" {
@@ -713,7 +717,7 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
         let ok = s_isreg(mode as u64);
 
         #[cfg(not(windows))]
-        let ok = if s_isreg(mode as u64) {
+        let ok = s_isreg(mode as u64) && {
             #[cfg(not(test))]
             {
                 let mut req: uv_fs_buf_t = [0; 80];
@@ -725,8 +729,6 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
             {
                 false
             }
-        } else {
-            false
         };
 
         #[cfg(not(test))]

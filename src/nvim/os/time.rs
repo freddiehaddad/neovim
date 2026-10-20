@@ -1,16 +1,19 @@
 //! High-resolution timers, delays, and local-time formatting (`src/nvim/os/time.c`).
 
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code)]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::event::r#loop::loop_poll_events;
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(all(not(test), unix))]
 use crate::os::env::os_getenv_noalloc;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::os::input::os_input_ready;
 use std::cell::UnsafeCell;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int, c_uint};
 
 pub type Timestamp = u64;
 #[allow(non_camel_case_types)]
@@ -170,7 +173,7 @@ pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -
         let cache = &mut *TZ_CACHE.0.get();
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);
-        if cache_len != cmp_len || &cache[..cache_len] != &tz_bytes[..cmp_len] {
+        if cache_len != cmp_len || cache[..cache_len] != tz_bytes[..cmp_len] {
             tzset();
             cache.fill(0);
             cache[..cmp_len].copy_from_slice(&tz_bytes[..cmp_len]);

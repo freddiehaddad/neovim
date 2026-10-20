@@ -4,23 +4,25 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::lua::base64::lua_State;
+#[cfg(not(test))]
 use crate::lua::converter::{
     lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring, lua_settop,
     lua_toboolean, lua_tolstring,
 };
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
-use crate::message::{semsg, smsg};
-use std::ffi::{CStr, c_char, c_int, c_void};
-
-use crate::lua::base64::lua_State;
-use crate::lua::converter::lua_Number;
+#[cfg(not(test))]
 use crate::memory::{xcalloc, xfree, xmemdupz};
+#[cfg(not(test))]
+use crate::message::{semsg, smsg};
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int};
 
 const LUA_GLOBALSINDEX: c_int = -10002;
 

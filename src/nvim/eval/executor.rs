@@ -1,27 +1,24 @@
 //! Vimscript compound assignment operator execution (`+=`, `-=`, `*=`, `/=`, `%=`, `.=`)
 //! (`src/nvim/eval/executor.c`).
 
-#![allow(dead_code, unused_imports, clippy::missing_safety_doc)]
+#![allow(dead_code, clippy::missing_safety_doc)]
 
+use crate::clipboard::{TypvalVval, VarType, typval_T};
+#[cfg(not(test))]
 use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::grow_string_tv;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_number;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_clear, tv_list_extend};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_get_string, tv_get_string_buf};
-#[allow(unused_imports)]
-use crate::eval::{num_divide, num_modulus};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::strings::concat_str;
-use std::ffi::{c_char, c_int, c_void};
-
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+#[cfg(not(test))]
+use crate::eval::typval::{
+    tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,
+};
+#[cfg(not(test))]
+use crate::eval::{grow_string_tv, num_divide, num_modulus};
 use crate::garray::{ga_grow, garray_T};
 use crate::math::{FAIL, OK};
+#[cfg(not(test))]
+use crate::message::semsg;
+#[cfg(not(test))]
+use crate::strings::concat_str;
+use std::ffi::{c_char, c_int, c_void};
 
 const NUMBUFLEN: usize = 65;
 

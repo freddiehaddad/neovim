@@ -9,103 +9,63 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::put_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_free_array, arena_array, arena_dict, arena_string, cstr_as_string,
-};
-#[allow(unused_imports)]
-use crate::buffer::{append_arg_number, buf_spname, get_rel_pos};
-#[allow(unused_imports)]
-use crate::buffer::{bt_quickfix, calc_percentage};
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::charset::{vim_strnsize, vim_strsize};
-#[allow(unused_imports)]
-use crate::drawline::{fill_foldcolumn, use_cursor_line_highlight};
-#[allow(unused_imports)]
-use crate::drawscreen::{compute_foldcolumn, redrawing};
-#[allow(unused_imports)]
-use crate::eval::eval_to_string_safe;
-#[allow(unused_imports)]
-use crate::eval::vars::{do_unlet, set_internal_string_var, set_var};
-#[allow(unused_imports)]
-use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::highlight::{hl_attr, win_hl_attr};
-#[allow(unused_imports)]
-use crate::highlight_group::{syn_id2attr, syn_name2id_len};
-#[allow(unused_imports)]
-use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
-#[allow(unused_imports)]
-use crate::message::msg_clr_eos;
-#[allow(unused_imports)]
-use crate::normal::showcmd_update_clear_state;
-#[allow(unused_imports)]
-use crate::option::was_set_insecurely;
-#[allow(unused_imports)]
-use crate::option::{
-    find_option, get_fileformat, get_option_default, optval_free_read, set_option_direct,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::home_replace;
-#[allow(unused_imports)]
-use crate::path::{path_tail, shorten_dir};
-#[allow(unused_imports)]
-use crate::strings::toupper;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext};
-#[allow(unused_imports)]
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-#[allow(unused_imports)]
-use crate::ui::ui_call_tabline_update;
-#[allow(unused_imports)]
-use crate::ui::{ui_call_msg_ruler, ui_has};
-#[allow(unused_imports)]
-use crate::undo::bufIsChanged;
-#[allow(unused_imports)]
-use crate::window::lastwin_nofloating;
-#[allow(unused_imports)]
-use crate::window::{global_stl_height, tabline_height};
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::options::CharBuf;
+use crate::api::private::helpers::{
+    add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
+};
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{ScreenGrid, win_T};
-use crate::charset::{getdigits_int, skipdigits, trans_characters, transstr_buf};
+use crate::buffer::{append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos};
+use crate::charset::{
+    ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf, vim_strnsize,
+    vim_strsize,
+};
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
 use crate::digraph::get_keymap_str;
+use crate::drawline::{fill_foldcolumn, use_cursor_line_highlight};
+use crate::drawscreen::{compute_foldcolumn, redrawing};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::buf_T;
+use crate::eval::eval_to_string_safe;
+use crate::eval::vars::{
+    do_unlet, get_vim_var_nr, set_internal_string_var, set_var, set_vim_var_nr,
+};
+use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts,
-    grid_line_start, schar_T, schar_get, schar_get_adv, schar_len, screengrid_line_start,
+    grid_line_start, schar_T, schar_from_ascii, schar_get, schar_get_adv, schar_len,
+    screengrid_line_start,
 };
-use crate::highlight::hl_combine_attr;
+use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
+use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::scid_T;
 use crate::map::{map_put_ref_int_StcClick, map_put_ref_int_StcClicks};
 use crate::map_glyph_cache::NvimString;
+use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
+use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
     xstrlcpy,
 };
+use crate::message::msg_clr_eos;
 use crate::mouse::StlClickDefinition;
+use crate::normal::showcmd_update_clear_state;
+use crate::option::{
+    find_option, get_fileformat, get_option_default, optval_free_read, set_option_direct,
+    was_set_insecurely,
+};
+use crate::option_vars::*;
+use crate::os::env::home_replace;
+use crate::path::{path_tail, shorten_dir};
 use crate::plines::{colnr_T, linenr_T};
 use crate::sign::describe_sign_text;
+use crate::strings::{atoi, gettext, toupper, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
+use crate::undo::bufIsChanged;
+use crate::window::{global_stl_height, lastwin_nofloating, tabline_height};
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub use crate::ex_getln::hlf_T;
 pub use crate::optionstr::OptIndex;

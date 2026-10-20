@@ -5,48 +5,53 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_variables,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::converter::{
-    lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata, lua_objlen,
-    lua_pcall, lua_pushboolean, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
-    lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable,
-    lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_argerror, luaL_checkinteger,
-    luaL_checklstring, luaL_error,
-};
-#[allow(unused_imports)]
-use crate::lua::converter::{
-    lua_isstring, lua_pushcclosure, lua_tointeger, lua_touserdata, luaL_checkudata,
-    luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
-};
-#[allow(unused_imports)]
-use crate::memline::{ml_get_buf, ml_get_buf_len};
-#[allow(unused_imports)]
-use crate::memory::strequal;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
+#[cfg(not(test))]
 use crate::context::handle_get_buffer;
+#[cfg(not(test))]
 use crate::cursor::linenr_T;
+#[cfg(not(test))]
 use crate::eval::deprecated::buf_T;
-use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
-use crate::lua::converter::{LuaRef, lua_Integer, lua_Number};
-use crate::map::{
-    Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
+#[cfg(not(test))]
+use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
+use crate::lua::base64::lua_CFunction;
+use crate::lua::base64::{lua_State, luaL_Reg};
+use crate::lua::converter::LuaRef;
+#[cfg(not(test))]
+use crate::lua::converter::{
+    lua_Integer, lua_Number, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop,
+    lua_isstring, lua_newuserdata, lua_objlen, lua_pcall, lua_pushboolean, lua_pushcclosure,
+    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
+    lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean,
+    lua_tointeger, lua_tolstring, lua_touserdata, lua_type, luaL_argerror, luaL_checkinteger,
+    luaL_checklstring, luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register,
+    luaL_unref,
 };
+use crate::map::{Map, Set, cstr_t, mh_get_cstr_t, ptr_t};
+#[cfg(not(test))]
+use crate::map::{map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
-use crate::memory::{xcalloc, xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
+#[cfg(not(test))]
+use crate::memline::{ml_get_buf, ml_get_buf_len};
+#[cfg(not(test))]
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
+#[cfg(not(test))]
 use crate::msgpack_rpc::packer::handle_T;
+#[cfg(not(test))]
+use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
+#[cfg(not(test))]
+use crate::strings::vim_snprintf;
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 
 pub type TSSymbol = u16;
 pub type TSFieldId = u16;
@@ -111,8 +116,6 @@ const TS_META_NODE: *const c_char = c"treesitter_node".as_ptr();
 const TS_META_QUERY: *const c_char = c"treesitter_query".as_ptr();
 const TS_META_QUERYCURSOR: *const c_char = c"treesitter_querycursor".as_ptr();
 const TS_META_QUERYMATCH: *const c_char = c"treesitter_querymatch".as_ptr();
-
-use crate::os::dl::UvLib;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -693,8 +696,6 @@ unsafe extern "C" {
         new_free: Option<unsafe extern "C" fn(*mut c_void)>,
     );
 }
-
-use crate::cursor::colnr_T;
 
 #[inline]
 const fn lua_upvalueindex(i: c_int) -> c_int {

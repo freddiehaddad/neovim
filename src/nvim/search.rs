@@ -11,103 +11,48 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::cursor::clearpos;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt, ltoreq};
-#[allow(unused_imports)]
-use crate::drawscreen::showmode;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_len;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_check_for_nonnull_dict_arg, tv_dict_get_bool, tv_get_string_chk};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_get_number_chk, tv_list_find,
-};
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
-use crate::ex_cmds::getfile;
-#[allow(unused_imports)]
-use crate::ex_cmds::prepare_tagpreview;
-#[allow(unused_imports)]
-use crate::ex_docmd::set_no_hlsearch;
-#[allow(unused_imports)]
-use crate::ex_getln::gotocmdline;
-#[allow(unused_imports)]
-use crate::fileio::fclose;
-#[allow(unused_imports)]
-use crate::fileio::vim_fgets;
-#[allow(unused_imports)]
-use crate::fold::{foldOpenCursor, hasFolding};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::insexpand::{
-    compl_status_adding, compl_status_sol, ctrl_x_mode_not_default, find_word_end, find_word_start,
-    ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted, ins_compl_len,
-};
-#[allow(unused_imports)]
-use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
-    msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
-    msg_puts_title, msg_start, msg_strtrunc, msg_trunc, verbose_enter, verbose_leave,
-};
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
-use crate::normal::may_start_select;
-#[allow(unused_imports)]
-use crate::option::shortmess;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::path::to_slash;
-#[allow(unused_imports)]
-use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{atol, gettext, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{reverse_text, vim_strchr, xstrnsave};
-#[allow(unused_imports)]
-use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
-#[allow(unused_imports)]
-use crate::window::{win_enter, win_split, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::api::command::regmatch_T;
 use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
+use crate::buffer::buf_get_changedtick;
 use crate::change::get_leader_len;
-use crate::charset::{skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
+use crate::charset::{ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::clipboard::{VarType, listitem_T, typval_T};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
-    check_cursor, colnr_T, dec_cursor, get_cursor_line_len, get_cursor_line_ptr, inc_cursor,
-    linenr_T,
+    check_cursor, clearpos, colnr_T, dec_cursor, equalpos, get_cursor_line_len,
+    get_cursor_line_ptr, inc_cursor, linenr_T, lt, ltoreq,
 };
 use crate::drawscreen::{
     UPD_INVERTED, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_curbuf_later, redraw_later,
-    setcursor, show_cursor_info_later, update_screen,
+    setcursor, show_cursor_info_later, showmode, update_screen,
 };
+use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::typval::{
+    tv_check_for_nonnull_dict_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find,
+    tv_dict_get_bool, tv_get_number_chk, tv_get_string_chk, tv_list_find, tv_list_len,
+};
+use crate::eval::vars::set_vim_var_nr;
+use crate::ex_cmds::{getfile, prepare_tagpreview};
+use crate::ex_docmd::set_no_hlsearch;
+use crate::ex_getln::gotocmdline;
 use crate::extmark::TriState;
 use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
+use crate::fileio::{fclose, vim_fgets};
+use crate::fold::{foldOpenCursor, hasFolding};
+use crate::globals::*;
 use crate::indent_c::check_linecomment;
 use crate::input::char_avail;
 use crate::input_cmdatom::cmdarg_T;
+use crate::insexpand::{
+    compl_status_adding, compl_status_sol, ctrl_x_mode_not_default, find_word_end, find_word_start,
+    ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted, ins_compl_len,
+};
 use crate::mark::setpcmark;
 use crate::r#match::regmmatch_T;
 use crate::math::{FAIL, OK};
@@ -115,17 +60,32 @@ use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_head_off, utf_iscomposing_first,
     utf_ptr2char, utfc_ptr2len,
 };
+use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrlcpy};
+use crate::message::{
+    emsg, give_warning, iemsg, messaging, msg, msg_check, msg_clr_eos, msg_end, msg_ext_set_kind,
+    msg_home_replace, msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl,
+    msg_puts_title, msg_start, msg_strtrunc, msg_trunc, semsg, smsg, verbose_enter, verbose_leave,
+};
 use crate::mouse::setmouse;
 use crate::r#move::validate_cursor;
+use crate::normal::may_start_select;
+use crate::option::shortmess;
+use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::time::{Timestamp, os_delay, os_time};
-use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fname};
+use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fname, to_slash};
 use crate::plines::getvcol;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree};
 use crate::state::MODE_SHOWMATCH;
+use crate::strings::{atol, gettext, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
 use crate::textformat::{MotionType, oparg_T};
+use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
+use crate::window::{win_enter, win_split, win_valid};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub type Direction = c_int;
 pub use crate::api::win_config::UIExtension;
@@ -1319,7 +1279,10 @@ pub unsafe extern "C" fn parse_search_pattern_offset(
         }
         if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
-                (*offset).off = i64::from(atol(p));
+                #[allow(clippy::useless_conversion)]
+                {
+                    (*offset).off = i64::from(atol(p));
+                }
             } else if *p == b'-' as c_char {
                 (*offset).off = -1;
             } else {

@@ -6,7 +6,6 @@
     non_snake_case,
     non_upper_case_globals,
     unused_assignments,
-    unused_imports,
     unused_mut,
     unused_unsafe,
     unused_variables,
@@ -14,105 +13,106 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{arena_array, arena_dict};
-#[allow(unused_imports)]
-use crate::autocmd::{apply_autocmds, has_event};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_find;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_ref;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_free,
-    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_unref,
-};
-#[allow(unused_imports)]
-use crate::eval::{callback_call, get_v_event, restore_v_event};
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_strerror;
-#[allow(unused_imports)]
-use crate::event::proc::exit_on_closed_chan;
-#[cfg(not(windows))]
-#[allow(unused_imports)]
-use crate::fileio::fcntl;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::api_free_luaref;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::os::fs::os_dup_cloexec;
-#[allow(unused_imports)]
-use crate::os::fs::os_write;
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::os::os_win_console::os_attach_parent_console;
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::os::pty_conpty_win::os_has_conpty_working;
-#[allow(unused_imports)]
-use crate::os::pty_proc::{
-    pty_proc_close_master, pty_proc_resize, pty_proc_resume, pty_proc_tty_name,
-};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::terminal::{
-    terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
-    terminal_set_state,
-};
-#[allow(unused_imports)]
-use crate::ui_client::ui_client_attach_to_restarted_server;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
+#[cfg(not(test))]
 use crate::api::private::converter::object_to_vim;
-use crate::api::private::validate::{
-    Array, Dict, Error, KeyValuePair, Object, ObjectData, ObjectType,
-};
-use crate::api::tabpage::Buffer;
+use crate::api::private::helpers::cstr_as_string;
+#[cfg(not(test))]
+use crate::api::private::helpers::{arena_array, arena_dict};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+#[cfg(not(test))]
+use crate::autocmd::{apply_autocmds, has_event};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+#[cfg(not(test))]
+use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, CallbackReader, buf_T};
+#[cfg(not(test))]
 use crate::eval::encode::encode_list_write;
-use crate::event::r#loop::loop_queues;
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_new_child,
-    multiqueue_put_event,
+#[cfg(not(test))]
+use crate::eval::typval::{
+    callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
+    tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
 };
+#[cfg(not(test))]
+use crate::eval::{callback_call, get_v_event, restore_v_event};
+#[cfg(not(test))]
+use crate::event::r#loop::{loop_queues, uv_strerror};
+#[cfg(not(test))]
+use crate::event::multiqueue::multiqueue_new_child;
+use crate::event::multiqueue::{
+    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_put_event,
+};
+#[cfg(not(test))]
+use crate::event::proc::exit_on_closed_chan;
 use crate::event::proc::{
     Proc, proc_err, proc_free, proc_header, proc_in, proc_out, proc_size, proc_spawn, proc_stop,
     proc_tail,
 };
+#[cfg(not(test))]
+use crate::event::rstream::rstream_init_fd;
 use crate::event::rstream::{
-    RStream, rstream_init, rstream_init_fd, rstream_may_close, rstream_size, rstream_start,
-    rstream_start_inner, rstream_stop_inner,
+    RStream, rstream_init, rstream_may_close, rstream_size, rstream_start, rstream_start_inner,
+    rstream_stop_inner,
 };
-use crate::event::socket::{SocketWatcher, socket_connect, socket_watcher_accept};
+#[cfg(not(test))]
+use crate::event::socket::socket_connect;
+use crate::event::socket::{SocketWatcher, socket_watcher_accept};
 use crate::event::stream::{Stream, stream_closed_ptr, stream_fields, stream_may_close};
-use crate::event::wstream::{
-    WBuffer, wstream_init, wstream_init_fd, wstream_new_buffer, wstream_write,
-};
+#[cfg(not(test))]
+use crate::event::wstream::wstream_init_fd;
+use crate::event::wstream::{wstream_init, wstream_new_buffer, wstream_write};
+#[cfg(not(windows))]
+#[cfg(not(test))]
+use crate::fileio::fcntl;
 use crate::garray::{ga_clear, ga_concat_len, ga_init};
+#[cfg(not(test))]
+use crate::globals::*;
 use crate::lua::converter::LuaRef;
-use crate::map::{Map, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t, ptr_t};
-use crate::map_glyph_cache::{MapHash, NvimString};
-use crate::memory::{
-    Arena, arena_alloc, arena_finish, arena_mem_free, arena_memdupz, xcalloc, xfree, xmemdup,
-    xstrdup,
-};
+#[cfg(not(test))]
+use crate::lua::executor::api_free_luaref;
+#[cfg(not(test))]
+use crate::map::{Map, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t};
+#[cfg(not(test))]
+use crate::map_glyph_cache::MapHash;
+use crate::map_glyph_cache::NvimString;
+use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdup, xstrdup};
+#[cfg(not(test))]
+use crate::memory::{arena_finish, arena_mem_free};
+#[cfg(not(test))]
+use crate::message::semsg;
 use crate::msgpack_rpc::channel::{
-    Channel, ChannelPart, ChannelStreamType, channel_instream, channel_outstream, channel_prefix,
-    channel_size, channel_stream_ptr, channel_tail, event_T, find_channel, rpc_close, rpc_free,
-    rpc_init, rpc_start,
+    Channel, ChannelPart, ChannelStreamType, channel_instream, channel_prefix, channel_size,
+    channel_stream_ptr, channel_tail, event_T, find_channel, rpc_close, rpc_free, rpc_init,
+    rpc_start,
 };
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::server::server_owns_pipe_address;
+#[cfg(all(not(test), windows))]
+use crate::os::fs::os_dup_cloexec;
+#[cfg(not(test))]
+use crate::os::fs::os_write;
+#[cfg(all(not(test), windows))]
+use crate::os::os_win_console::os_attach_parent_console;
+#[cfg(all(not(test), windows))]
+use crate::os::pty_conpty_win::os_has_conpty_working;
+#[cfg(not(test))]
+use crate::os::pty_proc::{
+    pty_proc_close_master, pty_proc_resize, pty_proc_resume, pty_proc_tty_name,
+};
 use crate::os::shell::shell_free_argv;
+#[cfg(not(test))]
 use crate::state::save_v_event_T;
+#[cfg(not(test))]
+use crate::strings::gettext;
+#[cfg(not(test))]
+use crate::terminal::{
+    terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
+    terminal_set_state,
+};
+#[cfg(not(test))]
+use crate::ui_client::ui_client_attach_to_restarted_server;
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
 
 pub type ChannelStdinMode = c_int;
 pub use crate::eval::buffer::varnumber_T;
@@ -1653,7 +1653,7 @@ pub unsafe extern "C" fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             #[cfg(not(test))]
             let tbuf = terminal_buf((*ct).term);
             #[cfg(test)]
-            let tbuf: Buffer = 0;
+            let tbuf: c_int = 0;
             dict_put_cstr(
                 &mut info,
                 c"buf",

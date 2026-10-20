@@ -4,39 +4,43 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::only_used_in_recursion
 )]
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::nil_obj;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::api::private::validate::{Array, Dict};
+use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
+use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+#[cfg(not(test))]
+use crate::eval::decode::dictitem_T;
+use crate::eval::decode::{decode_string, dict_T};
+#[cfg(not(test))]
+use crate::eval::executor::blob_T;
+#[cfg(not(test))]
 use crate::eval::typval::{
     tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
 };
-#[allow(unused_imports)]
-use crate::eval::userfunc::find_func;
-#[allow(unused_imports)]
-use crate::eval::userfunc::register_luafunc;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::eval::userfunc::{find_func, register_luafunc};
+#[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
-#[allow(unused_imports)]
-use crate::lua::executor::api_new_luaref;
-use std::ffi::{CStr, c_char, c_int, c_void};
-
-use crate::api::private::validate::{
-    Array, Dict, Error, KeyValuePair, Object, ObjectData, ObjectType,
-};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::eval::decode::{decode_string, dict_T, dictitem_T};
-use crate::eval::executor::blob_T;
 use crate::garray::garray_T;
-use crate::hashtab::{hashitem_T, hashitem_empty};
+use crate::hashtab::hashitem_T;
+#[cfg(not(test))]
+use crate::hashtab::hashitem_empty;
+#[cfg(not(test))]
+use crate::lua::executor::api_new_luaref;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_memdupz, xstrdup};
+#[cfg(not(test))]
+use crate::memory::xstrdup;
+use crate::memory::{Arena, arena_memdupz};
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int, c_void};
 
 const VAR_UNLOCKED: c_int = 0;
 const K_SPECIAL_VAR_NULL: i64 = 0;

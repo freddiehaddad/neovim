@@ -1,15 +1,12 @@
 //! Lua `vim.base64` bindings (`src/nvim/lua/base64.c`).
 
-#[allow(unused_imports)]
-use crate::lua::converter::luaL_register;
-#[allow(unused_imports)]
+use crate::base64::{decode_bytes, encode_bytes};
+#[cfg(not(test))]
 use crate::lua::converter::{
     lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type, luaL_argerror,
-    luaL_error,
+    luaL_error, luaL_register,
 };
 use std::ffi::{c_char, c_int, c_void};
-
-use crate::base64::{decode_bytes, encode_bytes};
 
 #[allow(non_camel_case_types)]
 pub type lua_State = c_void;

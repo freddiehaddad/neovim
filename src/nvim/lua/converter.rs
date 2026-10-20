@@ -5,63 +5,67 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::api::private::converter::partial_T;
 use crate::api::private::helpers::nil_obj;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::helpers::{
-    api_free_array, api_free_dict, api_free_object, arena_array, arena_dict,
+    api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, arena_array,
+    arena_dict, error_set,
 };
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_blob_len, tv_list_ref};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
-    tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::userfunc::find_func;
-#[allow(unused_imports)]
-use crate::eval::userfunc::register_luafunc;
-use crate::eval::vars::eval_msgpack_type_lists;
-#[allow(unused_imports)]
-use crate::eval::{get_copyID, partial_name};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::syn_check_group;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, internal_error};
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use crate::api::private::converter::{partial_T, ufunc_T};
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
-};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::api::private::validate::{Array, Dict, Error, Object, ObjectType};
+#[cfg(not(test))]
+use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectData};
+use crate::clipboard::typval_T;
+#[cfg(not(test))]
+use crate::clipboard::{TypvalVval, VarType};
+#[cfg(not(test))]
 use crate::eval::decode::{decode_create_map_special_dict, decode_string, dict_T, dictitem_T};
-use crate::eval::encode::encode_vim_list_to_buf;
+#[cfg(not(test))]
+use crate::eval::encode::{
+    MPConvStackData, MPConvStackVal, MPConvStackValType, encode_vim_list_to_buf,
+};
+#[cfg(not(test))]
 use crate::eval::executor::blob_T;
-use crate::hashtab::{hashitem_T, hashitem_empty};
+#[cfg(not(test))]
+use crate::eval::typval::{
+    tv_blob_len, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find,
+    tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
+    tv_list_first, tv_list_last, tv_list_len, tv_list_ref,
+};
+#[cfg(not(test))]
+use crate::eval::userfunc::{find_func, register_luafunc};
+#[cfg(not(test))]
+use crate::eval::vars::eval_msgpack_type_lists;
+#[cfg(not(test))]
+use crate::eval::{get_copyID, partial_name};
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
+use crate::hashtab::hashitem_empty;
+#[cfg(not(test))]
+use crate::highlight_group::syn_check_group;
 use crate::lua::base64::lua_State;
+#[cfg(not(test))]
+use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::math::{FAIL, OK};
-use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
+use crate::memory::{Arena, arena_memdupz};
+#[cfg(not(test))]
+use crate::memory::{xfree, xstrdup};
+#[cfg(not(test))]
+use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int, c_void};
+use std::sync::atomic::AtomicBool;
+#[cfg(not(test))]
+use std::sync::atomic::Ordering;
 
 pub type Boolean = bool;
 pub type Float = f64;
@@ -156,10 +160,6 @@ struct ObjPopStackItem {
     obj: *mut Object,
     container: bool,
 }
-
-use crate::eval::encode::{
-    MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType,
-};
 
 unsafe extern "C-unwind" {
     pub fn lua_gettop(L: *mut lua_State) -> c_int;

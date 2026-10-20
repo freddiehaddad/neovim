@@ -9,78 +9,49 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, arena_array, arena_dict, buf_get_text, dict_get_value, dict_set_var,
-    find_buffer_by_handle, normalize_index, set_mark, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{boolean_obj, cstr_as_string, integer_obj, string_obj};
-#[allow(unused_imports)]
-use crate::buffer::buf_ensure_loaded;
-#[allow(unused_imports)]
-use crate::buffer::do_buffer;
-#[allow(unused_imports)]
-use crate::change::changed_lines;
-#[allow(unused_imports)]
-use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos};
-#[allow(unused_imports)]
-use crate::ex_cmds::rename_buffer;
-#[allow(unused_imports)]
-use crate::extmark::extmark_splice;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::converter::{lua_createtable, lua_pushlstring, lua_rawseti};
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_ref;
-#[allow(unused_imports)]
-use crate::mapping::{keymap_array, modify_keymap};
-#[allow(unused_imports)]
-use crate::mark::{mark_adjust_buf, mark_get};
-#[allow(unused_imports)]
-use crate::memline::{
-    ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len,
-    ml_replace_buf,
-};
-#[allow(unused_imports)]
-use crate::memory::memchrsub;
-#[allow(unused_imports)]
-use crate::memory::strchrsub;
-#[allow(unused_imports)]
-use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
-#[allow(unused_imports)]
-use crate::ops::get_region_bytecount;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::undo::u_save_buf;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::{
+    add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
+    cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, integer_obj,
+    normalize_index, set_mark, static_cstr_as_obj, string_obj, try_enter, try_leave,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_invalid,
     check_string_array,
 };
 use crate::api::tabpage::{Buffer, pos_T, win_T};
+use crate::buffer::{buf_ensure_loaded, do_buffer};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
+use crate::change::changed_lines;
 use crate::context::{ctx_restore, ctx_switch};
+use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos};
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
+use crate::ex_cmds::rename_buffer;
+use crate::extmark::extmark_splice;
+use crate::globals::*;
 use crate::lua::base64::lua_State;
-use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::converter::{Boolean, LuaRef, lua_createtable, lua_pushlstring, lua_rawseti};
+use crate::lua::executor::nlua_call_ref;
 use crate::map_glyph_cache::NvimString;
+use crate::mapping::{keymap_array, modify_keymap};
+use crate::mark::{mark_adjust_buf, mark_get};
 use crate::marktree::kMTMetaLines;
-use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz, xfree, xmemdupz};
+use crate::memline::{
+    ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len,
+    ml_replace_buf,
+};
+use crate::memory::{
+    Arena, arena_alloc, arena_allocz, arena_memdupz, memchrsub, strchrsub, xfree, xmemdupz,
+};
+use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
+use crate::ops::get_region_bytecount;
+use crate::option_vars::*;
+use crate::undo::u_save_buf;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

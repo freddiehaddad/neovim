@@ -5,54 +5,59 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
+use crate::charset::{ascii_isdigit, ascii_iswhite, rem_backslash};
+#[cfg(not(test))]
+use crate::charset::{skipwhite, transstr, vim_str2nr};
+use crate::clipboard::{VarType, typval_T};
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::buffer::varnumber_T;
+use crate::eval::deprecated::EvalFuncData;
+#[cfg(not(test))]
+use crate::eval::encode::encode_tv2echo;
+use crate::eval::encode::encode_tv2string;
+use crate::eval::typval::float_T;
+#[cfg(not(test))]
 use crate::eval::typval::{
     tv_check_for_number_arg, tv_check_for_opt_bool_arg, tv_check_for_opt_number_arg,
-    tv_check_for_opt_string_arg, tv_check_for_string_arg, tv_get_string, tv_get_string_buf_chk,
-    tv_get_string_chk,
+    tv_check_for_opt_string_arg, tv_check_for_string_arg, tv_get_bool, tv_get_bool_chk,
+    tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
+    tv_list_alloc_ret, tv_list_append_number,
 };
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ex_docmd::find_cmdline_var;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
+use crate::math::{FAIL, OK, xisinf, xisnan};
+#[cfg(not(test))]
+use crate::mbyte::{
+    mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, utf_head_off, utf_ptr2char,
+    utf_ptr2len,
+};
+use crate::mbyte::{
+    mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_ptr2StrCharInfo, utf_ptr2cells,
+    utfc_ptr2len,
+};
+#[cfg(not(test))]
+use crate::memory::xmemdupz;
+use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemscan, xrealloc, xstrchrnul, xstrlcpy};
+#[cfg(not(test))]
 use crate::message::emsg;
-use crate::message::{semsg, siemsg};
-#[allow(unused_imports)]
+use crate::message::semsg;
+#[cfg(not(test))]
 use crate::option::{csh_like_shell, fish_like_shell};
+#[cfg(all(not(test), windows))]
 use crate::option_vars::*;
+#[cfg(not(test))]
+use crate::plines::linetabsize_col;
 use std::ffi::{
     CStr, c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void,
 };
 use std::mem::size_of;
 use std::ptr;
-
-use crate::charset::{rem_backslash, skipwhite, transstr, vim_str2nr};
-use crate::clipboard::{VarType, typval_T};
-use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::EvalFuncData;
-use crate::eval::encode::{encode_tv2echo, encode_tv2string};
-use crate::eval::typval::{
-    float_T, tv_get_bool, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_list_alloc_ret,
-    tv_list_append_number,
-};
-use crate::garray::{ga_append, ga_clear, ga_grow, ga_init, garray_T};
-use crate::math::{FAIL, OK, xisinf, xisnan};
-use crate::mbyte::{
-    mb_copy_char, mb_cptr2char_adv, mb_ptr2char_adv, mb_string2cells, mb_tolower, mb_toupper,
-    utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char,
-    utf_ptr2len, utfc_ptr2len,
-};
-use crate::memory::{
-    xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xmemscan, xrealloc, xstrchrnul, xstrlcpy,
-};
-use crate::plines::linetabsize_col;
 
 const NUL: c_char = 0;
 const CTRL_V: c_char = 0x16;

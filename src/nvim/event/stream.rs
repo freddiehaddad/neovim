@@ -8,22 +8,16 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::event::r#loop::{
-    uv_close, uv_guess_handle, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init, uv_run,
+    uv_close, uv_guess_handle, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init,
+    uv_pipe_init, uv_pipe_open, uv_run,
 };
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_pipe_init, uv_pipe_open};
 #[cfg(windows)]
-#[allow(unused_imports)]
 use crate::event::r#loop::{uv_tty_init, uv_tty_set_mode};
-#[allow(unused_imports)]
-use crate::log::g_min_log_level;
-use crate::log::logmsg;
+use crate::event::multiqueue::MultiQueue;
+use crate::log::{g_min_log_level, logmsg};
 use std::ffi::{c_int, c_void};
 use std::ptr;
-
-use crate::event::multiqueue::MultiQueue;
 
 pub const UV_IDLE: c_int = 6;
 pub const UV_NAMED_PIPE: c_int = 7;

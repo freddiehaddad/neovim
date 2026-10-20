@@ -6,37 +6,14 @@
     non_snake_case,
     non_upper_case_globals,
     unused_assignments,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::dict_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{bool_obj, int_obj};
-use crate::errors::*;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::option::set_tty_option;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::ui::ui_call_ui_send;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::{size_of, zeroed};
-use std::ptr;
-
 use crate::api::private::helpers::{
-    api_clear_error, arena_array, arena_dict, cstr_as_string, string_to_cstr,
+    api_clear_error, api_set_error, api_typename, arena_array, arena_dict, bool_obj,
+    cstr_as_string, dict_obj, error_set, int_obj, string_to_cstr,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
@@ -44,10 +21,12 @@ use crate::api::private::validate::{
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{do_autocmd_focusgained, may_trigger_vim_suspend_resume};
 use crate::channel::channel_close;
-use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
+use crate::errors::*;
+use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::wstream::wstream_new_buffer;
-use crate::grid::{sattr_T, schar_T, schar_get, schar_get_adv};
+use crate::globals::*;
+use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, Float};
@@ -59,19 +38,25 @@ use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
     Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xcalloc, xfree,
 };
-use crate::msgpack_rpc::channel::{
-    RemoteUI, channel_prefix, channel_tail, find_channel, rpc_write_raw,
-};
+#[cfg(windows)]
+use crate::msgpack_rpc::channel::channel_prefix;
+use crate::msgpack_rpc::channel::{RemoteUI, channel_tail, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
     mpack_w,
 };
+use crate::option::set_tty_option;
+use crate::option_vars::*;
+use crate::ui::{
+    ui_active, ui_attach_impl, ui_call_ui_send, ui_can_attach_more, ui_detach_impl, ui_grid_resize,
+    ui_refresh, ui_set_ext_option,
+};
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::mem::{size_of, zeroed};
+use std::ptr;
+
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
-use crate::ui::{
-    ui_active, ui_attach_impl, ui_can_attach_more, ui_detach_impl, ui_grid_resize, ui_refresh,
-    ui_set_ext_option,
-};
 
 const MAX_SCHAR_SIZE: usize = 32;
 const UI_BUF_SIZE: usize = 4096;

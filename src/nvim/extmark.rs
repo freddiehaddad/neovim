@@ -9,28 +9,16 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::decoration::{
-    buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free, decor_redraw,
-    decor_state_invalidate, decor_type_flags,
-};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::marktree::{mt_end, mt_invalid, mt_paired, mt_right};
-#[allow(unused_imports)]
-use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
-#[allow(unused_imports)]
-use crate::memline::ml_find_line_or_offset;
-#[allow(unused_imports)]
-use crate::undo::u_force_get_undo_header;
-use std::ffi::c_int;
-use std::ptr;
-
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{ExtmarkInfoArray, ExtmarkType};
 use crate::api::private::validate::Error;
 use crate::buffer_updates::buf_updates_send_splice;
+use crate::decoration::{
+    buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free, decor_redraw,
+    decor_state_invalidate, decor_type_flags,
+};
 use crate::eval::deprecated::{buf_T, pos_T};
+use crate::globals::*;
 use crate::kvec::KVec;
 use crate::map::{
     Map, map_del_uint32_t_uint32_t, map_put_ref_uint32_t_uint32_t, map_ref_uint32_t_uint32_t,
@@ -43,9 +31,14 @@ use crate::marktree::{
     marktree_get_alt, marktree_get_altpos, marktree_itr_current, marktree_itr_get,
     marktree_itr_get_ext, marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap,
     marktree_lookup, marktree_lookup_ns, marktree_move, marktree_move_region, marktree_put,
-    marktree_revise_meta, marktree_splice,
+    marktree_revise_meta, marktree_splice, mt_end, mt_invalid, mt_paired, mt_right,
 };
+use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
+use crate::memline::ml_find_line_or_offset;
 use crate::memory::{xfree, xrealloc};
+use crate::undo::u_force_get_undo_header;
+use std::ffi::c_int;
+use std::ptr;
 
 pub use crate::api::buffer::bcount_t;
 pub use crate::cursor::colnr_T;

@@ -9,77 +9,46 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::change::{del_bytes, del_char, get_leader_len, ins_bytes, ins_str, open_line};
-#[allow(unused_imports)]
-use crate::charset::ascii_isspace;
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::{char2cells, getwhitecols_curline, skipwhite};
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_curbuf_later;
-#[allow(unused_imports)]
-use crate::eval::eval_expr_option_number;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_char;
-#[allow(unused_imports)]
-use crate::eval::vars::{set_vim_var_nr, set_vim_var_string};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::indent::{
-    change_indent, get_expr_indent, get_indent, get_indent_lnum, get_lisp_indent,
-    get_number_indent, set_indent,
-};
-#[allow(unused_imports)]
-use crate::indent_c::{check_linecomment, cindent_on, get_c_indent};
-#[allow(unused_imports)]
-use crate::input::beep_flush;
-#[allow(unused_imports)]
-use crate::insert::{
-    backspace_until_column, beginline, get_nolist_virtcol, insertchar, set_can_cindent,
-    undisplay_dollar,
-};
-#[allow(unused_imports)]
-use crate::mark::mark_col_adjust;
-#[allow(unused_imports)]
-use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
-#[allow(unused_imports)]
-use crate::memline::{ml_get, ml_get_len, ml_replace};
-#[allow(unused_imports)]
-use crate::message::msgmore;
-#[allow(unused_imports)]
-use crate::r#move::update_topline;
-#[allow(unused_imports)]
-use crate::ops::do_join;
-#[allow(unused_imports)]
-use crate::option::was_set_insecurely;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::input::line_breakcheck;
-#[allow(unused_imports)]
-use crate::strings::strncmp;
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, xstrnsave};
-#[allow(unused_imports)]
-use crate::textobject::startPS;
-#[allow(unused_imports)]
-use crate::ui::ui_cursor_shape;
-#[allow(unused_imports)]
-use crate::undo::{u_save, u_save_cursor};
-#[allow(unused_imports)]
-use crate::window::win_fdccol_count;
-use std::ffi::{c_char, c_int, c_long};
-use std::ptr;
-
 use crate::api::autocmd::kCallbackNone;
+use crate::change::{del_bytes, del_char, get_leader_len, ins_bytes, ins_str, open_line};
+use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite};
 use crate::cursor::{
     check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
     linenr_T, pchar_cursor,
 };
+use crate::drawscreen::redraw_curbuf_later;
 use crate::eval::deprecated::pos_T;
+use crate::eval::eval_expr_option_number;
+use crate::eval::vars::{set_vim_var_char, set_vim_var_nr, set_vim_var_string};
+use crate::globals::*;
+use crate::indent::{
+    change_indent, get_expr_indent, get_indent, get_indent_lnum, get_lisp_indent,
+    get_number_indent, set_indent,
+};
+use crate::indent_c::{check_linecomment, cindent_on, get_c_indent};
+use crate::input::beep_flush;
+use crate::insert::{
+    backspace_until_column, beginline, get_nolist_virtcol, insertchar, set_can_cindent,
+    undisplay_dollar,
+};
+use crate::mark::mark_col_adjust;
+use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
+use crate::memline::{ml_get, ml_get_len, ml_replace};
 use crate::memory::xfree;
+use crate::message::msgmore;
+use crate::r#move::update_topline;
+use crate::ops::do_join;
+use crate::option::was_set_insecurely;
+use crate::option_vars::*;
+use crate::os::input::line_breakcheck;
+use crate::strings::{strncmp, vim_strchr, xstrnsave};
+use crate::textobject::startPS;
+use crate::ui::ui_cursor_shape;
+use crate::undo::{u_save, u_save_cursor};
+use crate::window::win_fdccol_count;
+use std::ffi::{c_char, c_int, c_long};
+use std::ptr;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
@@ -941,6 +910,7 @@ pub unsafe extern "C" fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> 
         let save_sctx = current_sctx;
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
+        #[allow(clippy::useless_conversion)]
         set_vim_var_nr(VV_COUNT, i64::from(count));
         set_vim_var_char(c);
 

@@ -8,19 +8,12 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::charset::ascii2cells;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-use crate::mbyte::utf8len_tab;
-#[allow(unused_imports)]
+use crate::grid::{schar_T, schar_from_ascii, schar_from_buf};
 use crate::mbyte::{
     utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_iscomposing, utf_ptr2CharInfo_impl,
+    utf8len_tab,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
-use std::ptr;
-
-use crate::grid::{schar_T, schar_from_buf};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
 use crate::vterm::keyboard::VTermStateFull;
@@ -37,6 +30,8 @@ use crate::vterm::vterm::{
     vterm_allocator_free, vterm_allocator_malloc, vterm_push_output_bytes,
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,
 };
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ptr;
 
 pub type VTermSelectionMask = c_int;
 

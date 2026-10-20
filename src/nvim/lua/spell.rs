@@ -9,26 +9,18 @@
 )]
 
 use crate::errors::*;
+use crate::eval::deprecated::synblock_T;
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::converter::luaL_register;
-#[allow(unused_imports)]
+use crate::lua::base64::{lua_State, luaL_Reg};
 use crate::lua::converter::{
-    lua_createtable, lua_gettop, lua_pushinteger, lua_pushlstring, lua_pushstring, lua_rawseti,
-    lua_tolstring, lua_type, luaL_argerror, luaL_error,
+    lua_Integer, lua_createtable, lua_gettop, lua_pushinteger, lua_pushlstring, lua_pushstring,
+    lua_rawseti, lua_tolstring, lua_type, luaL_argerror, luaL_error, luaL_register,
 };
-#[allow(unused_imports)]
 use crate::message::emsg;
-#[allow(unused_imports)]
 use crate::spell::{parse_spelllang, spell_check};
-#[allow(unused_imports)]
 use crate::strings::gettext;
 use std::ffi::{c_char, c_int};
 use std::ptr;
-
-use crate::eval::deprecated::synblock_T;
-use crate::lua::base64::{lua_State, luaL_Reg};
-use crate::lua::converter::lua_Integer;
 
 pub use crate::ex_getln::hlf_T;
 

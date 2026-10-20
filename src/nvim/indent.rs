@@ -9,92 +9,58 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+use crate::api::autocmd::kCallbackNone;
+use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::modifiable;
-#[allow(unused_imports)]
+use crate::api::tabpage::win_T;
+use crate::buffer::{buf_get_changedtick, modifiable};
 use crate::change::{changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str};
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite_or_nul;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::cursor::lt;
-#[allow(unused_imports)]
+use crate::charset::{
+    ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
+    getwhitecols_curline, skipwhite, vim_strsize,
+};
+use crate::clipboard::typval_T;
+use crate::cursor::{
+    check_cursor, coladvance, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, lt,
+};
 use crate::drawscreen::redraw_curbuf_later;
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::eval_expr_option_number;
-#[allow(unused_imports)]
 use crate::eval::typval::tv_get_lnum;
-#[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
 use crate::ex_docmd::handle_did_throw;
+use crate::extmark::extmark_splice_cols;
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
-#[allow(unused_imports)]
 use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
-#[allow(unused_imports)]
 use crate::mbyte::utfc_ptr2len;
-#[allow(unused_imports)]
 use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
-#[allow(unused_imports)]
-use crate::message::emsg;
-#[allow(unused_imports)]
-use crate::message::msg_progress;
-#[allow(unused_imports)]
-use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
-#[allow(unused_imports)]
-use crate::ops::shift_line;
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::{get_flp_value, get_showbreak_value, set_option_value, was_set_insecurely};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::optionstr::opt_keyset;
-#[allow(unused_imports)]
-use crate::os::input::line_breakcheck;
-#[allow(unused_imports)]
-use crate::regexp::vim_regexec;
-#[allow(unused_imports)]
-use crate::regexp::{vim_regcomp, vim_regfree};
-#[allow(unused_imports)]
-use crate::search::{findmatch, linewhite};
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, xstrnsave};
-#[allow(unused_imports)]
-use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
-use std::ptr;
-
-use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{exarg_T, regmatch_T};
-use crate::api::tabpage::win_T;
-use crate::charset::{char2cells, getdigits, getwhitecols_curline, skipwhite, vim_strsize};
-use crate::clipboard::typval_T;
-use crate::cursor::{
-    check_cursor, coladvance, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T,
-};
-use crate::eval::deprecated::{buf_T, pos_T};
-use crate::extmark::extmark_splice_cols;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
-use crate::option::opt_error;
+use crate::message::{emsg, msg_progress};
+use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
+use crate::ops::shift_line;
+use crate::option::{
+    copy_option_part, get_flp_value, get_showbreak_value, opt_error, set_option_value,
+    was_set_insecurely,
+};
+use crate::option_vars::*;
+use crate::optionstr::opt_keyset;
+use crate::os::input::line_breakcheck;
 use crate::plines::{
     CSType, CharInfo, CharsizeArg, ClusterInfo, StrCharInfo, getvcol, getvcol_nolist,
     init_charsize_arg, utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, win_charsize,
     win_chartabsize,
 };
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::search::{findmatch, linewhite};
+use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr, xstrnsave};
 use crate::textformat::{has_format_option, oparg_T};
+use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
+use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::extmark::ExtmarkOp;

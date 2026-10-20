@@ -1,6 +1,5 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
 
-#[allow(unused_imports)]
 pub use crate::grid::schar_from_ascii;
 use std::ffi::{c_int, c_void};
 

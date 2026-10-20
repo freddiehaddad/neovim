@@ -9,52 +9,6 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::ascii2cells;
-#[allow(unused_imports)]
-use crate::charset::k_second;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::callback_call;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_sleep;
-#[allow(unused_imports)]
-use crate::fileio::check_timestamps;
-#[allow(unused_imports)]
-use crate::fileio::printf;
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fprintf, fputc, fputs};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::highlight::hl_attr;
-#[allow(unused_imports)]
-use crate::log::log_get_stderr;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::option::shortmess;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::runtime::estack_sfile;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_name;
-#[allow(unused_imports)]
-use crate::strings::{gettext, ngettext};
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll, ui_call_msg_showmode,
-};
-#[allow(unused_imports)]
-use crate::ui::{ui_call_msg_history_show, ui_call_msg_set_pos, ui_call_msg_show};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
-use std::mem::{offset_of, size_of};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
 use crate::api::private::helpers::{
@@ -65,11 +19,14 @@ use crate::api::vim::{HlMessage, HlMessageChunk, MessageData};
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, apply_autocmds_group, has_event};
 use crate::charset::{
-    char2cells, skipwhite, transchar_buf, transchar_byte_buf, vim_isprintc, vim_strsize,
+    ascii_iswhite, ascii2cells, char2cells, k_second, skipwhite, transchar_buf, transchar_byte_buf,
+    vim_isprintc, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
 use crate::drawscreen::{redraw_all_later, redraw_later, set_must_redraw};
+use crate::errors::*;
+use crate::eval::callback_call;
 use crate::eval::typval::tv_clear;
 use crate::eval::vars::{
     VV_ERRMSG, VV_SCROLLSTART, VV_STATUSMSG, VV_WARNINGMSG, get_vim_var_str, set_vim_var_string,
@@ -77,16 +34,19 @@ use crate::eval::vars::{
 };
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_process_events};
+use crate::ex_docmd::do_sleep;
 use crate::ex_eval::cause_errthrow;
 use crate::ex_session::FILE;
+use crate::fileio::{check_timestamps, fclose, fprintf, fputc, fputs, printf};
 use crate::garray::{ga_append, ga_concat, ga_concat_len, ga_init, garray_T};
+use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_alloc, grid_assign_handle, grid_clear, grid_clear_line, grid_del_lines,
     grid_free, grid_ins_lines, grid_line_cursor_goto, grid_line_flush,
     grid_line_flush_if_valid_row, grid_line_mirror, grid_line_puts, grid_line_start, sattr_T,
-    schar_T, schar_get,
+    schar_T, schar_from_ascii, schar_get,
 };
-use crate::highlight::hl_combine_attr;
+use crate::highlight::{hl_attr, hl_combine_attr};
 use crate::highlight_group::{highlight_changed, syn_check_group, syn_id2attr};
 use crate::indent::tabstop_padding;
 use crate::input::{
@@ -100,7 +60,7 @@ use crate::keycodes::{
     K_X2MOUSE, K_ZERO, KE_FILLER, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_SHIFT, NL,
     TAB, get_special_key, is_special, key2termcap1, keychord, termcap2key,
 };
-use crate::log::{LOGLVL_DBG, LOGLVL_INF};
+use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -109,10 +69,12 @@ use crate::mbyte::{
 };
 use crate::memory::{
     Arena, arena_alloc, strequal, xcalloc, xfree, xmalloc, xmemdupz, xmemrchr, xstrdup, xstrlcat,
-    xstrlcpy,
+    xstrlcpy, xstrnlen as strnlen,
 };
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::shortmess;
+use crate::option_vars::*;
 use crate::optionstr::{OptKeyDict_mopt, opt_keyset};
 use crate::os::env::home_replace_save;
 use crate::os::fs::os_fopen;
@@ -120,13 +82,18 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_delay;
 use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
-use crate::runtime::{ESTACK_NONE, TriState, exestack};
+use crate::runtime::{ESTACK_NONE, TriState, estack_sfile, exestack, sourcing_lnum, sourcing_name};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
-use crate::strings::vim_strchr;
+use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{
-    ui_active, ui_cursor_goto, ui_flush, ui_grid_cursor_goto, ui_has, ui_line, ui_refresh, vim_beep,
+    ui_active, ui_call_grid_destroy, ui_call_grid_resize, ui_call_grid_scroll,
+    ui_call_msg_history_show, ui_call_msg_set_pos, ui_call_msg_show, ui_call_msg_showmode,
+    ui_cursor_goto, ui_flush, ui_grid_cursor_goto, ui_has, ui_line, ui_refresh, vim_beep,
 };
 use crate::ui_compositor::{ui_comp_put_grid, ui_comp_remove_grid};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong, c_void};
+use std::mem::{offset_of, size_of};
+use std::ptr;
 
 pub type MsgID = Object;
 pub use crate::option::OptInt;
@@ -294,9 +261,6 @@ static mut DO_MORE_PROMPT_ENTERED: bool = false;
 static mut SHOWMODE_CLEAR: bool = false;
 
 static mut pre_verbose_kind: *const c_char = ptr::null();
-
-use crate::memory::xstrnlen as strnlen;
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 
 #[macro_export]
 macro_rules! smsg {

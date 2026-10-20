@@ -1,12 +1,11 @@
 //! Functions for calling external native shared libraries (`src/nvim/os/dl.c`).
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
+use crate::memory::xstrdup;
 #[cfg(not(test))]
 use crate::message::semsg;
 use std::ffi::{c_char, c_int, c_void};
-
-use crate::memory::xstrdup;
 
 #[repr(C)]
 pub struct UvLib {

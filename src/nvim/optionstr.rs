@@ -15,87 +15,41 @@
     clippy::useless_conversion
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
-#[allow(unused_imports)]
-use crate::buffer::modifiable;
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::charset::{buf_init_isk_chartab, check_isopt, init_isf_chartab, init_isi_chartab};
-#[allow(unused_imports)]
-use crate::cursor::coladvance;
-#[allow(unused_imports)]
-use crate::digraph::keymap_init;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::vars::{do_unlet, get_var_value};
-#[allow(unused_imports)]
-use crate::ex_getln::check_opt_wim;
-#[allow(unused_imports)]
-use crate::fold::{foldUpdateAll, newFoldLevel};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::indent::briopt_check;
-#[allow(unused_imports)]
-use crate::insexpand::set_cpt_callbacks;
-#[allow(unused_imports)]
-use crate::message::{msg_grid_validate, verbose_open, verbose_stop};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::{
-    did_set_title, fill_culopt_flags, get_fileformat, get_option_default, option_next_keyval,
-    option_slice_eq, optval_free_read, parse_winhl_opt, redraw_titles, set_iminsert_global,
-    set_imsearch_global, set_option_direct, skip_to_option_part, valid_name,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::{vim_regexec, vim_regfree};
-#[allow(unused_imports)]
-use crate::spellfile::spell_check_msm;
-#[allow(unused_imports)]
-use crate::strings::strcmp as c_strcmp;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::strncmp as c_strncmp;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, strpbrk, strstr};
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::window::{check_colorcolumn, global_stl_height};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::api::command::regmatch_T;
 use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{WinConfig, fcs_chars_T, lcs_chars_T, lpos_T, pos_T, win_T};
 use crate::api::win_config::parse_winborder;
 use crate::autocmd::{check_ei, get_event_name_no_group};
+use crate::buffer::modifiable;
 use crate::charset::{
-    char2cells, getdigits_int, hexhex2nr, transchar, transchar_byte, try_getdigits,
+    ascii_isdigit, buf_init_isk_chartab, char2cells, check_isopt, getdigits_int, hexhex2nr,
+    init_isf_chartab, init_isi_chartab, transchar, transchar_byte, try_getdigits,
 };
 use crate::cmdexpand::{CompleteListItemGetter, ExpandGeneric};
-use crate::cursor::colnr_T;
+use crate::cursor::{coladvance, colnr_T};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
 use crate::diff::{diffanchors_changed, diffopt_changed};
+use crate::digraph::keymap_init;
 use crate::drawscreen::{
     comp_col, redraw_all_later, redraw_buf_later, redraw_curbuf_later, redraw_later, redrawWinline,
     status_redraw_buf,
 };
+use crate::errors::*;
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, synblock_T};
-use crate::fold::{foldmethodIsDiff, foldmethodIsExpr, foldmethodIsIndent, foldmethodIsMarker};
+use crate::eval::vars::{do_unlet, get_var_value};
+use crate::ex_getln::check_opt_wim;
+use crate::fold::{
+    foldUpdateAll, foldmethodIsDiff, foldmethodIsExpr, foldmethodIsIndent, foldmethodIsMarker,
+    newFoldLevel,
+};
+use crate::globals::*;
 use crate::grid::{schar_T, schar_from_char, schar_from_str};
 use crate::highlight_group::{get_highlight_name, init_highlight};
-use crate::indent::tabstop_set;
+use crate::indent::{briopt_check, tabstop_set};
 use crate::indent_c::parse_cino;
+use crate::insexpand::set_cpt_callbacks;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::r#match::regprog_T;
@@ -105,16 +59,33 @@ use crate::mbyte::{
 };
 use crate::memline::ml_setflags;
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdup, xmemdupz, xstrdup};
+use crate::message::{msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
-use crate::option::opt_error;
+use crate::option::{
+    copy_option_part, did_set_title, fill_culopt_flags, get_fileformat, get_option,
+    get_option_default, opt_error, option_next_keyval, option_slice_eq, optval_free_read,
+    parse_winhl_opt, redraw_titles, set_iminsert_global, set_imsearch_global, set_option_direct,
+    skip_to_option_part, valid_name,
+};
+use crate::option_vars::*;
 use crate::os::env::{expand_T, vim_unsetenv_ext};
+use crate::regexp::{vim_regexec, vim_regfree};
 use crate::spell::{
     compile_cap_prog, did_set_spell_option, spell_reload, valid_spellfile, valid_spelllang,
 };
+use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
+use crate::strings::{
+    atoi, gettext, strcmp as c_strcmp, strcspn, strlen as c_strlen, strncmp as c_strncmp, strpbrk,
+    strstr, vim_snprintf, vim_strchr,
+};
 use crate::terminal::terminal_notify_theme;
+use crate::ui::ui_has;
+use crate::window::{check_colorcolumn, global_stl_height};
 use crate::winfloat::{win_config_float, win_previewpopup_config};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub type OptIndex = c_int;
 pub type OptScopeFlags = u8;
@@ -817,9 +788,6 @@ static PVP_TABLE: [KeySetLink; 4] = [
         is_hlgroup: false,
     },
 ];
-
-use crate::option::get_option;
-use crate::strings::strcspn;
 
 #[inline]
 unsafe fn c_memcmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {

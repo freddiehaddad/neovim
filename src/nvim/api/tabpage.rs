@@ -5,43 +5,42 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, arena_array, dict_get_value, dict_set_var, find_buffer_by_handle,
-    find_tab_by_handle, find_window_by_handle, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{nil_obj, window_obj};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::window::{
-    tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage, win_set_buf,
-};
-use std::ffi::{c_char, c_int, c_uint, c_void};
-
-use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::autocmd::OptionalKeys;
+#[cfg(not(test))]
+use crate::api::autocmd::TryState;
 use crate::api::deprecated::VirtText;
 use crate::api::private::converter::sctx_T;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, try_enter, try_leave,
+};
+use crate::api::private::helpers::{nil_obj, window_obj};
+#[cfg(not(test))]
+use crate::api::private::validate::ErrorType;
+use crate::api::private::validate::{Array, Error, Object};
+#[cfg(not(test))]
 use crate::api::vim::nvim_get_current_win;
-use crate::clipboard::typval_T;
 use crate::eval::decode::dict_T;
-pub use crate::eval::deprecated::pos_T;
 use crate::eval::deprecated::{Callback, buf_T, fmark_T};
 use crate::garray::garray_T;
+#[cfg(not(test))]
+use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::map::{Map, Set, StcClicks};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+#[cfg(not(test))]
+use crate::window::{
+    tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage, win_set_buf,
+};
+use std::ffi::{c_char, c_int, c_uint, c_void};
+
+pub use crate::eval::deprecated::pos_T;
 
 pub type Buffer = handle_T;
 pub type Window = handle_T;
@@ -811,6 +810,7 @@ pub unsafe extern "C" fn nvim_open_tabpage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::private::validate::ObjectType;
 
     #[test]
     fn window_obj_creates_window_object() {

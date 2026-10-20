@@ -4,28 +4,31 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
-#[allow(unused_imports)]
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
+#[cfg(not(test))]
+use crate::api::private::validate::{ObjectData, ObjectType};
+#[cfg(not(test))]
 use crate::charset::getdigits_int;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ex_getln::{cmdline_at_end, cmdline_overstrike};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::highlight_group::{syn_check_group, syn_id2attr};
+#[cfg(not(test))]
 use crate::log::logmsg;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::ui::ui_mode_info_set;
-use std::ffi::{CStr, c_char, c_int};
-
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
+#[cfg(not(test))]
+use crate::option_vars::*;
+#[cfg(not(test))]
+use crate::ui::ui_mode_info_set;
+use std::ffi::{CStr, c_char, c_int};
 
 pub const SHAPE_IDX_N: usize = 0;
 pub const SHAPE_IDX_V: usize = 1;

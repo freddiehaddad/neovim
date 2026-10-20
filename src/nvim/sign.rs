@@ -9,95 +9,63 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::cstr_as_string;
-#[allow(unused_imports)]
-use crate::buffer::buf_meta_total;
-#[allow(unused_imports)]
-use crate::buffer::{buf_hide, buflist_findname_exp, buflist_findnr};
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_buf_later;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::funcs::get_buf_arg;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_check_for_nonnull_dict_arg, tv_check_for_opt_dict_arg, tv_check_for_string_arg,
-    tv_dict_get_string, tv_get_lnum, tv_get_string, tv_get_string_chk,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_find,
-    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_nr, tv_dict_get_number, tv_dict_get_number_def, tv_get_number_chk,
-    tv_list_append_number,
-};
-#[allow(unused_imports)]
-use crate::ex_cmds::do_ecmd;
-#[allow(unused_imports)]
-use crate::fold::foldOpenCursor;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
-#[allow(unused_imports)]
-use crate::insert::beginline;
-#[allow(unused_imports)]
-use crate::mark::setpcmark;
-#[allow(unused_imports)]
-use crate::marktree::mt_end;
-#[allow(unused_imports)]
-use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
-#[allow(unused_imports)]
-use crate::message::{emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title};
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, strcmp, strncmp};
-#[allow(unused_imports)]
-use crate::window::buf_jump_open_win;
-use std::cmp::Ordering;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::{
     DecorPriority, DecorSignHighlight, NS, describe_ns, linenr_T, nvim_create_namespace,
 };
+use crate::api::private::helpers::cstr_as_string;
+use crate::buffer::{buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
 use crate::charset::{
-    backslash_halve, getdigits_int, skiptowhite, skiptowhite_esc, skipwhite, vim_isprintc,
+    ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite, skiptowhite_esc,
+    skipwhite, vim_isprintc,
 };
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::check_cursor_lnum;
 use crate::decoration::{SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
+use crate::drawscreen::redraw_buf_later;
+use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::funcs::get_buf_arg;
+use crate::eval::typval::{
+    tv_check_for_nonnull_dict_arg, tv_check_for_opt_dict_arg, tv_check_for_string_arg,
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
+    tv_dict_find, tv_dict_get_number, tv_dict_get_number_def, tv_dict_get_string, tv_get_lnum,
+    tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number,
+};
+use crate::ex_cmds::do_ecmd;
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
-use crate::grid::{schar_T, schar_get};
+use crate::fold::foldOpenCursor;
+use crate::globals::*;
+use crate::grid::{schar_T, schar_from_ascii, schar_get};
+use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
+use crate::insert::beginline;
 use crate::kvec::KVec;
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_String_int,
     map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
+use crate::mark::setpcmark;
 use crate::marktree::{
     DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_SIGNHL,
     MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, kMTMetaSignHL, kMTMetaSignText,
     marktree_itr_current, marktree_itr_get, marktree_itr_get_overlap, marktree_itr_next,
-    marktree_itr_step_overlap, marktree_lookup_ns,
+    marktree_itr_step_overlap, marktree_lookup_ns, mt_end,
 };
+use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memory::{xcalloc, xfree, xstrdup};
+use crate::message::{
+    emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
+};
 use crate::msgpack_rpc::packer::Integer;
+use crate::strings::{atoi, gettext, strcmp, strncmp, vim_snprintf, vim_strchr};
+use crate::window::buf_jump_open_win;
+use std::cmp::Ordering;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;

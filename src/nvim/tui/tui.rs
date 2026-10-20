@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_unsafe,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
@@ -14,89 +13,73 @@
     clippy::collapsible_if
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, dict_obj, string_obj};
-#[allow(unused_imports)]
-use crate::event::r#loop::{
-    uv_chdir, uv_pipe_init, uv_pipe_open, uv_tty_init, uv_tty_set_mode, uv_write,
+use crate::api::private::helpers::{
+    api_clear_error, api_free_object, arena_array, array_obj, boolean_obj, cstr_as_obj, dict_obj,
+    static_cstr_as_obj, static_cstr_as_string, string_obj,
 };
-#[allow(unused_imports)]
-use crate::event::r#loop::{
-    uv_close, uv_handle_get_type, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init,
-    uv_run, uv_strerror, uv_timer_init, uv_timer_start,
-};
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fopen, fwrite};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::log::g_min_log_level;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_exec;
-#[allow(unused_imports)]
-use crate::mbyte::utf_ptr2char;
-#[allow(unused_imports)]
-use crate::mbyte::{utf_ambiguous_width, utf_char2cells};
-#[allow(unused_imports)]
-use crate::os::time::uv_sleep;
-#[allow(unused_imports)]
-use crate::ui_client::ui_client_set_size;
-#[allow(unused_imports)]
-use crate::ui_client::{ui_client_attach, ui_client_detach};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
-use std::ptr;
-
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry_T, shape_table};
-use crate::event::r#loop::{Loop, loop_poll_events, loop_purge, loop_queues, loop_size};
+#[cfg(unix)]
+use crate::event::r#loop::uv_tty_set_mode;
+use crate::event::r#loop::{
+    Loop, loop_poll_events, loop_purge, loop_queues, loop_size, uv_chdir, uv_close, uv_is_closing,
+    uv_loop_close, uv_loop_init, uv_pipe_init, uv_pipe_open, uv_run, uv_strerror, uv_timer_init,
+    uv_timer_start, uv_tty_init, uv_write,
+};
+#[cfg(windows)]
+use crate::event::r#loop::{uv_handle_get_type, uv_handle_size};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::rstream::rstream_fields;
 use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
 };
-use crate::event::stream::{
-    UV_STREAM, UV_TTY, stream_set_blocking, stream_uv_ptr, uv_handle_t, uv_loop_t, uv_pipe_t,
-    uv_stream_t, uv_tty_t,
-};
+#[cfg(windows)]
+use crate::event::stream::{UV_STREAM, UV_TTY, stream_uv_ptr};
+use crate::event::stream::{stream_set_blocking, uv_handle_t, uv_loop_t, uv_tty_t};
 use crate::event::time::uv_timer_t;
-use crate::event::wstream::{uv_buf_t, uv_write_t};
+use crate::event::wstream::uv_buf_t;
+use crate::fileio::{fclose, fopen, fwrite};
+use crate::globals::*;
 use crate::grid::{schar_cache_clear_if_full, schar_get, schar_get_ascii};
 use crate::kvec::KVec;
+use crate::log::{g_min_log_level, logmsg};
+use crate::lua::executor::nlua_exec;
 use crate::map::{HlAttrs, Set, cstr_t, mh_put_cstr_t};
 use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString};
+use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xcalloc, xfree,
     xrealloc, xstrdup,
 };
 use crate::msgpack_rpc::channel::rpc_send_event;
-use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc, os_setenv};
-use crate::os::input::os_isatty;
 #[cfg(windows)]
-use crate::os::os_win_console::os_tty_guess_term;
-use crate::os::time::os_hrtime;
+use crate::os::env::os_setenv;
+use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
+use crate::os::input::os_isatty;
+use crate::os::time::{os_hrtime, uv_sleep};
 use crate::tui::input::{
     OptInt, TermInput, input_loop_ptr, input_prefix, input_read_stream, input_suffix,
     kKeyEncodingKitty, kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy, tinput_init,
     tinput_start, tinput_stop,
 };
-use crate::tui::terminfo::*;
-use crate::tui::termkey::driver_ti::{
-    TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
-};
+use crate::tui::termkey::driver_ti::{TerminfoEntry, kTermCount, kTerminfoFuncKeyMax};
 use crate::tui::ugrid::{
     UCell, UGrid, sattr_T, schar_T, schar_from_ascii, ugrid_clear, ugrid_clear_chunk, ugrid_free,
     ugrid_goto, ugrid_init, ugrid_resize, ugrid_scroll,
 };
+use crate::ui_client::ui_client_set_size;
+#[cfg(unix)]
+use crate::ui_client::{ui_client_attach, ui_client_detach};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ptr;
+
+#[cfg(windows)]
+use crate::os::os_win_console::os_tty_guess_term;
+use crate::tui::terminfo::*;
 
 pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_write_cb};
 pub use crate::fileio::FILE;
@@ -3297,6 +3280,7 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
 
         if !(*tui).screenshot.is_null() {
             for b in &bufs {
+                #[allow(clippy::unnecessary_cast)]
                 fwrite(b.base.cast(), b.len as usize, 1, (*tui).screenshot);
             }
         } else {

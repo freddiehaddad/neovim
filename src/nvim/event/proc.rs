@@ -8,29 +8,11 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
-#[allow(unused_imports)]
-use crate::event::r#loop::main_loop_ptr;
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_pipe_init;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_close, uv_handle_get_loop, uv_timer_start, uv_timer_stop};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::main_init::{os_exit, preserve_exit};
-#[allow(unused_imports)]
-use crate::os::pty_proc::{
-    pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
-};
-#[allow(unused_imports)]
-use crate::os::shell::shell_free_argv;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
-
 use crate::eval::decode::dict_T;
+use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
     Loop, loop_children_kill_timer, loop_exit_delay_timer, loop_poll_events, loop_queues,
+    main_loop_ptr, uv_close, uv_handle_get_loop, uv_pipe_init, uv_timer_start, uv_timer_stop,
 };
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
@@ -41,9 +23,17 @@ use crate::event::stream::{
     Stream, stream_closed_ptr, stream_fields, stream_init, stream_may_close, stream_size,
     stream_uv_ptr, uv_handle_t,
 };
+use crate::globals::*;
+use crate::main_init::{os_exit, preserve_exit};
 use crate::memory::{ARENA_BLOCK_SIZE, xrealloc};
 use crate::os::proc::os_proc_tree_kill;
+use crate::os::pty_proc::{
+    pty_proc_close, pty_proc_close_master, pty_proc_flush_master, pty_proc_spawn, pty_proc_teardown,
+};
+use crate::os::shell::shell_free_argv;
 use crate::os::time::os_hrtime;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
 

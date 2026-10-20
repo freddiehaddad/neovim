@@ -4,57 +4,59 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
-    tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_equal,
-    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_get_float, tv_get_number_chk};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::vars::assert_error;
-#[allow(unused_imports)]
-use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim_var_string};
-#[allow(unused_imports)]
-use crate::eval::{garbage_collect, pattern_match};
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline_cmd;
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fgetc};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
-#[allow(unused_imports)]
-use crate::message::{emsg, msg_reset_scroll};
-#[allow(unused_imports)]
-use crate::os::fs::os_fopen;
-#[allow(unused_imports)]
-use crate::runtime::estack_sfile;
-use crate::runtime::exestack;
-#[allow(unused_imports)]
-use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
-
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::typval_T;
+#[cfg(not(test))]
+use crate::clipboard::{TypvalVval, VarType};
+#[cfg(not(test))]
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::EvalFuncData;
+#[cfg(not(test))]
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
+#[cfg(not(test))]
+use crate::eval::typval::{
+    tv_check_for_float_or_nr_arg, tv_check_for_opt_number_arg, tv_check_for_opt_string_arg,
+    tv_check_for_opt_string_or_list_arg, tv_check_for_string_or_number_arg, tv_clear,
+    tv_dict_add_tv, tv_dict_alloc, tv_dict_find, tv_equal, tv_get_float, tv_get_number_chk,
+    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_last,
+    tv_list_len,
+};
+#[cfg(not(test))]
+use crate::eval::vars::{
+    assert_error, get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim_var_string,
+};
+#[cfg(not(test))]
+use crate::eval::{garbage_collect, pattern_match};
+#[cfg(not(test))]
+use crate::ex_docmd::do_cmdline_cmd;
+#[cfg(not(test))]
+use crate::fileio::{fclose, fgetc};
+#[cfg(not(test))]
+use crate::garray::ga_concat;
+use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, garray_T};
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
+#[cfg(not(test))]
 use crate::math::FAIL;
+#[cfg(not(test))]
+use crate::mbyte::{mb_cptr2char_adv, utf_ptr2char};
+#[cfg(not(test))]
 use crate::memory::{xfree, xstrdup, xstrlcpy};
-use crate::profile::{FILE, estack_T};
+#[cfg(not(test))]
+use crate::message::{emsg, msg_reset_scroll};
+#[cfg(not(test))]
+use crate::os::fs::os_fopen;
+#[cfg(not(test))]
+use crate::runtime::{estack_sfile, sourcing_lnum};
+#[cfg(not(test))]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int};
 
 const VAR_UNLOCKED: c_int = 0;
 const K_BOOL_VAR_FALSE: i64 = 0;
@@ -857,9 +859,11 @@ pub unsafe extern "C" fn f_assert_fails(
                     wrong_arg_msg =
                         c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
                     valid_args = false;
-                } else if arg3.vval.v_number >= 0
-                    && arg3.vval.v_number != (emsg_assert_fails_lnum as i64)
-                {
+                } else if arg3.vval.v_number >= 0 && {
+                    #[allow(clippy::useless_conversion)]
+                    let expected = i64::from(emsg_assert_fails_lnum);
+                    arg3.vval.v_number != expected
+                } {
                     error_found = true;
                     error_found_index = 3;
                 }
@@ -894,7 +898,10 @@ pub unsafe extern "C" fn f_assert_fails(
                 prepare_assert_error(&mut ga);
                 if error_found_index == 3 {
                     actual_tv.v_type = VarType::VAR_NUMBER;
-                    actual_tv.vval.v_number = emsg_assert_fails_lnum as i64;
+                    #[allow(clippy::useless_conversion)]
+                    {
+                        actual_tv.vval.v_number = i64::from(emsg_assert_fails_lnum);
+                    }
                 } else if error_found_index == 4 {
                     actual_tv.v_type = VarType::VAR_STRING;
                     actual_tv.vval.v_string = emsg_assert_fails_context;

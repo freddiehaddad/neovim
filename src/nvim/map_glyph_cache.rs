@@ -1,12 +1,10 @@
 //! Specialized `Set(glyph)` where interned strings are stored in a compact,
 //! NUL-separated `char` array (`src/nvim/map_glyph_cache.c`).
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
-use std::ffi::{c_char, c_void};
-
 use crate::map::mh_realloc;
 use crate::memory::xrealloc;
+use std::ffi::{c_char, c_void};
 
 pub const MH_TOMBSTONE: u32 = u32::MAX;
 

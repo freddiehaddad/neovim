@@ -8,48 +8,29 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+use crate::api::tabpage::win_T;
 use crate::autocmd::{apply_autocmds, has_event};
-#[allow(unused_imports)]
 use crate::drawscreen::{setcursor, update_screen};
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_str;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_set_keys_readonly;
-#[allow(unused_imports)]
+use crate::eval::typval::{tv_dict_add_str, tv_dict_set_keys_readonly};
 use crate::eval::{get_v_event, restore_v_event};
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_loop_size;
-#[allow(unused_imports)]
+use crate::event::r#loop::main_loop_events;
+use crate::event::multiqueue::{Event, multiqueue_empty, multiqueue_get};
 use crate::ex_getln::{cmdline_overstrike, get_cmdline_info};
+use crate::extmark::TriState;
 use crate::globals::*;
-#[allow(unused_imports)]
+use crate::hashtab::hashtab_T;
 use crate::input::{
     check_end_reg_executing, may_sync_undo, safe_vgetc, stuff_empty, using_script, vpeekc,
 };
-#[allow(unused_imports)]
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
-#[allow(unused_imports)]
-use crate::log::g_min_log_level;
-use crate::log::logmsg;
-#[allow(unused_imports)]
+use crate::keycodes::{KE_EVENT, KS_EXTRA, get_special_key_name, termcap2key};
+use crate::log::{g_min_log_level, logmsg};
 use crate::option::get_ve_flags;
-#[allow(unused_imports)]
 use crate::os::input::{input_available, input_get, os_breakcheck};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{strcmp, strcpy};
-#[allow(unused_imports)]
+use crate::strings::{strcmp, strcpy, vim_snprintf};
 use crate::ui::ui_flush;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
-
-use crate::api::tabpage::win_T;
-use crate::event::multiqueue::{Event, multiqueue_empty, multiqueue_get};
-use crate::extmark::TriState;
-use crate::hashtab::hashtab_T;
-use crate::keycodes::{KE_EVENT, KS_EXTRA, get_special_key_name, termcap2key};
 
 const kNone: TriState = -1;
 
@@ -105,8 +86,6 @@ pub struct save_v_event_T {
     pub sve_did_save: bool,
     pub sve_hashtab: hashtab_T,
 }
-
-use crate::event::r#loop::main_loop_events;
 
 static mut was_safe: bool = false;
 

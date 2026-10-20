@@ -8,20 +8,18 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_fs_get_result, uv_fs_req_cleanup, uv_write};
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_handle_get_loop, uv_req_size};
-#[cfg(windows)]
-use std::ffi::c_ulong;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
+use crate::event::r#loop::{
+    uv_fs_get_result, uv_fs_req_cleanup, uv_handle_get_loop, uv_req_size, uv_write,
+};
 use crate::event::stream::{
     Loop, Stream, stream_close_handle, stream_closed_ptr, stream_fields, stream_init,
     stream_uv_ptr, stream_write_cb, uv_loop_t, uv_stream_t,
 };
 use crate::memory::{xfree, xmalloc};
+#[cfg(windows)]
+use std::ffi::c_ulong;
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 const DEFAULT_MAXMEM: usize = 1024 * 1024 * 2000;
 const UV_WRITE: c_int = 3;

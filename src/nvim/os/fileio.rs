@@ -1,11 +1,10 @@
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
 
-#![cfg_attr(
-    any(test, target_os = "windows"),
-    allow(dead_code, unused_imports, unused_mut)
-)]
+#![cfg_attr(any(test, target_os = "windows"), allow(dead_code, unused_mut))]
 
-use std::ffi::{c_char, c_int, c_void};
+#[cfg(unix)]
+use std::ffi::c_void;
+use std::ffi::{c_char, c_int};
 
 use crate::memory::{alloc_block, free_block};
 

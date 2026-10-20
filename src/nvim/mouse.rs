@@ -9,112 +9,71 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+use crate::api::tabpage::{pos_T, win_T};
 use crate::buffer::{bt_prompt, bt_quickfix};
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::cursor::set_leftcol;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt, ltoreq};
-#[allow(unused_imports)]
-use crate::decoration::decor_conceal_line;
-#[allow(unused_imports)]
-use crate::decoration::decor_virt_lines;
-#[allow(unused_imports)]
+use crate::charset::{ascii_iswhite, vim_iswordc};
+use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
+use crate::cursor::{coladvance, equalpos, get_cursor_pos_ptr, lt, ltoreq, set_leftcol};
+use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
-#[allow(unused_imports)]
 use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
-#[allow(unused_imports)]
+use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
-#[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
-#[allow(unused_imports)]
 use crate::eval::{call_vim_function, eval_has_provider};
-#[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
-#[allow(unused_imports)]
+use crate::extmark::TriState;
 use crate::fold::{closeFold, hasFolding, openFold};
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::get_win_by_grid_handle;
-#[allow(unused_imports)]
+use crate::grid::{get_win_by_grid_handle, grid_adjust};
 use crate::input::{
     prep_redo, redo_append_char, safe_vgetc, stuffReadbuff, stuffcharReadbuff, stuffnumReadbuff,
     vpeekc, vungetc,
 };
-#[allow(unused_imports)]
+use crate::input_cmdatom::{CmdSpec, cmdarg_T};
 use crate::insert::{set_can_cindent, start_arrow, undisplay_dollar};
-#[allow(unused_imports)]
-use crate::keycodes::get_mouse_button;
-use crate::mbyte::utf8len_tab;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_get_class, utf_head_off, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::memline::ml_get_buf;
-#[allow(unused_imports)]
-use crate::memline::{gchar_pos, inc, ml_get};
+use crate::keycodes::{
+    K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_LEFTRELEASE, K_LEFTRELEASE_NM, K_MIDDLEDRAG,
+    K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
+    K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
+    K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
+};
+use crate::map::{Map, StcClick, StcClicks, mh_get_int};
+use crate::map_glyph_cache::MH_TOMBSTONE;
+use crate::mbyte::{mb_get_class, utf_head_off, utf8len_tab, utfc_ptr2len};
+use crate::mcursor::mc_toggle;
+use crate::memline::{gchar_pos, inc, ml_get, ml_get_buf};
+use crate::menu::show_popupmenu;
 use crate::message::siemsg;
-#[allow(unused_imports)]
 use crate::r#move::{check_topfill, pagescroll, scroll_redraw, win_col_off, win_col_off2};
-#[allow(unused_imports)]
 use crate::normal::{
     clearop, clearopbeep, end_visual_mode, exec_stuffed, may_start_select, nv_scroll_line,
 };
-#[allow(unused_imports)]
 use crate::ops::clear_oparg;
-#[allow(unused_imports)]
 use crate::option::get_scrolloff_value;
 use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::plines::win_get_fill;
-#[allow(unused_imports)]
+use crate::plines::{
+    CSType, CharsizeArg, colnr_T, getvcol, getvcols, init_charsize_arg, linenr_T, plines_win,
+    plines_win_nofill, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize, win_chartabsize,
+    win_get_fill,
+};
+use crate::popupmenu::pum_visible;
 use crate::register::{do_put, insert_reg, yank_register_mline};
-#[allow(unused_imports)]
 use crate::search::findmatch;
-#[allow(unused_imports)]
 use crate::state::virtual_active;
-#[allow(unused_imports)]
 use crate::statusline::stl_connected;
-#[allow(unused_imports)]
 use crate::strings::vim_strchr;
-#[allow(unused_imports)]
+use crate::textformat::{MotionType, oparg_T};
 use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
-#[allow(unused_imports)]
+use crate::ui_compositor::ui_comp_mouse_focus;
 use crate::window::{
     find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
     win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
-
-use crate::api::tabpage::{pos_T, win_T};
-use crate::charset::vim_iswordc;
-use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
-use crate::cursor::{coladvance, get_cursor_pos_ptr};
-use crate::eval::buffer::varnumber_T;
-use crate::extmark::TriState;
-use crate::grid::grid_adjust;
-use crate::input_cmdatom::{CmdSpec, cmdarg_T};
-use crate::keycodes::{
-    K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_LEFTRELEASE, K_LEFTRELEASE_NM, K_MIDDLEDRAG,
-    K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
-    K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
-    K_X2MOUSE, K_X2RELEASE, key2termcap1,
-};
-use crate::map::{Map, StcClick, StcClicks, mh_get_int};
-use crate::map_glyph_cache::MH_TOMBSTONE;
-use crate::mcursor::mc_toggle;
-use crate::menu::show_popupmenu;
-use crate::plines::{
-    CSType, CharsizeArg, colnr_T, getvcol, getvcols, init_charsize_arg, linenr_T, plines_win,
-    plines_win_nofill, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize, win_chartabsize,
-};
-use crate::popupmenu::pum_visible;
-use crate::textformat::{MotionType, oparg_T};
-use crate::ui_compositor::ui_comp_mouse_focus;
 
 pub use crate::eval::deprecated::EvalFuncData;
 pub use crate::search::Direction;

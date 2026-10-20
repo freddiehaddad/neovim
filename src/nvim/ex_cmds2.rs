@@ -9,93 +9,52 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::arglist::{do_argfile, ex_all, ex_rewind};
-#[allow(unused_imports)]
-use crate::arglist::{editing_arg_idx, set_arglist};
-#[allow(unused_imports)]
-use crate::autocmd::au_event_disable;
-#[allow(unused_imports)]
-use crate::autocmd::{apply_autocmds, au_event_restore};
-#[allow(unused_imports)]
-use crate::buffer::buf_set_name;
-#[allow(unused_imports)]
-use crate::buffer::first_win_in_tab;
-#[allow(unused_imports)]
-use crate::buffer::{bt_dontwrite, bufref_valid, set_bufref};
-#[allow(unused_imports)]
+use crate::api::command::{cmdidx_T, exarg_T};
+use crate::api::options::CtxSwitch;
+use crate::api::win_config::{UIExtension, bufref_T};
+use crate::arglist::{
+    aentry_T, alist_T, do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
+};
+use crate::autocmd::{apply_autocmds, au_event_disable, au_event_restore};
 use crate::buffer::{
-    buf_hide, buf_spname, buflist_findnr, goto_buffer, no_write_message, no_write_message_nobang,
+    bt_dontwrite, buf_hide, buf_set_name, buf_spname, buflist_findnr, bufref_valid,
+    first_win_in_tab, goto_buffer, no_write_message, no_write_message_nobang, set_bufref,
     set_curbuf,
 };
-#[allow(unused_imports)]
 use crate::bufwrite::buf_write;
-#[allow(unused_imports)]
 use crate::change::unchanged;
-#[allow(unused_imports)]
 use crate::channel::channel_job_running;
+use crate::context::{ctx_restore, ctx_switch};
+use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::deprecated::buf_T;
 use crate::eval::eval_call_provider;
-#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
 };
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_string;
-#[allow(unused_imports)]
-use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
-#[allow(unused_imports)]
-use crate::ex_cmds::check_overwrite;
-#[allow(unused_imports)]
-use crate::ex_cmds::set_swapcommand;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline_cmd;
-#[allow(unused_imports)]
+use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var, set_vim_var_string};
+use crate::ex_cmds::{check_overwrite, set_swapcommand};
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
 use crate::ex_getln::script_get;
-#[allow(unused_imports)]
 use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::mark::setpcmark;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, msg, msg_source, wait_return};
-#[allow(unused_imports)]
+use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::message::{emsg, msg, msg_source, semsg, wait_return};
 use crate::r#move::validate_cursor;
-#[allow(unused_imports)]
 use crate::normal::do_check_scrollbind;
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::path::vim_FullName;
-#[allow(unused_imports)]
 use crate::quickfix::{ex_cc, ex_cnext, qf_get_cur_idx, qf_get_valid_size};
-#[allow(unused_imports)]
 use crate::runtime::source_runtime_vim_lua;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
+use crate::strings::{gettext, vim_snprintf};
 use crate::ui::ui_has;
-#[allow(unused_imports)]
 use crate::undo::bufIsChanged;
-#[allow(unused_imports)]
 use crate::window::{
     goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-
-use crate::api::command::{cmdidx_T, exarg_T};
-use crate::api::options::CtxSwitch;
-use crate::api::win_config::{UIExtension, bufref_T};
-use crate::context::{ctx_restore, ctx_switch};
-use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
-use crate::eval::deprecated::buf_T;
-use crate::memory::{xfree, xmalloc, xstrdup};
 
 pub use crate::api::autocmd::event_T;
 pub use crate::cursor::linenr_T;
@@ -151,8 +110,6 @@ const ML_EMPTY: c_int = 0x01;
 const VV_SWAPCOMMAND: c_int = 49;
 
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
-
-use crate::arglist::{aentry_T, alist_T};
 
 #[inline]
 unsafe fn curwin_argcount() -> c_int {

@@ -13,15 +13,10 @@
 use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
-#[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::charset::str_foldcase;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
 use crate::charset::{
-    check_isopt, getdigits_int, getdigits_int32, parse_isopt, skiptowhite, skipwhite, vim_isprintc,
-    vim_iswordp_buf,
+    ascii_isalpha, ascii_isdigit, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32,
+    parse_isopt, skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
 };
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX};
 use crate::cursor::{colnr_T, linenr_T};
@@ -29,13 +24,10 @@ use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redr
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, syn_time_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
-#[allow(unused_imports)]
-use crate::ex_docmd::{check_nextcmd, do_cmdline_cmd, ends_excmd, find_nextcmd};
-#[allow(unused_imports)]
-use crate::ex_docmd::{expand_filename, separate_nextcmd};
-#[allow(unused_imports)]
-use crate::fold::foldUpdateAll;
-use crate::fold::foldmethodIsSyntax;
+use crate::ex_docmd::{
+    check_nextcmd, do_cmdline_cmd, ends_excmd, expand_filename, find_nextcmd, separate_nextcmd,
+};
+use crate::fold::{foldUpdateAll, foldmethodIsSyntax};
 use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -48,16 +40,12 @@ use crate::highlight_group::{
 };
 use crate::indent_c::find_start_comment;
 use crate::r#match::regmmatch_T;
-#[allow(unused_imports)]
-use crate::mbyte::mb_ptr_adv;
-use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{mb_ptr_adv, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
-use crate::message::semsg;
-#[allow(unused_imports)]
 use crate::message::{
     emsg, msg, msg_advance, msg_ext_set_kind, msg_outnum, msg_outtrans, msg_outtrans_len,
-    msg_putchar, msg_puts, msg_puts_hl, msg_puts_title,
+    msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
 };
 use crate::option_vars::*;
 use crate::optionstr::clear_string_option;
@@ -70,25 +58,18 @@ use crate::profile::{
     profile_add, profile_cmp, profile_divide, profile_end, profile_msg, profile_start,
     profile_zero, proftime_T,
 };
-#[allow(unused_imports)]
 use crate::regexp::{
     ref_extmatch, skip_regexp, unref_extmatch, vim_regcomp, vim_regcomp_had_eol, vim_regexec,
     vim_regexec_multi, vim_regfree,
 };
-use crate::runtime::{DIP_ALL, DOSO_NONE};
-#[allow(unused_imports)]
-use crate::runtime::{do_source, source_runtime};
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp, strpbrk};
-#[allow(unused_imports)]
-use crate::strings::{memcpy, memmove, memset};
-#[allow(unused_imports)]
+use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
+use crate::strings::{
+    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp,
+    strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave,
+};
+#[cfg(unix)]
 use crate::strings::{strcasecmp, strncasecmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
-#[allow(unused_imports)]
+#[cfg(windows)]
 use crate::strings::{vim_stricmp, vim_strnicmp};
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};

@@ -8,30 +8,23 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::eval::typval::tv_dict_to_env;
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_pipe_open;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_close, uv_handle_size};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::os::env::os_free_fullenv;
-#[allow(unused_imports)]
-use crate::os::env::os_shell_is_cmdexe;
-#[allow(unused_imports)]
-use crate::os::fs::os_close;
-#[allow(unused_imports)]
-use crate::path::path_to_backslash;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
+use crate::event::r#loop::{uv_close, uv_gid_t, uv_handle_size, uv_pipe_open, uv_uid_t};
 use crate::event::proc::{
     LibuvProc, Proc, libuv_proc_uv, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
 };
 use crate::event::stream::{
     stream_closed_ptr, stream_uv_ptr, uv_handle_t, uv_loop_t, uv_pipe_t, uv_stream_t,
 };
+use crate::globals::*;
+use crate::os::env::os_free_fullenv;
+#[cfg(windows)]
+use crate::os::env::os_shell_is_cmdexe;
+use crate::os::fs::os_close;
+#[cfg(windows)]
+use crate::path::path_to_backslash;
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 const UV_PROCESS: c_int = 10;
 
@@ -49,9 +42,6 @@ const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;
 
 const STDERR_FILENO: c_int = 2;
 const UI_CLIENT_STDIN_FD: c_int = 3;
-
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_close_cb, uv_gid_t, uv_uid_t};
 
 pub type uv_process_t = c_void;
 type uv_exit_cb =

@@ -5,60 +5,47 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::needless_range_loop
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_set_sctx, arena_array, arena_dict, arena_string, arena_take_arraybuilder,
-    find_buffer_by_handle, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    boolean_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::autocmd::{apply_autocmds_group, autocmd_register};
-#[allow(unused_imports)]
-use crate::autocmd::{
-    au_get_autocmds_for_event, aucmd_del_for_event_and_group, aucmd_span_pattern, augroup_add,
-    augroup_del, augroup_del_by_id, augroup_exists, augroup_find, augroup_name,
-    aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat, autocmd_delete_id,
-    do_autocmd_event, event_name2nr_str, event_nr2name,
-};
-#[allow(unused_imports)]
-use crate::buffer::do_modelines;
-#[allow(unused_imports)]
-use crate::eval::typval::callback_free;
-#[allow(unused_imports)]
-use crate::eval::typval::callback_to_string;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use std::ffi::{CStr, c_char, c_int, c_void};
-
 use crate::api::private::converter::sctx_T;
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_conflict,
-    api_err_exp, api_err_invalid, api_err_required, check_string_array,
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    add_c, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
+    arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj, error_set,
+    find_buffer_by_handle, integer_obj, luaref_obj, string_obj, try_enter, try_leave,
 };
-use crate::api::tabpage::win_T;
-use crate::eval::deprecated::{Callback, buf_T};
-use crate::kvec::KVecWithInit;
+use crate::api::private::validate::{
+    Array, Dict, Error, KeyValuePair, Object, api_err_conflict, api_err_invalid, api_err_required,
+};
+#[cfg(not(test))]
+use crate::api::private::validate::{ErrorType, ObjectType, api_err_exp, check_string_array};
+#[cfg(not(test))]
+use crate::autocmd::{
+    apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
+    aucmd_span_pattern, augroup_add, augroup_del, augroup_del_by_id, augroup_exists, augroup_find,
+    augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat,
+    autocmd_delete_id, autocmd_register, do_autocmd_event, event_name2nr_str, event_nr2name,
+};
+#[cfg(not(test))]
+use crate::buffer::do_modelines;
+use crate::eval::deprecated::Callback;
+#[cfg(not(test))]
+use crate::eval::typval::{callback_free, callback_to_string};
+#[cfg(not(test))]
+use crate::globals::*;
 use crate::lua::converter::LuaRef;
+#[cfg(not(test))]
+use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_memdupz, xfree, xstrndup};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::memory::{Arena, arena_memdupz};
+#[cfg(not(test))]
+use crate::memory::{xfree, xstrndup};
+use crate::msgpack_rpc::packer::Integer;
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int};
 
 pub use crate::api::tabpage::Buffer;
 pub type event_T = c_int;

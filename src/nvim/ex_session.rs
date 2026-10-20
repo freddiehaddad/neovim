@@ -9,72 +9,41 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::autocmd::apply_autocmds;
-#[allow(unused_imports)]
-use crate::buffer::buflist_findnr;
-#[allow(unused_imports)]
-use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal};
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_string;
-#[allow(unused_imports)]
-use crate::eval::var_flavour;
-#[allow(unused_imports)]
-use crate::eval::vars::get_globvar_dict;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_string;
-#[allow(unused_imports)]
-use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
-#[allow(unused_imports)]
-use crate::ex_getln::vim_strsave_fnameescape;
-#[allow(unused_imports)]
-use crate::file_search::vim_chdirfile;
-#[allow(unused_imports)]
-use crate::fileio::shorten_fnames;
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fputc, fputs, fwrite};
-#[allow(unused_imports)]
-use crate::fold::put_folds;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mapping::makemap;
-#[allow(unused_imports)]
-use crate::mbyte::utfc_ptr2len;
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::option::{makefoldset, makeset};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::home_replace_save;
-#[allow(unused_imports)]
-use crate::os::fs::{os_chdir, os_dirname, os_isdir};
-#[allow(unused_imports)]
-use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
-#[allow(unused_imports)]
-use crate::runtime::do_source;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_strsave_escaped;
-#[allow(unused_imports)]
-use crate::window::tabpage_index;
-use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::tabpage::{frame_T, tabpage_T, win_T};
 use crate::arglist::{aentry_T, alist_T, alist_name};
+use crate::autocmd::apply_autocmds;
+use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buflist_findnr};
+use crate::charset::ascii_isdigit;
 use crate::clipboard::VarType;
+use crate::errors::*;
 use crate::eval::decode::dictitem_T;
 use crate::eval::deprecated::{buf_T, fmark_T};
+use crate::eval::typval::tv_get_string;
+use crate::eval::var_flavour;
+use crate::eval::vars::{get_globvar_dict, set_vim_var_string};
+use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
+use crate::ex_getln::vim_strsave_fnameescape;
+use crate::file_search::vim_chdirfile;
+use crate::fileio::{fclose, fputc, fputs, fwrite, shorten_fnames};
+use crate::fold::put_folds;
 use crate::garray::garray_T;
+use crate::globals::*;
 use crate::hashtab::hashitem_empty;
+use crate::mapping::makemap;
+use crate::mbyte::utfc_ptr2len;
 use crate::memory::{xfree, xmalloc, xmemcpyz};
+use crate::message::{emsg, semsg};
+use crate::option::{makefoldset, makeset};
+use crate::option_vars::*;
+use crate::os::env::home_replace_save;
+use crate::os::fs::{os_chdir, os_dirname, os_isdir};
+use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
+use crate::runtime::do_source;
+use crate::strings::{gettext, vim_strsave_escaped};
+use crate::window::tabpage_index;
+use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ptr;
 
 pub use crate::fileio::FILE;
 

@@ -10,16 +10,15 @@
 )]
 use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::options::bufref_T;
-#[allow(unused_imports)]
 use crate::api::private::helpers::boolean_obj;
 use crate::api::tabpage::win_T;
 use crate::autocmd::apply_autocmds;
-#[allow(unused_imports)]
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
 use crate::change::inserted_bytes;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
-use crate::charset::{getwhitecols, skipbin, skipdigits, skiphex, skipwhite, vim_is_fname_char};
+use crate::charset::{
+    ascii_isalpha, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex,
+    skipwhite, vim_is_fname_char,
+};
 use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T};
 use crate::decoration::{
     decor_redraw_col, decor_redraw_line, decor_redraw_reset, decor_state_free,
@@ -28,9 +27,7 @@ use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::redraw_later;
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
-#[allow(unused_imports)]
 use crate::ex_cmds::do_sub_msg;
-#[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
 pub use crate::ex_getln::hlf_T;
 use crate::extmark::TriState;
@@ -40,31 +37,23 @@ use crate::hashtab::{
     hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
     hashitem_empty,
 };
-#[allow(unused_imports)]
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{
-    mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr2char_adv,
-    mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold, utf_head_off,
-    utf_ptr2char, utfc_ptr2len,
+    mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr_adv,
+    mb_ptr2char_adv, mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold,
+    utf_head_off, utf_ptr2char, utfc_ptr2len,
 };
-#[allow(unused_imports)]
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
 };
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
-#[allow(unused_imports)]
 use crate::message::{
-    emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start,
+    emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
 use crate::option::{
-    get_option_value, optval_free, set_option_value_give_err, shortmess, valid_name,
+    copy_option_part, get_option_value, optval_free, set_option_value_give_err, shortmess,
+    valid_name,
 };
 use crate::option_vars::*;
 use crate::os::fs::os_remove;
@@ -72,27 +61,19 @@ use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
-#[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regexec_prog, vim_regfree};
-#[allow(unused_imports)]
 use crate::runtime::do_in_runtimepath;
-#[allow(unused_imports)]
 use crate::search::do_search;
-#[allow(unused_imports)]
 use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
 };
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{concat_str, vim_strchr, xstrnsave};
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr};
-#[allow(unused_imports)]
+use crate::strings::{
+    concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
+    xstrnsave,
+};
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
-#[allow(unused_imports)]
 use crate::window::win_valid_any_tab;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;

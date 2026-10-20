@@ -5,28 +5,30 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc,
     clippy::upper_case_acronyms
 )]
 
-#[allow(unused_imports)]
+#[cfg(windows)]
 use crate::eval::typval::tv_dict_to_env;
-#[allow(unused_imports)]
+#[cfg(windows)]
 use crate::event::r#loop::{uv_req_size, uv_run, uv_translate_sys_error};
+#[cfg(windows)]
 use crate::log::logmsg;
 #[cfg(windows)]
-#[allow(unused_imports)]
 use crate::mbyte::utf8_to_utf16;
-#[allow(unused_imports)]
+#[cfg(windows)]
+use crate::memory::{xfree, xmalloc};
+use crate::memory::{xstrlcat, xstrlcpy};
+#[cfg(windows)]
 use crate::os::env::os_shell_is_cmdexe;
-#[allow(unused_imports)]
+#[cfg(windows)]
 use crate::os::fs::os_can_exe;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::wcslen;
-use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
+#[cfg(windows)]
+use crate::strings::{strlen as c_strlen, wcslen};
+use std::ffi::{CStr, c_char};
+#[cfg(windows)]
+use std::ffi::{c_int, c_ulong, c_void};
 use std::ptr;
 
 #[cfg(windows)]
@@ -42,10 +44,7 @@ use crate::event::proc::{
 #[cfg(windows)]
 use crate::event::rstream::rstream_fields;
 #[cfg(windows)]
-use crate::event::stream::{
-    Stream, stream_closed_ptr, stream_fields, stream_uv_ptr, uv_loop_t, uv_pipe_t, uv_stream_t,
-};
-use crate::memory::{xfree, xmalloc, xstrlcat, xstrlcpy};
+use crate::event::stream::{Stream, stream_closed_ptr, stream_fields, stream_uv_ptr, uv_stream_t};
 #[cfg(windows)]
 use crate::os::pty_conpty_win::{
     conpty_t, os_conpty_free, os_conpty_init, os_conpty_set_size, os_conpty_spawn,
@@ -130,7 +129,9 @@ pub(crate) unsafe fn quote_cmd_arg(
 #[cfg(windows)]
 mod win_impl {
     use super::*;
-    use crate::event::r#loop::{uv_connect_cb, uv_connect_t, uv_thread_t};
+    #[cfg(unix)]
+    use crate::event::r#loop::uv_connect_cb;
+    use crate::event::r#loop::{uv_connect_t, uv_thread_t};
     use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 
     type BOOLEAN = u8;

@@ -99,7 +99,7 @@ pub const MAXPATTSIZE: c_int = (c_short::MAX as c_int) - 10;
 
 #[inline]
 pub const fn instsize(l: c_int) -> c_int {
-    ((l as usize + size_of::<Instruction>() - 1) / size_of::<Instruction>()) as c_int
+    (l as usize).div_ceil(size_of::<Instruction>()) as c_int
 }
 
 pub type CapKind = byte;

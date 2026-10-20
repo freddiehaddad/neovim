@@ -4,37 +4,38 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
 use crate::api::private::helpers::nil_obj;
+#[cfg(not(test))]
+use crate::api::private::validate::{Array, Dict, ErrorType, KeyValuePair, ObjectData};
+use crate::api::private::validate::{Error, Object, ObjectType};
+#[cfg(not(test))]
+use crate::eval::decode::{MPACK_OK, mpack_node_t, mpack_token_type_t};
+use crate::eval::decode::{mpack_parser_t, mpack_tokbuf_t, mpack_token_t};
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::grid::schar_from_buf;
-#[allow(unused_imports)]
+use crate::kvec::KVec;
+use crate::lua::converter::FieldHashfn;
+#[cfg(not(test))]
+use crate::lua::converter::{Boolean, OptKeySet};
+use crate::map_glyph_cache::NvimString;
+use crate::memory::{Arena, arena_finish, arena_mem_free};
+#[cfg(not(test))]
+use crate::memory::{arena_alloc, xstrdup};
+use crate::msgpack_rpc::packer::Integer;
+#[cfg(not(test))]
 use crate::ui_client::{
     handle_ui_client_redraw, ui_client_event_grid_line, ui_client_get_redraw_handler,
 };
 use std::ffi::{c_char, c_int, c_void};
-
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
-};
-use crate::eval::decode::{
-    MPACK_OK, mpack_data_t, mpack_node_t, mpack_parser_t, mpack_tokbuf_t, mpack_token_data_t,
-    mpack_token_t, mpack_token_type_t, mpack_value_t, mpack_walk_cb,
-};
-use crate::kvec::KVec;
-use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrdup};
-use crate::msgpack_rpc::packer::Integer;
 
 const MPACK_EOF: c_int = 1;
 const MPACK_ERROR: c_int = 2;

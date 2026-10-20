@@ -5,20 +5,23 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(unix)]
 use crate::eval::typval::tv_dict_to_env;
-#[allow(unused_imports)]
+#[cfg(unix)]
 use crate::event::r#loop::{uv_handle_get_loop, uv_strerror};
+#[cfg(unix)]
 use crate::log::logmsg;
-#[allow(unused_imports)]
+#[cfg(unix)]
 use crate::os::fs::os_set_cloexec;
-#[allow(unused_imports)]
+#[cfg(unix)]
 use crate::strings::strerror;
-use std::ffi::{c_char, c_int, c_ulong, c_ushort, c_void};
+#[cfg(unix)]
+use std::ffi::{c_char, c_ulong};
+use std::ffi::{c_int, c_ushort};
+#[cfg(unix)]
 use std::ptr;
 
 #[repr(C)]
@@ -63,13 +66,12 @@ pub const fn wtermsig(stat: c_int) -> c_int {
 #[cfg(unix)]
 mod unix_impl {
     use super::*;
-    use crate::eval::decode::dict_T;
+    use crate::event::r#loop::uv_signal_t;
     use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues};
-    use crate::event::r#loop::{uv_handle_t, uv_signal_cb, uv_signal_t};
     use crate::event::proc::{
         Proc, PtyProc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
     };
-    use crate::event::stream::{stream_closed_ptr, stream_uv_ptr, uv_loop_t, uv_pipe_t};
+    use crate::event::stream::{stream_closed_ptr, stream_uv_ptr, uv_pipe_t};
 
     #[cfg(target_os = "linux")]
     type tcflag_t = u32;
@@ -246,9 +248,9 @@ mod unix_impl {
 
     use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
     use crate::fileio::{close, dup, fcntl, kill};
-    #[cfg(all(not(test), target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     use crate::os::env::_NSGetEnviron;
-    #[cfg(all(not(test), not(target_os = "macos")))]
+    #[cfg(not(target_os = "macos"))]
     use crate::os::env::environ;
     use crate::os::signal::signal;
 

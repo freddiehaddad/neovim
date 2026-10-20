@@ -9,71 +9,48 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::buf_set_name;
-#[allow(unused_imports)]
-use crate::buffer::first_win_in_tab;
-#[allow(unused_imports)]
-use crate::buffer::{buf_hide, buflist_add, buflist_findnr, curbuf_reusable, maketitle, otherfile};
-#[allow(unused_imports)]
-use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
-#[allow(unused_imports)]
-use crate::charset::ascii_isspace;
-#[allow(unused_imports)]
-use crate::charset::{rem_backslash, skipwhite};
+use crate::api::command::{cmdidx_T, exarg_T};
+use crate::api::tabpage::{tabpage_T, win_T};
+use crate::api::win_config::bufref_T;
+use crate::buffer::{
+    buf_hide, buf_is_empty, buf_set_name, buflist_add, buflist_findnr, bufref_valid,
+    curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
+};
+use crate::charset::{ascii_isspace, rem_backslash, skipwhite};
+use crate::clipboard::{VarType, typval_T};
+use crate::cmdhist::regmatch_T;
+use crate::context::is_ctx_win;
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::deprecated::EvalFuncData;
 use crate::eval::typval::{
     tv_get_number, tv_get_number_chk, tv_list_alloc_ret, tv_list_append_string,
 };
-#[allow(unused_imports)]
+use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
 use crate::ex_cmds::do_ecmd;
-#[allow(unused_imports)]
+use crate::ex_cmds2::{autowrite, check_changed};
 use crate::ex_getln::gotocmdline;
-#[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::mark::{setmark, setpcmark};
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-#[allow(unused_imports)]
+use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
+use crate::message::{emsg, semsg};
 use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::os::input::os_breakcheck;
-#[allow(unused_imports)]
 use crate::path::{
     FreeWild, FullName_save, expand_wildcards, fix_fname, gen_expand_wildcards, path_equal,
 };
-#[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
-#[allow(unused_imports)]
 use crate::strings::gettext;
-#[allow(unused_imports)]
 use crate::undo::bufIsChanged;
-#[allow(unused_imports)]
 use crate::version::list_in_columns;
-#[allow(unused_imports)]
 use crate::window::{
     check_can_set_curbuf_forceit, goto_tabpage_tp, lastwin_nofloating, tabpage_index,
     valid_tabpage, win_close, win_enter, win_move_after, win_split, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-
-use crate::api::command::{cmdidx_T, exarg_T};
-use crate::api::tabpage::{tabpage_T, win_T};
-use crate::api::win_config::bufref_T;
-use crate::clipboard::{VarType, typval_T};
-use crate::cmdhist::regmatch_T;
-use crate::context::is_ctx_win;
-use crate::eval::deprecated::EvalFuncData;
-use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
-use crate::ex_cmds2::{autowrite, check_changed};
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
-use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

@@ -10,111 +10,70 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, api_free_array, arena_array};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, boolean_obj, cstr_as_obj, cstr_as_string, string_obj,
-};
-#[allow(unused_imports)]
-use crate::autocmd::{block_autocmds, unblock_autocmds};
-#[allow(unused_imports)]
-use crate::buffer::bt_nofile;
-#[allow(unused_imports)]
-use crate::buffer::buf_clear;
-#[allow(unused_imports)]
-use crate::buffer::first_win_in_tab;
-#[allow(unused_imports)]
-use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
-#[allow(unused_imports)]
-use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_bool;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_add_float, tv_dict_add_nr};
-#[allow(unused_imports)]
-use crate::ex_cmds::do_ecmd;
-#[allow(unused_imports)]
-use crate::ex_cmds::prepare_tagpreview;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::grid::schar_from_str;
-#[allow(unused_imports)]
-use crate::highlight::win_hl_attr;
-#[allow(unused_imports)]
-use crate::highlight_group::syn_check_group;
-#[allow(unused_imports)]
-use crate::input::{vgetc, vungetc};
-#[allow(unused_imports)]
-use crate::insexpand::{
-    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader,
-};
-#[allow(unused_imports)]
-use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::memory::strequal;
-#[allow(unused_imports)]
-use crate::message::emsg;
-#[allow(unused_imports)]
-use crate::mouse::mouse_find_win_outer;
-#[allow(unused_imports)]
-use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
-#[allow(unused_imports)]
-use crate::option::set_option_value_give_err;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::strings::reverse_text;
-#[allow(unused_imports)]
-use crate::strings::{gettext, strchr, strcmp};
-#[allow(unused_imports)]
-use crate::ui::ui_call_win_float_pos;
-#[allow(unused_imports)]
-use crate::ui::{
-    ui_call_grid_destroy, ui_call_grid_resize, ui_call_option_set, ui_call_popupmenu_hide,
-    ui_call_popupmenu_select, ui_call_popupmenu_show, ui_call_win_close, ui_has, ui_pum_get_height,
-    ui_pum_get_pos,
-};
-#[allow(unused_imports)]
-use crate::window::{goto_tabpage_tp, valid_tabpage, win_enter, win_setheight, win_valid};
-use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::ptr;
-
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::command::exarg_T;
 use crate::api::deprecated::VirtText;
+use crate::api::private::helpers::{
+    add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,
+    cstr_as_string, string_obj,
+};
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{WinConfig, lpos_T, win_T};
 use crate::api::win_config::{UIExtension, parse_winborder};
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
 use crate::charset::{transstr, vim_strsize};
+use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
 use crate::cursor::{colnr_T, linenr_T};
+use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
+use crate::errors::*;
 use crate::eval::decode::dict_T;
+use crate::eval::typval::{tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
+use crate::ex_cmds::{do_ecmd, prepare_tagpreview};
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::garray::{ga_clear, garray_T};
+use crate::globals::*;
 use crate::grid::{
     get_win_by_grid_handle, grid_alloc, grid_assign_handle, grid_draw_border, grid_free,
     grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts, schar_T,
-    screengrid_line_start,
+    schar_from_ascii, schar_from_str, screengrid_line_start,
 };
-use crate::highlight::{hl_combine_attr, hl_get_ui_attr};
+use crate::highlight::{hl_combine_attr, hl_get_ui_attr, win_hl_attr};
+use crate::highlight_group::syn_check_group;
+use crate::input::{vgetc, vungetc};
+use crate::insexpand::{
+    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader,
+};
 use crate::keycodes::{
     CAR, ESC, K_DOWN, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_MOUSEDOWN, K_MOUSEMOVE, K_MOUSEUP,
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_UP, NL,
 };
 use crate::map_glyph_cache::NvimString;
+use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
+    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xmemdupz, xrealloc,
+    xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
+use crate::message::emsg;
+use crate::mouse::mouse_find_win_outer;
+use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
+use crate::option::set_option_value_give_err;
+use crate::option_vars::*;
 use crate::plines::{plines_m_win, win_linetabsize};
+use crate::strings::{gettext, reverse_text, strchr};
+use crate::ui::{
+    ui_call_grid_destroy, ui_call_grid_resize, ui_call_option_set, ui_call_popupmenu_hide,
+    ui_call_popupmenu_select, ui_call_popupmenu_show, ui_call_win_close, ui_call_win_float_pos,
+    ui_has, ui_pum_get_height, ui_pum_get_pos,
+};
 use crate::ui_compositor::{ui_comp_compose_grid, ui_comp_put_grid, ui_comp_remove_grid};
+use crate::window::{goto_tabpage_tp, valid_tabpage, win_enter, win_setheight, win_valid};
 use crate::winfloat::{
     WinKind, win_config_float, win_float_close, win_float_find, win_float_special,
 };
+use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ptr;
 
 pub use crate::ex_getln::hlf_T;
 pub use crate::option::OptInt;

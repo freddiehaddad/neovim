@@ -5,44 +5,53 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::eval::typval::tv_blob_get;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_blob_len;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
-use crate::eval::vars::eval_msgpack_type_lists;
-#[allow(unused_imports)]
-use crate::eval::{get_copyID, partial_name};
-#[allow(unused_imports)]
-use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, internal_error};
-#[allow(unused_imports)]
-use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use crate::api::private::converter::partial_T;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::eval::decode::{dict_T, dictitem_T};
+use crate::eval::decode::dict_T;
+#[cfg(not(test))]
+use crate::eval::decode::dictitem_T;
 use crate::eval::executor::blob_T;
-use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_grow, ga_init, garray_T};
-use crate::hashtab::{hashitem_T, hashitem_empty};
+use crate::eval::typval::tv_list_first;
+#[cfg(not(test))]
+use crate::eval::typval::{
+    tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item,
+    tv_list_last, tv_list_len,
+};
+#[cfg(not(test))]
+use crate::eval::vars::eval_msgpack_type_lists;
+#[cfg(not(test))]
+use crate::eval::{get_copyID, partial_name};
+#[cfg(not(test))]
+use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init};
+use crate::garray::{ga_concat_len, garray_T};
+use crate::hashtab::hashitem_T;
+#[cfg(not(test))]
+use crate::hashtab::hashitem_empty;
+#[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
-use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmemdupz, xmemscan, xrealloc};
+#[cfg(not(test))]
+use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
+#[cfg(not(test))]
+use crate::memory::{memchrsub, memcnt, xmemdupz, xmemscan, xrealloc};
+use crate::memory::{xfree, xmalloc};
+#[cfg(not(test))]
+use crate::message::{emsg, internal_error, semsg};
+use crate::msgpack_rpc::packer::PackerBuffer;
+#[cfg(not(test))]
 use crate::msgpack_rpc::packer::{
-    PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
-    mpack_integer, mpack_map, mpack_nil, mpack_str, mpack_uint64,
+    mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8, mpack_integer,
+    mpack_map, mpack_nil, mpack_str, mpack_uint64,
 };
+#[cfg(not(test))]
+use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::sync::atomic::AtomicBool;
+#[cfg(not(test))]
+use std::sync::atomic::Ordering;
 
 const NOTDONE: c_int = 2;
 const VAR_UNLOCKED: c_int = 0;

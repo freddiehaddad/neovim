@@ -4,43 +4,38 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::channel::channel_create_event;
-#[allow(unused_imports)]
-use crate::channel::{channel_close, channel_job_start};
-#[allow(unused_imports)]
-use crate::eval::find_job;
-#[allow(unused_imports)]
-use crate::eval::funcs::{f_jobstart, f_jobstop};
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_bool;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_string;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_alloc, tv_dict_free};
-#[allow(unused_imports)]
-use crate::ex_cmds::check_secure;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-
 use crate::api::private::converter::sctx_T;
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+#[cfg(not(test))]
+use crate::channel::{channel_close, channel_create_event, channel_job_start};
+use crate::clipboard::typval_T;
+#[cfg(not(test))]
+use crate::clipboard::{VarType, list_T, listitem_T};
 use crate::eval::decode::dict_T;
+#[cfg(not(test))]
+use crate::eval::find_job;
+#[cfg(not(test))]
+use crate::eval::funcs::{f_jobstart, f_jobstop};
+#[cfg(not(test))]
+use crate::eval::typval::{tv_dict_add_bool, tv_dict_alloc, tv_dict_free, tv_get_string};
+#[cfg(not(test))]
+use crate::ex_cmds::check_secure;
 use crate::garray::garray_T;
+#[cfg(not(test))]
+use crate::globals::*;
 use crate::hashtab::hashtab_T;
 use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
 use crate::map::Map;
 use crate::marktree::MarkTree;
+#[cfg(not(test))]
 use crate::memory::{xmalloc, xstrdup};
+#[cfg(not(test))]
+use crate::message::{emsg, semsg};
 use crate::msgpack_rpc::packer::handle_T;
+use std::ffi::{c_char, c_int, c_uint, c_void};
 
 pub type EvalFuncData = *mut c_void;
 pub type Channel = c_void;

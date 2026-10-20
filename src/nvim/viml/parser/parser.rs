@@ -1,11 +1,9 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
-#[allow(unused_imports)]
-use crate::mbyte::string_convert;
-use std::ffi::{c_char, c_int, c_void};
-
 use crate::kvec::KVecWithInit;
+use crate::mbyte::string_convert;
 use crate::memory::xfree;
+use std::ffi::{c_char, c_int, c_void};
 
 pub const CONV_NONE: c_int = 0;
 

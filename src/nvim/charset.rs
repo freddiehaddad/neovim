@@ -9,26 +9,22 @@
     clippy::too_many_arguments
 )]
 
-use crate::globals::*;
-use crate::mbyte::utf8len_tab;
-#[allow(unused_imports)]
-use crate::mbyte::{
-    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2bytes, utf_char2cells,
-    utf_char2len, utf_class_tab, utf_printable, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
-};
-#[allow(unused_imports)]
-use crate::option::{get_fileformat, skip_to_option_part};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::path::path_has_wildcard;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
-use std::ptr;
-
 use crate::cursor::{colnr_T, get_cursor_line_ptr};
 use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_grow, ga_init, garray_T};
+use crate::globals::*;
+use crate::mbyte::{
+    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2bytes, utf_char2cells,
+    utf_char2len, utf_class_tab, utf_printable, utf_ptr2char, utf_ptr2len, utf8len_tab,
+    utfc_ptr2len,
+};
 use crate::memory::{xmalloc, xstrchrnul};
+use crate::option::{get_fileformat, skip_to_option_part};
+use crate::option_vars::*;
+use crate::path::path_has_wildcard;
 use crate::plines::{utf_ClusterInfo, utf_ptr2StrCharInfo};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
 pub use crate::eval::buffer::varnumber_T;
@@ -1009,6 +1005,7 @@ pub unsafe extern "C" fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: 
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
+#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
     let number = unsafe { getdigits(pp, strict, i64::from(def)) };
     match c_long::try_from(number) {

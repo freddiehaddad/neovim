@@ -8,39 +8,24 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::event::r#loop::main_loop_ptr;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-
-#[allow(unused_imports)]
 use crate::charset::try_getdigits;
-#[allow(unused_imports)]
-use crate::event::r#loop::loop_poll_events;
-#[allow(unused_imports)]
 use crate::event::r#loop::{
-    uv_close, uv_handle_get_loop, uv_handle_get_type, uv_handle_size, uv_req_size, uv_strerror,
+    loop_poll_events, main_loop_ptr, uv_close, uv_freeaddrinfo, uv_handle_get_loop,
+    uv_handle_get_type, uv_handle_size, uv_pipe_connect, uv_pipe_init, uv_req_size, uv_strerror,
 };
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::os::fs::{os_path_exists, os_remove};
-#[allow(unused_imports)]
-use crate::path::path_tail;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::strrchr;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 use crate::event::stream::{
     Stream, UV_NAMED_PIPE, UV_TCP, stream_fields, stream_init, stream_may_close, stream_uv_ptr,
 };
+use crate::log::logmsg;
 use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::os::fs::{os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
+use crate::path::path_tail;
+use crate::strings::{gettext, strlen as c_strlen, strrchr, vim_snprintf};
+
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 const NUL: c_char = 0;
 const ADDRESS_MAX_SIZE: usize = 256;
@@ -137,8 +122,6 @@ struct UvConnectReq([u8; 256]);
 
 #[repr(C, align(8))]
 struct RStreamBuf([u8; 512]);
-
-use crate::event::r#loop::{uv_freeaddrinfo, uv_pipe_connect, uv_pipe_init};
 
 unsafe extern "C" {
     fn uv_getaddrinfo(

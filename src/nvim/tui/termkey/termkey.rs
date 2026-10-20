@@ -8,10 +8,7 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::mbyte::{utf_char2bytes, utf_char2len};
-use std::ffi::{CStr, c_char, c_int, c_uchar, c_void};
-
 use crate::memory::{xfree, xmalloc, xrealloc};
 use crate::tui::termkey::driver_csi::{
     TERMKEY_MOUSE_UNKNOWN, TermKeyCsi, TermKeyMouseEvent, free_driver_csi, new_driver_csi,
@@ -41,6 +38,7 @@ use crate::tui::termkey::driver_ti::{
     TerminfoEntry, free_driver_ti, keyinfo, new_driver_ti, peekkey_ti, start_driver_ti,
     stop_driver_ti,
 };
+use std::ffi::{CStr, c_char, c_int, c_uchar, c_void};
 
 pub const TERMKEY_FLAG_NOINTERPRET: c_int = 1 << 0;
 pub const TERMKEY_FLAG_RAW: c_int = 1 << 2;

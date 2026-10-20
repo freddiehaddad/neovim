@@ -9,42 +9,27 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::autocmd::apply_autocmds;
-#[allow(unused_imports)]
-use crate::autocmd::trigger_cursorhold;
-#[allow(unused_imports)]
+use crate::autocmd::{apply_autocmds, trigger_cursorhold};
 use crate::eval::vars::set_vim_var_nr;
-#[allow(unused_imports)]
-use crate::event::r#loop::loop_poll_events;
-#[allow(unused_imports)]
-use crate::event::r#loop::main_loop_ptr;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_guess_handle, uv_loop_size};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::{before_blocking, typebuf_changed};
-#[allow(unused_imports)]
-use crate::insexpand::{
-    ins_compl_active, ins_compl_autocomplete_elapsed, ins_compl_autocomplete_pending,
-};
-#[allow(unused_imports)]
-use crate::keycodes::get_mouse_button;
-#[allow(unused_imports)]
-use crate::main_init::getout;
-use crate::option_vars::*;
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
+use crate::event::r#loop::{loop_poll_events, main_loop_ptr, uv_guess_handle};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
     multiqueue_put_event,
 };
-use crate::keycodes::trans_special;
+use crate::globals::*;
+use crate::input::{before_blocking, typebuf_changed};
+use crate::insexpand::{
+    ins_compl_active, ins_compl_autocomplete_elapsed, ins_compl_autocomplete_pending,
+};
+use crate::keycodes::{get_mouse_button, trans_special};
+use crate::main_init::getout;
 use crate::map_glyph_cache::NvimString;
+use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
 use crate::state::get_real_state;
+use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::event::r#loop::Loop;

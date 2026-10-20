@@ -5,67 +5,68 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_variables,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, api_free_dict, api_free_object, copy_dict};
-#[allow(unused_imports)]
-use crate::api::ui::remote_ui_disconnect;
-#[allow(unused_imports)]
-use crate::api::ui::remote_ui_flush_pending_data;
-#[allow(unused_imports)]
-use crate::channel::{channel_close, channel_decref, channel_event, channel_incref};
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_handle_size, uv_strerror};
-#[allow(unused_imports)]
-use crate::event::proc::exit_on_closed_chan;
-use crate::globals::*;
-use crate::log::logmsg;
-use crate::message::semsg;
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::os::os_win_console::os_detach_ui_console;
-#[allow(unused_imports)]
-use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
 };
+#[cfg(not(test))]
+use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
+#[cfg(not(test))]
+use crate::channel::{channel_close, channel_decref, channel_event, channel_incref};
 use crate::eval::deprecated::{Callback, CallbackReader};
-use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
+#[cfg(not(test))]
+use crate::event::r#loop::{loop_poll_events, loop_queues, uv_handle_size, uv_strerror};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, event_create_oneshot, multiqueue_empty,
-    multiqueue_free, multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
+    multiqueue_process_events, multiqueue_put_event,
 };
+#[cfg(not(test))]
+use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
+#[cfg(not(test))]
+use crate::event::proc::exit_on_closed_chan;
 use crate::event::proc::{proc_in, proc_out, proc_size};
 use crate::event::rstream::{RStream, rstream_size, rstream_start};
 use crate::event::stream::Stream;
 use crate::event::wstream::{WBuffer, wstream_new_buffer, wstream_release_wbuffer, wstream_write};
+#[cfg(not(test))]
+use crate::globals::*;
 use crate::kvec::KVec;
-use crate::map::{Map, mh_get_uint64_t, ptr_t};
-use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
+#[cfg(not(test))]
+use crate::log::logmsg;
+#[cfg(not(test))]
+use crate::map::mh_get_uint64_t;
+#[cfg(not(test))]
+use crate::map_glyph_cache::MH_TOMBSTONE;
+use crate::map_glyph_cache::NvimString;
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, arena_memdupz,
     free_block, xcalloc, xfree, xmalloc,
 };
+#[cfg(not(test))]
+use crate::message::semsg;
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, mpack_array, mpack_integer, mpack_nil, mpack_object, mpack_object_array,
     mpack_str, mpack_uint, mpack_w,
 };
 use crate::msgpack_rpc::unpacker::{
-    GridLineEvent, MessageType, MsgpackRpcRequestHandler, Unpacker, unpacker_advance,
-    unpacker_init, unpacker_teardown,
+    MessageType, MsgpackRpcRequestHandler, Unpacker, unpacker_advance, unpacker_init,
+    unpacker_teardown,
 };
 use crate::os::input::input_blocking;
+#[cfg(all(not(test), windows))]
+use crate::os::os_win_console::os_detach_ui_console;
+#[cfg(not(test))]
+use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw_line};
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
 
 pub use crate::eval::deprecated::Channel;
 pub type ClientType = c_int;

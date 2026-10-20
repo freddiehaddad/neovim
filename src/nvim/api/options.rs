@@ -9,30 +9,26 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::static_cstr_as_obj;
-#[allow(unused_imports)]
+use crate::api::autocmd::TryState;
 use crate::api::private::helpers::{
-    add_c, api_free_object, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
-    boolean_obj, copy_object, cstr_as_string, dict_obj, find_buffer_by_handle, find_tab_by_handle,
-    find_window_by_handle, put_c, string_obj, try_enter, try_leave,
+    add_c, api_free_object, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
+    arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, put_c, static_cstr_as_obj,
+    string_obj, try_enter, try_leave,
 };
-#[allow(unused_imports)]
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
+};
+use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::autocmd::{block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds};
-#[allow(unused_imports)]
-use crate::buffer::{buflist_new, wipe_buffer};
-#[allow(unused_imports)]
-use crate::buffer::{bufref_valid, set_bufref};
+use crate::buffer::{buflist_new, bufref_valid, set_bufref, wipe_buffer};
+use crate::context::{ctx_restore, ctx_switch};
 use crate::globals::*;
-#[allow(unused_imports)]
+use crate::lua::converter::Boolean;
+use crate::map_glyph_cache::NvimString;
 use crate::memline::ml_open;
-#[allow(unused_imports)]
+use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
+use crate::msgpack_rpc::packer::handle_T;
 use crate::option::{
     copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
     get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
@@ -40,23 +36,10 @@ use crate::option::{
     opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own,
     set_option_direct, set_option_value_for, validate_and_prepare_option_value,
 };
-#[allow(unused_imports)]
 use crate::strings::{strchr, strlen};
-#[allow(unused_imports)]
 use crate::window::close_windows;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-
-use crate::api::autocmd::TryState;
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
-};
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
-use crate::context::{ctx_restore, ctx_switch};
-use crate::lua::converter::Boolean;
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
-use crate::msgpack_rpc::packer::handle_T;
 
 pub use crate::api::autocmd::event_T;
 pub use crate::api::tabpage::Buffer;

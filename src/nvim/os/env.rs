@@ -5,62 +5,62 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+use crate::api::private::converter::sctx_T;
+use crate::api::tabpage::pos_T;
+use crate::charset::skipwhite;
+#[cfg(unix)]
+use crate::charset::vim_isfilec;
+use crate::eval::deprecated::buf_T;
+#[cfg(not(test))]
 use crate::eval::fs::modify_fname;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::skip_expr;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::vars::get_vim_var_str;
-#[allow(unused_imports)]
-use crate::event::r#loop::{uv_err_name, uv_strerror};
+#[cfg(not(test))]
 use crate::globals::*;
-#[cfg(windows)]
-#[allow(unused_imports)]
+use crate::lua::converter::LuaRef;
+#[cfg(not(test))]
+use crate::map_glyph_cache::NvimString;
+#[cfg(all(not(test), windows))]
+use crate::mbyte::utf_valid_string;
+#[cfg(all(not(test), windows))]
 use crate::mbyte::utf16_to_utf8;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len, utf_valid_string};
+#[cfg(not(test))]
+use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len};
+use crate::memory::{xfree, xmalloc, xmemrchr, xstrdup, xstrlcpy};
+#[cfg(not(test))]
+use crate::memory::{xmemcpyz, xmemdupz, xstrlcat};
+#[cfg(all(not(test), windows))]
 use crate::message::semsg;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::message::{emsg, internal_error};
+#[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::fs::{os_dirname, os_isdir, os_realpath};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::os::fs::os_isdir;
+#[cfg(all(not(test), unix))]
+use crate::os::fs::{os_dirname, os_realpath};
+#[cfg(unix)]
+use crate::os::users::os_get_userdir;
+#[cfg(not(test))]
 use crate::path::{
     after_pathsep, append_path, concat_fnames, path_cmp, path_is_absolute, path_tail,
     path_tail_with_sep,
 };
-#[allow(unused_imports)]
-use crate::path::{path_to_slash, path_to_slash_save, vim_ispathsep};
-#[allow(unused_imports)]
-use crate::path::{to_slash, to_slash_save};
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
+use crate::path::{to_slash, to_slash_save, vim_ispathsep};
+#[cfg(not(test))]
 use crate::strings::vim_strsave_escaped;
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::strings::wcslen;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use crate::strings::{strlen as c_strlen, vim_strchr};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-
-use crate::api::private::converter::sctx_T;
-use crate::api::tabpage::pos_T;
-use crate::charset::{skipwhite, vim_isfilec};
-use crate::eval::deprecated::buf_T;
-use crate::lua::converter::LuaRef;
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{
-    xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrlcat, xstrlcpy,
-};
-use crate::os::users::os_get_userdir;
 
 const NUL: c_char = 0;
 const OK: c_int = 1;
@@ -161,6 +161,13 @@ static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 #[cfg(not(test))]
 use crate::version::{default_vim_dir, default_vimruntime_dir};
 
+unsafe extern "C" {
+    #[cfg(target_os = "macos")]
+    pub fn _NSGetEnviron() -> *mut *mut *mut c_char;
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    pub static mut environ: *mut *mut c_char;
+}
+
 #[cfg(not(test))]
 unsafe extern "C" {
     fn uv_os_getenv(name: *const c_char, buffer: *mut c_char, size: *mut usize) -> c_int;
@@ -170,11 +177,6 @@ unsafe extern "C" {
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
-
-    #[cfg(target_os = "macos")]
-    pub fn _NSGetEnviron() -> *mut *mut *mut c_char;
-    #[cfg(all(not(windows), not(target_os = "macos")))]
-    pub static mut environ: *mut *mut c_char;
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     fn uname(buf: *mut Utsname) -> c_int;

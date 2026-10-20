@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::collapsible_if,
@@ -15,95 +14,50 @@
     clippy::useless_conversion
 )]
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
-#[allow(unused_imports)]
-use crate::buffer::open_buffer;
-#[allow(unused_imports)]
-use crate::buffer::{buf_inc_changedtick, buf_spname, setfname};
-#[allow(unused_imports)]
-use crate::charset::ascii_isalpha;
-#[allow(unused_imports)]
-use crate::dialog::do_dialog;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_nr;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_clear, tv_dict_add_str_len, tv_list_alloc_ret, tv_list_append_allocated_string,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
-#[allow(unused_imports)]
-use crate::fileio::read_eintr;
-#[allow(unused_imports)]
-use crate::fileio::readfile;
-#[allow(unused_imports)]
-use crate::fileio::{buf_store_file_info, modname};
-#[allow(unused_imports)]
-use crate::fileio::{vim_deltempdir, vim_rename, vim_tempname};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_typval;
-#[allow(unused_imports)]
-use crate::main_init::getout;
-#[allow(unused_imports)]
-use crate::mbyte::mb_adjust_cursor;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
-    msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, set_keep_msg, verb_msg,
-};
-use crate::message::{semsg, siemsg, smsg};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::set_option_value_give_err;
-#[allow(unused_imports)]
-use crate::option::{get_fileformat, set_fileformat};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::strcmp as c_strcmp;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::ui::ui_flush;
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
-use std::ptr;
-
-use crate::api::command::cmdmod_T;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
-use crate::api::tabpage::win_T;
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
+use crate::buffer::{buf_inc_changedtick, buf_spname, open_buffer, setfname};
 use crate::change::{changed_internal, unchanged};
-use crate::clipboard::{list_T, listitem_T, typval_T};
+use crate::charset::ascii_isalpha;
+use crate::clipboard::{list_T, typval_T};
 use crate::cursor::{check_cursor, coladvance, colnr_T, linenr_T};
+use crate::dialog::do_dialog;
 use crate::drawscreen::redraw_curbuf_later;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::fs::FileInfo;
+use crate::eval::typval::{
+    tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
+    tv_list_append_allocated_string, tv_list_first, tv_list_len,
+};
+use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::fileio::{
+    buf_store_file_info, modname, read_eintr, readfile, vim_deltempdir, vim_rename, vim_tempname,
+};
+use crate::globals::*;
 use crate::input::flush_buffers;
+use crate::lua::executor::nlua_call_typval;
+use crate::main_init::getout;
 use crate::map::{Map, mh_get_int64_t, ptr_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::mark::setpcmark;
-use crate::mbyte::{mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memfile::{
     bhdr_T, blocknr_T, memfile_T, mf_close, mf_close_file, mf_free, mf_free_fnames, mf_get,
     mf_need_trans, mf_new, mf_new_page_size, mf_open, mf_open_file, mf_put, mf_set_dirty,
     mf_set_fnames, mf_sync, mf_trans_del, off_T,
 };
 use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy};
+use crate::message::{
+    emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
+    msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
+    smsg, verb_msg,
+};
+use crate::option::{copy_option_part, get_fileformat, set_fileformat, set_option_value_give_err};
+use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_hostname, os_get_pid};
 use crate::os::fs::{
     os_fileinfo, os_fileinfo_inode, os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_isdir,
@@ -112,17 +66,25 @@ use crate::os::fs::{
 use crate::os::input::{line_breakcheck, os_char_avail};
 use crate::os::proc::os_proc_running;
 use crate::os::time::{Timestamp, os_ctime_r, os_time, time_t};
-#[cfg(unix)]
-use crate::os::users::os_get_uname;
 use crate::os::users::os_get_username;
-#[cfg(windows)]
-use crate::path::path_to_slash;
+#[cfg(unix)]
+use crate::path::path_is_absolute;
 use crate::path::{
-    FreeWild, after_pathsep, concat_fnames, expand_wildcards, fix_fname, path_equal,
-    path_is_absolute, path_tail, same_directory, shorten_dir, vim_FullName, vim_ispathsep,
+    FreeWild, after_pathsep, concat_fnames, expand_wildcards, fix_fname, path_equal, path_tail,
+    same_directory, shorten_dir, vim_FullName, vim_ispathsep,
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
+use crate::strings::{gettext, strcmp as c_strcmp, strlen as c_strlen, vim_strchr};
+use crate::ui::{ui_flush, ui_has};
+use crate::undo::bufIsChanged;
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
+use std::ptr;
+
+#[cfg(unix)]
+use crate::os::users::os_get_uname;
+#[cfg(windows)]
+use crate::path::path_to_slash;
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;

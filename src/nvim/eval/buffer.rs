@@ -9,80 +9,47 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::bt_nofilename;
-#[allow(unused_imports)]
-use crate::buffer::bt_prompt;
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::first_win_in_tab;
-#[allow(unused_imports)]
+use crate::api::options::CtxSwitch;
+use crate::api::tabpage::win_T;
 use crate::buffer::{
-    bt_cmdwin, buf_ensure_loaded, buflist_add, buflist_findlnum, buflist_findname_exp,
-    buflist_findnr, buflist_new,
+    bt_cmdwin, bt_nofilename, bt_prompt, buf_ensure_loaded, buf_get_changedtick, buflist_add,
+    buflist_findlnum, buflist_findname_exp, buflist_findnr, buflist_new, first_win_in_tab,
 };
-#[allow(unused_imports)]
 use crate::change::{
     appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark, inserted_bytes,
 };
-#[allow(unused_imports)]
+use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor::check_cursor_col;
-#[allow(unused_imports)]
-use crate::eval::callback_from_typval;
-#[allow(unused_imports)]
+use crate::eval::decode::dict_T;
+use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
-#[allow(unused_imports)]
-use crate::eval::typval::tv_check_str_or_nr;
-#[allow(unused_imports)]
 use crate::eval::typval::{
-    callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
-    tv_dict_alloc, tv_get_bool_chk, tv_get_lnum_buf, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_item_remove,
+    callback_free, tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list,
+    tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
+    tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_first,
+    tv_list_item_remove, tv_list_last, tv_list_len,
 };
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_get_bool, tv_get_lnum, tv_get_string, tv_get_string_chk};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::{callback_call, prompt_get_input, typval_tostring};
-#[allow(unused_imports)]
+use crate::eval::window::win_has_winnr;
+use crate::eval::{callback_call, callback_from_typval, prompt_get_input, typval_tostring};
 use crate::ex_cmds::check_secure;
-#[allow(unused_imports)]
 use crate::extmark::extmark_splice_cols;
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::insert::buf_prompt_text;
-#[allow(unused_imports)]
 use crate::mark::mark_adjust_buf;
-#[allow(unused_imports)]
-use crate::memline::ml_append;
-#[allow(unused_imports)]
 use crate::memline::{
-    ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace, ml_replace_buf,
+    ml_append, ml_delete_buf, ml_delete_flags, ml_get, ml_get_buf, ml_get_buf_len, ml_replace,
+    ml_replace_buf,
 };
-#[allow(unused_imports)]
+use crate::memory::{xfree, xmemdupz, xstrdup};
 use crate::r#move::update_topline;
-#[allow(unused_imports)]
 use crate::path::path_with_url;
-#[allow(unused_imports)]
 use crate::sign::{buf_has_signs, get_buffer_signs};
-#[allow(unused_imports)]
 use crate::strings::concat_str;
-#[allow(unused_imports)]
 use crate::undo::{bufIsChanged, u_clearallandblockfree, u_save, u_savesub, u_sync};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-
-use crate::api::buffer::VisualState;
-use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{tabpage_T, win_T};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-use crate::context::{ctx_restore, ctx_switch};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
-use crate::eval::window::win_has_winnr;
-use crate::memory::{xfree, xmemdupz, xstrdup};
 
 pub type varnumber_T = i64;
 pub use crate::cursor::colnr_T;

@@ -10,92 +10,12 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::buf_set_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::{bt_dontwrite, bt_prompt, buf_is_empty};
-#[allow(unused_imports)]
-use crate::cursor::clearpos;
-#[allow(unused_imports)]
-use crate::cursor::equalpos;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::funcs::get_buf_arg;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_string;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_list_alloc,
-    tv_list_append_dict,
-};
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_strerror;
-#[allow(unused_imports)]
-use crate::ex_docmd::expr_map_locked;
-#[allow(unused_imports)]
-use crate::ex_getln::{text_locked, text_locked_msg};
-#[allow(unused_imports)]
-use crate::fileio::fflush;
-#[cfg(unix)]
-#[allow(unused_imports)]
-use crate::fileio::getuid;
-#[allow(unused_imports)]
-use crate::fileio::read_eintr;
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::fileio::{_fdopen, _fileno, _ftelli64};
-#[allow(unused_imports)]
-use crate::fileio::{fclose, feof, fgetc, fread, fwrite};
-#[cfg(not(windows))]
-#[allow(unused_imports)]
-use crate::fileio::{fdopen, fileno, ftello};
-#[allow(unused_imports)]
-use crate::fileio::{get2c, get4c, get8ctime};
-#[allow(unused_imports)]
-use crate::fold::foldOpenCursor;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::beep_flush;
-#[allow(unused_imports)]
-use crate::insert::beginline;
-#[cfg(unix)]
-#[allow(unused_imports)]
-use crate::memline::resolve_symlink;
-#[allow(unused_imports)]
-use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
-    msg_putchar, msg_puts, msg_puts_hl, msg_start, verb_msg, verbose_enter, verbose_leave,
-};
-use crate::message::{semsg, smsg, smsg_keep};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::shortmess;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::time::c_time;
-#[allow(unused_imports)]
-use crate::os::time::strftime;
-#[allow(unused_imports)]
-use crate::spell::spell_check_window;
-#[allow(unused_imports)]
-use crate::strings::memcmp;
-#[allow(unused_imports)]
-use crate::strings::{gettext, ngettext, qsort, strcmp, strlen};
-#[allow(unused_imports)]
-use crate::strings::{sort_strings, vim_strchr};
-#[allow(unused_imports)]
-use crate::strings::{vim_snprintf, vim_snprintf_add};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::options::CtxSwitch;
 use crate::autocmd::{block_autocmds, unblock_autocmds};
+use crate::buffer::{
+    bt_dontwrite, bt_prompt, buf_get_changedtick, buf_is_empty, buf_set_changedtick,
+};
 use crate::buffer_updates::{buf_updates_changedtick, buf_updates_unload};
 use crate::change::{
     change_warning, changed, changed_bytes, changed_lines, file_ff_differs, unchanged,
@@ -103,36 +23,76 @@ use crate::change::{
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor::{
-    check_cursor, check_cursor_col, check_cursor_lnum, check_pos, coladvance, colnr_T, getviscol,
-    linenr_T,
+    check_cursor, check_cursor_col, check_cursor_lnum, check_pos, clearpos, coladvance, colnr_T,
+    equalpos, getviscol, linenr_T,
 };
 use crate::drawscreen::{redraw_later, redrawWinline};
+use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T, fmark_T, pos_T, visualinfo_T};
 use crate::eval::fs::FileInfo;
+use crate::eval::funcs::get_buf_arg;
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret, tv_get_string,
+    tv_list_alloc, tv_list_append_dict,
+};
+use crate::event::r#loop::uv_strerror;
+use crate::ex_docmd::expr_map_locked;
+use crate::ex_getln::{text_locked, text_locked_msg};
 use crate::extmark::{
     ExtmarkMove, ExtmarkOp, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
     extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t,
 };
+#[cfg(unix)]
+use crate::fileio::getuid;
+#[cfg(windows)]
+use crate::fileio::{_fdopen, _fileno, _ftelli64};
+use crate::fileio::{
+    fclose, feof, fflush, fgetc, fread, fwrite, get2c, get4c, get8ctime, read_eintr,
+};
+#[cfg(not(windows))]
+use crate::fileio::{fdopen, fileno, ftello};
+use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::globals::*;
+use crate::input::beep_flush;
 use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
+use crate::insert::beginline;
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::{free_fmark, mark_adjust, setpcmark};
 use crate::mbyte::utfc_ptr2len;
 use crate::mcursor::mc_undo_time;
+#[cfg(unix)]
+use crate::memline::resolve_symlink;
+use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
 use crate::memory::{time_to_bytes, xcalloc, xfree, xmalloc, xmallocz, xstrdup, xstrlcat};
+use crate::message::{
+    emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
+    msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
+    verbose_leave,
+};
+use crate::option::{copy_option_part, shortmess};
+use crate::option_vars::*;
 use crate::os::fs::{
     os_close, os_fileinfo_fd, os_fileinfo_size, os_fopen, os_free_acl, os_fsync, os_get_acl,
     os_getperm, os_isdir, os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_acl,
     os_setperm, vim_acl_T,
 };
-#[cfg(unix)]
-use crate::os::fs::{os_fchown, os_fileinfo, uv_gid_t, uv_uid_t};
 use crate::os::input::fast_breakcheck;
-use crate::os::time::{Timestamp, Tm, os_localtime_r, os_time, time_t};
+use crate::os::time::{Timestamp, Tm, c_time, os_localtime_r, os_time, strftime, time_t};
 use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_ispathsep_nocolon};
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
+use crate::spell::spell_check_window;
 use crate::state::virtual_active;
+use crate::strings::{
+    gettext, memcmp, ngettext, qsort, sort_strings, strcmp, strlen, vim_snprintf, vim_snprintf_add,
+    vim_strchr,
+};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
+use std::ptr;
+
+#[cfg(unix)]
+use crate::os::fs::{os_fchown, os_fileinfo, uv_gid_t, uv_uid_t};
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::fileio::FILE;

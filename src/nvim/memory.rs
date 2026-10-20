@@ -3,39 +3,39 @@
 
 #![allow(dead_code, clippy::missing_safety_doc)]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::ui::remote_ui_free_all_mem;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::buffer_updates::buf_free_callbacks;
 #[cfg(not(test))]
 use crate::errors::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ex_cmds::free_prev_shellcmd;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline_cmd, free_cd_dir};
 #[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::input::close_all_scripts;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::lua::executor::nlua_free_all_mem;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::main_init::preserve_exit;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::memfile::mf_release_all;
 #[cfg(not(test))]
 use crate::message::semsg;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, set_keep_msg};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::option::free_all_options;
 #[cfg(not(test))]
 use crate::option_vars::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::register::set_expr_line;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ui::ui_free_all_mem;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ui_client::ui_client_free_all_mem;
 use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};

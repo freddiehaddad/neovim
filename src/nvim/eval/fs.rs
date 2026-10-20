@@ -2,7 +2,6 @@
 
 #![allow(
     dead_code,
-    unused_imports,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -10,116 +9,78 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::find_buffer_by_handle;
-#[allow(unused_imports)]
-use crate::cmdexpand::{ExpandCleanup, ExpandInit, ExpandOne, globpath};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_set_ret;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_blob_alloc_ret, tv_blob_free, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk,
-    tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_item_remove,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_blob_len, tv_list_ref};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_get_string,
-    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-#[allow(unused_imports)]
-use crate::eval::userfunc::add_defer;
-#[allow(unused_imports)]
-use crate::eval::userfunc::can_add_defer;
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_string;
-#[allow(unused_imports)]
-use crate::eval::vars::{prepare_vimvar, restore_vimvar};
-#[allow(unused_imports)]
-use crate::eval::{do_string_sub, eval_expr_typval};
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_strerror;
-#[allow(unused_imports)]
-use crate::ex_cmds::check_secure;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_chdir;
-#[allow(unused_imports)]
-use crate::ex_docmd::vim_mkdir_emsg;
-#[allow(unused_imports)]
-use crate::fileio::file_pat_to_reg_pat;
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::fileio::{_fileno, _fseeki64};
-#[allow(unused_imports)]
-use crate::fileio::{delete_recursive, readdir_core, vim_copyfile, vim_rename, vim_tempname};
-#[allow(unused_imports)]
-use crate::fileio::{fclose, fread};
-#[cfg(not(windows))]
-#[allow(unused_imports)]
-use crate::fileio::{fileno, fseeko, readlink};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mbyte::{utf_head_off, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::{expand_env_save, home_replace};
-#[allow(unused_imports)]
-use crate::os::fs::os_fopen;
-#[allow(unused_imports)]
-use crate::os::fs::{
-    os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
-    os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_getperm, os_isdir, os_mkdir_recurse,
-    os_realpath, os_remove, os_rmdir,
-};
-#[allow(unused_imports)]
-use crate::os::fs::{os_is_reparse_point_include, os_resolve_shortcut};
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::path::slash_adjust;
-#[allow(unused_imports)]
-use crate::path::{
-    FullName_save, add_pathsep, after_pathsep, path_cmp, path_is_absolute, path_next_component,
-    path_tail, path_tail_with_sep, path_to_slash_save, shorten_dir_len, simplify_filename,
-    vim_isAbsName, vim_ispathsep,
-};
-#[allow(unused_imports)]
-use crate::runtime::script_is_lua;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::{concat_str, vim_strchr, vim_strsave_shellescape, xstrnsave};
-#[allow(unused_imports)]
-use crate::window::find_tabpage;
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
-use std::ptr;
-
-use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{tabpage_T, win_T};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+use crate::cmdexpand::{ExpandCleanup, ExpandInit, ExpandOne, globpath};
+use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::executor::blob_T;
+use crate::eval::typval::{
+    tv_blob_alloc_ret, tv_blob_free, tv_blob_len, tv_check_for_nonempty_string_arg,
+    tv_check_for_string_arg, tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number,
+    tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
+    tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_first,
+    tv_list_item_remove, tv_list_len, tv_list_set_ret,
+};
+use crate::eval::userfunc::{add_defer, can_add_defer};
+use crate::eval::vars::{prepare_vimvar, restore_vimvar, set_vim_var_string};
 use crate::eval::window::find_win_by_nr;
+use crate::eval::{do_string_sub, eval_expr_typval};
+use crate::event::r#loop::uv_strerror;
+use crate::ex_cmds::check_secure;
+use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
 use crate::file_search::{
     FINDFILE_DIR, FINDFILE_FILE, find_file_in_path_option, vim_findfile_cleanup,
 };
+#[cfg(windows)]
+use crate::fileio::{_fileno, _fseeki64};
+use crate::fileio::{
+    delete_recursive, fclose, file_pat_to_reg_pat, fread, readdir_core, vim_copyfile, vim_rename,
+    vim_tempname,
+};
+#[cfg(not(windows))]
+use crate::fileio::{fileno, fseeko, readlink};
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy};
+use crate::mbyte::{utf_head_off, utfc_ptr2len};
+use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstrdup, xstrlcpy};
+#[cfg(unix)]
+use crate::memory::{xmallocz, xstrlcat};
+use crate::message::{emsg, semsg};
+use crate::option_vars::*;
+use crate::os::env::{expand_env_save, home_replace};
 use crate::os::fileio::{
     FileDescriptor, K_FILE_APPEND, K_FILE_CREATE, K_FILE_MK_DIR, K_FILE_TRUNCATE, file_close,
     file_flush, file_open, file_write,
 };
+use crate::os::fs::{
+    os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
+    os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_fopen, os_getperm, os_isdir,
+    os_mkdir_recurse, os_remove, os_rmdir,
+};
+#[cfg(windows)]
+use crate::os::fs::{os_is_reparse_point_include, os_realpath, os_resolve_shortcut};
+#[cfg(unix)]
+use crate::path::path_next_component;
+#[cfg(windows)]
+use crate::path::path_to_slash_save;
+#[cfg(windows)]
+use crate::path::slash_adjust;
+use crate::path::{
+    FullName_save, add_pathsep, after_pathsep, path_cmp, path_is_absolute, path_tail,
+    path_tail_with_sep, shorten_dir_len, simplify_filename, vim_isAbsName, vim_ispathsep,
+};
+use crate::runtime::script_is_lua;
 use crate::sign::expand_T;
+#[cfg(unix)]
+use crate::strings::concat_str;
+use crate::strings::{gettext, strlen as c_strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
+use crate::window::find_tabpage;
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::fileio::off_T;

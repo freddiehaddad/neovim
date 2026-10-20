@@ -10,81 +10,51 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
-use crate::api::private::helpers::cbuf_to_string;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_free_object, arena_array, find_buffer_by_handle,
-    find_window_by_handle, object_to_hl_id, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{array_obj, cstr_as_string, integer_obj, string_obj};
-#[allow(unused_imports)]
-use crate::autocmd::{apply_autocmds_win, block_autocmds, unblock_autocmds};
-#[allow(unused_imports)]
-use crate::buffer::{bufref_valid, set_bufref};
-#[allow(unused_imports)]
-use crate::charset::transstr;
-#[allow(unused_imports)]
-use crate::drawscreen::{redraw_later, set_must_redraw};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::ex_docmd::expr_map_locked;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::{syn_check_group, syn_id2name};
-#[allow(unused_imports)]
-use crate::mbyte::{mb_string2cells, mb_string2cells_len};
-#[allow(unused_imports)]
-use crate::memory::strequal;
-#[allow(unused_imports)]
-use crate::r#move::changed_window_setting;
-#[allow(unused_imports)]
-use crate::option::didset_window_options;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::ui_compositor::ui_comp_remove_grid;
-#[allow(unused_imports)]
-use crate::window::window_layout_locked_err;
-#[allow(unused_imports)]
-use crate::window::{
-    check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
-    lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
-    win_goto, win_locked, win_remove, win_set_buf, win_setheight_win, win_setwidth_win,
-    win_split_ins, win_valid, win_valid_any_tab, winframe_find_altwin, winframe_remove,
-    winframe_restore,
-};
-#[allow(unused_imports)]
-use crate::winfloat::{
-    win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
-};
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::deprecated::{VirtText, VirtTextChunk};
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::{
+    add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
+    arena_array, array_obj, cbuf_to_string, cstr_as_string, error_set, find_buffer_by_handle,
+    find_window_by_handle, integer_obj, object_to_hl_id, string_obj, try_enter, try_leave,
+};
 use crate::api::private::validate::{
     Array, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
     api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T};
+use crate::autocmd::{apply_autocmds_win, block_autocmds, unblock_autocmds};
+use crate::buffer::{bufref_valid, set_bufref};
+use crate::charset::transstr;
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::drawscreen::{redraw_later, set_must_redraw};
+use crate::errors::*;
+use crate::ex_docmd::expr_map_locked;
+use crate::globals::*;
+use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::Arena;
+use crate::mbyte::{mb_string2cells, mb_string2cells_len};
+use crate::memory::{Arena, strequal};
+use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::didset_window_options;
+use crate::option_vars::*;
+use crate::ui::ui_has;
+use crate::ui_compositor::ui_comp_remove_grid;
+use crate::window::{
+    check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
+    lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
+    win_goto, win_locked, win_remove, win_set_buf, win_setheight_win, win_setwidth_win,
+    win_split_ins, win_valid, win_valid_any_tab, window_layout_locked_err, winframe_find_altwin,
+    winframe_remove, winframe_restore,
+};
+use crate::winfloat::{
+    win_config_float, win_float_find_altwin, win_new_float, win_set_minimal_style,
+};
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub type FloatAnchor = c_int;
 pub type FloatRelative = c_int;

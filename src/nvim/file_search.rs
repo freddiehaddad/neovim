@@ -9,63 +9,41 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
 use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, cstr_to_string};
-#[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_add_bool;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_get_string;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_clear, tv_dict_add_str, tv_dict_set_keys_readonly};
-#[allow(unused_imports)]
-use crate::eval::vars::set_vim_var_string;
-#[allow(unused_imports)]
-use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::normal::get_visual_text;
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::was_set_insecurely;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::env::expand_env_esc;
-#[allow(unused_imports)]
-use crate::os::fs::{os_chdir, os_dirname, os_fileid, os_fileid_equal, os_isdir, os_path_exists};
-#[allow(unused_imports)]
-use crate::os::input::os_breakcheck;
-#[allow(unused_imports)]
-use crate::path::{
-    FreeWild, FullName_save, after_pathsep, expand_wildcards, path_cmp, path_equal,
-    path_has_drive_letter, path_is_url, path_shorten_fname, path_tail, path_tail_with_sep,
-    path_to_slash, path_with_url, simplify_filename, vim_FullName, vim_isAbsName, vim_ispathsep,
-};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, xstrnsave};
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
-use std::ptr;
-
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
 use crate::clipboard::typval_T;
 use crate::context::CdCause;
 use crate::cursor::get_cursor_line_ptr;
+use crate::errors::*;
+use crate::eval::typval::{
+    tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly, tv_get_string,
+};
+use crate::eval::vars::set_vim_var_string;
+use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
+use crate::globals::*;
 use crate::map_glyph_cache::NvimString;
+use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy};
+use crate::message::{emsg, semsg};
+use crate::normal::get_visual_text;
+use crate::option::{copy_option_part, was_set_insecurely};
+use crate::option_vars::*;
+use crate::os::env::expand_env_esc;
+use crate::os::fs::{os_chdir, os_dirname, os_fileid, os_fileid_equal, os_isdir, os_path_exists};
+use crate::os::input::os_breakcheck;
+use crate::path::{
+    FreeWild, FullName_save, after_pathsep, expand_wildcards, path_cmp, path_equal,
+    path_has_drive_letter, path_is_url, path_shorten_fname, path_tail, path_tail_with_sep,
+    path_with_url, simplify_filename, vim_isAbsName, vim_ispathsep,
+};
+#[cfg(windows)]
+use crate::path::{path_to_slash, vim_FullName};
 use crate::plines::linenr_T;
 use crate::state::save_v_event_T;
+use crate::strings::{gettext, vim_snprintf, vim_strchr, xstrnsave};
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ptr;
 
 pub use crate::api::autocmd::event_T;
 pub use crate::ex_docmd::CdScope;

@@ -5,40 +5,49 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_variables,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::maketitle;
-#[allow(unused_imports)]
-use crate::charset::{buf_init_isk_chartab, init_isf_chartab, init_isi_chartab};
-#[allow(unused_imports)]
-use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::mbyte::mb_strnicmp;
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
-use crate::option::set_helplang_default;
-#[allow(unused_imports)]
-use crate::path::{path_tail, path_tail_with_sep};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::setlocale;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
 use crate::api::command::exarg_T;
-use crate::charset::{skiptowhite, skipwhite};
-use crate::eval::deprecated::buf_T;
+#[cfg(not(test))]
+use crate::buffer::maketitle;
+#[cfg(not(test))]
+use crate::charset::{
+    buf_init_isk_chartab, init_isf_chartab, init_isi_chartab, skiptowhite, skipwhite,
+};
+#[cfg(not(test))]
+use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+#[cfg(all(not(test), unix))]
 use crate::garray::{ga_grow, ga_init, garray_T};
-use crate::memory::{xfree, xstrdup, xstrlcpy};
-use crate::os::env::{expand_T, os_env_exists, os_getenv_noalloc, os_setenv};
+#[cfg(not(test))]
+use crate::globals::*;
+#[cfg(not(test))]
+use crate::mbyte::mb_strnicmp;
+use crate::memory::xfree;
+#[cfg(all(not(test), unix))]
+use crate::memory::xstrdup;
+#[cfg(not(test))]
+use crate::memory::xstrlcpy;
+#[cfg(not(test))]
+use crate::message::{semsg, smsg};
+#[cfg(not(test))]
+use crate::option::set_helplang_default;
+use crate::os::env::expand_T;
+#[cfg(windows)]
+use crate::os::env::os_getenv_noalloc;
+#[cfg(not(test))]
+use crate::os::env::os_setenv;
+#[cfg(all(not(test), unix))]
 use crate::os::shell::get_cmd_output;
-use crate::profile::{time_msg, time_start};
+#[cfg(not(test))]
+use crate::path::{path_tail, path_tail_with_sep};
+#[cfg(not(test))]
+use crate::profile::time_msg;
+#[cfg(not(test))]
+use crate::strings::{gettext, setlocale};
+use std::ffi::{c_char, c_int};
+use std::ptr;
 
 const NUL: c_char = 0;
 const MAXPATHL: usize = 4096;
@@ -115,6 +124,7 @@ unsafe extern "C" {
 }
 
 #[cfg(not(windows))]
+#[cfg(not(test))]
 use crate::strings::strtok_r;
 
 #[inline]
@@ -458,6 +468,7 @@ pub unsafe extern "C" fn lang_init() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn is_valid_mess_lang_and_get_lang_arg_work() {

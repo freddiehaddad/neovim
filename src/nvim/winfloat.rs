@@ -9,52 +9,39 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::cstr_as_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_init;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, find_buffer_by_handle, find_window_by_handle};
-#[allow(unused_imports)]
+use crate::api::autocmd::OptionalKeys;
+use crate::api::deprecated::VirtText;
+use crate::api::private::helpers::{
+    api_clear_error, api_set_error, cstr_as_obj, error_init, find_buffer_by_handle,
+    find_window_by_handle,
+};
+use crate::api::private::validate::{Error, ErrorType};
+use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::vim::nvim_create_buf;
-#[allow(unused_imports)]
-use crate::api::win_config::{parse_bordertext, parse_winborder};
-#[allow(unused_imports)]
+use crate::api::win_config::{
+    AlignTextPos, BorderTextType, FloatAnchor, FloatRelative, UIExtension, WinStyle,
+    parse_bordertext, parse_winborder,
+};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-#[allow(unused_imports)]
 use crate::decoration::clear_virttext;
-#[allow(unused_imports)]
 use crate::drawscreen::{redraw_later, set_must_redraw};
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::deprecated::pos_T;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::grid::grid_adjust;
-#[allow(unused_imports)]
+use crate::kvec::KVec;
+use crate::memory::{xfree, xrealloc, xstrdup};
 use crate::message::emsg;
-#[allow(unused_imports)]
 use crate::mouse::mouse_find_win_inner;
-#[allow(unused_imports)]
 use crate::r#move::{textpos2screenpos, validate_cursor};
-#[allow(unused_imports)]
 use crate::option::{parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::optionstr::{free_string_option, opt_keyset};
-#[allow(unused_imports)]
 use crate::os::fs::os_dirname;
-#[allow(unused_imports)]
 use crate::plines::{plines_m_win, win_max_displaywidth};
-#[allow(unused_imports)]
-use crate::strings::concat_str;
-#[allow(unused_imports)]
-use crate::strings::{gettext, qsort};
-#[allow(unused_imports)]
+use crate::strings::{concat_str, gettext, qsort};
 use crate::ui::ui_has;
-#[allow(unused_imports)]
 use crate::window::{
     last_status, lastwin_nofloating, merge_win_config, tabpage_win_valid, win_alloc, win_append,
     win_close, win_comp_pos, win_enter, win_find_tabpage, win_free, win_init, win_remove,
@@ -62,17 +49,6 @@ use crate::window::{
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-
-use crate::api::autocmd::OptionalKeys;
-use crate::api::deprecated::VirtText;
-use crate::api::private::validate::{Error, ErrorType};
-use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
-use crate::api::win_config::{
-    AlignTextPos, BorderTextType, FloatAnchor, FloatRelative, UIExtension, WinStyle,
-};
-use crate::eval::deprecated::pos_T;
-use crate::kvec::KVec;
-use crate::memory::{xfree, xrealloc, xstrdup};
 
 pub use crate::cursor::linenr_T;
 pub use crate::eval::vars::scid_T;

@@ -9,65 +9,36 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::{skiptowhite, skipwhite};
-#[allow(unused_imports)]
-use crate::drawscreen::{redraw_later, redraw_win_range_later};
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::funcs::get_optional_window;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_ref;
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
-    tv_dict_find, tv_get_number, tv_get_number_chk, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_append_tv,
-    tv_list_idx_of_item, tv_list_unref,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_string,
-    tv_get_string_buf_chk,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-#[allow(unused_imports)]
-use crate::ex_docmd::{ends_excmd, set_no_hlsearch};
-#[allow(unused_imports)]
-use crate::fold::hasFolding;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
-#[allow(unused_imports)]
-use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::memline::ml_get_buf;
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::{re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree};
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
+use crate::charset::{ascii_iswhite, skiptowhite, skipwhite};
 use crate::clipboard::{VarType, list_T, typval_T};
+use crate::drawscreen::{redraw_later, redraw_win_range_later};
+use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::funcs::get_optional_window;
+use crate::eval::typval::{
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
+    tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_number,
+    tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_append_tv,
+    tv_list_first, tv_list_idx_of_item, tv_list_len, tv_list_ref, tv_list_unref,
+};
 use crate::eval::window::find_win_by_nr_or_id;
-use crate::ex_docmd::{ex_errmsg, find_nextcmd};
+use crate::ex_docmd::{ends_excmd, ex_errmsg, find_nextcmd, set_no_hlsearch};
+use crate::fold::hasFolding;
+use crate::globals::*;
+use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
+use crate::mbyte::{utf_char2bytes, utf_ptr2char, utfc_ptr2len};
+use crate::memline::ml_get_buf;
 use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup};
+use crate::message::{emsg, semsg};
+use crate::option_vars::*;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+use crate::regexp::{re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree};
+use crate::strings::{gettext, vim_snprintf, vim_strchr};
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

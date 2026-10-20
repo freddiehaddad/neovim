@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::collapsible_else_if,
@@ -17,66 +16,68 @@
     clippy::useless_conversion
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::bt_cmdwin;
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::buf_meta_total;
-#[allow(unused_imports)]
-use crate::buffer::bufref_valid;
-#[allow(unused_imports)]
-use crate::buffer::{bt_prompt, buf_is_empty};
-#[allow(unused_imports)]
-use crate::buffer::{bt_quickfix, set_bufref};
-#[allow(unused_imports)]
-use crate::change::get_leader_len;
-#[allow(unused_imports)]
-use crate::charset::ascii_isspace;
-#[allow(unused_imports)]
-use crate::charset::ascii2cells;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
-#[allow(unused_imports)]
-use crate::cursor::check_visual_pos;
-#[allow(unused_imports)]
-use crate::cursor::{equalpos, lt};
-#[allow(unused_imports)]
+use crate::api::autocmd::event_T;
+use crate::api::options::CtxSwitch;
+use crate::api::tabpage::{pos_T, win_T};
+use crate::autocmd::{
+    EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
+    EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
+    apply_autocmds, has_event,
+};
+use crate::buffer::{
+    bt_cmdwin, bt_prompt, bt_quickfix, buf_get_changedtick, buf_is_empty, buf_meta_total,
+    bufref_valid, set_bufref,
+};
+use crate::change::{
+    OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes, del_char,
+    get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes, open_line,
+};
+use crate::charset::{
+    ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells, hex2nr,
+    skipwhite, vim_isprintc, vim_iswordc,
+};
+use crate::clipboard::yankreg_T;
+use crate::context::{ctx_restore, ctx_switch};
+use crate::cursor::{
+    char_before_cursor, check_cursor, check_cursor_col, check_visual_pos, coladvance, colnr_T,
+    dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
+    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor, linenr_T, lt,
+};
+use crate::decoration::{decor_conceal_line, win_lines_concealed};
+use crate::digraph::{digraph_get, do_digraph};
 use crate::drawscreen::{
-    redrawing, show_cursor_info_later, showmode, skip_showmode, status_redraw_curbuf, unshowmode,
+    redraw_later, redraw_statuslines, redrawWinline, redrawing, setcursor, show_cursor_info_later,
+    showmode, skip_showmode, status_redraw_curbuf, unshowmode, update_screen,
 };
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
+use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline;
-#[allow(unused_imports)]
-use crate::ex_docmd::{do_cmdline_cmd, expr_map_locked};
-#[allow(unused_imports)]
+use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
 use crate::ex_getln::cmdwin_do_action;
-#[allow(unused_imports)]
+use crate::extmark::TriState;
 use crate::fileio::check_timestamps;
-#[allow(unused_imports)]
-use crate::fold::hasFoldingWin;
-#[allow(unused_imports)]
-use crate::fold::{foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::grid::schar_from_ascii;
-#[allow(unused_imports)]
-use crate::highlight_group::highlight_changed;
-#[allow(unused_imports)]
-use crate::indent::tabstop_start;
-#[allow(unused_imports)]
-use crate::indent::{tabstop_at, tabstop_count, tabstop_first, tabstop_padding};
-#[allow(unused_imports)]
-use crate::indent_c::cindent_on;
-#[allow(unused_imports)]
-use crate::input::{
-    map_execute_lua, merge_modifiers, paste_repeat, prep_redo, redo_append_char, redo_append_lit,
-    redo_append_str, redo_keys,
+use crate::fold::{
+    foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
 };
-#[allow(unused_imports)]
+use crate::globals::*;
+use crate::grid::{
+    grid_line_flush, grid_line_getchar, grid_line_put_schar, grid_line_puts, grid_line_start,
+    schar_T, schar_from_ascii,
+};
+use crate::highlight_group::highlight_changed;
+use crate::indent::{
+    change_indent, fix_indent, get_indent, get_sts_value, get_sw_value, inindent, ins_try_si,
+    may_do_si, tabstop_at, tabstop_count, tabstop_first, tabstop_padding, tabstop_start,
+};
+use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
+use crate::input::{
+    char_avail, getcmdkeycmd, langmap_adjust, map_execute_lua, merge_modifiers, paste_repeat,
+    plain_vgetc, prep_redo, redo_append_char, redo_append_lit, redo_append_str, redo_keys,
+    start_redo_ins, stop_redo_ins, stuff_empty, stuffReadbuffLen, stuffRedoReadbuff,
+    stuffcharReadbuff, vgetc, vpeekc, vungetc,
+};
+use crate::input_cmdatom::{CmdSpec, bufref_T};
 use crate::insexpand::{
     check_compl_option, compl_status_clear, compl_status_local, ctrl_x_mode_cmdline,
     ctrl_x_mode_dictionary, ctrl_x_mode_files, ctrl_x_mode_function, ctrl_x_mode_line_or_eval,
@@ -93,87 +94,6 @@ use crate::insexpand::{
     ins_compl_preinsert_longest, ins_compl_prep, ins_compl_used_match, ins_compl_win_active,
     ins_complete, ins_ctrl_x, pum_wanted,
 };
-#[allow(unused_imports)]
-use crate::mapping::{check_abbr, map_to_exists_mode};
-#[allow(unused_imports)]
-use crate::message::{emsg, msg_check_for_delay};
-#[allow(unused_imports)]
-use crate::normal::{
-    add_to_showcmd, add_to_showcmd_c, clear_showcmd, do_check_scrollbind, end_visual_mode,
-    start_selection,
-};
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::get_ve_flags;
-#[allow(unused_imports)]
-use crate::option::{can_bs, get_scrolloff_value, set_iminsert_global};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::state::virtual_active;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::syntax::syntax_present;
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::ui::{ui_cursor_shape, ui_flush, vim_beep};
-#[allow(unused_imports)]
-use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized};
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
-use std::ptr;
-
-use crate::api::autocmd::event_T;
-use crate::api::buffer::VisualState;
-use crate::api::command::cmdmod_T;
-use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{ScreenGrid, pos_T, tabpage_T, win_T};
-use crate::autocmd::{
-    EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
-    EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
-    apply_autocmds, has_event,
-};
-use crate::change::{
-    OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes, del_char,
-    ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes, open_line,
-};
-use crate::charset::{char2cells, hex2nr, skipwhite, vim_isprintc, vim_iswordc};
-use crate::clipboard::yankreg_T;
-use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::{
-    char_before_cursor, check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor,
-    gchar_cursor, get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr,
-    getviscol, inc_cursor, linenr_T,
-};
-use crate::decoration::{decor_conceal_line, win_lines_concealed};
-use crate::digraph::{digraph_get, do_digraph};
-use crate::drawscreen::{
-    redraw_later, redraw_statuslines, redrawWinline, setcursor, update_screen,
-};
-use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback, varnumber_T};
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
-use crate::extmark::TriState;
-use crate::grid::{
-    grid_line_flush, grid_line_getchar, grid_line_put_schar, grid_line_puts, grid_line_start,
-    schar_T,
-};
-use crate::indent::{
-    change_indent, fix_indent, get_indent, get_sts_value, get_sw_value, inindent, ins_try_si,
-    may_do_si,
-};
-use crate::indent_c::{do_c_expr_indent, in_cinkeys};
-use crate::input::{
-    char_avail, getcmdkeycmd, langmap_adjust, plain_vgetc, start_redo_ins, stop_redo_ins,
-    stuff_empty, stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
-};
-use crate::input_cmdatom::{CmdSpec, bufref_T};
 use crate::keycodes::{
     CAR, DEL, ESC, K_BS, K_C_END, K_C_HOME, K_C_LEFT, K_C_RIGHT, K_COMMAND, K_DEL, K_DOWN, K_END,
     K_F1, K_HELP, K_HOME, K_IGNORE, K_INS, K_KDEL, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KPAGEDOWN,
@@ -187,6 +107,7 @@ use crate::keycodes::{
 };
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
+use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{free_fmark, mark_view_make};
 use crate::marktree::kMTMetaInline;
 use crate::mbyte::{
@@ -196,6 +117,7 @@ use crate::mbyte::{
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
 use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
+use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
 };
@@ -204,7 +126,15 @@ use crate::r#move::{
     scrollup_clamp, set_topline, update_curswant, update_topline, validate_cursor,
     validate_cursor_col, validate_virtcol,
 };
+use crate::normal::{
+    add_to_showcmd, add_to_showcmd_c, clear_showcmd, do_check_scrollbind, end_visual_mode,
+    start_selection,
+};
 use crate::ops::do_join;
+use crate::option::{
+    can_bs, copy_option_part, get_scrolloff_value, get_ve_flags, set_iminsert_global,
+};
+use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::os::time::os_time;
 use crate::plines::{
@@ -212,7 +142,7 @@ use crate::plines::{
     getvcol_nolist, init_charsize_arg, linetabsize_col, utf_ClusterInfo, utf_ptr2StrCharInfo,
     win_chartabsize,
 };
-use crate::popupmenu::{PumWant, pum_check_clear, pum_visible};
+use crate::popupmenu::{pum_check_clear, pum_visible};
 use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
     insert_reg, is_literal_register, valid_yank_reg,
@@ -220,15 +150,20 @@ use crate::register::{
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL, MODE_REPLACE, MODE_VREPLACE,
     REPLACE_FLAG, VREPLACE_FLAG, VimState, may_trigger_modechanged, may_trigger_safestate,
-    state_enter, state_handle_k_event,
+    state_enter, state_handle_k_event, virtual_active,
 };
+use crate::strings::{gettext, strlen as c_strlen, vim_snprintf, vim_strchr};
+use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;
 use crate::textformat::{
-    InsState, auto_format, check_auto_format, comp_textwidth, fex_format, has_format_option,
-    internal_format,
+    auto_format, check_auto_format, comp_textwidth, fex_format, has_format_option, internal_format,
 };
 use crate::textobject::{bck_word, fwd_word};
+use crate::ui::{ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::undo::{u_clearallandblockfree, u_save, u_save_cursor, u_sync};
+use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ptr;
 
 const NUL: c_char = 0;
 const OK: c_int = 1;

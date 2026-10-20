@@ -9,41 +9,29 @@
     clippy::needless_range_loop
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_free_object;
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_exec;
-#[allow(unused_imports)]
-use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::strings::memchr;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{atoi, gettext, strchr, strstr};
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::command::exarg_T;
+use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::api::tabpage::GridView;
 use crate::api::win_config::UIExtension;
 use crate::buffer::buf_is_empty;
-use crate::charset::vim_strsize;
+use crate::charset::{ascii_isdigit, vim_strsize};
 use crate::drawscreen::screenclear;
+use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
+use crate::lua::executor::nlua_exec;
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
 use crate::memory::{xfree, xmallocz};
+use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
+use crate::option_vars::*;
+use crate::strings::{atoi, gettext, memchr, strchr, strstr, vim_strchr};
+use crate::ui::ui_has;
 use crate::window::one_window;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 const NUL: c_char = 0;
 const LOWEST_WIN_ID: c_int = 1000;

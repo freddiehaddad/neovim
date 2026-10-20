@@ -10,85 +10,64 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::float_obj;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{bool_obj, int_obj};
-#[allow(unused_imports)]
-use crate::api::ui::{
-    remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
-    remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
-    remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
-    remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_group_set, remote_ui_mode_change,
-    remote_ui_mouse_off, remote_ui_mouse_on, remote_ui_option_set, remote_ui_raw_line,
-    remote_ui_screenshot, remote_ui_set_icon, remote_ui_set_title, remote_ui_suspend,
-    remote_ui_ui_send, remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
-    remote_ui_win_viewport_margins,
-};
-#[allow(unused_imports)]
-use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_mode_info_set, remote_ui_msg_set_pos};
-#[allow(unused_imports)]
-use crate::buffer::resettitle;
-use crate::cursor_shape::shape_table;
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_cwd;
-use crate::globals::*;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::lua::executor::api_free_luaref;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_ref_ctx;
-#[allow(unused_imports)]
-use crate::message::{msg, msg_ext_ui_flush, msg_scroll_flush, msg_source, msg_ui_refresh};
-use crate::message::{msg_schedule_semsg, msg_schedule_semsg_multiline};
-#[allow(unused_imports)]
-use crate::option::set_option_value;
-#[allow(unused_imports)]
-use crate::option::ui_refresh_options;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcmp};
-#[allow(unused_imports)]
-use crate::ui_compositor::ui_comp_msg_set_pos;
-#[allow(unused_imports)]
-use crate::ui_compositor::ui_comp_raw_line;
-#[allow(unused_imports)]
-use crate::ui_compositor::{ui_comp_grid_cursor_goto, ui_comp_grid_resize, ui_comp_grid_scroll};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::mem::size_of;
-use std::ptr;
-
 use crate::api::extmark::describe_ns;
-use crate::api::private::helpers::{api_clear_error, arena_array, arena_dict, cstr_as_string};
+use crate::api::private::helpers::{
+    api_clear_error, api_set_error, arena_array, arena_dict, bool_obj, cstr_as_string, float_obj,
+    int_obj,
+};
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
 use crate::api::tabpage::ScreenGrid;
+use crate::api::ui::{
+    remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
+    remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
+    remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
+    remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
+    remote_ui_mode_change, remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on,
+    remote_ui_msg_set_pos, remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot,
+    remote_ui_set_icon, remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send,
+    remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
+    remote_ui_win_viewport_margins,
+};
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
-use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array};
+use crate::buffer::resettitle;
+use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table};
 use crate::drawscreen::{conceal_check_cursor_line, screen_resize};
 use crate::eval::vars::LuaRef;
+use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_put_event,
 };
 use crate::ex_getln::cmdline_ui_flush;
+use crate::globals::*;
 use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
+use crate::log::logmsg;
+use crate::lua::executor::{api_free_luaref, nlua_call_ref_ctx};
 use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
+use crate::message::{
+    msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
+    msg_source, msg_ui_refresh,
+};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::option::{set_option_value, ui_refresh_options};
+use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_sleep};
+use crate::strings::{gettext, strcmp, vim_strchr};
 use crate::ui_compositor::{
-    ui_comp_attach, ui_comp_detach, ui_comp_get_grid_at_coord, ui_comp_init, ui_comp_should_draw,
+    ui_comp_attach, ui_comp_detach, ui_comp_get_grid_at_coord, ui_comp_grid_cursor_goto,
+    ui_comp_grid_resize, ui_comp_grid_scroll, ui_comp_init, ui_comp_msg_set_pos, ui_comp_raw_line,
+    ui_comp_should_draw,
 };
 use crate::window::{win_set_inner_size, win_ui_flush};
 use crate::winfloat::win_config_float;
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::mem::size_of;
+use std::ptr;
 
 const NUL: c_char = 0;
 const MAXPATHL: usize = 4096;

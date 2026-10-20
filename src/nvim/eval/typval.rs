@@ -5,77 +5,67 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
 
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::userfunc::{call_func, get_funccal_local_ht};
-#[allow(unused_imports)]
-use crate::eval::{
-    callback_call, func_equal, get_copyID, partial_unref, set_selfdict, var_item_copy, var2fpos,
-};
-#[allow(unused_imports)]
-use crate::eval::{callback_from_typval, partial_name};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_funcref_str;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, api_new_luaref};
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, internal_error};
-#[allow(unused_imports)]
-use crate::strings::gettext as tr;
-#[allow(unused_imports)]
-use crate::strings::strcasecmp;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::vim_stricmp;
-#[allow(unused_imports)]
-use crate::strings::{gettext, qsort, strcmp, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{strcoll, strtod};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::mem::offset_of;
-use std::ptr;
-
 use crate::api::private::converter::{partial_T, ufunc_T};
-use crate::api::tabpage::win_T;
 use crate::charset::vim_str2nr;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cursor::linenr_T;
+use crate::errors::*;
 use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T, pos_T};
+use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::encode::{
-    encode_bool_var_names, encode_special_var_names, encode_tv2echo, encode_tv2string,
+    MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType, encode_bool_var_names,
+    encode_special_var_names, encode_tv2echo, encode_tv2string,
 };
 use crate::eval::executor::{blob_T, eexe_mod_op};
 use crate::eval::gc::{gc_first_dict, gc_first_list};
-use crate::eval::userfunc::{func_ref, func_unref, funcexe_T};
-use crate::eval::vars::{
-    get_globvar_dict, valid_varname, var_check_fixed, var_check_ro, var_wrong_func_name,
+use crate::eval::userfunc::{call_func, func_ref, funcexe_T};
+#[cfg(not(test))]
+use crate::eval::userfunc::{func_unref, get_funccal_local_ht};
+#[cfg(not(test))]
+use crate::eval::vars::{get_globvar_dict, var_wrong_func_name};
+use crate::eval::vars::{valid_varname, var_check_fixed, var_check_ro};
+use crate::eval::{
+    callback_call, callback_from_typval, func_equal, partial_name, set_selfdict, var_item_copy,
+    var2fpos,
 };
+#[cfg(not(test))]
+use crate::eval::{get_copyID, partial_unref};
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
+use crate::globals::*;
 use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_lock, hash_remove, hash_unlock,
-    hashitem_T, hashitem_empty, hashtab_T,
+    hashitem_T, hashitem_empty,
 };
 use crate::lua::converter::LuaRef;
+#[cfg(not(test))]
+use crate::lua::executor::api_free_luaref;
+use crate::lua::executor::{api_new_luaref, nlua_funcref_str};
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
 use crate::memory::{
-    Arena, strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xrealloc, xstrdup,
-    xstrlcpy, xstrndup,
+    Arena, strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup, xstrlcpy,
+    xstrndup,
 };
+#[cfg(not(test))]
+use crate::message::internal_error;
+use crate::message::{emsg, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
+#[cfg(unix)]
+use crate::strings::strcasecmp;
+#[cfg(windows)]
+use crate::strings::vim_stricmp;
+use crate::strings::{
+    gettext as tr, qsort, strcmp, strcoll, strlen as c_strlen, strncmp, strtod, vim_snprintf,
+};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::mem::offset_of;
+use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub type float_T = f64;
@@ -193,10 +183,6 @@ struct Join {
     s: NvimString,
     tofree: *mut c_char,
 }
-
-use crate::eval::encode::{
-    MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType,
-};
 
 #[repr(transparent)]
 pub struct SyncCStrPtr(pub *const c_char);

@@ -5,82 +5,92 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_variables,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::tv_dict_is_watched;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_clear_error, dict_check_writable, try_enter, try_leave};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::api::autocmd::TryState;
+#[cfg(not(test))]
+use crate::api::options::CtxSwitch;
+#[cfg(not(test))]
 use crate::api::private::helpers::{
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle,
+    api_clear_error, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
+    find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,
 };
-#[allow(unused_imports)]
-use crate::eval::typval::tv_dict_watcher_notify;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::api::private::validate::{Error, ErrorType};
+#[cfg(not(test))]
+use crate::api::tabpage::win_T;
+#[cfg(not(test))]
+use crate::clipboard::typval_T;
+#[cfg(not(test))]
+use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
+#[cfg(not(test))]
+use crate::cursor::linenr_T;
+use crate::eval::decode::dict_T;
+#[cfg(not(test))]
+use crate::eval::deprecated::buf_T;
+#[cfg(not(test))]
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
+    tv_dict_watcher_notify,
 };
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::ex_docmd::{apply_cmdmod, undo_cmdmod};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::ex_eval::aborting;
+#[cfg(not(test))]
 use crate::fold::foldUpdate;
+#[cfg(not(test))]
 use crate::globals::*;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
+#[cfg(not(test))]
 use crate::log::g_min_log_level;
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::lua::base64::luaopen_base64;
+use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
+#[cfg(not(test))]
 use crate::lua::converter::{
-    lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata, lua_next,
-    lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
-    lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield, lua_setmetatable, lua_settop,
-    lua_toboolean, lua_tolstring, lua_type, luaL_argerror, luaL_checkinteger, luaL_checklstring,
-    luaL_error, luaL_where,
+    lua_Integer, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata,
+    lua_next, lua_objlen, lua_pcall, lua_pushcclosure, lua_pushinteger, lua_pushlstring,
+    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield,
+    lua_setmetatable, lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_argerror,
+    luaL_checkinteger, luaL_checklstring, luaL_checkudata, luaL_error, luaL_newmetatable,
+    luaL_register, luaL_where, nlua_pop_typval, nlua_push_typval,
 };
-#[allow(unused_imports)]
-use crate::lua::converter::{lua_pushcclosure, luaL_checkudata, luaL_newmetatable, luaL_register};
-#[allow(unused_imports)]
+#[cfg(not(test))]
+use crate::lua::spell::luaopen_spell;
+#[cfg(not(test))]
+use crate::lua::xdiff::nlua_xdl_diff;
+#[cfg(not(test))]
+use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::mbyte::{
     convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
     mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
 };
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-#[allow(unused_imports)]
-use crate::message::str2special;
-#[allow(unused_imports)]
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
-#[allow(unused_imports)]
-use crate::runtime::script_autoload;
-#[allow(unused_imports)]
-use crate::window::win_find_tabpage;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
-use crate::api::autocmd::TryState;
-use crate::api::command::cmdmod_T;
-use crate::api::options::CtxSwitch;
-use crate::api::private::validate::{Error, ErrorType};
-use crate::api::tabpage::{tabpage_T, win_T};
-use crate::clipboard::typval_T;
-use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
-use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::buf_T;
-use crate::ex_eval::aborting;
-use crate::grid::CharBoundsOff;
-use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
-use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg, luaopen_base64};
-use crate::lua::converter::{lua_Integer, lua_Number, nlua_pop_typval, nlua_push_typval};
-use crate::lua::spell::luaopen_spell;
-use crate::lua::xdiff::nlua_xdl_diff;
-use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
 use crate::memory::xfree;
+#[cfg(not(test))]
+use crate::message::str2special;
+#[cfg(not(test))]
 use crate::msgpack_rpc::packer::handle_T;
+#[cfg(not(test))]
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[cfg(not(test))]
+use crate::runtime::script_autoload;
+#[cfg(not(test))]
+use crate::window::win_find_tabpage;
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int};
+use std::ptr;
 
 pub use crate::regexp::regprog_T;
 

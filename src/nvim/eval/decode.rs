@@ -4,40 +4,40 @@
     dead_code,
     non_camel_case_types,
     non_snake_case,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::charset::vim_str2nr;
-#[allow(unused_imports)]
+use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
+#[cfg(not(test))]
+use crate::eval::encode::encode_list_write;
+#[cfg(not(test))]
 use crate::eval::string2float;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_append_number;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_len;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_list_ref;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::typval::{
     tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc,
-    tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
+    tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_number,
+    tv_list_append_owned_tv, tv_list_len, tv_list_ref,
 };
+#[cfg(not(test))]
 use crate::eval::vars::eval_msgpack_type_lists;
-#[allow(unused_imports)]
-use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-
-use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::eval::encode::encode_list_write;
-use crate::eval::executor::blob_T;
+#[cfg(not(test))]
 use crate::garray::ga_concat_len;
-use crate::hashtab::{hashitem_empty, hashtab_T};
-use crate::math::{FAIL, OK};
-use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz};
+#[cfg(not(test))]
+use crate::hashtab::hashitem_empty;
+use crate::hashtab::hashtab_T;
+use crate::math::FAIL;
+#[cfg(not(test))]
+use crate::math::OK;
+#[cfg(not(test))]
+use crate::mbyte::{utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len};
+use crate::memory::{xfree, xmemdupz};
+#[cfg(not(test))]
+use crate::memory::{xmalloc, xmallocz};
+#[cfg(not(test))]
+use crate::message::{emsg, semsg};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
 const VAR_UNLOCKED: c_int = 0;
 const K_SPECIAL_VAR_NULL: i64 = 0;

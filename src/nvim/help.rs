@@ -9,57 +9,33 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
+use crate::api::command::exarg_T;
 use crate::api::private::helpers::cstr_as_obj;
-#[allow(unused_imports)]
-use crate::buffer::bt_help;
-#[allow(unused_imports)]
-use crate::buffer::{buflist_findnr, set_buflisted, wipe_buffer};
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_iswhite};
-#[allow(unused_imports)]
-use crate::charset::{buf_init_isk_chartab, skipwhite};
+use crate::api::tabpage::win_T;
+use crate::buffer::{bt_help, buflist_findnr, set_buflisted, wipe_buffer};
+use crate::charset::{
+    ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
+};
+use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::errors::*;
-#[allow(unused_imports)]
 use crate::eval::typval::tv_clear;
-#[allow(unused_imports)]
 use crate::ex_cmds::do_ecmd;
-#[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline_cmd;
-#[allow(unused_imports)]
 use crate::fileio::fclose;
 use crate::globals::*;
-#[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
-#[allow(unused_imports)]
-use crate::memory::xstrlcpy;
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::{semsg, smsg};
-#[allow(unused_imports)]
+use crate::memory::{xfree, xstrdup, xstrlcpy};
+use crate::message::{emsg, semsg, smsg};
 use crate::option::set_option_direct;
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::optionstr::check_buf_options;
-#[allow(unused_imports)]
 use crate::os::fs::os_fopen;
-#[allow(unused_imports)]
 use crate::path::FreeWild;
-#[allow(unused_imports)]
 use crate::strings::{gettext, qsort};
-#[allow(unused_imports)]
-use crate::tag::do_tag;
-#[allow(unused_imports)]
-use crate::tag::find_tags;
-#[allow(unused_imports)]
+use crate::tag::{do_tag, find_tags};
 use crate::window::{win_close, win_enter, win_setheight, win_split};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-
-use crate::api::command::exarg_T;
-use crate::api::tabpage::win_T;
-use crate::clipboard::{TypvalVval, VarType, typval_T};
-use crate::memory::{xfree, xstrdup};
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

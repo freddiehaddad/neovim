@@ -9,41 +9,6 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::put_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{arena_array, arena_string};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::buffer::buf_meta_total;
-#[allow(unused_imports)]
-use crate::change::changed_lines_invalidate_buf;
-#[allow(unused_imports)]
-use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
-#[allow(unused_imports)]
-use crate::fold::hasAnyFolding;
-#[allow(unused_imports)]
-use crate::fold::hasFolding;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::{syn_id2attr, syn_id2name};
-#[allow(unused_imports)]
-use crate::indent::tabstop_padding;
-#[allow(unused_imports)]
-use crate::marktree::{mt_end, mt_invalid};
-#[allow(unused_imports)]
-use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
-#[allow(unused_imports)]
-use crate::r#move::{changed_window_setting, win_col_off};
-#[allow(unused_imports)]
-use crate::sign::{buf_has_signs, describe_sign_text};
-use std::cmp::Ordering;
-use std::ffi::{c_char, c_int, c_void};
-use std::ptr;
-
 use crate::api::deprecated::{
     DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
 };
@@ -51,13 +16,24 @@ use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
     DecorState, colnr_T, ns_in_win, virt_text_to_array,
 };
+use crate::api::private::helpers::{
+    arena_array, arena_string, array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj,
+    put_c, string_obj,
+};
 use crate::api::private::validate::{Dict, Object};
 use crate::api::tabpage::{lpos_T, win_T};
+use crate::buffer::buf_meta_total;
+use crate::change::changed_lines_invalidate_buf;
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
+use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::eval::deprecated::buf_T;
 use crate::extmark::{TriState, extmark_set};
+use crate::fold::{hasAnyFolding, hasFolding};
+use crate::globals::*;
 use crate::grid::{schar_T, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
 use crate::highlight::{hl_add_url, hl_combine_attr};
+use crate::highlight_group::{syn_id2attr, syn_id2name};
+use crate::indent::tabstop_padding;
 use crate::kvec::KVec;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorHighlightInline, DecorInlineData,
@@ -65,10 +41,17 @@ use crate::marktree::{
     MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, kMTMetaConcealLines,
     kMTMetaCount, kMTMetaLines, kMTMetaSignText, marktree_get_altpos, marktree_itr_current,
     marktree_itr_get, marktree_itr_get_filter, marktree_itr_get_overlap, marktree_itr_next,
-    marktree_itr_next_filter, marktree_itr_step_out_filter, marktree_itr_step_overlap,
+    marktree_itr_next_filter, marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_end,
+    mt_invalid,
 };
+use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{Arena, xcalloc, xfree, xmalloc};
+use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
+use crate::sign::{buf_has_signs, describe_sign_text};
+use std::cmp::Ordering;
+use std::ffi::{c_char, c_int, c_void};
+use std::ptr;
 
 pub type DecorPriorityInternal = u32;
 pub type DecorRangeKind = u8;

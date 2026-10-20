@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_unsafe,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
@@ -14,60 +13,43 @@
     clippy::enum_variant_names
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii_iswhite;
-#[allow(unused_imports)]
-use crate::charset::ascii2cells;
-#[allow(unused_imports)]
-use crate::drawscreen::redraw_all_later;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_check_for_string_arg, tv_get_string, tv_get_string_buf};
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_list_first, tv_list_len};
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_translate_sys_error;
-#[cfg(not(windows))]
-#[allow(unused_imports)]
-use crate::fileio::{iconv, iconv_close};
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::fileio::{libiconv, libiconv_close};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::beep_flush;
-#[allow(unused_imports)]
-use crate::memline::ml_get_buf;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::message::{emsg, msg};
-#[allow(unused_imports)]
-use crate::r#move::changed_window_setting_all;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::optionstr::check_chars_options;
-#[allow(unused_imports)]
-use crate::strings::tolower;
-#[allow(unused_imports)]
-use crate::strings::{setlocale, toupper};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-use std::ptr;
-
 use crate::api::tabpage::win_T;
 use crate::arabic::arabic_combine;
-use crate::charset::{varnumber_T, vim_isprintc, vim_iswordc_tab};
+use crate::charset::{ascii_iswhite, ascii2cells, varnumber_T, vim_isprintc, vim_iswordc_tab};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
-use crate::cursor::{colnr_T, get_cursor_pos_ptr, linenr_T};
-use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
+use crate::cursor::{colnr_T, get_cursor_pos_ptr};
+use crate::drawscreen::redraw_all_later;
+use crate::errors::*;
+use crate::eval::deprecated::{EvalFuncData, pos_T};
+use crate::eval::typval::{
+    tv_check_for_string_arg, tv_get_string, tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret,
+    tv_list_append_list, tv_list_append_number, tv_list_first, tv_list_len,
+};
+#[cfg(windows)]
+use crate::event::r#loop::uv_translate_sys_error;
+#[cfg(all(not(test), not(windows)))]
+use crate::fileio::iconv;
+#[cfg(not(windows))]
+use crate::fileio::iconv_close;
+#[cfg(all(not(test), windows))]
+use crate::fileio::libiconv;
+#[cfg(windows)]
+use crate::fileio::libiconv_close;
+use crate::globals::*;
 use crate::grid::{CharBoundsOff, schar_T, schar_from_buf};
+use crate::input::beep_flush;
 use crate::mark::mark_mb_adjustpos;
+use crate::memline::ml_get_buf;
 use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::message::{emsg, msg, semsg};
+use crate::r#move::changed_window_setting_all;
+use crate::option_vars::*;
+use crate::optionstr::check_chars_options;
 use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
+use crate::strings::{setlocale, tolower, toupper};
+use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ptr;
 
 pub type GraphemeState = i32;
 

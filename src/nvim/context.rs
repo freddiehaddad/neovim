@@ -8,80 +8,52 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_free_string, arena_dict, copy_array, copy_object,
-    string_to_array,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{array_obj, string_obj};
-#[allow(unused_imports)]
-use crate::autocmd::{block_autocmds, unblock_autocmds};
-#[allow(unused_imports)]
-use crate::buffer::bt_prompt;
-#[allow(unused_imports)]
-use crate::buffer::do_autochdir;
-#[allow(unused_imports)]
-use crate::buffer::{bufref_valid, set_bufref};
-#[allow(unused_imports)]
-use crate::cursor::equalpos;
-#[allow(unused_imports)]
-use crate::cursor::{check_cursor, check_pos};
-#[allow(unused_imports)]
-use crate::eval::typval::tv_clear;
-#[allow(unused_imports)]
-use crate::eval::userfunc::func_tbl_get;
-#[allow(unused_imports)]
-use crate::eval::vars::vars_clear;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline_cmd;
-#[allow(unused_imports)]
-use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
-#[allow(unused_imports)]
-use crate::fileio::shorten_fnames;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::option::buf_copy_options;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::os::fs::{os_chdir, os_dirname};
-#[allow(unused_imports)]
-use crate::register::{free_register, get_y_register};
-#[allow(unused_imports)]
-use crate::window::{
-    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, unuse_tabpage, update_cwd,
-    use_tabpage, valid_tabpage, valid_tabpage_win, win_alloc_ctx_win, win_append,
-    win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
-};
-#[allow(unused_imports)]
-use crate::winfloat::win_config_float;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
 use crate::api::private::converter::object_to_vim;
+use crate::api::private::helpers::{
+    api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
+    copy_array, copy_object, error_set, string_obj, string_to_array,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
+use crate::autocmd::{block_autocmds, unblock_autocmds};
+use crate::buffer::{bt_prompt, bufref_valid, do_autochdir, set_bufref};
 use crate::clipboard::{VarType, typval_T};
+use crate::cursor::{check_cursor, check_pos, equalpos};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
 use crate::eval::encode::encode_vim_list_to_buf;
+use crate::eval::typval::tv_clear;
+use crate::eval::userfunc::func_tbl_get;
+use crate::eval::vars::vars_clear;
+use crate::ex_docmd::do_cmdline_cmd;
+use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
+use crate::fileio::shorten_fnames;
+use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
 use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::memory::{Arena, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
+use crate::option::buf_copy_options;
+use crate::option_vars::*;
+use crate::os::fs::{os_chdir, os_dirname};
+use crate::register::{free_register, get_y_register};
 use crate::shada::{
     shada_encode_buflist, shada_encode_gvars, shada_encode_jumps, shada_encode_regs,
     shada_read_string,
 };
+use crate::window::{
+    close_tabpage, entering_window, goto_tabpage_tp, leaving_window, unuse_tabpage, update_cwd,
+    use_tabpage, valid_tabpage, valid_tabpage_win, win_alloc_ctx_win, win_append,
+    win_find_by_handle, win_goto, win_init_empty, win_remove, win_valid,
+};
+use crate::winfloat::win_config_float;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub type CtxStateFlags = c_int;

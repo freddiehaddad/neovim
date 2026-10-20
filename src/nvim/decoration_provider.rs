@@ -9,40 +9,27 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::extmark::describe_ns;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_init;
-#[allow(unused_imports)]
+use crate::api::extmark::{DecorProvider, NS, describe_ns, linenr_T};
 use crate::api::private::helpers::{
-    api_clear_error, api_free_array, api_free_object, api_object_to_bool,
+    api_clear_error, api_free_array, api_free_object, api_object_to_bool, buffer_obj, error_init,
+    integer_obj, window_obj,
 };
-#[allow(unused_imports)]
-use crate::api::private::helpers::{buffer_obj, integer_obj, window_obj};
-#[allow(unused_imports)]
-use crate::decoration::decor_check_to_be_deleted;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight::hl_check_ns;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::lua::executor::api_free_luaref;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_ref;
-use crate::message::msg_schedule_semsg_multiline;
-#[allow(unused_imports)]
-use crate::r#move::validate_botline_win;
-use std::ffi::{c_char, c_int};
-use std::ptr;
-
-use crate::api::extmark::{DecorProvider, NS, linenr_T};
 use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::api::tabpage::win_T;
+use crate::decoration::decor_check_to_be_deleted;
 use crate::eval::deprecated::buf_T;
+use crate::globals::*;
+use crate::highlight::hl_check_ns;
 use crate::kvec::KVec;
+use crate::log::logmsg;
 use crate::lua::converter::LuaRef;
+use crate::lua::executor::{api_free_luaref, nlua_call_ref};
 use crate::memory::{xfree, xrealloc};
+use crate::message::msg_schedule_semsg_multiline;
+use crate::r#move::validate_botline_win;
 use crate::msgpack_rpc::packer::Integer;
+use std::ffi::{c_char, c_int};
+use std::ptr;
 
 const LUA_NOREF: LuaRef = -2;
 const CB_MAX_ERROR: u8 = 3;

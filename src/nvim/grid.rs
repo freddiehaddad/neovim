@@ -9,39 +9,32 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::charset::ascii2cells;
-#[allow(unused_imports)]
-use crate::decoration::{decor_check_invalid_glyphs, next_virt_text_chunk};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight::{hl_apply_winblend, hl_combine_attr};
-use crate::mbyte::utf8len_tab;
-#[allow(unused_imports)]
-use crate::mbyte::{
-    mb_string2cells, ptr2cells, utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_char2len,
-    utf_cp_bounds, utf_ptr2CharInfo_impl, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
-    utfc_ptrlen2schar,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::optionstr::check_chars_options;
-#[allow(unused_imports)]
-use crate::ui::{ui_call_grid_resize, ui_call_grid_scroll};
-#[allow(unused_imports)]
-use crate::ui::{ui_check_cursor_grid, ui_grid_cursor_goto, ui_has, ui_line};
-use std::ffi::{CStr, c_char, c_int, c_uint};
-use std::ptr;
-
 use crate::api::deprecated::VirtText;
 use crate::api::tabpage::{GridView, ScreenGrid, WinConfig, win_T};
 use crate::arabic::arabic_shape;
+use crate::charset::ascii2cells;
 use crate::cursor::{colnr_T, linenr_T};
+use crate::decoration::{decor_check_invalid_glyphs, next_virt_text_chunk};
+use crate::globals::*;
+use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::map::mh_clear;
 use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString, Set_glyph, mh_put_glyph};
+use crate::mbyte::{
+    mb_string2cells, ptr2cells, utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_char2len,
+    utf_cp_bounds, utf_ptr2CharInfo_impl, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab,
+    utfc_ptr2len, utfc_ptrlen2schar,
+};
 use crate::memory::{xcalloc, xfree, xmalloc};
 use crate::msgpack_rpc::packer::handle_T;
+use crate::option_vars::*;
+use crate::optionstr::check_chars_options;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
+use crate::ui::{
+    ui_call_grid_resize, ui_call_grid_scroll, ui_check_cursor_grid, ui_grid_cursor_goto, ui_has,
+    ui_line,
+};
+use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ptr;
 
 pub type schar_T = u32;
 pub type sattr_T = i32;

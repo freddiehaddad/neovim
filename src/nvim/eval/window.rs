@@ -9,45 +9,36 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::bt_cmdwin;
-#[allow(unused_imports)]
-use crate::buffer::first_win_in_tab;
-#[allow(unused_imports)]
-use crate::buffer::{bt_quickfix, bt_terminal};
-#[allow(unused_imports)]
+use crate::api::options::CtxSwitch;
+use crate::api::tabpage::{ScopeDictDictItem, frame_T, tabpage_T, win_T};
+use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
 use crate::charset::getdigits_int;
-#[allow(unused_imports)]
+use crate::clipboard::{VarType, list_T, typval_T};
+use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::check_cursor;
 use crate::errors::*;
-#[allow(unused_imports)]
+use crate::eval::decode::dict_T;
+use crate::eval::deprecated::EvalFuncData;
 use crate::eval::funcs::execute_common;
-#[allow(unused_imports)]
 use crate::eval::typval::{
-    tv_check_for_nonnull_dict_arg, tv_dict_get_bool, tv_dict_get_number, tv_get_string_chk,
+    tv_check_for_nonnull_dict_arg, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
+    tv_dict_alloc, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
+    tv_get_bool, tv_get_number, tv_get_number_chk, tv_get_string_chk, tv_list_alloc,
+    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_list, tv_list_append_number,
+    tv_list_append_string,
 };
-#[allow(unused_imports)]
-use crate::eval::typval::{
-    tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
-    tv_dict_find, tv_get_bool, tv_get_number, tv_get_number_chk, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_append_list, tv_list_append_number, tv_list_append_string,
-};
-#[allow(unused_imports)]
 use crate::ex_getln::text_or_buf_locked;
+use crate::garray::{ga_append, ga_concat_len, ga_init, garray_T};
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::message::emsg;
-use crate::message::semsg;
-#[allow(unused_imports)]
+use crate::memory::{xmallocz, xstrdup};
+use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_window_setting, check_topfill, restore_viewstate, save_viewstate, set_topline,
     update_curswant, validate_botline_win, validate_cursor, win_col_off,
 };
-#[allow(unused_imports)]
+use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::end_visual_mode;
-#[allow(unused_imports)]
 use crate::strings::gettext;
-#[allow(unused_imports)]
 use crate::window::{
     check_split_disallowed, find_tabpage, goto_tabpage_win, tabpage_index, valid_tabpage,
     win_drag_status_line, win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor,
@@ -56,17 +47,6 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
-
-use crate::api::buffer::VisualState;
-use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{ScopeDictDictItem, frame_T, tabpage_T, win_T};
-use crate::clipboard::{VarType, list_T, typval_T};
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
-use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
-use crate::garray::{ga_append, ga_concat_len, ga_init, garray_T};
-use crate::memory::{xmallocz, xstrdup};
-use crate::msgpack_rpc::packer::handle_T;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;

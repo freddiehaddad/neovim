@@ -5,21 +5,24 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::api::private::helpers::api_typename;
-#[allow(unused_imports)]
+use crate::api::private::validate::{Error, Object};
+#[cfg(not(test))]
+use crate::api::private::validate::{ObjectType, api_err_exp};
+#[cfg(not(test))]
 use crate::autocmd::do_termresponse_autocmd;
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use crate::eval::vars::set_vim_var_string;
+#[cfg(not(test))]
 use crate::log::logmsg;
-use std::ffi::{CStr, c_char, c_int};
-
-use crate::api::private::validate::{Error, Object, ObjectType, api_err_exp};
 use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::c_int;
 
 const VV_TERMRESPONSE: c_int = 11;
 const LOGLVL_ERR: c_int = 4;

@@ -1,7 +1,7 @@
 //! NFA regular expression engine (`src/nvim/regexp.c`).
 
 use crate::message::{semsg, siemsg};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::mem::{offset_of, size_of, zeroed};
 use std::ptr;
 

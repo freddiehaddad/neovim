@@ -9,70 +9,48 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::buffer::buf_get_changedtick;
-#[allow(unused_imports)]
-use crate::buffer::buf_is_empty;
-#[allow(unused_imports)]
-use crate::cursor::equalpos;
-#[allow(unused_imports)]
+use crate::api::tabpage::{pos_T, win_T};
+use crate::buffer::{buf_get_changedtick, buf_is_empty};
+use crate::clipboard::typval_T;
+use crate::cursor::{check_cursor, check_cursor_lnum, coladvance, equalpos};
+use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::diff_get_corresponding_line;
-#[allow(unused_imports)]
 use crate::drawscreen::{
     conceal_cursor_line, number_width, redraw_buf_later, redraw_later, redrawWinline, redrawing,
     win_cursorline_standout, win_scroll_lines,
 };
 use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::typval::tv_check_for_number_arg;
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number, tv_get_number_chk};
-#[allow(unused_imports)]
-use crate::fold::{foldAdjustCursor, hasFolding};
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::beep_flush;
-#[allow(unused_imports)]
-use crate::insert::{beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner};
-#[allow(unused_imports)]
-use crate::mbyte::{mb_adjust_cursor, utf_head_off};
-#[allow(unused_imports)]
-use crate::memline::ml_get_buf;
-use crate::message::semsg;
-#[allow(unused_imports)]
-use crate::normal::{nv_g_home_m_cmd, nv_screengo};
-#[allow(unused_imports)]
-use crate::option::get_showbreak_value;
-#[allow(unused_imports)]
-use crate::option::{get_scrolloff_value, get_scrolloffpad_value, get_sidescrolloff_value};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::plines::win_get_fill;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::strings::vim_strchr;
-#[allow(unused_imports)]
-use crate::window::win_fdccol_count;
-use std::ffi::{c_char, c_int};
-use std::ptr;
-
-use crate::api::tabpage::{pos_T, win_T};
-use crate::clipboard::typval_T;
-use crate::cursor::{check_cursor, check_cursor_lnum, coladvance};
-use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::buf_T;
+use crate::eval::typval::{
+    tv_check_for_number_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number, tv_get_number_chk,
+};
 use crate::eval::window::{find_win_by_nr_or_id, viewstate_T};
+use crate::fold::{foldAdjustCursor, hasFolding};
+use crate::globals::*;
 use crate::grid::wline_T;
+use crate::input::beep_flush;
 use crate::input_cmdatom::cmdarg_T;
+use crate::insert::{beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner};
+use crate::mbyte::{mb_adjust_cursor, utf_head_off};
+use crate::memline::ml_get_buf;
+use crate::message::semsg;
 use crate::mouse::vcol2col;
+use crate::normal::{nv_g_home_m_cmd, nv_screengo};
+use crate::option::{
+    get_scrolloff_value, get_scrolloffpad_value, get_showbreak_value, get_sidescrolloff_value,
+};
+use crate::option_vars::*;
 use crate::plines::{
     colnr_T, getvcol, getvvcol, linenr_T, linetabsize_eol, plines_m_win, plines_win,
-    plines_win_full, plines_win_nofill, win_may_fill,
+    plines_win_full, plines_win_nofill, win_get_fill, win_may_fill,
 };
+use crate::strings::{gettext, vim_strchr};
 use crate::textformat::oparg_T;
+use crate::window::win_fdccol_count;
 use crate::winfloat::win_check_anchored_floats;
+use std::ffi::{c_char, c_int};
+use std::ptr;
 
 pub use crate::eval::deprecated::EvalFuncData;
 pub use crate::option::OptInt;

@@ -8,39 +8,10 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_metadata;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{bool_obj, int_obj};
-#[cfg(not(windows))]
-#[allow(unused_imports)]
-use crate::fileio::dup;
-use crate::globals::*;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::main_init::os_exit;
-#[cfg(windows)]
-#[allow(unused_imports)]
-use crate::os::os_win_console::os_open_conin_fd;
-#[allow(unused_imports)]
-use crate::tui::tui::{
-    tui_bell, tui_busy_start, tui_busy_stop, tui_default_colors_set, tui_flush, tui_grid_clear,
-    tui_grid_cursor_goto, tui_grid_scroll, tui_hl_attr_define, tui_mode_info_set, tui_mouse_off,
-    tui_mouse_on, tui_suspend, tui_update_menu, tui_visual_bell,
-};
-#[allow(unused_imports)]
-use crate::tui::tui::{
-    tui_chdir, tui_mode_change, tui_option_set, tui_screenshot, tui_set_icon, tui_set_title,
-    tui_ui_send,
-};
-use std::ffi::{c_char, c_int, c_void};
-use std::mem::{size_of, zeroed};
-use std::ptr;
-
+use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
 use crate::api::private::helpers::{
-    api_dict_to_keydict, api_free_array, copy_array, cstr_as_string,
+    api_dict_to_keydict, api_free_array, api_metadata, api_set_error, bool_obj, copy_array,
+    cstr_as_string, int_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -53,19 +24,33 @@ use crate::event::multiqueue::{
     multiqueue_put_event,
 };
 use crate::event::socket::socket_address_tcp_host_end;
+#[cfg(not(windows))]
+use crate::fileio::dup;
+use crate::globals::*;
 use crate::grid::{sattr_T, schar_T};
 use crate::highlight::{HLATTRS_INIT, KeyDict_highlight, dict2hlattrs};
+use crate::log::logmsg;
+use crate::main_init::os_exit;
 use crate::map::HlAttrs;
 use crate::memory::{Arena, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::unpacker::GridLineEvent;
 use crate::os::env::os_env_exists;
+#[cfg(windows)]
+use crate::os::os_win_console::os_open_conin_fd;
 use crate::profile::{time_finish, time_msg};
 use crate::tui::tui::{
-    TUIData, tui_add_url, tui_free_all_mem, tui_grid_resize, tui_is_stopped, tui_raw_line,
-    tui_start, tui_stop,
+    TUIData, tui_add_url, tui_bell, tui_busy_start, tui_busy_stop, tui_chdir,
+    tui_default_colors_set, tui_flush, tui_free_all_mem, tui_grid_clear, tui_grid_cursor_goto,
+    tui_grid_resize, tui_grid_scroll, tui_hl_attr_define, tui_is_stopped, tui_mode_change,
+    tui_mode_info_set, tui_mouse_off, tui_mouse_on, tui_option_set, tui_raw_line, tui_screenshot,
+    tui_set_icon, tui_set_title, tui_start, tui_stop, tui_suspend, tui_ui_send, tui_update_menu,
+    tui_visual_bell,
 };
+use std::ffi::{c_char, c_int, c_void};
+use std::mem::{size_of, zeroed};
+use std::ptr;
 
 const LOGLVL_INF: c_int = 2;
 const LOGLVL_ERR: c_int = 4;
@@ -96,7 +81,6 @@ static mut restart_args: Array = ARRAY_INIT;
 static mut restart_pending: bool = false;
 static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 
-use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
 #[cfg(windows)]
 use crate::fileio::_close as close_fd;
 #[cfg(not(windows))]

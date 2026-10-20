@@ -9,50 +9,26 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{api_dict_to_keydict, arena_array, arena_dict};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_hl_group_set};
-#[allow(unused_imports)]
-use crate::drawscreen::screen_invalidate_highlights;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::highlight_group::{
-    highlight_attr_set_all, highlight_changed, name_to_color, name_to_ctermcolor, set_hl_group,
-    syn_check_group, syn_id2name, syn_ns_id2attr,
-};
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_call_ref;
-#[allow(unused_imports)]
-use crate::message::emsg;
-#[allow(unused_imports)]
-use crate::option::check_blending;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::popupmenu::pum_drawn;
-#[allow(unused_imports)]
-use crate::strings::gettext;
-#[allow(unused_imports)]
-use crate::ui::ui_call_hl_attr_define;
-use std::ffi::{CStr, c_char, c_int};
-use std::ptr;
-
 use crate::api::extmark::NS;
+use crate::api::private::helpers::{
+    add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
+    cstr_as_string, dict_obj, integer_obj, string_obj,
+};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
     api_err_invalid,
 };
 use crate::api::tabpage::win_T;
+use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_hl_group_set};
 use crate::decoration_provider::get_decor_provider;
+use crate::drawscreen::screen_invalidate_highlights;
+use crate::globals::*;
+use crate::highlight_group::{
+    highlight_attr_set_all, highlight_changed, name_to_color, name_to_ctermcolor, set_hl_group,
+    syn_check_group, syn_id2name, syn_ns_id2attr,
+};
 use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::executor::nlua_call_ref;
 use crate::map::{
     ColorItem, ColorKey, HlAttrs, HlEntry, Map, Set, cstr_t, map_put_ref_ColorKey_ColorItem,
     map_put_ref_int_ptr_t, map_put_ref_uint64_t_int, map_ref_ColorKey_ColorItem, map_ref_int_ptr_t,
@@ -60,7 +36,15 @@ use crate::map::{
 };
 use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xstrdup};
+use crate::message::emsg;
 use crate::msgpack_rpc::packer::Integer;
+use crate::option::check_blending;
+use crate::option_vars::*;
+use crate::popupmenu::pum_drawn;
+use crate::strings::gettext;
+use crate::ui::ui_call_hl_attr_define;
+use std::ffi::{CStr, c_char, c_int};
+use std::ptr;
 
 pub type RgbValue = i32;
 pub type OptionalKeys = u64;

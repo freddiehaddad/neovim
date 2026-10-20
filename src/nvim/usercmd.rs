@@ -9,66 +9,45 @@
     clippy::too_many_arguments
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::arena_dict;
-#[allow(unused_imports)]
+use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
 use crate::api::private::helpers::{
-    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj, nil_obj,
-    string_obj,
+    arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj,
+    nil_obj, string_obj,
 };
-#[allow(unused_imports)]
-use crate::charset::ascii_isupper;
-#[allow(unused_imports)]
-use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
-#[allow(unused_imports)]
+use crate::api::private::validate::{Dict, KeyValuePair, Object};
+use crate::charset::{
+    ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
+    skiptowhite, skipwhite,
+};
+use crate::eval::deprecated::buf_T;
 use crate::eval::last_set_msg;
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline;
-#[allow(unused_imports)]
-use crate::ex_docmd::ends_excmd;
+use crate::ex_docmd::{do_cmdline, ends_excmd};
+use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-#[allow(unused_imports)]
-use crate::lua::executor::nlua_do_ucmd;
-#[allow(unused_imports)]
-use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
-#[allow(unused_imports)]
+use crate::keycodes::replace_termcodes;
+use crate::lua::converter::LuaRef;
+use crate::lua::executor::{
+    api_free_luaref, api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx,
+};
+use crate::map_glyph_cache::NvimString;
 use crate::mapping::set_context_in_map_cmd;
-#[allow(unused_imports)]
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
-#[allow(unused_imports)]
+use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
 use crate::menu::set_context_in_menu_cmd;
-#[allow(unused_imports)]
-use crate::message::message_filtered;
-use crate::message::semsg;
-#[allow(unused_imports)]
 use crate::message::{
-    emsg, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts,
-    msg_puts_hl, msg_puts_title,
+    emsg, message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_outtrans_special, msg_putchar,
+    msg_puts, msg_puts_hl, msg_puts_title, semsg,
 };
 use crate::option_vars::*;
-#[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
-#[allow(unused_imports)]
 use crate::runtime::sourcing_lnum;
-#[allow(unused_imports)]
-use crate::strings::{gettext, strcat, strchr, strcmp, strcpy, strncmp};
-#[allow(unused_imports)]
-use crate::strings::{vim_strchr, vim_strnicmp_asc, xstrnsave};
-#[allow(unused_imports)]
+use crate::sign::expand_T;
+use crate::strings::{
+    gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
+};
 use crate::window::{prevwin_curwin, tabpage_index};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-
-use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
-use crate::api::private::validate::{Dict, KeyValuePair, Object};
-use crate::charset::{getdigits_int, skiptowhite, skipwhite};
-use crate::eval::deprecated::buf_T;
-use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
-use crate::keycodes::replace_termcodes;
-use crate::lua::converter::LuaRef;
-use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
-use crate::sign::expand_T;
 
 const NUL: c_char = 0;
 const FAIL: c_int = 0;

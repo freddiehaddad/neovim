@@ -5,62 +5,65 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::add_c;
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
-#[allow(unused_imports)]
-use crate::api::private::helpers::error_set;
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    api_set_sctx, arena_array, arena_dict, arena_string, try_enter, try_leave,
-};
-#[allow(unused_imports)]
-use crate::api::private::helpers::{
-    array_obj, boolean_obj, cstr_as_string, dict_obj, float_obj, integer_obj, nil_obj, string_obj,
-};
-#[allow(unused_imports)]
-use crate::eval::typval::{tv_clear, tv_dict_find};
-#[allow(unused_imports)]
-use crate::eval::userfunc::call_func;
-#[allow(unused_imports)]
-use crate::eval::{clear_evalarg, eval0};
-#[allow(unused_imports)]
-use crate::ex_docmd::do_cmdline_cmd;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::runtime::do_source_str;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
-
+#[cfg(not(test))]
 use crate::api::autocmd::TryState;
-use crate::api::private::converter::{object_to_vim, sctx_T, vim_to_object};
-use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
+#[cfg(not(test))]
+use crate::api::private::converter::{object_to_vim, vim_to_object};
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,
+    boolean_obj, dict_obj, error_set, float_obj, integer_obj, string_obj, try_enter, try_leave,
 };
-use crate::api::tabpage::win_T;
+use crate::api::private::helpers::{cstr_as_string, nil_obj};
+use crate::api::private::validate::{Array, Dict, Error, KeyValuePair, Object};
+#[cfg(not(test))]
+use crate::api::private::validate::{ErrorType, ObjectType, api_err_exp};
+#[cfg(not(test))]
 use crate::clipboard::{VarType, typval_T};
-use crate::eval::decode::{dict_T, dictitem_T};
+#[cfg(not(test))]
+use crate::eval::decode::dict_T;
+#[cfg(not(test))]
+use crate::eval::typval::{tv_clear, tv_dict_find};
+#[cfg(not(test))]
+use crate::eval::userfunc::call_func;
+#[cfg(not(test))]
+use crate::eval::{clear_evalarg, eval0};
+#[cfg(not(test))]
+use crate::ex_docmd::do_cmdline_cmd;
+#[cfg(not(test))]
 use crate::garray::{ga_clear, ga_init, garray_T};
+#[cfg(not(test))]
+use crate::globals::*;
 use crate::kvec::KVecWithInit;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, xfree, xmemdupz};
+#[cfg(not(test))]
+use crate::memory::xfree;
+use crate::memory::{Arena, xmemdupz};
+#[cfg(not(test))]
 use crate::msgpack_rpc::packer::Integer;
+#[cfg(not(test))]
+use crate::runtime::do_source_str;
+use crate::viml::parser::expressions::ExprASTNode;
+#[cfg(not(test))]
 use crate::viml::parser::expressions::{
-    ExprASTNode, ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab,
-    kExprAsgnPlain, kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet,
-    kExprNodeAssignment, kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment,
-    kExprNodeFloat, kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
+    ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab, kExprAsgnPlain,
+    kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet, kExprNodeAssignment,
+    kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment, kExprNodeFloat,
+    kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
     kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_free_ast, viml_pexpr_parse,
 };
+#[cfg(not(test))]
 use crate::viml::parser::parser::{
     ParserHighlight, ParserLine, ParserPosition, ParserState, parser_simple_get_line,
     viml_parser_destroy,
 };
+use std::ffi::{CStr, c_char, c_int};
+#[cfg(not(test))]
+use std::ffi::{c_uint, c_void};
 
 const FAIL: c_int = 0;
 const OK: c_int = 1;

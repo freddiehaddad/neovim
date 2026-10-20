@@ -1,19 +1,27 @@
 //! OS process inspection and process-tree termination (`src/nvim/os/proc.c`).
 
-#![allow(dead_code, unused_imports, unused_mut)]
+#![allow(dead_code, unused_mut)]
 
-#[allow(unused_imports)]
+#[cfg(all(not(test), windows))]
 use crate::api::private::helpers::{arena_dict, arena_string};
 #[cfg(not(test))]
-#[allow(unused_imports)]
 use crate::event::r#loop::uv_kill;
-use std::ffi::{CStr, c_char, c_int, c_void};
-
-use crate::memory::{Arena, xrealloc};
+#[cfg(windows)]
+use crate::memory::Arena;
+#[cfg(any(not(test), unix))]
+use crate::memory::xrealloc;
+#[cfg(all(not(test), windows))]
+use std::ffi::CStr;
+#[cfg(windows)]
+use std::ffi::c_char;
+use std::ffi::{c_int, c_void};
 
 #[cfg(target_os = "windows")]
-use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::Dict;
+#[cfg(all(not(test), windows))]
+use crate::api::private::validate::{KeyValuePair, Object, ObjectData, ObjectType};
 #[cfg(target_os = "windows")]
+#[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 
 #[cfg(target_os = "windows")]

@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_imports,
     unused_mut,
     unused_variables,
     clippy::missing_safety_doc,
@@ -13,77 +12,10 @@
     clippy::useless_conversion
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::cstr_as_obj;
-#[allow(unused_imports)]
-use crate::buffer::{buf_contents_changed, buflist_new, do_modelines, setfname, wipe_buffer};
-#[allow(unused_imports)]
-use crate::change::{appended_lines_mark, save_file_ff};
-#[allow(unused_imports)]
-use crate::charset::ascii_isdigit;
-#[allow(unused_imports)]
-use crate::charset::ascii_isspace;
-use crate::errors::*;
-#[allow(unused_imports)]
-use crate::eval::vars::eval_charconvert;
-#[allow(unused_imports)]
-use crate::event::r#loop::uv_strerror;
-#[allow(unused_imports)]
-use crate::fold::foldUpdateAll;
-use crate::globals::*;
-#[allow(unused_imports)]
-use crate::input::stuff_empty;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::message::msg_delay;
-#[allow(unused_imports)]
-use crate::message::{
-    emsg, msg, msg_check_for_delay, msg_clr_eos, msg_end, msg_may_trunc, msg_outtrans, msg_putchar,
-    msg_puts, msg_puts_hl, msg_start, msg_trunc, set_keep_msg,
-};
-#[allow(unused_imports)]
-use crate::message::{msg_progress, msg_with_id};
-use crate::message::{msg_schedule_semsg, semsg, smsg};
-#[allow(unused_imports)]
-use crate::r#move::update_topline;
-#[allow(unused_imports)]
-use crate::option::copy_option_part;
-#[allow(unused_imports)]
-use crate::option::get_fileformat_force;
-#[allow(unused_imports)]
-use crate::option::set_option_direct;
-#[allow(unused_imports)]
-use crate::option::{
-    default_fileformat, get_fileformat, set_fileformat, set_options_bin, shortmess,
-};
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
-#[allow(unused_imports)]
-use crate::shada::check_marks_read;
-#[allow(unused_imports)]
-use crate::strings::gettext as tr;
-#[allow(unused_imports)]
-use crate::strings::strlen as c_strlen;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-#[allow(unused_imports)]
-use crate::strings::{gettext, ngettext};
-#[allow(unused_imports)]
-use crate::strings::{sort_strings, vim_strchr};
-#[allow(unused_imports)]
-use crate::ui::ui_flush;
-#[allow(unused_imports)]
-use crate::ui::ui_has;
-#[allow(unused_imports)]
-use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
-use std::ptr;
-
-use crate::api::command::{cmdmod_T, exarg_T};
+use crate::api::command::exarg_T;
 use crate::api::options::CtxSwitch;
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::private::helpers::cstr_as_obj;
+use crate::api::tabpage::pos_T;
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFNEW, EVENT_BUFNEWFILE, EVENT_BUFREADCMD,
     EVENT_BUFREADPOST, EVENT_BUFREADPRE, EVENT_BUFWIPEOUT, EVENT_FILECHANGEDSHELL,
@@ -92,28 +24,36 @@ use crate::autocmd::{
     apply_autocmds_exarg, apply_autocmds_group, augroup_exists, augroup_find, do_doautocmd,
 };
 use crate::buffer::{
-    bt_dontwrite, bt_nofilename, bt_normal, buf_is_empty, bufref_T, bufref_valid, set_bufref,
+    bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty, buflist_new,
+    bufref_T, bufref_valid, do_modelines, set_bufref, setfname, wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
-use crate::change::unchanged;
-use crate::charset::{skipdigits, vim_isfilec};
+use crate::change::{appended_lines_mark, save_file_ff, unchanged};
+#[cfg(windows)]
+use crate::charset::vim_isfilec;
+use crate::charset::{ascii_isdigit, ascii_isspace, skipdigits};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T};
 use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
 use crate::drawscreen::{redraw_curbuf_later, status_redraw_all};
-use crate::eval::deprecated::{Callback, buf_T};
+use crate::errors::*;
+use crate::eval::deprecated::buf_T;
 use crate::eval::fs::FileInfo;
 use crate::eval::vars::{
-    VV_FCS_CHOICE, VV_FCS_REASON, VV_TESTING, VV_WARNINGMSG, get_vim_var_nr, get_vim_var_str,
+    VV_FCS_CHOICE, VV_FCS_REASON, VV_WARNINGMSG, eval_charconvert, get_vim_var_str,
     set_vim_var_string,
 };
+#[cfg(not(test))]
+use crate::eval::vars::{VV_TESTING, get_vim_var_nr};
+use crate::event::r#loop::uv_strerror;
 use crate::ex_eval::aborting;
-use crate::fold::foldmethodIsManual;
+use crate::fold::{foldUpdateAll, foldmethodIsManual};
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
-use crate::input::typebuf_typed;
+use crate::globals::*;
+use crate::input::{stuff_empty, typebuf_typed};
 use crate::insert::beginline;
-use crate::map_glyph_cache::NvimString;
+use crate::log::logmsg;
 use crate::mbyte::{
     enc_canon_props, enc_canonize, my_iconv_open, utf_byte2len, utf_char2bytes, utf_char2len,
     utf_head_off, utf_ptr2char, utf_ptr2len_len,
@@ -127,30 +67,50 @@ use crate::memory::{
     memchrsub, strequal, time_to_bytes, verbose_try_malloc, xfree, xmalloc, xmallocz, xmemdupz,
     xstrdup, xstrlcat, xstrlcpy,
 };
-use crate::msgpack_rpc::channel::event_T;
+use crate::message::{
+    emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
+    msg_progress, msg_putchar, msg_puts, msg_puts_hl, msg_schedule_semsg, msg_start, msg_trunc,
+    msg_with_id, semsg, set_keep_msg, smsg,
+};
+use crate::r#move::update_topline;
+use crate::option::{
+    copy_option_part, default_fileformat, get_fileformat, get_fileformat_force, set_fileformat,
+    set_option_direct, set_options_bin, shortmess,
+};
+use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
 use crate::os::fs::{
-    Directory, os_closedir, os_copy, os_dirname, os_fchown, os_file_is_writable, os_file_owned,
-    os_fileinfo, os_fileinfo_fd, os_fileinfo_id_equal, os_fileinfo_link, os_fileinfo_size,
-    os_free_acl, os_get_acl, os_getperm, os_isdir, os_isrealdir, os_mkdir, os_mkdtemp, os_open,
-    os_path_exists, os_remove, os_rename, os_rmdir, os_scandir, os_scandir_next, os_set_acl,
-    os_set_cloexec, os_setperm, uv_gid_t, uv_uid_t, vim_acl_T,
+    Directory, os_closedir, os_copy, os_dirname, os_file_is_writable, os_file_owned, os_fileinfo,
+    os_fileinfo_fd, os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm,
+    os_isdir, os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename,
+    os_rmdir, os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, vim_acl_T,
 };
+#[cfg(unix)]
+use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, uv_gid_t, uv_uid_t};
 use crate::os::input::os_breakcheck;
-#[cfg(windows)]
-use crate::os::os_win_console::os_open_conin_fd;
 use crate::os::time::{os_hrtime, time_t};
 use crate::os::users::os_get_username;
 use crate::path::{
     add_pathsep, after_pathsep, dir_of_file_exists, path_equal, path_is_absolute,
     path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
 };
+use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
+use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
-use crate::undo::{
-    u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed, u_read_undo,
-    u_savecommon, u_sync, u_unchanged, u_write_undo,
+use crate::strings::{
+    gettext as tr, ngettext, sort_strings, strlen as c_strlen, vim_snprintf, vim_strchr,
 };
+use crate::ui::{ui_flush, ui_has};
+use crate::undo::{
+    bufIsChanged, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
+    u_read_undo, u_savecommon, u_sync, u_unchanged, u_write_undo,
+};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ptr;
+
+#[cfg(windows)]
+use crate::os::os_win_console::os_open_conin_fd;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::option::OptInt;
@@ -4195,7 +4155,7 @@ pub unsafe extern "C" fn vim_deltempdir() {
             return;
         }
 
-        #[cfg(unix)]
+        #[cfg(all(not(test), unix))]
         vim_closetempdir();
 
         *path_tail(VIM_TEMPDIR).sub(1) = NUL;
@@ -4260,7 +4220,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
             buflen += sep_bytes.len() - 1;
         }
         VIM_TEMPDIR = xmemdupz(buf.cast(), buflen).cast::<c_char>();
-        #[cfg(unix)]
+        #[cfg(all(not(test), unix))]
         vim_opentempdir();
         xfree(buf.cast());
         true

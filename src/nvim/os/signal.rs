@@ -8,27 +8,24 @@
     clippy::missing_safety_doc
 )]
 
-#[allow(unused_imports)]
 use crate::autocmd::apply_autocmds;
-#[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_nr;
-use crate::globals::*;
-use crate::log::logmsg;
-#[allow(unused_imports)]
-use crate::main_init::preserve_exit;
-#[allow(unused_imports)]
-use crate::memline::ml_sync_all;
-use crate::option_vars::*;
-#[allow(unused_imports)]
-use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_void};
-use std::ptr;
-
 use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
 };
 use crate::ex_cmds2::autowrite_all;
+use crate::globals::main_loop;
+use crate::globals::*;
+use crate::log::logmsg;
+use crate::main_init::preserve_exit;
+#[cfg(unix)]
+use crate::memline::ml_sync_all;
+use crate::option_vars::*;
+use crate::strings::vim_snprintf;
+use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ptr;
+
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
 
@@ -76,8 +73,6 @@ static mut swinch: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
 static mut ststp: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
 #[cfg(target_os = "linux")]
 static mut spwr: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-
-use crate::globals::main_loop;
 
 static mut rejecting_deadly: bool = false;
 
