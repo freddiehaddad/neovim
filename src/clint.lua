@@ -809,11 +809,7 @@ local function check_includes(filename, lines, error)
         end
       end
 
-      if
-        not should_skip
-        and not name:match('/defs%.h$')
-        and not name:match('_defs%.h$')
-      then
+      if not should_skip and not name:match('/defs%.h$') and not name:match('_defs%.h$') then
         error(
           filename,
           i - 1,

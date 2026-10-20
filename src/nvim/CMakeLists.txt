@@ -309,9 +309,8 @@ target_include_directories(main_lib INTERFACE
 
 file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
-file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
-file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/*.h ../klib/*.h ../lpeg/*.h)
+file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../mpack/*.h ../klib/*.h)
 
 if(PREFER_LUA)
   target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
@@ -327,33 +326,25 @@ foreach(subdir
         vterm
         event
         eval
-        lua
         lib
-        viml
         viml/parser
        )
 
   file(MAKE_DIRECTORY ${GENERATED_DIR}/${subdir})
   file(MAKE_DIRECTORY ${GENERATED_INCLUDES_DIR}/${subdir})
-  file(GLOB sources CONFIGURE_DEPENDS ${subdir}/*.c)
   file(GLOB headers CONFIGURE_DEPENDS ${subdir}/*.h)
-  list(APPEND NVIM_SOURCES ${sources})
   list(APPEND NVIM_HEADERS ${headers})
 endforeach()
 
 # Sort file lists to ensure generated files are created in the same order from
 # build to build.
-list(SORT NVIM_SOURCES)
 list(SORT NVIM_HEADERS)
 
-list(APPEND UNCRUSTIFY_NVIM_SOURCES ${NVIM_SOURCES} ${NVIM_HEADERS})
+list(APPEND UNCRUSTIFY_NVIM_SOURCES ${NVIM_HEADERS})
 
 foreach(hfile ${NVIM_HEADERS})
   get_filename_component(f ${hfile} NAME)
   if(WIN32 AND ${f} MATCHES "^(unix_defs.h)$")
-    list(REMOVE_ITEM NVIM_HEADERS ${hfile})
-  endif()
-  if(WIN32 AND ${f} MATCHES "^(pty_proc_unix.h)$")
     list(REMOVE_ITEM NVIM_HEADERS ${hfile})
   endif()
   if(NOT WIN32 AND ${f} MATCHES "^(win_defs.h)$")
@@ -361,7 +352,7 @@ foreach(hfile ${NVIM_HEADERS})
   endif()
 endforeach()
 
-list(APPEND LINT_NVIM_SOURCES ${NVIM_SOURCES} ${NVIM_HEADERS})
+list(APPEND LINT_NVIM_SOURCES ${NVIM_HEADERS})
 
 # Log level (NVIM_LOG_DEBUG in log.h)
 if(CI_BUILD)
@@ -442,8 +433,6 @@ else()
 endif()
 
 target_sources(main_lib INTERFACE
-  ${NVIM_GENERATED_FOR_SOURCES}
-  ${NVIM_SOURCES}
   ${NVIM_HEADERS}
   ${EXTERNAL_HEADERS})
 
@@ -654,61 +643,6 @@ target_link_libraries(libnvim PRIVATE main_lib PUBLIC libuv)
 # Lint
 #-------------------------------------------------------------------------------
 
-find_program(CLANG_TIDY_PRG clang-tidy)
-mark_as_advanced(CLANG_TIDY_PRG)
-set(EXCLUDE_CLANG_TIDY typval_encode.c.h ui_events.in.h xxd/xxd.c)
-if(WIN32)
-  list(APPEND EXCLUDE_CLANG_TIDY
-    os/pty_proc_unix.h
-    os/unix_defs.h)
-else()
-  list(APPEND EXCLUDE_CLANG_TIDY
-    os/win_defs.h
-    os/pty_proc_win.h
-    os/pty_conpty_win.h
-    os/os_win_console.h)
-endif()
-add_glob_target(
-  TARGET lintc-clang-tidy
-  COMMAND ${CLANG_TIDY_PRG}
-  FILES ${LINT_NVIM_SOURCES}
-  FLAGS --quiet
-  EXCLUDE ${EXCLUDE_CLANG_TIDY})
-
-# The checks we ignore are meant to be removed eventually, but we can only
-# enable each warning after we fix all instances of that specific warning as to
-# not break CI.
-if(APPLE)
-  string(APPEND CLANG_ANALYZER_IGNORE "-clang-analyzer-core.NonNullParamChecker,")
-endif()
-add_glob_target(
-  TARGET clang-analyzer
-  COMMAND ${CLANG_TIDY_PRG}
-  FILES ${LINT_NVIM_SOURCES}
-  FLAGS --quiet
-  --checks='
-  -*,
-  clang-analyzer-*,
-  -clang-analyzer-core.FixedAddressDereference,
-  -clang-analyzer-core.NullDereference,
-  -clang-analyzer-core.UndefinedBinaryOperatorResult,
-  -clang-analyzer-core.uninitialized.Assign,
-  -clang-analyzer-optin.core.EnumCastOutOfRange,
-  -clang-analyzer-optin.performance.Padding,
-  -clang-analyzer-security.ArrayBound,
-  -clang-analyzer-security.insecureAPI.strcpy,
-  -clang-analyzer-unix.StdCLibraryFunctions,
-  -clang-analyzer-unix.Stream,
-  ${CLANG_ANALYZER_IGNORE}
-  '
-  EXCLUDE ${EXCLUDE_CLANG_TIDY})
-
-add_custom_target(copy_compile_commands
-  COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/compile_commands.json ${PROJECT_SOURCE_DIR}/compile_commands.json)
-add_dependencies(copy_compile_commands nvim_bin)
-add_dependencies(lintc-clang-tidy copy_compile_commands)
-add_dependencies(clang-analyzer copy_compile_commands)
-
 if(CI_BUILD)
   set(LINT_OUTPUT_FORMAT gh_action)
 else()
@@ -720,8 +654,7 @@ add_glob_target(
   FLAGS --clean -l ${PROJECT_SOURCE_DIR}/src/clint.lua --output=${LINT_OUTPUT_FORMAT}
   FILES ${LINT_NVIM_SOURCES}
   EXCLUDE
-    tui/terminfo_defs.h
-    xxd/xxd.c)
+    tui/terminfo_defs.h)
 add_dependencies(lintc-clint nvim_bin)
 
 set(UNCRUSTIFY_PRG ${DEPS_BIN_DIR}/uncrustify)
@@ -753,20 +686,13 @@ add_dependencies(formatc uncrustify)
 add_dependencies(uncrustify_update_config uncrustify)
 
 add_custom_target(lintc)
-add_dependencies(lintc lintc-clint lintc-uncrustify lintc-clang-tidy)
+add_dependencies(lintc lintc-clint lintc-uncrustify)
 
 #-------------------------------------------------------------------------------
 # Docs
 #-------------------------------------------------------------------------------
 
 add_subdirectory(po)
-
-add_custom_target(generated-sources DEPENDS
-  ${NVIM_GENERATED_FOR_HEADERS}
-  ${NVIM_GENERATED_FOR_SOURCES}
-)
-
-file(GLOB API_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/nvim/api/*.c)
 
 file(GLOB LUA_SOURCES CONFIGURE_DEPENDS
   ${NVIM_RUNTIME_DIR}/lua/vim/*.lua
@@ -781,7 +707,7 @@ add_target(doc-vim
   COMMAND ${NVIM_LUA} src/gen/gen_vimdoc.lua
   DEPENDS
     nvim
-    ${API_SOURCES}
+    ${API_HEADERS}
     ${LUA_SOURCES}
     ${PROJECT_SOURCE_DIR}/src/gen/gen_vimdoc.lua
     ${NVIM_RUNTIME_DIR}/doc/api.txt

@@ -234,11 +234,9 @@ pub fn build(b: *std.Build) !void {
 
     // TODO(bfredl): these should just become subdirs..
     const windows_only = [_][]const u8{
-        "pty_proc_win.h",
-        "pty_conpty_win.h",
         "win_defs.h",
     };
-    const unix_only = [_][]const u8{ "unix_defs.h", "pty_proc_unix.h" };
+    const unix_only = [_][]const u8{ "unix_defs.h" };
     const exclude_list = if (is_windows) &unix_only else &windows_only;
 
     const src_dir = b.build_root.handle;
