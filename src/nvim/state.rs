@@ -53,8 +53,6 @@ pub const MODE_SETWSIZE: c_int = 0x4000;
 pub const MODE_EXTERNCMD: c_int = 0x5000;
 pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
-const Ctrl_V: c_int = 22;
-
 const kOptVeFlagInsert: c_uint = 0x06;
 
 pub type state_check_callback = Option<unsafe extern "C" fn(state: *mut VimState) -> c_int>;
@@ -70,6 +68,7 @@ pub struct VimState {
 use crate::api::vim::kNone;
 use crate::cursor::kOptVeFlagAll;
 pub use crate::mapping::typebuf_T;
+use crate::regexp::Ctrl_V;
 
 #[repr(C)]
 pub struct save_v_event_T {

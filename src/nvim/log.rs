@@ -46,8 +46,6 @@ use std::ffi::{c_char, c_int, c_void};
 use std::io::Write;
 use std::ptr;
 
-const NUL: c_char = 0;
-
 pub const LOGLVL_DBG: c_int = 1;
 pub const LOGLVL_INF: c_int = 2;
 pub const LOGLVL_WRN: c_int = 3;
@@ -220,6 +218,7 @@ macro_rules! logmsg {
         }
     }};
 }
+use crate::api::buffer::NUL;
 #[cfg(all(not(test), unix))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]

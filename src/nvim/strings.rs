@@ -61,9 +61,7 @@ use std::ffi::{
 use std::mem::size_of;
 use std::ptr;
 
-const NUL: c_char = 0;
 const CTRL_V: c_char = 0x16;
-const MB_MAXBYTES: usize = 30;
 
 pub const TYPE_UNKNOWN: c_int = -1;
 pub const TYPE_INT: c_int = 0;
@@ -2890,6 +2888,8 @@ macro_rules! vim_snprintf_safelen {
         )
     };
 }
+use crate::api::buffer::NUL;
+use crate::cmdexpand::MB_MAXBYTES;
 #[cfg(not(test))]
 use crate::eval::kListLenUnknown;
 #[cfg(not(test))]

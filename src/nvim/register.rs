@@ -8,16 +8,17 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{FORWARD, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NL, NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
 use crate::api::vim::{BACKWARD, REMAP_NONE, REMAP_YES};
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
-    EVENT_TEXTYANKPOST, apply_autocmds, has_event,
+    EVENT_TEXTYANKPOST, HLF_8, apply_autocmds, has_event,
 };
 use crate::buffer::{
-    VAR_FIXED, buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname,
+    MAXLNUM, VAR_FIXED, buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr,
+    getaltfname, kUIMessages,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{SIN_NOMARK, changed_bytes, changed_lines, del_chars, kOptVeFlagOnemore};
@@ -25,30 +26,31 @@ use crate::charset::{ascii_iswhite, getdigits_int, skipwhite, transchar, vim_str
 use crate::clipboard::{
     MotionType, adjust_clipboard_name, get_clipboard, set_clipboard, yankreg_T,
 };
+use crate::cmdexpand::Ctrl_P;
 use crate::cursor::{
     coladvance_force, colnr_T, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
     get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, kOptVeFlagAll, linenr_T,
 };
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::pos_T;
 use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
-    BoolVarValue, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
+    tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
     tv_list_append_string,
 };
 use crate::eval::{eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
-use crate::ex_getln::{cmdline_paste_str, getcmdline};
+use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str, getcmdline};
 use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::hasFolding;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
-use crate::grid::UIExtension;
 use crate::indent::{get_indent, preprocs_left, set_indent, tabstop_padding};
 use crate::input::{
     beep_flush, get_recorded, ins_typebuf, redo_append_char, stuffReadbuff, stuffReadbuffLen,
@@ -85,7 +87,7 @@ use crate::plines::{
     CSType, CharsizeArg, getvcol, init_charsize_arg, utf_ClusterInfo, utf_ptr2StrCharInfo,
     win_charsize,
 };
-use crate::regexp::NUMBUFLEN;
+use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::search::{Direction, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, save_v_event_T};
 use crate::strings::{
@@ -99,22 +101,10 @@ use crate::undo::{u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
-const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
-const NL: c_char = b'\n' as c_char;
 const CAR: c_char = b'\r' as c_char;
 const ESC: c_char = 0x1b;
-const Ctrl_A: c_int = 1;
-const Ctrl_F: c_int = 6;
-const Ctrl_L: c_int = 12;
-const Ctrl_P: c_int = 16;
-const Ctrl_R: c_int = 18;
 const Ctrl_U: u8 = 21;
-const Ctrl_V: c_int = 22;
-const Ctrl_W: c_int = 23;
-
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 pub const PUT_FIXINDENT: c_int = 1;
 pub const PUT_CURSEND: c_int = 2;
@@ -138,12 +128,6 @@ pub const YREG_PASTE: c_int = 0;
 pub const YREG_YANK: c_int = 1;
 pub const YREG_PUT: c_int = 2;
 
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-
-const HLF_8: c_int = 1;
-
-const kUIMessages: UIExtension = 4;
 const kCpoRegappend: c_int = b'>' as c_int;
 
 const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =

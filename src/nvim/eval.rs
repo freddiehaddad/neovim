@@ -59,9 +59,9 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
-#[cfg(not(test))]
-use crate::buffer::buflist_findnr;
 use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt};
+#[cfg(not(test))]
+use crate::buffer::{buflist_findnr, kUIMessages};
 #[cfg(not(test))]
 use crate::channel::callback_reader_free;
 #[cfg(not(test))]
@@ -216,12 +216,14 @@ pub use crate::eval::vars::evalarg_T;
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
+use crate::api::buffer::{NL, NUL};
 #[cfg(not(test))]
 use crate::api::deprecated::kOptInvalid;
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
+use crate::change::TAB;
 use crate::channel::kChannelStreamProc;
 pub use crate::eval::typval::float_T;
 use crate::regexp::NUMBUFLEN;
@@ -266,10 +268,7 @@ pub(crate) const GLV_READ_ONLY: c_int = TFN_READ_ONLY;
 pub(crate) const FNE_INCL_BR: c_int = 1;
 pub(crate) const FNE_CHECK_START: c_int = 2;
 
-const NUL: c_char = 0;
 const BS: c_char = 0x08;
-const TAB: c_char = 0x09;
-const NL: c_char = 0x0a;
 const FF: c_char = 0x0c;
 const CAR: c_char = 0x0d;
 const ESC: c_char = 0x1b;
@@ -288,15 +287,13 @@ pub(crate) const kListLenShouldKnow: isize = -2;
 pub(crate) const kListLenMayKnow: isize = -3;
 
 pub(crate) const kMarkAll: c_int = 1;
-#[cfg(not(test))]
-const kUIMessages: c_int = 4;
 
 #[cfg(not(test))]
 const kWinOptFoldexpr: usize = 15;
 
 pub(crate) const STR2NR_ALL: c_int = 0x7f;
 
-const AUTOLOAD_CHAR: c_char = b'#' as c_char;
+pub(crate) const AUTOLOAD_CHAR: c_char = b'#' as c_char;
 
 #[cfg(target_env = "msvc")]
 const MAX_EVAL7_RECURSE: c_int = 300;

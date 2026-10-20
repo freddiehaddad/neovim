@@ -21,7 +21,7 @@ use crate::charset::{
 };
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::check_cursor_lnum;
-use crate::decoration::{SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
+use crate::decoration::{SIGN_WIDTH, SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
@@ -66,8 +66,6 @@ use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const NUL: c_char = 0;
-const SIGN_WIDTH: usize = 2;
 const SIGN_DEF_PRIO: c_int = 10;
 
 const SIGNCMD_DEFINE: c_int = 0;
@@ -112,6 +110,7 @@ pub struct sign_T {
     pub sn_priority: c_int,
 }
 
+use crate::api::buffer::NUL;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::cmdexpand::{
     EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN, HLF_D,

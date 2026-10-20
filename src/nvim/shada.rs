@@ -17,7 +17,8 @@ use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, Obje
 use crate::api::tabpage::{pos_T, xfmark_T};
 use crate::arglist::alist_T;
 use crate::buffer::{
-    BLN_LISTED, NMARKS, bt_quickfix, bt_terminal, buflist_findnr, buflist_new, buflist_setfpos,
+    BLN_LISTED, JUMPLISTSIZE, MAXLNUM, NMARKS, bt_quickfix, bt_terminal, buflist_findnr,
+    buflist_new, buflist_setfpos,
 };
 use crate::clipboard::{MotionType, TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdhist::{
@@ -32,7 +33,9 @@ use crate::eval::fs::FileInfo;
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_append_allocated_string, tv_list_len,
 };
-use crate::eval::vars::{VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list};
+use crate::eval::vars::{
+    VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
+};
 use crate::eval::{
     VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, kListLenUnknown,
     set_ref_in_ht, set_ref_in_list_items, var_flavour, var_set_global,
@@ -117,12 +120,7 @@ pub const kShaDaNanos: c_int = 32;
 pub const kShaDaNoHistory: c_int = 64;
 pub const kShaDaNoOpt: c_int = 128;
 
-const NUL: c_char = 0;
-const MAXLNUM: linenr_T = 0x7fffffff;
 const NLOCALMARKS: usize = NMARKS + 3;
-const JUMPLISTSIZE: usize = 100;
-const NS_PER_SEC: u64 = 1_000_000_000;
-const VAR_TYPE_BLOB: Integer = 10;
 const SHADA_MPACK_FREE_SPACE: usize = 4 * MPACK_ITEM_SIZE;
 
 #[cfg(unix)]
@@ -627,9 +625,10 @@ use crate::api::private::dispatch::{
     KeyDict__shada_search_pat_get_field as shada_search_pat_get_field_cb,
 };
 
+use crate::api::buffer::NUL;
 use crate::api::vim::MAXPATHL;
 use crate::eval::funcs::MPACK_EOF;
-use crate::event::r#loop::uv_strerror as os_strerror;
+use crate::event::r#loop::{NS_PER_SEC, uv_strerror as os_strerror};
 use crate::version::longVersion;
 
 #[inline]

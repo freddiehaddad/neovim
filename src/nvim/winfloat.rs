@@ -18,9 +18,9 @@ use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::vim::{MAXPATHL, nvim_create_buf};
 use crate::api::win_config::{
-    UIExtension, kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth,
-    kFloatRelativeCursor, kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse,
-    kFloatRelativeWindow, kWinStyleMinimal, kWinStyleUnused, kZIndexFloatDefault, parse_bordertext,
+    kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeCursor,
+    kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse, kFloatRelativeWindow,
+    kUIMultigrid, kWinStyleMinimal, kWinStyleUnused, kZIndexFloatDefault, parse_bordertext,
     parse_winborder,
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
@@ -58,14 +58,11 @@ pub use crate::option::{OptInt, OptScope};
 pub use crate::optionstr::{OptIndex, OptKeyDict_pvp};
 pub use crate::window::WinKind;
 
-const NUL: c_char = 0;
-
-const kUIMultigrid: UIExtension = 6;
-
 const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;
 const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
+use crate::api::buffer::NUL;
 use crate::api::options::kOptBufhidden;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::ex_cmds::kWinPreview;

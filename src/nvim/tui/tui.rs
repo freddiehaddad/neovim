@@ -115,7 +115,6 @@ const EXIT_TIMEOUT_MS: i64 = 1000;
 const OUTBUF_SIZE: usize = 0xffff;
 const TOO_MANY_EVENTS: usize = 1_000_000;
 const TERMINFO_SEQ_LIMIT: usize = 128;
-const NUL: c_char = 0;
 const DEL: c_char = 0x7f;
 
 #[cfg(unix)]
@@ -291,6 +290,7 @@ unsafe extern "C" {
     fn getpgrp() -> c_int;
 }
 
+use crate::api::buffer::NUL;
 use crate::api::ui::{MAX_SCHAR_SIZE, kLineFlagWrap};
 use crate::channel::STDOUT_FILENO;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};

@@ -73,9 +73,6 @@ pub type vim_acl_T = *mut c_void;
 pub type uv_fs_buf_t = [u64; 80];
 pub use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 
-#[cfg(not(test))]
-const NUL: c_char = 0;
-
 const NODE_NORMAL: c_int = 0;
 #[cfg(any(not(test), unix))]
 pub(crate) const NODE_OTHER: c_int = 2;
@@ -287,6 +284,8 @@ struct IPersistFile {
     lp_vtbl: *const IPersistFileVtbl,
 }
 
+#[cfg(not(test))]
+use crate::api::buffer::NUL;
 #[cfg(all(not(test), windows))]
 use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]

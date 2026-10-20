@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText,
     VirtTextPos, kVPosEndOfLine,
@@ -28,7 +29,7 @@ use crate::api::tabpage::{lpos_T, win_T};
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::buffer::buf_meta_total;
-use crate::change::changed_lines_invalidate_buf;
+use crate::change::{TAB, changed_lines_invalidate_buf};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::eval::deprecated::buf_T;
@@ -53,6 +54,7 @@ use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{Arena, xcalloc, xfree, xmalloc};
 use crate::r#move::{changed_window_setting, win_col_off};
 use crate::msgpack_rpc::packer::Integer;
+use crate::regexp::MAXCOL;
 use crate::sign::{buf_has_signs, describe_sign_text};
 use std::cmp::Ordering;
 use std::ffi::{c_char, c_int, c_void};
@@ -61,10 +63,7 @@ use std::ptr;
 pub type DecorPriorityInternal = u32;
 pub type DecorRangeKind = u8;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const MAXCOL: c_int = 0x7fffffff;
-const SIGN_WIDTH: usize = 2;
+pub(crate) const SIGN_WIDTH: usize = 2;
 const SIGN_SHOW_MAX: c_int = 9;
 pub(crate) const SCL_NUM: c_int = -2;
 

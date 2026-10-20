@@ -28,7 +28,7 @@ use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::indent::EvalFuncData;
 use crate::input::plain_vgetc;
-use crate::keycodes::K_BS;
+use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
 use crate::mbyte::{mb_cptr2char_adv, utf_char2bytes, utf_iscomposing_first};
 use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
@@ -42,11 +42,14 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type result_T = c_int;
+use crate::api::buffer::NUL;
+use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
+use crate::change::MB_MAXCHAR;
 pub use crate::cmdexpand::LineGetter;
 pub use crate::eval::buffer::varnumber_T;
 use crate::math::{FAIL, OK};
-use crate::regexp::NUMBUFLEN;
+use crate::regexp::{Ctrl_H, NUMBUFLEN};
 use crate::state::MODE_LANGMAP;
 
 #[repr(C)]
@@ -64,16 +67,10 @@ pub struct kmap_T {
     pub to: *mut c_char,
 }
 
-const NUL: c_char = 0;
-const ESC: c_int = 0x1b;
-const Ctrl_H: c_int = 8;
-const MB_MAXCHAR: usize = 6;
-
-const HLF_8: c_int = 1;
 pub(crate) const HLF_CM: c_int = 11;
 
-const kBoolVarFalse: c_int = 0;
-const kBoolVarTrue: c_int = 1;
+pub(crate) const kBoolVarFalse: c_int = 0;
+pub(crate) const kBoolVarTrue: c_int = 1;
 
 const KEYMAP_LOADED: i16 = 2;
 const B_IMODE_LMAP: c_int = 1;

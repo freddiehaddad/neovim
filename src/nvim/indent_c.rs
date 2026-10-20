@@ -7,9 +7,11 @@
     clippy::too_many_arguments
 )]
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::NUL;
 use crate::api::tabpage::lpos_T;
+use crate::buffer::MAXLNUM;
 use crate::change::{
-    COM_END, COM_LEFT, COM_MAX_LEN, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,
+    COM_END, COM_LEFT, COM_MAX_LEN, COM_MIDDLE, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
@@ -31,19 +33,16 @@ use crate::memory::{xfree, xmalloc, xstrdup};
 use crate::option::{copy_option_part, skip_to_option_part};
 use crate::option_vars::*;
 use crate::plines::getvcol;
+use crate::regexp::MAXCOL;
 use crate::search::{findmatchlimit, linewhite};
+use crate::state::MODE_INSERT;
 use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk, tolower, vim_strchr};
 use std::ffi::{c_char, c_int};
 use std::ptr;
-const NUL: c_char = 0;
-const MAXCOL: colnr_T = 0x7fffffff;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MODE_INSERT: c_int = 0x10;
 pub(crate) const FM_BACKWARD: c_int = 0x01;
 pub(crate) const FM_BLOCKSTOP: c_int = 0x04;
 pub(crate) const FM_SKIPCOMM: c_int = 0x08;
 pub(crate) const KEY_COMPLETE: c_int = 0x103;
-const COM_MIDDLE: c_char = b'm' as c_char;
 const FIND_NAMESPACE_LIM: linenr_T = 20;
 const BRACE_IN_COL0: c_int = 1;
 const BRACE_AT_START: c_int = 2;

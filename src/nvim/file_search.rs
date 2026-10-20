@@ -61,8 +61,6 @@ pub const FNAME_INCL: c_int = 8;
 pub const FNAME_REL: c_int = 16;
 pub const FNAME_UNESC: c_int = 32;
 
-const NUL: c_char = 0;
-
 const PATHSEP: c_char = b'/' as c_char;
 const PATHSEPSTR_C: &CStr = c"/";
 const EMPTY_C: &CStr = c"";
@@ -82,6 +80,7 @@ const NULL_STRING: NvimString = NvimString {
 const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completion";
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::NUL;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
 use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};

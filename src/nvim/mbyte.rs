@@ -54,15 +54,8 @@ type wint_t = u16;
 #[cfg(not(windows))]
 type wint_t = u32;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const NL: c_char = b'\n' as c_char;
 const MAXCOL: usize = 0x7fff_ffff;
 const MB_MAXCHAR: c_int = 6;
-
-const K_SPECIAL: u8 = 0x80;
-const KS_SPECIAL: u8 = 254;
-const KE_FILLER: u8 = 0x58;
 
 const ENC_8BIT: c_int = 0x01;
 const ENC_DBCS: c_int = 0x02;
@@ -973,11 +966,14 @@ unsafe extern "system" {
     ) -> c_int;
 }
 
+use crate::api::buffer::{NL, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::change::TAB;
 use crate::fileio::{
     ENC_2BYTE, ENC_2WORD, ENC_4BYTE, ENC_ENDIAN_L, ENC_LATIN1, ENC_UNICODE, ICONV_EINVAL,
 };
+use crate::keycodes::{K_SPECIAL, KE_FILLER, KS_SPECIAL};
 use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;

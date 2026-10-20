@@ -9,6 +9,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::NUL;
 use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
@@ -72,8 +73,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub type PathCmpFlags = c_int;
-
-const NUL: c_char = 0;
 
 #[cfg(not(test))]
 const MAXSUFLEN: usize = 30;

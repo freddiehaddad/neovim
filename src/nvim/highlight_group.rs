@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::NUL;
 use crate::api::extmark::NS;
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{
@@ -17,6 +18,8 @@ use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
+use crate::buffer::kUIMessages;
+use crate::change::HLF_W;
 use crate::charset::{
     ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
 };
@@ -24,7 +27,7 @@ use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, HLF_D};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration_provider::decor_provider_invalidate_hl;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
-use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_all_later};
+use crate::drawscreen::{HLF_MSG, UPD_NOT_VALID, UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_NOCOMBINE, HL_STANDOUT,
@@ -72,8 +75,6 @@ use crate::viml::parser::expressions::SyncCStrArray;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const NUL: c_char = 0;
-
 const MAX_HL_ID: c_int = 20000;
 const MAX_SYN_NAME: usize = 200;
 
@@ -92,11 +93,8 @@ const LIST_INT: c_int = 3;
 
 const HLF_S: usize = 19;
 const HLF_SNC: usize = 20;
-const HLF_W: c_int = 26;
-const HLF_MSG: usize = 63;
 const HLF_COUNT: usize = 76;
 
-const kUIMessages: UIExtension = 4;
 const kUILinegrid: UIExtension = 5;
 
 const kOptBackground: OptIndex = 13;

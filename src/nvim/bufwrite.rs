@@ -24,8 +24,7 @@ use crate::autocmd::{
 use crate::buffer::buf_set_file_id;
 #[cfg(not(test))]
 use crate::buffer::{
-    BF_NEW, BF_NOTEDITED, BF_READERR, NOTDONE, bt_nofilename, buf_get_changedtick, bufref_valid,
-    set_bufref,
+    BF_NEW, BF_WRITE_MASK, NOTDONE, bt_nofilename, buf_get_changedtick, bufref_valid, set_bufref,
 };
 #[cfg(not(test))]
 use crate::change::unchanged;
@@ -106,6 +105,8 @@ use std::ptr;
 #[cfg(not(test))]
 use crate::api::autocmd::kCallbackNone;
 #[cfg(not(test))]
+use crate::api::buffer::NUL;
+#[cfg(not(test))]
 use crate::api::command::CMOD_LOCKMARKS;
 #[cfg(not(test))]
 use crate::api::private::helpers::HLF_E;
@@ -132,8 +133,6 @@ use crate::os::fs::NODE_OTHER;
 pub use crate::path::PathCmpFlags;
 
 #[cfg(not(test))]
-const NUL: c_char = 0;
-#[cfg(not(test))]
 const NL: u32 = b'\n' as u32;
 #[cfg(not(test))]
 const NL_CHAR: c_char = b'\n' as c_char;
@@ -144,9 +143,6 @@ const CAR_CHAR: c_char = b'\r' as c_char;
 const SMALLBUFSIZE: usize = 256;
 #[cfg(not(test))]
 const ICONV_MULT: usize = 8;
-
-#[cfg(not(test))]
-const BF_WRITE_MASK: c_int = BF_NOTEDITED + BF_NEW + BF_READERR;
 
 #[cfg(not(test))]
 pub(crate) const NODE_WRITABLE: c_int = 1;

@@ -178,12 +178,10 @@ pub const BFA_IGNORE_ABORT: c_int = 8;
 const kBffClearWinInfo: c_int = 1;
 const kBffInitChangedtick: c_int = 2;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
 pub(crate) const NOTDONE: c_int = 2;
-const MAXLNUM: linenr_T = 0x7fffffff;
+pub(crate) const MAXLNUM: linenr_T = 0x7fffffff;
 pub(crate) const NMARKS: usize = 26;
-const JUMPLISTSIZE: usize = 100;
+pub(crate) const JUMPLISTSIZE: usize = 100;
 pub(crate) const DO_NOT_FREE_CNT: c_int = c_int::MAX / 2;
 
 pub(crate) const BF_CHECK_RO: c_int = 0x02;
@@ -191,7 +189,7 @@ pub(crate) const BF_NEVERLOADED: c_int = 0x04;
 pub(crate) const BF_NOTEDITED: c_int = 0x08;
 pub(crate) const BF_NEW: c_int = 0x10;
 pub(crate) const BF_READERR: c_int = 0x40;
-const BF_WRITE_MASK: c_int = BF_NOTEDITED + BF_NEW + BF_READERR;
+pub(crate) const BF_WRITE_MASK: c_int = BF_NOTEDITED + BF_NEW + BF_READERR;
 
 pub(crate) const VALID_TOPLINE: c_int = 0x80;
 pub(crate) const MF_DIRTY_YES: c_int = 1;
@@ -229,7 +227,7 @@ pub(crate) const VAR_SCOPE: c_int = 1;
 
 pub(crate) const NO_LOCAL_UNDOLEVEL: OptInt = -123456;
 
-const kUIMessages: UIExtension = 4;
+pub(crate) const kUIMessages: UIExtension = 4;
 
 pub(crate) const STL_IN_ICON: c_int = 1;
 pub(crate) const STL_IN_TITLE: c_int = 2;
@@ -259,7 +257,7 @@ const INIT_FMARK: fmark_T = fmark_T {
 };
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NL, NUL};
 use crate::api::command::{CMOD_CONFIRM, CMOD_HIDE, CMOD_KEEPALT};
 use crate::api::deprecated::OPT_LOCAL;
 pub use crate::api::options::bufref_T;

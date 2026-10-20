@@ -12,7 +12,7 @@
 use crate::api::command::{EX_NOSPC, EX_XFILE, exarg_T, regmatch_T};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
-use crate::buffer::buf_get_changedtick;
+use crate::buffer::{MAXLNUM, buf_get_changedtick};
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32,
     parse_isopt, skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
@@ -58,8 +58,8 @@ use crate::profile::{
     profile_zero, proftime_T,
 };
 use crate::regexp::{
-    NSUBEXP, RE_MAGIC, REX_SET, REX_USE, ref_extmatch, skip_regexp, unref_extmatch, vim_regcomp,
-    vim_regcomp_had_eol, vim_regexec, vim_regexec_multi, vim_regfree,
+    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, ref_extmatch, skip_regexp, unref_extmatch,
+    vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
@@ -76,10 +76,6 @@ use std::ptr;
 
 pub use crate::ex_getln::disptick_T;
 pub use crate::regexp::{reg_extmatch_T, regprog_T};
-
-const NUL: c_char = 0;
-const MAXCOL: colnr_T = 0x7fffffff;
-const MAXLNUM: linenr_T = 0x7fffffff;
 
 pub const HL_CONTAINED: c_int = 0x01;
 pub const HL_TRANSP: c_int = 0x02;
@@ -180,6 +176,7 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
     c"lc=".as_ptr(),
 ];
 
+use crate::api::buffer::NUL;
 use crate::math::{FAIL, OK};
 use crate::sign::EXP_SUBCMD;
 

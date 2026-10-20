@@ -40,9 +40,9 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
-    bt_prompt, bt_quickfix, buf_hide, buf_spname, buflist_findnr, buflist_findpat, buflist_list,
-    bufref_valid, do_bufdel, do_modelines, ex_buffer_all, get_highest_fnum, goto_buffer, maketitle,
-    no_write_message, otherfile, set_bufref, setaltfname, setfname,
+    MAXLNUM, bt_prompt, bt_quickfix, buf_hide, buf_spname, buflist_findnr, buflist_findpat,
+    buflist_list, bufref_valid, do_bufdel, do_modelines, ex_buffer_all, get_highest_fnum,
+    goto_buffer, maketitle, no_write_message, otherfile, set_bufref, setaltfname, setfname,
 };
 use crate::channel::{channel_event, channel_job_start, kChannelStdinPipe};
 use crate::charset::{
@@ -55,11 +55,11 @@ use crate::clipboard::{
 use crate::cmdexpand::{
     CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandInit,
     ExpandOne, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND, WILD_NOERROR,
-    cmdidx_T, expand_process_user_list,
+    cmdidx_T, expand_process_user_list, kUICmdline,
 };
 use crate::cmdhist::ex_history;
 use crate::context::{ctx_did_chdir, is_ctx_win};
-use crate::cursor::{check_cursor, check_cursor_col, colnr_T, linenr_T};
+use crate::cursor::{check_cursor, check_cursor_col, linenr_T};
 use crate::debugger::{
     dbg_breakpoint, dbg_check_breakpoint, dbg_find_breakpoint, do_debug, ex_breakadd, ex_breakdel,
     ex_breaklist, ex_debug, ex_debuggreedy,
@@ -68,7 +68,7 @@ use crate::dialog::{VIM_YES, ask_yesno, vim_dialog_yesno};
 use crate::diff::{
     ex_diffgetput, ex_diffoff, ex_diffpatch, ex_diffsplit, ex_diffthis, ex_diffupdate,
 };
-use crate::digraph::{ex_loadkeymap, listdigraphs, putdigraph};
+use crate::digraph::{ex_loadkeymap, kBoolVarFalse, kBoolVarTrue, listdigraphs, putdigraph};
 use crate::drawscreen::{
     UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, clearmode, redraw_all_later,
     redraw_curbuf_later, redraw_later, redraw_statuslines, screen_resize, setcursor_mayforce,
@@ -220,7 +220,9 @@ use crate::quickfix::{
     ex_cwindow, ex_helpgrep, ex_make, ex_vimgrep, grep_internal, qf_age, qf_get_cur_idx,
     qf_get_cur_valid_idx, qf_get_size, qf_get_valid_size, qf_history, qf_list,
 };
-use crate::regexp::{NUMBUFLEN, RE_MAGIC, kMarkBufLocal, skip_regexp, vim_regcomp, vim_regfree};
+use crate::regexp::{
+    MAXCOL, NUMBUFLEN, RE_MAGIC, kMarkBufLocal, skip_regexp, vim_regcomp, vim_regfree,
+};
 use crate::register::{
     PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE, do_execreg, do_put, ex_display, op_yank, set_expr_line,
     valid_yank_reg, write_reg_contents,
@@ -295,12 +297,13 @@ pub use crate::mark::MarkGet;
 pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::{BF_DUMMY, IOSIZE, SID_NONE, kOptFiletype};
 use crate::api::vim::{
     BACKWARD, MAXPATHL, REMAP_NONE, REMAP_YES, kCdScopeGlobal, kFalse, kNone, kTrue,
 };
+use crate::keycodes::{K_SPECIAL, KS_SPECIAL};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -314,10 +317,7 @@ pub struct CommandDefinition {
 
 unsafe impl Sync for CommandDefinition {}
 
-const NUL: c_char = 0;
 pub(crate) const UNDO_HASH_SIZE: usize = 32;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 pub(crate) const DOCMD_EXCRESET: c_int = 0x10;
 pub(crate) const DOCMD_KEEPLINE: c_int = 0x20;
@@ -334,8 +334,6 @@ const EX_LOCK_OK: u32 = 0x1000000;
 const ADDR_TABS_RELATIVE: cmd_addr_T = 6;
 const ADDR_QUICKFIX_VALID: cmd_addr_T = 7;
 const ADDR_UNSIGNED: cmd_addr_T = 9;
-
-const kUICmdline: c_int = 0;
 
 const Ctrl_B: c_char = 2;
 const Ctrl_C: c_char = 3;
@@ -372,13 +370,8 @@ const kCpoExecbuf: c_int = b'e' as c_int;
 
 pub(crate) const FLUSH_TYPEAHEAD: c_int = 1;
 
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-
 pub(crate) const kCdCauseManual: CdCause = 0;
 
-const K_SPECIAL: u8 = 0x80;
-const KS_SPECIAL: u8 = 254;
 const KE_FILLER: c_char = b'X' as c_char;
 
 pub(crate) const FIND_ANY: c_int = 1;

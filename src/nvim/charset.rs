@@ -9,7 +9,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::cursor::{colnr_T, get_cursor_line_ptr};
+use crate::cursor::get_cursor_line_ptr;
 use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -26,9 +26,13 @@ use crate::plines::{utf_ClusterInfo, utf_ptr2StrCharInfo};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
+use crate::api::buffer::{NL, NUL};
 pub use crate::api::deprecated::StringBuilder;
+use crate::change::TAB;
 pub use crate::eval::buffer::varnumber_T;
+use crate::keycodes::CAR;
 use crate::math::{FAIL, OK};
+use crate::regexp::MAXCOL;
 pub type uvarnumber_T = u64;
 
 pub trait AsciiInt {
@@ -122,13 +126,7 @@ pub const fn to_special(a: c_int, b: c_int) -> c_int {
     -((a & 0xff) | ((b & 0xff) << 8))
 }
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const NL: c_char = b'\n' as c_char;
-const CAR: c_int = 0x0d;
 const Ctrl_V: c_char = 22;
-
-const MAXCOL: colnr_T = 0x7fffffff;
 
 pub(crate) const EOL_MAC: c_int = 2;
 pub(crate) const kOptDyFlagUhex: c_uint = 0x04;

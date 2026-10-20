@@ -123,7 +123,6 @@ pub type DoInRuntimepathCB = Option<
     ) -> bool,
 >;
 
-const NUL: c_char = 0;
 const Ctrl_V: c_char = 22;
 #[cfg(windows)]
 const Ctrl_Z: c_char = 26;
@@ -276,6 +275,7 @@ static mut APP_ADD_DIR: c_int = 0;
 static mut APP_LOAD: c_int = 0;
 static mut APP_BOTH: c_int = 0;
 
+use crate::api::buffer::NUL;
 use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
 use crate::version::default_lib_dir;

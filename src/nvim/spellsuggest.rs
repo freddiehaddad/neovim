@@ -7,7 +7,7 @@
     clippy::needless_range_loop,
     clippy::too_many_arguments
 )]
-use crate::change::inserted_bytes;
+use crate::change::{MB_MAXCHAR, inserted_bytes};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
 use crate::clipboard::{TypvalVval, VarType, listitem_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
@@ -43,8 +43,8 @@ use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::spell::{
-    MAXWLEN, WF_ALLCAP, WF_BANNED, WF_FIXCAP, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
-    WF_REGION, WFP_RARE, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
+    MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
+    WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
     make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
     repl_from, repl_to, spell_casefold, spell_check, spell_iswordp, spell_iswordp_nmw,
     spell_move_to, spell_soundfold, spell_valid_case, spelltab, valid_word_prefix,
@@ -54,31 +54,25 @@ use crate::strings::{
     atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strncpy, vim_snprintf,
     vim_strchr, xstrnsave,
 };
-use crate::tag::BoolVarValue;
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 pub type idx_T = c_int;
 pub type salfirst_T = c_int;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
-use crate::drawline::SMT_ALL;
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::drawline::{HLF_COUNT, SMT_ALL};
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::ex_getln::hlf_T;
 pub use crate::fileio::FILE;
+use crate::keycodes::ESC;
 use crate::math::{FAIL, OK};
 pub use crate::spell::smt_T;
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-const NUL: c_char = 0;
 const TAB: u8 = b'\t';
-const ESC: c_int = 0x1b;
-const MB_MAXCHAR: usize = 6;
-const WF_CAPMASK: c_int = WF_ONECAP | WF_ALLCAP | WF_KEEPCAP | WF_FIXCAP;
 const WF_MIXCAP: c_int = 0x20;
-const WF_RAREPFX: c_int = WFP_RARE << 24;
 const SCORE_SPLIT: c_int = 149;
 const SCORE_SPLIT_NO: c_int = 249;
 const SCORE_ICASE: c_int = 52;
@@ -123,7 +117,6 @@ const PFD_NOTSPECIAL: u8 = 0xfd;
 const SPS_BEST: c_int = 1;
 const SPS_FAST: c_int = 2;
 const SPS_DOUBLE: c_int = 4;
-const HLF_COUNT: hlf_T = 76;
 const kOptBoFlagSpell: c_uint = 0x20000;
 #[repr(C)]
 #[derive(Clone, Copy)]

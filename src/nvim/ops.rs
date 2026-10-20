@@ -38,7 +38,7 @@ use crate::eval::deprecated::buf_T;
 use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::do_cmdline;
-use crate::ex_getln::{K_LUA, getexline};
+use crate::ex_getln::{Ctrl_A, K_LUA, getexline};
 use crate::extmark::{TriState, bcount_t, extmark_splice, extmark_splice_cols};
 use crate::fold::{deleteFold, foldCreate, foldOpenCursor, hasFolding, opFoldRange};
 use crate::globals::*;
@@ -56,8 +56,8 @@ use crate::input_cmdatom::{
     InsSession, VisualIns, atom_capture_op, atom_ins_end, atom_ins_start, atom_suppress,
     atom_visual_redoable, cmdarg_T, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
 };
-use crate::insert::{beginline, display_dollar, edit, kFoAuto};
-use crate::keycodes::K_COMMAND;
+use crate::insert::{Ctrl_X, beginline, display_dollar, edit, kFoAuto};
+use crate::keycodes::{CAR, K_COMMAND};
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
 use crate::math::{FAIL, OK, trim_to_int};
 use crate::mbyte::{
@@ -100,7 +100,7 @@ use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
-use crate::api::buffer::kExtmarkUndo;
+use crate::api::buffer::{NUL, kExtmarkUndo};
 use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::options::IOSIZE;
 use crate::api::vim::kNone;
@@ -112,7 +112,7 @@ use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::fileio::EOL_DOS;
 pub use crate::option::OptInt;
-use crate::regexp::NUMBUFLEN;
+use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
 
 pub const OP_NOP: c_int = 0;
 pub const OP_DELETE: c_int = 1;
@@ -149,14 +149,8 @@ pub const OP_MCURSOR: c_int = 30;
 const OPF_LINES: u8 = 1;
 const OPF_CHANGE: u8 = 2;
 
-const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
 const NL: c_int = b'\n' as c_int;
-const CAR: c_int = b'\r' as c_int;
-const Ctrl_A: c_int = 1;
-const Ctrl_V: c_int = 22;
-const Ctrl_X: c_int = 24;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 const kCpoEmptyregion: c_int = b'E' as c_int;
 const kCpoFilter: c_int = b'!' as c_int;

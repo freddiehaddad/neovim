@@ -62,9 +62,8 @@ pub use crate::lua::executor::LuaRetMode;
 pub use crate::mark::{MarkAdjustMode, MarkGet};
 pub use crate::search::Direction;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
-const Ctrl_V: c_int = 0x16;
+pub(crate) const NUL: c_char = 0;
+pub(crate) const NL: c_char = b'\n' as c_char;
 
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
@@ -85,7 +84,6 @@ pub(crate) const FORWARD: Direction = 1;
 
 pub(crate) const ML_LINE_DIRTY: c_int = 0x02;
 pub(crate) const VALID_BOTLINE_AP: c_int = 0x40;
-const MODE_INSERT: c_int = 0x10;
 
 const KEYSET_OPTIDX_buf_attach__on_bytes: u64 = 2;
 const KEYSET_OPTIDX_buf_attach__on_lines: u64 = 3;
@@ -156,6 +154,8 @@ pub struct VisualState {
 }
 
 use crate::math::{FAIL, OK};
+use crate::regexp::Ctrl_V;
+use crate::state::MODE_INSERT;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

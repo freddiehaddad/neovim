@@ -17,7 +17,7 @@ use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, Object
 use crate::api::tabpage::{WinConfig, fcs_chars_T, lcs_chars_T, lpos_T, pos_T, win_T};
 use crate::api::win_config::parse_winborder;
 use crate::autocmd::{check_ei, get_event_name_no_group};
-use crate::buffer::{STL_IN_ICON, STL_IN_TITLE, modifiable};
+use crate::buffer::{MAXLNUM, STL_IN_ICON, STL_IN_TITLE, kUIMessages, modifiable};
 use crate::charset::{
     EOL_MAC, ascii_isdigit, buf_init_isk_chartab, char2cells, check_isopt, getdigits_int,
     hexhex2nr, init_isf_chartab, init_isi_chartab, kOptDyFlagUhex, transchar, transchar_byte,
@@ -45,7 +45,7 @@ use crate::grid::{schar_T, schar_from_char, schar_from_str};
 use crate::highlight_group::{get_highlight_name, init_highlight};
 use crate::indent::{briopt_check, kOptBreakindentopt, tabstop_set};
 use crate::indent_c::parse_cino;
-use crate::insexpand::set_cpt_callbacks;
+use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::r#match::regprog_T;
@@ -204,10 +204,12 @@ pub struct vimoption_T {
     pub script_ctx: sctx_T,
 }
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::{IOSIZE, SID_NONE};
 pub use crate::api::private::helpers::TryState;
 use crate::decoration::SCL_NUM;
+use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{kOptSsopFlagCurdir, kOptSsopFlagSesdir};
 use crate::fileio::kOptFileencoding;
 
@@ -287,10 +289,6 @@ union OptKeyDict {
     pvp: OptKeyDict_pvp,
 }
 
-const NUL: c_char = 0;
-const LSIZE: usize = 512;
-const MAXLNUM: i32 = 0x7fffffff;
-
 const kOptAmbiwidth: OptIndex = 2;
 const kOptBackupext: OptIndex = 18;
 const kOptBelloff: OptIndex = 20;
@@ -330,10 +328,6 @@ pub(crate) const STL_HIGHLIGHT: c_char = b'#' as c_char;
 const CPT_ABBR: c_uint = 0;
 const CPT_KIND: c_uint = 1;
 const CPT_MENU: c_uint = 2;
-
-const B_IMODE_LMAP: i64 = 1;
-
-const kUIMessages: UIExtension = 4;
 
 const HIGHLIGHT_INIT: &CStr = c"8:SpecialKey,~:EndOfBuffer,z:TermCursor,@:NonText,d:Directory,e:ErrorMsg,i:IncSearch,l:Search,y:CurSearch,m:MoreMsg,M:ModeMsg,n:LineNr,a:LineNrAbove,b:LineNrBelow,N:CursorLineNr,G:CursorLineSign,O:CursorLineFold,r:Question,s:StatusLine,S:StatusLineNC,c:VertSplit,t:Title,v:Visual,V:VisualNOS,w:WarningMsg,W:WildMenu,f:Folded,F:FoldColumn,A:DiffAdd,C:DiffChange,D:DiffDelete,T:DiffText,E:DiffTextAdd,>:SignColumn,-:Conceal,B:SpellBad,P:SpellCap,R:SpellRare,L:SpellLocal,+:Pmenu,=:PmenuSel,k:PmenuMatch,<:PmenuMatchSel,[:PmenuKind,]:PmenuKindSel,{:PmenuExtra,}:PmenuExtraSel,x:PmenuSbar,X:PmenuThumb,*:TabLine,#:TabLineSel,_:TabLineFill,!:CursorColumn,.:CursorLine,o:ColorColumn,q:QuickFixLine,z:StatusLineTerm,Z:StatusLineTermNC,g:MsgArea,h:ComplMatchIns,0:Whitespace,I:PreInsert";
 

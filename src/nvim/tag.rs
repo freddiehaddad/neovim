@@ -13,8 +13,8 @@ use crate::api::command::exarg_T;
 use crate::api::tabpage::{taggy_T, win_T};
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
-    GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, NOTDONE, VAR_FIXED,
-    bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile, kOptJopFlagView,
+    GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, MAXLNUM, NOTDONE,
+    VAR_FIXED, bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile, kOptJopFlagView,
     kOptSwbFlagNewtab, kOptSwbFlagVsplit,
 };
 use crate::charset::{
@@ -83,7 +83,9 @@ use crate::path::{
     path_has_wildcard, path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
 use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
-use crate::regexp::{NSUBEXP, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{
+    MAXCOL, NSUBEXP, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
+};
 use crate::runtime::{DIP_ALL, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
@@ -105,11 +107,6 @@ pub use crate::fileio::{FILE, off_T};
 pub use crate::option::OptInt;
 pub use crate::regexp::regprog_T;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: c_int = 0x7fffffff;
 const LSIZE: c_int = 512;
 const TAGSTACKSIZE: c_int = 20;
 
@@ -127,12 +124,6 @@ const MT_COUNT: usize = 16;
 const NOTAGFILE: c_int = 99;
 const TAG_SEP: c_char = 0x02;
 const ML_EXTRA: usize = 3;
-
-const HLF_W: c_int = 26;
-
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-const kSpecialVarNull: SpecialVarValue = 0;
 
 const kCpoTagpat: c_int = b't' as c_int;
 const kOptFdoFlagTag: c_uint = 0x80;
@@ -173,11 +164,14 @@ pub use crate::api::command::regmatch_T;
 pub use crate::r#match::SearchState;
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::NUL;
 use crate::api::options::IOSIZE;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::MAXPATHL;
+use crate::change::{HLF_W, TAB};
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::fs::{SEEK_END, SEEK_SET};
-use crate::eval::funcs::SEARCH_KEEP;
+use crate::eval::funcs::{SEARCH_KEEP, kSpecialVarNull};
 use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
 use crate::viml::parser::parser::CONV_NONE;

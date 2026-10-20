@@ -34,14 +34,14 @@ use crate::state::{MODE_NORMAL, virtual_active};
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
+use crate::api::buffer::NUL;
 pub use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
 use crate::insert::kCharsizeFast;
+use crate::regexp::MAXCOL;
 pub type CSType = bool;
 
-const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
-const MAXCOL: colnr_T = 0x7fffffff;
 const kInvalidByteCells: c_int = 4;
 
 const kCharsizeRegular: CSType = false;

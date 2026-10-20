@@ -4,7 +4,7 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
-use crate::api::private::converter::K_SPECIAL_VAR_NULL;
+use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::converter::{VAR_UNLOCKED, partial_T};
 use crate::buffer::NOTDONE;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -28,6 +28,8 @@ use crate::garray::{ga_concat_len, garray_T};
 use crate::hashtab::hashitem_T;
 #[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
+#[cfg(not(test))]
+use crate::keycodes::{BS, CAR};
 #[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
@@ -55,9 +57,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
 #[cfg(not(test))]
-const K_BOOL_VAR_TRUE: i64 = 1;
-
-#[cfg(not(test))]
 pub(crate) const K_MP_NIL: usize = 0;
 #[cfg(not(test))]
 pub(crate) const K_MP_BOOLEAN: usize = 1;
@@ -78,14 +77,10 @@ const SURROGATE_LO_START: c_int = 0xDC00;
 const SURROGATE_LO_END: c_int = 0xDFFF;
 
 #[cfg(not(test))]
-const BS: c_int = 0x08;
-#[cfg(not(test))]
 const TAB: c_int = 0x09;
 const NL: c_int = 0x0a;
 #[cfg(not(test))]
 const FF: c_int = 0x0c;
-#[cfg(not(test))]
-const CAR: c_int = 0x0d;
 
 #[repr(transparent)]
 pub struct CStrArray<const N: usize>(pub [*const c_char; N]);

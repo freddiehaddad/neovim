@@ -9,10 +9,10 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::autocmd::{EVENT_MENUPOPUP, apply_autocmds};
+use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::clipboard::{VarType, list_T, typval_T};
-use crate::cursor::{check_cursor, colnr_T, gchar_cursor};
+use crate::cursor::{check_cursor, gchar_cursor};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::pos_T;
@@ -38,8 +38,8 @@ use crate::option_vars::*;
 use crate::popupmenu::pum_show_popupmenu;
 use crate::sign::expand_T;
 use crate::state::{
-    MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_LANGMAP, MODE_NORMAL, MODE_TERMINAL,
-    MODE_VISUAL, get_real_state,
+    MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
+    MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 #[cfg(unix)]
 use crate::strings::strcasecmp;
@@ -52,16 +52,12 @@ use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
 const Ctrl_C: c_char = 3;
 const Ctrl_G: c_char = 7;
 const Ctrl_O: c_char = 15;
 const Ctrl_V: c_char = 22;
 const Ctrl_BSL: c_char = 28;
 
-const MAXCOL: colnr_T = 0x7fffffff;
-const MB_MAXCHAR: usize = 6;
 const MENUDEPTH: usize = 10;
 const TBUFFER_LEN: usize = 256;
 
@@ -85,13 +81,6 @@ const MENU_TERMINAL_MODE: c_int = 1 << MENU_INDEX_TERMINAL;
 const MENU_TIP_MODE: c_int = 1 << MENU_INDEX_TIP;
 
 const MNU_HIDDEN_CHAR: c_char = b']' as c_char;
-
-const kBoolVarFalse: c_int = 0;
-const kBoolVarTrue: c_int = 1;
-
-const HLF_8: c_int = 1;
-
-const MODE_INSERT: c_int = 0x10;
 
 const MENU_MODE_CHARS: [&CStr; MENU_MODES] = [c"n", c"v", c"s", c"o", c"i", c"c", c"tl", c"t"];
 
@@ -125,16 +114,19 @@ struct menutrans_T {
     to: *mut c_char,
 }
 
+use crate::api::buffer::NUL;
 use crate::api::vim::{REMAP_NONE, REMAP_YES, kFalse, kNone, kTrue};
+use crate::change::{MB_MAXCHAR, TAB};
 use crate::cmdexpand::{
     EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL, HLF_D,
 };
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{MENU_ALL_MODES, MENU_INDEX_TIP};
 use crate::eval::kListLenMayKnow;
 pub use crate::input::{RedoState, StuffBuf, UngotKey, tasave_T};
 pub use crate::mapping::typebuf_T;
 use crate::math::{FAIL, OK};
-use crate::regexp::NUMBUFLEN;
+use crate::regexp::{MAXCOL, NUMBUFLEN};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

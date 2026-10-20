@@ -15,7 +15,7 @@ use crate::api::private::helpers::{api_clear_error, api_free_object};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::buffer_updates::buf_updates_send_changes;
-use crate::change::changed_lines;
+use crate::change::{TAB, changed_lines};
 use crate::charset::{ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T, ltoreq};
@@ -60,17 +60,15 @@ use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
 use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::buffer::MAXLNUM;
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::extmark::{ExtmarkOp, TriState};
+use crate::state::MODE_INSERT;
 
 pub const FOLD_TEXT_LEN: usize = 51;
 const MAX_LEVEL: c_int = 20;
-const MAXLNUM: linenr_T = 0x7fffffff;
-
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
 
 const FD_OPEN: c_char = 0;
 const FD_CLOSED: c_char = 1;
@@ -79,8 +77,6 @@ const FD_LEVEL: c_char = 2;
 const DONE_NOTHING: c_int = 0;
 const DONE_ACTION: c_int = 1;
 const DONE_FOLD: c_int = 2;
-
-const MODE_INSERT: c_int = 0x10;
 
 const kWinOptFoldtext: usize = 22;
 

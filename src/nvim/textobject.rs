@@ -34,13 +34,11 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::vim::BACKWARD;
 use crate::math::{FAIL, OK};
+use crate::regexp::MAXCOL;
 pub use crate::search::Direction;
-
-const NUL: c_char = 0;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
 

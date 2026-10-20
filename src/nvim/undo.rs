@@ -13,8 +13,8 @@ use crate::api::command::exarg_T;
 use crate::api::options::{CtxSwitch, IOSIZE};
 use crate::autocmd::{HLF_T, block_autocmds, unblock_autocmds};
 use crate::buffer::{
-    NMARKS, NO_LOCAL_UNDOLEVEL, bt_dontwrite, bt_prompt, buf_get_changedtick, buf_is_empty,
-    buf_set_changedtick,
+    MAXLNUM, NMARKS, NO_LOCAL_UNDOLEVEL, bt_dontwrite, bt_prompt, buf_get_changedtick,
+    buf_is_empty, buf_set_changedtick,
 };
 use crate::buffer_updates::{buf_updates_changedtick, buf_updates_unload};
 use crate::change::{
@@ -94,7 +94,7 @@ use std::ptr;
 #[cfg(unix)]
 use crate::os::fs::{os_fchown, os_fileinfo, uv_gid_t, uv_uid_t};
 
-use crate::api::buffer::{kExtmarkNOOP, kExtmarkUndo};
+use crate::api::buffer::{NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
 pub use crate::eval::buffer::varnumber_T;
@@ -103,10 +103,6 @@ use crate::ex_cmds::{BL_FIX, BL_SOL, kCpoUndo};
 pub use crate::fileio::{FILE, off_T};
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
-
-const NUL: c_char = 0;
-
-const MAXLNUM: linenr_T = 0x7fffffff;
 
 const UH_CHANGED: c_int = 0x01;
 const UH_EMPTYBUF: c_int = 0x02;

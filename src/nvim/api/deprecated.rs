@@ -12,7 +12,7 @@
 )]
 
 use crate::api::autocmd::{OptionalKeys, TryState};
-use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
+use crate::api::buffer::{NL, NUL, nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::options::{OptIndex, OptScope};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
@@ -59,8 +59,6 @@ const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
 pub(crate) const DECOR_ID_INVALID: u32 = u32::MAX;
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
-const NL: c_char = b'\n' as c_char;
-const NUL: c_char = 0;
 
 pub(crate) const OPT_GLOBAL: c_int = 0x01;
 pub(crate) const OPT_LOCAL: c_int = 0x02;

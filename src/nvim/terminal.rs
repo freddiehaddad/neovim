@@ -30,7 +30,7 @@ use crate::autocmd::{
     has_event, is_autocmd_blocked, unblock_autocmds,
 };
 #[cfg(not(test))]
-use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, buf_get_changedtick, do_buffer};
+use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_get_changedtick, do_buffer};
 #[cfg(not(test))]
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
 #[cfg(not(test))]
@@ -204,12 +204,14 @@ use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 #[cfg(not(test))]
-use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
 #[cfg(not(test))]
 use crate::api::deprecated::OPT_LOCAL;
 pub use crate::api::deprecated::StringBuilder;
 #[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
+#[cfg(not(test))]
+use crate::cmdexpand::Ctrl_N;
 pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, kOptCuloptFlagNumber};
@@ -219,11 +221,11 @@ use crate::eval::funcs::{
     HL_UNDERLINE,
 };
 #[cfg(not(test))]
-use crate::ex_getln::{K_EVENT, K_LUA};
+use crate::ex_cmds::Ctrl_C;
+#[cfg(not(test))]
+use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
 pub use crate::vterm::keyboard::VTermKey;
 
-#[cfg(not(test))]
-const NUL: c_char = 0;
 #[cfg(not(test))]
 const REFRESH_DELAY: u64 = 10;
 const TEXTBUF_SIZE: usize = 0x1fff;
@@ -314,18 +316,7 @@ const VTERM_KEY_KP_ENTER: VTermKey = 528;
 #[cfg(not(test))]
 const Ctrl_AT: c_int = 0;
 #[cfg(not(test))]
-const Ctrl_C: c_int = 3;
-#[cfg(not(test))]
 const Ctrl_M: c_int = 13;
-#[cfg(not(test))]
-const Ctrl_N: c_int = 14;
-#[cfg(not(test))]
-const Ctrl_O: c_int = 15;
-#[cfg(not(test))]
-const Ctrl_BSL: c_int = 28;
-
-#[cfg(not(test))]
-const MAXLNUM: linenr_T = 0x7fffffff;
 
 #[cfg(not(test))]
 const TERM_ATTRS_MAX: c_int = 1024;

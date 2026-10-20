@@ -52,9 +52,6 @@ use crate::os::pty_conpty_win::{
 };
 
 #[cfg(any(test, windows))]
-const NUL: c_char = 0;
-
-#[cfg(any(test, windows))]
 /// Emulate quote_cmd_arg of libuv and quotes command line argument.
 pub(crate) unsafe fn quote_cmd_arg(
     dest: *mut c_char,
@@ -602,6 +599,8 @@ mod win_impl {
     }
 }
 
+#[cfg(any(test, windows))]
+use crate::api::buffer::NUL;
 #[cfg(windows)]
 pub use win_impl::*;
 

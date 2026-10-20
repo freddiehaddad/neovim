@@ -38,20 +38,17 @@ use std::ptr;
 pub type schar_T = u32;
 pub type sattr_T = i32;
 pub type sscratch_T = i32;
+use crate::api::buffer::NUL;
 use crate::api::ui::MAX_SCHAR_SIZE;
 pub use crate::api::win_config::{AlignTextPos, BorderTextType, UIExtension};
 use crate::api::win_config::{
-    kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter, kBorderTextTitle,
+    kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter, kBorderTextTitle, kUIMultigrid,
 };
 use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
-
-const NUL: c_char = 0;
-const DEFAULT_GRID_HANDLE: handle_T = 1;
+use crate::drawscreen::DEFAULT_GRID_HANDLE;
 
 pub(crate) const kOptRdbFlagInvalid: c_uint = 0x04;
 const kOptRdbFlagNodelta: c_uint = 0x08;
-
-const kUIMultigrid: UIExtension = 6;
 
 const HLF_BTITLE: usize = 68;
 const HLF_BFOOTER: usize = 69;

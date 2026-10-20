@@ -179,11 +179,7 @@ pub const kRetMulti: LuaRetMode = 3;
 pub const kRetMultiStack: LuaRetMode = 4;
 
 #[cfg(not(test))]
-const NUL: c_char = 0;
-#[cfg(not(test))]
 const MAX_FUNC_ARGS: c_int = 20;
-#[cfg(not(test))]
-const MB_MAXBYTES: usize = 30;
 
 const LUA_MULTRET: c_int = -1;
 #[cfg(not(test))]
@@ -209,8 +205,6 @@ const kThread: isize = 1;
 #[cfg(not(test))]
 const kThreadCallback: isize = 2;
 
-#[cfg(not(test))]
-const kUICmdline: c_int = 0;
 #[cfg(not(test))]
 const kUIGlobalCount: usize = 5;
 
@@ -481,9 +475,9 @@ unsafe extern "system" {
 
 #[cfg(not(test))]
 use crate::api::autocmd::kCallbackNone;
-#[cfg(not(test))]
-use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::api::buffer::LUA_NOREF;
+#[cfg(not(test))]
+use crate::api::buffer::{LUA_INTERNAL_CALL, NUL};
 #[cfg(not(test))]
 use crate::api::command::{
     CMD_SIZE, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
@@ -494,6 +488,8 @@ use crate::api::command::{
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::buffer::VAR_FIXED;
+#[cfg(not(test))]
+use crate::cmdexpand::{MB_MAXBYTES, kUICmdline};
 #[cfg(not(test))]
 use crate::version::main_exitfree;
 #[cfg(not(test))]

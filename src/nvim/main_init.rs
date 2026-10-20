@@ -22,7 +22,7 @@ use crate::api::tabpage::tabpage_T;
 #[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[cfg(not(test))]
-use crate::arglist::{aentry_T, alist_add, alist_init, alist_name, linenr_T};
+use crate::arglist::{aentry_T, alist_add, alist_init, alist_name};
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
@@ -31,9 +31,10 @@ use crate::autocmd::{
 };
 #[cfg(not(test))]
 use crate::buffer::{
-    BLN_LISTED, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick, buf_is_empty,
-    buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid, do_autochdir,
-    do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref, set_curbuf, setfname,
+    BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
+    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid,
+    do_autochdir, do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref,
+    set_curbuf, setfname,
 };
 #[cfg(not(test))]
 use crate::channel::{
@@ -228,11 +229,6 @@ use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_
 pub const MAX_ARG_CMDS: usize = 10;
 
 #[cfg(not(test))]
-const NUL: c_char = 0;
-#[cfg(not(test))]
-const MAXLNUM: linenr_T = 0x7fffffff;
-
-#[cfg(not(test))]
 const NO_BUFFERS: c_int = 1;
 
 #[cfg(not(test))]
@@ -333,6 +329,8 @@ static mut ARGV0: *mut c_char = ptr::null_mut();
 #[cfg(not(test))]
 static mut REALLY_EXITING: bool = false;
 
+#[cfg(not(test))]
+use crate::api::buffer::NUL;
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]

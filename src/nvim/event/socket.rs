@@ -26,7 +26,6 @@ use crate::strings::{gettext, strlen as c_strlen, strrchr, vim_snprintf};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-const NUL: c_char = 0;
 pub(crate) const ADDRESS_MAX_SIZE: usize = 256;
 
 const UV_REQ: c_int = 1;
@@ -69,6 +68,7 @@ pub use crate::event::r#loop::{
     Loop, uv_close_cb, uv_connect_cb, uv_connect_t, uv_handle_t, uv_loop_t,
 };
 pub type SocketWatcher = c_void;
+use crate::api::buffer::NUL;
 pub use crate::event::rstream::RStream;
 pub use crate::event::stream::{uv_pipe_t, uv_stream_t};
 pub type uv_tcp_t = c_void;

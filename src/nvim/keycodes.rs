@@ -160,6 +160,8 @@ pub const fn key2termcap1(x: c_int) -> c_int {
 }
 
 #[cfg(not(test))]
+use crate::cmdexpand::MB_MAXBYTES;
+#[cfg(not(test))]
 use crate::eval::STR2NR_ALL;
 use crate::mouse::{MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RELEASE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2};
 
@@ -382,8 +384,6 @@ pub const FSK_SIMPLIFY: c_int = 0x08;
 
 #[cfg(not(test))]
 const K_CPO_BSLASH: c_int = b'B' as c_int;
-#[cfg(not(test))]
-const MB_MAXBYTES: usize = 30;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

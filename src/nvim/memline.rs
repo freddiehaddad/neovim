@@ -15,8 +15,8 @@ use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
 use crate::buffer::{
-    MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER,
-    buf_inc_changedtick, buf_spname, open_buffer, setfname,
+    MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER,
+    buf_inc_changedtick, buf_spname, kUIMessages, open_buffer, setfname,
 };
 use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
 use crate::charset::ascii_isalpha;
@@ -86,12 +86,6 @@ use crate::os::users::os_get_uname;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
-
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
-
 const DATA_ID: u16 = ((b'd' as u16) << 8) + (b'a' as u16);
 const PTR_ID: u16 = ((b'p' as u16) << 8) + (b't' as u16);
 const BLOCK0_ID0: c_char = b'b' as c_char;
@@ -147,7 +141,6 @@ const O_RDWR: c_int = 2;
 const BF_RECOVERED: c_int = 0x01;
 
 const kShmAttention: c_int = b'A' as c_int;
-const kUIMessages: c_int = 4;
 
 pub(crate) const kPathDeviceUNC: c_int = 5;
 
@@ -274,7 +267,7 @@ static e_line_number_out_of_range_nr_past_the_end: &CStr =
 static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
-use crate::api::buffer::ML_LINE_DIRTY;
+use crate::api::buffer::{ML_LINE_DIRTY, NL, NUL};
 use crate::api::command::CMOD_NOSWAPFILE;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::{BF_DUMMY, IOSIZE};
@@ -294,6 +287,7 @@ use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
 #[cfg(unix)]
 const EINVAL: c_int = 22;
+use crate::regexp::MAXCOL;
 use crate::version::Versions;
 
 unsafe extern "C" {

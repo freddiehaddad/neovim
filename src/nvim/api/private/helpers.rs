@@ -46,8 +46,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
 const CAR: c_char = b'\r' as c_char;
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
@@ -3674,7 +3672,7 @@ static PACKED_API_METADATA_SUFFIX: &[u8] = &[
     109, 95, 116, 97, 98, 112, 97, 103, 101, 95,
 ];
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
+use crate::api::buffer::{LUA_INTERNAL_CALL, NL, NUL, VIML_INTERNAL_CALL};
 use crate::version::nvim_version_build;
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();

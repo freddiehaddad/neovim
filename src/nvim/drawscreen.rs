@@ -13,9 +13,11 @@ use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTex
 use crate::api::extmark::{NS, kVPosWinCol};
 use crate::api::tabpage::{frame_T, win_T};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
-use crate::buffer::{STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_meta_total, maketitle};
+use crate::buffer::{
+    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_meta_total, kUIMessages, maketitle,
+};
 use crate::charset::{vim_isprintc, vim_strsize};
-use crate::cmdexpand::cmdline_pum_display;
+use crate::cmdexpand::{cmdline_pum_display, kUICmdline};
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::decoration::{
@@ -28,17 +30,17 @@ use crate::decoration_provider::{
 };
 use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
-use crate::drawline::{HLF_AT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
+use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
 use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::grid::{
-    UIExtension, grid_adjust, grid_alloc, grid_clear, grid_clear_line, grid_del_lines,
-    grid_draw_border, grid_ins_lines, grid_invalidate, grid_line_clear_end, grid_line_fill,
-    grid_line_flush, grid_line_getchar, grid_line_mirror, grid_line_put_schar, grid_line_start,
-    schar_T, schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, wline_T,
+    grid_adjust, grid_alloc, grid_clear, grid_clear_line, grid_del_lines, grid_draw_border,
+    grid_ins_lines, grid_invalidate, grid_line_clear_end, grid_line_fill, grid_line_flush,
+    grid_line_getchar, grid_line_mirror, grid_line_put_schar, grid_line_start, schar_T,
+    schar_cache_clear_if_full, schar_from_ascii, win_grid_alloc, wline_T,
 };
 use crate::highlight::{
     hl_combine_attr, update_window_hl, win_bg_attr, win_check_ns_hl, win_hl_attr,
@@ -67,7 +69,7 @@ use crate::option_vars::*;
 use crate::plines::{getvcols, getvvcol, plines_m_win, plines_win, win_get_fill, win_may_fill};
 use crate::popupmenu::{pum_check_clear, pum_drawn, pum_invalidate, pum_redraw};
 use crate::profile::profile_setlimit;
-use crate::regexp::{re_multiline, vim_regfree};
+use crate::regexp::{Ctrl_V, MAXCOL, re_multiline, vim_regfree};
 use crate::search::last_pat_prog;
 use crate::spell::spell_check_window;
 use crate::state::{
@@ -98,17 +100,13 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::buffer::NUL;
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{HLF_N, HLF_SC, MAXPATHL, kFalse};
-use crate::api::win_config::FR_COL;
+use crate::api::win_config::{FR_COL, kUIMultigrid};
 pub use crate::ex_getln::disptick_T;
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
-
-const NUL: c_char = 0;
-const Ctrl_V: c_int = 22;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 pub const UPD_VALID: c_int = 10;
 pub const UPD_INVERTED: c_int = 20;
@@ -118,9 +116,9 @@ pub const UPD_SOME_VALID: c_int = 35;
 pub const UPD_NOT_VALID: c_int = 40;
 pub const UPD_CLEAR: c_int = 50;
 
-const DEFAULT_GRID_HANDLE: handle_T = 1;
+pub(crate) const DEFAULT_GRID_HANDLE: handle_T = 1;
 const COL_RULER: c_int = 18;
-const SHOWCMD_COLS: c_int = 10;
+pub(crate) const SHOWCMD_COLS: c_int = 10;
 const SIGN_WIDTH: c_int = 2;
 
 pub(crate) const FR_LEAF: c_char = 0;
@@ -130,14 +128,9 @@ pub(crate) const VALID_BOTLINE: c_int = 0x20;
 
 pub(crate) const GETVCOL_END_EXCL_LBR: c_int = 1;
 
-const kUICmdline: UIExtension = 0;
-const kUIMessages: UIExtension = 4;
-const kUIMultigrid: UIExtension = 6;
-
 const HLF_EOB: hlf_T = 2;
 pub(crate) const HLF_C: c_int = 21;
-const HLF_MSG: usize = 63;
-const HLF_COUNT: c_int = 76;
+pub(crate) const HLF_MSG: usize = 63;
 
 pub(crate) const kShmCompletionmenu: c_int = b'c' as c_int;
 const kShmRecording: c_int = b'q' as c_int;

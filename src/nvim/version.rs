@@ -8,12 +8,13 @@
     clippy::needless_range_loop
 )]
 
+use crate::api::buffer::NUL;
 use crate::api::command::exarg_T;
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::api::tabpage::GridView;
-use crate::api::win_config::UIExtension;
-use crate::buffer::buf_is_empty;
+use crate::api::win_config::kUIMultigrid;
+use crate::buffer::{buf_is_empty, kUIMessages};
 use crate::charset::{ascii_isdigit, vim_strsize};
 use crate::drawscreen::screenclear;
 use crate::globals::*;
@@ -32,9 +33,6 @@ use crate::window::{LOWEST_WIN_ID, one_window};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const NUL: c_char = 0;
-const kUIMessages: UIExtension = 4;
-const kUIMultigrid: UIExtension = 6;
 const kShmIntro: c_int = b'I' as c_int;
 const HLF_8: usize = 1;
 

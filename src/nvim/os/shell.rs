@@ -8,12 +8,12 @@
     clippy::too_many_arguments
 )]
 
-use crate::buffer::read_buffer_into;
+use crate::buffer::{kUIMessages, read_buffer_into};
 use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
 use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
 use crate::event::r#loop::{
-    loop_poll_events, loop_queues, main_loop_ptr, uv_err_name, uv_strerror,
+    NS_PER_SEC, loop_poll_events, loop_queues, main_loop_ptr, uv_err_name, uv_strerror,
 };
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_empty, multiqueue_free, multiqueue_new_child,
@@ -62,9 +62,11 @@ use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
+use crate::api::buffer::{NL, NUL};
 pub use crate::api::deprecated::StringBuilder;
 use crate::api::vim::MAXPATHL;
 use crate::autocmd::PROF_YES;
+use crate::change::TAB;
 use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
 pub use crate::cursor::linenr_T;
 use crate::diff::{kShellOptDoOut, kShellOptSilent};
@@ -75,14 +77,10 @@ pub use crate::option::OptInt;
 pub use crate::profile::proftime_T;
 use crate::state::MODE_EXTERNCMD;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const NL: c_char = b'\n' as c_char;
 const CAR: c_char = b'\r' as c_char;
 
 const OUT_DATA_THRESHOLD: usize = 1024 * 10;
 const MAX_CHUNK_SIZE: usize = OUT_DATA_THRESHOLD / 2;
-const NS_PER_SEC: u64 = 1_000_000_000;
 
 const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 
@@ -96,7 +94,6 @@ const STYLE_PRINT: c_int = 3;
 const STYLE_BT: c_int = 4;
 const STYLE_GLOBSTAR: c_int = 5;
 
-const kUIMessages: c_int = 4;
 const HLF_SE: c_int = 72;
 const HLF_SO: c_int = 73;
 

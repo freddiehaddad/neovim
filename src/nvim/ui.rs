@@ -19,21 +19,22 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::ScreenGrid;
 use crate::api::ui::{
-    kLineFlagWrap, kUIExtCount, kUIHlState, kUITermColors, remote_ui__set_restart_on_crash_exit,
-    remote_ui_bell, remote_ui_busy_start, remote_ui_busy_stop, remote_ui_chdir,
-    remote_ui_default_colors_set, remote_ui_error_exit, remote_ui_event, remote_ui_flush,
-    remote_ui_grid_clear, remote_ui_grid_cursor_goto, remote_ui_grid_resize, remote_ui_grid_scroll,
-    remote_ui_hl_attr_define, remote_ui_hl_group_set, remote_ui_mode_change,
-    remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on, remote_ui_msg_set_pos,
-    remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot, remote_ui_set_icon,
-    remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send, remote_ui_update_menu,
-    remote_ui_visual_bell, remote_ui_win_viewport, remote_ui_win_viewport_margins,
+    kLineFlagWrap, kUIExtCount, kUIHlState, kUILinegrid, kUITermColors,
+    remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
+    remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
+    remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
+    remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
+    remote_ui_mode_change, remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on,
+    remote_ui_msg_set_pos, remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot,
+    remote_ui_set_icon, remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send,
+    remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
+    remote_ui_win_viewport_margins,
 };
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
 use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table};
-use crate::drawscreen::{conceal_check_cursor_line, screen_resize};
+use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
 use crate::eval::vars::LuaRef;
 use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{
@@ -68,15 +69,12 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::size_of;
 use std::ptr;
 
-const NUL: c_char = 0;
 const MAX_UI_COUNT: usize = 16;
-const DEFAULT_GRID_HANDLE: handle_T = 1;
 const SHAPE_IDX_N: c_int = 0;
 const SHAPE_IDX_R: c_int = 3;
 
 const kUICmdline: usize = 0;
 const kUIMessages: usize = 4;
-const kUILinegrid: usize = 5;
 const kUIGlobalCount: usize = kUILinegrid;
 const kUIMultigrid: usize = 6;
 const kUIFloatDebug: usize = 9;
@@ -87,10 +85,6 @@ const kOptBoFlagAll: c_uint = 0x01;
 const kOptRdbFlagLine: c_uint = 0x10;
 const kOptRdbFlagFlush: c_uint = 0x20;
 
-const HLF_W: c_int = 26;
-
-const MODE_INSERT: c_int = 0x10;
-
 const kMouseNormal: c_int = b'n' as c_int;
 const kMouseReturn: c_int = b'r' as c_int;
 const kMouseInsert: c_int = b'i' as c_int;
@@ -98,13 +92,17 @@ const kMouseCommand: c_int = b'c' as c_int;
 const kMouseHelp: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
+use crate::api::buffer::NUL;
 use crate::api::vim::MAXPATHL;
+use crate::change::HLF_W;
 use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
 use crate::mouse::kMouseVisual;
 pub use crate::msgpack_rpc::channel::RemoteUI;
-use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
+use crate::state::{
+    MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_INSERT, MODE_SETWSIZE,
+};
 
 #[repr(C)]
 struct UIEventCallback {

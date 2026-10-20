@@ -10,7 +10,7 @@
 )]
 
 use crate::api::autocmd::{event_T, kCallbackNone};
-use crate::api::buffer::{FORWARD, ML_LINE_DIRTY};
+use crate::api::buffer::{FORWARD, ML_LINE_DIRTY, NUL};
 use crate::api::command::CMOD_KEEPJUMPS;
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::{pos_T, win_T};
@@ -23,18 +23,19 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     bt_cmdwin, bt_prompt, bt_quickfix, buf_get_changedtick, buf_is_empty, buf_meta_total,
-    bufref_valid, set_bufref,
+    bufref_valid, kUIMessages, set_bufref,
 };
 use crate::change::{
-    COM_MAX_LEN, OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes,
-    del_char, get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes,
-    kCpoListwm, kOptVeFlagOnemore, open_line,
+    COM_MAX_LEN, MB_MAXCHAR, OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes,
+    del_bytes, del_char, get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str,
+    inserted_bytes, kCpoListwm, kOptVeFlagOnemore, open_line,
 };
 use crate::charset::{
     ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells, hex2nr,
     skipwhite, vim_isprintc, vim_iswordc,
 };
 use crate::clipboard::yankreg_T;
+use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor::{
     VALID_VIRTCOL, char_before_cursor, check_cursor, check_cursor_col, check_visual_pos,
@@ -54,9 +55,13 @@ use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
 use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
-use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y};
+use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
-use crate::ex_getln::{ABBR_OFF, B_IMODE_NONE, K_EVENT, K_LUA, K_SELECT, cmdwin_do_action};
+use crate::ex_getln::{
+    ABBR_OFF, B_IMODE_NONE, Ctrl__, Ctrl_A, Ctrl_BSL, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K,
+    Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_W, Ctrl_Z, K_EVENT, K_LUA,
+    K_SELECT, cmdwin_do_action,
+};
 use crate::fileio::check_timestamps;
 use crate::fold::{
     foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
@@ -145,6 +150,7 @@ use crate::plines::{
     win_chartabsize,
 };
 use crate::popupmenu::{pum_check_clear, pum_visible};
+use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
 use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
     insert_reg, is_literal_register, valid_yank_reg,
@@ -167,43 +173,16 @@ use crate::window::{goto_tabpage, may_trigger_win_scrolled_resized};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
-const NUL: c_char = 0;
-
-const MAXCOL: colnr_T = 0x7fffffff;
-const MB_MAXBYTES: usize = 30;
-const MB_MAXCHAR: usize = 6;
 const COM_MIDDLE: c_int = b'm' as c_int;
 const INPUT_BUFLEN: usize = 100;
 
-const MOD_MASK_SHIFT: c_int = 0x02;
-const MOD_MASK_CTRL: c_int = 0x04;
+pub(crate) const MOD_MASK_SHIFT: c_int = 0x02;
+pub(crate) const MOD_MASK_CTRL: c_int = 0x04;
 const MOD_MASK_CMD: c_int = 0x80;
 
-const Ctrl_A: c_int = 1;
-const Ctrl_C: c_int = 3;
-const Ctrl_D: c_int = 4;
-const Ctrl_F: c_int = 6;
-const Ctrl_G: c_int = 7;
-const Ctrl_H: c_int = 8;
-const Ctrl_J: c_int = 10;
-const Ctrl_K: c_int = 11;
-const Ctrl_L: c_int = 12;
-const Ctrl_N: c_int = 14;
-const Ctrl_O: c_int = 15;
-const Ctrl_P: c_int = 16;
-const Ctrl_Q: c_int = 17;
-const Ctrl_R: c_int = 18;
-const Ctrl_S: c_int = 19;
-const Ctrl_T: c_int = 20;
-const Ctrl_U: c_int = 21;
-const Ctrl_V: c_int = 22;
-const Ctrl_W: c_int = 23;
-const Ctrl_X: c_int = 24;
-const Ctrl_Z: c_int = 26;
-const Ctrl_BSL: c_int = 28;
-const Ctrl_RSB: c_int = 29;
-const Ctrl_HAT: c_int = 30;
-const Ctrl__: c_int = 31;
+pub(crate) const Ctrl_J: c_int = 10;
+pub(crate) const Ctrl_S: c_int = 19;
+pub(crate) const Ctrl_X: c_int = 24;
 
 pub(crate) const kCharsizeFast: CSType = true;
 
@@ -215,11 +194,7 @@ const fn IS_SPECIAL(c: c_int) -> bool {
 const kInsArrow: c_int = 1;
 const kInsJump: c_int = 2;
 
-const kUIMessages: c_int = 4;
-
 const HLF_8: usize = 1;
-
-const B_IMODE_LMAP: i64 = 1;
 
 pub(crate) const kOptFdoFlagAll: c_uint = 0x01;
 pub(crate) const kOptFdoFlagHor: c_uint = 0x04;

@@ -15,7 +15,7 @@ use crate::api::tabpage::{GridView, ScreenGrid, frame_T, tabpage_T, win_T, xfmar
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::MAXPATHL;
 use crate::arglist::alist_T;
-use crate::buffer::SEA_NONE;
+use crate::buffer::{MAXLNUM, SEA_NONE};
 use crate::context::CtxWin;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::WinExtmark;
@@ -49,7 +49,6 @@ use crate::textformat::InsState;
 pub(crate) const DFLT_ROWS: c_int = 24;
 pub(crate) const DFLT_COLS: c_int = 80;
 pub(crate) const PROF_NONE: c_int = 0;
-const MAXLNUM: linenr_T = 0x7fffffff;
 const HLF_COUNT: usize = 76;
 
 const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {

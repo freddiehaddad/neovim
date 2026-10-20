@@ -61,18 +61,17 @@ use std::ptr;
 
 pub type NS = handle_T;
 pub type HLGroupID = Integer;
-use crate::api::buffer::LUA_NOREF;
+use crate::api::buffer::{LUA_NOREF, NUL};
 pub use crate::cursor::{colnr_T, linenr_T};
 pub type DecorPriority = u16;
 pub type ExtmarkType = c_int;
 pub type ExtmarkInfoArray = KVec<MTPair>;
 
-const NUL: c_char = 0;
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
-const kExtmarkNone: ExtmarkType = 0x1;
+pub(crate) const kExtmarkNone: ExtmarkType = 0x1;
 const kExtmarkSign: ExtmarkType = 0x2;
 const kExtmarkVirtText: ExtmarkType = 0x8;
 const kExtmarkVirtLines: ExtmarkType = 0x10;

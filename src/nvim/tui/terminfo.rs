@@ -25,9 +25,8 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 pub type unibi_term = c_void;
+use crate::api::buffer::NUL;
 pub use crate::api::deprecated::StringBuilder;
-
-const NUL: c_char = 0;
 
 pub const kTerm_carriage_return: usize = 0;
 pub const kTerm_change_scroll_region: usize = 1;

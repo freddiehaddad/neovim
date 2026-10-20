@@ -20,7 +20,7 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::buffer::{bt_prompt, bufref_valid, do_autochdir, set_bufref};
+use crate::buffer::{MAXLNUM, bt_prompt, bufref_valid, do_autochdir, set_bufref};
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{check_cursor, check_pos, equalpos};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
@@ -62,14 +62,13 @@ use crate::api::vim::{
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 pub use crate::cursor::colnr_T;
+use crate::keycodes::K_SPECIAL;
 use crate::math::OK;
 pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
 pub type CtxSwitchFlags = c_int;
 pub type CdCause = c_int;
 
-const MAXLNUM: i32 = 0x7fffffff;
-const K_SPECIAL: u8 = 0x80;
 const NUM_SAVED_REGISTERS: c_int = 37;
 
 pub(crate) const kCdCauseWindow: CdCause = 1;

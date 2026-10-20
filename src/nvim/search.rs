@@ -13,8 +13,8 @@
 use crate::api::command::{CMOD_KEEPPATTERNS, regmatch_T};
 use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
-use crate::buffer::buf_get_changedtick;
-use crate::change::get_leader_len;
+use crate::buffer::{buf_get_changedtick, kUIMessages};
+use crate::change::{TAB, get_leader_len};
 use crate::charset::{ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::clipboard::{VarType, listitem_T, typval_T};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
@@ -52,9 +52,9 @@ use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM, check_linecomment}
 use crate::input::char_avail;
 use crate::input_cmdatom::cmdarg_T;
 use crate::insexpand::{
-    ACTION_EXPAND, compl_status_adding, compl_status_sol, ctrl_x_mode_not_default, find_word_end,
-    find_word_start, ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted,
-    ins_compl_len, kShmCompletionscan,
+    ACTION_EXPAND, LSIZE, compl_status_adding, compl_status_sol, ctrl_x_mode_not_default,
+    find_word_end, find_word_start, ins_compl_add_infercase, ins_compl_check_keys,
+    ins_compl_interrupted, ins_compl_len, kShmCompletionscan,
 };
 use crate::mark::setpcmark;
 use crate::r#match::{kCpoSearch, regmmatch_T};
@@ -85,8 +85,8 @@ use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fna
 use crate::plines::getvcol;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::regexp::{
-    MAGIC_ALL, MAGIC_ON, RE_MAGIC, skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi,
-    vim_regfree,
+    MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, skip_regexp_ex, vim_regcomp, vim_regexec,
+    vim_regexec_multi, vim_regfree,
 };
 use crate::state::MODE_SHOWMATCH;
 use crate::strings::{atol, gettext, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
@@ -97,7 +97,7 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub type Direction = c_int;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{BACKWARD, HLF_N, kFalse, kNone, kTrue};
@@ -108,11 +108,6 @@ pub use crate::fileio::FILE;
 pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
 pub type AdditionalData = c_void;
-
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const MAXCOL: colnr_T = 0x7fffffff;
-const LSIZE: usize = 512;
 
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;
 const SEARCH_STAT_BUF_LEN: usize = 16;
@@ -125,8 +120,6 @@ const kCpoShowmatch: c_int = b'm' as c_int;
 pub(crate) const kShmSearch: c_int = b's' as c_int;
 
 const kOptBoFlagShowmatch: c_uint = 0x2000;
-
-const kUIMessages: UIExtension = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

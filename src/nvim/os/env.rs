@@ -58,7 +58,6 @@ use crate::strings::{strlen as c_strlen, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-const NUL: c_char = 0;
 pub(crate) const EXPAND_BUF_LEN: usize = 256;
 #[cfg(not(test))]
 const INIT_SIZE: usize = 64;
@@ -180,6 +179,7 @@ unsafe extern "C" {
     fn gethostname(name: *mut c_char, len: usize) -> c_int;
 }
 
+use crate::api::buffer::NUL;
 #[cfg(all(not(test), unix))]
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;

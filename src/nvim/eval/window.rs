@@ -47,6 +47,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
 
+use crate::api::buffer::NUL;
 use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 pub use crate::cursor::{colnr_T, linenr_T};
@@ -55,8 +56,6 @@ pub use crate::eval::buffer::varnumber_T;
 use crate::eval::{kListLenMayKnow, kListLenUnknown};
 use crate::math::{FAIL, OK};
 pub type dictitem_T = ScopeDictDictItem;
-
-const NUL: c_char = 0;
 
 const E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE: &CStr =
     c"E1308: Cannot resize a window in another tab page";

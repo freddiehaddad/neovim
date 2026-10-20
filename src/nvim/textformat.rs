@@ -11,9 +11,9 @@
 
 use crate::api::autocmd::kCallbackNone;
 use crate::change::{
-    COM_END, COM_FIRST, COM_START, OPENLINE_COM_LIST, OPENLINE_DELSPACES, OPENLINE_DO_COM,
-    OPENLINE_FORMAT, OPENLINE_KEEPTRAIL, OPENLINE_MARKFIX, del_bytes, del_char, get_leader_len,
-    ins_bytes, ins_str, open_line,
+    COM_END, COM_FIRST, COM_MIDDLE, COM_START, OPENLINE_COM_LIST, OPENLINE_DELSPACES,
+    OPENLINE_DO_COM, OPENLINE_FORMAT, OPENLINE_KEEPTRAIL, OPENLINE_MARKFIX, del_bytes, del_char,
+    get_leader_len, ins_bytes, ins_str, open_line,
 };
 use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite};
 use crate::cursor::{
@@ -56,15 +56,8 @@ use crate::window::win_fdccol_count;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
-const NUL: c_char = 0;
-const MAXCOL: colnr_T = 0x7fffffff;
-
-const MODE_INSERT: c_int = 0x10;
-
 const INSCHAR_DO_COM: c_int = 2;
 const INSCHAR_COM_LIST: c_int = 16;
-
-const COM_MIDDLE: c_char = b'm' as c_char;
 
 const kFoInsVi: c_int = b'v' as c_int;
 const kFoMbyteBreak: c_int = b'm' as c_int;
@@ -78,13 +71,14 @@ const kFoWrapComs: c_int = b'c' as c_int;
 
 pub type MotionType = c_int;
 pub type InsArrow = c_int;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::TriState;
 use crate::math::FAIL;
-use crate::state::{MODE_NORMAL, VREPLACE_FLAG};
+use crate::regexp::MAXCOL;
+use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

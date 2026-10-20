@@ -38,7 +38,7 @@ const UV_MUTEX_SIZE: usize = 64;
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 const UV_MUTEX_SIZE: usize = 8;
 
-const NS_PER_SEC: u64 = 1_000_000_000;
+pub(crate) const NS_PER_SEC: u64 = 1_000_000_000;
 
 pub type Loop = c_void;
 pub type uv_loop_t = c_void;

@@ -21,7 +21,7 @@ use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
 };
-use crate::buffer::ExpandBufnames;
+use crate::buffer::{ExpandBufnames, kUIMessages};
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite,
     backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
@@ -714,10 +714,11 @@ pub enum cmdidx_T {
     CMD_USER_BUF = -2,
 }
 
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 pub use crate::api::command::{ExMagic as ExArgMagic, exarg_T};
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::{BACKWARD, MAXPATHL};
+use crate::change::TAB;
 #[cfg(unix)]
 use crate::ex_getln::VSE_SHELL;
 
@@ -775,13 +776,11 @@ pub struct CmdlineInfo {
     pub mouse_used: *mut bool,
 }
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const Ctrl_N: c_int = 14;
-const Ctrl_P: c_int = 16;
+pub(crate) const Ctrl_N: c_int = 14;
+pub(crate) const Ctrl_P: c_int = 16;
 const Ctrl_V: c_char = 22;
 
-const MB_MAXBYTES: usize = 30;
+pub(crate) const MB_MAXBYTES: usize = 30;
 
 #[cfg(windows)]
 const ENV_SEPCHAR: c_int = b';' as c_int;
@@ -925,10 +924,9 @@ const kOptWimFlagNoinsert: c_int = 0x20;
 
 pub(crate) const kOptBoFlagWildmode: c_uint = 0x80000;
 
-const kUICmdline: UIExtension = 0;
-const kUIPopupmenu: UIExtension = 1;
-const kUIWildmenu: UIExtension = 3;
-const kUIMessages: UIExtension = 4;
+pub(crate) const kUICmdline: UIExtension = 0;
+pub(crate) const kUIPopupmenu: UIExtension = 1;
+pub(crate) const kUIWildmenu: UIExtension = 3;
 
 const WM_SHOWN: c_int = 1;
 const WM_SCROLLED: c_int = 2;

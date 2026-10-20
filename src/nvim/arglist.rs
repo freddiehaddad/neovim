@@ -53,6 +53,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
+use crate::api::buffer::NUL;
 pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::eval::buffer::varnumber_T;
 use crate::math::{FAIL, OK};
@@ -60,8 +61,6 @@ pub use crate::option::OptInt;
 pub use crate::os::env::expand_T;
 pub use crate::path::PathCmpFlags;
 pub use crate::regexp::regprog_T;
-
-const NUL: c_char = 0;
 
 const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;

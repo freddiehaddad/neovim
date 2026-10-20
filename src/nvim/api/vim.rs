@@ -12,7 +12,7 @@
 )]
 
 use crate::api::buffer::{
-    FORWARD, INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, LUA_NOREF,
+    FORWARD, INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, LUA_NOREF, NL, NUL,
     api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
 use crate::api::deprecated::{
@@ -142,11 +142,9 @@ use std::ptr;
 #[cfg(windows)]
 use crate::os::proc::os_proc_info;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
 pub(crate) const MAXPATHL: usize = 4096;
 pub(crate) const ERR_BUFLEN: usize = 256;
-const SIGN_SHOW_MAX: usize = 9;
+pub(crate) const SIGN_SHOW_MAX: usize = 9;
 
 pub(crate) const BACKWARD: c_int = -1;
 
@@ -181,8 +179,8 @@ pub(crate) const HLF_CLN: c_int = 15;
 pub(crate) const HLF_CLS: c_int = 16;
 pub(crate) const HLF_SC: c_int = 35;
 
-const STL_FOLDCOL: c_int = b'C' as c_int;
-const STL_SIGNCOL: c_int = b's' as c_int;
+pub(crate) const STL_FOLDCOL: c_int = b'C' as c_int;
+pub(crate) const STL_SIGNCOL: c_int = b's' as c_int;
 
 const KEYSET_OPTIDX_highlight__update: u32 = 14;
 const KEYSET_OPTIDX_highlight__url: u32 = 5;

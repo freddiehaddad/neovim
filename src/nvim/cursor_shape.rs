@@ -50,9 +50,6 @@ pub const SHAPE_MOUSE: c_int = 1;
 pub const SHAPE_CURSOR: c_int = 2;
 const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
 
-#[cfg(not(test))]
-const MODE_INSERT: c_int = 0x10;
-
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CursorShape {
@@ -82,7 +79,9 @@ unsafe impl Sync for cursorentry_T {}
 pub use crate::api::buffer::VisualState;
 pub use crate::eval::deprecated::pos_T;
 #[cfg(not(test))]
-use crate::state::{MODE_CMDLINE, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG};
+use crate::state::{
+    MODE_CMDLINE, MODE_INSERT, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG,
+};
 
 const fn entry(
     full_name: &'static CStr,

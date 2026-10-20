@@ -24,7 +24,9 @@ use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds,
     au_exists, autocmd_supported, funccal_entry_T,
 };
-use crate::buffer::{VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, setfname};
+use crate::buffer::{
+    VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, kUIMessages, setfname,
+};
 use crate::channel::{
     channel_close, channel_connect, channel_create_event, channel_decref, channel_from_stdio,
     channel_incref, channel_job_start, channel_send, channel_terminal_alloc, kChannelPartRpc,
@@ -192,7 +194,7 @@ use crate::profile::{
     profile_start, profile_sub, proftime_T,
 };
 use crate::regexp::{
-    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, reg_submatch, reg_submatch_list, vim_regcomp,
+    MAXCOL, NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, reg_submatch, reg_submatch_list, vim_regcomp,
     vim_regexec_nl, vim_regfree,
 };
 use crate::register::{
@@ -237,20 +239,13 @@ pub type SpecialVarValue = c_int;
 pub use crate::channel::ChannelStdinMode;
 pub use crate::ex_getln::hlf_T;
 
-const NUL: c_char = 0;
 const BASE_NONE: u8 = 0;
 const BASE_LAST: u8 = u8::MAX;
 
-const MAX_FUNC_ARGS: usize = 20;
-#[cfg(windows)]
-const MB_MAXBYTES: usize = 30;
-const MB_MAXCHAR: usize = 6;
-const MAXCOL: colnr_T = 0x7fffffff;
+pub(crate) const MAX_FUNC_ARGS: usize = 20;
 const VARNUMBER_MAX: varnumber_T = varnumber_T::MAX;
 
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-const kSpecialVarNull: SpecialVarValue = 0;
+pub(crate) const kSpecialVarNull: SpecialVarValue = 0;
 
 const VAR_TYPE_NUMBER: c_int = 0;
 const VAR_TYPE_STRING: c_int = 1;
@@ -281,7 +276,6 @@ const AUTOLOAD_CHAR: c_int = b'#' as c_int;
 const Ctrl_V: c_char = 22;
 
 pub(crate) const UV_TIMER: c_int = 13;
-const kUIMessages: c_int = 4;
 
 pub(crate) const RE_SEARCH: c_int = 0;
 
@@ -313,7 +307,6 @@ pub(crate) const HLF_SPB: hlf_T = 37;
 pub(crate) const HLF_SPC: hlf_T = 38;
 pub(crate) const HLF_SPR: hlf_T = 39;
 pub(crate) const HLF_SPL: hlf_T = 40;
-const HLF_COUNT: hlf_T = 76;
 
 pub(crate) const HL_INVERSE: c_int = 0x01;
 pub(crate) const HL_BOLD: c_int = 0x02;
@@ -10400,12 +10393,15 @@ pub unsafe extern "C" fn f_xor(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, VIML_INTERNAL_CALL};
+use crate::api::buffer::{FORWARD, NUL, VIML_INTERNAL_CALL};
 use crate::api::command::EX_NOSPC;
 use crate::api::options::IOSIZE;
 use crate::api::ui::{MAX_SCHAR_SIZE, kChannelPartAll};
 #[cfg(not(test))]
 use crate::arglist::{f_argc, f_argidx, f_arglistid, f_argv};
+use crate::change::MB_MAXCHAR;
+#[cfg(windows)]
+use crate::cmdexpand::MB_MAXBYTES;
 #[cfg(not(test))]
 use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype};
 #[cfg(not(test))]
@@ -10414,7 +10410,8 @@ use crate::cmdhist::{f_histadd, f_histdel, f_histget, f_histnr};
 use crate::diff::{f_diff_filler, f_diff_hlID};
 #[cfg(not(test))]
 use crate::digraph::{f_digraph_get, f_digraph_getlist, f_digraph_set, f_digraph_setlist};
-use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, SMT_ALL};
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HLF_COUNT, SMT_ALL};
 #[cfg(not(test))]
 use crate::eval::buffer::{
     f_append, f_appendbufline, f_bufadd, f_bufexists, f_buflisted, f_bufload, f_bufloaded,

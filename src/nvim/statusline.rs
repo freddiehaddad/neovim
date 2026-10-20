@@ -14,7 +14,9 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{ScreenGrid, win_T};
-use crate::buffer::{append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos};
+use crate::buffer::{
+    append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
+};
 use crate::charset::{
     EOL_MAC, ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf,
     vim_strnsize, vim_strsize,
@@ -73,21 +75,15 @@ pub use crate::optionstr::OptIndex;
 pub type StlFlag = c_int;
 pub use crate::api::win_config::UIExtension;
 
-const NUL: c_char = 0;
 const NL: c_int = 0x0a;
-const CAR: c_int = 0x0d;
 const TMPLEN: usize = 70;
 const MAX_STL_EVAL_DEPTH: c_int = 100;
-const SIGN_WIDTH: usize = 2;
 const MAX_STCWIDTH: c_int = 20 + 9 * (SIGN_WIDTH as c_int) + 9;
-const MODE_INSERT: c_int = 0x10;
 
 const kOptRulerformat: OptIndex = 244;
 const kOptTabline: OptIndex = 306;
 
 pub(crate) const kUITabline: UIExtension = 2;
-const kUIWildmenu: UIExtension = 3;
-const kUIMessages: UIExtension = 4;
 
 const HLF_S: hlf_T = 19;
 const HLF_SNC: hlf_T = 20;
@@ -205,15 +201,19 @@ pub struct foldinfo_T {
     pub fi_lines: linenr_T,
 }
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{OPT_LOCAL, kOptInvalid};
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
-use crate::decoration::SCL_NUM;
+use crate::cmdexpand::kUIWildmenu;
 pub use crate::decoration::SignTextAttrs;
+use crate::decoration::{SCL_NUM, SIGN_WIDTH};
+use crate::keycodes::CAR;
 use crate::optionstr::{STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL};
 use crate::runtime::SID_ERROR;
+use crate::state::MODE_INSERT;
 
 #[repr(C)]
 pub struct statuscol_T {

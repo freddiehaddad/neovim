@@ -6,7 +6,7 @@
 use crate::api::buffer::LUA_NOREF;
 #[cfg(not(test))]
 use crate::api::private::converter::{
-    K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL, VAR_UNLOCKED, partial_T,
+    K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL, VAR_UNLOCKED, partial_T,
 };
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
@@ -79,9 +79,6 @@ pub type Float = f64;
 pub type LuaRef = c_int;
 pub type lua_Number = f64;
 pub type lua_Integer = isize;
-
-#[cfg(not(test))]
-const K_BOOL_VAR_TRUE: i64 = 1;
 
 #[cfg(not(test))]
 pub(crate) const K_NLUA_PUSH_SPECIAL: c_int = 0x01;

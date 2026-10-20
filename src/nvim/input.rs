@@ -15,7 +15,7 @@ use crate::api::vim::{MAXPATHL, REMAP_NONE, REMAP_YES, kFalse, kNone, nvim_paste
 use crate::charset::{ascii_iswhite, skipwhite, to_special};
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
-use crate::drawscreen::{setcursor, showmode, unshowmode, update_screen};
+use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
 use crate::errors::*;
 use crate::eval::deprecated::EvalFuncData;
 use crate::eval::garbage_collect;
@@ -28,10 +28,11 @@ use crate::eval::vars::{
 };
 use crate::event::r#loop::{main_loop_events, uv_strerror};
 use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
-use crate::ex_cmds::check_secure;
+use crate::ex_cmds::{Ctrl_C, check_secure};
 use crate::ex_docmd::update_topline_cursor;
 use crate::ex_getln::{
-    K_LUA, get_cmdline_info, kOptBoFlagError, putcmdline, redrawcmd, redrawcmdline, unputcmdline,
+    Ctrl_O, K_LUA, get_cmdline_info, kOptBoFlagError, putcmdline, redrawcmd, redrawcmdline,
+    unputcmdline,
 };
 use crate::extmark::TriState;
 use crate::fileio::fputc;
@@ -107,16 +108,8 @@ pub(crate) const FLUSH_MINIMAL: flush_buffers_T = 0;
 const FLUSH_INPUT: flush_buffers_T = 2;
 
 const NSCRIPT: usize = 15;
-const MB_MAXBYTES: usize = 30;
-const SHOWCMD_COLS: c_int = 10;
 const TYPELEN_INIT: usize = 5 * (MAXMAPLEN + 3);
 const DUM_LEN: usize = MAXMAPLEN * 3 + 3;
-
-const Ctrl_C: c_int = 3;
-const Ctrl_N: c_int = 14;
-const Ctrl_O: c_int = 15;
-const Ctrl_P: c_int = 16;
-const Ctrl_V: c_int = 22;
 
 const RM_YES: u8 = 0;
 const RM_NONE: u8 = 1;
@@ -314,7 +307,9 @@ static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, VIML_INTERNAL_CALL};
+use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::math::{FAIL, OK};
+use crate::regexp::Ctrl_V;
 
 #[inline]
 const fn k_second(c: c_int) -> c_int {

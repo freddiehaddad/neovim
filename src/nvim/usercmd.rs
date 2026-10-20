@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::LUA_NOREF;
+use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::api::command::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
@@ -24,7 +24,7 @@ use crate::api::private::helpers::{
     nil_obj, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object};
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
@@ -48,7 +48,7 @@ use crate::eval::last_set_msg;
 use crate::ex_docmd::{EX_BUFNAME, do_cmdline, ends_excmd};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::keycodes::replace_termcodes;
+use crate::keycodes::{K_SPECIAL, KS_SPECIAL, replace_termcodes};
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{
     api_free_luaref, api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx,
@@ -76,13 +76,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const NUL: c_char = 0;
-
-const K_SPECIAL: u8 = 0x80;
-const KS_SPECIAL: u8 = 254;
 const KE_FILLER: c_char = b'X' as c_char;
-
-const HLF_8: c_int = 1;
 
 const E_ARGUMENT_REQUIRED_FOR_STR: &CStr = c"E179: Argument required for %s";
 const E_NO_SUCH_USER_DEFINED_COMMAND_STR: &CStr = c"E184: No such user-defined command: %s";

@@ -45,9 +45,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 #[cfg(not(test))]
-const K_SPECIAL: u8 = 0x80;
-
-#[cfg(not(test))]
 const DBG_FUNC: c_int = 1;
 #[cfg(not(test))]
 const DBG_FILE: c_int = 2;
@@ -146,7 +143,7 @@ use crate::autocmd::DOCMD_VERBOSE;
 use crate::cmdexpand::EXPAND_NOTHING;
 pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
-use crate::keycodes::{KE_SNR, KS_EXTRA};
+use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 #[cfg(not(test))]
 use crate::state::MODE_NORMAL;
 

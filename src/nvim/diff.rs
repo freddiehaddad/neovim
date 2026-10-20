@@ -15,8 +15,8 @@ use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
-    bt_prompt, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr, buflist_findpat,
-    bufref_valid, modifiable, set_bufref,
+    MAXLNUM, bt_prompt, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr,
+    buflist_findpat, bufref_valid, modifiable, set_bufref,
 };
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
@@ -82,11 +82,6 @@ use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{xdemitcb_t, xdemitconf_t, xpparam_t};
 use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
-const MB_MAXBYTES: usize = 30;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
 const LBUFLEN: usize = 50;
@@ -207,13 +202,15 @@ struct linemap_entry_T {
     num_bytes: colnr_T,
     lineoff: c_int,
 }
-use crate::api::buffer::{FORWARD, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NL, NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::deprecated::{OPT_LOCAL, kOptScopeWin};
 #[cfg(unix)]
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
+use crate::cmdexpand::MB_MAXBYTES;
 use crate::math::{FAIL, OK};
+use crate::regexp::MAXCOL;
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;
 static mut diff_flags: c_int =

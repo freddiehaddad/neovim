@@ -50,9 +50,6 @@ use crate::strings::{gettext, setlocale};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-#[cfg(not(test))]
-const NUL: c_char = 0;
-
 #[cfg(all(not(test), windows))]
 const LC_ALL: c_int = 0;
 #[cfg(windows)]
@@ -117,6 +114,8 @@ unsafe extern "C" {
     fn textdomain(domainname: *const c_char) -> *mut c_char;
 }
 
+#[cfg(not(test))]
+use crate::api::buffer::NUL;
 #[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
 #[cfg(all(not(test), unix))]

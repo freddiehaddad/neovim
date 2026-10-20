@@ -14,7 +14,7 @@ use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::api::tabpage::win_T;
 use crate::buffer::{buf_get_changedtick, modifiable};
 use crate::change::{
-    SIN_INSERT, SIN_NOMARK, changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str,
+    SIN_INSERT, SIN_NOMARK, TAB, changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str,
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
@@ -56,7 +56,7 @@ use crate::plines::{
     win_chartabsize,
 };
 use crate::regexp::{
-    RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
+    MAXCOL, RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
 use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr, xstrnsave};
@@ -73,17 +73,14 @@ pub use crate::optionstr::{CharBuf, OptIndex, OptKeyDict_briopt};
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
-use crate::api::buffer::kExtmarkUndo;
+use crate::api::buffer::{NUL, kExtmarkUndo};
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::math::{FAIL, OK};
-use crate::state::{REPLACE_FLAG, VREPLACE_FLAG};
+use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG};
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const MAXCOL: colnr_T = 0x7fffffff;
 const TABSTOP_MAX: c_int = 9999;
 
 pub(crate) const SIN_CHANGED: c_int = 1;
@@ -91,8 +88,6 @@ const SIN_UNDO: c_int = 4;
 
 pub(crate) const INDENT_SET: c_int = 1;
 pub(crate) const INDENT_DEC: c_int = 3;
-
-const MODE_INSERT: c_int = 0x10;
 
 pub(crate) const kFoQComs: c_int = b'q' as c_int;
 

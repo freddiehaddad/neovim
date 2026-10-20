@@ -29,7 +29,7 @@ use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem, buf_T};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::executor::blob_T;
-use crate::eval::funcs::{tv_get_buf, tv_get_buf_from_arg};
+use crate::eval::funcs::{kSpecialVarNull, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
     DI_FLAGS_ALLOC, TV_CSTRING, TV_TRANSLATE, tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_remove,
@@ -47,11 +47,11 @@ use crate::eval::userfunc::{
 };
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{
-    DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE, callback_call,
-    clear_evalarg, clear_lval, eval_isnamec1, eval_lavars_used, eval_option, eval_to_string, eval0,
-    eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
-    get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide, num_modulus,
-    partial_unref, set_ref_in_ht, set_var_lval, skip_expr,
+    AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE,
+    callback_call, clear_evalarg, clear_lval, eval_isnamec1, eval_lavars_used, eval_option,
+    eval_to_string, eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end,
+    get_env_len, get_lval, get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func,
+    num_divide, num_modulus, partial_unref, set_ref_in_ht, set_var_lval, skip_expr,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd};
@@ -108,12 +108,15 @@ pub use crate::optionstr::OptIndex;
 type ex_unletlock_callback =
     unsafe extern "C" fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{OPT_LOCAL, kOptInvalid};
 use crate::api::private::converter::VAR_UNLOCKED;
 pub use crate::api::private::converter::partial_T;
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
+use crate::change::MB_MAXCHAR;
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
@@ -144,8 +147,6 @@ pub struct lval_T {
     pub ll_blob: *mut blob_T,
 }
 
-const NUL: c_char = 0;
-const MB_MAXCHAR: usize = 6;
 const MAXCOL: varnumber_T = 0x7fffffff;
 
 const VIMVAR_KEY_LEN: usize = 16;
@@ -163,15 +164,10 @@ const VAR_TYPE_LIST: varnumber_T = 3;
 const VAR_TYPE_DICT: varnumber_T = 4;
 const VAR_TYPE_FLOAT: varnumber_T = 5;
 const VAR_TYPE_BOOL: varnumber_T = 6;
-const VAR_TYPE_BLOB: varnumber_T = 10;
-
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-const kSpecialVarNull: SpecialVarValue = 0;
+pub(crate) const VAR_TYPE_BLOB: varnumber_T = 10;
 
 const CHAN_STDERR: varnumber_T = 2;
 pub(crate) const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
-const AUTOLOAD_CHAR: c_char = b'#' as c_char;
 
 pub(crate) const SID_STR: scid_T = -10;
 

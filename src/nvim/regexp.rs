@@ -26,7 +26,7 @@ use crate::eval::typval::{
 use crate::eval::userfunc::funcexe_T;
 use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
 pub(super) use crate::globals::*;
-use crate::keycodes::K_SPECIAL;
+use crate::keycodes::{BS, CAR, ESC, K_SPECIAL};
 use crate::mark::mark_get;
 use crate::mbyte::{
     GraphemeState, mb_get_class_tab, mb_islower, mb_isupper, mb_ptr2char_adv, mb_strnicmp,
@@ -85,13 +85,10 @@ pub const REGSUB_MAGIC: c_int = 2;
 pub const REGSUB_BACKSLASH: c_int = 4;
 
 pub(super) const NUL: u8 = 0;
-pub(super) const BS: c_int = 0x08;
 pub(super) const Ctrl_H: c_int = 0x08;
 pub(super) const TAB: c_int = 0x09;
 pub(super) const NL: c_int = 0x0a;
-pub(super) const CAR: c_int = 0x0d;
 pub(super) const Ctrl_V: c_int = 0x16;
-pub(super) const ESC: c_int = 0x1b;
 
 pub(super) const MAXCOL: colnr_T = 0x7fffffff;
 pub(super) const NUMBUFLEN: usize = 65;

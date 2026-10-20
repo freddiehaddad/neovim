@@ -21,13 +21,13 @@ use crate::autocmd::{
     apply_autocmds_exarg, apply_autocmds_group, augroup_exists, augroup_find, do_doautocmd,
 };
 use crate::buffer::{
-    BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE,
-    SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty,
-    buflist_new, bufref_T, bufref_valid, do_modelines, kShmFileinfo, kShmRo, set_bufref, setfname,
-    wipe_buffer,
+    BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC,
+    NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty,
+    buflist_new, bufref_T, bufref_valid, do_modelines, kShmFileinfo, kShmRo, kUIMessages,
+    set_bufref, setfname, wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
-use crate::change::{appended_lines_mark, save_file_ff, unchanged};
+use crate::change::{HLF_W, appended_lines_mark, save_file_ff, unchanged};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{EOL_MAC, ascii_isdigit, ascii_isspace, skipdigits};
@@ -143,14 +143,11 @@ pub const CONV_RESTLEN: usize = 30;
 pub const WRITEBUFSIZE: usize = 8192;
 pub const ICONV_MULT: isize = 8;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
 const CAR: c_char = b'\r' as c_char;
 const CTRL_Z: c_char = 0x1a;
 
 pub(crate) const EOF: c_int = -1;
 
-const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: isize = 0x7fffffff;
 
 pub(crate) const EOL_UNKNOWN: c_int = -1;
@@ -169,9 +166,6 @@ pub(crate) const ENC_2WORD: c_int = 0x100;
 pub(crate) const ENC_LATIN1: c_int = 0x200;
 
 const BF_NEW_W: c_int = 0x20;
-
-const HLF_W: c_int = 26;
-const kUIMessages: c_int = 4;
 
 const kCpoFnamer: c_int = b'f' as c_int;
 pub(crate) const kShmOver: c_int = b'o' as c_int;
@@ -241,6 +235,7 @@ static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::{NL, NUL};
 pub use crate::api::command::regmatch_T;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::MAXPATHL;

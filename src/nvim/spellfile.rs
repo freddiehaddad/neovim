@@ -73,9 +73,11 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type SpellAddType = c_int;
+use crate::api::buffer::NUL;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
+use crate::change::TAB;
 use crate::eval::fs::SEEK_SET;
 pub use crate::fileio::FILE;
 use crate::math::{FAIL, OK};
@@ -87,9 +89,6 @@ use crate::viml::parser::parser::CONV_NONE;
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
 pub const SPELL_ADD_BAD: SpellAddType = 1;
 pub const SPELL_ADD_RARE: SpellAddType = 2;
-
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
 
 const CMD_spellrare: c_int = 431;
 const CMD_spellundo: c_int = 432;

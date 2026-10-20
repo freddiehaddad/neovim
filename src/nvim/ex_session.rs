@@ -44,15 +44,14 @@ use crate::window::tabpage_index;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
 use crate::drawscreen::FR_LEAF;
 pub use crate::fileio::FILE;
 use crate::math::{FAIL, OK};
-
-const NUL: c_char = 0;
-const MAXCOL: c_int = 0x7fffffff;
+use crate::regexp::MAXCOL;
 
 pub(crate) const OPT_SKIPRTP: c_int = 0x80;
 pub(crate) const kCdCauseOther: c_int = -1;

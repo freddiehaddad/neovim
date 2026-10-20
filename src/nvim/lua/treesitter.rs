@@ -8,6 +8,8 @@
 )]
 
 #[cfg(not(test))]
+use crate::api::buffer::NUL;
+#[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::context::handle_get_buffer;
@@ -74,8 +76,6 @@ pub type TSQueryError = c_int;
 pub type TSDecodeFunction =
     Option<unsafe extern "C" fn(string: *const u8, length: u32, code_point: *mut i32) -> u32>;
 
-#[cfg(not(test))]
-const NUL: c_char = 0;
 #[cfg(not(test))]
 const BUFSIZE: usize = 256;
 

@@ -23,15 +23,15 @@ use crate::insexpand::{
     ins_compl_active, ins_compl_autocomplete_elapsed, ins_compl_autocomplete_pending,
 };
 use crate::keycodes::{
-    FSK_KEYCODE, KE_COMPLETE_DELAY, KE_EVENT, KS_EXTRA, KS_MODIFIER, get_mouse_button,
-    trans_special,
+    FSK_KEYCODE, K_SPECIAL, KE_COMPLETE_DELAY, KE_EVENT, KE_FILLER, KS_EXTRA, KS_MODIFIER,
+    KS_SPECIAL, get_mouse_button, trans_special,
 };
 use crate::main_init::getout;
 use crate::map_glyph_cache::NvimString;
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
-use crate::state::get_real_state;
+use crate::state::{MODE_INSERT, get_real_state};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -42,12 +42,6 @@ pub use crate::option::OptInt;
 const READ_BUFFER_SIZE: usize = 0xfff;
 const MAX_KEY_CODE_LEN: usize = 6;
 const INPUT_BUFFER_SIZE: usize = (READ_BUFFER_SIZE * 4) + MAX_KEY_CODE_LEN;
-
-const MODE_INSERT: c_int = 0x10;
-
-const K_SPECIAL: u8 = 0x80;
-const KS_SPECIAL: u8 = 254;
-const KE_FILLER: u8 = b'X';
 
 const KE_LEFTMOUSE: c_int = 44;
 const KE_RIGHTRELEASE: c_int = 52;

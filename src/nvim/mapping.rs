@@ -10,7 +10,7 @@
 )]
 
 use crate::api::autocmd::{ArrayBuilder, Buffer};
-use crate::api::buffer::{KeyDict_keymap, LUA_NOREF};
+use crate::api::buffer::{KeyDict_keymap, LUA_NOREF, NUL};
 use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
 use crate::api::private::converter::{VAR_UNLOCKED, object_to_vim_take_luaref, sctx_T};
@@ -26,7 +26,7 @@ use crate::charset::{
     ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, transchar, vim_iswordp,
 };
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, cmdline_fuzzy_complete};
+use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
@@ -71,7 +71,7 @@ use crate::message::{
 };
 use crate::option::opt_error;
 use crate::option_vars::*;
-use crate::regexp::{NUMBUFLEN, vim_regexec};
+use crate::regexp::{Ctrl_V, NUMBUFLEN, vim_regexec};
 use crate::runtime::sourcing_lnum;
 use crate::sign::expand_T;
 use crate::strings::{atoi, gettext, sort_strings, strpbrk, strstr, vim_snprintf, vim_strchr};
@@ -84,15 +84,10 @@ pub use crate::extmark::TriState;
 
 pub const MAXMAPLEN: usize = 50;
 pub const MAX_MAPHASH: usize = 256;
-const MB_MAXBYTES: usize = 30;
 
-const NUL: c_char = 0;
 const NL: c_int = b'\n' as c_int;
 const Ctrl_C: c_char = 3;
 const Ctrl_H: u8 = 8;
-const Ctrl_J: c_int = 10;
-const Ctrl_V: c_int = 22;
-const Ctrl_RSB: c_int = 29;
 const UCHAR_MAX: c_int = 255;
 
 pub const MAPTYPE_MAP: c_int = 0;
@@ -100,9 +95,6 @@ pub const MAPTYPE_UNMAP: c_int = 1;
 pub const MAPTYPE_NOREMAP: c_int = 2;
 pub const MAPTYPE_UNMAP_LHS: c_int = 3;
 
-const MODE_INSERT: c_int = 0x10;
-
-const HLF_8: c_int = 1;
 const kCpoBslash: c_int = b'B' as c_int;
 
 const KEYSET_OPTIDX_keymap__desc: u64 = 1;
@@ -144,10 +136,12 @@ pub struct typebuf_T {
 
 pub use crate::api::command::regmatch_T;
 use crate::api::vim::{REMAP_NONE, REMAP_YES, kFalse, kNone};
-use crate::ex_getln::ABBR_OFF;
+use crate::autocmd::HLF_8;
+use crate::ex_getln::{ABBR_OFF, Ctrl_RSB};
+use crate::insert::Ctrl_J;
 use crate::state::{
-    MODE_CMDLINE, MODE_LANGMAP, MODE_NORMAL, MODE_OP_PENDING, MODE_SELECT, MODE_TERMINAL,
-    MODE_VISUAL,
+    MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL, MODE_OP_PENDING, MODE_SELECT,
+    MODE_TERMINAL, MODE_VISUAL,
 };
 
 #[repr(C)]

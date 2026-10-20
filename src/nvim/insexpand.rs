@@ -18,10 +18,10 @@ use crate::api::tabpage::{pos_T, win_T};
 use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
-use crate::buffer::{NOTDONE, VAR_FIXED, bt_cmdwin, buf_spname, buf_valid};
+use crate::buffer::{MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, buf_spname, buf_valid, kUIMessages};
 use crate::change::{
-    OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL, deleted_lines_mark, ins_bytes_len, ins_char,
-    ins_char_bytes, ins_str, open_line,
+    HLF_W, MB_MAXCHAR, OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL, deleted_lines_mark,
+    ins_bytes_len, ins_char, ins_char_bytes, ins_str, open_line,
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, getwhitecols, skipwhite, str_foldcase,
@@ -29,8 +29,8 @@ use crate::charset::{
 };
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::cmdexpand::{
-    EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL, RE_LAST,
-    SEARCH_NFMSG, TAG_MANY, addstar, expand_cmdline, free_xp_files_extra, set_cmd_context,
+    Ctrl_N, Ctrl_P, EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL,
+    RE_LAST, SEARCH_NFMSG, TAG_MANY, addstar, expand_cmdline, free_xp_files_extra, set_cmd_context,
 };
 use crate::cursor::{
     check_cursor, colnr_T, dec_cursor, equalpos, get_cursor_line_len, get_cursor_line_ptr,
@@ -56,7 +56,10 @@ use crate::eval::{
     callback_call, get_v_event, kListLenMayKnow, restore_v_event, set_ref_in_callback,
 };
 use crate::ex_eval::aborting;
-use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT, tilde_replace};
+use crate::ex_getln::{
+    Ctrl_D, Ctrl_F, Ctrl_K, Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_Z,
+    K_EVENT, K_LUA, K_SELECT, tilde_replace,
+};
 use crate::extmark::{ExtmarkUndoObject, extmark_apply_undo, extmark_splice_delete};
 use crate::fileio::{fclose, vim_fgets};
 use crate::fuzzy::{
@@ -76,8 +79,8 @@ use crate::input::{
     vpeekc_any, vungetc,
 };
 use crate::insert::{
-    BS_START, backspace_until_column, get_can_cindent, ins_apply_autocmds, ins_eol, ins_redraw,
-    insertchar, start_arrow, stop_arrow,
+    BS_START, Ctrl_S, Ctrl_X, backspace_until_column, get_can_cindent, ins_apply_autocmds, ins_eol,
+    ins_redraw, insertchar, start_arrow, stop_arrow,
 };
 use crate::keycodes::{
     CAR, K_BS, K_COMMAND, K_DOWN, K_IGNORE, K_KENTER, K_KPAGEDOWN, K_KPAGEUP, K_MOUSEDOWN,
@@ -118,7 +121,7 @@ use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
     pumitem_T,
 };
-use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{Ctrl_V, MAXCOL, RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
 use crate::register::{
     NUM_REGISTERS, copy_register, free_register, get_register_name, valid_yank_reg,
 };
@@ -164,49 +167,24 @@ pub const CPT_MENU: usize = 2;
 pub const CPT_INFO: usize = 3;
 pub const CPT_COUNT: usize = 4;
 
-const NUL: c_char = 0;
 const kDirectionNotSet: Direction = 0;
 
 pub(crate) const ACTION_EXPAND: c_int = 5;
 
-const MAXCOL: colnr_T = 0x7fffffff;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const LSIZE: usize = 512;
-const MB_MAXCHAR: usize = 6;
+pub(crate) const LSIZE: usize = 512;
 const MIN_SPACE: c_int = 75;
 const LOOKBACK_LINE_COUNT: linenr_T = 1000;
 const PATHSEP: c_char = b'/' as c_char;
 
-const Ctrl_C: c_int = 3;
-const Ctrl_D: c_int = 4;
-const Ctrl_F: c_int = 6;
-const Ctrl_I: c_int = 9;
-const Ctrl_K: c_int = 11;
-const Ctrl_L: c_int = 12;
-const Ctrl_N: c_int = 14;
-const Ctrl_O: c_int = 15;
-const Ctrl_P: c_int = 16;
-const Ctrl_Q: c_int = 17;
-const Ctrl_R: c_int = 18;
-const Ctrl_S: c_int = 19;
-const Ctrl_T: c_int = 20;
-const Ctrl_U: c_int = 21;
-const Ctrl_V: c_int = 22;
-const Ctrl_X: c_int = 24;
-const Ctrl_Z: c_int = 26;
-const Ctrl_RSB: c_int = 29;
+pub(crate) const Ctrl_I: c_int = 9;
 
 pub(crate) const kWinInfo: WinKind = 1;
-const kUIMessages: UIExtension = 4;
 
 const VAR_UNKNOWN: VarType = VarType::VAR_UNKNOWN;
 const VAR_NUMBER: VarType = VarType::VAR_NUMBER;
 pub(crate) const VAR_STRING: VarType = VarType::VAR_STRING;
 const VAR_LIST: VarType = VarType::VAR_LIST;
 const VAR_DICT: VarType = VarType::VAR_DICT;
-
-const HLF_W: hlf_T = 26;
-const HLF_COUNT: hlf_T = 76;
 
 pub(crate) const kOptComplete: OptIndex = 51;
 
@@ -489,13 +467,13 @@ struct cpt_source_T {
 }
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
 use crate::api::vim::BACKWARD;
-use crate::drawline::SMT_ALL;
+use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::eval::funcs::SEARCH_KEEP;
-use crate::ex_cmds::{Ctrl_E, Ctrl_Y, HLF_R};
+use crate::ex_cmds::{Ctrl_C, Ctrl_E, Ctrl_Y, HLF_R};
 use crate::ex_docmd::{FIND_ANY, FIND_DEFINE};
 use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
 

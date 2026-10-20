@@ -19,7 +19,7 @@ use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::tabpage::pos_T;
 use crate::api::vim::{REMAP_NONE, kCtxRegs, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::buffer::{buf_get_changedtick, bufref_valid};
+use crate::buffer::{MAXLNUM, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
 use crate::context::{
@@ -98,16 +98,9 @@ const DECOR_INLINE_INIT: DecorInline = DecorInline {
     },
 };
 
-const kBoolVarFalse: c_int = 0;
-const kBoolVarTrue: c_int = 1;
-
 const NUL: c_int = 0;
 const NL: c_int = 10;
-const Ctrl_V: c_int = 22;
 const ESC: c_char = 27;
-
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 pub(crate) const kOptFollow: c_int = 114;
 
@@ -171,10 +164,12 @@ const CONTEXT_INIT: Context = Context {
 };
 
 use crate::api::command::CMOD_KEEPJUMPS;
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::ex_getln::K_LUA;
 pub use crate::input::RedoState;
 use crate::math::FAIL;
+use crate::regexp::{Ctrl_V, MAXCOL};
 
 #[repr(C)]
 struct McSandbox {

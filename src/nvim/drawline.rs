@@ -11,7 +11,7 @@
 )]
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::deprecated::{DecorVirtText, VirtLine, VirtLines, VirtText, kVPosEndOfLine};
 use crate::api::extmark::{
     DecorRange, NS, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLineRightAlign,
@@ -19,8 +19,13 @@ use crate::api::extmark::{
 };
 use crate::api::options::CharBuf;
 use crate::api::tabpage::{GridView, pos_T, win_T};
-use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, MAXPATHL, kFalse, kTrue};
+use crate::api::vim::{
+    HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, MAXPATHL, SIGN_SHOW_MAX, STL_FOLDCOL,
+    STL_SIGNCOL, kFalse, kTrue,
+};
+use crate::autocmd::HLF_8;
 use crate::buffer::{bt_quickfix, buf_meta_total};
+use crate::change::TAB;
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, kOptDyFlagUhex, rl_mirror_ascii, skiptowhite, skipwhite,
     transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
@@ -74,8 +79,9 @@ use crate::plines::{
     init_charsize_arg_skip_cur_text, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
 };
 use crate::quickfix::qf_current_entry;
+use crate::regexp::{Ctrl_V, MAXCOL};
 use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, spell_to_word_end};
-use crate::state::virtual_active;
+use crate::state::{MODE_INSERT, virtual_active};
 use crate::statusline::{build_statuscol_str, foldinfo_T, hlf_T, statuscol_T};
 use crate::strings::{vim_snprintf, vim_strchr};
 use crate::syntax::{
@@ -88,18 +94,12 @@ use std::ptr;
 
 type HlMode = u8;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const Ctrl_V: c_int = 22;
-const MAXCOL: colnr_T = 0x7fffffff;
 const MB_FILLER_CHAR: u8 = b'<';
 const TERM_ATTRS_MAX: usize = 1024;
-const SIGN_SHOW_MAX: usize = 9;
 const SIGN_WIDTH: c_int = 2;
 const MAX_STCWIDTH: c_int = 20 + 9 * SIGN_WIDTH + 9;
 const SPWORDLEN: usize = 150;
 pub(crate) const SMT_ALL: c_int = 0;
-const MODE_INSERT: c_int = 0x10;
 
 pub(crate) const VALID_WROW: c_int = 0x01;
 pub(crate) const VALID_WCOL: c_int = 0x02;
@@ -121,14 +121,10 @@ const kHlModeReplace: HlMode = 1;
 const kHlModeCombine: HlMode = 2;
 const kHlModeBlend: HlMode = 3;
 
-const STL_FOLDCOL: c_int = b'C' as c_int;
-const STL_SIGNCOL: c_int = b's' as c_int;
-
 pub(crate) const HL_UNDERLINE_MASK: i32 = 0x38;
 pub(crate) const HL_STRIKETHROUGH: i32 = 0x0080;
 pub(crate) const HL_OVERLINE: i32 = 0x20000;
 
-const HLF_8: c_int = 1;
 pub(crate) const HLF_AT: c_int = 4;
 const HLF_I: c_int = 7;
 pub(crate) const HLF_CLF: c_int = 17;
@@ -142,7 +138,7 @@ const HLF_CUL: c_int = 56;
 const HLF_MC: c_int = 57;
 pub(crate) const HLF_QFL: c_int = 58;
 pub(crate) const HLF_0: c_int = 59;
-const HLF_COUNT: hlf_T = 76;
+pub(crate) const HLF_COUNT: hlf_T = 76;
 
 /// Structure with variables passed between `win_line()` and other functions.
 struct winlinevars_T {

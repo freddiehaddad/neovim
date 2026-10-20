@@ -35,8 +35,6 @@ use crate::message::{emsg, semsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 #[cfg(not(test))]
-const K_BOOL_VAR_TRUE: i64 = 1;
-#[cfg(not(test))]
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
 #[cfg(not(test))]
@@ -67,7 +65,7 @@ pub use crate::mpack::object::{
 
 use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
-use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL};
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 #[cfg(not(test))]
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,

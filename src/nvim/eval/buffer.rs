@@ -11,7 +11,7 @@
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::win_T;
 use crate::buffer::{
-    SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, buf_ensure_loaded, buf_get_changedtick,
+    MAXLNUM, SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, buf_ensure_loaded, buf_get_changedtick,
     buflist_add, buflist_findlnum, buflist_findname_exp, buflist_findnr, buflist_new,
     first_win_in_tab, kExtmarkNoUndo, kMarkAdjustNormal,
 };
@@ -56,14 +56,11 @@ use std::ptr;
 
 pub type varnumber_T = i64;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::kExtmarkUndo;
+use crate::api::buffer::{NUL, kExtmarkUndo};
 pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::extmark::ExtmarkOp;
 pub use crate::mark::MarkAdjustMode;
 use crate::math::{FAIL, OK};
-
-const NUL: c_char = 0;
-const MAXLNUM: linenr_T = 0x7fffffff;
 
 pub(crate) const SEA_READONLY: c_int = 4;
 

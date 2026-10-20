@@ -67,10 +67,13 @@ use std::ptr;
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
-use crate::api::buffer::LUA_NOREF;
+use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED};
+use crate::cmdexpand::MB_MAXBYTES;
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::funcs::kSpecialVarNull;
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
@@ -78,18 +81,11 @@ pub type float_T = f64;
 pub type VarLockStatus = c_int;
 pub type BoolVarValue = c_int;
 
-const NUL: c_char = 0;
-
-const MB_MAXBYTES: usize = 30;
 const ITEM_COMPARE_FAIL: c_int = 999;
 
 pub(crate) const VAR_LOCKED: VarLockStatus = 1;
 
 const VAR_NO_SCOPE: c_int = 0;
-
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-const kSpecialVarNull: c_int = 0;
 
 pub(crate) const DI_FLAGS_ALLOC: u8 = 16;
 

@@ -48,15 +48,9 @@ const NS_PER_SEC: f64 = 1_000_000_000.0;
 const PROF_PAUSED: c_int = 2;
 
 #[cfg(not(test))]
-const K_SPECIAL: u8 = 0x80;
-#[cfg(not(test))]
-const NL: c_char = b'\n' as c_char;
-#[cfg(not(test))]
 const IOFBF: c_int = 0;
 
 const PEXP_SUBCMD: i32 = 0;
-
-const MAX_FUNC_ARGS: usize = 20;
 
 static PROF_WAIT_TIME: AtomicU64 = AtomicU64::new(0);
 static WAIT_TIME: AtomicU64 = AtomicU64::new(0);
@@ -114,13 +108,18 @@ pub struct scriptitem_T {
 }
 
 #[cfg(not(test))]
+use crate::api::buffer::NL;
+#[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::autocmd::PROF_YES;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
+use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
 #[cfg(not(test))]
 use crate::globals::PROF_NONE;
+#[cfg(not(test))]
+use crate::keycodes::K_SPECIAL;
 pub use crate::os::env::expand_T;
 
 #[repr(C)]

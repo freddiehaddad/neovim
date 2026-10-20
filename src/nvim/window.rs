@@ -21,9 +21,9 @@ use crate::api::tabpage::{
     GridView, ScreenGrid, WinConfig, frame_T, lpos_T, pos_T, tabpage_T, win_T,
 };
 use crate::api::win_config::{
-    FR_COL, UIExtension, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
-    kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kWinStyleMinimal,
-    kWinStyleUnused, kZIndexFloatDefault,
+    FR_COL, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
+    kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kUIMultigrid,
+    kWinStyleMinimal, kWinStyleUnused, kZIndexFloatDefault,
 };
 use crate::arglist::{alist_T, alist_unlink};
 use crate::autocmd::{
@@ -34,14 +34,14 @@ use crate::autocmd::{
     block_autocmds, event_ignored, has_event, unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, NOTDONE, VALID_TOPLINE, VAR_SCOPE,
-    bt_help, bt_prompt, bt_quickfix, buf_hide, buf_valid, buflist_findname_exp, buflist_findnr,
-    buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer, do_autochdir, do_buffer,
-    maketitle, set_bufref,
+    BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, MAXLNUM, NOTDONE, VALID_TOPLINE,
+    VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, buf_hide, buf_valid, buflist_findname_exp,
+    buflist_findnr, buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer,
+    do_autochdir, do_buffer, kUIMessages, maketitle, set_bufref,
 };
 use crate::charset::{ascii_isdigit, getdigits_int};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::cmdidx_T;
+use crate::cmdexpand::{Ctrl_N, Ctrl_P, cmdidx_T};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T};
 use crate::decoration::{clear_virttext, decor_conceal_line};
@@ -60,12 +60,14 @@ use crate::eval::typval::{
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::eval::window::win_has_winnr;
 use crate::eval::{get_v_event, restore_v_event};
-use crate::ex_cmds::{BL_FIX, BL_SOL, ECMD_HIDE, ECMD_LASTL, do_ecmd};
+use crate::ex_cmds::{BL_FIX, BL_SOL, Ctrl_C, ECMD_HIDE, ECMD_LASTL, do_ecmd};
 use crate::ex_cmds2::{can_abandon, dialog_changed};
 use crate::ex_docmd::{ACTION_SPLIT, FIND_ANY, FIND_DEFINE, do_cmdline_cmd, tabpage_close};
 use crate::ex_eval::aborting;
 use crate::ex_getln::{
-    compute_cmdrow, curbuf_locked, is_in_cmdwin, text_locked, text_locked_msg, text_or_buf_locked,
+    Ctrl__, Ctrl_B, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K, Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R,
+    Ctrl_RSB, Ctrl_T, Ctrl_W, Ctrl_Z, compute_cmdrow, curbuf_locked, is_in_cmdwin, text_locked,
+    text_locked_msg, text_or_buf_locked,
 };
 use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
 use crate::fileio::shorten_fnames;
@@ -77,8 +79,8 @@ use crate::globals::*;
 use crate::grid::{grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc};
 use crate::hashtab::hash_init;
 use crate::input::{beep_flush, plain_vgetc, typebuf_maplen};
-use crate::insert::{beginline, cursor_down_inner, cursor_up_inner};
-use crate::keycodes::{K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
+use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
+use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::kvec::KVec;
 use crate::main_init::getout;
 use crate::map::{StcClick, StcClicks, map_del_int_ptr_t, map_put_ref_int_ptr_t};
@@ -140,7 +142,7 @@ use std::ptr;
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
 pub type WinKind = c_int;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::CMOD_CONFIRM;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -151,7 +153,8 @@ use crate::drawline::{VALID_CROW, VALID_WCOL};
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 pub use crate::eval::vars::scid_T;
 pub use crate::ex_docmd::CdScope;
-use crate::regexp::NUMBUFLEN;
+use crate::insexpand::Ctrl_I;
+use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::runtime::SID_WINLAYOUT;
 
 pub const WSP_ROOM: c_int = 0x01;
@@ -171,11 +174,7 @@ pub const MIN_LINES: c_int = 2;
 pub const STATUS_HEIGHT: c_int = 1;
 pub const LOWEST_WIN_ID: c_int = 1000;
 
-const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
-const CAR: c_int = b'\r' as c_int;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 const SNAP_HELP_IDX: usize = 0;
 const SNAP_QUICKFIX_IDX: usize = 2;
@@ -189,38 +188,10 @@ const WEE_TRIGGER_NEW_AUTOCMDS: c_int = 0x04;
 const WEE_TRIGGER_ENTER_AUTOCMDS: c_int = 0x08;
 const WEE_TRIGGER_LEAVE_AUTOCMDS: c_int = 0x10;
 
-const Ctrl_B: c_int = 2;
-const Ctrl_C: c_int = 3;
-const Ctrl_D: c_int = 4;
-const Ctrl_F: c_int = 6;
-const Ctrl_G: c_int = 7;
-const Ctrl_H: c_int = 8;
-const Ctrl_I: c_int = 9;
-const Ctrl_J: c_int = 10;
-const Ctrl_K: c_int = 11;
-const Ctrl_L: c_int = 12;
-const Ctrl_N: c_int = 14;
-const Ctrl_O: c_int = 15;
-const Ctrl_P: c_int = 16;
-const Ctrl_Q: c_int = 17;
-const Ctrl_R: c_int = 18;
-const Ctrl_S: c_int = 19;
-const Ctrl_T: c_int = 20;
-const Ctrl_V: c_int = 22;
-const Ctrl_W: c_int = 23;
-const Ctrl_X: c_int = 24;
-const Ctrl_Z: c_int = 26;
-const Ctrl_RSB: c_int = 29;
-const Ctrl_HAT: c_int = 30;
-const Ctrl__: c_int = 31;
-
 const kOptTclFlagLeft: c_uint = 0x01;
 const kOptTclFlagUselast: c_uint = 0x02;
 
 const kWinOptScroll: usize = 33;
-
-const kUIMessages: UIExtension = 4;
-const kUIMultigrid: UIExtension = 6;
 
 const kWinNormal: WinKind = 0;
 

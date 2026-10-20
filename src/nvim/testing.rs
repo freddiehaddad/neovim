@@ -10,7 +10,7 @@
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
-use crate::api::private::converter::{K_BOOL_VAR_FALSE, VAR_UNLOCKED};
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, VAR_UNLOCKED};
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType};
@@ -66,15 +66,12 @@ use std::ffi::c_void;
 use std::ffi::{CStr, c_char, c_int};
 
 #[cfg(not(test))]
-const K_BOOL_VAR_TRUE: i64 = 1;
-
-#[cfg(not(test))]
 const EOF_VAL: c_int = -1;
 
 const BS: u8 = 0x08;
 const TAB: u8 = 0x09;
 const NL: u8 = 0x0a;
-const FF: u8 = 0x0c;
+pub(crate) const FF: u8 = 0x0c;
 const CAR: u8 = 0x0d;
 const ESC: u8 = 0x1b;
 

@@ -25,31 +25,31 @@ use crate::autocmd::{
     EVENT_CMDLINELEAVEPRE, EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, has_event,
     unblock_autocmds,
 };
-use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, buf_clear, buf_valid, buflist_findnr, do_buffer};
+use crate::buffer::{
+    DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, buf_clear, buf_valid, buflist_findnr, do_buffer, kUIMessages,
+};
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, skipwhite, vim_isIDc, vim_isprintc,
     vim_iswordc, vim_str2nr,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
-    CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL,
-    ExpandCleanup, ExpandInit, ExpandOne, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START,
-    WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL, WILD_EXPAND_KEEP, WILD_FREE,
-    WILD_FUNC_TRIGGER, WILD_LONGEST, WILD_MAY_EXPAND_PATTERN, WILD_NEXT, WILD_NO_BEEP,
-    WILD_NOINSERT, WILD_NOSELECT, WILD_PAGEDOWN, WILD_PAGEUP, WILD_PREV, WILD_PUM_WANT, XP_BS_NONE,
-    clear_cmdline_orig, cmdline_pum_active, cmdline_pum_cleanup, cmdline_pum_remove,
-    kOptBoFlagWildmode, nextwild, set_expand_context, showmatches, wildmenu_cleanup,
-    wildmenu_process_key, wildmenu_translate_key,
+    CmdlineColorChunk, CmdlineInfo, ColoredCmdline, Ctrl_N, Ctrl_P, EXPAND_NOTHING,
+    EXPAND_UNSUCCESSFUL, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_NOOF, SEARCH_OPT,
+    SEARCH_PEEK, SEARCH_START, WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL,
+    WILD_EXPAND_KEEP, WILD_FREE, WILD_FUNC_TRIGGER, WILD_LONGEST, WILD_MAY_EXPAND_PATTERN,
+    WILD_NEXT, WILD_NO_BEEP, WILD_NOINSERT, WILD_NOSELECT, WILD_PAGEDOWN, WILD_PAGEUP, WILD_PREV,
+    WILD_PUM_WANT, XP_BS_NONE, clear_cmdline_orig, cmdline_pum_active, cmdline_pum_cleanup,
+    cmdline_pum_remove, kOptBoFlagWildmode, kUICmdline, nextwild, set_expand_context, showmatches,
+    wildmenu_cleanup, wildmenu_process_key, wildmenu_translate_key,
 };
 use crate::cmdhist::{
     HIST_INVALID, HIST_SEARCH, add_to_history, get_hisidx, get_hislen, get_histentry,
     hist_char2type, init_history,
 };
 use crate::context::{ctx_restore, ctx_switch, kCtxKeepDirs};
-use crate::cursor::{
-    clearpos, coladvance, colnr_T, equalpos, gchar_cursor, get_cursor_pos_ptr, linenr_T, lt,
-};
-use crate::digraph::{do_digraph, get_digraph};
+use crate::cursor::{clearpos, coladvance, equalpos, gchar_cursor, get_cursor_pos_ptr, lt};
+use crate::digraph::{do_digraph, get_digraph, kBoolVarFalse, kBoolVarTrue};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_all_later, redraw_custom_title_later,
     redraw_later, redraw_statuslines, set_must_redraw, status_redraw_all, status_redraw_curbuf,
@@ -70,7 +70,7 @@ use crate::eval::window::viewstate_T;
 use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::Event;
-use crate::ex_cmds::{Ctrl_E, Ctrl_Y, kOptInccommand, rename_buffer};
+use crate::ex_cmds::{B_IMODE_LMAP, Ctrl_C, Ctrl_E, Ctrl_Y, kOptInccommand, rename_buffer};
 use crate::ex_docmd::{
     do_cmdline, execute_cmd, expr_map_locked, parse_cmd_address, parse_cmdline,
     parse_command_modifiers, set_no_hlsearch, skip_range, undo_cmdmod,
@@ -133,7 +133,7 @@ use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
 use crate::popupmenu::pum_check_clear;
 use crate::profile::{profile_setlimit, proftime_T};
-use crate::regexp::{MAGIC_ALL, MAGIC_ON, NUMBUFLEN, skip_regexp_ex};
+use crate::regexp::{Ctrl_H, Ctrl_V, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, skip_regexp_ex};
 use crate::register::{
     cmdline_paste_reg, get_expr_line, get_expr_register, get_spec_reg, is_literal_register,
     valid_yank_reg,
@@ -183,39 +183,29 @@ pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
 pub type hlf_T = c_int;
 pub type disptick_T = u64;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 pub use crate::cmdexpand::LineGetter;
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_KEEP};
 pub use crate::eval::typval::BoolVarValue;
 
-const kBoolVarFalse: BoolVarValue = 0;
-const kBoolVarTrue: BoolVarValue = 1;
-
-const NUL: c_char = 0;
-
-const Ctrl_A: c_int = 1;
-const Ctrl_B: c_int = 2;
-const Ctrl_C: c_int = 3;
-const Ctrl_D: c_int = 4;
-const Ctrl_F: c_int = 6;
-const Ctrl_G: c_int = 7;
-const Ctrl_H: c_int = 8;
-const Ctrl_K: c_int = 11;
-const Ctrl_L: c_int = 12;
-const Ctrl_N: c_int = 14;
-const Ctrl_O: c_int = 15;
-const Ctrl_P: c_int = 16;
-const Ctrl_Q: c_int = 17;
-const Ctrl_R: c_int = 18;
-const Ctrl_T: c_int = 20;
-const Ctrl_U: c_int = 21;
-const Ctrl_V: c_int = 22;
-const Ctrl_W: c_int = 23;
-const Ctrl_Z: c_int = 26;
-const Ctrl_BSL: c_int = 28;
-const Ctrl_RSB: c_int = 29;
-const Ctrl_HAT: c_int = 30;
-const Ctrl__: c_int = 31;
+pub(crate) const Ctrl_A: c_int = 1;
+pub(crate) const Ctrl_B: c_int = 2;
+pub(crate) const Ctrl_D: c_int = 4;
+pub(crate) const Ctrl_F: c_int = 6;
+pub(crate) const Ctrl_G: c_int = 7;
+pub(crate) const Ctrl_K: c_int = 11;
+pub(crate) const Ctrl_L: c_int = 12;
+pub(crate) const Ctrl_O: c_int = 15;
+pub(crate) const Ctrl_Q: c_int = 17;
+pub(crate) const Ctrl_R: c_int = 18;
+pub(crate) const Ctrl_T: c_int = 20;
+pub(crate) const Ctrl_U: c_int = 21;
+pub(crate) const Ctrl_W: c_int = 23;
+pub(crate) const Ctrl_Z: c_int = 26;
+pub(crate) const Ctrl_BSL: c_int = 28;
+pub(crate) const Ctrl_RSB: c_int = 29;
+pub(crate) const Ctrl_HAT: c_int = 30;
+pub(crate) const Ctrl__: c_int = 31;
 
 pub(crate) const KS_SELECT: c_int = 245;
 pub(crate) const K_SELECT: c_int = termcap2key(KS_SELECT, KE_FILLER as c_int);
@@ -225,12 +215,8 @@ const K_WILD: c_int = termcap2key(KS_EXTRA as c_int, KE_WILD as c_int);
 
 pub(crate) const ABBR_OFF: c_int = 0x100;
 
-const MAXCOL: colnr_T = 0x7fffffff;
-const MAXLNUM: linenr_T = 0x7fffffff;
-
 pub(crate) const B_IMODE_USE_INSERT: OptInt = -1;
 pub(crate) const B_IMODE_NONE: OptInt = 0;
-const B_IMODE_LMAP: OptInt = 1;
 
 const kOptWimFlagFull: u8 = 0x01;
 const kOptWimFlagLongest: u8 = 0x02;
@@ -242,9 +228,6 @@ const kOptWimFlagNoinsert: u8 = 0x20;
 pub(crate) const kOptBoFlagError: c_uint = 0x40;
 
 const kCpoEsc: c_int = b'x' as c_int;
-
-const kUICmdline: UIExtension = 0;
-const kUIMessages: UIExtension = 4;
 
 const kCmdRedrawNone: c_int = 0;
 const kCmdRedrawPos: c_int = 1;

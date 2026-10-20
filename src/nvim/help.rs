@@ -36,6 +36,7 @@ use crate::window::{WSP_BOT, WSP_HELP, WSP_TOP, win_close, win_enter, win_sethei
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::{IOSIZE, kOptBuftype};
 use crate::cmdexpand::TAG_MANY;
@@ -45,9 +46,7 @@ pub use crate::eval::vars::scid_T;
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
-
-const NUL: c_char = 0;
-const MAXCOL: c_int = 0x7fffffff;
+use crate::regexp::MAXCOL;
 
 pub(crate) const DT_HELP: c_int = 8;
 pub(crate) const TAG_HELP: c_int = 1;

@@ -11,7 +11,8 @@
 use crate::api::tabpage::{pos_T, win_T};
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
-    BF_NEVERLOADED, BF_NEW, bt_dontwrite, bt_prompt, buf_inc_changedtick, buf_meta_total,
+    BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_inc_changedtick, buf_meta_total,
+    kUIMessages,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
@@ -75,7 +76,7 @@ use std::ptr;
 
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::api::vim::BACKWARD;
 pub use crate::api::win_config::UIExtension;
@@ -83,7 +84,7 @@ use crate::arglist::ML_EMPTY;
 pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
 pub use crate::mbyte::GraphemeState;
-use crate::regexp::GRAPHEME_STATE_INIT;
+use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;
 pub const OPENLINE_DO_COM: c_int = 0x02;
@@ -93,19 +94,16 @@ pub const OPENLINE_COM_LIST: c_int = 0x10;
 pub const OPENLINE_FORMAT: c_int = 0x20;
 pub const OPENLINE_FORCE_INDENT: c_int = 0x40;
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
+pub(crate) const TAB: c_char = b'\t' as c_char;
 
-const MB_MAXCHAR: usize = 6;
+pub(crate) const MB_MAXCHAR: usize = 6;
 const JUMPLISTSIZE: c_int = 100;
 pub(crate) const COM_MAX_LEN: usize = 50;
 
 const COM_NEST: c_char = b'n' as c_char;
 const COM_BLANK: c_char = b'b' as c_char;
 pub(crate) const COM_START: c_char = b's' as c_char;
-const COM_MIDDLE: c_char = b'm' as c_char;
+pub(crate) const COM_MIDDLE: c_char = b'm' as c_char;
 pub(crate) const COM_END: c_char = b'e' as c_char;
 const COM_AUTO_END: c_char = b'x' as c_char;
 pub(crate) const COM_FIRST: c_char = b'f' as c_char;
@@ -126,8 +124,7 @@ pub(crate) const kCpoDollar: c_int = b'$' as c_int;
 pub(crate) const kCpoListwm: c_int = b'L' as c_int;
 const kFoNoOpenComs: c_int = b'/' as c_int;
 
-const HLF_W: c_int = 26;
-const kUIMessages: UIExtension = 4;
+pub(crate) const HLF_W: c_int = 26;
 
 const INIT_FMARKV: fmarkv_T = fmarkv_T {
     topline_offset: MAXLNUM,

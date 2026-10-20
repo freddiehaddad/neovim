@@ -18,15 +18,13 @@ use crate::lua::converter::{
 use crate::message::emsg;
 use crate::spell::{parse_spelllang, spell_check};
 use crate::strings::gettext;
-use std::ffi::{c_char, c_int};
+use std::ffi::c_int;
 use std::ptr;
 
+use crate::api::buffer::NUL;
+use crate::drawline::HLF_COUNT;
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 pub use crate::ex_getln::hlf_T;
-
-const NUL: c_char = 0;
-
-const HLF_COUNT: hlf_T = 76;
 
 /// Check spelling in `str` (`nlua_spell_check`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

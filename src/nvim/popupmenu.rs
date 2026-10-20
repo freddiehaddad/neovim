@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::nvim_buf_set_lines;
+use crate::api::buffer::{NUL, nvim_buf_set_lines};
 use crate::api::command::exarg_T;
 use crate::api::deprecated::{OPT_LOCAL, VirtText};
 use crate::api::private::helpers::{
@@ -17,20 +17,22 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{WinConfig, lpos_T, win_T};
-use crate::api::win_config::{UIExtension, kZIndexFloatDefault, parse_winborder};
+use crate::api::win_config::{kUIMultigrid, kZIndexFloatDefault, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
 use crate::charset::{transstr, vim_strsize};
-use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
-use crate::cursor::{colnr_T, linenr_T};
+use crate::cmdexpand::{
+    cmdline_compl_is_fuzzy, cmdline_compl_pattern, kUICmdline, kUIPopupmenu, kUIWildmenu,
+};
+use crate::cursor::linenr_T;
 use crate::drawscreen::{
-    UPD_NOT_VALID, UPD_SOME_VALID, conceal_cursor_line, redraw_later, setcursor_mayforce,
-    update_screen,
+    DEFAULT_GRID_HANDLE, UPD_NOT_VALID, UPD_SOME_VALID, conceal_cursor_line, redraw_later,
+    setcursor_mayforce, update_screen,
 };
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::typval::{tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
-use crate::ex_cmds::{ECMD_ONE, do_ecmd, prepare_tagpreview};
+use crate::ex_cmds::{Ctrl_C, ECMD_ONE, do_ecmd, prepare_tagpreview};
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::garray::{ga_clear, garray_T};
 use crate::globals::*;
@@ -77,11 +79,14 @@ use std::ptr;
 
 use crate::api::options::{kOptBufhidden, kOptBuftype, kOptSwapfile};
 use crate::api::vim::kOptCotFlagPopup;
+use crate::change::TAB;
 use crate::diff::kOptDiff;
+use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 pub use crate::ex_getln::hlf_T;
 use crate::math::OK;
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
+use crate::regexp::MAXCOL;
 use crate::state::MODE_CMDLINE;
 
 #[repr(C)]
@@ -105,12 +110,7 @@ pub struct PumWant {
     pub finish: bool,
 }
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const Ctrl_C: c_int = 3;
-const MAXCOL: colnr_T = 0x7fffffff;
 const PUM_DEF_HEIGHT: c_int = 10;
-const DEFAULT_GRID_HANDLE: c_int = 1;
 
 const CPT_ABBR: c_int = 0;
 const CPT_KIND: c_int = 1;
@@ -126,18 +126,10 @@ const HLF_PSX: hlf_T = 48;
 const HLF_PSB: hlf_T = 49;
 const HLF_PBR: hlf_T = 51;
 
-const kUICmdline: UIExtension = 0;
-const kUIPopupmenu: UIExtension = 1;
-const kUIWildmenu: UIExtension = 3;
-const kUIMultigrid: UIExtension = 6;
-
 const kZIndexPopupMenu: c_int = 100;
 const kZIndexCmdlinePopupMenu: c_int = 250;
 
 const kOptCotFlagPreview: c_uint = 0x800;
-
-const kBoolVarFalse: c_int = 0;
-const kBoolVarTrue: c_int = 1;
 
 const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,

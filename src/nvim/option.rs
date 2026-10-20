@@ -30,7 +30,7 @@ use crate::buffer::{
     BCO_ALWAYS, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL, OPT_MODELINE, bt_prompt, buf_is_empty,
     do_autochdir, free_buf_options, maketitle,
 };
-use crate::change::save_file_ff;
+use crate::change::{HLF_W, save_file_ff};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{
@@ -135,7 +135,7 @@ use crate::path::{
 };
 use crate::popupmenu::{pum_drawn, pum_redraw};
 use crate::quickfix::{ll_resize_stack, qf_resize_stack};
-use crate::regexp::{NUMBUFLEN, vim_regexec};
+use crate::regexp::{MAXCOL, NUMBUFLEN, vim_regexec};
 use crate::runtime::{DIP_ALL, runtimepath_default, source_runtime_vim_lua, sourcing_lnum};
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
@@ -166,6 +166,7 @@ pub type set_prefix_T = c_int;
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{
     OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
 };
@@ -182,9 +183,6 @@ use crate::file_search::{kBufOptIncludeexpr, kOptIncludeexpr};
 use crate::help::kOptIskeyword;
 use crate::insert::{BS_EOL, BS_NOSTOP, BS_START};
 use crate::state::MODE_TERMINAL;
-
-const NUL: c_char = 0;
-const MAXCOL: i32 = 0x7fffffff;
 
 const OPT_ONECOLUMN: c_int = 0x20;
 
@@ -469,7 +467,6 @@ const MAX_MCO: OptInt = 6;
 
 const B_IMODE_LAST: OptInt = 1;
 
-const HLF_W: c_int = 26;
 const Ctrl_C: OptInt = 3;
 
 #[cfg(unix)]

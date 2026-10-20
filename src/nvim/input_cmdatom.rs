@@ -31,9 +31,10 @@ use crate::input::{
 };
 use crate::insert::get_last_insert_save;
 use crate::keycodes::{
-    K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_HOME, K_IGNORE, K_LEFT, K_LEFTMOUSE, K_LEFTMOUSE_NM,
-    K_MIDDLEMOUSE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSERIGHT, K_MOUSEUP, K_RIGHT, K_RIGHTMOUSE,
-    K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, get_special_key_name, termcap2key,
+    CAR, DEL, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_HOME, K_IGNORE, K_LEFT, K_LEFTMOUSE,
+    K_LEFTMOUSE_NM, K_MIDDLEMOUSE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSERIGHT, K_MOUSEUP, K_RIGHT,
+    K_RIGHTMOUSE, K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, get_special_key_name,
+    termcap2key,
 };
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
@@ -66,10 +67,13 @@ pub use crate::os::time::Timestamp;
 pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::cmdexpand::MB_MAXBYTES;
 use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
-use crate::ex_getln::{K_EVENT, K_LUA};
+use crate::ex_getln::{
+    Ctrl_B, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_R, Ctrl_T, Ctrl_U, Ctrl_W, K_EVENT, K_LUA,
+};
 use crate::mapping::MAXMAPLEN;
-use crate::regexp::NUMBUFLEN;
+use crate::regexp::{Ctrl_H, Ctrl_V, NUMBUFLEN};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -90,22 +94,8 @@ pub struct cmdarg_T {
 }
 
 const NUL: c_int = 0;
-const Ctrl_D: c_int = 4;
-const Ctrl_F: c_int = 6;
-const Ctrl_G: c_int = 7;
-const Ctrl_H: c_int = 8;
 const NL: c_int = 10;
-const CAR: c_int = 13;
-const Ctrl_B: c_int = 2;
-const Ctrl_R: c_int = 18;
-const Ctrl_T: c_int = 20;
-const Ctrl_U: c_int = 21;
-const Ctrl_V: c_int = 22;
-const Ctrl_W: c_int = 23;
 const ESC: u8 = 27;
-const DEL: c_int = 0x7f;
-
-const MB_MAXBYTES: usize = 30;
 
 const NV_LANG: c_int = 0x08;
 const NV_NCH_ARG: c_int = 0x400;

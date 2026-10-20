@@ -24,12 +24,12 @@ use crate::autocmd::{
     block_autocmds, unblock_autocmds,
 };
 use crate::buffer::{
-    BF_NEW, BLN_DUMMY, BLN_NOOPT, DOBUF_UNLOAD, DOBUF_WIPE, GETF_SETMARK, GETF_SWITCH, NOTDONE,
-    VAR_FIXED, bt_help, bt_normal, bt_quickfix, buf_valid, buflist_findname_exp, buflist_findnr,
-    buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer, do_modelines,
-    kExtmarkNoUndo, no_write_message, set_bufref, setfname, wipe_buffer,
+    BF_NEW, BLN_DUMMY, BLN_NOOPT, DOBUF_UNLOAD, DOBUF_WIPE, GETF_SETMARK, GETF_SWITCH, MAXLNUM,
+    NOTDONE, VAR_FIXED, bt_help, bt_normal, bt_quickfix, buf_valid, buflist_findname_exp,
+    buflist_findnr, buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer,
+    do_modelines, kExtmarkNoUndo, no_write_message, set_bufref, setfname, wipe_buffer,
 };
-use crate::change::changed_lines;
+use crate::change::{TAB, changed_lines};
 use crate::charset::{ascii_iswhite, skipdigits, skipwhite, vim_isprintc};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch};
@@ -142,8 +142,8 @@ use std::ptr;
 
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::FORWARD;
 pub use crate::api::buffer::bcount_t;
+use crate::api::buffer::{FORWARD, NL, NUL};
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{BACKWARD, BCO_ENTER, BCO_NOHELP, HLF_N, MAXPATHL};
 use crate::cmdexpand::HLF_D;
@@ -157,9 +157,6 @@ pub use crate::os::time::time_t;
 pub use crate::search::Direction;
 use crate::viml::parser::parser::CONV_NONE;
 
-const NUL: c_char = 0;
-const TAB: c_char = 0x09;
-const NL: c_char = 0x0a;
 #[cfg(windows)]
 const CAR: c_char = 0x0d;
 
@@ -195,7 +192,6 @@ const QF_GETLIST_QFTF: c_int = 0x800;
 const QF_GETLIST_ALL: c_int = 0xFFF;
 
 pub(crate) const CMDBUFFSIZE: usize = 1024;
-const MAXLNUM: linenr_T = 0x7fffffff;
 
 const FORWARD_FILE: Direction = 3;
 const BACKWARD_FILE: Direction = -3;

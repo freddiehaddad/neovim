@@ -16,8 +16,8 @@ use crate::cursor::{coladvance, equalpos, get_cursor_pos_ptr, lt, ltoreq, set_le
 use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
 use crate::drawscreen::{
-    FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID, VALID_BOTLINE, redraw_curbuf_later, redraw_later,
-    redraw_statuslines, setcursor, update_screen,
+    DEFAULT_GRID_HANDLE, FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID, VALID_BOTLINE,
+    redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
 use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
@@ -32,7 +32,9 @@ use crate::input::{
     vpeekc, vungetc,
 };
 use crate::input_cmdatom::{CmdSpec, cmdarg_T};
-use crate::insert::{set_can_cindent, start_arrow, undisplay_dollar};
+use crate::insert::{
+    MOD_MASK_CTRL, MOD_MASK_SHIFT, set_can_cindent, start_arrow, undisplay_dollar,
+};
 use crate::keycodes::{
     K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_LEFTRELEASE, K_LEFTRELEASE_NM, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
@@ -61,7 +63,7 @@ use crate::plines::{
 use crate::popupmenu::pum_visible;
 use crate::register::{PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline};
 use crate::search::findmatch;
-use crate::state::{MODE_NORMAL, REPLACE_FLAG, virtual_active};
+use crate::state::{MODE_INSERT, MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
 use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
@@ -74,13 +76,16 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
-use crate::api::buffer::{FORWARD, VALID_BOTLINE_AP};
+use crate::api::buffer::{FORWARD, NUL, VALID_BOTLINE_AP};
 use crate::api::vim::{BACKWARD, kNone};
+use crate::cmdexpand::Ctrl_P;
 use crate::drawline::{VALID_CROW, VALID_WROW};
 pub use crate::eval::deprecated::EvalFuncData;
 use crate::eval::funcs::{kMTCharWise, kMTLineWise};
+use crate::ex_getln::{Ctrl_G, Ctrl_O, Ctrl_R, Ctrl_RSB, Ctrl_T};
 use crate::insexpand::kWinInfo;
 use crate::math::FAIL;
+use crate::regexp::Ctrl_V;
 pub use crate::search::Direction;
 
 pub const IN_UNKNOWN: c_int = 0;
@@ -113,28 +118,12 @@ pub const MSCR_UP: c_int = 1;
 pub const MSCR_LEFT: c_int = -1;
 pub const MSCR_RIGHT: c_int = -2;
 
-const NUL: c_char = 0;
-
-const Ctrl_G: c_int = 0x07;
-const Ctrl_O: c_int = 0x0f;
-const Ctrl_P: c_int = 0x10;
-const Ctrl_R: c_int = 0x12;
-const Ctrl_T: c_int = 0x14;
-const Ctrl_V: c_int = 0x16;
-const Ctrl_RSB: c_int = 0x1d;
-
-const MOD_MASK_SHIFT: c_int = 0x02;
-const MOD_MASK_CTRL: c_int = 0x04;
 const MOD_MASK_ALT: c_int = 0x08;
 const MOD_MASK_META: c_int = 0x10;
 const MOD_MASK_2CLICK: c_int = 0x20;
 const MOD_MASK_3CLICK: c_int = 0x40;
 const MOD_MASK_4CLICK: c_int = 0x60;
 const MOD_MASK_MULTI_CLICK: c_int = MOD_MASK_2CLICK | MOD_MASK_3CLICK | MOD_MASK_4CLICK;
-
-const MODE_INSERT: c_int = 0x10;
-
-const DEFAULT_GRID_HANDLE: c_int = 1;
 
 pub(crate) const kMouseVisual: c_int = b'v' as c_int;
 const ZERO_POS: pos_T = pos_T {

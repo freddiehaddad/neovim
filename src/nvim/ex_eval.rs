@@ -41,7 +41,6 @@ use std::ptr;
 
 pub use crate::option::OptInt;
 
-const NUL: c_char = 0;
 const CSTACK_LEN: usize = 50;
 
 const CMD_else: c_int = 142;
@@ -162,6 +161,7 @@ pub struct exception_state_T {
     pub estate_did_emsg: c_int,
 }
 
+use crate::api::buffer::NUL;
 use crate::api::options::IOSIZE;
 pub use crate::eval::vars::evalarg_T;
 use crate::math::{FAIL, OK};

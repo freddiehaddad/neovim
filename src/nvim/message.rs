@@ -15,8 +15,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::vim::{HLF_N, HlMessage, HlMessageChunk, MessageData, kFalse, kTrue};
-use crate::api::win_config::UIExtension;
-use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_T, apply_autocmds_group, has_event};
+use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
     ascii_iswhite, ascii2cells, char2cells, k_second, skipwhite, transchar_buf, transchar_byte_buf,
     vim_isprintc, vim_strsize,
@@ -99,19 +98,11 @@ use std::ptr;
 pub type MsgID = Object;
 pub use crate::option::OptInt;
 
-const NUL: c_char = 0;
 const BELL: c_int = 0x07;
 
 pub(crate) const kZIndexMessages: c_int = 200;
-const kUIMessages: UIExtension = 4;
-const kUIMultigrid: UIExtension = 6;
 
-const MB_MAXCHAR: usize = 6;
-const MB_MAXBYTES: usize = 30;
-
-const HLF_8: c_int = 1;
 pub(crate) const HLF_M: c_int = 10;
-const HLF_W: c_int = 26;
 const HLF_MSG: c_int = 63;
 
 const kOptBoFlagMess: c_uint = 0x1000;
@@ -125,10 +116,6 @@ const KEYSET_OPTIDX_mopt__wait: u32 = 1;
 const KEYSET_OPTIDX_mopt__history: u32 = 3;
 
 const PROGRESS_TARGET_CMD: c_int = 0x01;
-
-const Ctrl_B: c_int = 2;
-const Ctrl_C: c_int = 3;
-const Ctrl_F: c_int = 6;
 
 const VERBOSE_KIND: &CStr = c"verbose";
 
@@ -433,12 +420,17 @@ macro_rules! swmsg {
     }};
 }
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::NUL;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::win_config::kUIMultigrid;
+use crate::buffer::kUIMessages;
+use crate::change::{HLF_W, MB_MAXCHAR};
+use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_0, HLF_AT};
 use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::ex_cmds::HLF_R;
-use crate::ex_getln::K_EVENT;
+use crate::ex_cmds::{Ctrl_C, HLF_R};
+use crate::ex_getln::{Ctrl_B, Ctrl_F, K_EVENT};
 pub use swmsg;
 
 #[inline]

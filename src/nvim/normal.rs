@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::exarg_T;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
@@ -18,19 +18,19 @@ use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::buffer::{
-    GETF_ALT, GETF_SETMARK, buf_get_changedtick, buf_hide, buflist_getfile, fileinfo,
-    kOptJopFlagView, kShmFileinfo, modifiable,
+    GETF_ALT, GETF_SETMARK, MAXLNUM, buf_get_changedtick, buf_hide, buflist_getfile, fileinfo,
+    kOptJopFlagView, kShmFileinfo, kUIMessages, modifiable,
 };
 use crate::change::{
-    COM_MAX_LEN, ML_DEL_MESSAGE, OPENLINE_DO_COM, changed_lines, del_chars, deleted_lines,
-    get_leader_len, ins_char, ins_char_bytes, kOptVeFlagOnemore, open_line,
+    COM_MAX_LEN, MB_MAXCHAR, ML_DEL_MESSAGE, OPENLINE_DO_COM, changed_lines, del_chars,
+    deleted_lines, get_leader_len, ins_char, ins_char_bytes, kOptVeFlagOnemore, open_line,
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, skipwhite, transchar, vim_isprintc,
     vim_iswordp, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
-use crate::cmdexpand::{RE_LAST, SEARCH_OPT, SEARCH_START};
+use crate::cmdexpand::{Ctrl_N, Ctrl_P, RE_LAST, SEARCH_OPT, SEARCH_START};
 use crate::cmdhist::{HIST_SEARCH, add_to_history, init_history};
 use crate::cursor::{
     adjust_cursor_col, check_cursor, check_cursor_col, check_cursor_lnum, clearpos, coladvance,
@@ -40,11 +40,11 @@ use crate::cursor::{
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::{diff_move_to, diff_set_topline, ex_diffupdate, nv_diffgetput};
-use crate::digraph::get_digraph;
+use crate::digraph::{get_digraph, kBoolVarFalse, kBoolVarTrue};
 use crate::drawline::{SMT_ALL, VALID_CROW, VALID_WCOL};
 use crate::drawscreen::{
-    GETVCOL_END_EXCL_LBR, UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID,
-    conceal_check_cursor_line, kOptVeFlagBlock, redraw_curbuf_later, redraw_later,
+    GETVCOL_END_EXCL_LBR, HLF_MSG, UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID,
+    UPD_VALID, conceal_check_cursor_line, kOptVeFlagBlock, redraw_curbuf_later, redraw_later,
     redraw_statuslines, setcursor, show_cursor_info_later, showmode, update_screen,
     win_cursorline_standout,
 };
@@ -56,7 +56,8 @@ use crate::eval::kMarkAll;
 use crate::eval::typval::tv_clear;
 use crate::eval::vars::{VV_OP, set_reg_var, set_vcount, set_vim_var_string};
 use crate::ex_cmds::{
-    BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y, ECMD_HIDE, ECMD_LAST, do_ascii, do_ecmd,
+    B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y, ECMD_HIDE, ECMD_LAST, do_ascii,
+    do_ecmd,
 };
 use crate::ex_cmds2::autowrite;
 use crate::ex_docmd::{
@@ -65,8 +66,10 @@ use crate::ex_docmd::{
 };
 use crate::ex_eval::discard_current_exception;
 use crate::ex_getln::{
-    K_EVENT, K_LUA, K_SELECT, VSE_NONE, cmdwin_do_action, compute_cmdrow, curbuf_locked,
-    getcmdline, getexline, text_locked, text_locked_msg, vim_strsave_fnameescape,
+    Ctrl__, Ctrl_A, Ctrl_B, Ctrl_BSL, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K, Ctrl_L, Ctrl_O,
+    Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_W, Ctrl_Z, K_EVENT, K_LUA, K_SELECT, VSE_NONE,
+    cmdwin_do_action, compute_cmdrow, curbuf_locked, getcmdline, getexline, text_locked,
+    text_locked_msg, vim_strsave_fnameescape,
 };
 use crate::file_search::grab_file_name;
 use crate::fileio::check_timestamps;
@@ -91,10 +94,11 @@ use crate::input_cmdatom::{
     atom_visual_end, cmdarg_T, kVInsNone,
 };
 use crate::insert::{
-    beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner, edit, get_literal,
-    ins_copychar, kOptFdoFlagAll, kOptFdoFlagHor, oneleft, oneright, prompt_curpos_editable,
-    set_last_insert,
+    Ctrl_S, Ctrl_X, MOD_MASK_CTRL, beginline, cursor_down, cursor_down_inner, cursor_up,
+    cursor_up_inner, edit, get_literal, ins_copychar, kOptFdoFlagAll, kOptFdoFlagHor, oneleft,
+    oneright, prompt_curpos_editable, set_last_insert,
 };
+use crate::insexpand::Ctrl_I;
 use crate::keycodes::{
     CAR, DEL, ESC, K_BS, K_C_END, K_C_HOME, K_C_LEFT, K_C_RIGHT, K_COMMAND, K_DEL, K_DOWN, K_END,
     K_F1, K_HELP, K_HOME, K_IGNORE, K_INS, K_KDEL, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KPAGEDOWN,
@@ -156,6 +160,7 @@ use crate::plines::{
 };
 use crate::profile::{time_finish, time_msg};
 use crate::quickfix::qf_view_result;
+use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
 use crate::register::{
     PUT_BLOCK_INNER, PUT_CURSEND, PUT_FIXINDENT, PUT_LINE, PUT_LINE_FORWARD, PUT_LINE_SPLIT,
     copy_register, do_execreg, do_put, do_record, free_register, get_default_register_name,
@@ -229,47 +234,7 @@ pub const REPLACE_NL_NCHAR: c_int = -2;
 pub const SHOWCMD_COLS: usize = 10;
 pub const SHOWCMD_BUFLEN: usize = SHOWCMD_COLS + 1 + 30;
 
-const NUL: c_char = 0;
 const POUND: c_int = 0xA3;
-
-const Ctrl_A: c_int = 1;
-const Ctrl_B: c_int = 2;
-const Ctrl_C: c_int = 3;
-const Ctrl_D: c_int = 4;
-const Ctrl_F: c_int = 6;
-const Ctrl_G: c_int = 7;
-const Ctrl_H: c_int = 8;
-const Ctrl_I: c_int = 9;
-const Ctrl_K: c_int = 11;
-const Ctrl_L: c_int = 12;
-const Ctrl_N: c_int = 14;
-const Ctrl_O: c_int = 15;
-const Ctrl_P: c_int = 16;
-const Ctrl_Q: c_int = 17;
-const Ctrl_R: c_int = 18;
-const Ctrl_S: c_int = 19;
-const Ctrl_T: c_int = 20;
-const Ctrl_U: c_int = 21;
-const Ctrl_V: c_int = 22;
-const Ctrl_W: c_int = 23;
-const Ctrl_X: c_int = 24;
-const Ctrl_Z: c_int = 26;
-const Ctrl_BSL: c_int = 28;
-const Ctrl_RSB: c_int = 29;
-const Ctrl_HAT: c_int = 30;
-const Ctrl__: c_int = 31;
-
-const MOD_MASK_CTRL: c_int = 0x04;
-
-const MAXCOL: colnr_T = 0x7fffffff;
-const MAXLNUM: linenr_T = 0x7fffffff;
-
-const kBoolVarFalse: c_int = 0;
-const kBoolVarTrue: c_int = 1;
-
-const kUIMessages: c_int = 4;
-
-const B_IMODE_LMAP: i64 = 1;
 
 pub(crate) const kOptFoldenable: OptIndex = 103;
 pub(crate) const kOptFoldlevel: OptIndex = 106;
@@ -292,11 +257,7 @@ const kOptFdoFlagPercent: c_uint = 0x10;
 pub(crate) const kOptFdoFlagSearch: c_uint = 0x40;
 const kOptFdoFlagJump: c_uint = 0x400;
 
-const MB_MAXCHAR: usize = 6;
-
 const KMarkNoContext: c_int = 4;
-
-const HLF_MSG: usize = 63;
 
 pub(crate) const FM_FORWARD: c_int = 0x02;
 pub(crate) const SEARCH_REV: c_int = 0x01;

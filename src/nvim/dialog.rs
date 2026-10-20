@@ -17,6 +17,8 @@ use crate::globals::*;
 #[cfg(not(test))]
 use crate::input::ins_typebuf;
 #[cfg(not(test))]
+use crate::keycodes::{CAR, ESC};
+#[cfg(not(test))]
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
 #[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
@@ -39,10 +41,6 @@ const DLG_HOTKEY_CHAR: u8 = b'&';
 
 #[cfg(not(test))]
 const CTRL_C: c_int = 0x03;
-#[cfg(not(test))]
-const CAR: c_int = 0x0d;
-#[cfg(not(test))]
-const ESC: c_int = 0x1b;
 
 #[cfg(not(test))]
 const K_UI_MESSAGES: c_int = 4;

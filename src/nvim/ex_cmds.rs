@@ -27,12 +27,13 @@ use crate::autocmd::{
 use crate::buffer::{
     BF_CHECK_RO, BF_NEVERLOADED, BF_NEW, BF_NOTEDITED, BF_READERR, BFA_KEEP_UNDO, BLN_CURBUF,
     BLN_LISTED, BLN_NOCURWIN, DOBUF_UNLOAD, GETFILE_ERROR, GETFILE_NOT_WRITTEN, GETFILE_OPEN_OTHER,
-    GETFILE_SAME_FILE, KEYMAP_INIT, SEA_DIALOG, SEA_QUIT, bt_dontwrite, bt_nofilename,
+    GETFILE_SAME_FILE, KEYMAP_INIT, MAXLNUM, SEA_DIALOG, SEA_QUIT, bt_dontwrite, bt_nofilename,
     buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed, buflist_altfpos,
     buflist_findfmark, buflist_findname, buflist_findnr, buflist_new, bufref_T, bufref_valid,
     close_buffer, do_autochdir, do_modelines, fileinfo, fname_expand, get_winopts,
-    handle_swap_exists, kCdCauseBuffer, kShmFileinfo, maketitle, modifiable, no_write_message,
-    no_write_message_buf, open_buffer, otherfile, set_buflisted, set_bufref, setaltfname, setfname,
+    handle_swap_exists, kCdCauseBuffer, kShmFileinfo, kUIMessages, maketitle, modifiable,
+    no_write_message, no_write_message_buf, open_buffer, otherfile, set_buflisted, set_bufref,
+    setaltfname, setfname,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::bufwrite::buf_write;
@@ -125,9 +126,9 @@ use crate::path::{fix_fname, invocation_path_tail, path_fix_case};
 use crate::plines::{linetabsize_col, plines_m_win_fill};
 use crate::profile::{profile_passed_limit, profile_setlimit, profile_zero, proftime_T};
 use crate::regexp::{
-    RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, re_multiline, regtilde, skip_regexp,
-    skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
-    vim_regsub_multi,
+    MAXCOL, RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, re_multiline, regtilde,
+    skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi,
+    vim_regfree, vim_regsub_multi,
 };
 use crate::search::{get_search_pat, last_search_pat, save_re_pat, search_regcomp};
 use crate::shada::SubReplacementString;
@@ -156,7 +157,7 @@ use crate::charset::rem_backslash;
 #[cfg(unix)]
 use crate::os::fs::{NODE_OTHER, os_nodetype};
 
-use crate::api::buffer::{kExtmarkNOOP, kExtmarkUndo};
+use crate::api::buffer::{NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::options::{IOSIZE, SID_NONE};
 use crate::api::vim::{BCO_ENTER, HLF_N, MAXPATHL};
 pub use crate::api::win_config::UIExtension;
@@ -168,14 +169,10 @@ pub use crate::extmark::ExtmarkOp;
 pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
 
-const NUL: c_char = 0;
-
-const Ctrl_C: c_int = 3;
+pub(crate) const Ctrl_C: c_int = 3;
 pub(crate) const Ctrl_E: c_int = 5;
 pub(crate) const Ctrl_Y: c_int = 25;
 
-const MAXCOL: colnr_T = 0x7fffffff;
-const MAXLNUM: linenr_T = 0x7fffffff;
 pub(crate) const DIALOG_MSG_SIZE: usize = 1000;
 
 pub(crate) const BL_WHITE: c_int = 1;
@@ -193,8 +190,6 @@ pub(crate) const EXFLAG_PRINT: c_int = 0x04;
 pub(crate) const kShellOptRead: c_int = 16;
 pub(crate) const kShellOptWrite: c_int = 32;
 
-const kUIMessages: UIExtension = 4;
-
 pub(crate) const HLF_R: c_int = 18;
 
 pub(crate) const kShmOverall: c_int = b'O' as c_int;
@@ -205,7 +200,7 @@ const kCpoRemmark: c_int = b'R' as c_int;
 pub(crate) const kCpoUndo: c_int = b'u' as c_int;
 
 pub(crate) const OPT_WINONLY: c_int = 0x08;
-const B_IMODE_LMAP: OptInt = 1;
+pub(crate) const B_IMODE_LMAP: OptInt = 1;
 pub(crate) const kWinPreview: c_int = 2;
 
 pub(crate) const kOptFoldcolumn: OptIndex = 102;

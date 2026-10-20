@@ -87,8 +87,6 @@ pub use crate::fileio::{FILE, off_T};
 pub type CheckItem =
     Option<unsafe extern "C" fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
 
-const NUL: c_char = 0;
-const NL: c_char = b'\n' as c_char;
 const MAXLNUM: i64 = 0x7fffffff;
 
 pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
@@ -117,6 +115,7 @@ const S_IFSOCK_VAL: u64 = 0xC000;
 
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
 
+use crate::api::buffer::{NL, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::{MAXPATHL, kCdScopeGlobal};

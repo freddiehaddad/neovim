@@ -58,7 +58,6 @@ pub type cmdidx_T = c_int;
 pub use crate::api::autocmd::event_T;
 pub use crate::cmdexpand::cmd_addr_T;
 
-const NUL: c_char = 0;
 pub(crate) const UC_BUFFER: c_int = 1;
 
 const CMD_iput: cmdidx_T = 200;
@@ -188,7 +187,7 @@ pub struct exarg_T {
     pub magic: ExMagic,
 }
 
-use crate::api::buffer::LUA_NOREF;
+use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::math::{FAIL, OK};
 pub use crate::regexp::regmatch_T;

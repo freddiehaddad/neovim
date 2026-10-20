@@ -80,6 +80,7 @@ const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
+use crate::api::buffer::NUL;
 use crate::api::deprecated::{
     OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
 };
@@ -132,8 +133,6 @@ pub struct KeyDict_option {
     pub operation: NvimString,
     pub dry_run: Boolean,
 }
-
-const NUL: c_char = 0;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

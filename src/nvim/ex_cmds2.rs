@@ -10,7 +10,7 @@
 
 use crate::api::command::{CMOD_CONFIRM, cmdidx_T, exarg_T};
 use crate::api::options::CtxSwitch;
-use crate::api::win_config::{UIExtension, bufref_T};
+use crate::api::win_config::bufref_T;
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
     do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
@@ -20,11 +20,11 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, buf_hide, buf_set_name, buf_spname,
-    buflist_findnr, bufref_valid, first_win_in_tab, goto_buffer, no_write_message,
+    buflist_findnr, bufref_valid, first_win_in_tab, goto_buffer, kUIMessages, no_write_message,
     no_write_message_nobang, set_bufref, set_curbuf,
 };
 use crate::bufwrite::buf_write;
-use crate::change::unchanged;
+use crate::change::{HLF_W, unchanged};
 use crate::channel::channel_job_running;
 use crate::context::{ctx_restore, ctx_switch};
 use crate::dialog::{
@@ -63,21 +63,16 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub use crate::api::autocmd::event_T;
-use crate::api::buffer::FORWARD;
+use crate::api::buffer::{FORWARD, NUL};
 use crate::api::vim::MAXPATHL;
 pub use crate::cursor::linenr_T;
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::funcs::VIM_QUESTION;
 use crate::math::{FAIL, OK};
 
-const NUL: c_char = 0;
 const MAXLNUM: usize = 0x7fffffff;
 
 const CCGD_ALLBUF: c_int = 8;
-
-const kUIMessages: UIExtension = 4;
-
-const HLF_W: c_int = 26;
 
 const CMD_bufdo: cmdidx_T = 42;
 pub(crate) const CMD_cdo: cmdidx_T = 64;

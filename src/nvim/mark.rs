@@ -14,8 +14,8 @@ use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, Obje
 use crate::api::tabpage::{win_T, winopt_T, xfmark_T};
 use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
-    GETF_SETMARK, NMARKS, bt_prompt, buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name,
-    first_win_in_tab, kMarkAdjustNormal,
+    GETF_SETMARK, MAXLNUM, NMARKS, bt_prompt, buflist_findnr, buflist_getfile, buflist_new,
+    buflist_nr2name, first_win_in_tab, kMarkAdjustNormal,
 };
 use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::clipboard::list_T;
@@ -63,16 +63,17 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
-use crate::api::buffer::{FORWARD, kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
+use crate::api::buffer::{FORWARD, NUL, kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
 use crate::api::options::IOSIZE;
 use crate::api::vim::{BACKWARD, MAXPATHL};
+use crate::change::TAB;
 use crate::cmdexpand::HLF_D;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
 pub use crate::path::PathCmpFlags;
-use crate::regexp::kMarkBufLocal;
+use crate::regexp::{MAXCOL, kMarkBufLocal};
 
 #[repr(C)]
 pub struct WinInfo {
@@ -84,11 +85,6 @@ pub struct WinInfo {
     pub wi_folds: garray_T,
     pub wi_changelistidx: c_int,
 }
-
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXCOL: colnr_T = 0x7fffffff;
 
 pub(crate) const EXTRA_MARKS: usize = 10;
 const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;

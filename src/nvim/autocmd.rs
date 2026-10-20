@@ -10,6 +10,7 @@
 )]
 
 use crate::api::autocmd::{AutoCmd, AutoCmdVec, AutoPat, Buffer, event_T, kCallbackLua};
+use crate::api::buffer::NUL;
 use crate::api::command::exarg_T;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::{CtxSwitch, SID_NONE};
@@ -90,7 +91,6 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-const NUL: c_char = 0;
 pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
 
 pub const AUGROUP_DEFAULT: c_int = -1;
@@ -108,7 +108,7 @@ pub(crate) const DOCMD_REPEAT: c_int = 0x04;
 
 pub(crate) const PROF_YES: c_int = 1;
 
-const HLF_8: c_int = 1;
+pub(crate) const HLF_8: c_int = 1;
 pub(crate) const HLF_T: c_int = 23;
 
 pub const EVENT_BUFADD: event_T = 0;

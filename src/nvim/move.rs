@@ -52,7 +52,7 @@ use crate::winfloat::win_check_anchored_floats;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::{FORWARD, VALID_BOTLINE_AP};
+use crate::api::buffer::{FORWARD, NUL, VALID_BOTLINE_AP};
 use crate::api::vim::BACKWARD;
 use crate::drawline::{
     VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
@@ -61,10 +61,9 @@ pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
+use crate::regexp::MAXCOL;
 pub use crate::search::Direction;
 
-const NUL: c_char = 0;
-const MAXCOL: colnr_T = 0x7fffffff;
 const SIGN_WIDTH: c_int = 2;
 
 #[repr(C)]

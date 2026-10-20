@@ -18,7 +18,7 @@ use crate::charset::{
     ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite, vim_strsize,
 };
 use crate::clipboard::{VarType, listitem_T, typval_T};
-use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, exarg_T};
+use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, exarg_T, kUICmdline};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
@@ -27,8 +27,8 @@ use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::funcs::{
-    TFN_INT, TFN_NO_DEREF, call_internal_func, call_internal_method, check_internal_func,
-    find_internal_func,
+    MAX_FUNC_ARGS, TFN_INT, TFN_NO_DEREF, call_internal_func, call_internal_method,
+    check_internal_func, find_internal_func,
 };
 use crate::eval::typval::{
     TV_CSTRING, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
@@ -40,11 +40,12 @@ use crate::eval::vars::{
     init_var_dict, list_hashtable_vars, lval_T, skip_var_list, vars_clear, vars_clear_ext,
 };
 use crate::eval::{
-    EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET,
-    VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, clear_lval, eval_isnamec,
-    eval_isnamec1, eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end,
-    garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
-    partial_name, partial_unref, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
+    AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
+    TFN_QUIET, VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, clear_lval,
+    eval_isnamec, eval_isnamec1, eval_lavars_used, eval0, eval1, fill_evalarg_from_eap,
+    find_name_end, garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc,
+    last_set_msg, partial_name, partial_unref, set_ref_in_ht, set_ref_in_item,
+    set_ref_in_list_items, skip_expr,
 };
 use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
 use crate::ex_eval::{
@@ -108,7 +109,7 @@ pub type FnameTransError = c_int;
 pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
 pub type ArgvFunc =
     Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
-use crate::api::buffer::LUA_NOREF;
+use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
@@ -134,19 +135,13 @@ pub const FCERR_OTHER: c_int = 6;
 pub const FCERR_DELETED: c_int = 7;
 pub const FCERR_NOTMETHOD: c_int = 8;
 
-const NUL: c_char = 0;
 const FLEN_FIXED: usize = 40;
 const MAX_FUNC_NESTING: c_int = 50;
-const MAX_FUNC_ARGS: usize = 20;
 pub(crate) const VAR_SHORT_LEN: usize = 20;
 pub(crate) const FIXVAR_CNT: usize = 12;
 
 pub(crate) const MSG_BUF_LEN: usize = 480;
 const MSG_BUF_CLEN: c_int = (MSG_BUF_LEN / 6) as c_int;
-
-const AUTOLOAD_CHAR: c_char = b'#' as c_char;
-
-const kUICmdline: c_int = 0;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

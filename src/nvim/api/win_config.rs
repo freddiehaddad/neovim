@@ -68,8 +68,7 @@ pub use crate::api::autocmd::event_T;
 pub use crate::api::command::cmdidx_T;
 pub type UIExtension = c_int;
 
-const NUL: c_char = 0;
-const kUIMultigrid: UIExtension = 6;
+pub(crate) const kUIMultigrid: UIExtension = 6;
 pub(crate) const kZIndexFloatDefault: c_int = 50;
 
 pub(crate) const FR_COL: c_char = 2;
@@ -127,6 +126,7 @@ const KEYSET_OPTIDX_win_config__title_pos: u64 = 22;
 const KEYSET_OPTIDX_win_config__footer_pos: u64 = 23;
 const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
 
+use crate::api::buffer::NUL;
 pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 

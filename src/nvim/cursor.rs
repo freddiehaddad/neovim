@@ -8,8 +8,9 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::NUL;
 use crate::api::tabpage::win_T;
-use crate::change::{inserted_bytes, kOptVeFlagOnemore};
+use crate::change::{TAB, inserted_bytes, kOptVeFlagOnemore};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::fold::{hasAnyFolding, hasFolding};
@@ -28,7 +29,8 @@ use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg, linetabsize,
     linetabsize_eol, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
 };
-use crate::state::{MODE_TERMINAL, virtual_active};
+use crate::regexp::MAXCOL;
+use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
@@ -63,13 +65,7 @@ pub const fn ltoreq(a: pos_T, b: pos_T) -> bool {
     lt(a, b) || equalpos(a, b)
 }
 
-const NUL: c_char = 0;
-const TAB: c_char = b'\t' as c_char;
-const MAXCOL: colnr_T = 0x7fffffff;
-
 pub(crate) const VALID_VIRTCOL: c_int = 0x04;
-
-const MODE_INSERT: c_int = 0x10;
 
 pub(crate) const kOptVeFlagAll: c_uint = 0x04;
 
