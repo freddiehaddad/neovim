@@ -189,7 +189,7 @@ set(NVIM_RUNTIME_DIR ${PROJECT_SOURCE_DIR}/runtime)
 # GENERATOR_DIR
 set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
 
-file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.h)
+file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.rs)
 
 target_include_directories(main_lib INTERFACE
   "${PROJECT_SOURCE_DIR}/src")
@@ -205,7 +205,6 @@ endif()
 
 foreach(subdir
         os
-        api
         api/private
         msgpack_rpc
         tui

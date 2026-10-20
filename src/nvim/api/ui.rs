@@ -1,6 +1,9 @@
 //! Remote UI API and msgpack redraw packing (`src/nvim/api/ui.c`).
 
 #![allow(
+    clippy::doc_lazy_continuation,
+    clippy::doc_overindented_list_items,
+    clippy::empty_line_after_doc_comments,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -191,6 +194,11 @@ unsafe fn remote_ui_destroy(ui: *mut RemoteUI) {
     }
 }
 
+/// Removes the client on the given channel from the list of UIs.
+///
+/// @param err  if non-NULL and there is no UI on the channel, set an error
+/// @param send_error_exit  send an "error_exit" event with 0 status first
+// DLLEXPORT void remote_ui_disconnect(uint64_t channel_id, Error *err, bool send_error_exit);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_disconnect(
     channel_id: u64,
@@ -223,6 +231,12 @@ pub unsafe extern "C" fn remote_ui_disconnect(
     }
 }
 
+/// Detaches the UI on channel `chan` (server keeps running). Sets `channel.detach`, sends an
+/// "error_exit" UI event, and closes the channel.
+///
+/// @param chan  UI channel to disconnect.
+/// @param[out] err Error details, if any.
+// DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_detach_channel(chan: u64, err: *mut Error) {
     unsafe {
@@ -251,6 +265,11 @@ pub unsafe extern "C" fn ui_detach_channel(chan: u64, err: *mut Error) {
     }
 }
 
+/// Detaches every UI except `keep_chan` (server keeps running).
+///
+/// @param keep_chan  UI channel to preserve.
+/// @return Number of UIs detached.
+// DLLEXPORT size_t ui_detach_others(uint64_t keep_chan);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_detach_others(keep_chan: u64) -> usize {
     unsafe {
@@ -282,6 +301,7 @@ pub unsafe extern "C" fn ui_detach_others(keep_chan: u64) -> usize {
     }
 }
 
+// DLLEXPORT void remote_ui_free_all_mem(void);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_free_all_mem() {
     unsafe {
@@ -310,6 +330,8 @@ pub unsafe extern "C" fn remote_ui_free_all_mem() {
     }
 }
 
+/// Wait until UI has connected.
+// DLLEXPORT void remote_ui_wait_for_attach(void);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_wait_for_attach() {
     unsafe {
@@ -325,6 +347,23 @@ pub unsafe extern "C" fn remote_ui_wait_for_attach() {
     }
 }
 
+/// Activates UI events on the channel.
+///
+/// Entry point of all UI clients.  Allows |--embed| to continue startup.
+/// Implies that the client is ready to show the UI.  Adds the client to the
+/// list of UIs. |nvim_list_uis()|
+///
+/// @note If multiple UI clients are attached, the global screen dimensions
+///       degrade to the smallest client. E.g. if client A requests 80x40 but
+///       client B requests 200x100, the global screen has size 80x40.
+///
+/// @param channel_id
+/// @param width  Requested screen columns
+/// @param height  Requested screen rows
+/// @param options  |ui-option| map
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_ui_attach(uint64_t channel_id, Integer width, Integer height, Dict options,
+//                               Error *err) FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_attach(
     channel_id: u64,
@@ -424,6 +463,9 @@ pub unsafe extern "C" fn nvim_ui_attach(
     }
 }
 
+/// @deprecated
+// DLLEXPORT void ui_attach(uint64_t channel_id, Integer width, Integer height, Boolean enable_rgb,
+//                          Error *err) FUNC_API_DEPRECATED_SINCE(1);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_attach(
     channel_id: u64,
@@ -446,6 +488,9 @@ pub unsafe extern "C" fn ui_attach(
     }
 }
 
+/// Tells the nvim server if focus was gained or lost by the GUI
+// DLLEXPORT void nvim_ui_set_focus(uint64_t channel_id, Boolean gained, Error *error)
+//   FUNC_API_SINCE(11) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: *mut Error) {
     unsafe {
@@ -460,6 +505,14 @@ pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, err
     }
 }
 
+/// Deactivates UI events on the channel.
+///
+/// Removes the client from the list of UIs. |nvim_list_uis()|
+///
+/// @param channel_id
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_ui_detach(uint64_t channel_id, Error *err)
+//   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_detach(channel_id: u64, err: *mut Error) {
     unsafe {
@@ -467,6 +520,7 @@ pub unsafe extern "C" fn nvim_ui_detach(channel_id: u64, err: *mut Error) {
     }
 }
 
+// DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_connect(
     channel_id: u64,
@@ -488,6 +542,8 @@ pub unsafe extern "C" fn remote_ui_connect(
     }
 }
 
+/// Sends a "restart" event to all UIs. (Not autogenerated because `chan_config` is per-channel.)
+// DLLEXPORT void remote_ui_restart(String listen_addr);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_restart(listen_addr: NvimString) {
     unsafe {
@@ -518,6 +574,8 @@ pub unsafe extern "C" fn remote_ui_restart(listen_addr: NvimString) {
     }
 }
 
+// DLLEXPORT void nvim_ui_try_resize(uint64_t channel_id, Integer width, Integer height, Error *err)
+//   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_try_resize(
     channel_id: u64,
@@ -544,6 +602,8 @@ pub unsafe extern "C" fn nvim_ui_try_resize(
     }
 }
 
+// DLLEXPORT void nvim_ui_set_option(uint64_t channel_id, String name, Object value, Error *error)
+//   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_set_option(
     channel_id: u64,
@@ -733,6 +793,19 @@ unsafe fn ui_set_option(
     }
 }
 
+/// Tell Nvim to resize a grid. Triggers a grid_resize event with the requested
+/// grid size or the maximum size if it exceeds size limits.
+///
+/// On invalid grid handle, fails with error.
+///
+/// @param channel_id
+/// @param grid    The handle of the grid to be changed.
+/// @param width   The new requested width.
+/// @param height  The new requested height.
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_ui_try_resize_grid(uint64_t channel_id, Integer grid, Integer width,
+//                                        Integer height, Error *err)
+//   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_try_resize_grid(
     channel_id: u64,
@@ -753,6 +826,14 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
     }
 }
 
+/// Tells Nvim the number of elements displaying in the popupmenu, to decide
+/// [<PageUp>] and [<PageDown>] movement.
+///
+/// @param channel_id
+/// @param height  Popupmenu height, must be greater than zero.
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_ui_pum_set_height(uint64_t channel_id, Integer height, Error *err)
+//   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: *mut Error) {
     unsafe {
@@ -780,6 +861,25 @@ pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer
     }
 }
 
+/// Tells Nvim the geometry of the popupmenu, to align floating windows with an
+/// external popup menu.
+///
+/// Note that this method is not to be confused with |nvim_ui_pum_set_height()|,
+/// which sets the number of visible items in the popup menu, while this
+/// function sets the bounding box of the popup menu, including visual
+/// elements such as borders and sliders. Floats need not use the same font
+/// size, nor be anchored to exact grid corners, so one can set floating-point
+/// numbers to the popup menu geometry.
+///
+/// @param channel_id
+/// @param width   Popupmenu width.
+/// @param height  Popupmenu height.
+/// @param row     Popupmenu row.
+/// @param col     Popupmenu height.
+/// @param[out] err Error details, if any.
+// DLLEXPORT void nvim_ui_pum_set_bounds(uint64_t channel_id, Float width, Float height, Float row,
+//                                       Float col, Error *err)
+//   FUNC_API_SINCE(7) FUNC_API_REMOTE_ONLY;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_pum_set_bounds(
     channel_id: u64,
@@ -877,6 +977,8 @@ unsafe fn prepare_call(ui: *mut RemoteUI, name: *const c_char) {
     }
 }
 
+/// Pushes data into RemoteUI, to be consumed later by remote_ui_flush().
+// DLLEXPORT void push_call(RemoteUI *ui, const char *name, Array args);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn push_call(ui: *mut RemoteUI, name: *const c_char, args: Array) {
     unsafe {
@@ -893,6 +995,7 @@ unsafe extern "C" fn ui_flush_callback(packer: *mut PackerBuffer) {
     }
 }
 
+// DLLEXPORT void remote_ui_grid_clear(RemoteUI *ui, Integer grid);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer) {
     unsafe {
@@ -911,6 +1014,7 @@ pub unsafe extern "C" fn remote_ui_grid_clear(ui: *mut RemoteUI, grid: Integer) 
     }
 }
 
+// DLLEXPORT void remote_ui_grid_resize(RemoteUI *ui, Integer grid, Integer width, Integer height);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_grid_resize(
     ui: *mut RemoteUI,
@@ -945,6 +1049,8 @@ pub unsafe extern "C" fn remote_ui_grid_resize(
     }
 }
 
+// DLLEXPORT void remote_ui_grid_scroll(RemoteUI *ui, Integer grid, Integer top, Integer bot,
+//                                      Integer left, Integer right, Integer rows, Integer cols);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_grid_scroll(
     ui: *mut RemoteUI,
@@ -1018,6 +1124,8 @@ pub unsafe extern "C" fn remote_ui_grid_scroll(
     }
 }
 
+// DLLEXPORT void remote_ui_default_colors_set(RemoteUI *ui, Integer rgb_fg, Integer rgb_bg,
+//                                             Integer rgb_sp, Integer cterm_fg, Integer cterm_bg);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_default_colors_set(
     ui: *mut RemoteUI,
@@ -1094,6 +1202,8 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
     }
 }
 
+// DLLEXPORT void remote_ui_hl_attr_define(RemoteUI *ui, Integer id, HlAttrs rgb_attrs,
+//                                         HlAttrs cterm_attrs, Array info);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_hl_attr_define(
     ui: *mut RemoteUI,
@@ -1150,6 +1260,7 @@ pub unsafe extern "C" fn remote_ui_hl_attr_define(
     }
 }
 
+// DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_highlight_set(ui: *mut RemoteUI, id: c_int) {
     unsafe {
@@ -1180,6 +1291,8 @@ pub unsafe extern "C" fn remote_ui_highlight_set(ui: *mut RemoteUI, id: c_int) {
     }
 }
 
+/// "true" cursor used only for input focus
+// DLLEXPORT void remote_ui_grid_cursor_goto(RemoteUI *ui, Integer grid, Integer row, Integer col);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_grid_cursor_goto(
     ui: *mut RemoteUI,
@@ -1204,6 +1317,8 @@ pub unsafe extern "C" fn remote_ui_grid_cursor_goto(
     }
 }
 
+/// emulated cursor used both for drawing and for input focus
+// DLLEXPORT void remote_ui_cursor_goto(RemoteUI *ui, Integer row, Integer col);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_cursor_goto(ui: *mut RemoteUI, row: Integer, col: Integer) {
     unsafe {
@@ -1222,6 +1337,7 @@ pub unsafe extern "C" fn remote_ui_cursor_goto(ui: *mut RemoteUI, row: Integer, 
     }
 }
 
+// DLLEXPORT void remote_ui_put(RemoteUI *ui, const char *cell);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_put(ui: *mut RemoteUI, cell: *const c_char) {
     unsafe {
@@ -1236,6 +1352,9 @@ pub unsafe extern "C" fn remote_ui_put(ui: *mut RemoteUI, cell: *const c_char) {
     }
 }
 
+// DLLEXPORT void remote_ui_raw_line(RemoteUI *ui, Integer grid, Integer row, Integer startcol,
+//                                   Integer endcol, Integer clearcol, Integer clearattr,
+//                                   LineFlags flags, const schar_T *chunk, const sattr_T *attrs);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_raw_line(
     ui: *mut RemoteUI,
@@ -1386,6 +1505,11 @@ unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
     }
 }
 
+/// An intentional flush (vsync) when Nvim is finished redrawing the screen
+///
+/// Clients can know this happened by a final "flush" event at the end of the
+/// "redraw" batch.
+// DLLEXPORT void remote_ui_flush(RemoteUI *ui);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_flush(ui: *mut RemoteUI) {
     unsafe {
@@ -1400,6 +1524,7 @@ pub unsafe extern "C" fn remote_ui_flush(ui: *mut RemoteUI) {
     }
 }
 
+// DLLEXPORT void remote_ui_ui_send(RemoteUI *ui, String content);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimString) {
     unsafe {
@@ -1416,6 +1541,7 @@ pub unsafe extern "C" fn remote_ui_ui_send(ui: *mut RemoteUI, content: NvimStrin
     }
 }
 
+// DLLEXPORT void remote_ui_flush_pending_data(RemoteUI *ui);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_flush_pending_data(ui: *mut RemoteUI) {
     unsafe {
@@ -1465,6 +1591,7 @@ unsafe fn translate_firstarg(ui: *mut RemoteUI, args: Array, arena: *mut Arena) 
     }
 }
 
+// DLLEXPORT void remote_ui_event(RemoteUI *ui, char *name, Array args);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_char, args: Array) {
     unsafe {
@@ -1556,6 +1683,16 @@ pub unsafe extern "C" fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_cha
     }
 }
 
+/// Sends arbitrary data to a UI. Use this instead of |nvim_chan_send()| or `io.stdout:write()`, if
+/// you really want to write to the |TUI| host terminal.
+///
+/// Emits a "ui_send" event to all UIs with the "stdout_tty" |ui-option| set. UIs are expected to
+/// write the received data to a connected TTY if one exists.
+///
+/// @param channel_id
+/// @param content Content to write to the TTY
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_ui_send(uint64_t channel_id, String content, Error *err) FUNC_API_SINCE(14);
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: *mut Error) {
     unsafe {

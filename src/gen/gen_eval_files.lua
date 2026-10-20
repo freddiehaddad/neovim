@@ -168,7 +168,7 @@ local function get_api_meta()
   --- @type table<string,nvim.cdoc.parser.fun>
   local functions = {}
   for path, ty in vim.fs.dir(f) do
-    if ty == 'file' and (vim.endswith(path, '.c') or vim.endswith(path, '.h')) then
+    if ty == 'file' and vim.endswith(path, '.rs') and path ~= 'mod.rs' then
       local filename = vim.fs.joinpath(f, path)
       local _, funs = cdoc_parser.parse(filename)
       for _, fn in ipairs(funs) do
@@ -387,9 +387,19 @@ end
 --- @return table<string, vim.EvalFn>
 local function get_api_keysets_meta()
   local c_grammar = require('gen.c_grammar')
-  local input = assert(io.open('src/nvim/api/keysets_defs.h', 'rb'))
-  local text = input:read('*all')
+  local input = assert(io.open('src/nvim/api/mod.rs', 'rb'))
+  local raw = input:read('*all')
   input:close()
+  local lines = {} --- @type string[]
+  for line in (raw .. '\n'):gmatch('(.-)\r?\n') do
+    local body = line:match('^//%s?(.*)$')
+    if body then
+      lines[#lines + 1] = body
+    elseif line == '' then
+      lines[#lines + 1] = ''
+    end
+  end
+  local text = table.concat(lines, '\n') .. '\n'
 
   --- @type {name: string, keys: string[], types: table<string,string>}[]
   local keysets = {}
@@ -427,7 +437,7 @@ local function get_api_keysets_meta()
   local ret = {} --- @type table<string, vim.EvalFn>
   local event_type = 'vim.api.keyset.events|vim.api.keyset.events[]'
 
-  lint.lint_names('src/nvim/api/keysets_defs.h', nil, keysets)
+  lint.lint_names('src/nvim/api/mod.rs', nil, keysets)
 
   for _, k in ipairs(keysets) do
     util.sort_by_key(k.keys)

@@ -1,6 +1,9 @@
 //! Tabpage API functions (`src/nvim/api/tabpage.c`).
 
 #![allow(
+    clippy::doc_lazy_continuation,
+    clippy::doc_overindented_list_items,
+    clippy::empty_line_after_doc_comments,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -488,7 +491,13 @@ const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
 }
 
-/// Gets the windows in a tabpage (`nvim_tabpage_list_wins`).
+/// Gets the windows in a tabpage
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param[out] err Error details, if any
+/// @return List of windows in `tabpage`
+// DLLEXPORT ArrayOf(Window) nvim_tabpage_list_wins(Tabpage tabpage, Arena *arena,
+//                                                  Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_list_wins(
     tabpage: Tabpage,
@@ -542,7 +551,14 @@ pub unsafe extern "C" fn nvim_tabpage_list_wins(
     }
 }
 
-/// Gets a tab-scoped (`t:`) variable (`nvim_tabpage_get_var`).
+/// Gets a tab-scoped (t:) variable
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param name     Variable name
+/// @param[out] err Error details, if any
+/// @return Variable value
+// DLLEXPORT Object nvim_tabpage_get_var(Tabpage tabpage, String name, Arena *arena,
+//                                       Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_get_var(
     tabpage: Tabpage,
@@ -566,7 +582,14 @@ pub unsafe extern "C" fn nvim_tabpage_get_var(
     }
 }
 
-/// Sets a tab-scoped (`t:`) variable (`nvim_tabpage_set_var`).
+/// Sets a tab-scoped (t:) variable
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param name     Variable name
+/// @param value    Variable value
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_tabpage_set_var(Tabpage tabpage, String name, Object value,
+//                                     Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_set_var(
     tabpage: Tabpage,
@@ -595,7 +618,12 @@ pub unsafe extern "C" fn nvim_tabpage_set_var(
     }
 }
 
-/// Removes a tab-scoped (`t:`) variable (`nvim_tabpage_del_var`).
+/// Removes a tab-scoped (t:) variable
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param name     Variable name
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_tabpage_del_var(Tabpage tabpage, String name, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: *mut Error) {
     #[cfg(test)]
@@ -619,7 +647,12 @@ pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString
     }
 }
 
-/// Gets the current window in a tabpage (`nvim_tabpage_get_win`).
+/// Gets the current window in a tabpage
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param[out] err Error details, if any
+/// @return |window-ID|
+// DLLEXPORT Window nvim_tabpage_get_win(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_get_win(tabpage: Tabpage, err: *mut Error) -> Window {
     #[cfg(test)]
@@ -648,7 +681,12 @@ pub unsafe extern "C" fn nvim_tabpage_get_win(tabpage: Tabpage, err: *mut Error)
     }
 }
 
-/// Sets the current window in a tabpage (`nvim_tabpage_set_win`).
+/// Sets the current window in a tabpage
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param win |window-ID|, must already belong to {tabpage}
+/// @param[out] err Error details, if any
+// DLLEXPORT void nvim_tabpage_set_win(Tabpage tabpage, Window win, Error *err) FUNC_API_SINCE(12);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: *mut Error) {
     #[cfg(test)]
@@ -685,7 +723,12 @@ pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err
     }
 }
 
-/// Gets the tabpage number (`nvim_tabpage_get_number`).
+/// Gets the tabpage number
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @param[out] err Error details, if any
+/// @return Tabpage number
+// DLLEXPORT Integer nvim_tabpage_get_number(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: *mut Error) -> Integer {
     #[cfg(test)]
@@ -704,7 +747,11 @@ pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: *mut Err
     }
 }
 
-/// Checks if a tabpage is valid (`nvim_tabpage_is_valid`).
+/// Checks if a tabpage is valid
+///
+/// @param tabpage  |tab-ID|, or 0 for current tabpage
+/// @return true if the tabpage is valid, false otherwise
+// DLLEXPORT Boolean nvim_tabpage_is_valid(Tabpage tabpage) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
     #[cfg(test)]
@@ -725,7 +772,18 @@ pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
     }
 }
 
-/// Opens a new tabpage (`nvim_open_tabpage`).
+/// Opens a new tabpage.
+///
+/// @param buf Buffer to open in the first window of the new tabpage.
+///               Use 0 for current buffer.
+/// @param enter  Enter the tabpage (make it the current tabpage).
+/// @param config Configuration for the new tabpage. Keys:
+///   - after: Position to insert tabpage (default: -1; after current).
+///            0 = first, N = after Nth.
+/// @param[out] err Error details, if any
+/// @return |tab-ID| of the new tabpage
+// DLLEXPORT Tabpage nvim_open_tabpage(Buffer buf, Boolean enter, Dict(tabpage_config) *config,
+//                                     Error *err) FUNC_API_SINCE(14) FUNC_API_TEXTLOCK;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_open_tabpage(
     buf: Buffer,

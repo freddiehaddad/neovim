@@ -129,25 +129,25 @@ local config = {
     filename = 'api.txt',
     section_order = {
       -- Sections at the top, in a specific order:
-      'events.h',
-      'vim.h',
-      'vimscript.h',
+      'events.rs',
+      'vim.rs',
+      'vimscript.rs',
 
       -- Sections in alphanumeric order:
-      'autocmd.h',
-      'buffer.h',
-      'command.h',
-      'extmark.h',
-      'options.h',
-      'tabpage.h',
-      'ui.h',
-      'win_config.h',
-      'window.h',
+      'autocmd.rs',
+      'buffer.rs',
+      'command.rs',
+      'extmark.rs',
+      'options.rs',
+      'tabpage.rs',
+      'ui.rs',
+      'win_config.rs',
+      'window.rs',
     },
     fn_name_pat = 'nvim_.*',
     files = { 'src/nvim/api' },
     section_name = {
-      ['vim.h'] = 'Global',
+      ['vim.rs'] = 'Global',
     },
     section_fmt = function(name)
       if name == 'Events' then
@@ -1175,6 +1175,7 @@ local parsers = {
   lua = luacats_parser.parse,
   c = cdoc_parser.parse,
   h = cdoc_parser.parse,
+  rs = cdoc_parser.parse,
 }
 
 --- @param files string[]
@@ -1183,7 +1184,7 @@ local function expand_files(files)
     if vim.fn.isdirectory(f) == 1 then
       table.remove(files, k)
       for path, ty in vim.fs.dir(f) do
-        if ty == 'file' then
+        if ty == 'file' and path ~= 'mod.rs' then
           table.insert(files, vim.fs.joinpath(f, path))
         end
       end

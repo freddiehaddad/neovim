@@ -1,6 +1,9 @@
 //! API event handlers (`src/nvim/api/events.c`).
 
 #![allow(
+    clippy::doc_lazy_continuation,
+    clippy::doc_overindented_list_items,
+    clippy::empty_line_after_doc_comments,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -27,7 +30,12 @@ use std::ffi::c_int;
 const VV_TERMRESPONSE: c_int = 11;
 const LOGLVL_ERR: c_int = 4;
 
-/// Emitted on the client channel if an async API request responds with an error (`nvim_error_event`).
+/// Emitted on the client channel if an async API request responds with an error.
+///
+/// @param channel_id
+/// @param type Error type id as defined by `api_info().error_types`.
+/// @param msg Error message.
+// DLLEXPORT void nvim_error_event(uint64_t channel_id, Integer type, String msg) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
     #[cfg(test)]
@@ -53,7 +61,20 @@ pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: Nvim
     }
 }
 
-/// Emitted by the TUI client to signal when a host-terminal event occurred (`nvim_ui_term_event`).
+/// Emitted by the TUI client to signal when a host-terminal event occurred.
+///
+/// Supports these events:
+///
+///   - "termresponse": The host-terminal sent an OSC, DCS, APC, or recognized CSI (DA1, kitty
+///     multiple-cursors) response to Nvim. The payload is the received response. Sets
+///     |v:termresponse| and fires |TermResponse|.
+///
+/// @param channel_id
+/// @param event Event name
+/// @param value Event payload
+/// @param[out] err Error details, if any.
+// DLLEXPORT void nvim_ui_term_event(uint64_t channel_id, String event, Object value,
+//                                   Error *err) FUNC_API_SINCE(12) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_ui_term_event(
     channel_id: u64,

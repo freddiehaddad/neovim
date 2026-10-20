@@ -227,6 +227,30 @@ function M.parse(filename)
   local state = {} --- @type nvim.cdoc.parser.State
 
   local txt = assert(io.open(filename, 'r')):read('*all')
+  if vim.endswith(filename, '.rs') then
+    local out = {} --- @type string[]
+    local in_proto = false
+    for line in (txt .. '\n'):gmatch('(.-)\r?\n') do
+      if in_proto then
+        local body = line:match('^//%s?(.*)$') or ''
+        out[#out + 1] = body
+        if body:find(';%s*$') then
+          in_proto = false
+        end
+      elseif line:match('^///') then
+        out[#out + 1] = line
+      elseif line:match('^// DLLEXPORT ') then
+        local body = line:sub(4)
+        out[#out + 1] = body
+        if not body:find(';%s*$') then
+          in_proto = true
+        end
+      elseif out[#out] ~= '' then
+        out[#out + 1] = ''
+      end
+    end
+    txt = table.concat(out, '\n') .. '\n'
+  end
 
   local parsed = c_grammar.grammar:match(txt)
   for _, item in ipairs(parsed) do
