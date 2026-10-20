@@ -4,8 +4,9 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
+use crate::lua::base64::{lua_CFunction, lua_State, luaL_Buffer, luaL_Reg};
 use crate::lua::converter::{lua_Integer, lua_Number};
+use crate::memory::{crt_free as free, crt_malloc as malloc};
 use crate::mpack::conv::{
     mpack_pack_array, mpack_pack_bin, mpack_pack_boolean, mpack_pack_chunk, mpack_pack_ext,
     mpack_pack_map, mpack_pack_nil, mpack_pack_number, mpack_pack_str, mpack_unpack_boolean,
@@ -26,19 +27,12 @@ use crate::mpack::rpc::{
     mpack_rpc_session_copy, mpack_rpc_session_init, mpack_rpc_session_struct_size,
     mpack_rpc_session_t,
 };
+use crate::strings::snprintf;
 
 #[cfg(windows)]
 const LUAL_BUFFERSIZE: usize = 512;
 #[cfg(not(windows))]
 const LUAL_BUFFERSIZE: usize = 8192;
-
-#[repr(C)]
-struct luaL_Buffer {
-    p: *mut c_char,
-    lvl: c_int,
-    L: *mut lua_State,
-    buffer: [c_char; 8192],
-}
 
 const LUA_REGISTRYINDEX: c_int = -10000;
 const LUA_NOREF: c_int = -2;
@@ -60,7 +54,7 @@ const NIL_NAME: &CStr = c"mpack.NIL";
 const EMPTY_DICT_NAME: &CStr = c"mpack.empty_dict";
 
 #[repr(C)]
-struct Unpacker {
+struct LmpackUnpacker {
     L: *mut lua_State,
     parser: *mut mpack_parser_t,
     reg: c_int,
@@ -98,12 +92,6 @@ struct Session {
     session: *mut mpack_rpc_session_t,
     unpacked: UnpackedState,
     unpacker: c_int,
-}
-
-unsafe extern "C" {
-    fn malloc(size: usize) -> *mut c_void;
-    fn free(ptr: *mut c_void);
-    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
 }
 
 unsafe extern "C-unwind" {
@@ -285,8 +273,8 @@ unsafe fn lmpack_grow_session(session: *mut mpack_rpc_session_t) -> *mut mpack_r
     }
 }
 
-unsafe fn lmpack_check_unpacker(l: *mut lua_State, index: c_int) -> *mut Unpacker {
-    unsafe { luaL_checkudata(l, index, UNPACKER_META_NAME.as_ptr()).cast::<Unpacker>() }
+unsafe fn lmpack_check_unpacker(l: *mut lua_State, index: c_int) -> *mut LmpackUnpacker {
+    unsafe { luaL_checkudata(l, index, UNPACKER_META_NAME.as_ptr()).cast::<LmpackUnpacker>() }
 }
 
 unsafe fn lmpack_check_packer(l: *mut lua_State, index: c_int) -> *mut Packer {
@@ -372,7 +360,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
             return luaL_error(l, c"expecting at most 1 table argument".as_ptr());
         }
 
-        let rv = lua_newuserdata(l, size_of::<Unpacker>()).cast::<Unpacker>();
+        let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
         (*rv).parser = malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
         if (*rv).parser.is_null() {
             return luaL_error(l, c"Failed to allocate memory".as_ptr());
@@ -424,7 +412,7 @@ unsafe extern "C-unwind" fn lmpack_parse_enter(
     node: *mut mpack_node_t,
 ) {
     unsafe {
-        let unpacker = (*parser).data.p.cast::<Unpacker>();
+        let unpacker = (*parser).data.p.cast::<LmpackUnpacker>();
         let l = (*unpacker).L;
 
         match (*node).tok.r#type {
@@ -466,7 +454,7 @@ unsafe extern "C-unwind" fn lmpack_parse_exit(
     node: *mut mpack_node_t,
 ) {
     unsafe {
-        let unpacker = (*parser).data.p.cast::<Unpacker>();
+        let unpacker = (*parser).data.p.cast::<LmpackUnpacker>();
         let l = (*unpacker).L;
         let parent = mpack_parent_node(node);
 
@@ -528,7 +516,7 @@ unsafe extern "C-unwind" fn lmpack_parse_exit(
 
 unsafe fn lmpack_unpacker_unpack_str(
     l: *mut lua_State,
-    unpacker: *mut Unpacker,
+    unpacker: *mut LmpackUnpacker,
     str_ptr: *mut *const c_char,
     len: *mut usize,
 ) -> c_int {
@@ -1011,7 +999,7 @@ unsafe extern "C-unwind" fn lmpack_session_receive(l: *mut lua_State) -> c_int {
         str_ptr = str_ptr.add(offset);
         len -= offset;
 
-        let mut unpacker: *mut Unpacker = ptr::null_mut();
+        let mut unpacker: *mut LmpackUnpacker = ptr::null_mut();
         if (*session).unpacker != LUA_REFNIL {
             lmpack_geti(l, (*session).reg, (*session).unpacker);
             unpacker = lmpack_check_unpacker(l, -1);
@@ -1190,7 +1178,7 @@ unsafe extern "C-unwind" fn lmpack_unpack(l: *mut lua_State) -> c_int {
         let mut parser: mpack_parser_t = zeroed();
         lua_newtable(l);
         let reg = luaL_ref(l, LUA_REGISTRYINDEX);
-        let mut unpacker = Unpacker {
+        let mut unpacker = LmpackUnpacker {
             L: l,
             parser: &mut parser,
             reg,

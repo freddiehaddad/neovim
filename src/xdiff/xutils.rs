@@ -5,6 +5,7 @@ use std::mem::size_of;
 use std::ptr;
 
 use crate::memory::{xfree, xmalloc};
+use crate::strings::{memchr, memcmp};
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::xprepare::xdl_free_env;
 use crate::xdiff::{
@@ -12,11 +13,6 @@ use crate::xdiff::{
     XDF_IGNORE_WHITESPACE_CHANGE, XDF_WHITESPACE_FLAGS, chanode_t, chastore_t, mmbuffer_t,
     mmfile_t, xdemitcb_t, xdfenv_t, xdl_isspace, xpparam_t,
 };
-
-unsafe extern "C" {
-    fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
-    fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
-}
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub extern "C" fn xdl_bogosqrt(mut n: c_long) -> c_long {

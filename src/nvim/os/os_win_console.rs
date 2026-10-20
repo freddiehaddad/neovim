@@ -29,15 +29,15 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use crate::memory::xfree;
 
 #[cfg(windows)]
-type HANDLE = *mut c_void;
+pub type HANDLE = *mut c_void;
 #[cfg(windows)]
 type HWND = *mut c_void;
 #[cfg(windows)]
 type HICON = *mut c_void;
 #[cfg(windows)]
-type DWORD = c_ulong;
+pub type DWORD = c_ulong;
 #[cfg(windows)]
-type BOOL = c_int;
+pub type BOOL = c_int;
 #[cfg(windows)]
 type UINT = c_uint;
 #[cfg(windows)]

@@ -251,14 +251,11 @@ const fn init_char2escape() -> [*const c_char; 256] {
 
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
-use crate::strings::{qsort, strncmp};
+use crate::memory::{crt_free as free, crt_malloc as malloc, crt_realloc as realloc};
+use crate::strings::{memcmp, qsort, strncmp};
+use std::process::abort;
 
 unsafe extern "C" {
-    fn malloc(size: usize) -> *mut c_void;
-    fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
-    fn free(ptr: *mut c_void);
-    fn abort() -> !;
-    fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> c_int;
     fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
 }
 

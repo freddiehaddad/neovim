@@ -58,91 +58,20 @@ const SURROGATE_LO_START: u64 = 0xDC00;
 const SURROGATE_LO_END: u64 = 0xDFFF;
 const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
-const MPACK_MAX_TOKEN_LEN: usize = 9;
-const MPACK_MAX_OBJECT_DEPTH: usize = 32;
-pub const MPACK_OK: c_int = 0;
+pub use crate::mpack::mpack_core::{
+    MPACK_MAX_TOKEN_LEN, MPACK_OK, mpack_tokbuf_t, mpack_token_data_t, mpack_token_t,
+    mpack_token_type_t, mpack_value_t,
+};
+pub use crate::mpack::object::{
+    MPACK_MAX_OBJECT_DEPTH, mpack_data_t, mpack_node_t, mpack_parser_t, mpack_walk_cb,
+};
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum mpack_token_type_t {
-    MPACK_TOKEN_NONE = 0,
-    MPACK_TOKEN_NIL = 1,
-    MPACK_TOKEN_BOOLEAN = 2,
-    MPACK_TOKEN_UINT = 3,
-    MPACK_TOKEN_SINT = 4,
-    MPACK_TOKEN_FLOAT = 5,
-    MPACK_TOKEN_CHUNK = 6,
-    MPACK_TOKEN_ARRAY = 7,
-    MPACK_TOKEN_MAP = 8,
-    MPACK_TOKEN_BIN = 9,
-    MPACK_TOKEN_STR = 10,
-    MPACK_TOKEN_EXT = 11,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct mpack_value_t {
-    pub lo: u32,
-    pub hi: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union mpack_token_data_t {
-    pub value: mpack_value_t,
-    pub chunk_ptr: *const c_char,
-    pub ext_type: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct mpack_token_t {
-    pub tok_type: mpack_token_type_t,
-    pub length: u32,
-    pub data: mpack_token_data_t,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct mpack_tokbuf_t {
-    pub pending: [c_char; MPACK_MAX_TOKEN_LEN],
-    pub pending_tok: mpack_token_t,
-    pub ppos: usize,
-    pub plen: usize,
-    pub passthrough: u32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union mpack_data_t {
-    pub p: *mut c_void,
-    pub u: u64,
-    pub i: i64,
-    pub d: f64,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct mpack_node_t {
-    pub tok: mpack_token_t,
-    pub pos: usize,
-    pub key_visited: c_int,
-    pub data: [mpack_data_t; 2],
-}
-
-#[repr(C)]
-pub struct mpack_parser_t {
-    pub data: mpack_data_t,
-    pub size: u32,
-    pub capacity: u32,
-    pub status: c_int,
-    pub exiting: c_int,
-    pub tokbuf: mpack_tokbuf_t,
-    pub items: [mpack_node_t; MPACK_MAX_OBJECT_DEPTH + 1],
-}
-
-pub type mpack_walk_cb =
-    Option<unsafe extern "C" fn(parser: *mut mpack_parser_t, node: *mut mpack_node_t)>;
+#[cfg(not(test))]
+use crate::mpack::conv::{
+    mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
+};
+#[cfg(not(test))]
+use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
 
 #[repr(C)]
 pub struct dictitem_T {
@@ -166,7 +95,7 @@ pub struct dict_T {
 }
 
 #[derive(Clone, Copy)]
-struct ContainerStackItem {
+struct JsonContainerStackItem {
     stack_index: usize,
     special_val: *mut list_T,
     s: *const c_char,
@@ -179,76 +108,6 @@ struct ValuesStackItem {
     didcomma: bool,
     didcolon: bool,
     val: typval_T,
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_parser_init(p: *mut mpack_parser_t, c: u32) {
-    unsafe { crate::mpack::object::mpack_parser_init(p.cast(), c) }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_parse(
-    parser: *mut mpack_parser_t,
-    b: *mut *const c_char,
-    bl: *mut usize,
-    enter_cb: mpack_walk_cb,
-    exit_cb: mpack_walk_cb,
-) -> c_int {
-    unsafe {
-        crate::mpack::object::mpack_parse(
-            parser.cast(),
-            b,
-            bl,
-            std::mem::transmute::<mpack_walk_cb, crate::mpack::object::mpack_walk_cb>(enter_cb),
-            std::mem::transmute::<mpack_walk_cb, crate::mpack::object::mpack_walk_cb>(exit_cb),
-        )
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_boolean(t: mpack_token_t) -> bool {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_boolean(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_uint(t: mpack_token_t) -> u64 {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_uint(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_sint(t: mpack_token_t) -> i64 {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_sint(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_float_fast(t: mpack_token_t) -> f64 {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_float_fast(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
 }
 
 #[cfg(not(test))]
@@ -358,7 +217,7 @@ pub unsafe extern "C" fn decode_string(
 unsafe fn json_decoder_pop(
     obj: ValuesStackItem,
     stack: &mut Vec<ValuesStackItem>,
-    container_stack: &mut Vec<ContainerStackItem>,
+    container_stack: &mut Vec<JsonContainerStackItem>,
     pp: &mut *const c_char,
     next_map_special: &mut bool,
     didcomma: &mut bool,
@@ -468,7 +327,7 @@ unsafe fn parse_json_string(
     buf_len: usize,
     pp: &mut *const c_char,
     stack: &mut Vec<ValuesStackItem>,
-    container_stack: &mut Vec<ContainerStackItem>,
+    container_stack: &mut Vec<JsonContainerStackItem>,
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
@@ -706,7 +565,7 @@ unsafe fn parse_json_number(
     buf_len: usize,
     pp: &mut *const c_char,
     stack: &mut Vec<ValuesStackItem>,
-    container_stack: &mut Vec<ContainerStackItem>,
+    container_stack: &mut Vec<JsonContainerStackItem>,
     next_map_special: &mut bool,
     didcomma: &mut bool,
     didcolon: &mut bool,
@@ -882,7 +741,7 @@ pub unsafe extern "C" fn json_decode_string(
         }
 
         let mut stack: Vec<ValuesStackItem> = Vec::new();
-        let mut container_stack: Vec<ContainerStackItem> = Vec::new();
+        let mut container_stack: Vec<JsonContainerStackItem> = Vec::new();
         (*rettv).v_type = VarType::VAR_UNKNOWN;
         let mut didcomma = false;
         let mut didcolon = false;
@@ -1188,7 +1047,7 @@ pub unsafe extern "C" fn json_decode_string(
                             v_lock: VAR_UNLOCKED,
                             vval: TypvalVval { v_list: list },
                         };
-                        container_stack.push(ContainerStackItem {
+                        container_stack.push(JsonContainerStackItem {
                             stack_index: stack.len(),
                             s: p,
                             container: tv,
@@ -1222,7 +1081,7 @@ pub unsafe extern "C" fn json_decode_string(
                                 },
                             };
                         }
-                        container_stack.push(ContainerStackItem {
+                        container_stack.push(JsonContainerStackItem {
                             stack_index: stack.len(),
                             s: p,
                             container: tv,
@@ -1306,23 +1165,16 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
     }
 }
 
-#[inline]
-unsafe fn mpack_parent_node(node: *mut mpack_node_t) -> *mut mpack_node_t {
-    let prev = unsafe { node.sub(1) };
-    if unsafe { (*prev).pos == usize::MAX } {
-        std::ptr::null_mut()
-    } else {
-        prev
-    }
-}
-
 #[cfg(not(test))]
-unsafe extern "C" fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+unsafe extern "C-unwind" fn typval_parse_enter(
+    parser: *mut mpack_parser_t,
+    node: *mut mpack_node_t,
+) {
     unsafe {
         let mut result: *mut typval_T = std::ptr::null_mut();
         let parent = mpack_parent_node(node);
         if !parent.is_null() {
-            match (*parent).tok.tok_type {
+            match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
                     let list = (*parent).data[1].p.cast::<list_T>();
                     result = tv_list_append_owned_tv(
@@ -1342,7 +1194,7 @@ unsafe extern "C" fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut 
                 mpack_token_type_t::MPACK_TOKEN_STR
                 | mpack_token_type_t::MPACK_TOKEN_BIN
                 | mpack_token_type_t::MPACK_TOKEN_EXT => {
-                    assert_eq!((*node).tok.tok_type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
+                    assert_eq!((*node).tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
                 }
                 _ => std::process::abort(),
             }
@@ -1353,7 +1205,7 @@ unsafe extern "C" fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut 
         (*node).data[0].p = result.cast::<c_void>();
         (*node).data[1].p = std::ptr::null_mut();
 
-        match (*node).tok.tok_type {
+        match (*node).tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_NIL => {
                 *result = typval_T {
                     v_type: VarType::VAR_SPECIAL,
@@ -1436,7 +1288,7 @@ pub unsafe extern "C" fn typval_parser_error_free(parser: *mut mpack_parser_t) {
     for i in 0..p.size as usize {
         let node = &mut p.items[i];
         if matches!(
-            node.tok.tok_type,
+            node.tok.r#type,
             mpack_token_type_t::MPACK_TOKEN_BIN
                 | mpack_token_type_t::MPACK_TOKEN_STR
                 | mpack_token_type_t::MPACK_TOKEN_EXT
@@ -1451,11 +1303,14 @@ pub unsafe extern "C" fn typval_parser_error_free(parser: *mut mpack_parser_t) {
 }
 
 #[cfg(not(test))]
-unsafe extern "C" fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+unsafe extern "C-unwind" fn typval_parse_exit(
+    _parser: *mut mpack_parser_t,
+    node: *mut mpack_node_t,
+) {
     unsafe {
         let node = &mut *node;
         let result = node.data[0].p.cast::<typval_T>();
-        match node.tok.tok_type {
+        match node.tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_BIN | mpack_token_type_t::MPACK_TOKEN_STR => {
                 *result = decode_string(
                     node.data[1].p.cast::<c_char>(),

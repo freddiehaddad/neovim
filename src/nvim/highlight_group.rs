@@ -86,8 +86,7 @@ use crate::os::env::expand_T;
 use crate::os::time::os_delay;
 use crate::viml::parser::expressions::SyncCStrArray;
 
-type OptIndex = c_int;
-type OptInt = i64;
+use crate::optionstr::OptIndex;
 
 const NUL: c_char = 0;
 const OK: c_int = 1;

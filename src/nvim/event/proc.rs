@@ -54,18 +54,16 @@ const SIGHUP: c_int = 1;
 const SIGKILL: c_int = 9;
 const SIGTERM: c_int = 15;
 
+pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_timer_t};
 pub type Proc = c_void;
 pub type LibuvProc = c_void;
 pub type PtyProc = c_void;
-pub use crate::event::r#loop::uv_timer_t;
 
 pub type proc_exit_cb =
     Option<unsafe extern "C" fn(proc_: *mut Proc, status: c_int, data: *mut c_void)>;
 pub type proc_state_cb =
     Option<unsafe extern "C" fn(proc_: *mut Proc, suspended: bool, data: *mut c_void)>;
 pub type internal_proc_cb = Option<unsafe extern "C" fn(proc_: *mut Proc)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
-type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
 
 #[repr(C)]
 pub struct ProcHeader {

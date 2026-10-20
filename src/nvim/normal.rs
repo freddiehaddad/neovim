@@ -422,10 +422,8 @@ const NIL_OBJ: Object = Object {
     data: ObjectData { integer: 0 },
 };
 
-type MarkMove = c_int;
-type MarkMoveRes = c_int;
+use crate::mark::{MarkMove, MarkMoveRes};
 type nv_func_T = unsafe fn(cap: *mut cmdarg_T);
-type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
 
 unsafe fn nv_scroll_line_cmd(cap: *mut cmdarg_T) {
     unsafe { nv_scroll_line(cap) }

@@ -50,20 +50,12 @@ const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;
 const STDERR_FILENO: c_int = 2;
 const UI_CLIENT_STDIN_FD: c_int = 3;
 
-#[cfg(windows)]
-type uv_uid_t = u8;
-#[cfg(not(windows))]
-type uv_uid_t = u32;
-
-#[cfg(windows)]
-type uv_gid_t = u8;
-#[cfg(not(windows))]
-type uv_gid_t = u32;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_close_cb, uv_gid_t, uv_uid_t};
 
 pub type uv_process_t = c_void;
 type uv_exit_cb =
     Option<unsafe extern "C" fn(handle: *mut uv_process_t, exit_status: i64, term_signal: c_int)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -94,9 +86,9 @@ pub struct uv_process_options_t {
 }
 
 #[repr(C)]
-struct LibuvProcTail {
-    uvopts: uv_process_options_t,
-    uvstdio: [uv_stdio_container_t; 4],
+pub(crate) struct LibuvProcTail {
+    pub(crate) uvopts: uv_process_options_t,
+    pub(crate) uvstdio: [uv_stdio_container_t; 4],
 }
 
 unsafe extern "C" {

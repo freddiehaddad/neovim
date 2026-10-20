@@ -107,101 +107,13 @@ pub struct AdditionalDataHeader {
 }
 
 #[cfg(not(test))]
-#[inline]
-unsafe fn mpack_parser_init(p: *mut mpack_parser_t, c: u32) {
-    unsafe { crate::mpack::object::mpack_parser_init(p.cast(), c) }
-}
-
+use crate::mpack::conv::{
+    mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
+};
 #[cfg(not(test))]
-#[inline]
-unsafe fn mpack_tokbuf_init(tb: *mut mpack_tokbuf_t) {
-    unsafe { crate::mpack::mpack_core::mpack_tokbuf_init(tb.cast()) }
-}
-
+use crate::mpack::mpack_core::{mpack_read, mpack_rtoken, mpack_tokbuf_init};
 #[cfg(not(test))]
-#[inline]
-unsafe fn mpack_read(
-    tb: *mut mpack_tokbuf_t,
-    b: *mut *const c_char,
-    bl: *mut usize,
-    tok: *mut mpack_token_t,
-) -> c_int {
-    unsafe { crate::mpack::mpack_core::mpack_read(tb.cast(), b, bl, tok.cast()) }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_rtoken(
-    buf: *mut *const c_char,
-    buflen: *mut usize,
-    tok: *mut mpack_token_t,
-) -> c_int {
-    unsafe { crate::mpack::mpack_core::mpack_rtoken(buf, buflen, tok.cast()) }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_parse(
-    parser: *mut mpack_parser_t,
-    b: *mut *const c_char,
-    bl: *mut usize,
-    enter_cb: mpack_walk_cb,
-    exit_cb: mpack_walk_cb,
-) -> c_int {
-    unsafe {
-        crate::mpack::object::mpack_parse(
-            parser.cast(),
-            b,
-            bl,
-            std::mem::transmute::<mpack_walk_cb, crate::mpack::object::mpack_walk_cb>(enter_cb),
-            std::mem::transmute::<mpack_walk_cb, crate::mpack::object::mpack_walk_cb>(exit_cb),
-        )
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_boolean(t: mpack_token_t) -> bool {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_boolean(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_uint(t: mpack_token_t) -> u64 {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_uint(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_sint(t: mpack_token_t) -> i64 {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_sint(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn mpack_unpack_float_fast(t: mpack_token_t) -> f64 {
-    unsafe {
-        crate::mpack::conv::mpack_unpack_float_fast(std::mem::transmute::<
-            mpack_token_t,
-            crate::mpack::mpack_core::mpack_token_t,
-        >(t))
-    }
-}
+use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
 
 #[inline]
 const fn empty_arena() -> Arena {
@@ -212,18 +124,8 @@ const fn empty_arena() -> Arena {
     }
 }
 
-#[inline]
-unsafe fn mpack_parent_node(node: *mut mpack_node_t) -> *mut mpack_node_t {
-    let parent = unsafe { node.sub(1) };
-    if unsafe { (*parent).pos } == usize::MAX {
-        std::ptr::null_mut()
-    } else {
-        parent
-    }
-}
-
 #[cfg(not(test))]
-unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+unsafe extern "C-unwind" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let p = (*parser).data.p.cast::<Unpacker>();
         let mut result: *mut Object = std::ptr::null_mut();
@@ -231,7 +133,7 @@ unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpa
 
         let parent = mpack_parent_node(node);
         if !parent.is_null() {
-            match (*parent).tok.tok_type {
+            match (*parent).tok.r#type {
                 mpack_token_type_t::MPACK_TOKEN_ARRAY => {
                     let obj = (*parent).data[0].p.cast::<Object>();
                     result = (*obj).data.array.items.add((*parent).pos);
@@ -251,7 +153,7 @@ unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpa
                 mpack_token_type_t::MPACK_TOKEN_STR
                 | mpack_token_type_t::MPACK_TOKEN_BIN
                 | mpack_token_type_t::MPACK_TOKEN_EXT => {
-                    assert_eq!((*node).tok.tok_type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
+                    assert_eq!((*node).tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
                 }
                 _ => std::process::abort(),
             }
@@ -260,7 +162,7 @@ unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpa
         }
 
         let tok = (*node).tok;
-        match tok.tok_type {
+        match tok.r#type {
             mpack_token_type_t::MPACK_TOKEN_NIL => {
                 *result = nil_obj();
             }
@@ -320,8 +222,8 @@ unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpa
             mpack_token_type_t::MPACK_TOKEN_CHUNK => {
                 assert!(!parent.is_null());
                 let chunk_len = tok.length as usize;
-                if (*parent).tok.tok_type == mpack_token_type_t::MPACK_TOKEN_STR
-                    || (*parent).tok.tok_type == mpack_token_type_t::MPACK_TOKEN_BIN
+                if (*parent).tok.r#type == mpack_token_type_t::MPACK_TOKEN_STR
+                    || (*parent).tok.r#type == mpack_token_type_t::MPACK_TOKEN_BIN
                 {
                     let data = (*parent).data[0].p.cast::<u8>();
                     if chunk_len > 0 {
@@ -352,7 +254,7 @@ unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpa
                     let mut size = (*parent).tok.length as usize;
                     let mut ext_tok = std::mem::zeroed::<mpack_token_t>();
                     let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
-                    if status != 0 || ext_tok.tok_type != mpack_token_type_t::MPACK_TOKEN_UINT {
+                    if status != 0 || ext_tok.r#type != mpack_token_type_t::MPACK_TOKEN_UINT {
                         *res = nil_obj();
                         return;
                     }
@@ -409,10 +311,11 @@ unsafe extern "C" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpa
 }
 
 #[cfg(not(test))]
-unsafe extern "C" fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+unsafe extern "C-unwind" fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {
+}
 
 #[cfg(not(test))]
-unsafe extern "C" fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+unsafe extern "C-unwind" fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
 #[unsafe(no_mangle)]
@@ -523,7 +426,7 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
 
         let mut result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
         if result == 0
-            && (tok.tok_type != mpack_token_type_t::MPACK_TOKEN_ARRAY
+            && (tok.r#type != mpack_token_type_t::MPACK_TOKEN_ARRAY
                 || tok.length < 3
                 || tok.length > 4)
         {
@@ -532,7 +435,7 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
         if result == 0 {
             let array_length = tok.length as usize;
             result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-            if result == 0 && tok.tok_type != mpack_token_type_t::MPACK_TOKEN_UINT {
+            if result == 0 && tok.r#type != mpack_token_type_t::MPACK_TOKEN_UINT {
                 result = MPACK_ERROR;
             }
             if result == 0 {
@@ -550,7 +453,7 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
 
                     if p.msg_type != MessageType::kMessageTypeNotification {
                         result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                        if result == 0 && tok.tok_type != mpack_token_type_t::MPACK_TOKEN_UINT {
+                        if result == 0 && tok.r#type != mpack_token_type_t::MPACK_TOKEN_UINT {
                             result = MPACK_ERROR;
                         }
                         if result == 0 {
@@ -561,8 +464,8 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
                     if result == 0 && p.msg_type != MessageType::kMessageTypeResponse {
                         result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
                         if result == 0
-                            && ((tok.tok_type != mpack_token_type_t::MPACK_TOKEN_STR
-                                && tok.tok_type != mpack_token_type_t::MPACK_TOKEN_BIN)
+                            && ((tok.r#type != mpack_token_type_t::MPACK_TOKEN_STR
+                                && tok.r#type != mpack_token_type_t::MPACK_TOKEN_BIN)
                                 || tok.length > 100)
                         {
                             result = MPACK_ERROR;
@@ -572,7 +475,7 @@ pub unsafe extern "C" fn unpacker_parse_header(p: *mut Unpacker) -> bool {
                             if p.method_name_len > 0 {
                                 result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
                                 if result == 0 {
-                                    assert_eq!(tok.tok_type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
+                                    assert_eq!(tok.r#type, mpack_token_type_t::MPACK_TOKEN_CHUNK);
                                 }
                             }
                             if result == 0 && (tok.length as usize) < p.method_name_len {
@@ -734,11 +637,11 @@ unsafe fn next_type(
     if result == MPACK_EOF {
         return false;
     }
-    let valid_type = tok.tok_type == expected
+    let valid_type = tok.r#type == expected
         || (expected == mpack_token_type_t::MPACK_TOKEN_STR
-            && tok.tok_type == mpack_token_type_t::MPACK_TOKEN_BIN)
+            && tok.r#type == mpack_token_type_t::MPACK_TOKEN_BIN)
         || (expected == mpack_token_type_t::MPACK_TOKEN_SINT
-            && tok.tok_type == mpack_token_type_t::MPACK_TOKEN_UINT);
+            && tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT);
     if result != 0 || !valid_type {
         p.state = -1;
         return false;
@@ -1008,8 +911,8 @@ pub unsafe extern "C" fn unpack_string(data: *mut *const c_char, size: *mut usiz
 
         let result = mpack_rtoken(&mut data2, &mut size2, &mut tok);
         if result != 0
-            || (tok.tok_type != mpack_token_type_t::MPACK_TOKEN_STR
-                && tok.tok_type != mpack_token_type_t::MPACK_TOKEN_BIN)
+            || (tok.r#type != mpack_token_type_t::MPACK_TOKEN_STR
+                && tok.r#type != mpack_token_type_t::MPACK_TOKEN_BIN)
         {
             return NvimString {
                 data: std::ptr::null_mut(),
@@ -1044,7 +947,7 @@ pub unsafe extern "C" fn unpack_array(data: *mut *const c_char, size: *mut usize
     unsafe {
         let mut tok = std::mem::zeroed::<mpack_token_t>();
         let result = mpack_rtoken(data, size, &mut tok);
-        if result != 0 || tok.tok_type != mpack_token_type_t::MPACK_TOKEN_ARRAY {
+        if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_ARRAY {
             return -1;
         }
         tok.length as isize
@@ -1084,10 +987,10 @@ pub unsafe extern "C" fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integ
     }
     #[cfg(not(test))]
     unsafe {
-        if tok.tok_type == mpack_token_type_t::MPACK_TOKEN_UINT {
+        if tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT {
             *res = mpack_unpack_uint(tok) as Integer;
             true
-        } else if tok.tok_type == mpack_token_type_t::MPACK_TOKEN_SINT {
+        } else if tok.r#type == mpack_token_type_t::MPACK_TOKEN_SINT {
             *res = mpack_unpack_sint(tok) as Integer;
             true
         } else {
@@ -1161,7 +1064,7 @@ pub unsafe extern "C-unwind" fn unpack_keydict(
         let mut tok = std::mem::zeroed::<mpack_token_t>();
 
         let result = mpack_rtoken(data, size, &mut tok);
-        if result != 0 || tok.tok_type != mpack_token_type_t::MPACK_TOKEN_MAP {
+        if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_MAP {
             *error = xstrdup(c"is not a dict".as_ptr());
             return false;
         }

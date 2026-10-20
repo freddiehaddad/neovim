@@ -21,15 +21,12 @@ use crate::event::multiqueue::{
 
 const UV_TIMER: c_int = 13;
 
-pub use crate::event::r#loop::Loop;
+pub use crate::event::r#loop::{
+    Loop, uv_close_cb, uv_handle_t, uv_loop_t, uv_timer_cb, uv_timer_t,
+};
 pub type TimeWatcher = c_void;
-pub use crate::event::r#loop::uv_handle_t;
-pub use crate::event::r#loop::uv_loop_t;
-pub use crate::event::r#loop::uv_timer_t;
 
 pub type time_cb = Option<unsafe extern "C" fn(watcher: *mut TimeWatcher, data: *mut c_void)>;
-type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
 
 #[repr(C)]
 pub struct TimeWatcherFields {

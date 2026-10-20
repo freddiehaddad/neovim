@@ -212,10 +212,7 @@ pub fn xdl_hashlong(v: c_ulong, b: c_uint) -> c_ulong {
 
 #[inline]
 pub fn xdl_isspace(c: c_char) -> bool {
-    unsafe extern "C" {
-        fn isspace(c: c_int) -> c_int;
-    }
-    unsafe { isspace(c_int::from(c as u8)) != 0 }
+    matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c')
 }
 
 #[cfg(test)]

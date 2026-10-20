@@ -127,8 +127,6 @@ struct HunkPriv {
     iwhite: bool,
 }
 
-type FieldHashfn = unsafe extern "C" fn(str_ptr: *const c_char, len: usize) -> *const c_void;
-
 #[cfg(not(test))]
 use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
 

@@ -363,7 +363,7 @@ pub unsafe extern "C" fn mpack_rpc_session_copy(
 
 fn mpack_rpc_request_hdr() -> mpack_rpc_header_t {
     let z = mpack_token_t {
-        r#type: 0,
+        r#type: crate::mpack::mpack_core::MPACK_TOKEN_NONE,
         length: 0,
         data: mpack_token_data_t {
             value: mpack_value_t { lo: 0, hi: 0 },

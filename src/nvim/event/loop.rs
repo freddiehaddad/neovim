@@ -52,6 +52,17 @@ pub type uv_signal_t = c_void;
 pub type uv_timer_t = c_void;
 pub type uv_async_t = c_void;
 pub type uv_mutex_t = c_void;
+pub type uv_connect_t = c_void;
+pub type uv_fs_t = c_void;
+#[cfg(windows)]
+pub type uv_uid_t = u8;
+#[cfg(not(windows))]
+pub type uv_uid_t = u32;
+#[cfg(windows)]
+pub type uv_gid_t = u8;
+#[cfg(not(windows))]
+pub type uv_gid_t = u32;
+pub type uv_thread_t = usize;
 
 pub type uv_async_cb = Option<unsafe extern "C" fn(handle: *mut uv_async_t)>;
 pub type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
@@ -60,6 +71,7 @@ pub type uv_walk_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t, arg:
 pub type uv_signal_cb = Option<unsafe extern "C" fn(handle: *mut uv_signal_t, signum: c_int)>;
 pub type uv_connect_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
 pub type uv_write_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
+pub type uv_fs_cb = Option<unsafe extern "C" fn(req: *mut uv_fs_t)>;
 
 #[repr(C)]
 pub struct LoopQueuesAndChildren {

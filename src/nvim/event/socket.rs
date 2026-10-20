@@ -87,12 +87,11 @@ const LOGLVL_ERR: c_int = 4;
 pub use crate::event::r#loop::Loop;
 pub type SocketWatcher = c_void;
 pub use crate::event::r#loop::uv_loop_t;
+pub use crate::event::r#loop::{uv_close_cb, uv_connect_cb, uv_connect_t, uv_handle_t};
 pub use crate::event::rstream::RStream;
+pub use crate::event::stream::uv_pipe_t;
 pub use crate::event::stream::uv_stream_t;
 pub type uv_tcp_t = c_void;
-pub use crate::event::r#loop::uv_handle_t;
-pub use crate::event::stream::uv_pipe_t;
-pub type uv_connect_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 
 pub type socket_cb =
@@ -100,8 +99,6 @@ pub type socket_cb =
 pub type socket_close_cb =
     Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, data: *mut c_void)>;
 type uv_connection_cb = Option<unsafe extern "C" fn(server: *mut uv_stream_t, status: c_int)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
-type uv_connect_cb = Option<unsafe extern "C" fn(req: *mut uv_connect_t, status: c_int)>;
 
 #[repr(C)]
 pub struct addrinfo {

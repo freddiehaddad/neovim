@@ -68,17 +68,8 @@ pub struct Directory {
     pub _opaque: [u64; 88],
 }
 pub type vim_acl_T = *mut c_void;
-pub type uv_fs_t = [u64; 80];
-
-#[cfg(windows)]
-pub type uv_uid_t = u8;
-#[cfg(not(windows))]
-pub type uv_uid_t = u32;
-
-#[cfg(windows)]
-pub type uv_gid_t = u8;
-#[cfg(not(windows))]
-pub type uv_gid_t = u32;
+pub type uv_fs_buf_t = [u64; 80];
+pub use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 
 const NUL: c_char = 0;
 const OK: c_int = 1;
@@ -303,65 +294,80 @@ use crate::fileio::{close, dup, fcntl, fdopen, getuid, read, write};
 unsafe extern "C" {
     fn uv_exepath(buffer: *mut c_char, size: *mut usize) -> c_int;
 
-    fn uv_fs_get_ptr(req: *const uv_fs_t) -> *mut c_void;
-    fn uv_fs_get_path(req: *const uv_fs_t) -> *const c_char;
-    fn uv_fs_get_statbuf(req: *mut uv_fs_t) -> *mut uv_stat_t;
+    fn uv_fs_get_ptr(req: *const uv_fs_buf_t) -> *mut c_void;
+    fn uv_fs_get_path(req: *const uv_fs_buf_t) -> *const c_char;
+    fn uv_fs_get_statbuf(req: *mut uv_fs_buf_t) -> *mut uv_stat_t;
 
     fn uv_fs_stat(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
-    fn uv_fs_fstat(loop_: *mut c_void, req: *mut uv_fs_t, file: c_int, cb: *const c_void) -> c_int;
+    fn uv_fs_fstat(
+        loop_: *mut c_void,
+        req: *mut uv_fs_buf_t,
+        file: c_int,
+        cb: *const c_void,
+    ) -> c_int;
     fn uv_fs_lstat(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_access(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_open(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         flags: c_int,
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
-    fn uv_fs_close(loop_: *mut c_void, req: *mut uv_fs_t, file: c_int, cb: *const c_void) -> c_int;
+    fn uv_fs_close(
+        loop_: *mut c_void,
+        req: *mut uv_fs_buf_t,
+        file: c_int,
+        cb: *const c_void,
+    ) -> c_int;
     fn uv_fs_copyfile(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         new_path: *const c_char,
         flags: c_int,
         cb: *const c_void,
     ) -> c_int;
-    fn uv_fs_fsync(loop_: *mut c_void, req: *mut uv_fs_t, file: c_int, cb: *const c_void) -> c_int;
+    fn uv_fs_fsync(
+        loop_: *mut c_void,
+        req: *mut uv_fs_buf_t,
+        file: c_int,
+        cb: *const c_void,
+    ) -> c_int;
     fn uv_fs_chmod(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_fchmod(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         file: c_int,
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_chown(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         uid: uv_uid_t,
         gid: uv_gid_t,
@@ -369,7 +375,7 @@ unsafe extern "C" {
     ) -> c_int;
     fn uv_fs_fchown(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         file: c_int,
         uid: uv_uid_t,
         gid: uv_gid_t,
@@ -377,7 +383,7 @@ unsafe extern "C" {
     ) -> c_int;
     fn uv_fs_utime(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         atime: f64,
         mtime: f64,
@@ -385,47 +391,47 @@ unsafe extern "C" {
     ) -> c_int;
     fn uv_fs_rename(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         new_path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_mkdir(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         mode: c_int,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_mkdtemp(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         tpl: *const c_char,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_rmdir(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_scandir(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         flags: c_int,
         cb: *const c_void,
     ) -> c_int;
-    fn uv_fs_scandir_next(req: *mut uv_fs_t, ent: *mut uv_dirent_t) -> c_int;
+    fn uv_fs_scandir_next(req: *mut uv_fs_buf_t, ent: *mut uv_dirent_t) -> c_int;
     fn uv_fs_unlink(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
     fn uv_fs_realpath(
         loop_: *mut c_void,
-        req: *mut uv_fs_t,
+        req: *mut uv_fs_buf_t,
         path: *const c_char,
         cb: *const c_void,
     ) -> c_int;
@@ -583,7 +589,7 @@ pub unsafe extern "C" fn os_dirname(buf: *mut c_char, mut len: usize) -> c_int {
 pub unsafe extern "C" fn os_isrealdir(name: *const c_char) -> bool {
     #[cfg(not(test))]
     unsafe {
-        let mut request: uv_fs_t = [0; 80];
+        let mut request: uv_fs_buf_t = [0; 80];
         if uv_fs_lstat(ptr::null_mut(), &raw mut request, name, ptr::null()) != 0 {
             uv_fs_req_cleanup((&raw mut request).cast());
             return false;
@@ -710,7 +716,7 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
         let ok = if s_isreg(mode as u64) {
             #[cfg(not(test))]
             {
-                let mut req: uv_fs_t = [0; 80];
+                let mut req: uv_fs_buf_t = [0; 80];
                 let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, X_OK, ptr::null());
                 uv_fs_req_cleanup((&raw mut req).cast());
                 r == 0
@@ -865,7 +871,7 @@ pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int)
     }
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_open(
             ptr::null_mut(),
             &raw mut req,
@@ -993,7 +999,7 @@ pub unsafe extern "C" fn os_set_cloexec(fd: c_int) -> c_int {
 pub unsafe extern "C" fn os_close(fd: c_int) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_close(ptr::null_mut(), &raw mut req, fd, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
@@ -1254,7 +1260,7 @@ pub unsafe extern "C" fn os_copy(
 ) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_copyfile(
             ptr::null_mut(),
             &raw mut req,
@@ -1278,7 +1284,7 @@ pub unsafe extern "C" fn os_copy(
 pub unsafe extern "C" fn os_fsync(fd: c_int) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         g_stats.fsync += 1;
@@ -1297,7 +1303,7 @@ unsafe fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
     }
     #[cfg(not(test))]
     unsafe {
-        let mut request: uv_fs_t = [0; 80];
+        let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_stat(ptr::null_mut(), &raw mut request, name, ptr::null());
         if result == 0 {
             *statbuf = *uv_fs_get_statbuf(&raw mut request);
@@ -1331,7 +1337,7 @@ pub unsafe extern "C" fn os_getperm(name: *const c_char) -> i32 {
 pub unsafe extern "C" fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chmod(ptr::null_mut(), &raw mut req, name, perm, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
@@ -1348,7 +1354,7 @@ pub unsafe extern "C" fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
 pub unsafe extern "C" fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
@@ -1476,7 +1482,7 @@ pub unsafe extern "C" fn os_file_owned(fname: *const c_char) -> bool {
 pub unsafe extern "C" fn os_chown(path: *const c_char, owner: uv_uid_t, group: uv_gid_t) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_chown(
             ptr::null_mut(),
             &raw mut req,
@@ -1500,7 +1506,7 @@ pub unsafe extern "C" fn os_chown(path: *const c_char, owner: uv_uid_t, group: u
 pub unsafe extern "C" fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fchown(ptr::null_mut(), &raw mut req, fd, owner, group, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
@@ -1526,7 +1532,7 @@ pub unsafe extern "C" fn os_path_exists(path: *const c_char) -> bool {
 pub unsafe extern "C" fn os_file_settime(path: *const c_char, atime: f64, mtime: f64) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_utime(
             ptr::null_mut(),
             &raw mut req,
@@ -1550,7 +1556,7 @@ pub unsafe extern "C" fn os_file_settime(path: *const c_char, atime: f64, mtime:
 pub unsafe extern "C" fn os_file_is_readable(name: *const c_char) -> bool {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, R_OK, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r == 0
@@ -1567,7 +1573,7 @@ pub unsafe extern "C" fn os_file_is_readable(name: *const c_char) -> bool {
 pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, W_OK, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 {
@@ -1588,7 +1594,7 @@ pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
 pub unsafe extern "C" fn os_rename(path: *const c_char, new_path: *const c_char) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
@@ -1605,7 +1611,7 @@ pub unsafe extern "C" fn os_rename(path: *const c_char, new_path: *const c_char)
 pub unsafe extern "C" fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_mkdir(ptr::null_mut(), &raw mut req, path, mode, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
@@ -1710,7 +1716,7 @@ pub unsafe extern "C" fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
 pub unsafe extern "C" fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut request: uv_fs_t = [0; 80];
+        let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null());
         if result == 0 {
             xstrlcpy(
@@ -1735,7 +1741,7 @@ pub unsafe extern "C" fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> 
 pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_rmdir(ptr::null_mut(), &raw mut req, path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
@@ -1752,7 +1758,7 @@ pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
 pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) -> bool {
     #[cfg(not(test))]
     unsafe {
-        let req = dir.cast::<uv_fs_t>();
+        let req = dir.cast::<uv_fs_buf_t>();
         let r = uv_fs_scandir(ptr::null_mut(), req, path, 0, ptr::null());
         if r < 0 {
             os_closedir(dir);
@@ -1771,7 +1777,7 @@ pub unsafe extern "C" fn os_scandir(dir: *mut Directory, path: *const c_char) ->
 pub unsafe extern "C" fn os_scandir_next(dir: *mut Directory) -> *const c_char {
     #[cfg(not(test))]
     unsafe {
-        let req = dir.cast::<uv_fs_t>();
+        let req = dir.cast::<uv_fs_buf_t>();
         let ent = dir
             .cast::<u8>()
             .add(uv_req_size(UV_FS))
@@ -1804,7 +1810,7 @@ pub unsafe extern "C" fn os_closedir(dir: *mut Directory) {
 pub unsafe extern "C" fn os_remove(path: *const c_char) -> c_int {
     #[cfg(not(test))]
     unsafe {
-        let mut req: uv_fs_t = [0; 80];
+        let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_unlink(ptr::null_mut(), &raw mut req, path, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
         r
@@ -1909,7 +1915,7 @@ pub unsafe extern "C" fn os_fileinfo_link(path: *const c_char, file_info: *mut F
         }
         #[cfg(not(test))]
         {
-            let mut request: uv_fs_t = [0; 80];
+            let mut request: uv_fs_buf_t = [0; 80];
             let ok = uv_fs_lstat(ptr::null_mut(), &raw mut request, path, ptr::null()) == 0;
             if ok {
                 (*file_info).stat = *uv_fs_get_statbuf(&raw mut request);
@@ -1931,7 +1937,7 @@ pub unsafe extern "C" fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut 
         *file_info = FileInfo::default();
         #[cfg(not(test))]
         {
-            let mut request: uv_fs_t = [0; 80];
+            let mut request: uv_fs_buf_t = [0; 80];
             let ok = uv_fs_fstat(
                 ptr::null_mut(),
                 &raw mut request,
@@ -2032,7 +2038,7 @@ pub unsafe extern "C" fn os_realpath(
 ) -> *mut c_char {
     #[cfg(not(test))]
     unsafe {
-        let mut request: uv_fs_t = [0; 80];
+        let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
         if result == 0 {
             if buf.is_null() {

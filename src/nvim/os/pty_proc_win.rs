@@ -130,14 +130,10 @@ pub(crate) unsafe fn quote_cmd_arg(
 #[cfg(windows)]
 mod win_impl {
     use super::*;
+    use crate::event::r#loop::{uv_connect_cb, uv_connect_t, uv_thread_t};
+    use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 
-    type HANDLE = *mut c_void;
-    type DWORD = c_ulong;
-    type BOOL = c_int;
     type BOOLEAN = u8;
-    type uv_connect_t = c_void;
-    type uv_thread_t = *mut c_void;
-    type uv_connect_cb = Option<unsafe extern "C" fn(req: *mut uv_connect_t, status: c_int)>;
     type uv_thread_cb = Option<unsafe extern "C" fn(arg: *mut c_void)>;
     type WaitOrTimerCallback =
         Option<unsafe extern "system" fn(lpParameter: *mut c_void, TimerOrWaitFired: BOOLEAN)>;
@@ -242,13 +238,13 @@ mod win_impl {
             if (*r_fields).num_bytes == 0 {
                 TerminateProcess((*ptail).proc_handle, 0);
             }
-            let mut tid: uv_thread_t = ptr::null_mut();
+            let mut tid: uv_thread_t = 0;
             uv_thread_create(
                 &raw mut tid,
                 Some(os_conpty_free_thread),
                 (*ptail).conpty.cast(),
             );
-            while !(*r_fields).did_eof && WaitForSingleObject(tid, 0) == WAIT_TIMEOUT {
+            while !(*r_fields).did_eof && WaitForSingleObject(tid as HANDLE, 0) == WAIT_TIMEOUT {
                 uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
             }
             uv_thread_detach(&raw mut tid);

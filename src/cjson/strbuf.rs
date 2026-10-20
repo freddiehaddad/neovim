@@ -17,16 +17,11 @@ pub struct strbuf_t {
     pub debug: c_int,
 }
 
-unsafe extern "C" {
-    fn malloc(size: usize) -> *mut c_void;
-    fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
-    fn free(ptr: *mut c_void);
-    fn abort() -> !;
-}
+use crate::memory::{crt_free as free, crt_malloc as malloc, crt_realloc as realloc};
 
 fn die(msg: &str) -> ! {
     eprintln!("{msg}");
-    unsafe { abort() }
+    std::process::abort()
 }
 
 #[inline]

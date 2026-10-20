@@ -98,17 +98,15 @@ use crate::tui::ugrid::{
     ugrid_goto, ugrid_init, ugrid_resize, ugrid_scroll,
 };
 
+pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_write_cb};
+pub use crate::fileio::FILE;
+pub use crate::lua::executor::LuaRetMode;
 pub use crate::msgpack_rpc::packer::Integer;
 pub type TermMode = c_int;
 pub type TermModeState = c_int;
 pub type ModeShape = c_int;
 pub type LineFlags = c_int;
 pub type TerminfoDef = usize;
-type FILE = c_void;
-type LuaRetMode = c_int;
-type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
-type uv_write_cb = Option<unsafe extern "C" fn(req: *mut uv_write_t, status: c_int)>;
 
 const ARENA_EMPTY: Arena = Arena {
     cur_blk: ptr::null_mut(),
@@ -347,46 +345,7 @@ unsafe extern "C" {
 use crate::os::os_win_console::GetConsoleMode;
 
 #[cfg(unix)]
-mod unix_termios {
-    use std::ffi::{c_int, c_ulong};
-
-    #[cfg(target_os = "linux")]
-    pub type tcflag_t = u32;
-    #[cfg(not(target_os = "linux"))]
-    pub type tcflag_t = c_ulong;
-
-    #[cfg(target_os = "linux")]
-    pub type speed_t = u32;
-    #[cfg(not(target_os = "linux"))]
-    pub type speed_t = c_ulong;
-
-    #[cfg(target_os = "linux")]
-    pub const NCCS: usize = 32;
-    #[cfg(not(target_os = "linux"))]
-    pub const NCCS: usize = 20;
-
-    #[cfg(target_os = "linux")]
-    pub const VERASE: usize = 2;
-    #[cfg(not(target_os = "linux"))]
-    pub const VERASE: usize = 3;
-
-    #[repr(C)]
-    pub struct termios {
-        pub c_iflag: tcflag_t,
-        pub c_oflag: tcflag_t,
-        pub c_cflag: tcflag_t,
-        pub c_lflag: tcflag_t,
-        #[cfg(target_os = "linux")]
-        pub c_line: u8,
-        pub c_cc: [u8; NCCS],
-        pub c_ispeed: speed_t,
-        pub c_ospeed: speed_t,
-    }
-
-    unsafe extern "C" {
-        pub fn tcgetattr(fd: c_int, termios_p: *mut termios) -> c_int;
-    }
-}
+use crate::os::pty_proc_unix as unix_termios;
 
 #[inline]
 unsafe fn tui_input(tui: *mut TUIData) -> *mut TermInput {

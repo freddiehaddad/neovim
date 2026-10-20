@@ -7,25 +7,15 @@
     clippy::missing_safety_doc
 )]
 
-use std::ffi::{c_char, c_double, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::ptr;
 
-pub type lua_State = c_void;
-pub type lua_Number = c_double;
-pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(L: *mut lua_State) -> c_int>;
+pub use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
+pub use crate::lua::converter::lua_Number;
 pub type SBits = i32;
 pub type UBits = u32;
 
 const LUA_TNONE: c_int = -1;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct luaL_Reg {
-    pub name: *const c_char,
-    pub func: lua_CFunction,
-}
-
-unsafe impl Sync for luaL_Reg {}
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {

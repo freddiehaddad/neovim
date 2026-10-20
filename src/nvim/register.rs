@@ -126,9 +126,8 @@ use crate::state::{REPLACE_FLAG, save_v_event_T};
 use crate::terminal::terminal_paste;
 use crate::textformat::oparg_T;
 
-type OptInt = i64;
-type Direction = c_int;
-type BoolVarValue = c_int;
+use crate::eval::typval::BoolVarValue;
+use crate::search::Direction;
 
 const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;

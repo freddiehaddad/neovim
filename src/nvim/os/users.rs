@@ -13,15 +13,14 @@ use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::os::env::os_getenv_noalloc;
 use std::cell::UnsafeCell;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::math::{FAIL, OK};
 use crate::memory::{xfree, xstrdup};
 
-#[allow(non_camel_case_types)]
-pub type uv_uid_t = c_uint;
+pub use crate::event::r#loop::uv_uid_t;
 
 struct StaticUsers(UnsafeCell<garray_T>);
 unsafe impl Sync for StaticUsers {}
@@ -364,9 +363,9 @@ mod tests {
             assert!(os_get_userdir(std::ptr::null()).is_null());
 
             let mut buf = [0 as c_char; 32];
-            let res = os_get_uname(999_999, buf.as_mut_ptr(), buf.len());
+            let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
             if res == FAIL {
-                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "999999");
+                assert_eq!(CStr::from_ptr(buf.as_ptr()).to_str().unwrap(), "250");
             }
         }
     }

@@ -157,52 +157,9 @@ struct ObjPopStackItem {
     container: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MPConvStackValType {
-    Dict,
-    List,
-    Pairs,
-    Partial,
-    PartialList,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MPConvPartialStage {
-    Args,
-    SelfDict,
-    End,
-}
-
-#[derive(Clone, Copy)]
-enum MPConvStackData {
-    Dict {
-        dict: *mut dict_T,
-        dictp: *mut *mut dict_T,
-        hi: *mut hashitem_T,
-        todo: usize,
-    },
-    List {
-        list: *mut list_T,
-        li: *mut listitem_T,
-    },
-    Partial {
-        stage: MPConvPartialStage,
-        pt: *mut partial_T,
-    },
-    PartialList {
-        arg: *mut typval_T,
-        argv: *mut typval_T,
-        todo: usize,
-    },
-}
-
-#[derive(Clone, Copy)]
-struct MPConvStackVal {
-    val_type: MPConvStackValType,
-    tv: *mut typval_T,
-    saved_copy_id: c_int,
-    data: MPConvStackData,
-}
+use crate::eval::encode::{
+    MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType,
+};
 
 unsafe extern "C-unwind" {
     pub fn lua_gettop(L: *mut lua_State) -> c_int;

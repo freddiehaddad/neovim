@@ -24,13 +24,9 @@ use std::ffi::{c_char, c_int, c_long, c_ulong, c_void};
 use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 
 #[cfg(windows)]
-pub type HANDLE = *mut c_void;
+pub use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 #[cfg(windows)]
 pub type HPCON = *mut c_void;
-#[cfg(windows)]
-pub type DWORD = c_ulong;
-#[cfg(windows)]
-pub type BOOL = c_int;
 #[cfg(windows)]
 pub type HRESULT = c_long;
 

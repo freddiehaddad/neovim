@@ -106,8 +106,8 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 
-pub type iconv_t = isize;
 pub use crate::eval::buffer::varnumber_T;
+pub use crate::fileio::iconv_t;
 pub use crate::path::PathCmpFlags;
 
 const NUL: c_char = 0;

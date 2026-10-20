@@ -7,16 +7,9 @@ pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
 static mut LOCALE_DECIMAL_POINT: c_char = b'.' as c_char;
 
-use crate::strings::strchr;
-
-#[cfg_attr(all(test, windows), link(name = "legacy_stdio_definitions"))]
-unsafe extern "C" {
-    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
-    fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
-    fn malloc(size: usize) -> *mut c_void;
-    fn free(ptr: *mut c_void);
-    fn abort() -> !;
-}
+use crate::memory::{crt_free as free, crt_malloc as malloc};
+use crate::strings::{snprintf, strchr, strtod};
+use std::process::abort;
 
 unsafe fn fpconv_update_locale() {
     let mut buf = [0 as c_char; 8];

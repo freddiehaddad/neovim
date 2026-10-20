@@ -21,18 +21,25 @@ pub const MPACK_ERROR: c_int = 2;
 
 pub const MPACK_MAX_TOKEN_LEN: usize = 9;
 
-pub type mpack_token_type_t = c_int;
-pub const MPACK_TOKEN_NIL: mpack_token_type_t = 1;
-pub const MPACK_TOKEN_BOOLEAN: mpack_token_type_t = 2;
-pub const MPACK_TOKEN_UINT: mpack_token_type_t = 3;
-pub const MPACK_TOKEN_SINT: mpack_token_type_t = 4;
-pub const MPACK_TOKEN_FLOAT: mpack_token_type_t = 5;
-pub const MPACK_TOKEN_CHUNK: mpack_token_type_t = 6;
-pub const MPACK_TOKEN_ARRAY: mpack_token_type_t = 7;
-pub const MPACK_TOKEN_MAP: mpack_token_type_t = 8;
-pub const MPACK_TOKEN_BIN: mpack_token_type_t = 9;
-pub const MPACK_TOKEN_STR: mpack_token_type_t = 10;
-pub const MPACK_TOKEN_EXT: mpack_token_type_t = 11;
+#[repr(C)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum mpack_token_type_t {
+    #[default]
+    MPACK_TOKEN_NONE = 0,
+    MPACK_TOKEN_NIL = 1,
+    MPACK_TOKEN_BOOLEAN = 2,
+    MPACK_TOKEN_UINT = 3,
+    MPACK_TOKEN_SINT = 4,
+    MPACK_TOKEN_FLOAT = 5,
+    MPACK_TOKEN_CHUNK = 6,
+    MPACK_TOKEN_ARRAY = 7,
+    MPACK_TOKEN_MAP = 8,
+    MPACK_TOKEN_BIN = 9,
+    MPACK_TOKEN_STR = 10,
+    MPACK_TOKEN_EXT = 11,
+}
+
+pub use mpack_token_type_t::*;
 
 #[repr(C)]
 #[derive(Copy, Clone)]

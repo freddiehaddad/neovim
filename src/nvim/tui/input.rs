@@ -61,15 +61,13 @@ use crate::tui::termkey::termkey::{
     termkey_start, termkey_strfkey,
 };
 
-pub use crate::tui::tui::TUIData;
-pub type TermInput = c_void;
-pub type KeyEncoding = c_int;
+use crate::event::r#loop::{uv_close_cb, uv_timer_cb};
 pub use crate::option::OptInt;
+pub use crate::tui::tui::TUIData;
 pub use crate::tui::tui::TermMode;
 pub use crate::tui::tui::TermModeState;
-
-type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
+pub type TermInput = c_void;
+pub type KeyEncoding = c_int;
 
 const UV_TIMER: c_int = 13;
 const STDIN_FILENO: c_int = 0;

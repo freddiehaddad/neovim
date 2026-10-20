@@ -31,11 +31,9 @@ const UV_ENOMEM: c_int = -4057;
 #[cfg(not(windows))]
 const UV_ENOMEM: c_int = -12;
 
+pub use crate::event::r#loop::{uv_fs_cb, uv_fs_t, uv_write_cb};
 pub type uv_write_t = c_void;
-pub type uv_fs_t = c_void;
 pub type wbuffer_data_finalizer = Option<unsafe extern "C" fn(data: *mut c_void)>;
-type uv_write_cb = Option<unsafe extern "C" fn(req: *mut uv_write_t, status: c_int)>;
-type uv_fs_cb = Option<unsafe extern "C" fn(req: *mut uv_fs_t)>;
 
 #[repr(C)]
 pub struct WBuffer {

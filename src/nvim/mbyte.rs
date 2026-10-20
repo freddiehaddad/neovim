@@ -70,7 +70,6 @@ use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 
 pub type GraphemeState = i32;
-pub type iconv_t = *mut c_void;
 
 #[cfg(windows)]
 type wint_t = u16;
@@ -170,7 +169,7 @@ const CP_UTF8: u32 = 65001;
 pub struct vimconv_T {
     pub vc_type: c_int,
     pub vc_factor: c_int,
-    pub vc_fd: iconv_t,
+    pub vc_fd: *mut c_void,
     pub vc_fail: bool,
 }
 
@@ -952,10 +951,10 @@ unsafe extern "C" {
     fn nl_langinfo(item: c_int) -> *mut c_char;
 
     #[cfg(windows)]
-    fn libiconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t;
+    fn libiconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
 
     #[cfg(not(windows))]
-    fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t;
+    fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
 
 }
 
@@ -1049,7 +1048,7 @@ pub unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
 }
 
 #[inline]
-unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t {
+unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
     #[cfg(windows)]
     unsafe {
         libiconv_open(tocode, fromcode)
@@ -1077,7 +1076,7 @@ unsafe fn utf8proc_grapheme_break_stateful(
 
 #[inline]
 unsafe fn call_iconv(
-    cd: iconv_t,
+    cd: *mut c_void,
     inbuf: *mut *const c_char,
     inbytesleft: *mut usize,
     outbuf: *mut *mut c_char,
@@ -1099,7 +1098,7 @@ unsafe fn call_iconv(
 }
 
 #[inline]
-unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
+unsafe fn call_iconv_close(cd: *mut c_void) -> c_int {
     #[cfg(windows)]
     unsafe {
         libiconv_close(cd as isize)
@@ -3404,7 +3403,7 @@ pub unsafe extern "C" fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *m
             return usize::MAX as *mut c_void;
         }
         let mut fd = call_iconv_open(enc_skip(to), enc_skip(from));
-        if fd != usize::MAX as iconv_t && iconv_working == WorkingStatus::kUnknown {
+        if fd != usize::MAX as *mut c_void && iconv_working == WorkingStatus::kUnknown {
             let mut tobuf = [0 as c_char; ICONV_TESTLEN];
             let mut p = tobuf.as_mut_ptr();
             let mut tolen = ICONV_TESTLEN;
@@ -3418,7 +3417,7 @@ pub unsafe extern "C" fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *m
             if p.is_null() {
                 iconv_working = WorkingStatus::kBroken;
                 call_iconv_close(fd);
-                fd = usize::MAX as iconv_t;
+                fd = usize::MAX as *mut c_void;
             } else {
                 iconv_working = WorkingStatus::kWorking;
             }
@@ -3555,7 +3554,7 @@ pub unsafe extern "C" fn convert_setup_ext(
     to_unicode_is_utf8: bool,
 ) -> c_int {
     unsafe {
-        if (*vcp).vc_type == CONV_ICONV && (*vcp).vc_fd != usize::MAX as iconv_t {
+        if (*vcp).vc_type == CONV_ICONV && (*vcp).vc_fd != usize::MAX as *mut c_void {
             call_iconv_close((*vcp).vc_fd);
         }
         *vcp = vimconv_T {
@@ -3609,7 +3608,7 @@ pub unsafe extern "C" fn convert_setup_ext(
                 from
             };
             (*vcp).vc_fd = my_iconv_open(to_arg, from_arg);
-            if (*vcp).vc_fd != usize::MAX as iconv_t {
+            if (*vcp).vc_fd != usize::MAX as *mut c_void {
                 (*vcp).vc_type = CONV_ICONV;
                 (*vcp).vc_factor = 4;
             }

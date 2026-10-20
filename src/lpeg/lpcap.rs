@@ -10,19 +10,12 @@ use crate::lpeg::{
     SUBJIDX, capinside, caplistidx, captype, isclosecap, isopencap, ktableidx, lua_Integer,
     lua_State,
 };
+use crate::lua::base64::luaL_Buffer;
 
 #[cfg(windows)]
 const LUAL_BUFFERSIZE: usize = 512;
 #[cfg(not(windows))]
 const LUAL_BUFFERSIZE: usize = 8192;
-
-#[repr(C)]
-struct luaL_Buffer {
-    p: *mut c_char,
-    lvl: c_int,
-    L: *mut lua_State,
-    buffer: [c_char; 8192],
-}
 
 const LUA_MULTRET: c_int = -1;
 const LUA_TNIL: c_int = 0;

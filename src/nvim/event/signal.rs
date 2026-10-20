@@ -20,18 +20,15 @@ use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiq
 const UV_HANDLE: c_int = 5;
 const UV_SIGNAL: c_int = 16;
 
-pub use crate::event::r#loop::Loop;
+pub use crate::event::r#loop::{
+    Loop, uv_close_cb, uv_handle_t, uv_loop_t, uv_signal_cb, uv_signal_t,
+};
 pub type SignalWatcher = c_void;
-pub use crate::event::r#loop::uv_handle_t;
-pub use crate::event::r#loop::uv_loop_t;
-pub use crate::event::r#loop::uv_signal_t;
 
 pub type signal_cb =
     Option<unsafe extern "C" fn(watcher: *mut SignalWatcher, signum: c_int, data: *mut c_void)>;
 pub type signal_close_cb =
     Option<unsafe extern "C" fn(watcher: *mut SignalWatcher, data: *mut c_void)>;
-type uv_signal_cb = Option<unsafe extern "C" fn(handle: *mut uv_signal_t, signum: c_int)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
 
 #[repr(C)]
 struct SignalWatcherFields {

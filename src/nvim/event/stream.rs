@@ -42,19 +42,16 @@ const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
 const LOGLVL_DBG: c_int = 1;
 const LOGLVL_WRN: c_int = 3;
 
-pub use crate::event::r#loop::Loop;
+pub use crate::event::r#loop::{Loop, uv_close_cb, uv_handle_t, uv_loop_t};
 pub type Stream = c_void;
-pub use crate::event::r#loop::uv_loop_t;
 pub type uv_stream_t = c_void;
 pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
 pub type uv_tty_t = c_void;
-pub use crate::event::r#loop::uv_handle_t;
 
 pub type stream_close_cb = Option<unsafe extern "C" fn(stream: *mut Stream, data: *mut c_void)>;
 pub type stream_write_cb =
     Option<unsafe extern "C" fn(stream: *mut Stream, data: *mut c_void, status: c_int)>;
-type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
 
 #[repr(C)]
 pub struct StreamFields {

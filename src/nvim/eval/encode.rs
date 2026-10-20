@@ -98,7 +98,7 @@ pub struct ListReaderState {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum MPConvStackValType {
+pub(crate) enum MPConvStackValType {
     Dict,
     List,
     Pairs,
@@ -107,14 +107,14 @@ enum MPConvStackValType {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum MPConvPartialStage {
+pub(crate) enum MPConvPartialStage {
     Args,
     SelfDict,
     End,
 }
 
 #[derive(Clone, Copy)]
-enum MPConvStackData {
+pub(crate) enum MPConvStackData {
     Dict {
         dict: *mut dict_T,
         dictp: *mut *mut dict_T,
@@ -137,11 +137,11 @@ enum MPConvStackData {
 }
 
 #[derive(Clone, Copy)]
-struct MPConvStackVal {
-    val_type: MPConvStackValType,
-    tv: *mut typval_T,
-    saved_copy_id: c_int,
-    data: MPConvStackData,
+pub(crate) struct MPConvStackVal {
+    pub(crate) val_type: MPConvStackValType,
+    pub(crate) tv: *mut typval_T,
+    pub(crate) saved_copy_id: c_int,
+    pub(crate) data: MPConvStackData,
 }
 
 #[inline]

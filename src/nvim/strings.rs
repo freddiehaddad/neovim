@@ -105,7 +105,7 @@ pub struct keyvalue_T {
 
 #[cfg_attr(all(test, windows), link(name = "legacy_stdio_definitions"))]
 unsafe extern "C" {
-    fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
+    pub(crate) fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
     #[link_name = "qsort"]
     fn c_qsort(
         base: *mut c_void,

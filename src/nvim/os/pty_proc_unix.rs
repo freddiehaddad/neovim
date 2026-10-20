@@ -65,14 +65,11 @@ mod unix_impl {
     use super::*;
     use crate::eval::decode::dict_T;
     use crate::event::r#loop::{Loop, loop_children_watcher, loop_queues};
+    use crate::event::r#loop::{uv_handle_t, uv_signal_cb, uv_signal_t};
     use crate::event::proc::{
         Proc, PtyProc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
     };
     use crate::event::stream::{stream_closed_ptr, stream_uv_ptr, uv_loop_t, uv_pipe_t};
-
-    type uv_signal_t = c_void;
-    type uv_handle_t = c_void;
-    type uv_signal_cb = Option<unsafe extern "C" fn(handle: *mut uv_signal_t, signum: c_int)>;
 
     #[cfg(target_os = "linux")]
     type tcflag_t = u32;
@@ -201,7 +198,7 @@ mod unix_impl {
         pub const POSIX_VDISABLE: u8 = 0xff;
     }
 
-    use termios_consts::*;
+    pub use termios_consts::*;
 
     #[repr(C)]
     pub struct termios {
@@ -267,6 +264,7 @@ mod unix_impl {
         fn ptsname(fd: c_int) -> *mut c_char;
         fn cfsetispeed(termios_p: *mut termios, speed: speed_t) -> c_int;
         fn cfsetospeed(termios_p: *mut termios, speed: speed_t) -> c_int;
+        pub fn tcgetattr(fd: c_int, termios_p: *mut termios) -> c_int;
         fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
         fn killpg(pgrp: c_int, sig: c_int) -> c_int;
         fn waitpid(pid: c_int, wstatus: *mut c_int, options: c_int) -> c_int;
@@ -697,6 +695,9 @@ mod unix_impl {
         }
     }
 }
+
+#[cfg(unix)]
+pub use unix_impl::{VERASE, tcgetattr, termios};
 
 #[cfg(unix)]
 pub use unix_impl::*;

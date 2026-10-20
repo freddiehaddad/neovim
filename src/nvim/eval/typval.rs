@@ -194,51 +194,9 @@ struct Join {
     tofree: *mut c_char,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MPConvStackValType {
-    Dict,
-    List,
-    Partial,
-    PartialList,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MPConvPartialStage {
-    Args,
-    SelfDict,
-    End,
-}
-
-#[derive(Clone, Copy)]
-enum MPConvStackData {
-    Dict {
-        dict: *mut dict_T,
-        dictp: *mut *mut dict_T,
-        hi: *mut hashitem_T,
-        todo: usize,
-    },
-    List {
-        list: *mut list_T,
-        li: *mut listitem_T,
-    },
-    Partial {
-        stage: MPConvPartialStage,
-        pt: *mut partial_T,
-    },
-    PartialList {
-        arg: *mut typval_T,
-        argv: *mut typval_T,
-        todo: usize,
-    },
-}
-
-#[derive(Clone, Copy)]
-struct MPConvStackVal {
-    val_type: MPConvStackValType,
-    tv: *mut typval_T,
-    saved_copy_id: c_int,
-    data: MPConvStackData,
-}
+use crate::eval::encode::{
+    MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType,
+};
 
 #[repr(transparent)]
 pub struct SyncCStrPtr(pub *const c_char);
@@ -4415,6 +4373,7 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                     }
                     arg
                 }
+                MPConvStackValType::Pairs => unreachable!(),
             };
             debug_assert!(!tv.is_null());
             if nothing_convert_one_value(&mut mpstack, tv, copy_id) == FAIL {

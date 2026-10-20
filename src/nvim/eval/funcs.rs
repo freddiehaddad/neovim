@@ -506,12 +506,7 @@ struct uv_env_item_t {
     value: *mut c_char,
 }
 
-type RequestHandlerFn = unsafe extern "C" fn(
-    channel_id: u64,
-    args: Array,
-    arena: *mut Arena,
-    error: *mut Error,
-) -> Object;
+use crate::msgpack_rpc::channel::RequestHandlerFn;
 
 static mut INPUTSECRET_FLAG: bool = false;
 static mut GA_USERINPUT: garray_T = garray_T {
@@ -597,9 +592,8 @@ unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32) {
     unsafe { crate::mpack::object::mpack_parser_init(parser.cast(), capacity) }
 }
 
+use crate::msgpack_rpc::packer::handle_T;
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};
-
-type handle_T = c_int;
 
 #[inline]
 fn toupper_asc(c: c_char) -> u8 {

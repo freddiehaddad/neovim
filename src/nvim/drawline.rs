@@ -107,8 +107,8 @@ use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, s
 use crate::statusline::{build_statuscol_str, foldinfo_T, hlf_T, statuscol_T};
 use crate::terminal::{Terminal, terminal_get_line_attributes};
 
+use crate::ex_getln::disptick_T;
 type HlMode = u8;
-type disptick_T = u64;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;

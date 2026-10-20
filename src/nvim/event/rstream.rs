@@ -18,12 +18,13 @@ use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
+use crate::event::r#loop::{uv_fs_cb, uv_fs_t};
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_put_event};
 use crate::event::stream::{
     Loop, Stream, UV_TTY, stream_close_handle, stream_closed_ptr, stream_fields, stream_init,
     stream_may_close, stream_size, stream_uv_ptr, uv_handle_t, uv_idle_t, uv_loop_t, uv_stream_t,
 };
-use crate::event::wstream::{uv_buf_t, uv_fs_t};
+use crate::event::wstream::uv_buf_t;
 use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
 
 const UV_EOF: isize = -4095;
@@ -50,7 +51,6 @@ type uv_alloc_cb = Option<
 type uv_read_cb =
     Option<unsafe extern "C" fn(stream: *mut uv_stream_t, nread: isize, buf: *const uv_buf_t)>;
 type uv_idle_cb = Option<unsafe extern "C" fn(handle: *mut uv_idle_t)>;
-type uv_fs_cb = Option<unsafe extern "C" fn(req: *mut uv_fs_t)>;
 
 #[repr(C)]
 pub struct RStreamFields {

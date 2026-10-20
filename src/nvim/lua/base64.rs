@@ -19,6 +19,7 @@ pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_Sta
 const LUA_TSTRING: c_int = 4;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 #[allow(non_camel_case_types)]
 pub struct luaL_Reg {
     pub name: *const c_char,
@@ -26,6 +27,15 @@ pub struct luaL_Reg {
 }
 
 unsafe impl Sync for luaL_Reg {}
+
+#[repr(C)]
+#[allow(non_camel_case_types, non_snake_case)]
+pub struct luaL_Buffer {
+    pub p: *mut c_char,
+    pub lvl: c_int,
+    pub L: *mut lua_State,
+    pub buffer: [c_char; 8192],
+}
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int {

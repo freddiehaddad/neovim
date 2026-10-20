@@ -140,16 +140,9 @@ use crate::path::{FullName_save, path_tail};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_real_state, save_v_event_T};
 
-type OptIndex = c_int;
-type LuaRetMode = c_int;
-type LineGetter = Option<
-    unsafe extern "C" fn(
-        c: c_int,
-        cookie: *mut c_void,
-        indent: c_int,
-        do_concat: bool,
-    ) -> *mut c_char,
->;
+use crate::cmdexpand::LineGetter;
+use crate::lua::executor::LuaRetMode;
+use crate::optionstr::OptIndex;
 
 const NUL: c_char = 0;
 const OK: c_int = 1;

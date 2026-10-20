@@ -146,7 +146,7 @@ pub struct KeyDict_empty {
     pub is_set__empty_: OptionalKeys,
 }
 
-pub type ApiDispatchWrapper = unsafe extern "C" fn(u64, Array, *mut Arena, *mut Error) -> Object;
+pub use crate::api::private::dispatch::ApiDispatchWrapper;
 
 static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
 static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();

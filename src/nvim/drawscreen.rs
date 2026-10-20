@@ -132,8 +132,8 @@ use crate::statusline::{
 use crate::terminal::{Terminal, terminal_check_size, terminal_suspended};
 use crate::ui_compositor::ui_comp_set_screen_valid;
 
-type OptInt = i64;
-type disptick_T = u64;
+pub use crate::ex_getln::disptick_T;
+pub use crate::option::OptInt;
 
 const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;

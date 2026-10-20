@@ -136,42 +136,7 @@ unsafe extern "C" fn free_block_void(block: *mut c_void) {
     }
 }
 
-#[cfg(windows)]
-type uv_uid_t = u8;
-#[cfg(not(windows))]
-type uv_uid_t = u32;
-
-#[cfg(windows)]
-type uv_gid_t = u8;
-#[cfg(not(windows))]
-type uv_gid_t = u32;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct UvStdioContainer {
-    flags: c_int,
-    data: *mut c_void,
-}
-
-#[repr(C)]
-struct UvProcessOptions {
-    exit_cb: *const c_void,
-    file: *const c_char,
-    args: *mut *mut c_char,
-    env: *mut *mut c_char,
-    cwd: *const c_char,
-    flags: c_uint,
-    stdio_count: c_int,
-    stdio: *mut UvStdioContainer,
-    uid: uv_uid_t,
-    gid: uv_gid_t,
-}
-
-#[repr(C)]
-struct LibuvProcTail {
-    uvopts: UvProcessOptions,
-    uvstdio: [UvStdioContainer; 4],
-}
+use crate::event::libuv_proc::LibuvProcTail;
 
 #[repr(C)]
 pub struct RemoteUI {
@@ -263,7 +228,7 @@ pub struct ChannelTail {
     pub did_close_event: bool,
 }
 
-type RequestHandlerFn = unsafe extern "C" fn(
+pub type RequestHandlerFn = unsafe extern "C" fn(
     channel_id: u64,
     args: Array,
     arena: *mut Arena,

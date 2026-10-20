@@ -130,9 +130,10 @@ use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
 use crate::usercmd::{uc_mods, uc_split_args_iter};
 
-pub type LuaRetMode = c_int;
 pub use crate::api::vim::HlMessage;
-type uv_thread_t = usize;
+pub use crate::cmdexpand::LineGetter;
+use crate::event::r#loop::uv_thread_t;
+pub type LuaRetMode = c_int;
 
 type luv_CFpcall = Option<
     unsafe extern "C-unwind" fn(
@@ -152,14 +153,6 @@ type luv_CFcpcall = Option<
 >;
 type luv_acquire_vm = Option<unsafe extern "C-unwind" fn() -> *mut lua_State>;
 type luv_release_vm = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State)>;
-type LineGetter = Option<
-    unsafe extern "C-unwind" fn(
-        c: c_int,
-        cookie: *mut c_void,
-        indent: c_int,
-        do_concat: bool,
-    ) -> *mut c_char,
->;
 
 pub const kRetObject: LuaRetMode = 0;
 pub const kRetNilBool: LuaRetMode = 1;
