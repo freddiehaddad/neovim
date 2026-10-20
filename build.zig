@@ -263,7 +263,7 @@ pub fn build(b: *std.Build) !void {
             }
             if (std.mem.eql(u8, ".h", entry.name[entry.name.len - 2 ..])) {
                 try nvim_headers.append(b.allocator, b.fmt("{s}{s}", .{ s, entry.name }));
-                if (api_export and !std.mem.eql(u8, "ui_events.in.h", entry.name)) {
+                if (api_export) {
                     try api_headers.append(b.allocator, b.path(b.fmt("src/nvim/{s}{s}", .{ s, entry.name })));
                 }
             }

@@ -70,42 +70,14 @@ endif()
 #-------------------------------------------------------------------------------
 
 if(NOT MSVC)
-  target_compile_options(main_lib INTERFACE -Wall -Wextra -pedantic -Wno-unused-parameter
-    -Wstrict-prototypes -std=gnu99 -Wshadow -Wconversion -Wvla
-    -Wdouble-promotion
-    -Wmissing-noreturn
-    -Wmissing-format-attribute
-    -Wmissing-prototypes
-    -Wno-unused-function # because #35129
-    -fsigned-char)
-
   # For O_CLOEXEC, O_DIRECTORY, and O_NOFOLLOW flags on older systems
   # (pre POSIX.1-2008: glibc 2.11 and earlier). #4042
   # For ptsname(). #6743
   target_compile_definitions(main_lib INTERFACE _GNU_SOURCE)
 endif()
 
-# -fstack-protector breaks Mingw-w64 builds
-if(NOT MINGW AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-  check_c_compiler_flag(-fstack-protector-strong HAS_FSTACK_PROTECTOR_STRONG_FLAG)
-  if(HAS_FSTACK_PROTECTOR_STRONG_FLAG)
-    target_compile_options(main_lib INTERFACE -fstack-protector-strong)
-    target_link_libraries(main_lib INTERFACE -fstack-protector-strong)
-  else()
-    check_c_compiler_flag(-fstack-protector HAS_FSTACK_PROTECTOR_FLAG)
-    if(HAS_FSTACK_PROTECTOR_FLAG)
-      target_compile_options(main_lib INTERFACE -fstack-protector --param ssp-buffer-size=4)
-      target_link_libraries(main_lib INTERFACE -fstack-protector --param ssp-buffer-size=4)
-    endif()
-  endif()
-endif()
-
 # Compiler specific options
 if(MSVC)
-  target_compile_options(main_lib INTERFACE -W3)
-
-  # Disable warnings that give too many false positives.
-  target_compile_options(main_lib INTERFACE -wd4311 -wd4146 -wd4003 -wd4715)
   target_compile_definitions(main_lib INTERFACE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
 
   target_sources(main_lib INTERFACE ${CMAKE_CURRENT_LIST_DIR}/os/nvim.manifest)
@@ -116,22 +88,8 @@ elseif(MINGW)
   # wrapper for nvim.manifest
   target_sources(main_lib INTERFACE ${CMAKE_CURRENT_LIST_DIR}/os/nvim.rc)
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-  target_compile_options(main_lib INTERFACE
-    -Wno-conversion
-    -fno-common
-    $<$<CONFIG:Release>:-Wno-unused-result>
-    $<$<CONFIG:RelWithDebInfo>:-Wno-unused-result>
-    $<$<CONFIG:MinSizeRel>:-Wno-unused-result>)
-
   target_link_options(nvim_bin PRIVATE -Wno-free-nonheap-object) # see #37250
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-  # On FreeBSD 64 math.h uses unguarded C11 extension, which taints clang
-  # 3.4.1 used there.
-  # on GNU/Linux, glibc 2.43 is tainted with c11 features when you use _GNU_SOURCE
-  if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_compile_options(main_lib INTERFACE -Wno-c11-extensions)
-  endif()
-
   # workaround for clang-11 on macOS, supported on later versions
   if(NOT APPLE AND NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(nvim_bin PRIVATE -Wl,--no-undefined)
@@ -164,20 +122,6 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
   target_link_libraries(nvim_bin PRIVATE -lsocket)
 endif()
 
-check_c_compiler_flag(-Wimplicit-fallthrough HAVE_WIMPLICIT_FALLTHROUGH_FLAG)
-if(HAVE_WIMPLICIT_FALLTHROUGH_FLAG)
-  target_compile_options(main_lib INTERFACE -Wimplicit-fallthrough)
-endif()
-
-check_c_compiler_flag(-fdiagnostics-color=auto HAS_DIAG_COLOR_FLAG)
-if(HAS_DIAG_COLOR_FLAG)
-  if(CMAKE_GENERATOR MATCHES "Ninja")
-    target_compile_options(main_lib INTERFACE -fdiagnostics-color=always)
-  else()
-    target_compile_options(main_lib INTERFACE -fdiagnostics-color=auto)
-  endif()
-endif()
-
 # Remove --sort-common from linker flags, as this seems to cause bugs (see #2641, #3374).
 # TODO: Figure out the root cause.
 if(CMAKE_EXE_LINKER_FLAGS MATCHES "--sort-common" OR
@@ -202,69 +146,23 @@ endif()
 
 if(ENABLE_ASAN_UBSAN)
   message(STATUS "Enabling address sanitizer and undefined behavior sanitizer for nvim.")
-  if(NOT MSVC)
-    if(CI_BUILD)
-      # Try to recover from all sanitize issues so we get reports about all failures
-      target_compile_options(nvim_bin PRIVATE -fsanitize-recover=all)
-    else()
-      target_compile_options(nvim_bin PRIVATE -fno-sanitize-recover=all)
-    endif()
-    target_compile_options(nvim_bin PRIVATE
-      -fno-omit-frame-pointer
-      -fno-optimize-sibling-calls
-      -fsanitize=undefined)
-  endif()
-
-  target_compile_options(nvim_bin PRIVATE -fsanitize=address)
   target_link_libraries(nvim_bin PRIVATE -fsanitize=address -fsanitize=undefined)
   target_compile_definitions(nvim_bin PRIVATE ENABLE_ASAN_UBSAN)
 endif()
 
 if(ENABLE_MSAN)
   message(STATUS "Enabling memory sanitizer for nvim.")
-  target_compile_options(nvim_bin PRIVATE
-    -fsanitize=memory
-    -fsanitize-memory-track-origins
-    -fno-omit-frame-pointer
-    -fno-optimize-sibling-calls)
   target_link_libraries(nvim_bin PRIVATE -fsanitize=memory -fsanitize-memory-track-origins)
 endif()
 
 if(ENABLE_TSAN)
   message(STATUS "Enabling thread sanitizer for nvim.")
-  target_compile_options(nvim_bin PRIVATE -fsanitize=thread -fPIE)
   target_link_libraries(nvim_bin PRIVATE -fsanitize=thread)
 endif()
 
 option(CI_BUILD "CI, extra flags will be set" OFF)
 if(CI_BUILD)
   message(STATUS "CI build enabled")
-  if(MSVC)
-    target_compile_options(main_lib INTERFACE -WX)
-  else()
-    target_compile_options(main_lib INTERFACE -Werror)
-  endif()
-endif()
-
-option(ENABLE_IWYU "Run include-what-you-use with the compiler." OFF)
-if(ENABLE_IWYU)
-  find_program(IWYU_PRG NAMES include-what-you-use iwyu REQUIRED)
-  set(iwyu_flags "${IWYU_PRG};")
-  string(APPEND iwyu_flags "-Xiwyu;--no_default_mappings;")
-  string(APPEND iwyu_flags "-Xiwyu;--no_fwd_decls;")
-  string(APPEND iwyu_flags "-Xiwyu;--mapping_file=${PROJECT_SOURCE_DIR}/cmake.config/iwyu/mapping.imp")
-
-  set_target_properties(nvim_bin PROPERTIES C_INCLUDE_WHAT_YOU_USE "${iwyu_flags}")
-  target_compile_definitions(main_lib INTERFACE EXITFREE)
-endif()
-
-option(ENABLE_COMPILER_SUGGESTIONS "Enable -Wsuggest compiler warnings" OFF)
-if(ENABLE_COMPILER_SUGGESTIONS)
-  target_compile_options(main_lib INTERFACE
-    -Wsuggest-attribute=cold
-    -Wsuggest-attribute=const
-    -Wsuggest-attribute=malloc
-    -Wsuggest-attribute=pure)
 endif()
 
 option(ENABLE_GCOV "Enable gcov support" OFF)
@@ -274,7 +172,6 @@ if(ENABLE_GCOV)
     message(FATAL_ERROR "ENABLE_GCOV cannot be used with ENABLE_TSAN")
   endif()
   message(STATUS "Enabling gcov support")
-  target_compile_options(main_lib INTERFACE --coverage)
   target_link_libraries(main_lib INTERFACE --coverage)
   target_compile_definitions(main_lib INTERFACE USE_GCOV)
 endif()
@@ -284,8 +181,6 @@ endif()
 #-------------------------------------------------------------------------------
 
 set(BINARY_LIB_DIR ${PROJECT_BINARY_DIR}/lib/nvim)
-set(GENERATED_DIR ${PROJECT_BINARY_DIR}/src/nvim/auto)
-set(GENERATED_INCLUDES_DIR ${PROJECT_BINARY_DIR}/include)
 set(GENERATOR_DIR ${PROJECT_SOURCE_DIR}/src/gen)
 set(GEN_EVAL_TOUCH ${TOUCHES_DIR}/gen_doc_eval)
 set(LUAJIT_RUNTIME_DIR ${DEPS_PREFIX}/share/luajit-2.1/jit)
@@ -295,14 +190,11 @@ set(NVIM_RUNTIME_DIR ${PROJECT_SOURCE_DIR}/runtime)
 set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.h)
-list(REMOVE_ITEM API_HEADERS ${CMAKE_CURRENT_LIST_DIR}/api/ui_events.in.h)
 
 target_include_directories(main_lib INTERFACE
-  ${GENERATED_DIR}
-  ${GENERATED_INCLUDES_DIR}
   "${PROJECT_SOURCE_DIR}/src")
 
-file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
+file(MAKE_DIRECTORY ${TOUCHES_DIR})
 
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
 file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../mpack/*.h ../klib/*.h)
@@ -325,8 +217,6 @@ foreach(subdir
         viml/parser
        )
 
-  file(MAKE_DIRECTORY ${GENERATED_DIR}/${subdir})
-  file(MAKE_DIRECTORY ${GENERATED_INCLUDES_DIR}/${subdir})
   file(GLOB headers CONFIGURE_DEPENDS ${subdir}/*.h)
   list(APPEND NVIM_HEADERS ${headers})
 endforeach()
@@ -443,7 +333,7 @@ file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/src/xxd/*.rs"
   "${PROJECT_SOURCE_DIR}/test/functional/fixtures/*.rs")
 
-if(ENABLE_IWYU OR ENABLE_ASAN_UBSAN OR ENABLE_MSAN OR ENABLE_TSAN)
+if(ENABLE_ASAN_UBSAN OR ENABLE_MSAN OR ENABLE_TSAN)
   set(NVIM_RUST_EXITFREE "1")
 else()
   set(NVIM_RUST_EXITFREE "0")

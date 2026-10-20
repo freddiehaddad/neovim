@@ -1,9 +1,9 @@
 const std = @import("std");
-const gen = @import("gen/gen_steps.zig");
+const runtime = @import("../runtime/gen_runtime.zig");
 
 pub fn lintSources(
     b: *std.Build,
-    nvim_sources: std.ArrayList(gen.SourceItem),
+    nvim_sources: std.ArrayList(runtime.SourceItem),
     nvim_headers: std.ArrayList([]u8),
 ) !std.ArrayList([]const u8) {
     var lint_sources: std.ArrayList([]const u8) = try .initCapacity(b.allocator, 0);
@@ -13,8 +13,6 @@ pub fn lintSources(
     for (nvim_headers.items) |header| {
         try lint_sources.append(b.allocator, b.fmt("src/nvim/{s}", .{header}));
     }
-    try lint_sources.append(b.allocator, "src/tee/tee.c");
-    try lint_sources.append(b.allocator, "src/xxd/xxd.c");
     return lint_sources;
 }
 
@@ -23,7 +21,7 @@ pub fn addSteps(
     target: std.Build.ResolvedTarget,
     cdb_step: *std.Build.Step,
     nvim_exe_install: *std.Build.Step.InstallArtifact,
-    nvim_sources: std.ArrayList(gen.SourceItem),
+    nvim_sources: std.ArrayList(runtime.SourceItem),
     nvim_headers: std.ArrayList([]u8),
     ci_build: bool,
 ) !void {
