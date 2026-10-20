@@ -1,7 +1,6 @@
 //! Buffer line storage and swapfile recovery (`src/nvim/memline.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -191,7 +190,9 @@ const kPathCmpLiteral: c_int = 1 << 0;
 const kPathCmpFull: c_int = 1 << 2;
 const kPathDeviceUNC: c_int = 5;
 
+#[cfg(unix)]
 const ENOENT: c_int = 2;
+#[cfg(unix)]
 const EINVAL: c_int = 22;
 
 #[repr(C)]

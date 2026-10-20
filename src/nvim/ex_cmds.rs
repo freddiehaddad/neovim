@@ -1,7 +1,6 @@
 //! Functions for command-line Ex commands (`src/nvim/ex_cmds.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -233,6 +232,7 @@ const kCpoOvernew: c_int = b'O' as c_int;
 const kCpoRemmark: c_int = b'R' as c_int;
 const kCpoUndo: c_int = b'u' as c_int;
 
+#[cfg(unix)]
 const NODE_OTHER: c_int = 2;
 
 const VIM_QUESTION: c_int = 4;

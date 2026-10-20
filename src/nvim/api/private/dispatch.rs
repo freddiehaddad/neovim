@@ -1,7 +1,6 @@
 //! API Msgpack-RPC request handler lookup and dispatch wrappers (`src/nvim/api/private/dispatch.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

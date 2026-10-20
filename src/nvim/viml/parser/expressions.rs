@@ -1,7 +1,6 @@
 //! Vimscript expression lexer and parser (`src/nvim/viml/parser/expressions.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -19,7 +18,9 @@ use crate::strings::vim_snprintf;
 use crate::viml::parser::parser::{
     ParserHighlightChunk, ParserLine, ParserPosition, ParserState, viml_parser_get_remaining_line,
 };
-use std::ffi::{CStr, c_char, c_int};
+#[cfg(not(test))]
+use std::ffi::CStr;
+use std::ffi::{c_char, c_int};
 
 pub use crate::charset::uvarnumber_T;
 pub use crate::eval::typval::float_T;
@@ -34,28 +35,8 @@ const ESC: u8 = 0x1b;
 const AUTOLOAD_CHAR: u8 = b'#';
 
 const Ctrl_A: u8 = 1;
-const Ctrl_B: u8 = 2;
-const Ctrl_C: u8 = 3;
-const Ctrl_D: u8 = 4;
-const Ctrl_E: u8 = 5;
-const Ctrl_F: u8 = 6;
-const Ctrl_G: u8 = 7;
 const Ctrl_H: u8 = 8;
 const Ctrl_K: u8 = 11;
-const Ctrl_L: u8 = 12;
-const Ctrl_M: u8 = 13;
-const Ctrl_N: u8 = 14;
-const Ctrl_O: u8 = 15;
-const Ctrl_P: u8 = 16;
-const Ctrl_Q: u8 = 17;
-const Ctrl_R: u8 = 18;
-const Ctrl_S: u8 = 19;
-const Ctrl_T: u8 = 20;
-const Ctrl_U: u8 = 21;
-const Ctrl_V: u8 = 22;
-const Ctrl_W: u8 = 23;
-const Ctrl_X: u8 = 24;
-const Ctrl_Y: u8 = 25;
 const Ctrl_Z: u8 = 26;
 
 const STR2NR_ALL: c_int = 0x0f;
@@ -453,6 +434,7 @@ enum ExprOpAssociativity {
 pub struct SyncCStrArray<const N: usize>(pub [*const c_char; N]);
 unsafe impl<const N: usize> Sync for SyncCStrArray<N> {}
 
+#[cfg(not(test))]
 const ELTKN_TYPE_TAB: [&CStr; 27] = [
     c"Invalid",
     c"Missing",
@@ -511,6 +493,7 @@ const fn build_ccs_tab() -> [*const c_char; 64] {
 #[unsafe(no_mangle)]
 pub static ccs_tab: SyncCStrArray<64> = SyncCStrArray(build_ccs_tab());
 
+#[cfg(not(test))]
 const ELTKN_MUL_TYPE_TAB: [&CStr; 3] = [c"Mul", c"Div", c"Mod"];
 
 #[unsafe(no_mangle)]
@@ -1172,9 +1155,12 @@ pub unsafe extern "C" fn viml_pexpr_next_token(
     }
 }
 
+#[cfg(not(test))]
 static mut INTCHAR_BUF: [c_char; 16] = [0; 16];
+#[cfg(not(test))]
 static mut REPR_TOKEN_RET: [c_char; 1024] = [0; 1024];
 
+#[cfg(not(test))]
 unsafe fn intchar2str(ch: c_int) -> *const c_char {
     unsafe {
         let buf = std::ptr::addr_of_mut!(INTCHAR_BUF).cast::<c_char>();

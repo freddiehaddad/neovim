@@ -1,7 +1,6 @@
 //! Libuv process spawning (`src/nvim/event/libuv_proc.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -29,13 +28,18 @@ use std::ptr;
 const UV_PROCESS: c_int = 10;
 
 const UV_IGNORE: c_int = 0x00;
+#[cfg(windows)]
 const UV_CREATE_PIPE: c_int = 0x01;
 const UV_INHERIT_FD: c_int = 0x02;
+#[cfg(windows)]
 const UV_READABLE_PIPE: c_int = 0x10;
+#[cfg(windows)]
 const UV_WRITABLE_PIPE: c_int = 0x20;
 const UV_NONBLOCK_PIPE: c_int = 0x40;
+#[cfg(windows)]
 const UV_OVERLAPPED_PIPE: c_int = 0x40;
 
+#[cfg(windows)]
 const UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS: c_uint = 1 << 2;
 const UV_PROCESS_DETACHED: c_uint = 1 << 3;
 const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;

@@ -1,13 +1,13 @@
 //! Keycode definitions and `<key>` notation translation (`src/nvim/keycodes.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc
 )]
 
+#[cfg(not(test))]
 use crate::charset::ascii_isalpha;
 pub use crate::charset::is_special;
 #[cfg(not(test))]
@@ -387,8 +387,11 @@ const MOUSE_RELEASE: c_int = 0x03;
 const MOUSE_X1: c_int = 0x300;
 const MOUSE_X2: c_int = 0x400;
 
+#[cfg(not(test))]
 const STR2NR_ALL: c_int = 0x0f;
+#[cfg(not(test))]
 const K_CPO_BSLASH: c_int = b'B' as c_int;
+#[cfg(not(test))]
 const MB_MAXBYTES: usize = 30;
 
 #[repr(C)]
@@ -1919,11 +1922,13 @@ fn toupper_asc(c: c_int) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 fn ctrl_chr(c: c_int) -> c_int {
     toupper_asc(c) ^ 0x40
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_asc(s: *const c_char, pat: &[u8]) -> bool {
     for (i, &p) in pat.iter().enumerate() {
@@ -2178,6 +2183,7 @@ pub extern "C" fn handle_x_keys(key: c_int) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 static mut SPECIAL_KEY_STRING: [c_char; MAX_KEY_NAME_LEN + 1] = [0; MAX_KEY_NAME_LEN + 1];
 
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
@@ -2445,6 +2451,7 @@ pub unsafe extern "C" fn special_to_buf(
     }
 }
 
+#[cfg(not(test))]
 /// Try to include modifiers (except alt/meta) in the key (`extract_modifiers`).
 fn extract_modifiers(
     mut key: c_int,

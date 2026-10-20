@@ -1,7 +1,6 @@
 //! The input engine "bytes layer" (`src/nvim/input.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -105,7 +104,6 @@ const FAIL: c_int = 0;
 const OK: c_int = 1;
 
 const FLUSH_MINIMAL: flush_buffers_T = 0;
-const FLUSH_TYPEAHEAD: flush_buffers_T = 1;
 const FLUSH_INPUT: flush_buffers_T = 2;
 
 const NSCRIPT: usize = 15;

@@ -1,7 +1,6 @@
 //! Window and tabpage layout, management, and navigation (`src/nvim/window.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -177,7 +176,6 @@ const FR_ROW: c_char = 1;
 const FR_COL: c_char = 2;
 
 const SNAP_HELP_IDX: usize = 0;
-const SNAP_AUCMD_IDX: usize = 1;
 const SNAP_QUICKFIX_IDX: usize = 2;
 const SNAP_COUNT: usize = 3;
 

@@ -1,7 +1,6 @@
 //! VTerm pen and SGR color/attribute handling (`src/nvim/vterm/pen.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -27,7 +26,6 @@ const VTERM_COLOR_DEFAULT_MASK: u8 = 0x06;
 
 const VTERM_VALUETYPE_BOOL: VTermValueType = 1;
 const VTERM_VALUETYPE_INT: VTermValueType = 2;
-const VTERM_VALUETYPE_STRING: VTermValueType = 3;
 const VTERM_VALUETYPE_COLOR: VTermValueType = 4;
 
 const VTERM_ATTR_BOLD: VTermAttr = 1;
@@ -46,7 +44,6 @@ const VTERM_ATTR_URI: VTermAttr = 13;
 const VTERM_ATTR_DIM: VTermAttr = 14;
 const VTERM_ATTR_OVERLINE: VTermAttr = 15;
 
-const VTERM_UNDERLINE_OFF: u32 = 0;
 const VTERM_UNDERLINE_SINGLE: u32 = 1;
 const VTERM_UNDERLINE_DOUBLE: u32 = 2;
 const VTERM_UNDERLINE_CURLY: u32 = 3;

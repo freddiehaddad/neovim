@@ -1,7 +1,6 @@
 //! Indentation and tabstop functions (`src/nvim/indent.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -87,7 +86,6 @@ const SIN_UNDO: c_int = 4;
 const SIN_NOMARK: c_int = 8;
 
 const INDENT_SET: c_int = 1;
-const INDENT_INC: c_int = 2;
 const INDENT_DEC: c_int = 3;
 
 const BL_WHITE: c_int = 1;

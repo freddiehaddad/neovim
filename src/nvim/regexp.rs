@@ -1,7 +1,6 @@
 //! Regular expression compilation, execution, and substitution (`src/nvim/regexp.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -1182,13 +1181,6 @@ pub(super) unsafe fn ri_upper(c: c_int) -> bool {
     unsafe {
         (0..0x100).contains(&c)
             && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_UPPER) != 0
-    }
-}
-#[inline]
-pub(super) unsafe fn ri_white(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
-            && (*(&raw const class_tab).cast::<i16>().add(c as usize) & RI_WHITE) != 0
     }
 }
 

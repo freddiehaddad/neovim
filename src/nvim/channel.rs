@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -35,15 +34,16 @@ use crate::eval::{callback_call, get_v_event, restore_v_event};
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_queues, uv_strerror};
 #[cfg(not(test))]
+use crate::event::multiqueue::multiqueue_free;
+#[cfg(not(test))]
 use crate::event::multiqueue::multiqueue_new_child;
-use crate::event::multiqueue::{
-    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_put_event,
-};
+use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 #[cfg(not(test))]
 use crate::event::proc::exit_on_closed_chan;
+#[cfg(not(test))]
+use crate::event::proc::proc_free;
 use crate::event::proc::{
-    Proc, proc_err, proc_free, proc_header, proc_in, proc_out, proc_size, proc_spawn, proc_stop,
-    proc_tail,
+    Proc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_spawn, proc_stop, proc_tail,
 };
 #[cfg(not(test))]
 use crate::event::rstream::rstream_init_fd;
@@ -77,10 +77,11 @@ use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdup, 
 use crate::memory::{arena_finish, arena_mem_free};
 #[cfg(not(test))]
 use crate::message::semsg;
+#[cfg(not(test))]
+use crate::msgpack_rpc::channel::rpc_free;
 use crate::msgpack_rpc::channel::{
     Channel, ChannelPart, ChannelStreamType, channel_instream, channel_prefix, channel_size,
-    channel_stream_ptr, channel_tail, event_T, find_channel, rpc_close, rpc_free, rpc_init,
-    rpc_start,
+    channel_stream_ptr, channel_tail, event_T, find_channel, rpc_close, rpc_init, rpc_start,
 };
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::server::server_owns_pipe_address;
@@ -126,6 +127,7 @@ const STDERR_FILENO: c_int = 2;
 const LUA_NOREF: LuaRef = -2;
 const VAR_UNLOCKED: c_int = 0;
 const kCallbackNone: c_int = 0;
+#[cfg(not(test))]
 const kListLenMayKnow: isize = -3;
 
 const kProcTypeUv: c_int = 0;
@@ -144,12 +146,11 @@ const kChannelPartRpc: ChannelPart = 3;
 const kChannelPartAll: ChannelPart = 4;
 
 const kChannelStdinPipe: ChannelStdinMode = 0;
-const kChannelStdinNull: ChannelStdinMode = 1;
 
 const EVENT_CHANCLOSE: event_T = 22;
 const EVENT_CHANOPEN: event_T = 24;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const F_DUPFD_CLOEXEC: c_int = 1030;
 #[cfg(target_os = "macos")]
 const F_DUPFD_CLOEXEC: c_int = 67;
@@ -194,6 +195,7 @@ unsafe extern "C" {
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn redirect_stderr_to_null() {
     #[cfg(all(not(test), windows))]
@@ -248,6 +250,7 @@ fn put_event_1(
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 fn put_event_2(
     queue: *mut MultiQueue,
@@ -585,6 +588,7 @@ pub unsafe extern "C" fn callback_reader_start(reader: *mut CallbackReader, r#ty
     }
 }
 
+#[cfg(not(test))]
 unsafe fn channel_destroy(chan: *mut Channel) {
     unsafe {
         let cp = channel_prefix(chan);
@@ -608,6 +612,7 @@ unsafe fn channel_destroy(chan: *mut Channel) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn free_channel_event(argv: *mut *mut c_void) {
     unsafe {
         let chan = (*argv).cast::<Channel>();
@@ -1454,6 +1459,7 @@ pub unsafe extern "C" fn channel_event(chan: *mut Channel, event: event_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn set_info_event(argv: *mut *mut c_void) {
     #[cfg(not(test))]
     unsafe {

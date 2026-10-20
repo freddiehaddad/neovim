@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -175,11 +174,14 @@ use crate::eval::vars::{
 };
 #[cfg(not(test))]
 use crate::event::r#loop::loop_queues;
+#[cfg(not(test))]
 use crate::event::multiqueue::multiqueue_free;
 #[cfg(not(test))]
 use crate::event::multiqueue::multiqueue_new_child;
 use crate::event::proc::{Proc, proc_header};
-use crate::event::time::{TimeWatcher, TimeWatcherFields, time_watcher_start, watcher_fields};
+#[cfg(not(test))]
+use crate::event::time::watcher_fields;
+use crate::event::time::{TimeWatcher, TimeWatcherFields, time_watcher_start};
 #[cfg(not(test))]
 use crate::event::time::{time_watcher_close, time_watcher_init, time_watcher_stop};
 use crate::ex_eval::aborting;
@@ -197,9 +199,9 @@ use crate::keycodes::{
 };
 #[cfg(not(test))]
 use crate::lua::stdlib::regmatch_T;
-use crate::map::{
-    Map, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t, ptr_t,
-};
+#[cfg(not(test))]
+use crate::map::map_del_uint64_t_ptr_t;
+use crate::map::{Map, Set, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t, ptr_t};
 use crate::map_glyph_cache::{MapHash, NvimString};
 use crate::mark::{mark_get, mark_global_iter};
 use crate::math::{FAIL, OK};
@@ -267,10 +269,8 @@ const GLV_FAIL: glv_status_T = 0;
 const GLV_OK: glv_status_T = 1;
 const GLV_STOP: glv_status_T = 2;
 
-const TFN_INT: c_int = 1;
 const TFN_QUIET: c_int = 2;
 const TFN_NO_AUTOLOAD: c_int = 4;
-const TFN_NO_DEREF: c_int = 8;
 const TFN_READ_ONLY: c_int = 16;
 
 const GLV_QUIET: c_int = TFN_QUIET;
@@ -315,34 +315,50 @@ const kCallbackExpr: c_int = 4;
 
 const kChannelStreamProc: ChannelStreamType = 0;
 
+#[cfg(not(test))]
 const kRetObject: c_int = 0;
 const kGRegExprSrc: c_int = 2;
 const kMarkAll: c_int = 1;
+#[cfg(not(test))]
 const kUIMessages: c_int = 4;
+#[cfg(not(test))]
 const HLF_E: c_int = 6;
 
+#[cfg(not(test))]
 const DOCMD_VERBOSE: c_int = 0x01;
+#[cfg(not(test))]
 const DOCMD_NOWAIT: c_int = 0x02;
 
 const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
 
+#[cfg(not(test))]
 const kOptInvalid: OptIndex = -1;
+#[cfg(not(test))]
 const kOptCpoptions: OptIndex = 61;
+#[cfg(not(test))]
 const kOptFoldexpr: OptIndex = 104;
+#[cfg(not(test))]
 const kOptFoldtext: OptIndex = 113;
+#[cfg(not(test))]
 const kWinOptFoldexpr: usize = 15;
 
 const CONV_NONE: c_int = 0;
 const STR2NR_ALL: c_int = 0x7f;
+#[cfg(not(test))]
 const PROF_YES: c_int = 1;
+#[cfg(not(test))]
 const RE_MAGIC: c_int = 1;
+#[cfg(not(test))]
 const RE_STRING: c_int = 2;
+#[cfg(not(test))]
 const REGSUB_COPY: c_int = 1;
+#[cfg(not(test))]
 const REGSUB_MAGIC: c_int = 2;
 
 const TV_CSTRING: usize = usize::MAX - 1;
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
+#[cfg(not(test))]
 const UV_TIMER: c_int = 13;
 
 #[cfg(target_env = "msvc")]
@@ -350,19 +366,31 @@ const MAX_EVAL7_RECURSE: c_int = 300;
 #[cfg(not(target_env = "msvc"))]
 const MAX_EVAL7_RECURSE: c_int = 1000;
 
+#[cfg(not(test))]
 const E_MISSBRAC: &CStr = c"E111: Missing ']'";
+#[cfg(not(test))]
 const E_LIST_END: &CStr = c"E697: Missing end of List ']': %s";
+#[cfg(not(test))]
 const E_CANNOT_SLICE_DICTIONARY: &CStr = c"E719: Cannot slice a Dictionary";
+#[cfg(not(test))]
 const E_CANNOT_INDEX_SPECIAL_VARIABLE: &CStr = c"E909: Cannot index a special variable";
+#[cfg(not(test))]
 const E_NOWHITESPACE: &CStr = c"E274: No white space allowed before parenthesis";
+#[cfg(not(test))]
 const E_CANNOT_INDEX_A_FUNCREF: &CStr = c"E695: Cannot index a Funcref";
+#[cfg(not(test))]
 const E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY: &CStr =
     c"E698: Variable nested too deep for making a copy";
+#[cfg(not(test))]
 const E_STRING_LIST_OR_BLOB_REQUIRED: &CStr = c"E1098: String, List or Blob required";
+#[cfg(not(test))]
 const E_EXPRESSION_TOO_RECURSIVE_STR: &CStr = c"E1169: Expression too recursive: %s";
+#[cfg(not(test))]
 const E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR: &CStr =
     c"E1203: Dot can only be used on a dictionary: %s";
+#[cfg(not(test))]
 const E_EMPTY_FUNCTION_NAME: &CStr = c"E1192: Empty function name";
+#[cfg(not(test))]
 const E_CANNOT_USE_PARTIAL_HERE: &CStr = c"E1265: Cannot use a partial here";
 const NAMESPACE_CHAR: &CStr = c"abglstvw";
 
@@ -6037,6 +6065,7 @@ pub unsafe extern "C" fn set_ref_in_callback(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn set_ref_in_callback_reader(
     reader: *mut CallbackReader,
     copyID: c_int,
@@ -6241,6 +6270,7 @@ pub unsafe extern "C" fn timer_stop(timer: *mut timer_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn timer_close_cb(_tw: *mut TimeWatcher, data: *mut c_void) {
     unsafe {
         let timer = data.cast::<timer_T>();

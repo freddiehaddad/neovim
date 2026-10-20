@@ -1,7 +1,6 @@
 //! VTerm mouse event encoding (`src/nvim/vterm/mouse.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -21,7 +20,6 @@ const CSI_ARGS_MAX: usize = 32;
 const CSI_LEADER_MAX: usize = 16;
 const INTERMED_MAX: usize = 16;
 
-const MOUSE_WANT_CLICK: c_int = 0x01;
 const MOUSE_WANT_DRAG: c_int = 0x02;
 const MOUSE_WANT_MOVE: c_int = 0x04;
 

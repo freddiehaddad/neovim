@@ -1,11 +1,6 @@
 //! Lua BitOp — a bit operations library for Lua 5.1/5.2 (`src/bit.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -15,6 +10,7 @@ pub use crate::lua::converter::lua_Number;
 pub type SBits = i32;
 pub type UBits = u32;
 
+#[cfg(not(test))]
 const LUA_TNONE: c_int = -1;
 
 #[cfg(not(test))]

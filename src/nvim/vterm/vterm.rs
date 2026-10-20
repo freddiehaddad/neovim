@@ -1,7 +1,6 @@
 //! Core VTerm instance management and output buffering (`src/nvim/vterm/vterm.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -28,7 +27,6 @@ const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 
 const VTERM_VALUETYPE_BOOL: VTermValueType = 1;
 const VTERM_VALUETYPE_INT: VTermValueType = 2;
-const VTERM_VALUETYPE_STRING: VTermValueType = 3;
 const VTERM_VALUETYPE_COLOR: VTermValueType = 4;
 
 const VTERM_ATTR_BOLD: VTermAttr = 1;
@@ -46,7 +44,6 @@ const VTERM_ATTR_BASELINE: VTermAttr = 12;
 const VTERM_ATTR_URI: VTermAttr = 13;
 const VTERM_ATTR_DIM: VTermAttr = 14;
 const VTERM_ATTR_OVERLINE: VTermAttr = 15;
-const VTERM_N_ATTRS: VTermAttr = 16;
 
 #[repr(C)]
 pub struct VTermAllocatorFunctions {
@@ -483,6 +480,7 @@ mod tests {
 
     #[test]
     fn vterm_get_attr_type_maps_attributes() {
+        const VTERM_N_ATTRS: VTermAttr = 16;
         assert_eq!(vterm_get_attr_type(VTERM_ATTR_BOLD), VTERM_VALUETYPE_BOOL);
         assert_eq!(
             vterm_get_attr_type(VTERM_ATTR_UNDERLINE),

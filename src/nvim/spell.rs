@@ -1,6 +1,5 @@
 //! Code for spell checking (`src/nvim/spell.c`).
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -96,7 +95,6 @@ const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kTrue: TriState = 1;
 const MAXWLEN: usize = 254;
-const MAXREGIONS: usize = 8;
 const REGION_ALL: c_int = 0xff;
 const MAXWORDCOUNT: u16 = 0xffff;
 const SY_MAXLEN: usize = 30;

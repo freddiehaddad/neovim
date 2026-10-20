@@ -1,7 +1,6 @@
 //! Builtin Vimscript functions (`src/nvim/eval/funcs.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -245,6 +244,7 @@ const MAX_FUNC_ARGS: usize = 20;
 const NUMBUFLEN: usize = 65;
 const IOSIZE: usize = 1025;
 const MAXPATHL: usize = 4096;
+#[cfg(windows)]
 const MB_MAXBYTES: usize = 30;
 const MB_MAXCHAR: usize = 6;
 const MAX_SCHAR_SIZE: usize = 32;

@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -34,7 +33,7 @@ use crate::message::{semsg, smsg};
 #[cfg(not(test))]
 use crate::option::set_helplang_default;
 use crate::os::env::expand_T;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use crate::os::env::os_getenv_noalloc;
 #[cfg(not(test))]
 use crate::os::env::os_setenv;
@@ -49,42 +48,50 @@ use crate::strings::{gettext, setlocale};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const MAXPATHL: usize = 4096;
+#[cfg(all(not(test), unix))]
 const kShellOptSilent: c_int = 8;
 
+#[cfg(not(test))]
 const VV_LANG: c_int = 13;
+#[cfg(not(test))]
 const VV_LC_TIME: c_int = 14;
+#[cfg(not(test))]
 const VV_CTYPE: c_int = 15;
+#[cfg(not(test))]
 const VV_PROGPATH: c_int = 60;
+#[cfg(not(test))]
 const VV_COLLATE: c_int = 90;
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LC_ALL: c_int = 0;
 #[cfg(windows)]
 const LC_COLLATE: c_int = 1;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LC_CTYPE: c_int = 2;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LC_NUMERIC: c_int = 4;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LC_TIME: c_int = 5;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const VIM_LC_MESSAGES: c_int = 6789;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const LC_CTYPE: c_int = 0;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const LC_NUMERIC: c_int = 1;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const LC_TIME: c_int = 2;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const LC_COLLATE: c_int = 3;
 #[cfg(target_os = "linux")]
 const LC_MESSAGES: c_int = 5;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const LC_ALL: c_int = 6;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const VIM_LC_MESSAGES: c_int = LC_MESSAGES;
 
 #[cfg(not(any(windows, target_os = "linux")))]
@@ -165,6 +172,7 @@ pub unsafe extern "C" fn get_mess_lang() -> *mut c_char {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn get_mess_env() -> *mut c_char {
     unsafe {
         #[cfg(not(windows))]

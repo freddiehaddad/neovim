@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -68,6 +67,7 @@ const DEFAULT_GRID_HANDLE: Integer = 1;
 const NO_SCREEN: c_int = 2;
 const CHAN_STDIO: u64 = 1;
 
+#[cfg(windows)]
 const kChannelStreamStdio: c_int = 2;
 const kChannelPartAll: c_int = 4;
 

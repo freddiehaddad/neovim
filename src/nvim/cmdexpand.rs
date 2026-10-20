@@ -1,7 +1,6 @@
 //! Functions for command-line completion (`src/nvim/cmdexpand.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -939,6 +938,7 @@ const WM_SHOWN: c_int = 1;
 const WM_SCROLLED: c_int = 2;
 
 const VSE_NONE: c_int = 0;
+#[cfg(unix)]
 const VSE_SHELL: c_int = 1;
 const VSE_BUFFER: c_int = 2;
 

@@ -1,7 +1,6 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -1990,6 +1989,7 @@ static VTPCON_TERMINFO: TerminfoEntry = {
     e
 };
 
+#[cfg(not(test))]
 static UNI_IDS: [unibi_string; 41] = [
     unibi_string::unibi_carriage_return,
     unibi_string::unibi_change_scroll_region,
@@ -2034,10 +2034,12 @@ static UNI_IDS: [unibi_string; 41] = [
     unibi_string::unibi_to_status_line,
 ];
 
+#[cfg(not(test))]
 static UNI_EXT: [&CStr; 8] = [
     c"Se", c"Ss", c"smxx", c"setrgbf", c"setrgbb", c"Cs", c"Cr", c"Smulx",
 ];
 
+#[cfg(not(test))]
 static UNI_KEYS: [[unibi_string; 2]; kTermKeyCount] = [
     [
         unibi_string::unibi_key_backspace,
@@ -2081,6 +2083,7 @@ static UNI_KEYS: [[unibi_string; 2]; kTermKeyCount] = [
     ],
 ];
 
+#[cfg(not(test))]
 static UNI_FKEYS: [unibi_string; kTerminfoFuncKeyMax] = [
     unibi_string::unibi_key_f1,
     unibi_string::unibi_key_f2,
@@ -2147,6 +2150,7 @@ static UNI_FKEYS: [unibi_string; kTerminfoFuncKeyMax] = [
     unibi_string::unibi_key_f63,
 ];
 
+#[cfg(not(test))]
 static STRING_NAMES: [&str; kTermCount] = [
     "carriage_return",
     "change_scroll_region",
@@ -2199,6 +2203,7 @@ static STRING_NAMES: [&str; kTermCount] = [
     "set_underline_style (Smulx)",
 ];
 
+#[cfg(not(test))]
 static KEY_NAMES: [&str; kTermKeyCount] = [
     "backspace",
     "beg",
@@ -2218,6 +2223,7 @@ static KEY_NAMES: [&str; kTermKeyCount] = [
     "right",
 ];
 
+#[cfg(not(test))]
 static FKEY_NAMES: [&str; kTerminfoFuncKeyMax] = [
     "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "f13", "f14", "f15",
     "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23", "f24", "f25", "f26", "f27", "f28",
@@ -2440,11 +2446,13 @@ pub unsafe extern "C" fn terminfo_from_database(
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn fmt_bool(val: bool) -> &'static str {
     if val { "true" } else { "false" }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn sb_append_str(data: &mut StringBuilder, s: &str) {
     unsafe {

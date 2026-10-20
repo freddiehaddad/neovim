@@ -1,7 +1,6 @@
 //! Conversions between Vimscript `typval_T` and API `Object` (`src/nvim/api/private/converter.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     clippy::missing_safety_doc,
@@ -14,7 +13,9 @@ use crate::api::private::helpers::{arena_array, arena_dict};
 #[cfg(not(test))]
 use crate::api::private::validate::{Array, Dict};
 use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::{TypvalVval, VarType, typval_T};
+#[cfg(not(test))]
+use crate::clipboard::{list_T, listitem_T};
 #[cfg(not(test))]
 use crate::eval::decode::dictitem_T;
 use crate::eval::decode::{decode_string, dict_T};
@@ -29,15 +30,19 @@ use crate::eval::userfunc::{find_func, register_luafunc};
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
 use crate::garray::garray_T;
+#[cfg(not(test))]
 use crate::hashtab::hashitem_T;
 #[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
 #[cfg(not(test))]
 use crate::lua::executor::api_new_luaref;
+#[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
+use crate::memory::Arena;
+#[cfg(not(test))]
+use crate::memory::arena_memdupz;
 #[cfg(not(test))]
 use crate::memory::xstrdup;
-use crate::memory::{Arena, arena_memdupz};
 #[cfg(not(test))]
 use std::ffi::CStr;
 use std::ffi::{c_char, c_int, c_void};
@@ -46,7 +51,9 @@ const VAR_UNLOCKED: c_int = 0;
 const K_SPECIAL_VAR_NULL: i64 = 0;
 const K_BOOL_VAR_FALSE: i64 = 0;
 const K_BOOL_VAR_TRUE: i64 = 1;
+#[cfg(not(test))]
 const LUA_NOREF: c_int = -2;
+#[cfg(not(test))]
 const FC_LUAREF: c_int = 0x800;
 
 #[repr(C)]
@@ -103,6 +110,7 @@ pub struct partial_T {
     pub pt_dict: *mut dict_T,
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn cbuf_to_string_obj(
     arena: *mut Arena,
@@ -133,6 +141,7 @@ unsafe fn cbuf_to_string_obj(
     }
 }
 
+#[cfg(not(test))]
 enum ConvStackEntry {
     List {
         list: *mut list_T,
@@ -332,6 +341,7 @@ unsafe fn convert_one_value(
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
     let item = stack.pop().unwrap();
@@ -345,6 +355,7 @@ unsafe fn pop_into_parent_list(stack: &mut Vec<Object>) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn pop_into_parent_dict(stack: &mut Vec<Object>) {
     let val = stack.pop().unwrap();

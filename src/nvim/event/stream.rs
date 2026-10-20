@@ -1,7 +1,6 @@
 //! Low-level libuv stream wrapper (`src/nvim/event/stream.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -27,7 +26,9 @@ pub const UV_TTY: c_int = 14;
 pub const UV_FILE: c_int = 17;
 
 const UV_RUN_NOWAIT: c_int = 2;
+#[cfg(windows)]
 const UV_TTY_MODE_NORMAL: c_int = 0;
+#[cfg(windows)]
 const UV_TTY_MODE_RAW: c_int = 1;
 
 #[cfg(windows)]

@@ -1,7 +1,6 @@
 //! Functions for executing an Ex command line (`src/nvim/ex_docmd.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -328,9 +327,6 @@ const EX_BUFLOCK_OK: u32 = 0x80000;
 const EX_MODIFY: u32 = 0x100000;
 const EX_FLAGS: u32 = 0x200000;
 const EX_LOCK_OK: u32 = 0x1000000;
-const EX_KEEPSCRIPT: u32 = 0x4000000;
-const EX_PREVIEW: u32 = 0x8000000;
-const EX_ARGSPACE: u32 = 0x40000000;
 
 const ADDR_LINES: cmd_addr_T = 0;
 const ADDR_WINDOWS: cmd_addr_T = 1;
@@ -345,7 +341,6 @@ const ADDR_UNSIGNED: cmd_addr_T = 9;
 const ADDR_OTHER: cmd_addr_T = 10;
 const ADDR_NONE: cmd_addr_T = 11;
 
-const BAD_REPLACE: c_int = b'?' as c_int;
 const BAD_KEEP: c_int = -1;
 const BAD_DROP: c_int = -2;
 
@@ -466,6 +461,7 @@ const CCGD_EXCMD: c_int = 16;
 
 const FLUSH_TYPEAHEAD: c_int = 1;
 const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
+#[cfg(windows)]
 const kRetObject: c_int = 0;
 const kChannelStdinPipe: c_int = 0;
 const kCallbackNone: c_int = 0;
@@ -499,7 +495,6 @@ const ECMD_ALTBUF: c_int = 0x20;
 const REMAP_YES: c_int = 0;
 const REMAP_NONE: c_int = -1;
 
-const kCdScopeInvalid: CdScope = -1;
 const kCdScopeBuffer: CdScope = 0;
 const kCdScopeWindow: CdScope = 1;
 const kCdScopeTabpage: CdScope = 2;
@@ -590,6 +585,7 @@ const e_invarg2: &CStr = c"E475: Invalid argument: %s";
 const e_invargval: &CStr = c"E475: Invalid value for argument %s";
 const e_invrange: &CStr = c"E16: Invalid range";
 const e_invcmd: &CStr = c"E476: Invalid command";
+#[cfg(unix)]
 const e_isadir2: &CStr = c"E17: \"%s\" is a directory";
 const e_mkdir: &CStr = c"E739: Cannot create directory %s: %s";
 const e_modifiable: &CStr = c"E21: Cannot make changes, 'modifiable' is off";

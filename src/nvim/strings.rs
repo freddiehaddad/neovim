@@ -1,7 +1,6 @@
 //! String manipulation functions and Vimscript string builtins (`src/nvim/strings.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -62,15 +61,23 @@ use std::ptr;
 const NUL: c_char = 0;
 const CTRL_V: c_char = 0x16;
 const MB_MAXBYTES: usize = 30;
+#[cfg(not(test))]
 const NUMBUFLEN: usize = 65;
 
+#[cfg(not(test))]
 const kListLenUnknown: isize = -1;
 
+#[cfg(not(test))]
 const STR2NR_BIN: c_int = 1 << 0;
+#[cfg(not(test))]
 const STR2NR_OCT: c_int = 1 << 1;
+#[cfg(not(test))]
 const STR2NR_HEX: c_int = 1 << 2;
+#[cfg(not(test))]
 const STR2NR_OOCT: c_int = 1 << 3;
+#[cfg(not(test))]
 const STR2NR_QUOTE: c_int = 1 << 4;
+#[cfg(not(test))]
 const STR2NR_FORCE: c_int = 1 << 7;
 
 pub const TYPE_UNKNOWN: c_int = -1;
@@ -90,6 +97,7 @@ pub const TYPE_FLOAT: c_int = 12;
 
 pub const MAX_ALLOWED_STRING_WIDTH: c_uint = 1_048_576;
 
+#[cfg(not(test))]
 const E_PRINTF: &CStr = c"E766: Insufficient arguments for printf()";
 const E_CANNOT_MIX_POSITIONAL: &CStr =
     c"E1500: Cannot mix positional and non-positional arguments: %s";
@@ -1177,6 +1185,7 @@ pub unsafe extern "C" fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_c
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let a = *s1.cast::<*const c_char>();
@@ -1788,8 +1797,7 @@ pub unsafe extern "C" fn parse_fmt_types(
     }
 }
 
-const E_APTYPES_IS_NULL_NR_STR: &CStr =
-    c"E1507: Internal error: ap_types or ap_types[idx] is NULL: %d: %s";
+#[cfg(not(test))]
 const E_TOO_MANY_ARGS: &CStr = c"E767: Too many arguments to printf()";
 const TMP_LEN: usize = 350;
 

@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -19,8 +18,10 @@ use crate::api::private::helpers::{
     arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj, error_set,
     find_buffer_by_handle, integer_obj, luaref_obj, string_obj, try_enter, try_leave,
 };
+use crate::api::private::validate::{Array, Error, Object};
+#[cfg(not(test))]
 use crate::api::private::validate::{
-    Array, Dict, Error, KeyValuePair, Object, api_err_conflict, api_err_invalid, api_err_required,
+    Dict, KeyValuePair, api_err_conflict, api_err_invalid, api_err_required,
 };
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, ObjectType, api_err_exp, check_string_array};
@@ -38,30 +39,43 @@ use crate::eval::deprecated::Callback;
 use crate::eval::typval::{callback_free, callback_to_string};
 #[cfg(not(test))]
 use crate::globals::*;
+#[cfg(not(test))]
 use crate::lua::converter::LuaRef;
 #[cfg(not(test))]
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_memdupz};
+use crate::memory::Arena;
+#[cfg(not(test))]
+use crate::memory::arena_memdupz;
 #[cfg(not(test))]
 use crate::memory::{xfree, xstrndup};
 use crate::msgpack_rpc::packer::Integer;
 #[cfg(not(test))]
+use std::ffi::CStr;
+#[cfg(not(test))]
 use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{c_char, c_int};
 
 pub use crate::api::tabpage::Buffer;
 pub type event_T = c_int;
 pub use crate::api::private::helpers::ArrayBuilder;
 pub use crate::highlight::OptionalKeys;
 
+#[cfg(not(test))]
 const AUCMD_MAX_PATTERNS: usize = 256;
+#[cfg(not(test))]
 const NUM_EVENTS: usize = 150;
+#[cfg(not(test))]
 const BUFLOCAL_PAT_LEN: usize = 25;
+#[cfg(not(test))]
 const AUGROUP_DEFAULT: c_int = -1;
+#[cfg(not(test))]
 const AUGROUP_ERROR: c_int = -2;
+#[cfg(not(test))]
 const AUGROUP_ALL: c_int = -3;
+#[cfg(not(test))]
 const LUA_NOREF: LuaRef = -2;
+#[cfg(not(test))]
 const FAIL: c_int = 0;
 
 pub const kCallbackNone: c_int = 0;
@@ -70,36 +84,47 @@ pub const kCallbackPartial: c_int = 2;
 pub const kCallbackLua: c_int = 3;
 pub const kCallbackExpr: c_int = 4;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__id: u64 = 1;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__buf: u64 = 2;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__event: u64 = 3;
-const KEYSET_OPTIDX_get_autocmds__group: u64 = 4;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__buffer: u64 = 5;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__pattern: u64 = 6;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__buf: u64 = 1;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__desc: u64 = 2;
-const KEYSET_OPTIDX_create_autocmd__once: u64 = 3;
-const KEYSET_OPTIDX_create_autocmd__group: u64 = 4;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__buffer: u64 = 5;
-const KEYSET_OPTIDX_create_autocmd__nested: u64 = 6;
 const KEYSET_OPTIDX_create_autocmd__command: u64 = 7;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_create_autocmd__pattern: u64 = 8;
 const KEYSET_OPTIDX_create_autocmd__callback: u64 = 9;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_clear_autocmds__buf: u64 = 1;
-const KEYSET_OPTIDX_clear_autocmds__event: u64 = 2;
-const KEYSET_OPTIDX_clear_autocmds__group: u64 = 3;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_clear_autocmds__buffer: u64 = 4;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_clear_autocmds__pattern: u64 = 5;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_create_augroup__clear: u64 = 1;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__buf: u64 = 1;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__data: u64 = 2;
-const KEYSET_OPTIDX_exec_autocmds__group: u64 = 3;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__buffer: u64 = 4;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__pattern: u64 = 5;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
 
 #[repr(C)]
@@ -186,6 +211,7 @@ pub struct KeyDict_exec_autocmds {
     pub data: Object,
 }
 
+#[cfg(not(test))]
 static mut NEXT_AUTOCMD_ID: i64 = 1;
 
 #[inline]
@@ -193,6 +219,7 @@ const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_con(err: *mut Error, name: *const c_char, name2: *const c_char) {
     unsafe {
@@ -200,6 +227,7 @@ unsafe fn api_err_con(err: *mut Error, name: *const c_char, name2: *const c_char
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_inv(err: *mut Error, name: *const c_char, val_s: *const c_char) {
     unsafe {
@@ -207,6 +235,7 @@ unsafe fn api_err_inv(err: *mut Error, name: *const c_char, val_s: *const c_char
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_int(err: *mut Error, name: *const c_char, val_n: i64) {
     unsafe {
@@ -214,6 +243,7 @@ unsafe fn api_err_int(err: *mut Error, name: *const c_char, val_n: i64) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
     unsafe {
@@ -221,6 +251,7 @@ unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {
@@ -235,6 +266,7 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString {
     let s = format!("<buffer={handle}>");
@@ -1489,6 +1521,8 @@ pub unsafe extern "C" fn nvim_exec_autocmds(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const KEYSET_OPTIDX_create_autocmd__once: u64 = 12;
 
     #[test]
     fn has_key_checks_bitmask() {

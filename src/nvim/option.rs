@@ -1,7 +1,6 @@
 //! User-settable options (`src/nvim/option.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -172,7 +171,6 @@ const OPT_MODELINE: c_int = 0x04;
 const OPT_WINONLY: c_int = 0x08;
 const OPT_NOWIN: c_int = 0x10;
 const OPT_ONECOLUMN: c_int = 0x20;
-const OPT_NO_REDRAW: c_int = 0x40;
 const OPT_SKIPRTP: c_int = 0x80;
 
 const BCO_ENTER: c_int = 1;
@@ -256,6 +254,7 @@ const kOptCommentstring: OptIndex = 49;
 const kOptComplete: OptIndex = 51;
 const kOptCompletefunc: OptIndex = 52;
 const kOptCompleteopt: OptIndex = 54;
+#[cfg(windows)]
 const kOptCompleteslash: OptIndex = 55;
 const kOptConcealcursor: OptIndex = 57;
 const kOptConceallevel: OptIndex = 58;
@@ -361,6 +360,7 @@ const kOptShell: OptIndex = 260;
 const kOptShellcmdflag: OptIndex = 261;
 const kOptShellpipe: OptIndex = 262;
 const kOptShellredir: OptIndex = 264;
+#[cfg(windows)]
 const kOptShellslash: OptIndex = 265;
 const kOptShellxquote: OptIndex = 268;
 const kOptShiftwidth: OptIndex = 270;
@@ -436,6 +436,7 @@ const kBufOptComments: usize = 16;
 const kBufOptCommentstring: usize = 17;
 const kBufOptComplete: usize = 18;
 const kBufOptCompletefunc: usize = 19;
+#[cfg(windows)]
 const kBufOptCompleteslash: usize = 21;
 const kBufOptCopyindent: usize = 22;
 const kBufOptExpandtab: usize = 30;
@@ -480,7 +481,6 @@ const kBufOptVarsofttabstop: usize = 90;
 const kBufOptVartabstop: usize = 91;
 const kBufOptWrapmargin: usize = 92;
 
-const EOL_UNKNOWN: c_int = -1;
 const EOL_UNIX: c_int = 0;
 const EOL_DOS: c_int = 1;
 const EOL_MAC: c_int = 2;

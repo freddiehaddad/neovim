@@ -1,7 +1,6 @@
 //! Multibyte UTF-8 character and encoding handling (`src/nvim/mbyte.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -291,8 +290,6 @@ const IDX_ISO_11: usize = 10;
 const IDX_ISO_13: usize = 11;
 const IDX_ISO_14: usize = 12;
 const IDX_ISO_15: usize = 13;
-const IDX_KOI8_R: usize = 14;
-const IDX_KOI8_U: usize = 15;
 const IDX_UTF8: usize = 16;
 const IDX_UCS2: usize = 17;
 const IDX_UCS2LE: usize = 18;
@@ -301,42 +298,17 @@ const IDX_UTF16BE: usize = 20;
 const IDX_UTF16LE: usize = 21;
 const IDX_UCS4: usize = 22;
 const IDX_UCS4LE: usize = 23;
-const IDX_DEBUG: usize = 24;
 const IDX_EUC_JP: usize = 25;
 const IDX_SJIS: usize = 26;
 const IDX_EUC_KR: usize = 27;
 const IDX_EUC_CN: usize = 28;
 const IDX_EUC_TW: usize = 29;
 const IDX_BIG5: usize = 30;
-const IDX_CP437: usize = 31;
-const IDX_CP737: usize = 32;
-const IDX_CP775: usize = 33;
-const IDX_CP850: usize = 34;
-const IDX_CP852: usize = 35;
-const IDX_CP855: usize = 36;
-const IDX_CP857: usize = 37;
-const IDX_CP860: usize = 38;
-const IDX_CP861: usize = 39;
-const IDX_CP862: usize = 40;
-const IDX_CP863: usize = 41;
-const IDX_CP865: usize = 42;
-const IDX_CP866: usize = 43;
-const IDX_CP869: usize = 44;
-const IDX_CP874: usize = 45;
 const IDX_CP932: usize = 46;
 const IDX_CP936: usize = 47;
 const IDX_CP949: usize = 48;
 const IDX_CP950: usize = 49;
-const IDX_CP1250: usize = 50;
-const IDX_CP1251: usize = 51;
-const IDX_CP1253: usize = 52;
-const IDX_CP1254: usize = 53;
-const IDX_CP1255: usize = 54;
-const IDX_CP1256: usize = 55;
-const IDX_CP1257: usize = 56;
-const IDX_CP1258: usize = 57;
 const IDX_MACROMAN: usize = 58;
-const IDX_HPROMAN8: usize = 59;
 const IDX_COUNT: usize = 60;
 
 static ENC_CANON_TABLE: [EncCanonEntry; IDX_COUNT] = [

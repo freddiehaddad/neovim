@@ -1,11 +1,6 @@
 //! Secure file reading and `:trust` command (`src/nvim/lua/secure.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::lua::base64::lua_State;
@@ -21,9 +16,12 @@ use crate::memory::{xcalloc, xfree, xmemdupz};
 #[cfg(not(test))]
 use crate::message::{semsg, smsg};
 #[cfg(not(test))]
+use std::ffi::c_int;
+#[cfg(not(test))]
 use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int};
+use std::ffi::{CStr, c_char};
 
+#[cfg(not(test))]
 const LUA_GLOBALSINDEX: c_int = -10002;
 
 pub use crate::api::command::exarg_T;

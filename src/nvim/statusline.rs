@@ -1,7 +1,6 @@
 //! Statusline, winbar, ruler, tabline, and statuscolumn rendering (`src/nvim/statusline.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -76,7 +75,6 @@ const NUL: c_char = 0;
 const NL: c_int = 0x0a;
 const CAR: c_int = 0x0d;
 const MAXPATHL: usize = 4096;
-const SHOWCMD_BUFLEN: usize = 41;
 const TMPLEN: usize = 70;
 const MAX_STL_EVAL_DEPTH: c_int = 100;
 const SIGN_WIDTH: usize = 2;

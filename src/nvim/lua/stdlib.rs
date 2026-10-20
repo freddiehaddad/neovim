@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -28,6 +27,7 @@ use crate::clipboard::typval_T;
 use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 #[cfg(not(test))]
 use crate::cursor::linenr_T;
+#[cfg(not(test))]
 use crate::eval::decode::dict_T;
 #[cfg(not(test))]
 use crate::eval::deprecated::buf_T;
@@ -51,8 +51,10 @@ use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
 #[cfg(not(test))]
 use crate::log::g_min_log_level;
 #[cfg(not(test))]
+use crate::lua::base64::lua_CFunction;
+#[cfg(not(test))]
 use crate::lua::base64::luaopen_base64;
-use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
+use crate::lua::base64::{lua_State, luaL_Reg};
 #[cfg(not(test))]
 use crate::lua::converter::{
     lua_Integer, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata,
@@ -89,45 +91,74 @@ use crate::runtime::script_autoload;
 use crate::window::win_find_tabpage;
 #[cfg(not(test))]
 use std::ffi::CStr;
-use std::ffi::{c_char, c_int};
+#[cfg(not(test))]
+use std::ffi::c_char;
+use std::ffi::c_int;
 use std::ptr;
 
 pub use crate::regexp::regprog_T;
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
-const NSUBEXP: usize = 10;
 
+#[cfg(not(test))]
 const LUA_MULTRET: c_int = -1;
+#[cfg(not(test))]
 const LUA_REGISTRYINDEX: c_int = -10000;
+#[cfg(not(test))]
 const LUA_GLOBALSINDEX: c_int = -10002;
 
+#[cfg(not(test))]
 const LUA_TNIL: c_int = 0;
+#[cfg(not(test))]
 const LUA_TSTRING: c_int = 4;
+#[cfg(not(test))]
 const LUA_TTABLE: c_int = 5;
 
+#[cfg(not(test))]
 const RE_MAGIC: c_int = 1;
+#[cfg(not(test))]
 const RE_STRICT: c_int = 4;
+#[cfg(not(test))]
 const RE_AUTO: c_int = 8;
+#[cfg(not(test))]
 const RE_NOBREAK: c_int = 16;
 
+#[cfg(not(test))]
 const CONV_NONE: c_int = 0;
+#[cfg(not(test))]
 const kTrue: c_int = 1;
 
+#[cfg(not(test))]
 const CMOD_SANDBOX: c_int = 0x0001;
+#[cfg(not(test))]
 const CMOD_SILENT: c_int = 0x0002;
+#[cfg(not(test))]
 const CMOD_ERRSILENT: c_int = 0x0004;
+#[cfg(not(test))]
 const CMOD_UNSILENT: c_int = 0x0008;
+#[cfg(not(test))]
 const CMOD_NOAUTOCMD: c_int = 0x0010;
+#[cfg(not(test))]
 const CMOD_HIDE: c_int = 0x0020;
+#[cfg(not(test))]
 const CMOD_KEEPALT: c_int = 0x0100;
+#[cfg(not(test))]
 const CMOD_KEEPMARKS: c_int = 0x0200;
+#[cfg(not(test))]
 const CMOD_KEEPJUMPS: c_int = 0x0400;
+#[cfg(not(test))]
 const CMOD_LOCKMARKS: c_int = 0x0800;
+#[cfg(not(test))]
 const CMOD_KEEPPATTERNS: c_int = 0x1000;
 
+#[cfg(not(test))]
 const kCtxKeepCwd: c_int = 1;
+#[cfg(not(test))]
 const kCtxKeepDirs: c_int = 2;
+#[cfg(not(test))]
 const kCtxNoDisplay: c_int = 4;
+#[cfg(not(test))]
 const kCtxValidate: c_int = 16;
 
 pub use crate::api::command::regmatch_T;
@@ -171,6 +202,7 @@ unsafe fn lua_cjson_new(lstate: *mut lua_State) -> c_int {
     unsafe { crate::cjson::lua_cjson::lua_cjson_new(lstate.cast()) }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
     #[cfg(not(test))]
@@ -179,6 +211,7 @@ unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_newtable(lstate: *mut lua_State) {
     #[cfg(not(test))]
@@ -187,6 +220,7 @@ unsafe fn lua_newtable(lstate: *mut lua_State) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
     #[cfg(not(test))]
@@ -195,6 +229,7 @@ unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
     #[cfg(not(test))]
@@ -203,6 +238,7 @@ unsafe fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_isnoneornil(lstate: *mut lua_State, n: c_int) -> bool {
     #[cfg(not(test))]
@@ -215,6 +251,7 @@ unsafe fn lua_isnoneornil(lstate: *mut lua_State, n: c_int) -> bool {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_isnil(lstate: *mut lua_State, n: c_int) -> bool {
     #[cfg(not(test))]
@@ -227,6 +264,7 @@ unsafe fn lua_isnil(lstate: *mut lua_State, n: c_int) -> bool {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_istable(lstate: *mut lua_State, n: c_int) -> bool {
     #[cfg(not(test))]
@@ -239,6 +277,7 @@ unsafe fn lua_istable(lstate: *mut lua_State, n: c_int) -> bool {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_isstring(lstate: *mut lua_State, n: c_int) -> bool {
     #[cfg(not(test))]
@@ -252,6 +291,7 @@ unsafe fn lua_isstring(lstate: *mut lua_State, n: c_int) -> bool {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn lua_tostring(lstate: *mut lua_State, idx: c_int) -> *const c_char {
     #[cfg(not(test))]
@@ -264,6 +304,7 @@ unsafe fn lua_tostring(lstate: *mut lua_State, idx: c_int) -> *const c_char {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn luaL_checkstring(lstate: *mut lua_State, n: c_int) -> *const c_char {
     #[cfg(not(test))]
@@ -276,6 +317,7 @@ unsafe fn luaL_checkstring(lstate: *mut lua_State, n: c_int) -> *const c_char {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
     #[cfg(not(test))]
     unsafe {
@@ -287,6 +329,7 @@ unsafe fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn regex_match(
     lstate: *mut lua_State,
     prog: *mut *mut regprog_T,
@@ -460,6 +503,7 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> c_i
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -485,6 +529,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -506,6 +551,7 @@ unsafe extern "C-unwind" fn nlua_str_utf_start(lstate: *mut lua_State) -> c_int 
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_str_utf_end(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -601,6 +647,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
     #[cfg(not(test))]
     unsafe {
@@ -779,6 +826,7 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -827,6 +875,7 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -881,6 +930,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -907,6 +957,7 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -1027,6 +1078,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -1082,6 +1134,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn nlua_state_add_internal(lstate: *mut lua_State) {
     #[cfg(not(test))]
     unsafe {

@@ -1,7 +1,6 @@
 //! Functions for dealing with Vimscript variables (`src/nvim/eval/vars.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

@@ -4,7 +4,6 @@
 //! <https://lwn.net/Articles/780556/>
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -48,8 +47,11 @@ use std::io::Write;
 use std::ptr;
 
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const MAXPATHL: usize = 4096;
+#[cfg(all(not(test), unix))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const EOF: c_int = -1;
 
 pub const LOGLVL_DBG: c_int = 1;
@@ -57,23 +59,31 @@ pub const LOGLVL_INF: c_int = 2;
 pub const LOGLVL_WRN: c_int = 3;
 pub const LOGLVL_ERR: c_int = 4;
 
-const KXDG_STATE_HOME: c_int = 3;
+#[cfg(not(test))]
 const VV_SEND_SERVER: c_int = 28;
 
+#[cfg(not(test))]
 #[repr(C)]
 struct UvTimeval64 {
     tv_sec: i64,
     tv_usec: i32,
 }
 
+#[cfg(not(test))]
 #[repr(C, align(8))]
 struct UvMutex([u8; 128]);
 
+#[cfg(not(test))]
 static mut LOG_FILE_PATH: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
+#[cfg(not(test))]
 static mut DID_LOG_INIT: bool = false;
+#[cfg(not(test))]
 static mut MUTEX: UvMutex = UvMutex([0; 128]);
+#[cfg(not(test))]
 static mut RECURSIVE: bool = false;
+#[cfg(not(test))]
 static mut DID_MSG: bool = false;
+#[cfg(not(test))]
 static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -242,6 +252,7 @@ unsafe fn log_try_create(fname: *const c_char) -> bool {
     }
 }
 
+#[cfg(not(test))]
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 unsafe fn log_path_init() {
     #[cfg(not(test))]
@@ -583,6 +594,7 @@ pub unsafe extern "C" fn log_callstack(func_name: *const c_char, line_num: c_int
     }
 }
 
+#[cfg(not(test))]
 unsafe fn do_log_to_file_str(
     log_file: *mut FILE,
     log_level: c_int,

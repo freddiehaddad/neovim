@@ -1,11 +1,6 @@
 //! Deprecated Vimscript evaluation functions (`src/nvim/eval/deprecated.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::api::private::converter::sctx_T;
 #[cfg(not(test))]
@@ -40,8 +35,11 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 pub type EvalFuncData = *mut c_void;
 pub type Channel = c_void;
 
+#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: c_int = 1;
+#[cfg(not(test))]
 const K_CHANNEL_PART_RPC: c_int = 3;
+#[cfg(not(test))]
 const K_CHANNEL_STDIN_PIPE: c_int = 0;
 
 #[repr(C)]

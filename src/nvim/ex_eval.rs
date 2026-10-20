@@ -1,7 +1,6 @@
 //! Ex command-line evaluation, conditionals, loops, and exception handling (`src/nvim/ex_eval.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

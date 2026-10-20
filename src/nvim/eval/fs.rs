@@ -1,7 +1,6 @@
 //! Filesystem related builtin functions (`src/nvim/eval/fs.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -95,7 +94,6 @@ const IOSIZE: usize = 1025;
 const MAXLNUM: i64 = 0x7fffffff;
 
 const VAR_UNLOCKED: c_int = 0;
-const VAR_FIXED: c_int = 2;
 const K_LIST_LEN_UNKNOWN: isize = -1;
 
 const VALID_PATH: c_int = 1;
@@ -126,9 +124,11 @@ const S_IFMT_MASK: u64 = 0xF000;
 const S_IFIFO_VAL: u64 = 0x1000;
 const S_IFCHR_VAL: u64 = 0x2000;
 const S_IFDIR_VAL: u64 = 0x4000;
+#[cfg(unix)]
 const S_IFBLK_VAL: u64 = 0x6000;
 const S_IFREG_VAL: u64 = 0x8000;
 const S_IFLNK_VAL: u64 = 0xA000;
+#[cfg(unix)]
 const S_IFSOCK_VAL: u64 = 0xC000;
 
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";

@@ -1,7 +1,6 @@
 //! Functions for entering and editing an Ex command line (`src/nvim/ex_getln.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -234,7 +233,6 @@ const BACKWARD: Direction = -1;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const IOSIZE: usize = 1025;
 const NUMBUFLEN: usize = 65;
 
 const SEARCH_OPT: c_int = 0x10;

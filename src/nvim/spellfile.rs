@@ -1,7 +1,6 @@
 //! Code for reading and writing spell files (`src/nvim/spellfile.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -107,8 +106,6 @@ const VIMSUGMAGICL: usize = 6;
 const VIMSUGVERSION: c_int = 1;
 
 const WF_REGION: c_int = 0x01;
-const WF_ONECAP: c_int = 0x02;
-const WF_ALLCAP: c_int = 0x04;
 const WF_RARE: c_int = 0x08;
 const WF_BANNED: c_int = 0x10;
 const WF_AFX: c_int = 0x20;
@@ -122,7 +119,6 @@ const WF_COMPROOT: c_int = 0x0800;
 const WF_NOCOMPBEF: c_int = 0x1000;
 const WF_NOCOMPAFT: c_int = 0x2000;
 
-const WFP_RARE: c_int = 0x01;
 const WFP_NC: c_int = 0x02;
 const WFP_UP: c_int = 0x04;
 const WFP_COMPPERMIT: c_int = 0x08;
@@ -416,13 +412,6 @@ unsafe fn spell_toupper(c: c_int) -> c_int {
         } else {
             c
         }
-    }
-}
-
-#[inline]
-unsafe fn mb_cptr_adv(p: &mut *const c_char) {
-    unsafe {
-        *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
 }
 

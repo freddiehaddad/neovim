@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -101,10 +100,8 @@ const MODE_INSERT: c_int = 0x10;
 
 const kRetMultiStack: LuaRetMode = 4;
 
-const KEYSET_OPTIDX_buf_attach__preview: u64 = 1;
 const KEYSET_OPTIDX_buf_attach__on_bytes: u64 = 2;
 const KEYSET_OPTIDX_buf_attach__on_lines: u64 = 3;
-const KEYSET_OPTIDX_buf_attach__utf_sizes: u64 = 4;
 const KEYSET_OPTIDX_buf_attach__on_detach: u64 = 5;
 const KEYSET_OPTIDX_buf_attach__on_reload: u64 = 6;
 const KEYSET_OPTIDX_buf_attach__on_changedtick: u64 = 7;

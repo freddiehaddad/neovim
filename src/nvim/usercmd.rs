@@ -1,7 +1,6 @@
 //! User defined command support (`src/nvim/usercmd.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -53,7 +52,6 @@ const NUL: c_char = 0;
 const FAIL: c_int = 0;
 const OK: c_int = 1;
 const IOSIZE: usize = 1025;
-const NUMBUFLEN: usize = 65;
 
 const LUA_NOREF: LuaRef = -2;
 const UC_BUFFER: c_int = 1;
@@ -65,7 +63,6 @@ const KE_FILLER: c_char = b'X' as c_char;
 const HLF_8: c_int = 1;
 const HLF_D: c_int = 5;
 
-const CMD_map: cmdidx_T = 279;
 const CMD_SIZE: cmdidx_T = 564;
 const CMD_USER: cmdidx_T = -1;
 const CMD_USER_BUF: cmdidx_T = -2;

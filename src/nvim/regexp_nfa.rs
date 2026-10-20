@@ -63,67 +63,23 @@ const NFA_PREV_ATOM_JUST_BEFORE_NEG: c_int = NFA_SPLIT + 46;
 const NFA_PREV_ATOM_LIKE_PATTERN: c_int = NFA_SPLIT + 47;
 
 const NFA_BACKREF1: c_int = NFA_SPLIT + 48;
-const NFA_BACKREF2: c_int = NFA_SPLIT + 49;
-const NFA_BACKREF3: c_int = NFA_SPLIT + 50;
-const NFA_BACKREF4: c_int = NFA_SPLIT + 51;
-const NFA_BACKREF5: c_int = NFA_SPLIT + 52;
-const NFA_BACKREF6: c_int = NFA_SPLIT + 53;
-const NFA_BACKREF7: c_int = NFA_SPLIT + 54;
-const NFA_BACKREF8: c_int = NFA_SPLIT + 55;
 const NFA_BACKREF9: c_int = NFA_SPLIT + 56;
 const NFA_ZREF1: c_int = NFA_SPLIT + 57;
-const NFA_ZREF2: c_int = NFA_SPLIT + 58;
-const NFA_ZREF3: c_int = NFA_SPLIT + 59;
-const NFA_ZREF4: c_int = NFA_SPLIT + 60;
-const NFA_ZREF5: c_int = NFA_SPLIT + 61;
-const NFA_ZREF6: c_int = NFA_SPLIT + 62;
-const NFA_ZREF7: c_int = NFA_SPLIT + 63;
-const NFA_ZREF8: c_int = NFA_SPLIT + 64;
 const NFA_ZREF9: c_int = NFA_SPLIT + 65;
 const NFA_SKIP: c_int = NFA_SPLIT + 66;
 
 const NFA_MOPEN: c_int = NFA_SPLIT + 67;
 const NFA_MOPEN1: c_int = NFA_SPLIT + 68;
-const NFA_MOPEN2: c_int = NFA_SPLIT + 69;
-const NFA_MOPEN3: c_int = NFA_SPLIT + 70;
-const NFA_MOPEN4: c_int = NFA_SPLIT + 71;
-const NFA_MOPEN5: c_int = NFA_SPLIT + 72;
-const NFA_MOPEN6: c_int = NFA_SPLIT + 73;
-const NFA_MOPEN7: c_int = NFA_SPLIT + 74;
-const NFA_MOPEN8: c_int = NFA_SPLIT + 75;
 const NFA_MOPEN9: c_int = NFA_SPLIT + 76;
 
 const NFA_MCLOSE: c_int = NFA_SPLIT + 77;
-const NFA_MCLOSE1: c_int = NFA_SPLIT + 78;
-const NFA_MCLOSE2: c_int = NFA_SPLIT + 79;
-const NFA_MCLOSE3: c_int = NFA_SPLIT + 80;
-const NFA_MCLOSE4: c_int = NFA_SPLIT + 81;
-const NFA_MCLOSE5: c_int = NFA_SPLIT + 82;
-const NFA_MCLOSE6: c_int = NFA_SPLIT + 83;
-const NFA_MCLOSE7: c_int = NFA_SPLIT + 84;
-const NFA_MCLOSE8: c_int = NFA_SPLIT + 85;
 const NFA_MCLOSE9: c_int = NFA_SPLIT + 86;
 
 const NFA_ZOPEN: c_int = NFA_SPLIT + 87;
-const NFA_ZOPEN1: c_int = NFA_SPLIT + 88;
-const NFA_ZOPEN2: c_int = NFA_SPLIT + 89;
-const NFA_ZOPEN3: c_int = NFA_SPLIT + 90;
-const NFA_ZOPEN4: c_int = NFA_SPLIT + 91;
-const NFA_ZOPEN5: c_int = NFA_SPLIT + 92;
-const NFA_ZOPEN6: c_int = NFA_SPLIT + 93;
-const NFA_ZOPEN7: c_int = NFA_SPLIT + 94;
-const NFA_ZOPEN8: c_int = NFA_SPLIT + 95;
 const NFA_ZOPEN9: c_int = NFA_SPLIT + 96;
 
 const NFA_ZCLOSE: c_int = NFA_SPLIT + 97;
 const NFA_ZCLOSE1: c_int = NFA_SPLIT + 98;
-const NFA_ZCLOSE2: c_int = NFA_SPLIT + 99;
-const NFA_ZCLOSE3: c_int = NFA_SPLIT + 100;
-const NFA_ZCLOSE4: c_int = NFA_SPLIT + 101;
-const NFA_ZCLOSE5: c_int = NFA_SPLIT + 102;
-const NFA_ZCLOSE6: c_int = NFA_SPLIT + 103;
-const NFA_ZCLOSE7: c_int = NFA_SPLIT + 104;
-const NFA_ZCLOSE8: c_int = NFA_SPLIT + 105;
 const NFA_ZCLOSE9: c_int = NFA_SPLIT + 106;
 
 const NFA_ANY: c_int = NFA_SPLIT + 107;

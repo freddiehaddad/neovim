@@ -2,7 +2,6 @@
 //! `op_change`, `op_yank`, `do_join` (`src/nvim/ops.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

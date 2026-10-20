@@ -1,7 +1,6 @@
 //! Code to handle tags and the tag stack (`src/nvim/tag.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -57,8 +56,8 @@ use crate::mbyte::{
 };
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
-    emsg, give_warning, msg, msg_advance, msg_delay, msg_outtrans, msg_putchar, msg_puts,
-    msg_puts_title, semsg, smsg, verbose_enter, verbose_leave, wait_return,
+    emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
+    smsg, verbose_enter, verbose_leave, wait_return,
 };
 use crate::r#move::{set_topline, validate_cursor};
 use crate::option::copy_option_part;
@@ -1161,17 +1160,6 @@ pub unsafe extern "C" fn tag_freematch() {
     unsafe {
         xfree(tagmatchname.cast());
         tagmatchname = ptr::null_mut();
-    }
-}
-
-unsafe fn taglen_advance(l: c_int) {
-    unsafe {
-        if l == MAXCOL {
-            msg_putchar(b'\n' as c_int);
-            msg_advance(24);
-        } else {
-            msg_advance(13 + l);
-        }
     }
 }
 

@@ -1,7 +1,6 @@
 //! Terminfo driver for libtermkey (`src/nvim/tui/termkey/driver-ti.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

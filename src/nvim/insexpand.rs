@@ -1,7 +1,6 @@
 //! Functions for Insert mode completion (`src/nvim/insexpand.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -216,7 +215,6 @@ const VAR_NUMBER: VarType = VarType::VAR_NUMBER;
 const VAR_STRING: VarType = VarType::VAR_STRING;
 const VAR_LIST: VarType = VarType::VAR_LIST;
 const VAR_DICT: VarType = VarType::VAR_DICT;
-const VAR_SPECIAL: VarType = VarType::VAR_SPECIAL;
 const VAR_FIXED: VarLockStatus = 2;
 
 const HLF_E: hlf_T = 6;

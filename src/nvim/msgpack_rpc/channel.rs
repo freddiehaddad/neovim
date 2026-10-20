@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -74,6 +73,7 @@ pub type ChannelStreamType = c_int;
 pub type ChannelPart = c_int;
 pub use crate::api::autocmd::event_T;
 
+#[cfg(not(test))]
 const UV_PROCESS: c_int = 10;
 
 #[cfg(windows)]
@@ -81,10 +81,10 @@ const UV_EPIPE: c_int = -4047;
 #[cfg(not(windows))]
 const UV_EPIPE: c_int = -32;
 
-const LOGLVL_DBG: c_int = 1;
 const LOGLVL_INF: c_int = 2;
 const LOGLVL_ERR: c_int = 4;
 
+#[cfg(not(test))]
 const EVENT_CHANINFO: event_T = 23;
 
 const kClientTypeUnknown: ClientType = -1;
@@ -98,14 +98,10 @@ const kClientTypeMsgpackRpc: ClientType = 5;
 const kChannelStreamProc: ChannelStreamType = 0;
 const kChannelStreamSocket: ChannelStreamType = 1;
 const kChannelStreamStdio: ChannelStreamType = 2;
-const kChannelStreamStderr: ChannelStreamType = 3;
 const kChannelStreamInternal: ChannelStreamType = 4;
 
-const kChannelPartStdin: ChannelPart = 0;
-const kChannelPartStdout: ChannelPart = 1;
-const kChannelPartStderr: ChannelPart = 2;
+#[cfg(not(test))]
 const kChannelPartRpc: ChannelPart = 3;
-const kChannelPartAll: ChannelPart = 4;
 
 const kUIExtCount: usize = 10;
 
@@ -235,7 +231,6 @@ pub type RequestHandlerFn = unsafe extern "C" fn(
     arena: *mut Arena,
     error: *mut Error,
 ) -> Object;
-type UIEventHandlerFn = unsafe extern "C" fn(args: Array);
 
 #[cfg(not(test))]
 use crate::api::private::dispatch::{
@@ -956,6 +951,7 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn has_undetached_rpc_chan() -> bool {
     #[cfg(not(test))]
     unsafe {
@@ -988,6 +984,7 @@ pub unsafe extern "C" fn rpc_close(channel: *mut Channel) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn rpc_close_event(argv: *mut *mut c_void) {
     unsafe {
         let channel = (*argv).cast::<Channel>();

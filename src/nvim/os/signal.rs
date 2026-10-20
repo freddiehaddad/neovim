@@ -1,7 +1,6 @@
 //! OS signal handling (`src/nvim/os/signal.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -68,6 +67,7 @@ static mut shup: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 static mut sint: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 static mut squit: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 static mut sterm: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+#[cfg(unix)]
 static mut susr1: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 static mut swinch: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 static mut ststp: SignalWatcherBuf = SignalWatcherBuf([0; 512]);

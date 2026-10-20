@@ -1,11 +1,6 @@
 //! User prompts and console dialogs (`yes`/`no`, number, `confirm()`) (`src/nvim/dialog.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::eval::deprecated::Callback;
@@ -31,19 +26,30 @@ use crate::ui::{ui_active, ui_call_busy_stop, ui_flush, ui_has, ui_mouse_has};
 use std::ffi::{CStr, c_void};
 use std::ffi::{c_char, c_int};
 
+#[cfg(not(test))]
 const DLG_BUTTON_SEP: u8 = b'\n';
+#[cfg(not(test))]
 const DLG_HOTKEY_CHAR: u8 = b'&';
 
+#[cfg(not(test))]
 const CTRL_C: c_int = 0x03;
+#[cfg(not(test))]
 const CAR: c_int = 0x0d;
+#[cfg(not(test))]
 const ESC: c_int = 0x1b;
 
+#[cfg(not(test))]
 const HLF_M: c_int = 10;
+#[cfg(not(test))]
 const HLF_R: c_int = 18;
 
+#[cfg(not(test))]
 const K_UI_MESSAGES: c_int = 4;
+#[cfg(not(test))]
 const K_MOUSE_COMMAND: c_int = b'c' as c_int;
+#[cfg(not(test))]
 const EXPAND_NOTHING: c_int = 0;
+#[cfg(not(test))]
 const REMAP_YES: c_int = 0;
 
 const VIM_YES: c_int = 2;
@@ -52,7 +58,9 @@ const VIM_CANCEL: c_int = 4;
 const VIM_ALL: c_int = 5;
 const VIM_DISCARDALL: c_int = 6;
 
+#[cfg(not(test))]
 const HAS_HOTKEY_LEN: usize = 30;
+#[cfg(not(test))]
 const HOTK_LEN: usize = 4;
 
 #[unsafe(no_mangle)]

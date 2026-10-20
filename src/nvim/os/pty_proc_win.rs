@@ -1,7 +1,6 @@
 //! Windows PTY process spawning (`src/nvim/os/pty_proc_win.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -19,6 +18,7 @@ use crate::log::logmsg;
 use crate::mbyte::utf8_to_utf16;
 #[cfg(windows)]
 use crate::memory::{xfree, xmalloc};
+#[cfg(any(test, windows))]
 use crate::memory::{xstrlcat, xstrlcpy};
 #[cfg(windows)]
 use crate::os::env::os_shell_is_cmdexe;
@@ -26,9 +26,11 @@ use crate::os::env::os_shell_is_cmdexe;
 use crate::os::fs::os_can_exe;
 #[cfg(windows)]
 use crate::strings::{strlen as c_strlen, wcslen};
+#[cfg(any(test, windows))]
 use std::ffi::{CStr, c_char};
 #[cfg(windows)]
 use std::ffi::{c_int, c_ulong, c_void};
+#[cfg(any(test, windows))]
 use std::ptr;
 
 #[cfg(windows)]
@@ -51,8 +53,10 @@ use crate::os::pty_conpty_win::{
     os_has_conpty_working,
 };
 
+#[cfg(any(test, windows))]
 const NUL: c_char = 0;
 
+#[cfg(any(test, windows))]
 /// Emulate quote_cmd_arg of libuv and quotes command line argument.
 pub(crate) unsafe fn quote_cmd_arg(
     dest: *mut c_char,

@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -56,7 +55,7 @@ use crate::strings::strerror;
 use crate::strings::strlen as c_strlen;
 #[cfg(not(test))]
 use crate::ui::ui_call_chdir;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use std::ffi::CStr;
 #[cfg(all(not(test), windows))]
 use std::ffi::c_uint;
@@ -74,53 +73,75 @@ pub type vim_acl_T = *mut c_void;
 pub type uv_fs_buf_t = [u64; 80];
 pub use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const OK: c_int = 1;
 const FAIL: c_int = 0;
+#[cfg(all(not(test), windows))]
 const MAXPATHL: usize = 4096;
+#[cfg(not(test))]
 const STDIN_FILENO: c_int = 0;
 
 const NODE_NORMAL: c_int = 0;
+#[cfg(not(test))]
 const NODE_WRITABLE: c_int = 1;
+#[cfg(not(test))]
 const NODE_OTHER: c_int = 2;
 
+#[cfg(not(test))]
 const kPathGeneric: c_int = 1;
+#[cfg(all(not(test), windows))]
 const kPathDrive: c_int = 2;
+#[cfg(all(not(test), windows))]
 const kPathUNC: c_int = 3;
+#[cfg(all(not(test), windows))]
 const kPathDevice: c_int = 4;
+#[cfg(all(not(test), windows))]
 const kPathDeviceUNC: c_int = 5;
 
+#[cfg(not(test))]
 const UV_FS: c_int = 6;
+#[cfg(all(not(test), windows))]
 const UV_TTY: c_int = 14;
+#[cfg(all(not(test), windows))]
 const UV_FILE: c_int = 17;
 
+#[cfg(not(test))]
 const UV_EOF: c_int = -4095;
+#[cfg(not(test))]
 const UV_UNKNOWN: isize = -4094;
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const UV_EAGAIN: c_int = -4088;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const UV_EINTR: c_int = -4072;
 #[cfg(windows)]
 const UV_EINVAL: c_int = -4071;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const UV_EAGAIN: c_int = -11;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_EAGAIN: c_int = -35;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const UV_EINTR: c_int = -4;
 #[cfg(not(windows))]
 const UV_EINVAL: c_int = -22;
 
 const S_IFMT: u64 = 0o170000;
 const S_IFDIR: u64 = 0o040000;
+#[cfg(not(test))]
 const S_IFREG: u64 = 0o100000;
+#[cfg(all(not(test), unix))]
 const S_IFBLK: u64 = 0o060000;
+#[cfg(not(test))]
 const S_IFLNK: u64 = 0o120000;
 
+#[cfg(not(test))]
 const R_OK: c_int = 4;
+#[cfg(not(test))]
 const W_OK: c_int = 2;
+#[cfg(all(not(test), unix))]
 const X_OK: c_int = 1;
 
 const O_RDONLY: c_int = 0;
@@ -135,13 +156,13 @@ const O_CREAT: c_int = 0x0100;
 const O_TRUNC: c_int = 0x0200;
 #[cfg(windows)]
 const O_BINARY: c_int = 0x8000;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const ENV_SEPCHAR: u8 = b';';
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const ENV_SEPSTR: &CStr = c";";
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PATHSEP: c_char = b'\\' as c_char;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const TEMP_FILE_PATH_MAXLEN: usize = 260;
 
 #[cfg(target_os = "linux")]
@@ -158,28 +179,28 @@ const O_CREAT: c_int = 0x0200;
 #[cfg(not(any(windows, target_os = "linux")))]
 const O_TRUNC: c_int = 0x0400;
 
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const ENV_SEPCHAR: u8 = b':';
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const PATHSEP: c_char = b'/' as c_char;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const TEMP_FILE_PATH_MAXLEN: usize = 256;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const F_GETFD: c_int = 1;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const F_SETFD: c_int = 2;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const FD_CLOEXEC: c_int = 1;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const E2BIG: c_int = 7;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const EACCES: c_int = 13;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const EPERM: c_int = 1;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const ERANGE: c_int = 34;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const ENOTSUP: c_int = 95;
 
 #[repr(C)]
@@ -202,7 +223,7 @@ pub struct iovec {
     pub iov_len: usize,
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct GUID {
@@ -212,7 +233,7 @@ struct GUID {
     data4: [u8; 8],
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 static CLSID_SHELL_LINK: GUID = GUID {
     data1: 0x00021401,
     data2: 0x0000,
@@ -220,7 +241,7 @@ static CLSID_SHELL_LINK: GUID = GUID {
     data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 static IID_ISHELL_LINK_W: GUID = GUID {
     data1: 0x000214F9,
     data2: 0x0000,
@@ -228,7 +249,7 @@ static IID_ISHELL_LINK_W: GUID = GUID {
     data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 static IID_IPERSIST_FILE: GUID = GUID {
     data1: 0x0000010b,
     data2: 0x0000,
@@ -236,7 +257,7 @@ static IID_IPERSIST_FILE: GUID = GUID {
     data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
 };
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 #[repr(C)]
 struct IShellLinkWVtbl {
     query_interface: unsafe extern "system" fn(
@@ -255,13 +276,13 @@ struct IShellLinkWVtbl {
     ) -> i32,
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 #[repr(C)]
 struct IShellLinkW {
     lp_vtbl: *const IShellLinkWVtbl,
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 #[repr(C)]
 struct IPersistFileVtbl {
     query_interface: unsafe extern "system" fn(
@@ -280,7 +301,7 @@ struct IPersistFileVtbl {
     ) -> i32,
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 #[repr(C)]
 struct IPersistFile {
     lp_vtbl: *const IPersistFileVtbl,
@@ -485,16 +506,19 @@ const fn s_isdir(m: u64) -> bool {
     (m & S_IFMT) == S_IFDIR
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn s_isreg(m: u64) -> bool {
     (m & S_IFMT) == S_IFREG
 }
 
+#[cfg(all(not(test), unix))]
 #[inline]
 const fn s_isblk(m: u64) -> bool {
     (m & S_IFMT) == S_IFBLK
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
@@ -705,6 +729,7 @@ pub unsafe extern "C" fn os_can_exe(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     unsafe {
         let mode = os_getperm(name);
@@ -738,7 +763,7 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
     }
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     #[cfg(not(test))]
     unsafe {
@@ -800,12 +825,13 @@ unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> b
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 #[inline]
 unsafe fn is_executable_ext(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     unsafe { is_executable(name, abspath) }
 }
 
+#[cfg(not(test))]
 unsafe fn is_executable_in_path(name: *const c_char, abspath: *mut *mut c_char) -> bool {
     #[cfg(not(test))]
     unsafe {

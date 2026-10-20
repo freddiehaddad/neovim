@@ -13,8 +13,6 @@ pub mod vimscript;
 pub mod win_config;
 pub mod window;
 
-
-
 // typedef struct {
 //   OptionalKeys is_set___shada_buflist_item_;
 //   Integer l;

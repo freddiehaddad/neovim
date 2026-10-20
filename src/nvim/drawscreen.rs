@@ -1,7 +1,6 @@
 //! Code for updating all the windows on the screen (`src/nvim/drawscreen.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -104,7 +103,6 @@ pub use crate::ex_getln::disptick_T;
 pub use crate::option::OptInt;
 
 const NUL: c_char = 0;
-const TAB: c_int = b'\t' as c_int;
 const Ctrl_V: c_int = 22;
 const FAIL: c_int = 0;
 const OK: c_int = 1;

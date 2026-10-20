@@ -1,7 +1,6 @@
 //! Lua bindings for Tree-sitter (`src/nvim/lua/treesitter.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -20,7 +19,10 @@ use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::globals::*;
 #[cfg(not(test))]
 use crate::lua::base64::lua_CFunction;
-use crate::lua::base64::{lua_State, luaL_Reg};
+use crate::lua::base64::lua_State;
+#[cfg(not(test))]
+use crate::lua::base64::luaL_Reg;
+#[cfg(not(test))]
 use crate::lua::converter::LuaRef;
 #[cfg(not(test))]
 use crate::lua::converter::{
@@ -32,9 +34,11 @@ use crate::lua::converter::{
     luaL_checklstring, luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register,
     luaL_unref,
 };
+#[cfg(not(test))]
 use crate::map::{Map, Set, cstr_t, mh_get_cstr_t, ptr_t};
 #[cfg(not(test))]
 use crate::map::{map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t};
+#[cfg(not(test))]
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
 #[cfg(not(test))]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
@@ -44,6 +48,7 @@ use crate::memory::{strequal, xcalloc, xfree, xmalloc, xrealloc, xstrdup, xstrlc
 use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
 use crate::os::dl::UvLib;
+#[cfg(not(test))]
 use crate::os::time::os_hrtime;
 #[cfg(not(test))]
 use crate::strings::vim_snprintf;
@@ -69,51 +74,82 @@ pub type TSQueryError = c_int;
 pub type TSDecodeFunction =
     Option<unsafe extern "C" fn(string: *const u8, length: u32, code_point: *mut i32) -> u32>;
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const BUFSIZE: usize = 256;
 
+#[cfg(not(test))]
 const TREE_SITTER_LANGUAGE_VERSION: u32 = 15;
+#[cfg(not(test))]
 const TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION: u32 = 13;
 
+#[cfg(not(test))]
 const TSInputEncodingUTF8: TSInputEncoding = 0;
 
-const TSSymbolTypeRegular: TSSymbolType = 0;
+#[cfg(not(test))]
 const TSSymbolTypeAnonymous: TSSymbolType = 1;
-const TSSymbolTypeSupertype: TSSymbolType = 2;
+#[cfg(not(test))]
 const TSSymbolTypeAuxiliary: TSSymbolType = 3;
 
+#[cfg(not(test))]
 const TSLogTypeParse: TSLogType = 0;
+#[cfg(not(test))]
 const TSLogTypeLex: TSLogType = 1;
 
+#[cfg(not(test))]
 const TSQueryPredicateStepTypeDone: TSQueryPredicateStepType = 0;
+#[cfg(not(test))]
 const TSQueryPredicateStepTypeCapture: TSQueryPredicateStepType = 1;
+#[cfg(not(test))]
 const TSQueryPredicateStepTypeString: TSQueryPredicateStepType = 2;
 
+#[cfg(not(test))]
 const TSQueryErrorNone: TSQueryError = 0;
+#[cfg(not(test))]
 const TSQueryErrorSyntax: TSQueryError = 1;
+#[cfg(not(test))]
 const TSQueryErrorNodeType: TSQueryError = 2;
+#[cfg(not(test))]
 const TSQueryErrorField: TSQueryError = 3;
+#[cfg(not(test))]
 const TSQueryErrorCapture: TSQueryError = 4;
+#[cfg(not(test))]
 const TSQueryErrorStructure: TSQueryError = 5;
-const TSQueryErrorLanguage: TSQueryError = 6;
 
+#[cfg(not(test))]
 const LUA_REGISTRYINDEX: c_int = -10000;
+#[cfg(not(test))]
 const LUA_GLOBALSINDEX: c_int = -10002;
+#[cfg(not(test))]
 const LUA_MINSTACK: c_int = 20;
 
+#[cfg(not(test))]
 const LUA_TNIL: c_int = 0;
+#[cfg(not(test))]
 const LUA_TBOOLEAN: c_int = 1;
+#[cfg(not(test))]
 const LUA_TNUMBER: c_int = 3;
+#[cfg(not(test))]
 const LUA_TSTRING: c_int = 4;
+#[cfg(not(test))]
 const LUA_TTABLE: c_int = 5;
+#[cfg(not(test))]
 const LUA_TFUNCTION: c_int = 6;
 
+#[cfg(not(test))]
 const TS_META_PARSER: *const c_char = c"treesitter_parser".as_ptr();
+#[cfg(not(test))]
 const TS_META_TREE: *const c_char = c"treesitter_tree".as_ptr();
+#[cfg(not(test))]
 const TS_META_NODE: *const c_char = c"treesitter_node".as_ptr();
+#[cfg(not(test))]
 const TS_META_QUERY: *const c_char = c"treesitter_query".as_ptr();
+#[cfg(not(test))]
 const TS_META_QUERYCURSOR: *const c_char = c"treesitter_querycursor".as_ptr();
+#[cfg(not(test))]
 const TS_META_QUERYMATCH: *const c_char = c"treesitter_querymatch".as_ptr();
 
 #[repr(C)]
@@ -222,6 +258,7 @@ pub struct TSLanguageMetadata {
     pub patch_version: u8,
 }
 
+#[cfg(not(test))]
 #[repr(C)]
 struct TSLuaLoggerOpts {
     cb: LuaRef,
@@ -230,17 +267,20 @@ struct TSLuaLoggerOpts {
     parse: bool,
 }
 
+#[cfg(not(test))]
 #[repr(C)]
 struct TSLuaTree {
     tree: *const TSTree,
 }
 
+#[cfg(not(test))]
 #[repr(C)]
 struct TSLuaParserCallbackPayload {
     parse_start_time: u64,
     timeout_threshold_ns: u64,
 }
 
+#[cfg(not(test))]
 static mut LANGS: Map<cstr_t, ptr_t> = Map {
     set: Set {
         h: MapHash {
@@ -257,8 +297,10 @@ static mut LANGS: Map<cstr_t, ptr_t> = Map {
     values: ptr::null_mut(),
 };
 
+#[cfg(not(test))]
 static mut INPUT_BUF: [c_char; BUFSIZE] = [0; BUFSIZE];
 
+#[cfg(not(test))]
 static PARSER_META: [luaL_Reg; 9] = [
     luaL_Reg {
         name: c"__gc".as_ptr(),
@@ -298,6 +340,7 @@ static PARSER_META: [luaL_Reg; 9] = [
     },
 ];
 
+#[cfg(not(test))]
 static TREE_META: [luaL_Reg; 7] = [
     luaL_Reg {
         name: c"__gc".as_ptr(),
@@ -329,6 +372,7 @@ static TREE_META: [luaL_Reg; 7] = [
     },
 ];
 
+#[cfg(not(test))]
 static NODE_META: [luaL_Reg; 36] = [
     luaL_Reg {
         name: c"__tostring".as_ptr(),
@@ -476,6 +520,7 @@ static NODE_META: [luaL_Reg; 36] = [
     },
 ];
 
+#[cfg(not(test))]
 static QUERYCURSOR_META: [luaL_Reg; 5] = [
     luaL_Reg {
         name: c"remove_match".as_ptr(),
@@ -499,6 +544,7 @@ static QUERYCURSOR_META: [luaL_Reg; 5] = [
     },
 ];
 
+#[cfg(not(test))]
 static QUERYMATCH_META: [luaL_Reg; 3] = [
     luaL_Reg {
         name: c"info".as_ptr(),
@@ -514,6 +560,7 @@ static QUERYMATCH_META: [luaL_Reg; 3] = [
     },
 ];
 
+#[cfg(not(test))]
 static QUERY_META: [luaL_Reg; 6] = [
     luaL_Reg {
         name: c"__gc".as_ptr(),
@@ -696,6 +743,7 @@ unsafe extern "C" {
     );
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn lua_upvalueindex(i: c_int) -> c_int {
     LUA_GLOBALSINDEX - i
@@ -771,11 +819,13 @@ unsafe fn luaL_argcheck(L: *mut lua_State, cond: bool, numarg: c_int, extramsg: 
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn langs_has(lang_name: *const c_char) -> bool {
     unsafe { mh_get_cstr_t(&raw mut LANGS.set, lang_name) != MH_TOMBSTONE }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
     unsafe {
@@ -788,6 +838,7 @@ unsafe fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_has_language(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -802,6 +853,7 @@ unsafe extern "C-unwind" fn tslua_has_language(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_add_language_from_object(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -970,6 +1022,7 @@ unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_remove_lang(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1002,6 +1055,7 @@ unsafe fn lang_check(L: *mut lua_State, index: c_int) -> *mut TSLanguage {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1102,6 +1156,7 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_push_parser(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1154,6 +1209,7 @@ unsafe fn logger_gc(logger: TSLogger) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_gc(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1172,6 +1228,7 @@ unsafe extern "C-unwind" fn parser_gc(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_tostring(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1185,6 +1242,7 @@ unsafe extern "C-unwind" fn parser_tostring(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn input_cb(
     payload: *mut c_void,
     _byte_index: u32,
@@ -1275,6 +1333,7 @@ unsafe fn push_ranges(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn on_parser_progress(state: *mut TSParseState) -> bool {
     unsafe {
         let payload = (*state).payload.cast::<TSLuaParserCallbackPayload>();
@@ -1327,6 +1386,7 @@ pub unsafe extern "C-unwind" fn nts_parser_parse_buf(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1405,6 +1465,7 @@ unsafe extern "C-unwind" fn parser_parse(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_reset(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1504,6 +1565,7 @@ unsafe fn range_from_lua(L: *mut lua_State, range: *mut TSRange) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_set_ranges(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1538,6 +1600,7 @@ unsafe extern "C-unwind" fn parser_set_ranges(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_get_ranges(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1557,6 +1620,7 @@ unsafe extern "C-unwind" fn parser_get_ranges(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const c_char) {
     #[cfg(test)]
     {
@@ -1588,6 +1652,7 @@ unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *con
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_set_logger(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1623,6 +1688,7 @@ unsafe extern "C-unwind" fn parser_set_logger(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn parser_get_logger(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1658,6 +1724,7 @@ unsafe fn push_tree(L: *mut lua_State, tree: *const TSTree) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tree_copy(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1673,6 +1740,7 @@ unsafe extern "C-unwind" fn tree_copy(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tree_edit(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1721,6 +1789,7 @@ unsafe extern "C-unwind" fn tree_edit(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tree_get_ranges(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1741,6 +1810,7 @@ unsafe extern "C-unwind" fn tree_get_ranges(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tree_gc(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1756,6 +1826,7 @@ unsafe extern "C-unwind" fn tree_gc(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tree_tostring(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1769,6 +1840,7 @@ unsafe extern "C-unwind" fn tree_tostring(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tree_root(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1833,6 +1905,7 @@ unsafe fn node_check(L: *mut lua_State, index: c_int) -> TSNode {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_tostring(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1850,6 +1923,7 @@ unsafe extern "C-unwind" fn node_tostring(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_eq(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1865,6 +1939,7 @@ unsafe extern "C-unwind" fn node_eq(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_id(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1883,6 +1958,7 @@ unsafe extern "C-unwind" fn node_id(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_range(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1915,6 +1991,7 @@ unsafe extern "C-unwind" fn node_range(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_start(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1933,6 +2010,7 @@ unsafe extern "C-unwind" fn node_start(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_end(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1951,6 +2029,7 @@ unsafe extern "C-unwind" fn node_end(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_child_count(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1966,6 +2045,7 @@ unsafe extern "C-unwind" fn node_child_count(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_named_child_count(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1981,6 +2061,7 @@ unsafe extern "C-unwind" fn node_named_child_count(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_type(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -1995,6 +2076,7 @@ unsafe extern "C-unwind" fn node_type(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_symbol(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2010,6 +2092,7 @@ unsafe extern "C-unwind" fn node_symbol(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_field(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2041,6 +2124,7 @@ unsafe extern "C-unwind" fn node_field(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_named(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2055,6 +2139,7 @@ unsafe extern "C-unwind" fn node_named(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_sexpr(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2071,6 +2156,7 @@ unsafe extern "C-unwind" fn node_sexpr(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_missing(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2085,6 +2171,7 @@ unsafe extern "C-unwind" fn node_missing(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_extra(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2099,6 +2186,7 @@ unsafe extern "C-unwind" fn node_extra(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_has_changes(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2113,6 +2201,7 @@ unsafe extern "C-unwind" fn node_has_changes(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_has_error(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2127,6 +2216,7 @@ unsafe extern "C-unwind" fn node_has_error(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_child(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2143,6 +2233,7 @@ unsafe extern "C-unwind" fn node_child(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_named_child(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2159,6 +2250,7 @@ unsafe extern "C-unwind" fn node_named_child(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_descendant_for_range(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2182,6 +2274,7 @@ unsafe extern "C-unwind" fn node_descendant_for_range(L: *mut lua_State) -> c_in
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_named_descendant_for_range(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2205,6 +2298,7 @@ unsafe extern "C-unwind" fn node_named_descendant_for_range(L: *mut lua_State) -
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_next_child(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2235,6 +2329,7 @@ unsafe extern "C-unwind" fn node_next_child(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_iter_children(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2253,6 +2348,7 @@ unsafe extern "C-unwind" fn node_iter_children(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_parent(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2310,6 +2406,7 @@ unsafe extern "C-unwind" fn __has_ancestor(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_child_with_descendant(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2326,6 +2423,7 @@ unsafe extern "C-unwind" fn node_child_with_descendant(L: *mut lua_State) -> c_i
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_next_sibling(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2341,6 +2439,7 @@ unsafe extern "C-unwind" fn node_next_sibling(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_prev_sibling(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2356,6 +2455,7 @@ unsafe extern "C-unwind" fn node_prev_sibling(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_next_named_sibling(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2371,6 +2471,7 @@ unsafe extern "C-unwind" fn node_next_named_sibling(L: *mut lua_State) -> c_int 
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_prev_named_sibling(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2386,6 +2487,7 @@ unsafe extern "C-unwind" fn node_prev_named_sibling(L: *mut lua_State) -> c_int 
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_named_children(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2413,6 +2515,7 @@ unsafe extern "C-unwind" fn node_named_children(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_root(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2428,6 +2531,7 @@ unsafe extern "C-unwind" fn node_root(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_tree(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2443,6 +2547,7 @@ unsafe extern "C-unwind" fn node_tree(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_byte_length(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2459,6 +2564,7 @@ unsafe extern "C-unwind" fn node_byte_length(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn node_equal(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2474,6 +2580,7 @@ unsafe extern "C-unwind" fn node_equal(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_push_querycursor(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2546,6 +2653,7 @@ unsafe extern "C-unwind" fn tslua_push_querycursor(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn querycursor_remove_match(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2561,6 +2669,7 @@ unsafe extern "C-unwind" fn querycursor_remove_match(L: *mut lua_State) -> c_int
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn querycursor_next_capture(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2590,6 +2699,7 @@ unsafe extern "C-unwind" fn querycursor_next_capture(L: *mut lua_State) -> c_int
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn querycursor_next_match(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2628,6 +2738,7 @@ unsafe fn querycursor_check(L: *mut lua_State, index: c_int) -> *mut TSQueryCurs
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn querycursor_gc(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2655,6 +2766,7 @@ unsafe fn push_querymatch(L: *mut lua_State, match_: *const TSQueryMatch, uindex
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn querymatch_info(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2670,6 +2782,7 @@ unsafe extern "C-unwind" fn querymatch_info(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn querymatch_captures(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2697,6 +2810,7 @@ unsafe extern "C-unwind" fn querymatch_captures(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_parse_query(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2739,6 +2853,7 @@ unsafe extern "C-unwind" fn tslua_parse_query(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 fn query_err_to_string(error_type: TSQueryError) -> *const c_char {
     match error_type {
         TSQueryErrorSyntax => c"Invalid syntax:\n".as_ptr(),
@@ -2861,6 +2976,7 @@ unsafe fn query_check(L: *mut lua_State, index: c_int) -> *mut TSQuery {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn query_gc(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2875,6 +2991,7 @@ unsafe extern "C-unwind" fn query_gc(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn query_tostring(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2888,6 +3005,7 @@ unsafe extern "C-unwind" fn query_tostring(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn query_inspect(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2953,6 +3071,7 @@ unsafe extern "C-unwind" fn query_inspect(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn query_disable_capture(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -2969,6 +3088,7 @@ unsafe extern "C-unwind" fn query_disable_capture(L: *mut lua_State) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn query_disable_pattern(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -3010,6 +3130,7 @@ unsafe fn tslua_init(L: *mut lua_State) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_get_language_version(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {
@@ -3023,6 +3144,7 @@ unsafe extern "C-unwind" fn tslua_get_language_version(L: *mut lua_State) -> c_i
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C-unwind" fn tslua_get_minimum_language_version(L: *mut lua_State) -> c_int {
     #[cfg(test)]
     {

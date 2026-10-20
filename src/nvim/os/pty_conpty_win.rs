@@ -1,7 +1,6 @@
 //! Windows ConPTY pseudo-console support (`src/nvim/os/pty_conpty_win.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -15,8 +14,10 @@ use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym, uv_translate_sys_err
 use crate::log::logmsg;
 #[cfg(all(not(test), windows))]
 use crate::os::env::os_get_pid;
+#[cfg(all(not(test), windows))]
+use std::ffi::c_int;
 #[cfg(windows)]
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::{c_char, c_long, c_void};
 
 #[cfg(windows)]
 use crate::memory::xfree;
@@ -39,31 +40,31 @@ pub const kFalse: TriState = 0;
 #[cfg(windows)]
 pub const kTrue: TriState = 1;
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PIPE_ACCESS_INBOUND: DWORD = 0x0000_0001;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PIPE_ACCESS_OUTBOUND: DWORD = 0x0000_0002;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const FILE_FLAG_FIRST_PIPE_INSTANCE: DWORD = 0x0008_0000;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PIPE_TYPE_BYTE: DWORD = 0x0000_0000;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PIPE_READMODE_BYTE: DWORD = 0x0000_0000;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PIPE_WAIT: DWORD = 0x0000_0000;
 #[cfg(windows)]
 const EXTENDED_STARTUPINFO_PRESENT: DWORD = 0x0008_0000;
 #[cfg(windows)]
 const CREATE_UNICODE_ENVIRONMENT: DWORD = 0x0000_0400;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x0002_0016;
 #[cfg(windows)]
 const S_OK: HRESULT = 0;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LOGLVL_INF: c_int = 2;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LOGLVL_ERR: c_int = 4;
 
 #[cfg(windows)]
@@ -151,12 +152,13 @@ pub static mut pClosePseudoConsole: ClosePseudoConsoleFn = None;
 
 #[cfg(windows)]
 static mut HAS_CONPTY: TriState = kNone;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 static mut CONPTY_COUNT: c_int = 0;
 
 #[cfg(windows)]
 #[link(name = "kernel32")]
 unsafe extern "system" {
+    #[cfg(not(test))]
     fn CreateNamedPipeA(
         lpName: *const c_char,
         dwOpenMode: DWORD,
@@ -167,12 +169,14 @@ unsafe extern "system" {
         nDefaultTimeOut: DWORD,
         lpSecurityAttributes: *mut SECURITY_ATTRIBUTES,
     ) -> HANDLE;
+    #[cfg(not(test))]
     fn InitializeProcThreadAttributeList(
         lpAttributeList: *mut c_void,
         dwAttributeCount: DWORD,
         dwFlags: DWORD,
         lpSize: *mut usize,
     ) -> BOOL;
+    #[cfg(not(test))]
     fn UpdateProcThreadAttribute(
         lpAttributeList: *mut c_void,
         dwFlags: DWORD,

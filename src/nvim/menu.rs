@@ -1,7 +1,6 @@
 //! Code for menus, used for the GUI and `'wildmenu'` (`src/nvim/menu.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

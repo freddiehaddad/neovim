@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

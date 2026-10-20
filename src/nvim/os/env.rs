@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -62,49 +61,55 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const OK: c_int = 1;
 const MAXPATHL: usize = 4096;
+#[cfg(all(not(test), unix))]
 const IOSIZE: usize = 1025;
 const EXPAND_BUF_LEN: usize = 256;
+#[cfg(not(test))]
 const INIT_SIZE: usize = 64;
+#[cfg(not(test))]
 const VV_PROGPATH: c_int = 60;
+#[cfg(not(test))]
 const RUNTIME_DIRNAME: &CStr = c"runtime";
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const ENV_SEPCHAR: u8 = b';';
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const ENV_SEPSTR: &CStr = c";";
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PATHSEPSTR: &CStr = c"\\";
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const MAX_ENVPATHLEN: usize = 8192;
 
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const ENV_SEPCHAR: u8 = b':';
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const ENV_SEPSTR: &CStr = c":";
+#[cfg(windows)]
 #[cfg(not(windows))]
 const PATHSEPSTR: &CStr = c"/";
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const MAX_ENVPATHLEN: usize = c_int::MAX as usize;
 
+#[cfg(unix)]
 #[cfg(windows)]
 const UV_ENOENT: c_int = -4058;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const UV_ENOBUFS: c_int = -4060;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const UV_EINVAL: c_int = -4071;
 
+#[cfg(windows)]
 #[cfg(not(windows))]
 const UV_ENOENT: c_int = -2;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const UV_ENOBUFS: c_int = -105;
 #[cfg(all(not(windows), not(target_os = "linux")))]
 const UV_ENOBUFS: c_int = -55;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const UV_EINVAL: c_int = -22;
-
-const UV_UNKNOWN: c_int = -4094;
 
 #[repr(C)]
 pub struct expand_T {
@@ -133,7 +138,7 @@ pub struct expand_T {
     pub xp_pre_incsearch_pos: pos_T,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 #[repr(C)]
 struct Utsname {
     sysname: [c_char; 65],
@@ -155,6 +160,7 @@ struct Utsname {
 }
 
 static mut HOMEDIR: *mut c_char = ptr::null_mut();
+#[cfg(not(test))]
 static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 
 #[cfg(not(test))]
@@ -596,6 +602,7 @@ pub unsafe extern "C" fn os_homedir() -> *const c_char {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn os_uv_homedir() -> *mut c_char {
     #[cfg(not(test))]
     unsafe {
@@ -939,6 +946,7 @@ pub unsafe extern "C" fn expand_env_esc(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
     if vimdir.is_null() {
         return ptr::null_mut();
@@ -970,6 +978,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> *mut c_char {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
     #[cfg(not(test))]
     unsafe {

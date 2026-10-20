@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -21,7 +20,9 @@ use crate::api::private::helpers::{
     boolean_obj, dict_obj, error_set, float_obj, integer_obj, string_obj, try_enter, try_leave,
 };
 use crate::api::private::helpers::{cstr_as_string, nil_obj};
-use crate::api::private::validate::{Array, Dict, Error, KeyValuePair, Object};
+#[cfg(not(test))]
+use crate::api::private::validate::KeyValuePair;
+use crate::api::private::validate::{Array, Dict, Error, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, ObjectType, api_err_exp};
 #[cfg(not(test))]
@@ -40,16 +41,20 @@ use crate::ex_docmd::do_cmdline_cmd;
 use crate::garray::{ga_clear, ga_init, garray_T};
 #[cfg(not(test))]
 use crate::globals::*;
+#[cfg(not(test))]
 use crate::kvec::KVecWithInit;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
+use crate::memory::Arena;
 #[cfg(not(test))]
 use crate::memory::xfree;
-use crate::memory::{Arena, xmemdupz};
+#[cfg(not(test))]
+use crate::memory::xmemdupz;
 #[cfg(not(test))]
 use crate::msgpack_rpc::packer::Integer;
 #[cfg(not(test))]
 use crate::runtime::do_source_str;
+#[cfg(not(test))]
 use crate::viml::parser::expressions::ExprASTNode;
 #[cfg(not(test))]
 use crate::viml::parser::expressions::{
@@ -64,13 +69,18 @@ use crate::viml::parser::parser::{
     ParserHighlight, ParserLine, ParserPosition, ParserState, parser_simple_get_line,
     viml_parser_destroy,
 };
+#[cfg(not(test))]
 use std::ffi::{CStr, c_char, c_int};
 #[cfg(not(test))]
 use std::ffi::{c_uint, c_void};
 
+#[cfg(not(test))]
 const FAIL: c_int = 0;
+#[cfg(not(test))]
 const OK: c_int = 1;
+#[cfg(not(test))]
 const MAX_FUNC_ARGS: usize = 20;
+#[cfg(not(test))]
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
 
 #[repr(C)]
@@ -82,6 +92,7 @@ pub use crate::eval::vars::evalarg_T;
 
 pub use crate::eval::userfunc::funcexe_T;
 
+#[cfg(not(test))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct ExprASTConvStackItem {
@@ -89,11 +100,15 @@ struct ExprASTConvStackItem {
     ret_node_p: *mut Object,
 }
 
+#[cfg(not(test))]
 type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
 
+#[cfg(not(test))]
 static mut EVAL_RECURSIVE: c_int = 0;
+#[cfg(not(test))]
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
     let bytes = s.to_bytes();
@@ -106,6 +121,7 @@ unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {

@@ -1,7 +1,6 @@
 //! File reading, encoding conversion, timestamp checking, and temp files (`src/nvim/fileio.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -157,7 +156,6 @@ const MAXCOL: isize = 0x7fffffff;
 const MAXPATHL: usize = 4096;
 const IOSIZE: usize = 1025;
 const UNDO_HASH_SIZE: usize = 32;
-const NSUBEXP: usize = 10;
 
 const EOL_UNKNOWN: c_int = -1;
 const EOL_UNIX: c_int = 0;
@@ -220,9 +218,9 @@ const UV_FS_COPYFILE_EXCL: c_int = 0x0001;
 
 const S_IFMT: u64 = 0o170000;
 const S_IFIFO: u64 = 0o010000;
-const S_IFCHR: u64 = 0o020000;
 const S_IFDIR: u64 = 0o040000;
 const S_IFREG: u64 = 0o100000;
+#[cfg(unix)]
 const S_IFLNK: u64 = 0o120000;
 const S_IFSOCK: u64 = 0o140000;
 
@@ -267,7 +265,7 @@ const BACKSLASH_IN_FILENAME_BOOL: bool = true;
 #[cfg(not(windows))]
 const BACKSLASH_IN_FILENAME_BOOL: bool = false;
 
-#[cfg(unix)]
+#[cfg(all(not(test), unix))]
 const LOCK_SH: c_int = 1;
 
 static E_AUCHANGEDBUF: &CStr = c"E812: Autocommands changed buffer or buffer name";
@@ -275,7 +273,7 @@ static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
 
 static mut ALREADY_WARNED: bool = false;
 static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
-#[cfg(unix)]
+#[cfg(all(not(test), unix))]
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
 pub use crate::api::command::regmatch_T;
@@ -375,13 +373,13 @@ unsafe extern "C" {
     pub fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
     #[cfg(not(windows))]
     fn symlink(target: *const c_char, linkpath: *const c_char) -> c_int;
-    #[cfg(not(windows))]
+    #[cfg(all(not(test), not(windows)))]
     fn opendir(name: *const c_char) -> *mut c_void;
-    #[cfg(not(windows))]
+    #[cfg(all(not(test), not(windows)))]
     fn closedir(dirp: *mut c_void) -> c_int;
-    #[cfg(not(windows))]
+    #[cfg(all(not(test), not(windows)))]
     fn dirfd(dirp: *mut c_void) -> c_int;
-    #[cfg(not(windows))]
+    #[cfg(all(not(test), not(windows)))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
 
 }
@@ -397,11 +395,6 @@ const fn s_isreg(m: i32) -> bool {
 }
 
 #[inline]
-const fn s_ischr(m: i32) -> bool {
-    ((m as u64) & S_IFMT) == S_IFCHR
-}
-
-#[inline]
 const fn s_isfifo(m: i32) -> bool {
     cfg!(unix) && ((m as u64) & S_IFMT) == S_IFIFO
 }
@@ -411,6 +404,7 @@ const fn s_issock(m: i32) -> bool {
     cfg!(unix) && ((m as u64) & S_IFMT) == S_IFSOCK
 }
 
+#[cfg(unix)]
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK

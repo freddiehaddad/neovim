@@ -1,11 +1,6 @@
 //! Script, function, and startup profiling (`src/nvim/profile.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::api::private::converter::ufunc_T;
 use crate::clipboard::{list_T, listitem_T, typval_T};
@@ -49,14 +44,22 @@ pub type proftime_T = u64;
 pub use crate::fileio::FILE;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
+#[cfg(not(test))]
 const PROF_NONE: c_int = 0;
+#[cfg(not(test))]
 const PROF_YES: c_int = 1;
+#[cfg(not(test))]
 const PROF_PAUSED: c_int = 2;
 
+#[cfg(not(test))]
 const VV_PROFILING: c_int = 37;
+#[cfg(not(test))]
 const K_SPECIAL: u8 = 0x80;
+#[cfg(not(test))]
 const NL: c_char = b'\n' as c_char;
+#[cfg(not(test))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const IOFBF: c_int = 0;
 
 const EXPAND_NOTHING: c_int = 0;
@@ -65,7 +68,6 @@ const EXPAND_USER_FUNC: c_int = 19;
 const EXPAND_PROFILE: c_int = 35;
 
 const PEXP_SUBCMD: i32 = 0;
-const PEXP_FUNC: i32 = 1;
 
 const MAX_FUNC_ARGS: usize = 20;
 const VAR_SHORT_LEN: usize = 20;
@@ -73,12 +75,16 @@ const FIXVAR_CNT: usize = 12;
 
 static PROF_WAIT_TIME: AtomicU64 = AtomicU64::new(0);
 static WAIT_TIME: AtomicU64 = AtomicU64::new(0);
+#[cfg(not(test))]
 static PAUSE_TIME: AtomicU64 = AtomicU64::new(0);
+#[cfg(not(test))]
 static G_START_TIME: AtomicU64 = AtomicU64::new(0);
 static G_PREV_TIME: AtomicU64 = AtomicU64::new(0);
 static PEXPAND_WHAT: AtomicI32 = AtomicI32::new(PEXP_SUBCMD);
 
+#[cfg(not(test))]
 static mut STARTUPTIME_BUF: *mut c_char = std::ptr::null_mut();
+#[cfg(not(test))]
 static mut PROFILE_FNAME: *mut c_char = std::ptr::null_mut();
 static mut PROFILE_MSG_BUF: [c_char; 50] = [0; 50];
 
@@ -212,6 +218,7 @@ unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { *(*fp).uf_lines.ga_data.cast::<*mut c_char>().add(j as usize) }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn prl_item(si: *mut scriptitem_T, idx: c_int) -> *mut sn_prl_T {
     unsafe { (*si).sn_prl_ga.ga_data.cast::<sn_prl_T>().add(idx as usize) }
@@ -322,6 +329,7 @@ pub extern "C" fn profile_sub_wait(tm: proftime_T, tma: proftime_T) -> proftime_
     profile_sub(tma, tm3)
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn profile_equal(tm1: proftime_T, tm2: proftime_T) -> bool {
     tm1 == tm2

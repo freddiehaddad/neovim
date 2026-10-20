@@ -1,7 +1,5 @@
 //! High-resolution timers, delays, and local-time formatting (`src/nvim/os/time.c`).
 
-#![allow(dead_code)]
-
 #[cfg(not(test))]
 use crate::event::r#loop::loop_poll_events;
 #[cfg(not(test))]
@@ -10,6 +8,7 @@ use crate::globals::*;
 use crate::os::env::os_getenv_noalloc;
 #[cfg(not(test))]
 use crate::os::input::os_input_ready;
+#[cfg(all(not(test), unix))]
 use std::cell::UnsafeCell;
 #[cfg(not(test))]
 use std::ffi::c_void;
@@ -20,8 +19,10 @@ pub type Timestamp = u64;
 pub type time_t = i64;
 
 pub const NS_PER_SEC: i64 = 1_000_000_000;
+#[cfg(not(test))]
 const UV_CLOCK_REALTIME: c_int = 1;
 
+#[cfg(not(test))]
 #[repr(C)]
 struct UvTimespec64 {
     tv_sec: i64,
@@ -34,9 +35,12 @@ pub struct Tm {
     pub _fields: [c_int; 16],
 }
 
+#[cfg(all(not(test), unix))]
 struct TzCache(UnsafeCell<[u8; 64]>);
+#[cfg(all(not(test), unix))]
 unsafe impl Sync for TzCache {}
 
+#[cfg(all(not(test), unix))]
 static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 
 unsafe extern "C" {

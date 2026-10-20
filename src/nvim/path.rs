@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -44,9 +43,10 @@ use crate::option::copy_option_part;
 use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv, vim_env_iter};
+#[cfg(not(test))]
+use crate::os::fs::{Directory, os_scandir_next};
 use crate::os::fs::{
-    Directory, os_can_exe, os_dirname, os_fileinfo_link, os_isdir, os_path_exists, os_realpath,
-    os_scandir_next,
+    os_can_exe, os_dirname, os_fileinfo_link, os_isdir, os_path_exists, os_realpath,
 };
 #[cfg(not(test))]
 use crate::os::fs::{
@@ -76,14 +76,15 @@ const OK: c_int = 1;
 const FAIL: c_int = 0;
 
 const MAXPATHL: usize = 4096;
+#[cfg(not(test))]
 const MAXSUFLEN: usize = 30;
 
 const PATHSEP: c_char = b'/' as c_char;
 const PATHSEPSTR: &[u8] = b"/\0";
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const ENV_SEPCHAR: c_char = b';' as c_char;
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const ENV_SEPCHAR: c_char = b':' as c_char;
 
 #[cfg(windows)]
@@ -96,7 +97,7 @@ const PATH_ALL_WILDCARDS: *const c_char = c"*?[`$".as_ptr();
 #[cfg(not(windows))]
 const PATH_ALL_WILDCARDS: *const c_char = c"*?[{`'$".as_ptr();
 
-#[cfg(unix)]
+#[cfg(all(not(test), unix))]
 const SPECIAL_WILDCHAR: *const c_char = c"`'{".as_ptr();
 
 #[cfg(windows)]
@@ -129,17 +130,26 @@ pub const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 pub const kPathCmpExpand: PathCmpFlags = 1 << 1;
 pub const kPathCmpFull: PathCmpFlags = 1 << 2;
 
+#[cfg(not(test))]
 const WILD_ADD_SLASH: c_int = 0x10;
+#[cfg(not(test))]
 const WILD_ICASE: c_int = 0x100;
 
+#[cfg(not(test))]
 const RE_MAGIC: c_int = 1;
+#[cfg(not(test))]
 const RE_STRING: c_int = 2;
+#[cfg(not(test))]
 const RE_NOBREAK: c_int = 16;
 
+#[cfg(not(test))]
 const kShellOptSilent: c_int = 0x08;
 
+#[cfg(not(test))]
 static mut SCANDIR_COUNT: c_int = 0;
+#[cfg(not(test))]
 static mut STARDEPTH: c_int = 0;
+#[cfg(not(test))]
 static mut EXPAND_RECURSIVE: bool = false;
 
 #[cfg(not(test))]
@@ -202,6 +212,7 @@ unsafe fn stricmp(mut s1: *const c_char, mut s2: *const c_char) -> c_int {
     }
 }
 
+#[cfg(windows)]
 #[inline]
 unsafe fn str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
     unsafe {
@@ -649,6 +660,7 @@ pub unsafe extern "C" fn path_has_wildcard(mut p: *const c_char, all: bool) -> b
     }
 }
 
+#[cfg(not(test))]
 unsafe fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
     unsafe {
         if dir.is_null() {
@@ -1239,6 +1251,7 @@ unsafe fn expand_in_path(gap: *mut garray_T, pattern: *mut c_char, flags: c_int)
     }
 }
 
+#[cfg(not(test))]
 unsafe fn has_env_var(mut p: *const c_char) -> bool {
     unsafe {
         while *p != NUL {
@@ -1255,7 +1268,7 @@ unsafe fn has_env_var(mut p: *const c_char) -> bool {
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(not(test), unix))]
 unsafe fn has_special_wildchar(mut p: *const c_char, flags: c_int) -> bool {
     unsafe {
         while *p != NUL {
@@ -1454,6 +1467,7 @@ pub unsafe extern "C" fn FreeWild(mut count: c_int, files: *mut *mut c_char) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn vim_backtick(p: *const c_char) -> bool {
     unsafe {
         if *p != b'`' as c_char || *p.add(1) == NUL {

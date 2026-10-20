@@ -1,11 +1,6 @@
 //! Msgpack-RPC and ShaDa deserializer (`src/nvim/msgpack_rpc/unpacker.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
@@ -43,6 +38,7 @@ const MAX_EXT_LEN: usize = 9;
 const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
 const EXT_OBJECT_TYPE_MAX: c_int =
     (ObjectType::kObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
+#[cfg(not(test))]
 const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
 pub type AdditionalDataBuilder = KVec<c_char>;
@@ -113,6 +109,7 @@ use crate::mpack::mpack_core::mpack_rtoken;
 use crate::mpack::mpack_core::{mpack_read, mpack_tokbuf_init};
 use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
 
+#[cfg(not(test))]
 #[inline]
 const fn empty_arena() -> Arena {
     Arena {

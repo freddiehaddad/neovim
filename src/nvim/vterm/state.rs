@@ -1,7 +1,6 @@
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -70,7 +69,6 @@ const VTERM_PROP_MOUSE: VTermProp = 8;
 const VTERM_PROP_FOCUSREPORT: VTermProp = 9;
 const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
 const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
-const VTERM_N_PROPS: VTermProp = 12;
 
 const VTERM_PROP_CURSORSHAPE_BLOCK: c_int = 1;
 const VTERM_PROP_CURSORSHAPE_UNDERLINE: c_int = 2;

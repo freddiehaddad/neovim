@@ -1,7 +1,6 @@
 //! ShaDa (Shared Data) file reader and writer (`src/nvim/shada.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -123,7 +122,6 @@ const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXPATHL: usize = 4096;
 const EXTRA_MARKS: usize = 10;
 const NMARKS: usize = 26;
-const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NLOCALMARKS: usize = NMARKS + 3;
 const JUMPLISTSIZE: usize = 100;
 const NS_PER_SEC: u64 = 1_000_000_000;
@@ -201,21 +199,11 @@ const KEYSET_OPTIDX__shada_mark__l: u32 = 3;
 const KEYSET_OPTIDX__shada_mark__n: u32 = 4;
 
 const KEYSET_OPTIDX__shada_register__n: u32 = 1;
-const KEYSET_OPTIDX__shada_register__rc: u32 = 2;
 const KEYSET_OPTIDX__shada_register__rt: u32 = 3;
 const KEYSET_OPTIDX__shada_register__ru: u32 = 4;
 const KEYSET_OPTIDX__shada_register__rw: u32 = 5;
 
-const KEYSET_OPTIDX__shada_search_pat__sb: u32 = 1;
-const KEYSET_OPTIDX__shada_search_pat__sc: u32 = 2;
-const KEYSET_OPTIDX__shada_search_pat__se: u32 = 3;
-const KEYSET_OPTIDX__shada_search_pat__sh: u32 = 4;
-const KEYSET_OPTIDX__shada_search_pat__sl: u32 = 5;
-const KEYSET_OPTIDX__shada_search_pat__sm: u32 = 6;
-const KEYSET_OPTIDX__shada_search_pat__so: u32 = 7;
 const KEYSET_OPTIDX__shada_search_pat__sp: u32 = 8;
-const KEYSET_OPTIDX__shada_search_pat__ss: u32 = 9;
-const KEYSET_OPTIDX__shada_search_pat__su: u32 = 10;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -308,7 +296,6 @@ enum ShaDaWriteResult {
     kSDWriteIgnError,
 }
 
-const kSDReadHeader: c_uint = 1 << (ShadaEntryType::kSDItemHeader as u32);
 const kSDReadUndisableableData: c_uint = (1 << (ShadaEntryType::kSDItemSearchPattern as u32))
     | (1 << (ShadaEntryType::kSDItemSubString as u32))
     | (1 << (ShadaEntryType::kSDItemJump as u32));

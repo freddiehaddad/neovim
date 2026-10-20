@@ -1,7 +1,6 @@
 //! Quickfix and location list commands and functions (`src/nvim/quickfix.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -146,6 +145,7 @@ pub const VGR_FUZZY: c_int = 4;
 const NUL: c_char = 0;
 const TAB: c_char = 0x09;
 const NL: c_char = 0x0a;
+#[cfg(windows)]
 const CAR: c_char = 0x0d;
 
 const NOTDONE: c_int = 2;
@@ -280,7 +280,6 @@ const CMD_cfirst: cmdidx_T = 69;
 const CMD_cgetfile: cmdidx_T = 70;
 const CMD_cgetbuffer: cmdidx_T = 71;
 const CMD_cgetexpr: cmdidx_T = 72;
-const CMD_cnext: cmdidx_T = 86;
 const CMD_cnfile: cmdidx_T = 88;
 const CMD_colder: cmdidx_T = 93;
 const CMD_cprevious: cmdidx_T = 103;
@@ -297,7 +296,6 @@ const CMD_laddbuffer: cmdidx_T = 220;
 const CMD_laddfile: cmdidx_T = 221;
 const CMD_lafter: cmdidx_T = 222;
 const CMD_lbuffer: cmdidx_T = 224;
-const CMD_lbefore: cmdidx_T = 225;
 const CMD_lbelow: cmdidx_T = 226;
 const CMD_lcd: cmdidx_T = 228;
 const CMD_ldo: cmdidx_T = 231;
@@ -313,7 +311,6 @@ const CMD_lgrepadd: cmdidx_T = 243;
 const CMD_lhelpgrep: cmdidx_T = 244;
 const CMD_ll: cmdidx_T = 246;
 const CMD_lmake: cmdidx_T = 251;
-const CMD_lnext: cmdidx_T = 253;
 const CMD_lnfile: cmdidx_T = 255;
 const CMD_lolder: cmdidx_T = 261;
 const CMD_lprevious: cmdidx_T = 263;

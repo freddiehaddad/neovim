@@ -1,7 +1,6 @@
 //! OS input handling (`src/nvim/os/input.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -66,7 +65,6 @@ const MOD_MASK_4CLICK: u8 = 0x60;
 
 const FSK_KEYCODE: c_int = 0x01;
 const Ctrl_C: u8 = 3;
-const EOF: c_int = -1;
 
 const VV_USERACTIVE: c_int = 106;
 const PROF_YES: c_int = 1;

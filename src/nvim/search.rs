@@ -1,7 +1,6 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -103,12 +102,10 @@ const MAX_SCHAR_SIZE: usize = 32;
 const IOSIZE: usize = 1025;
 const LSIZE: usize = 512;
 
-const FIND_ANY: c_int = 1;
 const FIND_DEFINE: c_int = 2;
 const CHECK_PATH: c_int = 3;
 
 const ACTION_SHOW: c_int = 1;
-const ACTION_GOTO: c_int = 2;
 const ACTION_SPLIT: c_int = 3;
 const ACTION_SHOW_ALL: c_int = 4;
 const ACTION_EXPAND: c_int = 5;
@@ -116,7 +113,6 @@ const ACTION_EXPAND: c_int = 5;
 const SEARCH_REV: c_int = 0x01;
 const SEARCH_ECHO: c_int = 0x02;
 const SEARCH_MSG: c_int = 0x0c;
-const SEARCH_NFMSG: c_int = 0x08;
 const SEARCH_OPT: c_int = 0x10;
 const SEARCH_HIS: c_int = 0x20;
 const SEARCH_END: c_int = 0x40;
@@ -139,8 +135,6 @@ const RE_LAST: c_int = 2;
 
 const RE_MAGIC: c_int = 1;
 
-const MAGIC_NONE: magic_T = 1;
-const MAGIC_OFF: magic_T = 2;
 const MAGIC_ON: magic_T = 3;
 const MAGIC_ALL: magic_T = 4;
 

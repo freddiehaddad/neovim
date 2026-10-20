@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -58,7 +57,9 @@ const OK: c_int = 1;
 const FAIL: c_int = 0;
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;
+#[cfg(not(test))]
 const MIN_SWAP_PAGE_SIZE: u64 = 1048;
+#[cfg(not(test))]
 const MAX_SWAP_PAGE_SIZE: u64 = 50000;
 
 const BH_DIRTY: c_uint = 1;
@@ -70,6 +71,7 @@ const MF_DIRTY_YES_NOSYNC: mfdirty_T = 2;
 
 const MFS_ALL: c_int = 1;
 const MFS_STOP: c_int = 2;
+#[cfg(not(test))]
 const MFS_FLUSH: c_int = 4;
 const MFS_ZERO: c_int = 8;
 
@@ -84,11 +86,11 @@ const O_CREAT: c_int = 0x0100;
 const O_TRUNC: c_int = 0x0200;
 #[cfg(windows)]
 const O_EXCL: c_int = 0x0400;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const O_NOFOLLOW: c_int = 0;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const S_IREAD: c_int = 0x0100;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const S_IWRITE: c_int = 0x0080;
 
 #[cfg(target_os = "linux")]
@@ -103,12 +105,13 @@ const O_TRUNC: c_int = 0o1000;
     target_os = "linux",
     not(any(target_arch = "arm", target_arch = "aarch64"))
 ))]
+#[cfg(not(test))]
 const O_NOFOLLOW: c_int = 0o400000;
 #[cfg(all(target_os = "linux", any(target_arch = "arm", target_arch = "aarch64")))]
 const O_NOFOLLOW: c_int = 0o100000;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const S_IREAD: c_int = 0o400;
-#[cfg(target_os = "linux")]
+#[cfg(all(not(test), target_os = "linux"))]
 const S_IWRITE: c_int = 0o200;
 
 #[cfg(not(any(windows, target_os = "linux")))]

@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -118,20 +117,15 @@ const kVTRepeatLinebreak: u8 = 8;
 
 const kDecorProviderActive: c_int = 1;
 
-const KEYSET_OPTIDX_get_extmark__details: u64 = 1;
 const KEYSET_OPTIDX_get_extmark__hl_name: u64 = 2;
 
 const KEYSET_OPTIDX_get_extmarks__type: u64 = 1;
 const KEYSET_OPTIDX_get_extmarks__limit: u64 = 2;
-const KEYSET_OPTIDX_get_extmarks__details: u64 = 3;
 const KEYSET_OPTIDX_get_extmarks__hl_name: u64 = 4;
-const KEYSET_OPTIDX_get_extmarks__overlap: u64 = 5;
 
 const KEYSET_OPTIDX_set_extmark__id: u64 = 1;
 const KEYSET_OPTIDX_set_extmark__url: u64 = 2;
 const KEYSET_OPTIDX_set_extmark__spell: u64 = 3;
-const KEYSET_OPTIDX_set_extmark__scoped: u64 = 4;
-const KEYSET_OPTIDX_set_extmark__hl_eol: u64 = 5;
 const KEYSET_OPTIDX_set_extmark__strict: u64 = 6;
 const KEYSET_OPTIDX_set_extmark__end_col: u64 = 7;
 const KEYSET_OPTIDX_set_extmark__conceal: u64 = 8;
@@ -140,28 +134,17 @@ const KEYSET_OPTIDX_set_extmark__end_row: u64 = 10;
 const KEYSET_OPTIDX_set_extmark__end_line: u64 = 11;
 const KEYSET_OPTIDX_set_extmark__hl_group: u64 = 12;
 const KEYSET_OPTIDX_set_extmark__priority: u64 = 13;
-const KEYSET_OPTIDX_set_extmark__ephemeral: u64 = 14;
 const KEYSET_OPTIDX_set_extmark__sign_text: u64 = 15;
 const KEYSET_OPTIDX_set_extmark__virt_text: u64 = 16;
-const KEYSET_OPTIDX_set_extmark__invalidate: u64 = 17;
-const KEYSET_OPTIDX_set_extmark__ui_watched: u64 = 18;
 const KEYSET_OPTIDX_set_extmark__virt_lines: u64 = 19;
 const KEYSET_OPTIDX_set_extmark___subpriority: u64 = 20;
 const KEYSET_OPTIDX_set_extmark__undo_restore: u64 = 21;
 const KEYSET_OPTIDX_set_extmark__conceal_lines: u64 = 22;
-const KEYSET_OPTIDX_set_extmark__line_hl_group: u64 = 23;
 const KEYSET_OPTIDX_set_extmark__right_gravity: u64 = 24;
-const KEYSET_OPTIDX_set_extmark__sign_hl_group: u64 = 25;
 const KEYSET_OPTIDX_set_extmark__virt_text_pos: u64 = 26;
-const KEYSET_OPTIDX_set_extmark__virt_text_hide: u64 = 27;
-const KEYSET_OPTIDX_set_extmark__number_hl_group: u64 = 28;
-const KEYSET_OPTIDX_set_extmark__virt_lines_above: u64 = 29;
 const KEYSET_OPTIDX_set_extmark__end_right_gravity: u64 = 30;
 const KEYSET_OPTIDX_set_extmark__virt_text_win_col: u64 = 31;
-const KEYSET_OPTIDX_set_extmark__virt_lines_leftcol: u64 = 32;
-const KEYSET_OPTIDX_set_extmark__cursorline_hl_group: u64 = 33;
 const KEYSET_OPTIDX_set_extmark__virt_lines_overflow: u64 = 34;
-const KEYSET_OPTIDX_set_extmark__virt_text_repeat_linebreak: u64 = 35;
 
 const KEYSET_OPTIDX_ns_opts__wins: u64 = 1;
 

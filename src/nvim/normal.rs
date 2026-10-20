@@ -1,7 +1,6 @@
 //! Normal and Visual mode command processing (`src/nvim/normal.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -259,7 +258,6 @@ const MAXLNUM: linenr_T = 0x7fffffff;
 const kMTUnknown: MotionType = -1;
 const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
-const kMTBlockWise: MotionType = 2;
 
 const kNone: TriState = -1;
 const kFalse: TriState = 0;

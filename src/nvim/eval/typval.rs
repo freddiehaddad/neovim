@@ -1,7 +1,6 @@
 //! Vimscript `typval_T`, `list_T`, `dict_T`, `blob_T`, and `Callback` operations (`src/nvim/eval/typval.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -195,6 +194,7 @@ pub static tv_empty_string: SyncCStrPtr = SyncCStrPtr(c"".as_ptr());
 static mut SORTINFO: *mut sortinfo_T = ptr::null_mut();
 static mut TV_EQUAL_RECURSE_LIMIT: c_int = 0;
 
+#[cfg(not(test))]
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =
     c"E743: Variable nested too deep for (un)lock";
 static E_USING_INVALID_VALUE_AS_STRING: &CStr = c"E908: Using an invalid value as a String";
@@ -4336,9 +4336,11 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                 }
                 MPConvStackValType::PartialList => {
                     let (arg, todo, cur_tv) = match mpstack[last_idx].data {
-                        MPConvStackData::PartialList { arg, todo, .. } => {
-                            (arg, todo, mpstack[last_idx].tv)
-                        }
+                        MPConvStackData::PartialList {
+                            arg,
+                            argv: _argv,
+                            todo,
+                        } => (arg, todo, mpstack[last_idx].tv),
                         _ => unreachable!(),
                     };
                     if todo == 0 {
@@ -4357,6 +4359,7 @@ unsafe fn encode_vim_to_nothing(top_tv: *mut typval_T) -> c_int {
                     }
                     arg
                 }
+                #[cfg(not(test))]
                 MPConvStackValType::Pairs => unreachable!(),
             };
             debug_assert!(!tv.is_null());

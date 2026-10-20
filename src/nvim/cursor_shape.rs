@@ -1,15 +1,12 @@
 //! Handling of cursor and mouse pointer shapes in various modes (`src/nvim/cursor_shape.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
+use crate::api::private::validate::Array;
+#[cfg(not(test))]
+use crate::api::private::validate::{Dict, KeyValuePair, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{ObjectData, ObjectType};
 #[cfg(not(test))]
@@ -22,6 +19,7 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 #[cfg(not(test))]
 use crate::log::logmsg;
+#[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
@@ -54,13 +52,20 @@ pub const SHAPE_MOUSE: c_int = 1;
 pub const SHAPE_CURSOR: c_int = 2;
 const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
 
+#[cfg(not(test))]
 const LOGLVL_WRN: c_int = 3;
 
+#[cfg(not(test))]
 const MODE_CMDLINE: c_int = 0x08;
+#[cfg(not(test))]
 const MODE_INSERT: c_int = 0x10;
+#[cfg(not(test))]
 const MODE_TERMINAL: c_int = 0x80;
+#[cfg(not(test))]
 const REPLACE_FLAG: c_int = 0x100;
+#[cfg(not(test))]
 const VREPLACE_FLAG: c_int = 0x200;
+#[cfg(not(test))]
 const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
 #[repr(C)]
@@ -137,6 +142,7 @@ pub static mut shape_table: [cursorentry_T; SHAPE_IDX_COUNT] = [
     entry(c"terminal", 0, 0, 0, c"t", SHAPE_CURSOR as c_char),
 ];
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
     let size = if s.is_null() {
@@ -150,6 +156,7 @@ unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     assert!(dic.size < dic.capacity);
@@ -166,6 +173,7 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn strchr_ascii(mut s: *const c_char, ch: u8) -> *const c_char {
     unsafe {
@@ -182,6 +190,7 @@ unsafe fn strchr_ascii(mut s: *const c_char, ch: u8) -> *const c_char {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {
     unsafe {
@@ -202,6 +211,7 @@ unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: us
     }
 }
 
+#[cfg(not(test))]
 unsafe fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!(shape_table) };
     for entry in tbl.iter_mut() {

@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -49,6 +48,7 @@ pub type Buffer = handle_T;
 pub type Window = handle_T;
 pub type Tabpage = handle_T;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_tabpage_config__after: u64 = 1;
 const K_WIN_OPT_COUNT: usize = 53;
 
@@ -486,6 +486,7 @@ pub struct KeyDict_tabpage_config {
     pub after: Integer,
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0

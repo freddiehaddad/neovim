@@ -1,7 +1,6 @@
 //! UI subsystem (`src/nvim/ui.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -1130,12 +1129,17 @@ pub unsafe extern "C" fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     }
 }
 
+#[cfg(debug_assertions)]
 const LOGLVL_DBG: c_int = 1;
+#[cfg(debug_assertions)]
 static mut UILOG_SEEN: usize = 0;
+#[cfg(debug_assertions)]
 static mut UILOG_LAST_EVENT: *const c_char = ptr::null();
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_log(funname: *const c_char) {
+    #[cfg(not(debug_assertions))]
+    let _ = funname;
     #[cfg(debug_assertions)]
     unsafe {
         if crate::memory::entered_free_all_mem {

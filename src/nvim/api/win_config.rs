@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -22,8 +21,8 @@ use crate::api::private::helpers::{
     find_window_by_handle, integer_obj, object_to_hl_id, string_obj, try_enter, try_leave,
 };
 use crate::api::private::validate::{
-    Array, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
-    api_err_invalid, api_err_required,
+    Array, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
+    api_err_required,
 };
 use crate::api::tabpage::{Buffer, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T};
 use crate::autocmd::{apply_autocmds_win, block_autocmds, unblock_autocmds};
@@ -71,7 +70,6 @@ pub type UIExtension = c_int;
 const NUL: c_char = 0;
 const MAX_SCHAR_SIZE: usize = 32;
 const EVENT_WINNEW: event_T = 146;
-const CMD_SIZE: cmdidx_T = 564;
 const kUIMultigrid: UIExtension = 6;
 const kZIndexFloatDefault: c_int = 50;
 
@@ -204,11 +202,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
     fixed: false,
     hide: false,
     _cmdline_offset: c_int::MAX,
-};
-
-const NIL: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
 };
 
 #[inline]

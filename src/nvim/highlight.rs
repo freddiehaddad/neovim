@@ -1,7 +1,6 @@
 //! Low-level code for UI and syntax highlighting (`src/nvim/highlight.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -100,7 +99,6 @@ const KEYSET_OPTIDX_highlight__bg: c_int = 1;
 const KEYSET_OPTIDX_highlight__fg: c_int = 2;
 const KEYSET_OPTIDX_highlight__sp: c_int = 3;
 const KEYSET_OPTIDX_highlight__dim: c_int = 4;
-const KEYSET_OPTIDX_highlight__url: c_int = 5;
 const KEYSET_OPTIDX_highlight__bold: c_int = 6;
 const KEYSET_OPTIDX_highlight__font: c_int = 7;
 const KEYSET_OPTIDX_highlight__link: c_int = 8;

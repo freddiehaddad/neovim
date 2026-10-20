@@ -1,7 +1,6 @@
 //! VTerm unit-test callback and inspection harness (`test/unit/fixtures/vterm_test.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

@@ -2,7 +2,6 @@
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,

@@ -1,7 +1,6 @@
 //! Version information, patch checks, and `:version` / `:intro` commands (`src/nvim/version.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -40,7 +39,6 @@ const kUIMultigrid: UIExtension = 6;
 const kShmIntro: c_int = b'I' as c_int;
 const kRetObject: c_int = 0;
 const HLF_8: usize = 1;
-const HLF_COUNT: usize = 76;
 
 static VIM_VERSIONS: [c_int; 5] = [801, 802, 900, 901, 902];
 static NUM_PATCHES: [usize; 5] = [2409, 4049, 1650, 1726, 823];
@@ -3834,8 +3832,7 @@ pub static mut default_lib_dir: *mut c_char =
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
 #[cfg_attr(not(test), unsafe(no_mangle))]
-pub static mut longVersion: *mut c_char =
-    (&raw const LONG_VERSION_BUF).cast::<c_char>().cast_mut();
+pub static mut longVersion: *mut c_char = (&raw const LONG_VERSION_BUF).cast::<c_char>().cast_mut();
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VERSION_BUILD") {
     Some(s) => !s.is_empty(),

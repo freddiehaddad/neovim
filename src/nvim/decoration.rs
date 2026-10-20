@@ -1,7 +1,6 @@
 //! Buffer decorations, virtual text/lines, and sign/highlight range state (`src/nvim/decoration.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -76,7 +75,6 @@ const kExtmarkVirtLines: u16 = 0x10;
 const kExtmarkHighlight: u16 = 0x20;
 
 const kDecorKindHighlight: DecorRangeKind = 0;
-const kDecorKindSign: DecorRangeKind = 1;
 const kDecorKindVirtText: DecorRangeKind = 2;
 const kDecorKindVirtLines: DecorRangeKind = 3;
 const kDecorKindUIWatched: DecorRangeKind = 4;

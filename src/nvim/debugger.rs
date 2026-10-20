@@ -1,11 +1,6 @@
 //! Vimscript debugger (`src/nvim/debugger.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::charset::getdigits_int32;
@@ -24,6 +19,7 @@ use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
 use crate::ex_getln::{getcmdline_prompt, getexline};
 #[cfg(not(test))]
 use crate::fileio::file_pat_to_reg_pat;
+#[cfg(not(test))]
 use crate::garray::garray_T;
 #[cfg(not(test))]
 use crate::garray::{ga_clear, ga_grow};
@@ -50,53 +46,90 @@ use std::ffi::c_void;
 use std::ffi::{CStr, c_char, c_int};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
+#[cfg(not(test))]
 const MODE_NORMAL: c_int = 0x01;
+#[cfg(not(test))]
 const ESTACK_NONE: c_int = 0;
+#[cfg(not(test))]
 const EXPAND_NOTHING: c_int = 0;
+#[cfg(not(test))]
 const DOCMD_VERBOSE: c_int = 0x01;
+#[cfg(not(test))]
 const DOCMD_EXCRESET: c_int = 0x10;
+#[cfg(not(test))]
 const UPD_NOT_VALID: c_int = 40;
 
+#[cfg(not(test))]
 const K_SPECIAL: u8 = 0x80;
+#[cfg(not(test))]
 const KS_EXTRA: u8 = 253;
+#[cfg(not(test))]
 const KE_SNR: u8 = 82;
 
+#[cfg(not(test))]
 const DBG_FUNC: c_int = 1;
+#[cfg(not(test))]
 const DBG_FILE: c_int = 2;
+#[cfg(not(test))]
 const DBG_EXPR: c_int = 3;
 
+#[cfg(not(test))]
 const CMD_BREAKDEL: c_int = 38;
+#[cfg(not(test))]
 const CMD_PROFILE: c_int = 338;
+#[cfg(not(test))]
 const CMD_PROFDEL: c_int = 339;
 
+#[cfg(not(test))]
 const RE_MAGIC: c_int = 1;
+#[cfg(not(test))]
 const RE_STRING: c_int = 2;
+#[cfg(not(test))]
 const EXPR_IS: c_int = 9;
+#[cfg(not(test))]
 const MAXPATHL: usize = 4096;
 
+#[cfg(not(test))]
 const CMD_CONT: c_int = 1;
+#[cfg(not(test))]
 const CMD_NEXT: c_int = 2;
+#[cfg(not(test))]
 const CMD_STEP: c_int = 3;
+#[cfg(not(test))]
 const CMD_FINISH: c_int = 4;
+#[cfg(not(test))]
 const CMD_QUIT: c_int = 5;
+#[cfg(not(test))]
 const CMD_INTERRUPT: c_int = 6;
+#[cfg(not(test))]
 const CMD_BACKTRACE: c_int = 7;
+#[cfg(not(test))]
 const CMD_FRAME: c_int = 8;
+#[cfg(not(test))]
 const CMD_UP: c_int = 9;
+#[cfg(not(test))]
 const CMD_DOWN: c_int = 10;
 
 static DEBUG_GREEDY: AtomicBool = AtomicBool::new(false);
+#[cfg(not(test))]
 static LAST_CMD: AtomicI32 = AtomicI32::new(0);
+#[cfg(not(test))]
 static LAST_BREAKP: AtomicI32 = AtomicI32::new(0);
+#[cfg(not(test))]
 static HAS_EXPR_BREAKPOINT: AtomicBool = AtomicBool::new(false);
+#[cfg(not(test))]
 static DEBUG_SKIPPED: AtomicBool = AtomicBool::new(false);
 static DEBUG_BREAKPOINT_LNUM: AtomicI32 = AtomicI32::new(0);
 
+#[cfg(not(test))]
 static mut DEBUG_OLDVAL: *mut c_char = std::ptr::null_mut();
+#[cfg(not(test))]
 static mut DEBUG_NEWVAL: *mut c_char = std::ptr::null_mut();
 static mut DEBUG_BREAKPOINT_NAME: *mut c_char = std::ptr::null_mut();
+#[cfg(not(test))]
 static mut DEBUG_SKIPPED_NAME: *mut c_char = std::ptr::null_mut();
 
+#[cfg(not(test))]
 static mut DBG_BREAKP: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -105,6 +138,7 @@ static mut DBG_BREAKP: garray_T = garray_T {
     ga_data: std::ptr::null_mut(),
 };
 
+#[cfg(not(test))]
 static mut PROF_GA: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
@@ -134,6 +168,7 @@ pub use crate::input::tasave_T;
 
 pub use crate::cmdexpand::LineGetter;
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
     unsafe {
@@ -144,6 +179,7 @@ unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 fn atoi_cstr(s: *const c_char) -> c_int {
     let text = unsafe { CStr::from_ptr(s).to_string_lossy() };
@@ -168,6 +204,7 @@ fn atoi_cstr(s: *const c_char) -> c_int {
     val.wrapping_mul(sign)
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn debuggy_at(gap: *mut garray_T, idx: c_int) -> *mut debuggy {
     unsafe { (*gap).ga_data.cast::<debuggy>().add(idx as usize) }
@@ -738,6 +775,7 @@ pub unsafe extern "C" fn ex_debuggreedy(eap: *mut exarg_Full) {
     DEBUG_GREEDY.store(greedy, Ordering::Relaxed);
 }
 
+#[cfg(not(test))]
 unsafe fn update_has_expr_breakpoint() {
     unsafe {
         let gap = std::ptr::addr_of_mut!(DBG_BREAKP);

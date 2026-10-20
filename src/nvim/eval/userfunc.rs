@@ -1,7 +1,6 @@
 //! User defined function support (`src/nvim/eval/userfunc.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -246,6 +245,7 @@ static mut previous_funccal: *mut funccall_T = ptr::null_mut();
 static mut funccal_stack: *mut funccal_entry_T = ptr::null_mut();
 static mut lambda_name: [c_char; 8 + NUMBUFLEN] = [0; 8 + NUMBUFLEN];
 static mut lambda_no: c_int = 0;
+#[cfg(not(test))]
 static mut made_copy: c_int = 0;
 static mut call_depth: c_int = 0;
 static mut func_nr: c_int = 0;
@@ -294,6 +294,7 @@ unsafe fn hi2uf(hi: *const hashitem_T) -> *mut ufunc_T {
     unsafe { hikey2uf((*hi).hi_key) }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn tv_dict_hi2di(hi: *mut hashitem_T) -> *mut dictitem_T {
     unsafe {

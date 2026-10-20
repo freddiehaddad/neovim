@@ -4,7 +4,6 @@
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -25,9 +24,12 @@ use crate::log::logmsg;
 use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use std::ffi::CStr;
+#[cfg(not(test))]
 use std::ffi::c_int;
 
+#[cfg(not(test))]
 const VV_TERMRESPONSE: c_int = 11;
+#[cfg(not(test))]
 const LOGLVL_ERR: c_int = 4;
 
 /// Emitted on the client channel if an async API request responds with an error.

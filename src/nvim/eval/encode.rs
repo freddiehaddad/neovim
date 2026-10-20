@@ -1,12 +1,7 @@
 //! Encoding Vimscript `typval_T` values to strings, `:echo`, JSON, and MessagePack
 //! (`src/nvim/eval/encode.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::api::private::converter::partial_T;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
@@ -49,38 +44,59 @@ use crate::msgpack_rpc::packer::{
 #[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_void};
+#[cfg(not(test))]
 use std::sync::atomic::AtomicBool;
 #[cfg(not(test))]
 use std::sync::atomic::Ordering;
 
 const NOTDONE: c_int = 2;
 const VAR_UNLOCKED: c_int = 0;
-const K_BOOL_VAR_FALSE: i64 = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
+#[cfg(not(test))]
 const K_SPECIAL_VAR_NULL: i64 = 0;
 
+#[cfg(not(test))]
 const K_MP_NIL: usize = 0;
+#[cfg(not(test))]
 const K_MP_BOOLEAN: usize = 1;
+#[cfg(not(test))]
 const K_MP_INTEGER: usize = 2;
+#[cfg(not(test))]
 const K_MP_FLOAT: usize = 3;
+#[cfg(not(test))]
 const K_MP_STRING: usize = 4;
+#[cfg(not(test))]
 const K_MP_ARRAY: usize = 5;
+#[cfg(not(test))]
 const K_MP_MAP: usize = 6;
+#[cfg(not(test))]
 const K_MP_EXT: usize = 7;
+#[cfg(not(test))]
 const NUM_MSGPACK_TYPES: usize = 8;
 
+#[cfg(not(test))]
 const SURROGATE_HI_START: c_int = 0xD800;
+#[cfg(not(test))]
 const SURROGATE_HI_END: c_int = 0xDBFF;
+#[cfg(not(test))]
 const SURROGATE_LO_START: c_int = 0xDC00;
+#[cfg(not(test))]
 const SURROGATE_LO_END: c_int = 0xDFFF;
+#[cfg(not(test))]
 const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
+#[cfg(not(test))]
 const NUMBUFLEN: usize = 65;
 
+#[cfg(not(test))]
 const BS: c_int = 0x08;
+#[cfg(not(test))]
 const TAB: c_int = 0x09;
 const NL: c_int = 0x0a;
+#[cfg(not(test))]
 const FF: c_int = 0x0c;
+#[cfg(not(test))]
 const CAR: c_int = 0x0d;
 
 #[repr(transparent)]
@@ -94,6 +110,7 @@ pub static encode_bool_var_names: CStrArray<2> =
 #[unsafe(no_mangle)]
 pub static encode_special_var_names: CStrArray<1> = CStrArray([c"v:null".as_ptr()]);
 
+#[cfg(not(test))]
 static DID_ECHO_STRING_EMSG: AtomicBool = AtomicBool::new(false);
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
@@ -110,6 +127,7 @@ pub struct ListReaderState {
 pub(crate) enum MPConvStackValType {
     Dict,
     List,
+    #[cfg(not(test))]
     Pairs,
     Partial,
     PartialList,
@@ -153,6 +171,7 @@ pub(crate) struct MPConvStackVal {
     pub(crate) data: MPConvStackData,
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
     unsafe {

@@ -1,7 +1,6 @@
 //! File searching functions for `'path'`, `'tags'`, and `'cdpath'` options (`src/nvim/file_search.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -89,7 +88,6 @@ const kCallbackNone: c_int = 0;
 const EVENT_DIRCHANGED: event_T = 45;
 const EVENT_DIRCHANGEDPRE: event_T = 46;
 
-const kCdScopeInvalid: CdScope = -1;
 const kCdScopeBuffer: CdScope = 0;
 const kCdScopeWindow: CdScope = 1;
 const kCdScopeTabpage: CdScope = 2;

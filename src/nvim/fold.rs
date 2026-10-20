@@ -1,7 +1,6 @@
 //! Code for folding (`src/nvim/fold.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -85,7 +84,6 @@ const MODE_INSERT: c_int = 0x10;
 const FORWARD: c_int = 1;
 
 const UPD_INVERTED: c_int = 20;
-const UPD_SOME_VALID: c_int = 35;
 const UPD_NOT_VALID: c_int = 40;
 
 const kExtmarkUndo: ExtmarkOp = 1;

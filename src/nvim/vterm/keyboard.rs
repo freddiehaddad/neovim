@@ -1,7 +1,6 @@
 //! VTerm keyboard event encoding (`src/nvim/vterm/keyboard.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -152,7 +151,6 @@ enum KeycodeType {
     Tab,
     Enter,
     Ss3,
-    Csi,
     CsiCursor,
     CsiNum,
     Keypad,
@@ -681,9 +679,6 @@ pub unsafe extern "C" fn vterm_keyboard_key(vt: *mut VTerm, key: VTermKey, mod_:
             }
             KeycodeType::Ss3 => {
                 emit_ss3(vt, mod_, k.literal);
-            }
-            KeycodeType::Csi => {
-                emit_csi(vt, mod_, k.literal);
             }
             KeycodeType::CsiNum => {
                 if mod_ == 0 {

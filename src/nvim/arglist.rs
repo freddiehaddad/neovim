@@ -1,7 +1,6 @@
 //! Functions for dealing with the argument list (`src/nvim/arglist.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -63,7 +62,6 @@ pub use crate::regexp::regprog_T;
 const NUL: c_char = 0;
 const FAIL: c_int = 0;
 const OK: c_int = 1;
-const NSUBEXP: usize = 10;
 
 const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;

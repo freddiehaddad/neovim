@@ -1,11 +1,6 @@
 //! JSON and MessagePack decoding into Vimscript `typval_T` values (`src/nvim/eval/decode.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::charset::vim_str2nr;
@@ -40,22 +35,31 @@ use crate::message::{emsg, semsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 const VAR_UNLOCKED: c_int = 0;
+#[cfg(not(test))]
 const K_SPECIAL_VAR_NULL: i64 = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_FALSE: i64 = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
+#[cfg(not(test))]
 const K_LIST_LEN_MAY_KNOW: isize = -3;
 
+#[cfg(not(test))]
 const K_MP_INTEGER: usize = 2;
+#[cfg(not(test))]
 const K_MP_MAP: usize = 6;
+#[cfg(not(test))]
 const K_MP_EXT: usize = 7;
 
-const STR2NR_HEX: c_int = 1 << 2;
-const STR2NR_FORCE: c_int = 1 << 7;
-
+#[cfg(not(test))]
 const SURROGATE_HI_START: u64 = 0xD800;
+#[cfg(not(test))]
 const SURROGATE_HI_END: u64 = 0xDBFF;
+#[cfg(not(test))]
 const SURROGATE_LO_START: u64 = 0xDC00;
+#[cfg(not(test))]
 const SURROGATE_LO_END: u64 = 0xDFFF;
+#[cfg(not(test))]
 const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 pub use crate::mpack::mpack_core::{
@@ -94,6 +98,7 @@ pub struct dict_T {
     pub lua_table_ref: c_int,
 }
 
+#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct JsonContainerStackItem {
     stack_index: usize,
@@ -102,6 +107,7 @@ struct JsonContainerStackItem {
     container: typval_T,
 }
 
+#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct ValuesStackItem {
     is_special_string: bool,

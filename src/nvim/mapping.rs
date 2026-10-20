@@ -1,7 +1,6 @@
 //! Code for mappings and abbreviations (`src/nvim/mapping.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -12,7 +11,7 @@
 
 use crate::api::autocmd::{ArrayBuilder, Buffer};
 use crate::api::buffer::KeyDict_keymap;
-use crate::api::command::{cmdidx_T, exarg_T};
+use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
 use crate::api::private::converter::{object_to_vim_take_luaref, sctx_T};
 use crate::api::private::helpers::{
@@ -123,8 +122,6 @@ const KE_LUA: u8 = 103;
 const ABBR_OFF: c_int = 0x100;
 const K_ZERO: c_int = -((KS_ZERO as c_int) + ((KE_FILLER as c_int) << 8));
 
-const CMD_map: cmdidx_T = 279;
-const CMD_unmap: cmdidx_T = 506;
 const EXPAND_NOTHING: c_int = 0;
 const EXPAND_MAPPINGS: c_int = 16;
 
@@ -267,11 +264,6 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 #[inline]
 const fn termcap2key(a: c_int, b: c_int) -> c_int {
     -(a + (b << 8))
-}
-
-#[inline]
-const fn key2termcap0(x: c_int) -> c_int {
-    (-x) & 0xff
 }
 
 #[inline]

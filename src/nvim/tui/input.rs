@@ -1,7 +1,6 @@
 //! Terminal input stream and key event handling (`src/nvim/tui/input.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -17,10 +16,12 @@ use crate::event::r#loop::{
 #[cfg(not(test))]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
 use crate::event::rstream::{
-    RStream, rstream_available, rstream_consume, rstream_fields, rstream_init_fd,
-    rstream_may_close, rstream_size, rstream_start, rstream_stop,
+    RStream, rstream_init_fd, rstream_may_close, rstream_size, rstream_start, rstream_stop,
 };
+#[cfg(not(test))]
+use crate::event::rstream::{rstream_available, rstream_consume, rstream_fields};
 use crate::event::stream::Loop;
+#[cfg(not(test))]
 use crate::event::time::uv_timer_t;
 #[cfg(not(test))]
 use crate::globals::*;
@@ -66,6 +67,7 @@ pub use crate::tui::tui::TermModeState;
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
 
+#[cfg(not(test))]
 const UV_TIMER: c_int = 13;
 const STDIN_FILENO: c_int = 0;
 const INPUT_BUFFER_SIZE: usize = 256;
@@ -124,6 +126,7 @@ pub(crate) unsafe fn input_prefix(input: *mut TermInput) -> *mut TermInputPrefix
     input.cast::<TermInputPrefix>()
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn input_timer_handle(input: *mut TermInput) -> *mut uv_timer_t {
     unsafe {
@@ -134,6 +137,7 @@ unsafe fn input_timer_handle(input: *mut TermInput) -> *mut uv_timer_t {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn input_bg_query_timer(input: *mut TermInput) -> *mut uv_timer_t {
     unsafe {
@@ -358,6 +362,7 @@ pub unsafe extern "C" fn tinput_stop(input: *mut TermInput) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn tinput_done_event(_argv: *mut *mut c_void) {
     #[cfg(not(test))]
     unsafe {
@@ -693,6 +698,7 @@ unsafe fn tk_getkeys(input: *mut TermInput, force: bool) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = *handle.cast::<*mut TermInput>();
@@ -708,6 +714,7 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = *handle.cast::<*mut TermInput>();

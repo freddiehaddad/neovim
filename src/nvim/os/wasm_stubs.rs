@@ -1,11 +1,6 @@
 //! WebAssembly / Emscripten libuv and pthread shims (`src/wasm/wasm_stubs.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use std::ffi::{c_char, c_double, c_int, c_void};
 use std::ptr;
@@ -14,14 +9,7 @@ use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 pub const UV_BROWSER_MAX_FD: usize = 256;
 
 const UV_EINVAL: c_int = -22;
-const UV_ENOMEM: c_int = -12;
-const UV_ENOBUFS: c_int = -105;
 const EINVAL: c_int = 22;
-
-const POLLIN: c_int = 0x001;
-const POLLOUT: c_int = 0x004;
-const POLLERR: c_int = 0x008;
-const POLLHUP: c_int = 0x010;
 
 #[repr(C)]
 pub struct UvBrowserSharedState {

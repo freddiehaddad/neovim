@@ -1,8 +1,6 @@
 //! OS process inspection and process-tree termination (`src/nvim/os/proc.c`).
 
 #![cfg_attr(test, allow(unused_mut))]
-#![allow(dead_code)]
-
 #[cfg(all(not(test), windows))]
 use crate::api::private::helpers::{arena_dict, arena_string};
 #[cfg(not(test))]
@@ -13,9 +11,11 @@ use crate::memory::Arena;
 use crate::memory::xrealloc;
 #[cfg(all(not(test), windows))]
 use std::ffi::CStr;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use std::ffi::c_char;
-use std::ffi::{c_int, c_void};
+use std::ffi::c_int;
+#[cfg(any(not(test), unix))]
+use std::ffi::c_void;
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::Dict;
@@ -38,14 +38,14 @@ unsafe fn uv_kill(pid: c_int, _signum: c_int) -> c_int {
     if pid <= 0 { UV_ESRCH } else { 0 }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(not(test), target_os = "windows"))]
 const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;
-#[cfg(target_os = "windows")]
+#[cfg(all(not(test), target_os = "windows"))]
 const PROCESS_ALL_ACCESS: u32 = 0x001F_FFFF;
-#[cfg(target_os = "windows")]
+#[cfg(all(not(test), target_os = "windows"))]
 const INVALID_HANDLE_VALUE: *mut c_void = (-1isize) as *mut c_void;
 
-#[cfg(target_os = "windows")]
+#[cfg(all(not(test), target_os = "windows"))]
 #[repr(C)]
 struct ProcessEntry32 {
     dw_size: u32,
@@ -60,7 +60,7 @@ struct ProcessEntry32 {
     sz_exe_file: [c_char; 260],
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(not(test), target_os = "windows"))]
 impl ProcessEntry32 {
     fn zeroed() -> Self {
         Self {

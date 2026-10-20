@@ -1,7 +1,6 @@
 //! Functions for highlighting matches (`src/nvim/match.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -51,7 +50,6 @@ const NUL: c_char = 0;
 const FAIL: c_int = 0;
 const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
-const NSUBEXP: usize = 10;
 const MB_MAXCHAR: usize = 6;
 const NUMBUFLEN: usize = 65;
 

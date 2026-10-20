@@ -1,7 +1,6 @@
 //! Extended marks for plugins (`src/nvim/extmark.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -49,7 +48,6 @@ pub type TriState = c_int;
 pub type extmark_undo_vec_t = KVec<ExtmarkUndoObject>;
 
 const MAXLNUM: linenr_T = 0x7fffffff;
-const NMARKS: usize = 26;
 
 const kNone: TriState = -1;
 const kTrue: TriState = 1;

@@ -1,7 +1,6 @@
 //! VTerm input byte stream parser (`src/nvim/vterm/parser.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -19,7 +18,6 @@ const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
 const VTERM_TERMINATOR_ST: VTermTerminator = 1;
 
 const INTERMED_MAX: usize = 16;
-const CSI_ARGS_MAX: usize = 32;
 const CSI_LEADER_MAX: usize = 16;
 
 const CSI_ARG_FLAG_MORE: c_long = (1u32 << 31) as c_long;

@@ -1,7 +1,6 @@
 //! Msgpack-RPC server address and socket watcher management (`src/nvim/msgpack_rpc/server.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -30,7 +29,6 @@ use crate::os::stdpaths::{XDGVarType, stdpaths_get_xdg_var};
 const MAX_CONNECTIONS: c_int = 32;
 const ADDRESS_MAX_SIZE: usize = 256;
 const IOSIZE: usize = 1025;
-const MAXPATHL: usize = 4096;
 
 const UV_NAMED_PIPE: c_int = 7;
 const UV_TCP: c_int = 12;

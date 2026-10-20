@@ -1,7 +1,6 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -128,7 +127,9 @@ const NUL: c_char = 0;
 const DEL: c_char = 0x7f;
 
 const UV_RUN_DEFAULT: c_int = 0;
+#[cfg(unix)]
 const UV_TTY_MODE_NORMAL: c_int = 0;
+#[cfg(unix)]
 const UV_TTY_MODE_IO: c_int = 2;
 #[cfg(not(windows))]
 const UV_EINTR: c_int = -4;

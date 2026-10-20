@@ -1,12 +1,7 @@
 //! Conversions between Lua stack values, Vimscript `typval_T`, and API `Object`
 //! (`src/nvim/lua/converter.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::api::private::converter::partial_T;
@@ -54,7 +49,9 @@ use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::math::{FAIL, OK};
-use crate::memory::{Arena, arena_memdupz};
+use crate::memory::Arena;
+#[cfg(not(test))]
+use crate::memory::arena_memdupz;
 #[cfg(not(test))]
 use crate::memory::{xfree, xstrdup};
 #[cfg(not(test))]
@@ -63,6 +60,7 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 #[cfg(not(test))]
 use std::ffi::CStr;
 use std::ffi::{c_char, c_int, c_void};
+#[cfg(not(test))]
 use std::sync::atomic::AtomicBool;
 #[cfg(not(test))]
 use std::sync::atomic::Ordering;
@@ -73,40 +71,65 @@ pub type LuaRef = c_int;
 pub type lua_Number = f64;
 pub type lua_Integer = isize;
 
+#[cfg(not(test))]
 const NOTDONE: c_int = 2;
+#[cfg(not(test))]
 const VAR_UNLOCKED: c_int = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_FALSE: i64 = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
+#[cfg(not(test))]
 const K_SPECIAL_VAR_NULL: i64 = 0;
 const LUA_NOREF: LuaRef = -2;
+#[cfg(not(test))]
 const FC_LUAREF: c_int = 0x800;
 
+#[cfg(not(test))]
 const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
+#[cfg(not(test))]
 const K_NLUA_PUSH_FREE_REFS: c_int = 0x02;
 
+#[cfg(not(test))]
 const TYPE_IDX_VALUE: bool = true;
+#[cfg(not(test))]
 const VAL_IDX_VALUE: bool = false;
 
+#[cfg(not(test))]
 const LUA_TNIL: c_int = 0;
+#[cfg(not(test))]
 const LUA_TBOOLEAN: c_int = 1;
-const LUA_TLIGHTUSERDATA: c_int = 2;
+#[cfg(not(test))]
 const LUA_TNUMBER: c_int = 3;
+#[cfg(not(test))]
 const LUA_TSTRING: c_int = 4;
+#[cfg(not(test))]
 const LUA_TTABLE: c_int = 5;
+#[cfg(not(test))]
 const LUA_TFUNCTION: c_int = 6;
+#[cfg(not(test))]
 const LUA_TUSERDATA: c_int = 7;
-const LUA_TTHREAD: c_int = 8;
 
+#[cfg(not(test))]
 const K_MP_NIL: usize = 0;
+#[cfg(not(test))]
 const K_MP_BOOLEAN: usize = 1;
+#[cfg(not(test))]
 const K_MP_INTEGER: usize = 2;
+#[cfg(not(test))]
 const K_MP_FLOAT: usize = 3;
+#[cfg(not(test))]
 const K_MP_STRING: usize = 4;
+#[cfg(not(test))]
 const K_MP_ARRAY: usize = 5;
+#[cfg(not(test))]
 const K_MP_MAP: usize = 6;
+#[cfg(not(test))]
 const K_MP_EXT: usize = 7;
+#[cfg(not(test))]
 const NUM_MSGPACK_TYPES: usize = 8;
 
+#[cfg(not(test))]
 static TYPVAL_CONV_SPECIAL: AtomicBool = AtomicBool::new(false);
 
 #[repr(C)]
@@ -136,6 +159,7 @@ unsafe impl Sync for KeySetLink {}
 pub type FieldHashfn =
     Option<unsafe extern "C-unwind" fn(str: *const c_char, len: usize) -> *const KeySetLink>;
 
+#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct LuaTableProps {
     maxidx: usize,
@@ -146,6 +170,7 @@ struct LuaTableProps {
     has_type_key: bool,
 }
 
+#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct TVPopStackItem {
     tv: *mut typval_T,
@@ -155,6 +180,7 @@ struct TVPopStackItem {
     idx: c_int,
 }
 
+#[cfg(not(test))]
 #[derive(Clone, Copy)]
 struct ObjPopStackItem {
     obj: *mut Object,
@@ -220,6 +246,7 @@ unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn cbuf_to_arena_str(arena: *mut Arena, s: *const c_char, len: usize) -> NvimString {
     let ptr = if s.is_null() { c"".as_ptr() } else { s };

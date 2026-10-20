@@ -1,7 +1,6 @@
 //! Windows console management (`src/nvim/os/os_win_console.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -78,21 +77,21 @@ const WM_SETICON: UINT = 0x0080;
 const ICON_SMALL: WPARAM = 0;
 #[cfg(windows)]
 const ICON_BIG: WPARAM = 1;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const IMAGE_ICON: UINT = 1;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LR_LOADFROMFILE: UINT = 0x0000_0010;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LR_LOADMAP3DCOLORS: UINT = 0x0000_1000;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const ENABLE_VIRTUAL_TERMINAL_PROCESSING: DWORD = 0x0004;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const UV_TTY_SUPPORTED: c_int = 0;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const MAXPATHL: usize = 4096;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LOGLVL_INF: c_int = 2;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const LOGLVL_WRN: c_int = 3;
 
 #[cfg(windows)]
@@ -139,6 +138,7 @@ unsafe extern "system" {
 unsafe extern "system" {
     fn ShowWindow(hWnd: HWND, nCmdShow: c_int) -> BOOL;
     fn SendMessageA(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) -> LRESULT;
+    #[cfg(not(test))]
     fn LoadImageA(
         hInst: *mut c_void,
         name: *const c_char,

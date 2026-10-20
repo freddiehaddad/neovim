@@ -1,6 +1,5 @@
 //! Diff mode functions (`src/nvim/diff.c`).
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -93,6 +92,7 @@ const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
+#[cfg(unix)]
 const MAXPATHL: usize = 4096;
 const MB_MAXBYTES: usize = 30;
 const kNone: TriState = -1;

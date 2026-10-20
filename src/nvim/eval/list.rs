@@ -1,20 +1,18 @@
 //! List support and container (`List`, `Dict`, `Blob`) functions (`src/nvim/eval/list.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
+use crate::clipboard::VarType;
+#[cfg(not(test))]
 use crate::clipboard::{TypvalVval, listitem_T};
-use crate::clipboard::{VarType, list_T, typval_T};
+use crate::clipboard::{list_T, typval_T};
 #[cfg(not(test))]
 use crate::errors::*;
 #[cfg(not(test))]
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::EvalFuncData;
+#[cfg(not(test))]
 use crate::eval::executor::blob_T;
 #[cfg(not(test))]
 use crate::eval::typval::{
@@ -51,20 +49,29 @@ use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 #[cfg(not(test))]
 use crate::strings::reverse_text;
+use std::ffi::c_int;
+#[cfg(not(test))]
+use std::ffi::c_void;
 #[cfg(not(test))]
 use std::ffi::{CStr, c_char};
-use std::ffi::{c_int, c_void};
 
+#[cfg(not(test))]
 const VAR_UNLOCKED: c_int = 0;
+#[cfg(not(test))]
 const VAR_LOCKED: c_int = 1;
 const VAR_FIXED: c_int = 2;
 
+#[cfg(not(test))]
 const K_LIST_LEN_UNKNOWN: isize = -1;
+#[cfg(not(test))]
 const TV_TRANSLATE: usize = usize::MAX;
 
+#[cfg(not(test))]
 const VV_VAL: c_int = 35;
+#[cfg(not(test))]
 const VV_KEY: c_int = 36;
 
+#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FilterMap {
     Filter,
@@ -82,6 +89,7 @@ unsafe fn tv_list_locked(l: *const list_T) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
     unsafe {
@@ -89,6 +97,7 @@ unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
     unsafe {

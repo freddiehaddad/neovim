@@ -1,7 +1,6 @@
 //! Lua `vim.diff` bindings (`src/nvim/lua/xdiff.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     clippy::missing_safety_doc,
@@ -12,7 +11,10 @@
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
 #[cfg(not(test))]
 use crate::api::private::validate::ErrorType;
-use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
+use crate::api::private::validate::Object;
+#[cfg(not(test))]
+use crate::api::private::validate::{Error, ObjectData, ObjectType};
+#[cfg(not(test))]
 use crate::linematch::mmfile_t;
 #[cfg(not(test))]
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
@@ -32,35 +34,59 @@ use crate::memory::{strequal, xfree};
 use crate::xdiff::xdiffi::xdl_diff;
 #[cfg(not(test))]
 use crate::xdiff::{mmbuffer_t, xdemitcb_t, xdemitconf_t, xpparam_t};
+use std::ffi::c_int;
+#[cfg(not(test))]
+use std::ffi::c_ulong;
 #[cfg(not(test))]
 use std::ffi::{c_char, c_long, c_void};
-use std::ffi::{c_int, c_ulong};
 
+#[cfg(not(test))]
 const COMPARED_BUFFER0: c_int = 1 << 0;
+#[cfg(not(test))]
 const COMPARED_BUFFER1: c_int = 1 << 1;
 
+#[cfg(not(test))]
 const XDF_NEED_MINIMAL: c_ulong = 1 << 0;
+#[cfg(not(test))]
 const XDF_IGNORE_WHITESPACE: c_ulong = 1 << 1;
+#[cfg(not(test))]
 const XDF_IGNORE_WHITESPACE_CHANGE: c_ulong = 1 << 2;
+#[cfg(not(test))]
 const XDF_IGNORE_WHITESPACE_AT_EOL: c_ulong = 1 << 3;
+#[cfg(not(test))]
 const XDF_IGNORE_CR_AT_EOL: c_ulong = 1 << 4;
+#[cfg(not(test))]
 const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
+#[cfg(not(test))]
 const XDF_PATIENCE_DIFF: c_ulong = 1 << 14;
+#[cfg(not(test))]
 const XDF_HISTOGRAM_DIFF: c_ulong = 1 << 15;
+#[cfg(not(test))]
 const XDF_INDENT_HEURISTIC: c_ulong = 1 << 23;
 
+#[cfg(not(test))]
 const LUA_TSTRING: c_int = 4;
+#[cfg(not(test))]
 const LUA_TTABLE: c_int = 5;
+#[cfg(not(test))]
 const LUA_TFUNCTION: c_int = 6;
+#[cfg(not(test))]
 const LUA_NOREF: c_int = -2;
 
+#[cfg(not(test))]
 const KEYSET_OPTIDX_CTXLEN: u64 = 1;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_ON_HUNK: u64 = 2;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_ALGORITHM: u64 = 3;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_LINEMATCH: u64 = 4;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_RESULT_TYPE: u64 = 5;
+#[cfg(not(test))]
 const KEYSET_OPTIDX_INTERHUNKCTXLEN: u64 = 6;
 
+#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NluaXdiffMode {
     Unified,
@@ -85,6 +111,7 @@ pub struct KeyDict_xdl_diff {
     pub indent_heuristic: bool,
 }
 
+#[cfg(not(test))]
 impl KeyDict_xdl_diff {
     fn init() -> Self {
         Self {
@@ -119,6 +146,7 @@ impl KeyDict_xdl_diff {
     }
 }
 
+#[cfg(not(test))]
 struct HunkPriv {
     lstate: *mut lua_State,
     err: *mut Error,

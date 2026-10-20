@@ -1,7 +1,6 @@
 //! Fuzzy matching algorithm and functions (`src/nvim/fuzzy.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     clippy::missing_safety_doc,
@@ -10,9 +9,11 @@
 
 #[cfg(not(test))]
 use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
+use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType};
-use crate::clipboard::{list_T, listitem_T, typval_T};
+#[cfg(not(test))]
+use crate::clipboard::{list_T, listitem_T};
 #[cfg(not(test))]
 use crate::cursor::equalpos;
 use crate::cursor_shape::pos_T;
@@ -58,24 +59,41 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 pub const FUZZY_MATCH_MAX_LEN: usize = 1024;
 pub const FUZZY_SCORE_NONE: c_int = c_int::MIN;
 
+#[cfg(not(test))]
 const MATCH_MAX_LEN: usize = FUZZY_MATCH_MAX_LEN;
+#[cfg(not(test))]
 const SCORE_MAX: f64 = f64::INFINITY;
+#[cfg(not(test))]
 const SCORE_MIN: f64 = f64::NEG_INFINITY;
+#[cfg(not(test))]
 const SCORE_SCALE: f64 = 1000.0;
 
+#[cfg(not(test))]
 const SCORE_GAP_LEADING: f64 = -0.005;
+#[cfg(not(test))]
 const SCORE_GAP_TRAILING: f64 = -0.005;
+#[cfg(not(test))]
 const SCORE_GAP_INNER: f64 = -0.01;
+#[cfg(not(test))]
 const SCORE_MATCH_CONSECUTIVE: f64 = 1.0;
+#[cfg(not(test))]
 const SCORE_MATCH_SLASH: f64 = 0.9;
+#[cfg(not(test))]
 const SCORE_MATCH_WORD: f64 = 0.8;
+#[cfg(not(test))]
 const SCORE_MATCH_CAPITAL: f64 = 0.7;
+#[cfg(not(test))]
 const SCORE_MATCH_DOT: f64 = 0.6;
 
+#[cfg(not(test))]
 const VAR_UNLOCKED: c_int = 0;
+#[cfg(not(test))]
 const K_CALLBACK_NONE: c_int = 0;
+#[cfg(not(test))]
 const K_LIST_LEN_UNKNOWN: isize = -1;
+#[cfg(not(test))]
 const K_LIST_LEN_MAY_KNOW: isize = -3;
+#[cfg(not(test))]
 const FORWARD: c_int = 1;
 
 #[repr(C)]
@@ -86,6 +104,7 @@ pub struct fuzmatch_str_T {
     pub score: c_int,
 }
 
+#[cfg(not(test))]
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct fuzzyItem_T {
@@ -99,6 +118,7 @@ struct fuzzyItem_T {
     startpos: c_int,
 }
 
+#[cfg(not(test))]
 struct MatchStruct {
     needle_len: usize,
     haystack_len: usize,
@@ -107,6 +127,7 @@ struct MatchStruct {
     match_bonus: [f64; MATCH_MAX_LEN],
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
     unsafe {
@@ -206,6 +227,7 @@ unsafe fn setup_match_struct(
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn match_row(
     match_st: &MatchStruct,
@@ -445,6 +467,7 @@ pub unsafe extern "C" fn fuzzy_match(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn fuzzy_match_item_compare(s1: *const c_void, s2: *const c_void) -> c_int {
     unsafe {
         let item1 = &*s1.cast::<fuzzyItem_T>();

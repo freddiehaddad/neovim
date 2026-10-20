@@ -38,7 +38,6 @@ const LUA_REGISTRYINDEX: c_int = -10000;
 const LUA_NOREF: c_int = -2;
 const LUA_REFNIL: c_int = -1;
 
-const LUA_TNONE: c_int = -1;
 const LUA_TNIL: c_int = 0;
 const LUA_TBOOLEAN: c_int = 1;
 const LUA_TNUMBER: c_int = 3;

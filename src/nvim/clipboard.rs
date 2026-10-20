@@ -1,12 +1,7 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
 
 #![cfg_attr(test, allow(unused_mut))]
-#![allow(
-    dead_code,
-    non_snake_case,
-    clippy::missing_safety_doc,
-    clippy::needless_return
-)]
+#![allow(non_snake_case, clippy::missing_safety_doc, clippy::needless_return)]
 
 #[cfg(not(test))]
 use crate::eval::typval::{tv_list_alloc, tv_list_append_list, tv_list_append_string};
@@ -24,15 +19,22 @@ use crate::message::{emsg, msg, redirecting};
 use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::register::{free_register, get_y_previous, get_y_register, update_yankreg_width};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+#[cfg(not(test))]
+use std::ffi::c_uint;
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
+#[cfg(not(test))]
 const STAR_REGISTER: c_int = 37;
+#[cfg(not(test))]
 const PLUS_REGISTER: c_int = 38;
 
+#[cfg(not(test))]
 const K_OPT_CB_FLAG_UNNAMED: c_uint = 0x01;
+#[cfg(not(test))]
 const K_OPT_CB_FLAG_UNNAMEDPLUS: c_uint = 0x02;
 
+#[cfg(not(test))]
 const CTRL_V: u8 = 0x16;
 
 #[repr(C)]
@@ -127,6 +129,7 @@ pub struct yankreg_T {
 static BATCH_CHANGE_COUNT: AtomicI32 = AtomicI32::new(0);
 static CLIPBOARD_DELAY_UPDATE: AtomicBool = AtomicBool::new(false);
 static CLIPBOARD_NEEDS_UPDATE: AtomicBool = AtomicBool::new(false);
+#[cfg(not(test))]
 static CLIPBOARD_DIDWARN: AtomicBool = AtomicBool::new(false);
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";

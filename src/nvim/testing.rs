@@ -1,11 +1,6 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
@@ -58,13 +53,20 @@ use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::c_void;
 use std::ffi::{CStr, c_char, c_int};
 
+#[cfg(not(test))]
 const VAR_UNLOCKED: c_int = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_FALSE: i64 = 0;
+#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
 
+#[cfg(not(test))]
 const ESTACK_NONE: c_int = 0;
+#[cfg(not(test))]
 const NUMBUFLEN: usize = 65;
+#[cfg(not(test))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const EOF_VAL: c_int = -1;
 
 const BS: u8 = 0x08;
@@ -74,10 +76,14 @@ const FF: u8 = 0x0c;
 const CAR: u8 = 0x0d;
 const ESC: u8 = 0x1b;
 
+#[cfg(not(test))]
 const VV_ERRMSG: c_int = 3;
+#[cfg(not(test))]
 const VV_EXCEPTION: c_int = 30;
+#[cfg(not(test))]
 const VV_TESTING: c_int = 76;
 
+#[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AssertType {
     Equal,

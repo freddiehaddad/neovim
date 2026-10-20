@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -40,11 +39,13 @@ use crate::eval::typval::tv_clear;
 use crate::eval::userfunc::FCERR_NONE;
 #[cfg(not(test))]
 use crate::eval::userfunc::{EvalFuncDef, FCERR_OTHER, call_func, funcexe_T, register_luafunc};
+#[cfg(not(test))]
 use crate::event::r#loop::uv_thread_t;
 #[cfg(not(test))]
 use crate::event::r#loop::{
     loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred,
 };
+#[cfg(not(test))]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 #[cfg(not(test))]
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
@@ -70,7 +71,9 @@ use crate::input::vgetc;
 use crate::keycodes::{special_to_buf, vim_unescape_ks};
 #[cfg(not(test))]
 use crate::log::log_get_stderr;
-use crate::lua::base64::{lua_CFunction, lua_State};
+#[cfg(not(test))]
+use crate::lua::base64::lua_CFunction;
+use crate::lua::base64::lua_State;
 use crate::lua::converter::{LuaRef, nlua_ref_state_t};
 #[cfg(not(test))]
 use crate::lua::converter::{
@@ -133,7 +136,9 @@ use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
 #[cfg(not(test))]
 use crate::usercmd::{uc_mods, uc_split_args_iter};
-use std::ffi::{CStr, c_char, c_int, c_void};
+#[cfg(not(test))]
+use std::ffi::c_void;
+use std::ffi::{CStr, c_char, c_int};
 #[cfg(not(test))]
 use std::io::Write;
 #[cfg(not(test))]
@@ -144,6 +149,7 @@ pub use crate::api::vim::HlMessage;
 pub use crate::cmdexpand::LineGetter;
 pub type LuaRetMode = c_int;
 
+#[cfg(not(test))]
 type luv_CFpcall = Option<
     unsafe extern "C-unwind" fn(
         lstate: *mut lua_State,
@@ -152,6 +158,7 @@ type luv_CFpcall = Option<
         flags: c_int,
     ) -> c_int,
 >;
+#[cfg(not(test))]
 type luv_CFcpcall = Option<
     unsafe extern "C-unwind" fn(
         lstate: *mut lua_State,
@@ -160,7 +167,9 @@ type luv_CFcpcall = Option<
         flags: c_int,
     ) -> c_int,
 >;
+#[cfg(not(test))]
 type luv_acquire_vm = Option<unsafe extern "C-unwind" fn() -> *mut lua_State>;
+#[cfg(not(test))]
 type luv_release_vm = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State)>;
 
 pub const kRetObject: LuaRetMode = 0;
@@ -169,72 +178,120 @@ pub const kRetLuaref: LuaRetMode = 2;
 pub const kRetMulti: LuaRetMode = 3;
 pub const kRetMultiStack: LuaRetMode = 4;
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const MAX_FUNC_ARGS: c_int = 20;
+#[cfg(not(test))]
 const MB_MAXBYTES: usize = 30;
 
 const LUA_MULTRET: c_int = -1;
+#[cfg(not(test))]
 const LUA_REGISTRYINDEX: c_int = -10000;
-const LUA_ENVIRONINDEX: c_int = -10001;
+#[cfg(not(test))]
 const LUA_GLOBALSINDEX: c_int = -10002;
 
 const LUA_NOREF: LuaRef = -2;
+#[cfg(not(test))]
 const LUA_REFNIL: LuaRef = -1;
 
+#[cfg(not(test))]
 const LUA_TNIL: c_int = 0;
+#[cfg(not(test))]
 const LUA_TBOOLEAN: c_int = 1;
-const LUA_TNUMBER: c_int = 3;
+#[cfg(not(test))]
 const LUA_TSTRING: c_int = 4;
+#[cfg(not(test))]
 const LUA_TTABLE: c_int = 5;
+#[cfg(not(test))]
 const LUA_TFUNCTION: c_int = 6;
 
+#[cfg(not(test))]
 const LUA_ERRRUN: c_int = 2;
+#[cfg(not(test))]
 const LUA_ERRMEM: c_int = 4;
 
+#[cfg(not(test))]
 const LUA_INTERNAL_CALL: u64 = (1u64 << 63) + 1;
+#[cfg(not(test))]
 const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 
+#[cfg(not(test))]
 const LUVF_CALLBACK_NOEXIT: c_int = 0x01;
 
+#[cfg(not(test))]
 const kCallback: isize = 0;
+#[cfg(not(test))]
 const kThread: isize = 1;
+#[cfg(not(test))]
 const kThreadCallback: isize = 2;
 
+#[cfg(not(test))]
 const kCallbackNone: c_int = 0;
+#[cfg(not(test))]
 const VAR_FIXED: c_int = 2;
 
+#[cfg(not(test))]
 const kUICmdline: c_int = 0;
+#[cfg(not(test))]
 const kUIGlobalCount: usize = 5;
 
+#[cfg(not(test))]
 const WSP_VERT: c_int = 0x02;
+#[cfg(not(test))]
 const WSP_HOR: c_int = 0x04;
+#[cfg(not(test))]
 const WSP_TOP: c_int = 0x08;
+#[cfg(not(test))]
 const WSP_BOT: c_int = 0x10;
+#[cfg(not(test))]
 const WSP_BELOW: c_int = 0x40;
+#[cfg(not(test))]
 const WSP_ABOVE: c_int = 0x80;
 
+#[cfg(not(test))]
 const CMOD_SANDBOX: c_int = 0x0001;
+#[cfg(not(test))]
 const CMOD_SILENT: c_int = 0x0002;
+#[cfg(not(test))]
 const CMOD_ERRSILENT: c_int = 0x0004;
+#[cfg(not(test))]
 const CMOD_UNSILENT: c_int = 0x0008;
+#[cfg(not(test))]
 const CMOD_NOAUTOCMD: c_int = 0x0010;
+#[cfg(not(test))]
 const CMOD_HIDE: c_int = 0x0020;
+#[cfg(not(test))]
 const CMOD_BROWSE: c_int = 0x0040;
+#[cfg(not(test))]
 const CMOD_CONFIRM: c_int = 0x0080;
+#[cfg(not(test))]
 const CMOD_KEEPALT: c_int = 0x0100;
+#[cfg(not(test))]
 const CMOD_KEEPMARKS: c_int = 0x0200;
+#[cfg(not(test))]
 const CMOD_KEEPJUMPS: c_int = 0x0400;
+#[cfg(not(test))]
 const CMOD_LOCKMARKS: c_int = 0x0800;
+#[cfg(not(test))]
 const CMOD_KEEPPATTERNS: c_int = 0x1000;
+#[cfg(not(test))]
 const CMOD_NOSWAPFILE: c_int = 0x2000;
 
+#[cfg(not(test))]
 const EX_EXTRA: u32 = 0x00000004;
+#[cfg(not(test))]
 const EX_NOSPC: u32 = 0x00000010;
+#[cfg(not(test))]
 const EX_NEEDARG: u32 = 0x00000080;
+#[cfg(not(test))]
 const EX_ARGSPACE: u32 = 0x40000000;
 
+#[cfg(not(test))]
 const CMD_equal: c_int = 559;
+#[cfg(not(test))]
 const CMD_SIZE: c_int = 564;
 const CMD_USER: c_int = -1;
 const CMD_USER_BUF: c_int = -2;
@@ -426,12 +483,14 @@ const BUILTIN_MODULES: [BuiltinModule; 34] = [
     },
 ];
 
+#[cfg(not(test))]
 #[repr(C)]
 struct ExDocmdCookie {
     getline: LuaRef,
     got_line: bool,
 }
 
+#[cfg(not(test))]
 #[repr(C)]
 struct lua_Debug {
     event: c_int,
@@ -454,7 +513,9 @@ static mut GLOBAL_LSTATE: *mut lua_State = ptr::null_mut();
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut active_lstate: *mut lua_State = ptr::null_mut();
 
+#[cfg(not(test))]
 static mut REQUIRE_REF: LuaRef = LUA_REFNIL;
+#[cfg(not(test))]
 static mut MAIN_THREAD: uv_thread_t = 0;
 static mut EXPAND_RESULT_ARRAY: garray_T = garray_T {
     ga_len: 0,
@@ -515,6 +576,7 @@ unsafe extern "C" {
     fn pthread_exit(retval: *mut c_void) -> !;
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn lua_upvalueindex(i: c_int) -> c_int {
     LUA_GLOBALSINDEX - i
@@ -595,6 +657,7 @@ const fn is_user_cmdidx(idx: c_int) -> bool {
     idx == CMD_USER || idx == CMD_USER_BUF
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn put_event(
     mq: *mut MultiQueue,
@@ -3500,6 +3563,7 @@ mod tests {
         assert_eq!(BUILTIN_MODULES[0].name, c"vim._init_packages");
         assert_eq!(BUILTIN_MODULES[1].name, c"vim.inspect");
         for m in &BUILTIN_MODULES {
+            assert!(!m.chunk_name.to_bytes().is_empty());
             assert!(!m.data.is_empty());
             assert!(std::str::from_utf8(m.data).is_ok());
         }

@@ -1,11 +1,6 @@
 //! Command-line history (`src/nvim/cmdhist.c`).
 
-#![allow(
-    dead_code,
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::charset::vim_strsize;
@@ -49,20 +44,28 @@ pub const HIST_INPUT: c_int = 3;
 pub const HIST_DEBUG: c_int = 4;
 pub const HIST_COUNT: usize = 5;
 
+#[cfg(not(test))]
 const NUMBUFLEN: usize = 65;
+#[cfg(not(test))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const NSUBEXP: usize = 10;
 
+#[cfg(not(test))]
 const CMOD_KEEPPATTERNS: c_int = 0x1000;
+#[cfg(not(test))]
 const RE_MAGIC: c_int = 1;
+#[cfg(not(test))]
 const RE_STRING: c_int = 2;
 
 static mut HISTORY: [*mut histentry_T; HIST_COUNT] = [std::ptr::null_mut(); HIST_COUNT];
 static mut HISIDX: [c_int; HIST_COUNT] = [-1; HIST_COUNT];
 static mut HISNUM: [c_int; HIST_COUNT] = [0; HIST_COUNT];
 static HISLEN: AtomicI32 = AtomicI32::new(0);
+#[cfg(not(test))]
 static LAST_MAPTICK: AtomicI32 = AtomicI32::new(-1);
 
+#[cfg(not(test))]
 const HISTORY_NAMES: [&CStr; HIST_COUNT] = [c"cmd", c"search", c"expr", c"input", c"debug"];
 const HISTORY_EXPAND_ARGS: [&CStr; 12] = [
     c":", c"=", c"@", c">", c"?", c"/", c"cmd", c"search", c"expr", c"input", c"debug", c"all",
@@ -81,6 +84,7 @@ pub struct histentry_T {
 pub use crate::api::command::cmdmod_T;
 pub use crate::api::command::regmatch_T;
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> bool {
     unsafe {
@@ -417,6 +421,7 @@ pub unsafe extern "C" fn add_to_history(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn get_history_idx(histype: c_int) -> c_int {
     let hislen = HISLEN.load(Ordering::Relaxed);
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
@@ -429,6 +434,7 @@ unsafe fn get_history_idx(histype: c_int) -> c_int {
     unsafe { (*HISTORY[histype as usize].add(idx as usize)).hisnum }
 }
 
+#[cfg(not(test))]
 unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
     let hislen = HISLEN.load(Ordering::Relaxed);
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
@@ -555,6 +561,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
     unsafe {
         let mut i = calc_hist_idx(histype, idx_arg);

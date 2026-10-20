@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -10,16 +9,19 @@
     clippy::too_many_arguments
 )]
 
+#[cfg(not(test))]
 use crate::api::private::helpers::cstr_as_string;
 #[cfg(not(test))]
 use crate::api::private::helpers::{api_free_object, api_metadata_raw, bool_obj, int_obj};
 #[cfg(not(test))]
 use crate::api::private::validate::{Array, Dict, Error, ErrorType};
+#[cfg(not(test))]
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::api::tabpage::tabpage_T;
 #[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
+#[cfg(not(test))]
 use crate::arglist::{aentry_T, linenr_T};
 #[cfg(not(test))]
 use crate::arglist::{alist_add, alist_init, alist_name};
@@ -54,6 +56,7 @@ use crate::eval::deprecated::CallbackReader;
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string};
 #[cfg(not(test))]
 use crate::eval::userfunc::invoke_all_defer;
+#[cfg(not(test))]
 use crate::eval::vars::OptIndex;
 #[cfg(not(test))]
 use crate::eval::vars::{
@@ -82,6 +85,7 @@ use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd};
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
 #[cfg(not(test))]
 use crate::ex_getln::cmdline_init;
+#[cfg(not(test))]
 use crate::extmark::TriState;
 #[cfg(not(test))]
 use crate::fileio::{READ_NEW, READ_STDIN, fprintf, readfile, shorten_fnames};
@@ -112,6 +116,7 @@ use crate::lua::executor::{
 use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mark::setpcmark;
+#[cfg(not(test))]
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;
@@ -167,7 +172,7 @@ use crate::os::stdpaths::{
 };
 #[cfg(not(test))]
 use crate::os::time::os_realtime;
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 use crate::path::path_to_slash;
 #[cfg(not(test))]
 use crate::path::{
@@ -207,7 +212,9 @@ use crate::window::{
 };
 #[cfg(not(test))]
 use std::ffi::c_void;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+#[cfg(not(test))]
+use std::ffi::{CStr, c_uint};
+use std::ffi::{c_char, c_int};
 #[cfg(not(test))]
 use std::io::Write;
 #[cfg(not(test))]
@@ -220,71 +227,116 @@ use crate::os::os_win_console::{os_icon_init, os_icon_reset, os_title_reset, os_
 
 pub const MAX_ARG_CMDS: usize = 10;
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const IOSIZE: usize = 1025;
+#[cfg(not(test))]
 const MAXPATHL: usize = 4096;
+#[cfg(not(test))]
 const MAXLNUM: linenr_T = 0x7fffffff;
 
+#[cfg(not(test))]
 const STDIN_FILENO: c_int = 0;
+#[cfg(not(test))]
 const STDOUT_FILENO: c_int = 1;
+#[cfg(not(test))]
 const STDERR_FILENO: c_int = 2;
 
+#[cfg(not(test))]
 const NO_BUFFERS: c_int = 1;
 
+#[cfg(not(test))]
 const WIN_HOR: c_int = 1;
+#[cfg(not(test))]
 const WIN_VER: c_int = 2;
+#[cfg(not(test))]
 const WIN_TABS: c_int = 3;
 
+#[cfg(not(test))]
 const EDIT_NONE: c_int = 0;
+#[cfg(not(test))]
 const EDIT_FILE: c_int = 1;
+#[cfg(not(test))]
 const EDIT_STDIN: c_int = 2;
+#[cfg(not(test))]
 const EDIT_TAG: c_int = 3;
+#[cfg(not(test))]
 const EDIT_QF: c_int = 4;
 
+#[cfg(not(test))]
 const SEA_NONE: c_int = 0;
+#[cfg(not(test))]
 const SEA_DIALOG: c_int = 1;
+#[cfg(not(test))]
 const SEA_QUIT: c_int = 2;
 
+#[cfg(not(test))]
 const SID_CMDARG: c_int = -2;
+#[cfg(not(test))]
 const SID_CARG: c_int = -3;
+#[cfg(not(test))]
 const SID_ENV: c_int = -4;
 
+#[cfg(not(test))]
 const kListLenMayKnow: isize = -3;
+#[cfg(not(test))]
 const VAR_FIXED: c_int = 2;
 
+#[cfg(not(test))]
 const kNone: TriState = -1;
+#[cfg(not(test))]
 const kFalse: TriState = 0;
+#[cfg(not(test))]
 const kTrue: TriState = 1;
 
+#[cfg(not(test))]
 const kRetObject: c_int = 0;
+#[cfg(not(test))]
 const kPathCmpExpand: c_int = 2;
-const KXDG_CONFIG_DIRS: c_int = 5;
 
+#[cfg(not(test))]
 const kOptArabic: OptIndex = 3;
+#[cfg(not(test))]
 const kOptErrorfile: OptIndex = 86;
+#[cfg(not(test))]
 const kOptKeymap: OptIndex = 159;
+#[cfg(not(test))]
 const kOptRightleft: OptIndex = 241;
+#[cfg(not(test))]
 const kOptShadafile: OptIndex = 259;
+#[cfg(not(test))]
 const kOptShortmess: OptIndex = 271;
+#[cfg(not(test))]
 const kOptVerbosefile: OptIndex = 344;
+#[cfg(not(test))]
 const kOptWindow: OptIndex = 362;
 
+#[cfg(not(test))]
 const kOptCbFlagUnnamed: c_uint = 0x01;
+#[cfg(not(test))]
 const kOptCbFlagUnnamedplus: c_uint = 0x02;
 
+#[cfg(not(test))]
 const LUA_GLOBALSINDEX: c_int = -10002;
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 const PATHSEP: u8 = b'\\';
-#[cfg(not(windows))]
+#[cfg(all(not(test), not(windows)))]
 const PATHSEP: u8 = b'/';
 
+#[cfg(not(test))]
 const CASE_INSENSITIVE_FILENAME: bool = cfg!(any(target_os = "windows", target_os = "macos"));
 
+#[cfg(not(test))]
 const ERR_ARG_MISSING: &CStr = c"Argument missing after";
+#[cfg(not(test))]
 const ERR_OPT_GARBAGE: &CStr = c"Garbage after option argument";
+#[cfg(not(test))]
 const ERR_OPT_UNKNOWN: &CStr = c"Unknown option argument";
+#[cfg(not(test))]
 const ERR_TOO_MANY_ARGS: &CStr = c"Too many edit arguments";
+#[cfg(not(test))]
 const ERR_EXTRA_CMD: &CStr =
     c"Too many \"+command\", \"-c command\" or \"--cmd command\" arguments";
 
@@ -327,7 +379,7 @@ pub struct mparm_T {
     pub had_stdin_file: bool,
 }
 
-#[cfg(windows)]
+#[cfg(all(not(test), windows))]
 #[repr(C)]
 struct OsVersionInfoA {
     dwOSVersionInfoSize: u32,
@@ -338,7 +390,9 @@ struct OsVersionInfoA {
     szCSDVersion: [c_char; 128],
 }
 
+#[cfg(not(test))]
 static mut ARGV0: *mut c_char = ptr::null_mut();
+#[cfg(not(test))]
 static mut REALLY_EXITING: bool = false;
 
 #[cfg(not(test))]
@@ -369,6 +423,7 @@ unsafe extern "C" {
     fn tcdrain(fd: c_int) -> c_int;
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn tv_list_set_lock(l: *mut crate::clipboard::list_T, lock: c_int) {
     if !l.is_null() {
@@ -378,6 +433,7 @@ unsafe fn tv_list_set_lock(l: *mut crate::clipboard::list_T, lock: c_int) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn time_msg_if_enabled(s: *const c_char) {
     #[cfg(not(test))]
@@ -392,6 +448,7 @@ unsafe fn time_msg_if_enabled(s: *const c_char) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn to_slash_if_needed(p: *mut c_char) {
     #[cfg(windows)]
@@ -406,6 +463,7 @@ unsafe fn to_slash_if_needed(p: *mut c_char) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn stricmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     unsafe {
@@ -416,6 +474,7 @@ unsafe fn stricmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     unsafe {
@@ -427,6 +486,7 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn cstr_obj(s: *const c_char) -> Object {
     unsafe {
@@ -439,6 +499,7 @@ unsafe fn cstr_obj(s: *const c_char) -> Object {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn gargcount() -> c_int {
     #[cfg(not(test))]
@@ -451,6 +512,7 @@ unsafe fn gargcount() -> c_int {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn garglist() -> *mut aentry_T {
     #[cfg(not(test))]
@@ -481,6 +543,7 @@ pub unsafe extern "C" fn event_init() {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn event_teardown() -> bool {
     #[cfg(not(test))]
     unsafe {
@@ -506,6 +569,7 @@ unsafe fn event_teardown() -> bool {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn early_init(paramp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -1294,6 +1358,7 @@ unsafe fn get_number_arg(p: *const c_char, idx: *mut c_int, mut def: c_int) -> c
     }
 }
 
+#[cfg(not(test))]
 unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char) -> u64 {
     #[cfg(not(test))]
     unsafe {
@@ -1318,6 +1383,7 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
     }
 }
 
+#[cfg(not(test))]
 unsafe fn remote_request(
     params: *mut mparm_T,
     remote_args: c_int,
@@ -1495,6 +1561,7 @@ unsafe fn remote_request(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn edit_stdin(parmp: *mut mparm_T) -> bool {
     #[cfg(not(test))]
     unsafe {
@@ -1513,6 +1580,7 @@ unsafe fn edit_stdin(parmp: *mut mparm_T) -> bool {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn command_line_scan(parmp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -1996,6 +2064,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn set_argf_var() {
     #[cfg(not(test))]
     unsafe {
@@ -2028,6 +2097,7 @@ unsafe fn init_params(paramp: *mut mparm_T, argc: c_int, argv: *mut *mut c_char)
     }
 }
 
+#[cfg(not(test))]
 unsafe fn init_startuptime(paramp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2059,6 +2129,7 @@ unsafe fn init_startuptime(paramp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn check_and_set_isatty(_paramp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2069,6 +2140,7 @@ unsafe fn check_and_set_isatty(_paramp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn init_path(exename: *const c_char) {
     #[cfg(not(test))]
     unsafe {
@@ -2091,6 +2163,7 @@ unsafe fn init_path(exename: *const c_char) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn get_fname(_parmp: *mut mparm_T) -> *mut c_char {
     #[cfg(not(test))]
     unsafe {
@@ -2102,6 +2175,7 @@ unsafe fn get_fname(_parmp: *mut mparm_T) -> *mut c_char {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn set_window_layout(paramp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2119,6 +2193,7 @@ unsafe fn set_window_layout(paramp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn handle_quickfix(paramp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2148,6 +2223,7 @@ unsafe fn handle_quickfix(paramp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn handle_tag(tagname: *mut c_char) {
     #[cfg(not(test))]
     unsafe {
@@ -2169,6 +2245,7 @@ unsafe fn handle_tag(tagname: *mut c_char) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn read_stdin() {
     #[cfg(not(test))]
     unsafe {
@@ -2233,6 +2310,7 @@ unsafe fn read_stdin() {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn create_windows(parmp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2341,6 +2419,7 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn edit_buffers(parmp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2459,6 +2538,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2483,6 +2563,7 @@ unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn exe_commands(parmp: *mut mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2518,6 +2599,7 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn do_system_initialization() {
     #[cfg(not(test))]
     unsafe {
@@ -2582,6 +2664,7 @@ unsafe fn do_system_initialization() {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn do_user_initialization() -> bool {
     #[cfg(not(test))]
     unsafe {
@@ -2723,6 +2806,7 @@ unsafe fn do_user_initialization() -> bool {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn do_exrc_initialization() {
     #[cfg(not(test))]
     unsafe {
@@ -2741,6 +2825,7 @@ unsafe fn do_exrc_initialization() {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn source_startup_scripts(parmp: *const mparm_T) {
     #[cfg(not(test))]
     unsafe {
@@ -2769,6 +2854,7 @@ unsafe fn source_startup_scripts(parmp: *const mparm_T) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn execute_env(env: *mut c_char) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -2797,6 +2883,7 @@ unsafe fn execute_env(env: *mut c_char) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) -> ! {
     unsafe {
         print_mainerr(msg1, msg2, msg3);
@@ -2804,6 +2891,7 @@ unsafe fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char)
     }
 }
 
+#[cfg(not(test))]
 unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) {
     #[cfg(not(test))]
     unsafe {
@@ -2827,6 +2915,7 @@ unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c
     }
 }
 
+#[cfg(not(test))]
 unsafe fn version() {
     #[cfg(not(test))]
     unsafe {
@@ -2838,6 +2927,7 @@ unsafe fn version() {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn usage() {
     #[cfg(not(test))]
     unsafe {
@@ -2931,6 +3021,7 @@ unsafe fn usage() {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn check_swap_exists_action() {
     #[cfg(not(test))]
     unsafe {

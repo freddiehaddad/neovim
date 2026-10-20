@@ -1,7 +1,7 @@
 //! Vimscript compound assignment operator execution (`+=`, `-=`, `*=`, `/=`, `%=`, `.=`)
 //! (`src/nvim/eval/executor.c`).
 
-#![allow(dead_code, clippy::missing_safety_doc)]
+#![allow(clippy::missing_safety_doc)]
 
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 #[cfg(not(test))]

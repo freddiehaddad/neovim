@@ -1,7 +1,7 @@
 //! Memory allocation, arena allocator, string utilities, and linked-list mergesort
 //! (`src/nvim/memory.c`).
 
-#![allow(dead_code, clippy::missing_safety_doc)]
+#![allow(clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::api::ui::remote_ui_free_all_mem;

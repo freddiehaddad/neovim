@@ -2,7 +2,6 @@
 
 #![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -11,15 +10,18 @@
     clippy::while_immutable_condition
 )]
 
+use crate::api::options::Buffer;
 #[cfg(not(test))]
 use crate::api::options::CtxSwitch;
-use crate::api::options::{Buffer, OptIndex};
+#[cfg(not(test))]
+use crate::api::options::OptIndex;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj,
 };
 #[cfg(not(test))]
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, KeyValuePair};
+#[cfg(not(test))]
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 #[cfg(not(test))]
@@ -33,11 +35,14 @@ use crate::autocmd::{
 use crate::buffer::{buf_get_changedtick, do_buffer};
 #[cfg(not(test))]
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
-use crate::channel::{OptInt, TerminalOptions};
+#[cfg(not(test))]
+use crate::channel::OptInt;
+use crate::channel::TerminalOptions;
 #[cfg(not(test))]
 use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win};
 #[cfg(not(test))]
 use crate::cursor::coladvance;
+#[cfg(not(test))]
 use crate::cursor::linenr_T;
 #[cfg(not(test))]
 use crate::cursor_shape::{
@@ -66,6 +71,7 @@ use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_move_events, multiqueue_new,
     multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
 };
+#[cfg(not(test))]
 use crate::event::time::TimeWatcher;
 #[cfg(not(test))]
 use crate::event::time::{
@@ -75,6 +81,7 @@ use crate::event::time::{
 use crate::ex_docmd::do_cmdline;
 #[cfg(not(test))]
 use crate::globals::*;
+#[cfg(not(test))]
 use crate::grid::schar_get_adv;
 #[cfg(not(test))]
 use crate::highlight::{hl_add_url, hl_combine_attr, hl_get_term_attr};
@@ -84,6 +91,7 @@ use crate::highlight_group::name_to_color;
 use crate::input::{getcmdkeycmd, map_execute_lua, merge_modifiers, paste_repeat, requeue_key};
 #[cfg(not(test))]
 use crate::input_cmdatom::{atom_term_enter, cmdarg_T};
+#[cfg(not(test))]
 use crate::keycodes::{
     ESC, K_BS, K_DEL, K_DOWN, K_END, K_F1, K_F2, K_F3, K_F4, K_F5, K_F6, K_F7, K_F8, K_F9, K_F10,
     K_F11, K_F12, K_F13, K_F14, K_F15, K_F16, K_F17, K_F18, K_F19, K_F20, K_F21, K_F22, K_F23,
@@ -103,11 +111,15 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
     K_X2MOUSE, K_X2RELEASE, K_ZERO, is_special,
 };
+#[cfg(not(test))]
 use crate::kvec::KVec;
 #[cfg(not(test))]
 use crate::map::HlAttrs;
+#[cfg(not(test))]
 use crate::map::{Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
+use crate::map_glyph_cache::NvimString;
+#[cfg(not(test))]
+use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash};
 #[cfg(not(test))]
 use crate::mark::{WinInfo, mark_adjust_buf};
 #[cfg(not(test))]
@@ -115,12 +127,15 @@ use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 #[cfg(not(test))]
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
 #[cfg(not(test))]
+use crate::memory::xfree;
+use crate::memory::xrealloc;
+#[cfg(not(test))]
 use crate::memory::{strequal, xcalloc, xmalloc, xmemdup, xmemdupz, xstrdup};
-use crate::memory::{xfree, xrealloc};
 #[cfg(not(test))]
 use crate::mouse::{do_mousescroll, mouse_find_win_inner};
 #[cfg(not(test))]
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
+#[cfg(not(test))]
 use crate::msgpack_rpc::channel::event_T;
 use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
@@ -131,6 +146,7 @@ use crate::option::set_option_value;
 use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::optionstr::free_string_option;
+#[cfg(not(test))]
 use crate::state::VimState;
 #[cfg(not(test))]
 use crate::state::{may_trigger_modechanged, save_v_event_T, state_enter, state_handle_k_event};
@@ -142,37 +158,46 @@ use crate::textformat::oparg_T;
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
+#[cfg(not(test))]
 use crate::vterm::keyboard::{VTermColor, VTermStateFull as VTermState};
 #[cfg(not(test))]
 use crate::vterm::keyboard::{
     vterm_keyboard_end_paste, vterm_keyboard_key, vterm_keyboard_start_paste,
     vterm_keyboard_unichar,
 };
-use crate::vterm::mouse::{VTerm, VTermModifier, VTermPos, vterm_mouse_button, vterm_mouse_move};
+use crate::vterm::mouse::VTerm;
+#[cfg(not(test))]
+use crate::vterm::mouse::{VTermModifier, VTermPos, vterm_mouse_button, vterm_mouse_move};
+#[cfg(not(test))]
+use crate::vterm::parser::VTermStringFragment;
+use crate::vterm::parser::VTermTerminator;
 #[cfg(not(test))]
 use crate::vterm::parser::vterm_input_write;
-use crate::vterm::parser::{VTermStringFragment, VTermTerminator};
+#[cfg(not(test))]
 use crate::vterm::pen::{
     VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType, vterm_state_convert_color_to_rgb,
 };
 #[cfg(not(test))]
 use crate::vterm::pen::{vterm_state_set_palette_color, vterm_state_set_penattr};
+#[cfg(not(test))]
 use crate::vterm::screen::{
-    VTermDamageSize, VTermScreen, VTermScreenCallbacks, VTermScreenCell, VTermScreenCellAttrs,
-    vterm_screen_get_cell,
+    VTermDamageSize, VTermScreenCallbacks, VTermScreenCellAttrs, vterm_screen_get_cell,
 };
+use crate::vterm::screen::{VTermScreen, VTermScreenCell};
 #[cfg(not(test))]
 use crate::vterm::screen::{
     vterm_obtain_screen, vterm_screen_enable_altscreen, vterm_screen_enable_reflow,
     vterm_screen_flush_damage, vterm_screen_reset, vterm_screen_set_callbacks,
     vterm_screen_set_damage_merge, vterm_screen_set_unrecognised_fallbacks,
 };
+#[cfg(not(test))]
 use crate::vterm::state::{
     VTermSelectionCallbacks, VTermSelectionMask, VTermStateFallbacks, vterm_obtain_state,
     vterm_state_focus_in, vterm_state_focus_out,
 };
 #[cfg(not(test))]
 use crate::vterm::state::{vterm_state_set_selection_callbacks, vterm_state_set_termprop};
+#[cfg(not(test))]
 use crate::vterm::vterm::vterm_get_size;
 #[cfg(not(test))]
 use crate::vterm::vterm::{
@@ -182,164 +207,284 @@ use crate::vterm::vterm::{
 use crate::window::{may_trigger_win_scrolled_resized, win_valid};
 #[cfg(not(test))]
 use std::ffi::CStr;
-use std::ffi::{c_char, c_int, c_uint, c_void};
+#[cfg(not(test))]
+use std::ffi::c_uint;
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
 pub use crate::cmdexpand::LineGetter;
 pub use crate::vterm::keyboard::VTermKey;
 
+#[cfg(not(test))]
 const NUL: c_char = 0;
+#[cfg(not(test))]
 const REFRESH_DELAY: u64 = 10;
 const TEXTBUF_SIZE: usize = 0x1fff;
+#[cfg(not(test))]
 const SELECTIONBUF_SIZE: usize = 0x0400;
 
+#[cfg(not(test))]
 const SB_MAX: i64 = 1_000_000;
+#[cfg(not(test))]
 const ML_EMPTY: c_int = 0x01;
+#[cfg(not(test))]
 const OPT_LOCAL: c_int = 0x02;
+#[cfg(not(test))]
 const kOptBuftype: OptIndex = 29;
+#[cfg(not(test))]
 const kOptCuloptFlagNumber: u8 = 0x04;
+#[cfg(not(test))]
 const kOptBoFlagTerm: c_uint = 0x40000;
 
+#[cfg(not(test))]
 const kOptTpfFlagBS: c_uint = 0x01;
+#[cfg(not(test))]
 const kOptTpfFlagHT: c_uint = 0x02;
+#[cfg(not(test))]
 const kOptTpfFlagFF: c_uint = 0x04;
+#[cfg(not(test))]
 const kOptTpfFlagESC: c_uint = 0x08;
+#[cfg(not(test))]
 const kOptTpfFlagDEL: c_uint = 0x10;
+#[cfg(not(test))]
 const kOptTpfFlagC0: c_uint = 0x20;
+#[cfg(not(test))]
 const kOptTpfFlagC1: c_uint = 0x40;
 
+#[cfg(not(test))]
 const VV_TERMREQUEST: c_int = 10;
+#[cfg(not(test))]
 const AUGROUP_ALL: c_int = -3;
 
+#[cfg(not(test))]
 const EVENT_TERMCLOSE: event_T = 121;
+#[cfg(not(test))]
 const EVENT_TERMENTER: event_T = 122;
+#[cfg(not(test))]
 const EVENT_TERMLEAVE: event_T = 123;
+#[cfg(not(test))]
 const EVENT_TERMOPEN: event_T = 124;
+#[cfg(not(test))]
 const EVENT_TERMREQUEST: event_T = 125;
+#[cfg(not(test))]
 const EVENT_TEXTCHANGEDT: event_T = 130;
 
+#[cfg(not(test))]
 const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
 
+#[cfg(not(test))]
 const VTERM_ATTR_URI: VTermAttr = 13;
+#[cfg(not(test))]
 const VTERM_VALUETYPE_INT: VTermValueType = 2;
+#[cfg(not(test))]
 const VTERM_DAMAGE_SCROLL: VTermDamageSize = 3;
 
+#[cfg(not(test))]
 const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
+#[cfg(not(test))]
 const VTERM_PROP_CURSORBLINK: VTermProp = 2;
+#[cfg(not(test))]
 const VTERM_PROP_ALTSCREEN: VTermProp = 3;
+#[cfg(not(test))]
 const VTERM_PROP_TITLE: VTermProp = 4;
-const VTERM_PROP_ICONNAME: VTermProp = 5;
-const VTERM_PROP_REVERSE: VTermProp = 6;
+#[cfg(not(test))]
 const VTERM_PROP_CURSORSHAPE: VTermProp = 7;
+#[cfg(not(test))]
 const VTERM_PROP_MOUSE: VTermProp = 8;
-const VTERM_PROP_FOCUSREPORT: VTermProp = 9;
+#[cfg(not(test))]
 const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
+#[cfg(not(test))]
 const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
 
+#[cfg(not(test))]
 const VTERM_PROP_CURSORSHAPE_BLOCK: c_int = 1;
+#[cfg(not(test))]
 const VTERM_PROP_CURSORSHAPE_UNDERLINE: c_int = 2;
+#[cfg(not(test))]
 const VTERM_PROP_CURSORSHAPE_BAR_LEFT: c_int = 3;
 
+#[cfg(not(test))]
 const VTERM_UNDERLINE_OFF: u32 = 0;
+#[cfg(not(test))]
 const VTERM_UNDERLINE_SINGLE: u32 = 1;
+#[cfg(not(test))]
 const VTERM_UNDERLINE_DOUBLE: u32 = 2;
+#[cfg(not(test))]
 const VTERM_UNDERLINE_CURLY: u32 = 3;
 
+#[cfg(not(test))]
 const VTERM_COLOR_INDEXED: u8 = 0x01;
+#[cfg(not(test))]
 const VTERM_COLOR_DEFAULT_FG: u8 = 0x02;
+#[cfg(not(test))]
 const VTERM_COLOR_DEFAULT_BG: u8 = 0x04;
 
+#[cfg(not(test))]
 const VTERM_SELECTION_CLIPBOARD: VTermSelectionMask = 1 << 0;
+#[cfg(not(test))]
 const VTERM_SELECTION_PRIMARY: VTermSelectionMask = 1 << 1;
 
+#[cfg(not(test))]
 const VTERM_MOD_NONE: VTermModifier = 0x00;
+#[cfg(not(test))]
 const VTERM_MOD_SHIFT: VTermModifier = 0x01;
+#[cfg(not(test))]
 const VTERM_MOD_ALT: VTermModifier = 0x02;
+#[cfg(not(test))]
 const VTERM_MOD_CTRL: VTermModifier = 0x04;
 
+#[cfg(not(test))]
 const VTERM_KEY_NONE: VTermKey = 0;
+#[cfg(not(test))]
 const VTERM_KEY_ENTER: VTermKey = 1;
+#[cfg(not(test))]
 const VTERM_KEY_TAB: VTermKey = 2;
+#[cfg(not(test))]
 const VTERM_KEY_BACKSPACE: VTermKey = 3;
+#[cfg(not(test))]
 const VTERM_KEY_ESCAPE: VTermKey = 4;
+#[cfg(not(test))]
 const VTERM_KEY_UP: VTermKey = 5;
+#[cfg(not(test))]
 const VTERM_KEY_DOWN: VTermKey = 6;
+#[cfg(not(test))]
 const VTERM_KEY_LEFT: VTermKey = 7;
+#[cfg(not(test))]
 const VTERM_KEY_RIGHT: VTermKey = 8;
+#[cfg(not(test))]
 const VTERM_KEY_INS: VTermKey = 9;
+#[cfg(not(test))]
 const VTERM_KEY_DEL: VTermKey = 10;
+#[cfg(not(test))]
 const VTERM_KEY_HOME: VTermKey = 11;
+#[cfg(not(test))]
 const VTERM_KEY_END: VTermKey = 12;
+#[cfg(not(test))]
 const VTERM_KEY_PAGEUP: VTermKey = 13;
+#[cfg(not(test))]
 const VTERM_KEY_PAGEDOWN: VTermKey = 14;
+#[cfg(not(test))]
 const VTERM_KEY_FUNCTION_0: VTermKey = 256;
+#[cfg(not(test))]
 const VTERM_KEY_KP_0: VTermKey = 512;
+#[cfg(not(test))]
 const VTERM_KEY_KP_1: VTermKey = 513;
+#[cfg(not(test))]
 const VTERM_KEY_KP_2: VTermKey = 514;
+#[cfg(not(test))]
 const VTERM_KEY_KP_3: VTermKey = 515;
+#[cfg(not(test))]
 const VTERM_KEY_KP_4: VTermKey = 516;
+#[cfg(not(test))]
 const VTERM_KEY_KP_5: VTermKey = 517;
+#[cfg(not(test))]
 const VTERM_KEY_KP_6: VTermKey = 518;
+#[cfg(not(test))]
 const VTERM_KEY_KP_7: VTermKey = 519;
+#[cfg(not(test))]
 const VTERM_KEY_KP_8: VTermKey = 520;
+#[cfg(not(test))]
 const VTERM_KEY_KP_9: VTermKey = 521;
+#[cfg(not(test))]
 const VTERM_KEY_KP_MULT: VTermKey = 522;
+#[cfg(not(test))]
 const VTERM_KEY_KP_PLUS: VTermKey = 523;
-const VTERM_KEY_KP_COMMA: VTermKey = 524;
+#[cfg(not(test))]
 const VTERM_KEY_KP_MINUS: VTermKey = 525;
+#[cfg(not(test))]
 const VTERM_KEY_KP_PERIOD: VTermKey = 526;
+#[cfg(not(test))]
 const VTERM_KEY_KP_DIVIDE: VTermKey = 527;
+#[cfg(not(test))]
 const VTERM_KEY_KP_ENTER: VTermKey = 528;
-const VTERM_KEY_KP_EQUAL: VTermKey = 529;
 
+#[cfg(not(test))]
 const K_PASTE_START: c_int = termcap2key(b'P' as c_int, b'S' as c_int);
+#[cfg(not(test))]
 const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
+#[cfg(not(test))]
 const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
 
+#[cfg(not(test))]
 const Ctrl_AT: c_int = 0;
+#[cfg(not(test))]
 const Ctrl_C: c_int = 3;
+#[cfg(not(test))]
 const Ctrl_M: c_int = 13;
+#[cfg(not(test))]
 const Ctrl_N: c_int = 14;
+#[cfg(not(test))]
 const Ctrl_O: c_int = 15;
+#[cfg(not(test))]
 const Ctrl_BSL: c_int = 28;
 
+#[cfg(not(test))]
 const MODE_TERMINAL: c_int = 0x80;
 
+#[cfg(not(test))]
 const UPD_VALID: c_int = 10;
+#[cfg(not(test))]
 const UPD_SOME_VALID: c_int = 35;
+#[cfg(not(test))]
 const UPD_NOT_VALID: c_int = 40;
 
+#[cfg(not(test))]
 const DOBUF_WIPE: c_int = 4;
+#[cfg(not(test))]
 const DOBUF_FIRST: c_int = 1;
+#[cfg(not(test))]
 const FORWARD: c_int = 1;
 
+#[cfg(not(test))]
 const MSCR_DOWN: c_int = 0;
+#[cfg(not(test))]
 const MSCR_UP: c_int = 1;
+#[cfg(not(test))]
 const MSCR_LEFT: c_int = -1;
+#[cfg(not(test))]
 const MSCR_RIGHT: c_int = -2;
 
+#[cfg(not(test))]
 const MAXLNUM: linenr_T = 0x7fffffff;
+#[cfg(not(test))]
 const kMarkAdjustTerm: c_int = 2;
+#[cfg(not(test))]
 const kExtmarkUndo: c_int = 1;
+#[cfg(not(test))]
 const kListLenMayKnow: isize = -3;
 
+#[cfg(not(test))]
 const TERM_ATTRS_MAX: c_int = 1024;
 
+#[cfg(not(test))]
 const HL_INVERSE: c_int = 0x01;
+#[cfg(not(test))]
 const HL_BOLD: c_int = 0x02;
+#[cfg(not(test))]
 const HL_ITALIC: c_int = 0x04;
+#[cfg(not(test))]
 const HL_UNDERLINE: c_int = 0x08;
+#[cfg(not(test))]
 const HL_UNDERCURL: c_int = 0x10;
+#[cfg(not(test))]
 const HL_UNDERDOUBLE: c_int = 0x18;
+#[cfg(not(test))]
 const HL_STRIKETHROUGH: c_int = 0x0080;
+#[cfg(not(test))]
 const HL_DIM: c_int = 0x0200;
+#[cfg(not(test))]
 const HL_BG_INDEXED: c_int = 0x0800;
+#[cfg(not(test))]
 const HL_FG_INDEXED: c_int = 0x1000;
+#[cfg(not(test))]
 const HL_BLINK: c_int = 0x8000;
+#[cfg(not(test))]
 const HL_CONCEALED: c_int = 0x10000;
+#[cfg(not(test))]
 const HL_OVERLINE: c_int = 0x20000;
 
+#[cfg(not(test))]
 #[repr(C)]
 struct TerminalState {
     state: VimState,
@@ -419,9 +564,12 @@ pub struct Terminal {
     refcount: usize,
 }
 
+#[cfg(not(test))]
 static mut REFRESH_TIMER: [u64; 64] = [0; 64];
+#[cfg(not(test))]
 static mut REFRESH_PENDING: bool = false;
 
+#[cfg(not(test))]
 static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     damage: Some(term_damage),
     moverect: Some(term_moverect),
@@ -435,11 +583,13 @@ static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     sb_clear: Some(term_sb_clear),
 };
 
+#[cfg(not(test))]
 static mut VTERM_SELECTION_CALLBACKS: VTermSelectionCallbacks = VTermSelectionCallbacks {
     set: Some(term_selection_set),
     query: None,
 };
 
+#[cfg(not(test))]
 static mut VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     control: None,
     csi: None,
@@ -450,6 +600,7 @@ static mut VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     sos: None,
 };
 
+#[cfg(not(test))]
 static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
     h: MapHash {
         n_buckets: 0,
@@ -463,26 +614,31 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
     keys: ptr::null_mut(),
 };
 
+#[cfg(not(test))]
 #[inline]
 const fn vterm_key_function(n: c_int) -> VTermKey {
     VTERM_KEY_FUNCTION_0 + n
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn sbrow_cells(sbrow: *mut ScrollbackLine) -> *mut VTermScreenCell {
     unsafe { sbrow.add(1).cast::<VTermScreenCell>() }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn refresh_timer_ptr() -> *mut TimeWatcher {
     (&raw mut REFRESH_TIMER).cast::<TimeWatcher>()
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn set_has_term(set: *mut Set<ptr_t>, term: *mut Terminal) -> bool {
     unsafe { mh_get_ptr_t(set, term.cast::<c_void>()) != MH_TOMBSTONE }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn set_put_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     unsafe {
@@ -491,6 +647,7 @@ unsafe fn set_put_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn set_del_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     unsafe {
@@ -499,6 +656,7 @@ unsafe fn set_del_term(set: *mut Set<ptr_t>, term: *mut Terminal) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn set_destroy_ptr(set: *mut Set<ptr_t>) {
     unsafe {
@@ -519,6 +677,7 @@ unsafe fn set_destroy_ptr(set: *mut Set<ptr_t>) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn sb_init(sb: *mut StringBuilder) {
     unsafe {
@@ -530,6 +689,7 @@ unsafe fn sb_init(sb: *mut StringBuilder) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn sb_destroy(sb: *mut StringBuilder) {
     unsafe {
@@ -542,6 +702,7 @@ unsafe fn sb_destroy(sb: *mut StringBuilder) {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn sb_push(sb: *mut StringBuilder, c: c_char) {
     unsafe {
@@ -590,6 +751,7 @@ unsafe fn sb_concat_len(sb: *mut StringBuilder, data: *const c_char, len: usize)
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn str_obj(s: NvimString) -> Object {
     Object {
@@ -598,6 +760,7 @@ const fn str_obj(s: NvimString) -> Object {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     NvimString {
@@ -606,6 +769,7 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {
     #[cfg(test)]
     {
@@ -788,6 +952,7 @@ unsafe fn parse_osc8(str_: *const c_char, attr: *mut c_int) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mut c_void) -> c_int {
     #[cfg(test)]
     {
@@ -843,6 +1008,7 @@ unsafe extern "C" fn on_osc(command: c_int, frag: VTermStringFragment, user: *mu
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn on_dcs(
     command: *const c_char,
     commandlen: usize,
@@ -882,6 +1048,7 @@ unsafe extern "C" fn on_dcs(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn on_apc(frag: VTermStringFragment, user: *mut c_void) -> c_int {
     #[cfg(test)]
     {
@@ -939,6 +1106,7 @@ pub unsafe extern "C" fn terminal_teardown() {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_output_callback(s: *const c_char, len: usize, user_data: *mut c_void) {
     unsafe {
         terminal_send(user_data.cast::<Terminal>(), s, len);
@@ -1258,6 +1426,7 @@ pub unsafe extern "C" fn terminal_close(termpp: *mut *mut Terminal, status: c_in
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn terminal_state_change_event(argv: *mut *mut c_void) {
     #[cfg(not(test))]
     unsafe {
@@ -1602,6 +1771,7 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn terminal_check(state: *mut VimState) -> c_int {
     #[cfg(test)]
     {
@@ -1669,6 +1839,7 @@ unsafe extern "C" fn terminal_check(state: *mut VimState) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
     #[cfg(test)]
     {
@@ -1911,6 +2082,7 @@ unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn on_sync_flush(argv: *mut *mut c_void) {
     #[cfg(not(test))]
     unsafe {
@@ -1979,6 +2151,7 @@ pub unsafe extern "C" fn terminal_receive(term: *mut Terminal, data: *const c_ch
     }
 }
 
+#[cfg(not(test))]
 unsafe fn get_rgb(state: *const VTermState, mut color: VTermColor) -> c_int {
     unsafe {
         vterm_state_convert_color_to_rgb(state, &mut color);
@@ -1989,6 +2162,7 @@ unsafe fn get_rgb(state: *const VTermState, mut color: VTermColor) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
     match attrs.underline() {
         VTERM_UNDERLINE_OFF => 0,
@@ -2157,6 +2331,7 @@ pub unsafe extern "C" fn terminal_notify_theme(term: *mut Terminal, dark: bool) 
     }
 }
 
+#[cfg(not(test))]
 unsafe fn terminal_focus(term: *const Terminal, focus: bool) {
     unsafe {
         let state = vterm_obtain_state((*term).vt);
@@ -2168,6 +2343,7 @@ unsafe fn terminal_focus(term: *const Terminal, focus: bool) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_damage(rect: VTermRect, data: *mut c_void) -> c_int {
     unsafe {
         invalidate_terminal(data.cast::<Terminal>(), rect.start_row, rect.end_row);
@@ -2175,6 +2351,7 @@ unsafe extern "C" fn term_damage(rect: VTermRect, data: *mut c_void) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_moverect(dest: VTermRect, src: VTermRect, data: *mut c_void) -> c_int {
     unsafe {
         invalidate_terminal(
@@ -2186,6 +2363,7 @@ unsafe extern "C" fn term_moverect(dest: VTermRect, src: VTermRect, data: *mut c
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_movecursor(
     new_pos: VTermPos,
     _old_pos: VTermPos,
@@ -2231,6 +2409,7 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_settermprop(
     prop: VTermProp,
     val: *mut VTermValue,
@@ -2315,6 +2494,7 @@ unsafe extern "C" fn term_settermprop(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_bell(_data: *mut c_void) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -2323,6 +2503,7 @@ unsafe extern "C" fn term_bell(_data: *mut c_void) -> c_int {
     1
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_theme(dark: *mut bool, _data: *mut c_void) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -2331,6 +2512,7 @@ unsafe extern "C" fn term_theme(dark: *mut bool, _data: *mut c_void) -> c_int {
     1
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_sb_push(
     cols: c_int,
     cells: *const VTermScreenCell,
@@ -2396,6 +2578,7 @@ unsafe extern "C" fn term_sb_push(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_sb_pop(
     cols: c_int,
     cells: *mut VTermScreenCell,
@@ -2440,6 +2623,7 @@ unsafe extern "C" fn term_sb_pop(
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_sb_clear(data: *mut c_void) -> c_int {
     unsafe {
         let term = data.cast::<Terminal>();
@@ -2460,6 +2644,7 @@ unsafe extern "C" fn term_sb_clear(data: *mut c_void) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
     #[cfg(not(test))]
     unsafe {
@@ -2501,6 +2686,7 @@ unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn term_selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
@@ -2541,6 +2727,7 @@ unsafe extern "C" fn term_selection_set(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn convert_modifiers(key: *mut c_int, modifiers: c_int, statep: *mut VTermModifier) {
     unsafe {
         if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 {
@@ -2561,6 +2748,7 @@ unsafe fn convert_modifiers(key: *mut c_int, modifiers: c_int, statep: *mut VTer
     }
 }
 
+#[cfg(not(test))]
 unsafe fn convert_key(
     key: *mut c_int,
     mut modifiers: c_int,
@@ -2669,6 +2857,7 @@ unsafe fn convert_key(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn mouse_action(
     term: *mut Terminal,
     button: c_int,
@@ -2773,6 +2962,7 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn fetch_row(term: *mut Terminal, row: c_int, end_col: c_int) {
     unsafe {
         let mut col: c_int = 0;
@@ -2797,6 +2987,7 @@ unsafe fn fetch_row(term: *mut Terminal, row: c_int, end_col: c_int) {
     }
 }
 
+#[cfg(not(test))]
 unsafe fn fetch_cell(
     term: *mut Terminal,
     row: c_int,
@@ -2823,6 +3014,7 @@ unsafe fn fetch_cell(
     }
 }
 
+#[cfg(not(test))]
 unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_int) {
     unsafe {
         if start_row != -1 && end_row != -1 {
@@ -2945,6 +3137,7 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
     }
 }
 
+#[cfg(not(test))]
 unsafe extern "C" fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_void) {
     #[cfg(not(test))]
     unsafe {
@@ -2980,6 +3173,7 @@ unsafe extern "C" fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut c_
     }
 }
 
+#[cfg(not(test))]
 unsafe fn refresh_size(term: *mut Terminal, _buf: *mut buf_T) -> bool {
     unsafe {
         if !(*term).pending.resize || (*term).closed {
@@ -3200,6 +3394,7 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn row_to_linenr(term: *mut Terminal, row: c_int) -> c_int {
     if row != c_int::MAX {
@@ -3209,6 +3404,7 @@ unsafe fn row_to_linenr(term: *mut Terminal, row: c_int) -> c_int {
     }
 }
 
+#[cfg(not(test))]
 #[inline]
 unsafe fn linenr_to_row(term: *mut Terminal, linenr: c_int) -> c_int {
     unsafe { linenr - (*term).sb_current as c_int - 1 }

@@ -1,7 +1,6 @@
 //! Shell execution and wildcard expansion (`src/nvim/os/shell.c`).
 
 #![allow(
-    dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -79,7 +78,6 @@ const NS_PER_SEC: u64 = 1_000_000_000;
 
 const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 
-const kShellOptFilter: c_int = 1;
 const kShellOptExpand: c_int = 2;
 const kShellOptDoOut: c_int = 4;
 const kShellOptSilent: c_int = 8;
