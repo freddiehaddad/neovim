@@ -30,19 +30,14 @@ pub fn nvim_gen_sources(
         const gen_step = b.addRunArtifact(nlua0);
         gen_step.addFileArg(b.path("src/gen/gen_ex_cmds.lua"));
         _ = gen_header(b, gen_step, "ex_cmds_enum.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "ex_cmds_defs.generated.h", gen_headers);
         gen_step.addFileArg(b.path("src/nvim/ex_cmds.lua"));
     }
 
     {
         const gen_step = b.addRunArtifact(nlua0);
         gen_step.addFileArg(b.path("src/gen/gen_options.lua"));
-        _ = gen_header(b, gen_step, "options.generated.h", gen_headers);
         _ = gen_header(b, gen_step, "options_enum.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "options_map.generated.h", gen_headers);
         _ = gen_header(b, gen_step, "option_vars.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "options_chartab.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "options_keysets.generated.h", gen_headers);
         gen_step.addFileArg(b.path("src/nvim/options.lua"));
 
         const test_gen_step = b.step("wipopt", "debug one nlua0 (options)");
@@ -53,15 +48,7 @@ pub fn nvim_gen_sources(
         const gen_step = b.addRunArtifact(nlua0);
         gen_step.addFileArg(b.path("src/gen/gen_events.lua"));
         _ = gen_header(b, gen_step, "auevents_enum.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "auevents_name_map.generated.h", gen_headers);
         gen_step.addFileArg(b.path("src/nvim/auevents.lua"));
-    }
-
-    {
-        const gen_step = b.addRunArtifact(nlua0);
-        gen_step.addFileArg(b.path("src/gen/gen_keycodes.lua"));
-        _ = gen_header(b, gen_step, "keycode_names.generated.h", gen_headers);
-        gen_step.addFileArg(b.path("src/nvim/keycodes.lua"));
     }
 
     _ = precompile;
@@ -70,21 +57,15 @@ pub fn nvim_gen_sources(
         const gen_step = b.addRunArtifact(nlua0);
         gen_step.addFileArg(b.path("src/gen/gen_api_ui_events.lua"));
         gen_step.addFileArg(b.path("src/nvim/api/ui_events.in.h"));
-        _ = try gen_header_with_header(b, gen_step, "ui_events_call.generated.h", nlua0, gen_headers);
-        _ = try gen_header_with_header(b, gen_step, "ui_events_remote.generated.h", nlua0, gen_headers);
         const ui_metadata = gen_step.addOutputFileArg("ui_metadata.mpack");
-        _ = try gen_header_with_header(b, gen_step, "ui_events_client.generated.h", nlua0, gen_headers);
         break :ui_step ui_metadata;
     };
 
     const eval_funcs_metadata, const exported_funcs_metadata = dispatch_step: {
         const gen_step = b.addRunArtifact(nlua0);
         gen_step.addFileArg(b.path("src/gen/gen_api_dispatch.lua"));
-        _ = try gen_header_with_header(b, gen_step, "api/private/dispatch_wrappers.generated.h", nlua0, gen_headers);
         const exported_funcs_metadata = gen_step.addOutputFileArg("exported_funcs_metadata.mpack");
         const eval_funcs_metadata = gen_step.addOutputFileArg("eval_funcs_metadata.mpack");
-        _ = gen_header(b, gen_step, "lua_api_c_bindings.generated.h", gen_headers);
-        _ = gen_header(b, gen_step, "keysets_defs.generated.h", gen_headers);
         gen_step.addFileArg(b.path("src/nvim/api/dispatch_deprecated.lua"));
         // now follows all .h files with exported functions
         for (api_headers.items) |h| {
@@ -109,7 +90,6 @@ pub fn nvim_gen_sources(
     const funcs_data = eval_step: {
         const gen_step = b.addRunArtifact(nlua0);
         gen_step.addFileArg(b.path("src/gen/gen_eval.lua"));
-        _ = gen_header(b, gen_step, "funcs.generated.h", gen_headers);
         gen_step.addFileArg(eval_funcs_metadata);
         const funcs_data = gen_step.addOutputFileArg("funcs_data.mpack");
         gen_step.addFileArg(b.path("src/nvim/eval.lua"));
@@ -129,19 +109,6 @@ fn gen_header(
     const header = gen_step.addOutputFileArg(name);
     _ = gen_headers.addCopyFile(header, name);
     return header;
-}
-
-fn gen_header_with_header(
-    b: *std.Build,
-    gen_step: *std.Build.Step.Run,
-    name: []const u8,
-    nlua0: *std.Build.Step.Compile,
-    gen_headers: *std.Build.Step.WriteFile,
-) !std.Build.LazyPath {
-    if (name.len < 12 or !std.mem.eql(u8, ".generated.h", name[name.len - 12 ..])) return error.InvalidBaseName;
-    const h = gen_header(b, gen_step, name, gen_headers);
-    _ = try generate_header_for(b, b.fmt("{s}.h", .{name[0 .. name.len - 12]}), h, null, nlua0, gen_headers, false);
-    return h;
 }
 
 pub const PreprocessorOptions = struct {

@@ -37,15 +37,8 @@ local function add_iwyu_non_static(fname, non_static_fname)
       header_f:close()
       return (header_fname:gsub('.*/src/nvim/', 'nvim/'))
     end
-  elseif non_static_fname:find('/include/api/private/dispatch_wrappers%.h%.generated%.h$') then
-    return 'nvim/api/private/dispatch.h'
-  elseif non_static_fname:find('/include/ui_events_call%.h%.generated%.h$') then
-    return 'nvim/ui.h'
-  elseif non_static_fname:find('/include/ui_events_client%.h%.generated%.h$') then
-    return 'nvim/ui_client.h'
-  elseif non_static_fname:find('/include/ui_events_remote%.h%.generated%.h$') then
-    return 'nvim/api/ui.h'
   end
+  local _ = non_static_fname
 end
 
 --- @param d string
