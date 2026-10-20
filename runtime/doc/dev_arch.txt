@@ -92,7 +92,7 @@ structures and essential utilities), must be compiled into the `nvim` binary.
 There are two ways to do that:
 - if they are private, put the code file in `runtime/lua/vim/_core/`
 - if they are public, choose a new filepath in `runtime/lua/vim/`
-  and add it to VIM_MODULE_FILE in src/nvim/CMakeLists.txt.
+  and add it to BUILTIN_MODULES in src/nvim/lua/executor.rs.
 
 
 ==============================================================================

@@ -7,7 +7,6 @@
 #include "auto/versiondef.h"
 #include "auto/versiondef_git.h"
 #include "nvim/api/private/helpers.h"
-#include "nvim/lua/executor.h"
 #include "nvim/macros_defs.h"
 #include "nvim/main.h"
 #include "nvim/os/os_defs.h"
@@ -18,14 +17,7 @@
 # endif
 #endif
 
-typedef struct {
-  char *name;
-  const uint8_t *data;
-  size_t size;
-} ModuleDef;
-
 #include "api/private/api_metadata.generated.h"
-#include "lua/vim_module.generated.h"
 
 // for ":version", ":intro", and "nvim --version"
 #ifndef NVIM_VERSION_MEDIUM
@@ -71,12 +63,6 @@ const uint32_t nvim_build_has_flags =
   (1U << 3) |
 #endif
   0U;
-
-const void *nlua_get_builtin_modules(size_t *count)
-{
-  *count = ARRAY_SIZE(builtin_modules);
-  return builtin_modules;
-}
 
 const uint8_t *api_get_packed_metadata(size_t *len)
 {

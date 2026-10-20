@@ -310,7 +310,6 @@ set(NVIM_RUNTIME_DIR ${PROJECT_SOURCE_DIR}/runtime)
 set(API_DISPATCH_GENERATOR ${GENERATOR_DIR}/gen_api_dispatch.lua)
 set(API_UI_EVENTS_GENERATOR ${GENERATOR_DIR}/gen_api_ui_events.lua)
 set(API_METADATA_GENERATOR ${GENERATOR_DIR}/gen_api_metadata.lua)
-set(CHAR_BLOB_GENERATOR ${GENERATOR_DIR}/gen_char_blob.lua)
 set(EVENTS_GENERATOR ${GENERATOR_DIR}/gen_events.lua)
 set(EX_CMDS_GENERATOR ${GENERATOR_DIR}/gen_ex_cmds.lua)
 set(FUNCS_GENERATOR ${GENERATOR_DIR}/gen_eval.lua)
@@ -342,33 +341,6 @@ set(GENERATED_UI_EVENTS_CALL ${GENERATED_DIR}/ui_events_call.generated.h)
 set(GENERATED_UI_EVENTS_CLIENT ${GENERATED_DIR}/ui_events_client.generated.h)
 set(GENERATED_UI_EVENTS_REMOTE ${GENERATED_DIR}/ui_events_remote.generated.h)
 set(LUA_API_C_BINDINGS ${GENERATED_DIR}/lua_api_c_bindings.generated.h)
-set(VIM_MODULE_FILE ${GENERATED_DIR}/lua/vim_module.generated.h)
-
-# NVIM_RUNTIME_DIR
-set(LUA_FILETYPE_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/filetype.lua)
-set(LUA_FS_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/fs.lua)
-set(LUA_F_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/F.lua)
-# Must be item 1 in `builtin_modules`, for `--luamod-dev`.
-set(LUA_INIT_PACKAGES_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/_init_packages.lua)
-# Must be item 2 in `builtin_modules`, for `--luamod-dev`.
-set(LUA_INSPECT_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/inspect.lua)
-set(LUA_KEYMAP_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/keymap.lua)
-set(LUA_LOADER_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/loader.lua)
-set(LUA_TEXT_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/text.lua)
-set(LUA_TTY_MODULE_SOURCE ${NVIM_RUNTIME_DIR}/lua/vim/tty.lua)
-
-# Find all Lua modules in the _core/ directory.
-file(GLOB LUA_CORE_MODULE_SOURCES ${NVIM_RUNTIME_DIR}/lua/vim/_core/*.lua)
-set(LUA_CORE_COMMAND_ARGS)
-foreach(core_source ${LUA_CORE_MODULE_SOURCES})
-  get_filename_component(core_filename ${core_source} NAME_WE)
-  list(APPEND LUA_CORE_COMMAND_ARGS ${core_source} "vim._core.${core_filename}")
-endforeach()
-
-set(LUA_BLOB_COMPILE_FLAG)
-if(COMPILE_LUA AND NOT WIN32)
-  set(LUA_BLOB_COMPILE_FLAG -c)
-endif()
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.h)
 list(REMOVE_ITEM API_HEADERS ${CMAKE_CURRENT_LIST_DIR}/api/ui_events.in.h)
@@ -575,36 +547,6 @@ add_custom_command(
 )
 
 add_custom_command(
-  OUTPUT ${VIM_MODULE_FILE}
-  COMMAND ${LUA_PRG} ${CHAR_BLOB_GENERATOR} ${LUA_BLOB_COMPILE_FLAG} ${VIM_MODULE_FILE}
-      # NB: vim._init_packages and vim.inspect must be be first and second ones
-      # respectively, otherwise --luamod-dev won't work properly.
-      ${LUA_INIT_PACKAGES_MODULE_SOURCE} "vim._init_packages"
-      ${LUA_INSPECT_MODULE_SOURCE} "vim.inspect"
-      ${LUA_FILETYPE_MODULE_SOURCE} "vim.filetype"
-      ${LUA_FS_MODULE_SOURCE} "vim.fs"
-      ${LUA_F_MODULE_SOURCE} "vim.F"
-      ${LUA_KEYMAP_MODULE_SOURCE} "vim.keymap"
-      ${LUA_LOADER_MODULE_SOURCE} "vim.loader"
-      ${LUA_TEXT_MODULE_SOURCE} "vim.text"
-      ${LUA_TTY_MODULE_SOURCE} "vim.tty"
-      ${LUA_CORE_COMMAND_ARGS}
-  DEPENDS
-    ${CHAR_BLOB_GENERATOR}
-    ${LUA_INIT_PACKAGES_MODULE_SOURCE}
-    ${LUA_INSPECT_MODULE_SOURCE}
-    ${LUA_FILETYPE_MODULE_SOURCE}
-    ${LUA_FS_MODULE_SOURCE}
-    ${LUA_F_MODULE_SOURCE}
-    ${LUA_KEYMAP_MODULE_SOURCE}
-    ${LUA_LOADER_MODULE_SOURCE}
-    ${LUA_TEXT_MODULE_SOURCE}
-    ${LUA_TTY_MODULE_SOURCE}
-    ${LUA_CORE_MODULE_SOURCES}
-  VERBATIM
-)
-
-add_custom_command(
   OUTPUT ${GENERATED_UI_EVENTS_CALL}
          ${GENERATED_UI_EVENTS_REMOTE}
          ${UI_METADATA}
@@ -657,7 +599,6 @@ list(APPEND NVIM_GENERATED_FOR_HEADERS
 )
 
 list(APPEND NVIM_GENERATED_FOR_SOURCES
-  "${VIM_MODULE_FILE}"
   "${GENERATED_API_METADATA}"
   "${NVIM_VERSION_GIT_H}"
   "${NVIM_VERSION_DEF_H}"
@@ -706,6 +647,8 @@ set(NVIM_RUST_LIB
 
 file(GLOB_RECURSE NVIM_RUST_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/*.rs"
+  "${NVIM_RUNTIME_DIR}/lua/vim/*.lua"
+  "${NVIM_RUNTIME_DIR}/lua/vim/_core/*.lua"
   "${PROJECT_SOURCE_DIR}/src/bit.rs"
   "${PROJECT_SOURCE_DIR}/src/cjson/*.rs"
   "${PROJECT_SOURCE_DIR}/src/lpeg/*.rs"

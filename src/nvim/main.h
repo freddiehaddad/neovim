@@ -66,7 +66,6 @@ DLLEXPORT int nvim_main(int argc, char **argv);
 DLLEXPORT void os_exit(int r) FUNC_ATTR_NORETURN;
 DLLEXPORT void getout(int exitval) FUNC_ATTR_NORETURN;
 DLLEXPORT void preserve_exit(const char *errmsg) FUNC_ATTR_NORETURN;
-DLLEXPORT const void *nlua_get_builtin_modules(size_t *count);
 DLLEXPORT const uint8_t *api_get_packed_metadata(size_t *len);
 DLLEXPORT int main(int argc, char **argv);
 
