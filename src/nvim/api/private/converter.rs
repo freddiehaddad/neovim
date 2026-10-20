@@ -1,11 +1,6 @@
 //! Conversions between Vimscript `typval_T` and API `Object` (`src/nvim/api/private/converter.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc,
-    clippy::only_used_in_recursion
-)]
+#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
@@ -485,7 +480,7 @@ pub unsafe extern "C" fn object_to_vim_take_luaref(
     obj: *mut Object,
     tv: *mut typval_T,
     take_luaref: bool,
-    err: *mut Error,
+    _err: *mut Error,
 ) {
     let obj = unsafe { &mut *obj };
     let tv_ref = unsafe { &mut *tv };
@@ -534,7 +529,7 @@ pub unsafe extern "C" fn object_to_vim_take_luaref(
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval { v_number: 0 },
                     };
-                    object_to_vim_take_luaref(arr.items.add(i), &mut li_tv, take_luaref, err);
+                    object_to_vim_take_luaref(arr.items.add(i), &mut li_tv, take_luaref, _err);
                     tv_list_append_owned_tv(list, li_tv);
                 }
                 if !list.is_null() {
@@ -544,7 +539,7 @@ pub unsafe extern "C" fn object_to_vim_take_luaref(
                 tv_ref.vval = TypvalVval { v_list: list };
             }
             #[cfg(test)]
-            let _ = (take_luaref, err);
+            let _ = take_luaref;
         }
         ObjectType::kObjectTypeDict => {
             #[cfg(not(test))]
@@ -554,7 +549,7 @@ pub unsafe extern "C" fn object_to_vim_take_luaref(
                 for i in 0..d.size {
                     let item = &mut *d.items.add(i);
                     let di = tv_dict_item_alloc(item.key.data);
-                    object_to_vim_take_luaref(&mut item.value, &mut (*di).di_tv, take_luaref, err);
+                    object_to_vim_take_luaref(&mut item.value, &mut (*di).di_tv, take_luaref, _err);
                     tv_dict_add(dict, di);
                 }
                 (*dict).dv_refcount += 1;

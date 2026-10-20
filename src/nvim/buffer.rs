@@ -6,11 +6,9 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::collapsible_if,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast
+    clippy::too_many_arguments
 )]
 
 use crate::api::options::{CharBuf, CtxSwitch};

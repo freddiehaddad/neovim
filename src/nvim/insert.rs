@@ -1,16 +1,14 @@
 //! Functions for Insert mode (`src/nvim/insert.c`).
 
 #![allow(
+    clippy::deref_addrof,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
-    clippy::deref_addrof,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::autocmd::event_T;
@@ -3134,8 +3132,8 @@ unsafe fn ins_start_select(c: c_int) -> bool {
                 stuffcharReadbuff(Ctrl_O);
                 if mod_mask != 0 {
                     let buf = [
-                        K_SPECIAL as u8 as c_char,
-                        KS_MODIFIER as u8 as c_char,
+                        K_SPECIAL as c_char,
+                        KS_MODIFIER as c_char,
                         mod_mask as u8 as c_char,
                         NUL,
                     ];

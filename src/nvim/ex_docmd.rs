@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
-    clippy::if_same_then_else,
     clippy::collapsible_if,
     clippy::needless_range_loop
 )]
@@ -8883,13 +8882,13 @@ pub unsafe extern "C" fn expand_argopt(
             let mut cb: CompleteListItemGetter = None;
             let name_end = (*xp).xp_pattern.sub(1);
             let diff = (name_end as usize) - ((*xp).xp_line as usize);
-            if diff >= 2 && strncmp(name_end.sub(2), c"ff".as_ptr(), 2) == 0 {
+            if (diff >= 2 && strncmp(name_end.sub(2), c"ff".as_ptr(), 2) == 0)
+                || (diff >= 10 && strncmp(name_end.sub(10), c"fileformat".as_ptr(), 10) == 0)
+            {
                 cb = Some(get_fileformat_name);
-            } else if diff >= 10 && strncmp(name_end.sub(10), c"fileformat".as_ptr(), 10) == 0 {
-                cb = Some(get_fileformat_name);
-            } else if diff >= 3 && strncmp(name_end.sub(3), c"enc".as_ptr(), 3) == 0 {
-                cb = Some(get_encoding_name);
-            } else if diff >= 8 && strncmp(name_end.sub(8), c"encoding".as_ptr(), 8) == 0 {
+            } else if (diff >= 3 && strncmp(name_end.sub(3), c"enc".as_ptr(), 3) == 0)
+                || (diff >= 8 && strncmp(name_end.sub(8), c"encoding".as_ptr(), 8) == 0)
+            {
                 cb = Some(get_encoding_name);
             } else if diff >= 3 && strncmp(name_end.sub(3), c"bad".as_ptr(), 3) == 0 {
                 cb = Some(get_bad_name);

@@ -6,13 +6,9 @@
     non_upper_case_globals,
     clippy::collapsible_if,
     clippy::enum_variant_names,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::needless_return,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::private::converter::{
@@ -4351,9 +4347,9 @@ pub unsafe extern "C" fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 
         if !x {
             let save_shell_error = get_vim_var_nr(VV_SHELL_ERROR) as c_int;
-            if c_stricmp(name, c"clipboard_working".as_ptr()) == 0 {
-                n = eval_has_provider(c"clipboard".as_ptr(), true);
-            } else if cfg!(not(windows)) && c_stricmp(name, c"unnamedplus".as_ptr()) == 0 {
+            if c_stricmp(name, c"clipboard_working".as_ptr()) == 0
+                || (cfg!(not(windows)) && c_stricmp(name, c"unnamedplus".as_ptr()) == 0)
+            {
                 n = eval_has_provider(c"clipboard".as_ptr(), true);
             } else if c_stricmp(name, c"pythonx".as_ptr()) == 0 {
                 n = eval_has_provider(c"python3".as_ptr(), true);
@@ -5432,7 +5428,7 @@ pub unsafe extern "C" fn f_jobstart(
             &raw mut (*rettv).vval.v_number,
         );
         if chan.is_null() {
-            return;
+            // do nothing
         } else if !term {
             channel_create_event(chan, ptr::null());
         } else {

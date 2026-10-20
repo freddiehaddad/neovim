@@ -6,8 +6,7 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::while_immutable_condition
+    clippy::too_many_arguments
 )]
 
 use crate::api::options::Buffer;
@@ -1217,7 +1216,10 @@ pub unsafe extern "C" fn terminal_alloc(
 
         if ((*buf).b_ml.ml_flags & ML_EMPTY) == 0 {
             let line_count = (*buf).b_ml.ml_line_count;
-            while ((*buf).b_ml.ml_flags & ML_EMPTY) == 0 {
+            loop {
+                if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 {
+                    break;
+                }
                 ml_delete_buf(buf, 1, false);
             }
             deleted_lines_buf(buf, 1, line_count);
@@ -3292,7 +3294,10 @@ unsafe fn refresh_scrollback(term: *mut Terminal, buf: *mut buf_T) {
         }
 
         let max_line_count = (*term).sb_current as c_int + height;
-        while (*buf).b_ml.ml_line_count > max_line_count {
+        loop {
+            if (*buf).b_ml.ml_line_count <= max_line_count {
+                break;
+            }
             ml_delete_buf(buf, (*buf).b_ml.ml_line_count, false);
             deleted_lines_buf(buf, (*buf).b_ml.ml_line_count, 1);
         }

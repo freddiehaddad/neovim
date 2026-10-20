@@ -1,7 +1,7 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
 
 #![cfg_attr(test, allow(unused_mut))]
-#![allow(non_snake_case, clippy::missing_safety_doc, clippy::needless_return)]
+#![allow(non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
 use crate::eval::typval::{tv_list_alloc, tv_list_append_list, tv_list_append_string};
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn adjust_clipboard_name(
             MSG_NO_CLIP,
             cstr_to_nvim_string as unsafe fn(*const c_char) -> NvimString,
         );
-        return std::ptr::null_mut();
+        std::ptr::null_mut()
     }
 
     #[cfg(not(test))]
@@ -232,7 +232,7 @@ pub unsafe extern "C" fn get_clipboard(
     #[cfg(test)]
     {
         let _ = (name, target, quiet);
-        return false;
+        false
     }
 
     #[cfg(not(test))]

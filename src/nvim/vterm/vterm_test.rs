@@ -4,8 +4,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::write_with_newline
+    clippy::missing_safety_doc
 )]
 
 use std::ffi::{c_char, c_int, c_long, c_void};
@@ -358,7 +357,7 @@ pub unsafe extern "C" fn selection_set(
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn selection_query(mask: VTermSelectionMask, _user: *mut c_void) -> c_int {
     let mut out = Vec::new();
-    let _ = write!(out, "selection-query mask={mask:04X}\n");
+    let _ = writeln!(out, "selection-query mask={mask:04X}");
     append_test_output(&out);
     1
 }
@@ -429,7 +428,7 @@ pub unsafe extern "C" fn state_movecursor(
         state_pos = pos;
         let mut out = Vec::new();
         if want_state_movecursor {
-            let _ = write!(out, "movecursor {},{}\n", pos.row, pos.col);
+            let _ = writeln!(out, "movecursor {},{}", pos.row, pos.col);
         }
         append_test_output(&out);
         1
@@ -448,9 +447,9 @@ pub unsafe extern "C" fn state_scrollrect(
             return 0;
         }
         let mut out = Vec::new();
-        let _ = write!(
+        let _ = writeln!(
             out,
-            "scrollrect {}..{},{}..{} => {:+},{:+}\n",
+            "scrollrect {}..{},{}..{} => {:+},{:+}",
             rect.start_row, rect.end_row, rect.start_col, rect.end_col, downward, rightward
         );
         append_test_output(&out);
@@ -469,9 +468,9 @@ pub unsafe extern "C" fn state_moverect(
             return 0;
         }
         let mut out = Vec::new();
-        let _ = write!(
+        let _ = writeln!(
             out,
-            "moverect {}..{},{}..{} -> {}..{},{}..{}\n",
+            "moverect {}..{},{}..{} -> {}..{},{}..{}",
             src.start_row,
             src.end_row,
             src.start_col,
@@ -544,11 +543,11 @@ pub unsafe extern "C" fn state_settermprop(
         let errcode = match vterm_get_prop_type(prop) {
             VTERM_VALUETYPE_BOOL => {
                 let s = if (*val).boolean != 0 { "true" } else { "false" };
-                let _ = write!(out, "settermprop {prop} {s}\n");
+                let _ = writeln!(out, "settermprop {prop} {s}");
                 1
             }
             VTERM_VALUETYPE_INT => {
-                let _ = write!(out, "settermprop {prop} {}\n", (*val).number);
+                let _ = writeln!(out, "settermprop {prop} {}", (*val).number);
                 1
             }
             VTERM_VALUETYPE_STRING => {
@@ -559,7 +558,7 @@ pub unsafe extern "C" fn state_settermprop(
                     if frag.initial() { "[" } else { "" }
                 );
                 push_frag_bytes(&mut out, frag);
-                let _ = write!(out, "\"{}\n", if frag.final_() { "]" } else { "" });
+                let _ = writeln!(out, "\"{}", if frag.final_() { "]" } else { "" });
                 0
             }
             VTERM_VALUETYPE_COLOR => {
@@ -587,9 +586,9 @@ pub unsafe extern "C" fn state_erase(
         }
         let mut out = Vec::new();
         let sel = if selective != 0 { " selective" } else { "" };
-        let _ = write!(
+        let _ = writeln!(
             out,
-            "erase {}..{},{}..{}{sel}\n",
+            "erase {}..{},{}..{}{sel}",
             rect.start_row, rect.end_row, rect.start_col, rect.end_col
         );
         append_test_output(&out);
@@ -683,7 +682,7 @@ pub unsafe extern "C" fn screen_sb_popline(
             (*cell).width = 1;
         }
         let mut out = Vec::new();
-        let _ = write!(out, "sb_popline {cols}\n");
+        let _ = writeln!(out, "sb_popline {cols}");
         append_test_output(&out);
         1
     }

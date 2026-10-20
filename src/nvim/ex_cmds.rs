@@ -4,17 +4,11 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::bool_comparison,
     clippy::collapsible_if,
     clippy::enum_variant_names,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
-    clippy::needless_bool_assign,
-    clippy::needless_late_init,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::{exarg_T, regmatch_T};
@@ -723,7 +717,7 @@ unsafe extern "C" fn sort_compare(s1: *const c_void, s2: *const c_void) -> c_int
 
         if sort_nr != 0 {
             if l1.st_u.num.is_number != l2.st_u.num.is_number {
-                result = if l1.st_u.num.is_number > l2.st_u.num.is_number {
+                result = if l1.st_u.num.is_number && !l2.st_u.num.is_number {
                     1
                 } else {
                     -1
@@ -5035,7 +5029,6 @@ unsafe fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
 pub unsafe extern "C" fn ex_global(eap: *mut exarg_T) {
     unsafe {
         let mut lnum: linenr_T;
-        let type_char: c_int;
         let mut cmd: *mut c_char;
         let delim: c_char;
         let pat: *mut c_char;
@@ -5049,11 +5042,11 @@ pub unsafe extern "C" fn ex_global(eap: *mut exarg_T) {
             return;
         }
 
-        if (*eap).forceit != 0 {
-            type_char = b'v' as c_int;
+        let type_char: c_int = if (*eap).forceit != 0 {
+            b'v' as c_int
         } else {
-            type_char = (*(*eap).cmd as u8) as c_int;
-        }
+            (*(*eap).cmd as u8) as c_int
+        };
         cmd = (*eap).arg;
         let mut which_pat = RE_LAST;
 

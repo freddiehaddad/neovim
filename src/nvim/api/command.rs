@@ -1,6 +1,7 @@
 //! Command API functions (`src/nvim/api/command.c`).
 
 #![allow(
+    clippy::useless_conversion,
     clippy::doc_lazy_continuation,
     clippy::doc_overindented_list_items,
     clippy::empty_line_after_doc_comments,
@@ -983,7 +984,6 @@ pub unsafe extern "C" fn nvim_cmd(
                         let val = getdigits_long((&raw mut endptr).cast(), false, 0);
                         if *endptr == 0 && first_arg.data.string.size > 0 {
                             is_numeric = true;
-                            #[allow(clippy::useless_conversion)]
                             {
                                 count_value = i64::from(val);
                             }

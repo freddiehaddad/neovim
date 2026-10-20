@@ -1,6 +1,7 @@
 //! Text formatting functions (`src/nvim/textformat.c`).
 
 #![allow(
+    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -909,7 +910,6 @@ pub unsafe extern "C" fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> 
         let save_sctx = current_sctx;
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
-        #[allow(clippy::useless_conversion)]
         set_vim_var_nr(VV_COUNT, i64::from(count));
         set_vim_var_char(c);
 

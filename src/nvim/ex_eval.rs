@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
-    clippy::if_same_then_else,
     clippy::collapsible_if
 )]
 
@@ -1348,9 +1347,7 @@ pub unsafe extern "C" fn ex_finally(eap: *mut exarg_T) {
                     report_discard_pending(CSTP_RETURN, (*cstack).cs_pend.csp_rv[cur_idx]);
                     discard_pending_return((*cstack).cs_pend.csp_rv[cur_idx].cast());
                 }
-                if pending == CSTP_ERROR && did_emsg == 0 {
-                    pending |= CSTP_THROW;
-                } else if did_throw {
+                if (pending == CSTP_ERROR && did_emsg == 0) || did_throw {
                     pending |= CSTP_THROW;
                 }
                 if did_emsg != 0 {

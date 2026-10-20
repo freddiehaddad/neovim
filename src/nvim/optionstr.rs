@@ -5,12 +5,9 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::enum_variant_names,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::regmatch_T;
@@ -1525,10 +1522,9 @@ unsafe fn expand_set_opt_string(
 
         let mut val = values;
         while !(*val).is_null() {
-            if **val == NUL {
-                val = val.add(1);
-                continue;
-            } else if include_orig_val && *option_val != NUL && c_strcmp(*val, option_val) == 0 {
+            if **val == NUL
+                || (include_orig_val && *option_val != NUL && c_strcmp(*val, option_val) == 0)
+            {
                 val = val.add(1);
                 continue;
             }

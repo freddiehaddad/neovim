@@ -3,7 +3,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -1670,13 +1669,12 @@ unsafe fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut dif
             if *diffstyle == diffstyle_T::DIFF_NONE {
                 if ascii_isdigit(line[0]) {
                     *diffstyle = diffstyle_T::DIFF_ED;
-                } else if strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) == 0 {
-                    *diffstyle = diffstyle_T::DIFF_UNIFIED;
-                } else if strncmp((&raw const line).cast(), c"--- ".as_ptr(), 4) == 0
-                    && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                    && strncmp((&raw const line).cast(), c"+++ ".as_ptr(), 4) == 0
-                    && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                    && strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) == 0
+                } else if strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) == 0
+                    || (strncmp((&raw const line).cast(), c"--- ".as_ptr(), 4) == 0
+                        && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
+                        && strncmp((&raw const line).cast(), c"+++ ".as_ptr(), 4) == 0
+                        && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
+                        && strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) == 0)
                 {
                     *diffstyle = diffstyle_T::DIFF_UNIFIED;
                 } else {

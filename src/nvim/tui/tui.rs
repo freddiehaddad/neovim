@@ -1,6 +1,7 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
 #![allow(
+    clippy::unnecessary_cast,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -3288,7 +3289,6 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
 
         if !(*tui).screenshot.is_null() {
             for b in &bufs {
-                #[allow(clippy::unnecessary_cast)]
                 fwrite(b.base.cast(), b.len as usize, 1, (*tui).screenshot);
             }
         } else {

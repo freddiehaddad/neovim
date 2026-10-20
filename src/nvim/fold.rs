@@ -7,8 +7,6 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::needless_range_loop,
-    clippy::only_used_in_recursion,
-    clippy::while_immutable_condition,
     clippy::collapsible_if
 )]
 
@@ -1278,11 +1276,11 @@ unsafe fn deleteFoldEntry(wp: *mut win_T, gap: *mut garray_T, idx: c_int, recurs
 
 /// Delete nested folds in a fold.
 #[cfg_attr(not(test), unsafe(no_mangle))]
-pub unsafe extern "C" fn deleteFoldRecurse(bp: *mut buf_T, gap: *mut garray_T) {
+pub unsafe extern "C" fn deleteFoldRecurse(_bp: *mut buf_T, gap: *mut garray_T) {
     unsafe {
         let fp = (*gap).ga_data.cast::<fold_T>();
         for i in 0..(*gap).ga_len {
-            deleteFoldRecurse(bp, &mut (*fp.add(i as usize)).fd_nested);
+            deleteFoldRecurse(_bp, &mut (*fp.add(i as usize)).fd_nested);
         }
         ga_clear(gap);
     }
@@ -2448,7 +2446,10 @@ unsafe fn foldRemove(wp: *mut win_T, gap: *mut garray_T, top: linenr_T, bot: lin
 
         let mut fp: *mut fold_T = ptr::null_mut();
 
-        while (*gap).ga_len > 0 {
+        loop {
+            if (*gap).ga_len <= 0 {
+                break;
+            }
             if foldFind(gap, top, &mut fp) && (*fp).fd_top < top {
                 foldRemove(
                     wp,

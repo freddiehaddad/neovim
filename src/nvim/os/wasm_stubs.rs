@@ -20,12 +20,10 @@ pub struct UvBrowserSharedState {
 
 impl UvBrowserSharedState {
     pub const fn new() -> Self {
-        #[allow(clippy::declare_interior_mutable_const)]
-        const ZERO_I32: AtomicI32 = AtomicI32::new(0);
         Self {
             generation: AtomicU32::new(0),
-            readable: [ZERO_I32; UV_BROWSER_MAX_FD],
-            writable: [ZERO_I32; UV_BROWSER_MAX_FD],
+            readable: [const { AtomicI32::new(0) }; UV_BROWSER_MAX_FD],
+            writable: [const { AtomicI32::new(0) }; UV_BROWSER_MAX_FD],
         }
     }
 }

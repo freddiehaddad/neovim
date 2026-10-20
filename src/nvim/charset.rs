@@ -1,6 +1,7 @@
 //! Code related to character sets (`src/nvim/charset.c`).
 
 #![allow(
+    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -1004,7 +1005,6 @@ pub unsafe extern "C" fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: 
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
-#[allow(clippy::useless_conversion)]
 pub unsafe extern "C" fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
     let number = unsafe { getdigits(pp, strict, i64::from(def)) };
     match c_long::try_from(number) {

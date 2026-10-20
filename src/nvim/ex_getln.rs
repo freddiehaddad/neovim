@@ -5,13 +5,9 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::collapsible_if,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
-    clippy::needless_bool_assign,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::autocmd::event_T;
@@ -2292,11 +2288,7 @@ unsafe fn command_line_insert_reg(s: *mut CommandLineState) -> c_int {
 /// Handle the Left and Right mouse clicks in the command-line mode.
 unsafe fn command_line_left_right_mouse(s: *mut CommandLineState) {
     unsafe {
-        if (*s).c == K_LEFTRELEASE || (*s).c == K_RIGHTRELEASE {
-            (*s).ignore_drag_release = true;
-        } else {
-            (*s).ignore_drag_release = false;
-        }
+        (*s).ignore_drag_release = (*s).c == K_LEFTRELEASE || (*s).c == K_RIGHTRELEASE;
 
         ccline.cmdspos = cmd_startcol();
         ccline.cmdpos = 0;

@@ -1,13 +1,13 @@
 //! Input engine command-atom policy layer (`src/nvim/input_cmdatom.c`).
 
 #![allow(
+    clippy::useless_conversion,
+    clippy::deref_addrof,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::deref_addrof,
-    clippy::if_same_then_else
+    clippy::too_many_arguments
 )]
 
 use crate::api::buffer::VisualState;
@@ -788,7 +788,6 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
             xfree(cmd.cast());
         }
         if spec.count > 0 {
-            #[allow(clippy::useless_conversion)]
             dict_put(&mut d, c"count", integer_obj(i64::from(spec.count)));
         }
         if (*atom).origin.pos.lnum > 0 {
@@ -2115,13 +2114,10 @@ unsafe fn atom_capture_cmd(ca: *mut cmdarg_T, old: *mut CmdFrame) -> bool {
                     atom_from_cmdline(kAMotion, ca, (*ca).searchbuf, (*old).visual.active);
                 atom.origin = (*old).origin;
                 atom_push(false, &mut atom);
-            } else if !(*root).cmdline.is_null()
-                && ((*ca).cmdchar == b':' as c_int || (*ca).cmdchar == K_COMMAND)
+            } else if (!(*root).cmdline.is_null()
+                && ((*ca).cmdchar == b':' as c_int || (*ca).cmdchar == K_COMMAND))
+                || (vis && (*ca).cmdchar == K_LUA)
             {
-                let mut atom = atom_from_frame(ca, old);
-                atom.origin = (*old).origin;
-                atom_push(false, &mut atom);
-            } else if vis && (*ca).cmdchar == K_LUA {
                 let mut atom = atom_from_frame(ca, old);
                 atom.origin = (*old).origin;
                 atom_push(false, &mut atom);

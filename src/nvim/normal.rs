@@ -5,9 +5,7 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::deref_addrof,
-    clippy::if_same_then_else
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::exarg_T;

@@ -3339,7 +3339,6 @@ pub unsafe extern "C" fn nvim_eval_statusline(
 
             set_vim_var_nr(VV_LNUM, i64::from(lnum));
             let rel = get_cursor_rel_lnum(wp, lnum);
-            #[allow(clippy::unnecessary_cast)]
             set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
             set_vim_var_nr(VV_VIRTNUM, 0);
         } else if fillchar == 0 && !(*opts).use_tabline {

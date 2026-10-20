@@ -1,12 +1,12 @@
 //! File reading, encoding conversion, timestamp checking, and temp files (`src/nvim/fileio.c`).
 
 #![allow(
+    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::exarg_T;

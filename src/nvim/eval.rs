@@ -5,12 +5,9 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 #[cfg(not(test))]
@@ -2406,11 +2403,10 @@ pub unsafe extern "C" fn set_context_for_expression(
             } else if c == b'=' as c_int {
                 got_eq = true;
                 (*xp).xp_context = EXPAND_EXPRESSION;
-            } else if c == b'#' as c_int && (*xp).xp_context == EXPAND_EXPRESSION {
-                break;
-            } else if (c == b'<' as c_int || c == b'#' as c_int)
-                && (*xp).xp_context == EXPAND_FUNCTIONS
-                && vim_strchr((*xp).xp_pattern, b'(' as c_int).is_null()
+            } else if (c == b'#' as c_int && (*xp).xp_context == EXPAND_EXPRESSION)
+                || ((c == b'<' as c_int || c == b'#' as c_int)
+                    && (*xp).xp_context == EXPAND_FUNCTIONS
+                    && vim_strchr((*xp).xp_pattern, b'(' as c_int).is_null())
             {
                 break;
             } else if cmdidx != cmdidx_T::CMD_let || got_eq {

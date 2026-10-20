@@ -6,12 +6,9 @@
     non_upper_case_globals,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
-    clippy::if_same_then_else,
-    clippy::manual_range_contains,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast
+    clippy::too_many_arguments
 )]
 
 use crate::api::private::converter::{partial_T, ufunc_T};

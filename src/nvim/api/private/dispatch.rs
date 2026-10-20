@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::collapsible_if,
     clippy::missing_safety_doc,
-    clippy::needless_late_init,
     clippy::too_many_lines
 )]
 
@@ -4394,7 +4393,6 @@ pub unsafe extern "C" fn handle_nvim_create_autocmd(
             c"API: vim -> nvim_create_autocmd".as_ptr(),
         );
         let mut ret = OBJECT_NIL;
-        let arg_1: Object;
         let mut arg_2: KeyDict_create_autocmd = zeroed();
         if args.size < 1 || args.size > 2 {
             api_set_error!(
@@ -4405,7 +4403,7 @@ pub unsafe extern "C" fn handle_nvim_create_autocmd(
             );
             return ret;
         }
-        arg_1 = *args.items.add(0);
+        let arg_1: Object = *args.items.add(0);
         if args.size >= 2 {
             if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
                 return ret;
@@ -4641,7 +4639,6 @@ pub unsafe extern "C" fn handle_nvim_exec_autocmds(
             c"API: vim -> nvim_exec_autocmds".as_ptr(),
         );
         let ret = OBJECT_NIL;
-        let arg_1: Object;
         let mut arg_2: KeyDict_exec_autocmds = zeroed();
         if args.size < 1 || args.size > 2 {
             api_set_error!(
@@ -4652,7 +4649,7 @@ pub unsafe extern "C" fn handle_nvim_exec_autocmds(
             );
             return ret;
         }
-        arg_1 = *args.items.add(0);
+        let arg_1: Object = *args.items.add(0);
         if args.size >= 2 {
             if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
                 return ret;
@@ -5532,7 +5529,6 @@ pub unsafe extern "C" fn handle_nvim_buf_set_var(
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -5559,7 +5555,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_var(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         nvim_buf_set_var(arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -6187,7 +6183,6 @@ pub unsafe extern "C" fn handle_nvim_create_user_command(
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         let mut arg_3: KeyDict_user_command = zeroed();
         if args.size < 2 || args.size > 3 {
             api_set_error!(
@@ -6207,7 +6202,7 @@ pub unsafe extern "C" fn handle_nvim_create_user_command(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         if args.size >= 3 {
             if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
@@ -6278,7 +6273,6 @@ pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         let mut arg_4: KeyDict_user_command = zeroed();
         if args.size < 3 || args.size > 4 {
             api_set_error!(
@@ -6295,7 +6289,7 @@ pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
         if !extract_string(*args.items.add(1), &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_buf_create_user_command, expecting String".as_ptr(), error) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         if args.size >= 4 {
             if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
@@ -7384,7 +7378,6 @@ pub unsafe extern "C" fn handle_buffer_set_var(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7411,7 +7404,7 @@ pub unsafe extern "C" fn handle_buffer_set_var(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         let rv = buffer_set_var(arg_1, arg_2, arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7488,7 +7481,6 @@ pub unsafe extern "C" fn handle_window_set_var(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7515,7 +7507,7 @@ pub unsafe extern "C" fn handle_window_set_var(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         let rv = window_set_var(arg_1, arg_2, arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7592,7 +7584,6 @@ pub unsafe extern "C" fn handle_tabpage_set_var(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7619,7 +7610,7 @@ pub unsafe extern "C" fn handle_tabpage_set_var(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         let rv = tabpage_set_var(arg_1, arg_2, arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7695,7 +7686,6 @@ pub unsafe extern "C" fn handle_vim_set_var(
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -7713,7 +7703,7 @@ pub unsafe extern "C" fn handle_vim_set_var(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         let rv = vim_set_var(arg_1, arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7821,7 +7811,6 @@ pub unsafe extern "C" fn handle_nvim_set_option(
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -7839,7 +7828,7 @@ pub unsafe extern "C" fn handle_nvim_set_option(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         nvim_set_option(channel_id, arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -7958,7 +7947,6 @@ pub unsafe extern "C" fn handle_nvim_buf_set_option(
         let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7987,7 +7975,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_option(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         nvim_buf_set_option(channel_id, arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8065,7 +8053,6 @@ pub unsafe extern "C" fn handle_nvim_win_set_option(
         let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -8094,7 +8081,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_option(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         nvim_win_set_option(channel_id, arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8552,7 +8539,6 @@ pub unsafe extern "C" fn handle_nvim_ui_term_event(
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -8570,7 +8556,7 @@ pub unsafe extern "C" fn handle_nvim_ui_term_event(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         nvim_ui_term_event(channel_id, arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8732,8 +8718,6 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
-        let arg_3: Object;
-        let arg_4: Object;
         let mut arg_5: KeyDict_get_extmarks = zeroed();
         if args.size < 4 || args.size > 5 {
             api_set_error!(
@@ -8763,8 +8747,8 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
-        arg_4 = *args.items.add(3);
+        let arg_3: Object = *args.items.add(2);
+        let arg_4: Object = *args.items.add(3);
         if args.size >= 5 {
             if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
                 return ret;
@@ -9218,7 +9202,6 @@ pub unsafe extern "C" fn handle_nvim_set_option_value(
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         let mut arg_3: KeyDict_option = zeroed();
         if args.size < 2 || args.size > 3 {
             api_set_error!(
@@ -9238,7 +9221,7 @@ pub unsafe extern "C" fn handle_nvim_set_option_value(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         if args.size >= 3 {
             if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
@@ -9445,7 +9428,6 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
         let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -9474,7 +9456,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         nvim_tabpage_set_var(arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -10026,7 +10008,6 @@ pub unsafe extern "C" fn handle_nvim_ui_set_option(
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -10044,7 +10025,7 @@ pub unsafe extern "C" fn handle_nvim_ui_set_option(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         nvim_ui_set_option(channel_id, arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -11338,7 +11319,6 @@ pub unsafe extern "C" fn handle_nvim_set_var(
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -11356,7 +11336,7 @@ pub unsafe extern "C" fn handle_nvim_set_var(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         nvim_set_var(arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -11461,7 +11441,6 @@ pub unsafe extern "C" fn handle_nvim_set_vvar(
         );
         let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -11479,7 +11458,7 @@ pub unsafe extern "C" fn handle_nvim_set_vvar(
         ) {
             return ret;
         }
-        arg_2 = *args.items.add(1);
+        let arg_2: Object = *args.items.add(1);
         nvim_set_vvar(arg_1, arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -12776,7 +12755,6 @@ pub unsafe extern "C" fn handle_nvim__id(
             c"API: vim -> nvim__id".as_ptr(),
         );
         let mut ret = OBJECT_NIL;
-        let arg_1: Object;
         if args.size != 1 {
             api_set_error!(
                 error,
@@ -12786,7 +12764,7 @@ pub unsafe extern "C" fn handle_nvim__id(
             );
             return ret;
         }
-        arg_1 = *args.items.add(0);
+        let arg_1: Object = *args.items.add(0);
         let rv = nvim__id(arg_1, arena);
         ret = rv;
         ret
@@ -13765,7 +13743,6 @@ pub unsafe extern "C" fn handle_nvim_call_dict_function(
             c"API: vim -> nvim_call_dict_function".as_ptr(),
         );
         let mut ret = OBJECT_NIL;
-        let arg_1: Object;
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: Array = zeroed();
         if args.size != 3 {
@@ -13777,7 +13754,7 @@ pub unsafe extern "C" fn handle_nvim_call_dict_function(
             );
             return ret;
         }
-        arg_1 = *args.items.add(0);
+        let arg_1: Object = *args.items.add(0);
         if !extract_string(
             *args.items.add(1),
             &raw mut arg_2,
@@ -14365,7 +14342,6 @@ pub unsafe extern "C" fn handle_nvim_win_set_var(
         let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -14392,7 +14368,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_var(
         ) {
             return ret;
         }
-        arg_3 = *args.items.add(2);
+        let arg_3: Object = *args.items.add(2);
         nvim_win_set_var(arg_1, arg_2, arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;

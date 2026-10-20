@@ -6,11 +6,9 @@
     non_upper_case_globals,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast
+    clippy::too_many_arguments
 )]
 
 use crate::api::autocmd::TryState;
@@ -3419,8 +3417,10 @@ pub unsafe extern "C" fn win_close_othertab(
 
         if (*(*tp).tp_lastwin).w_floating && one_window(win, tp) {
             if force || can_close_floating_windows(tp) {
-                #[allow(clippy::while_immutable_condition)]
-                while (*(*tp).tp_lastwin).w_floating {
+                loop {
+                    if !(*(*tp).tp_lastwin).w_floating {
+                        break;
+                    }
                     if !win_close_othertab(
                         (*tp).tp_lastwin,
                         c_int::from(!buf_hide((*(*tp).tp_lastwin).w_buffer)),

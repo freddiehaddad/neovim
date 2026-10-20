@@ -2259,11 +2259,10 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                             break;
                         }
                         *scan = (*scan).add(l as usize);
-                    } else if (*(&raw const class_tab).cast::<i16>().add(**scan as usize) & mask)
-                        == testval
+                    } else if ((*(&raw const class_tab).cast::<i16>().add(**scan as usize) & mask)
+                        == testval)
+                        || (rex.reg_line_lbr && **scan == b'\n' && WITH_NL(op))
                     {
-                        *scan = (*scan).add(1);
-                    } else if rex.reg_line_lbr && **scan == b'\n' && WITH_NL(op) {
                         *scan = (*scan).add(1);
                     } else {
                         break;

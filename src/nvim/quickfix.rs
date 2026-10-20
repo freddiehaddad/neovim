@@ -5,13 +5,9 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::collapsible_if,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion,
-    clippy::while_immutable_condition
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::{cmdidx_T, exarg_T};
@@ -6372,7 +6368,10 @@ unsafe fn load_dummy_buffer(
 unsafe fn wipe_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
     unsafe {
         let mut give_up = false;
-        while (*buf).b_nwindows > 0 {
+        loop {
+            if (*buf).b_nwindows <= 0 {
+                break;
+            }
             let mut did_one = false;
 
             if !(*firstwin).w_next.is_null() {

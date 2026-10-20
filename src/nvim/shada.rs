@@ -6,10 +6,8 @@
     non_upper_case_globals,
     clippy::enum_variant_names,
     clippy::missing_safety_doc,
-    clippy::needless_late_init,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast
+    clippy::too_many_arguments
 )]
 
 use crate::api::private::helpers::{
@@ -1130,7 +1128,7 @@ unsafe fn var_shada_iter(
     unsafe {
         let globvarht = get_globvar_ht();
         let hifirst = (*globvarht).ht_array;
-        let hinum = ((*globvarht).ht_mask as usize) + 1;
+        let hinum = (*globvarht).ht_mask + 1;
         *name = ptr::null();
         let mut hi: *const hashitem_T;
         if iter.is_null() {
@@ -2848,8 +2846,7 @@ unsafe fn shada_write(
                     if name == NUL {
                         break;
                     }
-                    let fname: *const c_char;
-                    if fm.fmark.fnum == 0 {
+                    let fname: *const c_char = if fm.fmark.fnum == 0 {
                         assert!(!fm.fname.is_null());
                         if shada_removable(fm.fname) {
                             if global_mark_iter.is_null() {
@@ -2857,7 +2854,7 @@ unsafe fn shada_write(
                             }
                             continue;
                         }
-                        fname = fm.fname;
+                        fm.fname
                     } else {
                         let buf = buflist_findnr(fm.fmark.fnum);
                         if buf.is_null()
@@ -2869,8 +2866,8 @@ unsafe fn shada_write(
                             }
                             continue;
                         }
-                        fname = (*buf).b_ffname;
-                    }
+                        (*buf).b_ffname
+                    };
                     let entry = ShadaEntry {
                         can_free_entry: false,
                         entry_type: ShadaEntryType::kSDItemGlobalMark,

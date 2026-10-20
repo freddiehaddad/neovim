@@ -1,10 +1,10 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 #![allow(
+    clippy::useless_conversion,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -603,9 +603,8 @@ pub unsafe extern "C" fn pat_has_uppercase(pat: *mut c_char) -> bool {
                 }
                 p = p.add(l as usize);
             } else if *p == b'\\' as c_char && magic_val <= MAGIC_ON {
-                if *p.add(1) == b'_' as c_char && *p.add(2) != NUL {
-                    p = p.add(3);
-                } else if *p.add(1) == b'%' as c_char && *p.add(2) != NUL {
+                if (*p.add(1) == b'_' as c_char || *p.add(1) == b'%' as c_char) && *p.add(2) != NUL
+                {
                     p = p.add(3);
                 } else if *p.add(1) != NUL {
                     p = p.add(2);
@@ -1273,7 +1272,6 @@ pub unsafe extern "C" fn parse_search_pattern_offset(
         }
         if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
-                #[allow(clippy::useless_conversion)]
                 {
                     (*offset).off = i64::from(atol(p));
                 }
@@ -2213,12 +2211,9 @@ pub unsafe extern "C" fn findmatchlimit(
                     if comment_dir != 0 || lisp || skip_comments {
                         comment_col = check_linecomment(linep);
                     }
-                    if lisp && comment_col != MAXCOL {
-                        findmatch_pos.col = comment_col;
-                    } else if skip_comments
-                        && !in_block_comment
+                    if (lisp
+                        || (skip_comments && !in_block_comment && findmatch_pos.col > comment_col))
                         && comment_col != MAXCOL
-                        && findmatch_pos.col > comment_col
                     {
                         findmatch_pos.col = comment_col;
                     }

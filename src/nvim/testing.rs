@@ -1,6 +1,11 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
+#![allow(
+    clippy::useless_conversion,
+    non_camel_case_types,
+    non_snake_case,
+    clippy::missing_safety_doc
+)]
 
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
@@ -866,7 +871,6 @@ pub unsafe extern "C" fn f_assert_fails(
                         c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
                     valid_args = false;
                 } else if arg3.vval.v_number >= 0 && {
-                    #[allow(clippy::useless_conversion)]
                     let expected = i64::from(emsg_assert_fails_lnum);
                     arg3.vval.v_number != expected
                 } {
@@ -904,7 +908,6 @@ pub unsafe extern "C" fn f_assert_fails(
                 prepare_assert_error(&mut ga);
                 if error_found_index == 3 {
                     actual_tv.v_type = VarType::VAR_NUMBER;
-                    #[allow(clippy::useless_conversion)]
                     {
                         actual_tv.vval.v_number = i64::from(emsg_assert_fails_lnum);
                     }

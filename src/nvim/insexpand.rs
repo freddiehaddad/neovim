@@ -1,18 +1,15 @@
 //! Functions for Insert mode completion (`src/nvim/insexpand.c`).
 
 #![allow(
+    clippy::blocks_in_conditions,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::blocks_in_conditions,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
-    clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::unnecessary_cast,
-    clippy::useless_conversion
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::regmatch_T;
@@ -4934,20 +4931,14 @@ unsafe fn get_next_default_completion(
                 && (*st).first_match_pos.col == (*st).last_match_pos.col
             {
                 found_new_match = FAIL;
-            } else if compl_dir_forward()
+            } else if (compl_dir_forward()
                 && ((*st).prev_match_pos.lnum > (*(*st).cur_match_pos).lnum
                     || ((*st).prev_match_pos.lnum == (*(*st).cur_match_pos).lnum
-                        && (*st).prev_match_pos.col >= (*(*st).cur_match_pos).col))
-            {
-                if looped_around {
-                    found_new_match = FAIL;
-                } else {
-                    looped_around = true;
-                }
-            } else if !compl_dir_forward()
-                && ((*st).prev_match_pos.lnum < (*(*st).cur_match_pos).lnum
-                    || ((*st).prev_match_pos.lnum == (*(*st).cur_match_pos).lnum
-                        && (*st).prev_match_pos.col <= (*(*st).cur_match_pos).col))
+                        && (*st).prev_match_pos.col >= (*(*st).cur_match_pos).col)))
+                || (!compl_dir_forward()
+                    && ((*st).prev_match_pos.lnum < (*(*st).cur_match_pos).lnum
+                        || ((*st).prev_match_pos.lnum == (*(*st).cur_match_pos).lnum
+                            && (*st).prev_match_pos.col <= (*(*st).cur_match_pos).col)))
             {
                 if looped_around {
                     found_new_match = FAIL;
