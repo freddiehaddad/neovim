@@ -11,7 +11,7 @@ add_custom_command(
   OUTPUT "${XXD_OUT_BIN}"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
   COMMAND ${CMAKE_COMMAND} -E copy "${XXD_CARGO_BIN}" "${XXD_OUT_BIN}"
-  DEPENDS nvim_rs_build "${PROJECT_SOURCE_DIR}/src/xxd/main.rs")
+  DEPENDS "${XXD_CARGO_BIN}" nvim_rs_build "${PROJECT_SOURCE_DIR}/src/xxd/main.rs")
 
 add_custom_target(xxd ALL DEPENDS "${XXD_OUT_BIN}")
 

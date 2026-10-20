@@ -118,7 +118,7 @@ add_custom_command(
   OUTPUT "${NVIM_BIN_FILE}"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
   COMMAND ${CMAKE_COMMAND} -E copy "${NVIM_CARGO_BIN}" "${NVIM_BIN_FILE}"
-  DEPENDS nvim_rs_build)
+  DEPENDS "${NVIM_CARGO_BIN}" nvim_rs_build)
 
 add_custom_target(nvim_bin DEPENDS "${NVIM_BIN_FILE}")
 

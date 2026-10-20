@@ -23,7 +23,8 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
 use crate::charset::{
-    ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, transchar, vim_iswordp,
+    ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, to_special, transchar,
+    vim_iswordp,
 };
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuzzy_complete};
@@ -48,8 +49,8 @@ use crate::garray::{
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
-    K_SPECIAL, K_ZERO, KE_FILLER, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO,
-    REPTERM_DO_LT, REPTERM_FROM_PART, REPTERM_NO_SIMPLIFY, get_special_key_name, replace_termcodes,
+    K_SPECIAL, K_ZERO, KE_FILLER, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, REPTERM_DO_LT,
+    REPTERM_FROM_PART, REPTERM_NO_SIMPLIFY, get_special_key_name, key2termcap1, replace_termcodes,
     vim_strsave_escape_ks, vim_unescape_ks,
 };
 use crate::lua::converter::LuaRef;
@@ -235,32 +236,11 @@ const fn map_hash(mode: c_int, c1: u8) -> usize {
 }
 
 #[inline]
-const fn termcap2key(a: c_int, b: c_int) -> c_int {
-    -(a + (b << 8))
-}
-
-#[inline]
-const fn key2termcap1(x: c_int) -> c_int {
-    (((-x) as u32) >> 8) as c_int & 0xff
-}
-
-#[inline]
 const fn k_third(c: c_int) -> u8 {
     if c == K_SPECIAL as c_int || c == NUL as c_int {
         KE_FILLER
     } else {
         key2termcap1(c) as u8
-    }
-}
-
-#[inline]
-const fn to_special(a: u8, b: u8) -> c_int {
-    if a == KS_SPECIAL {
-        K_SPECIAL as c_int
-    } else if a == KS_ZERO {
-        K_ZERO
-    } else {
-        termcap2key(a as c_int, b as c_int)
     }
 }
 
@@ -1413,7 +1393,7 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> *m
                 }
 
                 if c == K_SPECIAL as c_int && *str_ptr.add(1) != 0 && *str_ptr.add(2) != 0 {
-                    c = to_special(*str_ptr.add(1), *str_ptr.add(2));
+                    c = to_special(*str_ptr.add(1) as c_int, *str_ptr.add(2) as c_int);
                     if c == K_ZERO {
                         c = NUL as c_int;
                     }
@@ -2164,7 +2144,7 @@ pub unsafe extern "C" fn put_escstr(fd: *mut FILE, strstart: *const c_char, what
                     }
                 }
                 if c == K_SPECIAL as c_int {
-                    c = to_special(*str_ptr.add(1), *str_ptr.add(2));
+                    c = to_special(*str_ptr.add(1) as c_int, *str_ptr.add(2) as c_int);
                     str_ptr = str_ptr.add(2);
                 }
                 if is_special(c) || modifiers != 0 {

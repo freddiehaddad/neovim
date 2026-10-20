@@ -123,7 +123,13 @@ pub const fn is_special(c: c_int) -> bool {
 
 #[inline]
 pub const fn to_special(a: c_int, b: c_int) -> c_int {
-    -((a & 0xff) | ((b & 0xff) << 8))
+    if a == KS_SPECIAL {
+        K_SPECIAL
+    } else if a == KS_ZERO {
+        crate::keycodes::K_ZERO
+    } else {
+        crate::keycodes::termcap2key(a, b)
+    }
 }
 
 const Ctrl_V: c_char = 22;
@@ -1318,5 +1324,18 @@ pub unsafe extern "C" fn backslash_halve_save(mut p: *const c_char) -> *mut c_ch
         }
         *dst = NUL;
         res
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keycodes::{K_UP, K_ZERO, KE_FILLER};
+
+    #[test]
+    fn to_special_handles_ks_special_and_ks_zero() {
+        assert_eq!(to_special(KS_SPECIAL, KE_FILLER as c_int), K_SPECIAL);
+        assert_eq!(to_special(KS_ZERO, KE_FILLER as c_int), K_ZERO);
+        assert_eq!(to_special(b'k' as c_int, b'u' as c_int), K_UP);
     }
 }

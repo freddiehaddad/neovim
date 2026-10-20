@@ -17,8 +17,8 @@ use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectDat
 use crate::api::vim::{HLF_N, HlMessage, HlMessageChunk, MessageData, kFalse, kTrue};
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
-    ascii_iswhite, ascii2cells, char2cells, k_second, skipwhite, transchar_buf, transchar_byte_buf,
-    vim_isprintc, vim_strsize,
+    ascii_iswhite, ascii2cells, char2cells, k_second, skipwhite, to_special, transchar_buf,
+    transchar_byte_buf, vim_isprintc, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
@@ -57,8 +57,8 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, K_ZERO, KE_FILLER, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_SHIFT, NL, TAB,
-    get_special_key, is_special, key2termcap1, keychord, termcap2key,
+    K_X2MOUSE, KE_FILLER, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, is_special,
+    key2termcap1, keychord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::map_glyph_cache::NvimString;
@@ -439,17 +439,6 @@ const fn k_third(c: c_int) -> u8 {
         KE_FILLER
     } else {
         key2termcap1(c) as u8
-    }
-}
-
-#[inline]
-const fn to_special(a: u8, b: u8) -> c_int {
-    if a == KS_SPECIAL {
-        K_SPECIAL as c_int
-    } else if a == KS_ZERO {
-        K_ZERO
-    } else {
-        termcap2key(a as c_int, b as c_int)
     }
 }
 
@@ -2723,7 +2712,7 @@ pub unsafe extern "C" fn str2special(
                 c = (*str_ as u8) as c_int;
             }
             if c == K_SPECIAL as c_int && *str_.add(1) != NUL && *str_.add(2) != NUL {
-                c = to_special(*str_.add(1) as u8, *str_.add(2) as u8);
+                c = to_special(*str_.add(1) as u8 as c_int, *str_.add(2) as u8 as c_int);
                 str_ = str_.add(2);
             }
             if is_special(c) || modifiers != 0 {
