@@ -8,6 +8,7 @@ set_target_properties(nvim_bin
   PROPERTIES
   EXPORT_COMPILE_COMMANDS ON
   ENABLE_EXPORTS TRUE
+  LINKER_LANGUAGE C
   OUTPUT_NAME nvim)
 
 #-------------------------------------------------------------------------------
@@ -304,10 +305,9 @@ file(GLOB MSGPACK_RPC_HEADERS CONFIGURE_DEPENDS msgpack_rpc/*.h)
 target_include_directories(main_lib INTERFACE
   ${GENERATED_DIR}
   ${GENERATED_INCLUDES_DIR}
-  "${PROJECT_BINARY_DIR}/cmake.config"
   "${PROJECT_SOURCE_DIR}/src")
 
-file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR} "${PROJECT_BINARY_DIR}/cmake.config/auto")
+file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
 file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
@@ -393,17 +393,24 @@ endforeach()
 
 list(REMOVE_DUPLICATES TEST_INCLUDE_DIRS)
 
-set(NVIM_VERSION_GIT_H ${PROJECT_BINARY_DIR}/cmake.config/auto/versiondef_git.h)
-add_custom_target(update_version_stamp
-  COMMAND ${CMAKE_COMMAND}
-    -D NVIM_VERSION_MAJOR=${NVIM_VERSION_MAJOR}
-    -D NVIM_VERSION_MINOR=${NVIM_VERSION_MINOR}
-    -D NVIM_VERSION_PATCH=${NVIM_VERSION_PATCH}
-    -D NVIM_VERSION_PRERELEASE=${NVIM_VERSION_PRERELEASE}
-    -D OUTPUT=${NVIM_VERSION_GIT_H}
-    -D NVIM_SOURCE_DIR=${CMAKE_SOURCE_DIR}
-    -P ${PROJECT_SOURCE_DIR}/cmake/GenerateVersion.cmake
-  BYPRODUCTS ${NVIM_VERSION_GIT_H})
+set(NVIM_VERSION
+    "v${NVIM_VERSION_MAJOR}.${NVIM_VERSION_MINOR}.${NVIM_VERSION_PATCH}${NVIM_VERSION_PRERELEASE}")
+set(NVIM_VERSION_BUILD "")
+execute_process(
+  COMMAND git --git-dir=${PROJECT_SOURCE_DIR}/.git --work-tree=${PROJECT_SOURCE_DIR} describe --first-parent --dirty --always
+  OUTPUT_VARIABLE GIT_TAG
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+  RESULT_VARIABLE RES)
+if(NOT RES)
+  string(REGEX REPLACE ".*\\-" "" NVIM_VERSION_BUILD "${GIT_TAG}")
+  if(NVIM_VERSION_PRERELEASE)
+    string(REGEX REPLACE "^v[0-9]+.[0-9]+.[0-9]+-" "" NVIM_VERSION_GIT "${GIT_TAG}")
+    string(REGEX REPLACE "^([0-9]+)-([a-z0-9]+)" "\\1+\\2" NVIM_VERSION_GIT "${NVIM_VERSION_GIT}")
+    set(NVIM_VERSION "${NVIM_VERSION}-${NVIM_VERSION_GIT}")
+  endif()
+endif()
+message(STATUS "Using NVIM_VERSION: ${NVIM_VERSION}")
 
 set(NVIM_LUA $<TARGET_FILE:nvim_bin> -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SOURCE_DIR})
 set(NVIM_LUA_DEPS nvim_bin nvim_runtime_deps ${NVIM_LUA_PRELOAD})
@@ -426,10 +433,6 @@ add_custom_command(
 add_custom_command(OUTPUT ${FUNCS_DATA}
   COMMAND ${NVIM_LUA} ${FUNCS_GENERATOR} ${EVAL_FUNCS_METADATA} ${FUNCS_DATA} ${CMAKE_CURRENT_LIST_DIR}/eval.lua
   DEPENDS ${NVIM_LUA_DEPS} ${FUNCS_GENERATOR} ${CMAKE_CURRENT_LIST_DIR}/eval.lua ${EVAL_FUNCS_METADATA}
-)
-
-list(APPEND NVIM_GENERATED_FOR_SOURCES
-  "${NVIM_VERSION_GIT_H}"
 )
 
 if(PREFER_LUA)
@@ -492,6 +495,8 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E env
     "CARGO_TARGET_DIR=${NVIM_RUST_TARGET_DIR}"
     "VTERM_TEST_FILE=${VTERM_TEST_FILE}"
+    "NVIM_VERSION_LONG=NVIM ${NVIM_VERSION}"
+    "NVIM_VERSION_BUILD=${NVIM_VERSION_BUILD}"
     "NVIM_BUILD_TYPE=Build type: $<CONFIG>"
     "NVIM_VERSION_CFLAGS=$<$<NOT:$<OR:$<CONFIG:Release>,$<CONFIG:MinSizeRel>>>:Compilation: ${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} -DHAVE_UNIBILIUM=${NVIM_RUST_UNIBILIUM}>"
     "NVIM_DEFAULT_VIM_DIR=${CMAKE_INSTALL_FULL_DATAROOTDIR}/nvim"
@@ -534,7 +539,9 @@ endif()
 if(STATIC_BUILD)
   target_link_options(nvim_bin PRIVATE -static-libgcc -static-libstdc++ -static)
 endif()
-if(UNIX AND NOT APPLE)
+if(MSVC)
+  target_link_options(nvim_bin PRIVATE /INCLUDE:main /DEFAULTLIB:msvcrt /DEFAULTLIB:ucrt /NODEFAULTLIB:libcmt /NODEFAULTLIB:libucrt)
+elseif(UNIX AND NOT APPLE)
   target_link_libraries(nvim_bin PRIVATE -Wl,--whole-archive "${NVIM_RUST_LIB}" -Wl,--no-whole-archive)
 endif()
 target_link_libraries(nvim_bin PRIVATE main_lib PUBLIC libuv)
@@ -637,6 +644,7 @@ endif()
 set_target_properties(
   libnvim
   PROPERTIES
+    LINKER_LANGUAGE C
     OUTPUT_NAME ${LIBNVIM_NAME}
 )
 target_compile_definitions(libnvim PRIVATE MAKE_LIB)

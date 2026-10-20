@@ -322,12 +322,7 @@ pub fn build(b: *std.Build) !void {
 
         break :v b.fmt("{s}-dev-{s}+{s}{s}", .{ version_string, commit_height, commit_id, dirty_tag });
     };
-
-    const versiondef_git = gen_config.add("auto/versiondef_git.h", b.fmt(
-        \\#define NVIM_VERSION_MEDIUM "{s}"
-        \\#define NVIM_VERSION_BUILD "zig"
-        \\
-    , .{version_medium}));
+    _ = version_medium;
 
     // TODO(zig): using getEmittedIncludeTree() is ugly af. we want unittests
     // to reuse the std.build.Module include_path thing

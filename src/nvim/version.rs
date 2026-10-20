@@ -3797,6 +3797,9 @@ static DEFAULT_VIM_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT
 static DEFAULT_VIMRUNTIME_DIR_BUF: [u8; 4096] =
     make_cstr_buf(option_env!("NVIM_DEFAULT_VIMRUNTIME_DIR"));
 static DEFAULT_LIB_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT_LIB_DIR"));
+static LONG_VERSION_BUF: [u8; 256] =
+    make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
+static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static nvim_version_major: c_int = 0;
@@ -3830,10 +3833,18 @@ pub static mut default_lib_dir: *mut c_char =
     (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>().cast_mut();
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
-
-unsafe extern "C" {
-    pub static mut longVersion: *mut c_char;
-}
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut longVersion: *mut c_char =
+    (&raw const LONG_VERSION_BUF).cast::<c_char>().cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut nvim_version_build: *const c_char = if match option_env!("NVIM_VERSION_BUILD") {
+    Some(s) => !s.is_empty(),
+    None => false,
+} {
+    (&raw const VERSION_BUILD_BUF).cast::<c_char>()
+} else {
+    ptr::null()
+};
 
 /// Compares a version string to the current Nvim version (`has_nvim_version`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

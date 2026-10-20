@@ -3678,10 +3678,7 @@ static PACKED_API_METADATA_SUFFIX: &[u8] = &[
     109, 95, 116, 97, 98, 112, 97, 103, 101, 95,
 ];
 
-#[cfg(not(test))]
-unsafe extern "C" {
-    static nvim_version_build: *const c_char;
-}
+use crate::version::nvim_version_build;
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();
 
@@ -3692,10 +3689,7 @@ pub unsafe extern "C" fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
             PACKED_API_METADATA_PREFIX.len() + 64 + PACKED_API_METADATA_SUFFIX.len(),
         );
         out.extend_from_slice(PACKED_API_METADATA_PREFIX);
-        #[cfg(not(test))]
         let build_ptr = unsafe { nvim_version_build };
-        #[cfg(test)]
-        let build_ptr: *const c_char = ptr::null();
         if build_ptr.is_null() {
             out.push(0xc0);
         } else {

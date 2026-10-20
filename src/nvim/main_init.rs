@@ -569,6 +569,12 @@ unsafe fn early_init(paramp: *mut mparm_T) {
     }
 }
 
+#[cfg(not(test))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn main(argc: c_int, argv: *mut *mut c_char) -> c_int {
+    unsafe { nvim_main(argc, argv) }
+}
+
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
     #[cfg(not(test))]
