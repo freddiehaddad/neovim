@@ -298,11 +298,11 @@ const NODE_OTHER: c_int = 2;
 const VIM_QUESTION: c_int = 4;
 const VIM_YES: c_int = 2;
 
-const BF_READERR: c_int = 0x02;
-const BF_NEW: c_int = 0x04;
+const BF_CHECK_RO: c_int = 0x02;
+const BF_NEVERLOADED: c_int = 0x04;
 const BF_NOTEDITED: c_int = 0x08;
-const BF_NEVERLOADED: c_int = 0x10;
-const BF_CHECK_RO: c_int = 0x0800;
+const BF_NEW: c_int = 0x10;
+const BF_READERR: c_int = 0x40;
 
 const CCGD_AW: c_int = 1;
 const CCGD_MULTWIN: c_int = 2;

@@ -207,7 +207,7 @@ const DOBUF_FIRST: c_int = 1;
 
 const BLN_LISTED: c_int = 2;
 const BLN_NEW: c_int = 8;
-const BLN_NOOPT: c_int = 32;
+const BLN_NOOPT: c_int = 16;
 
 const BCO_ENTER: c_int = 1;
 const BCO_NOHELP: c_int = 4;

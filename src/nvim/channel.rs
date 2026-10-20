@@ -130,7 +130,7 @@ const STDERR_FILENO: c_int = 2;
 const LUA_NOREF: LuaRef = -2;
 const VAR_UNLOCKED: c_int = 0;
 const kCallbackNone: c_int = 0;
-const kListLenMayKnow: isize = -2;
+const kListLenMayKnow: isize = -3;
 
 const kProcTypeUv: c_int = 0;
 const kProcTypePty: c_int = 1;

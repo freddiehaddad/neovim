@@ -57,7 +57,7 @@ use crate::plines::linetabsize_col;
 
 const NUL: c_char = 0;
 const CTRL_V: c_char = 0x16;
-const MB_MAXBYTES: usize = 4;
+const MB_MAXBYTES: usize = 30;
 const NUMBUFLEN: usize = 65;
 
 const kListLenUnknown: isize = -1;

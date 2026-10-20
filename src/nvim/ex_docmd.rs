@@ -515,7 +515,7 @@ const BACKWARD: c_int = -1;
 
 const kCpoBar: c_int = b'b' as c_int;
 const kCpoAltread: c_int = b'a' as c_int;
-const kCpoNosymlinks: c_int = b'P' as c_int;
+const kCpoNosymlinks: c_int = b'~' as c_int;
 const kCpoExecbuf: c_int = b'e' as c_int;
 
 const DOBUF_CURRENT: c_int = 0;

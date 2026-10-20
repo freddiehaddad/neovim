@@ -126,7 +126,7 @@ pub use crate::extmark::TriState;
 pub const MAXMAPLEN: usize = 50;
 pub const MAX_MAPHASH: usize = 256;
 const NUMBUFLEN: usize = 65;
-const MB_MAXBYTES: usize = 31;
+const MB_MAXBYTES: usize = 30;
 
 const NUL: c_char = 0;
 const NL: c_int = b'\n' as c_int;
@@ -164,7 +164,7 @@ const ABBR_OFF: c_int = 0x100;
 const K_ZERO: c_int = -((KS_ZERO as c_int) + ((KE_FILLER as c_int) << 8));
 
 const CMD_map: cmdidx_T = 279;
-const CMD_unmap: cmdidx_T = 505;
+const CMD_unmap: cmdidx_T = 506;
 const EXPAND_NOTHING: c_int = 0;
 const EXPAND_MAPPINGS: c_int = 16;
 

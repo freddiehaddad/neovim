@@ -81,9 +81,9 @@ const UV_EPIPE: c_int = -4047;
 #[cfg(not(windows))]
 const UV_EPIPE: c_int = -32;
 
-const LOGLVL_DBG: c_int = 0;
-const LOGLVL_INF: c_int = 1;
-const LOGLVL_ERR: c_int = 3;
+const LOGLVL_DBG: c_int = 1;
+const LOGLVL_INF: c_int = 2;
+const LOGLVL_ERR: c_int = 4;
 
 const EVENT_CHANINFO: event_T = 23;
 

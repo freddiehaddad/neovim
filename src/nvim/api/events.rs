@@ -22,7 +22,7 @@ use crate::api::private::validate::{Error, Object, ObjectType, api_err_exp};
 use crate::map_glyph_cache::NvimString;
 
 const VV_TERMRESPONSE: c_int = 11;
-const LOGLVL_ERR: c_int = 3;
+const LOGLVL_ERR: c_int = 4;
 
 /// Emitted on the client channel if an async API request responds with an error (`nvim_error_event`).
 #[unsafe(no_mangle)]

@@ -213,7 +213,7 @@ const SID_CMDARG: c_int = -2;
 const SID_CARG: c_int = -3;
 const SID_ENV: c_int = -4;
 
-const kListLenMayKnow: isize = -2;
+const kListLenMayKnow: isize = -3;
 const VAR_FIXED: c_int = 2;
 
 const kNone: TriState = -1;

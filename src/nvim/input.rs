@@ -184,7 +184,7 @@ const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kOptBoFlagError: c_uint = 0x40;
 const LUA_NOREF: LuaRef = -2;
-const kRetNilBool: c_int = 2;
+const kRetNilBool: c_int = 1;
 const VIML_INTERNAL_CALL: u64 = 1u64 << 63;
 const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 
@@ -1112,8 +1112,8 @@ pub unsafe extern "C" fn start_redo(count: c_int, old_redo: bool) -> c_int {
 
         let mut spec = *rd;
         spec.body = KVec::new();
-        if (*rd).regname >= b'1' as c_int && (*rd).regname < b'9' as c_int {
-            (*rd).regname += 1;
+        if spec.regname >= b'1' as c_int && spec.regname < b'9' as c_int {
+            spec.regname += 1;
         }
         if count != 0 {
             spec.count = c_long::from(count);

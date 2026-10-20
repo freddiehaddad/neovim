@@ -318,7 +318,7 @@ const ML_DEL_MESSAGE: c_int = 0x01;
 const GETF_SETMARK: c_int = 0x01;
 const GETF_ALT: c_int = 0x02;
 
-const ECMD_LAST: linenr_T = 0;
+const ECMD_LAST: linenr_T = -1;
 const ECMD_HIDE: c_int = 0x01;
 
 const DOCMD_KEEPLINE: c_int = 0x20;
@@ -333,7 +333,7 @@ const PUT_LINE_FORWARD: c_int = 32;
 const PUT_BLOCK_INNER: c_int = 64;
 
 const VALID_WCOL: c_int = 0x02;
-const VALID_CROW: c_int = 0x08;
+const VALID_CROW: c_int = 0x10;
 
 const OPT_LOCAL: c_int = 0x02;
 const kOptFoldenable: OptIndex = 103;

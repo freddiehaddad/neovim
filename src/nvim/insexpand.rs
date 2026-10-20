@@ -249,7 +249,7 @@ const kCallbackNone: c_int = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 const kWinInfo: WinKind = 1;
 const kUIMessages: UIExtension = 4;
-const kListLenMayKnow: isize = -1;
+const kListLenMayKnow: isize = -3;
 
 const VAR_UNKNOWN: VarType = VarType::VAR_UNKNOWN;
 const VAR_NUMBER: VarType = VarType::VAR_NUMBER;

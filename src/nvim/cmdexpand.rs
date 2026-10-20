@@ -840,7 +840,7 @@ const Ctrl_V: c_char = 22;
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 
-const MB_MAXBYTES: usize = 4;
+const MB_MAXBYTES: usize = 30;
 const MAXPATHL: usize = 4096;
 
 #[cfg(windows)]

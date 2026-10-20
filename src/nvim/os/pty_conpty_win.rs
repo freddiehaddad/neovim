@@ -66,9 +66,9 @@ const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x0002_0016;
 #[cfg(windows)]
 const S_OK: HRESULT = 0;
 #[cfg(windows)]
-const LOGLVL_INF: c_int = 1;
+const LOGLVL_INF: c_int = 2;
 #[cfg(windows)]
-const LOGLVL_ERR: c_int = 3;
+const LOGLVL_ERR: c_int = 4;
 
 #[cfg(windows)]
 #[repr(C)]

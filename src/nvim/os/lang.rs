@@ -43,7 +43,7 @@ use crate::profile::{time_msg, time_start};
 
 const NUL: c_char = 0;
 const MAXPATHL: usize = 4096;
-const kShellOptSilent: c_int = 4;
+const kShellOptSilent: c_int = 8;
 
 const VV_LANG: c_int = 13;
 const VV_LC_TIME: c_int = 14;

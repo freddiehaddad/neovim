@@ -49,7 +49,7 @@ const K_MP_INTEGER: usize = 2;
 const K_MP_MAP: usize = 6;
 const K_MP_EXT: usize = 7;
 
-const STR2NR_HEX: c_int = 1 << 1;
+const STR2NR_HEX: c_int = 1 << 2;
 const STR2NR_FORCE: c_int = 1 << 7;
 
 const SURROGATE_HI_START: u64 = 0xD800;

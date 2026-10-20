@@ -90,9 +90,9 @@ const UV_TTY_SUPPORTED: c_int = 0;
 #[cfg(windows)]
 const MAXPATHL: usize = 4096;
 #[cfg(windows)]
-const LOGLVL_INF: c_int = 1;
+const LOGLVL_INF: c_int = 2;
 #[cfg(windows)]
-const LOGLVL_WRN: c_int = 2;
+const LOGLVL_WRN: c_int = 3;
 
 #[cfg(windows)]
 static mut ORIG_TITLE: [c_char; 256] = [0; 256];

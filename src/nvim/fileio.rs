@@ -212,7 +212,7 @@ const BAD_DROP: c_int = -2;
 const FORCE_BIN: c_int = 1;
 const FORCE_NOBIN: c_int = 2;
 
-const OPT_LOCAL: c_int = 4;
+const OPT_LOCAL: c_int = 0x02;
 const kOptFileencoding: c_int = 92;
 
 const ENC_UNICODE: c_int = 0x04;
@@ -234,7 +234,7 @@ const MF_DIRTY_YES_NOSYNC: c_int = 2;
 const SEA_QUIT: c_int = 2;
 const BL_WHITE: c_int = 1;
 const BL_FIX: c_int = 4;
-const BLN_DUMMY: c_int = 32;
+const BLN_DUMMY: c_int = 4;
 const UPD_NOT_VALID: c_int = 40;
 const CMOD_LOCKMARKS: c_int = 0x0800;
 
