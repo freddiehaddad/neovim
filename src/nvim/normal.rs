@@ -8,15 +8,21 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::FORWARD;
 use crate::api::command::exarg_T;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, win_T};
+use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
+use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::buffer::kShmFileinfo;
+use crate::buffer::{GETF_ALT, GETF_SETMARK, kOptJopFlagView};
 use crate::buffer::{buf_get_changedtick, buf_hide, buflist_getfile, fileinfo, modifiable};
 use crate::change::COM_MAX_LEN;
 use crate::change::ML_DEL_MESSAGE;
+use crate::change::{OPENLINE_DO_COM, kOptVeFlagOnemore};
 use crate::change::{
     changed_lines, del_chars, deleted_lines, get_leader_len, ins_char, ins_char_bytes, open_line,
 };
@@ -26,7 +32,9 @@ use crate::charset::{
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdexpand::RE_LAST;
+use crate::cmdexpand::{SEARCH_OPT, SEARCH_START};
 use crate::cmdhist::{HIST_SEARCH, add_to_history, init_history};
+use crate::cursor::kOptVeFlagAll;
 use crate::cursor::{
     adjust_cursor_col, check_cursor, check_cursor_col, check_cursor_lnum, clearpos, coladvance,
     coladvance_force, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
@@ -36,7 +44,9 @@ use crate::cursor::{
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::{diff_move_to, diff_set_topline, ex_diffupdate, nv_diffgetput};
 use crate::digraph::get_digraph;
+use crate::drawline::{SMT_ALL, VALID_CROW, VALID_WCOL};
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
+use crate::drawscreen::kOptVeFlagBlock;
 use crate::drawscreen::{
     UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, conceal_check_cursor_line,
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, show_cursor_info_later,
@@ -45,13 +55,18 @@ use crate::drawscreen::{
 use crate::errors::*;
 use crate::eval::buffer::{prompt_invoke_callback, varnumber_T};
 use crate::eval::deprecated::{buf_T, fmark_T, synblock_T, visualinfo_T};
+use crate::eval::funcs::kMTLineWise;
 use crate::eval::funcs::{kMTCharWise, kMTUnknown};
+use crate::eval::kMarkAll;
 use crate::eval::typval::tv_clear;
+use crate::eval::vars::VV_OP;
 use crate::eval::vars::{set_reg_var, set_vcount, set_vim_var_string};
+use crate::ex_cmds::ECMD_HIDE;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y, ECMD_LAST};
 use crate::ex_cmds::{do_ascii, do_ecmd};
 use crate::ex_cmds2::autowrite;
 use crate::ex_docmd::{ACTION_GOTO, ACTION_SHOW, ACTION_SHOW_ALL, DT_POP, FIND_ANY, FIND_DEFINE};
+use crate::ex_docmd::{DOCMD_KEEPLINE, SEARCH_MSG};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_sleep, update_topline_cursor};
 use crate::ex_eval::discard_current_exception;
 use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
@@ -59,7 +74,6 @@ use crate::ex_getln::{
     VSE_NONE, cmdwin_do_action, compute_cmdrow, curbuf_locked, getcmdline, getexline, text_locked,
     text_locked_msg, vim_strsave_fnameescape,
 };
-use crate::extmark::TriState;
 use crate::file_search::grab_file_name;
 use crate::fileio::check_timestamps;
 use crate::fold::{
@@ -71,6 +85,7 @@ use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::help::ex_help;
 use crate::indent_c::check_linecomment;
+use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM};
 use crate::input::K_PASTE_START;
 use crate::input::kInsNone;
 use crate::input::{
@@ -88,6 +103,7 @@ use crate::insert::{
     beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner, edit, get_literal,
     ins_copychar, oneleft, oneright, prompt_curpos_editable, set_last_insert,
 };
+use crate::insert::{kOptFdoFlagAll, kOptFdoFlagHor};
 use crate::keycodes::{
     CAR, DEL, ESC, K_BS, K_C_END, K_C_HOME, K_C_LEFT, K_C_RIGHT, K_COMMAND, K_DEL, K_DOWN, K_END,
     K_F1, K_HELP, K_HOME, K_IGNORE, K_INS, K_KDEL, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KPAGEDOWN,
@@ -103,6 +119,10 @@ use crate::mapping::{add_map, langmap_adjust_mb};
 use crate::mark::{
     MarkMove, MarkMoveRes, checkpcmark, get_changelist, get_jumplist, getnextmark, mark_get,
     mark_mb_adjustpos, mark_move_to, pos_to_mark, setmark, setpcmark,
+};
+use crate::mark::{
+    kMarkBeginLine, kMarkChangedCursor, kMarkChangedLine, kMarkContext, kMarkJumpList,
+    kMarkMoveFailed, kMarkMoveSuccess, kMarkSetView, kMarkSwitchedBuf,
 };
 use crate::r#match::{HLF_L, HLF_LC};
 use crate::math::{FAIL, OK, vim_append_digit_int};
@@ -174,7 +194,7 @@ use crate::strings::{
 use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
 use crate::terminal::terminal_check_refresh;
-use crate::textformat::{MotionType, auto_format, has_format_option, oparg_T};
+use crate::textformat::{auto_format, has_format_option, oparg_T};
 use crate::textobject::{
     bck_word, bckend_word, current_block, current_line, current_par, current_quote, current_sent,
     current_tagblock, current_word, end_word, findpar, findsent, fwd_word,
@@ -254,17 +274,8 @@ const Ctrl__: c_int = 31;
 
 const MOD_MASK_CTRL: c_int = 0x04;
 
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
-
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
-
-const kMTLineWise: MotionType = 1;
-
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
 
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;
@@ -273,21 +284,6 @@ const kUIMessages: c_int = 4;
 
 const B_IMODE_LMAP: i64 = 1;
 
-const ML_EMPTY: c_int = 0x01;
-
-const GETF_SETMARK: c_int = 0x01;
-const GETF_ALT: c_int = 0x02;
-
-const ECMD_HIDE: c_int = 0x01;
-
-const DOCMD_KEEPLINE: c_int = 0x20;
-
-const OPENLINE_DO_COM: c_int = 0x02;
-
-const VALID_WCOL: c_int = 0x02;
-const VALID_CROW: c_int = 0x10;
-
-const OPT_LOCAL: c_int = 0x02;
 pub(crate) const kOptFoldenable: OptIndex = 103;
 pub(crate) const kOptFoldlevel: OptIndex = 106;
 
@@ -300,55 +296,27 @@ const kFoOpenComs: c_int = b'o' as c_int;
 pub(crate) const kShmSearchcount: c_int = b'S' as c_int;
 
 const kOptBoFlagEsc: c_uint = 0x80;
-const kOptCbFlagUnnamed: c_uint = 0x01;
-const kOptCbFlagUnnamedplus: c_uint = 0x02;
+pub(crate) const kOptCbFlagUnnamed: c_uint = 0x01;
+pub(crate) const kOptCbFlagUnnamedplus: c_uint = 0x02;
 
-const kOptFdoFlagAll: c_uint = 0x01;
 const kOptFdoFlagBlock: c_uint = 0x02;
-const kOptFdoFlagHor: c_uint = 0x04;
 const kOptFdoFlagMark: c_uint = 0x08;
 const kOptFdoFlagPercent: c_uint = 0x10;
-const kOptFdoFlagSearch: c_uint = 0x40;
+pub(crate) const kOptFdoFlagSearch: c_uint = 0x40;
 const kOptFdoFlagJump: c_uint = 0x400;
-
-const kOptJopFlagView: c_uint = 0x02;
-
-const kOptVeFlagAll: c_uint = 0x04;
-const kOptVeFlagBlock: c_uint = 0x05;
-const kOptVeFlagOnemore: c_uint = 0x08;
 
 const MB_MAXCHAR: usize = 6;
 
-const kMarkMoveSuccess: c_int = 1;
-const kMarkMoveFailed: c_int = 2;
-const kMarkSwitchedBuf: c_int = 4;
-const kMarkChangedLine: c_int = 16;
-const kMarkChangedCursor: c_int = 32;
-
-const kMarkBeginLine: c_int = 1;
-const kMarkContext: c_int = 2;
 const KMarkNoContext: c_int = 4;
-const kMarkSetView: c_int = 8;
-const kMarkJumpList: c_int = 16;
-
-const kMarkAll: c_int = 1;
-
-const VV_OP: c_int = 55;
 
 const HLF_MSG: usize = 63;
 
-const FM_BACKWARD: c_int = 0x01;
-const FM_FORWARD: c_int = 0x02;
-const FM_SKIPCOMM: c_int = 0x08;
-const SEARCH_REV: c_int = 0x01;
-const SEARCH_ECHO: c_int = 0x02;
-const SEARCH_MSG: c_int = 0x0c;
-const SEARCH_OPT: c_int = 0x10;
-const SEARCH_START: c_int = 0x100;
-const SEARCH_MARK: c_int = 0x200;
-const SMT_ALL: c_int = 0;
-const SMT_BAD: c_int = 1;
-const SMT_RARE: c_int = 2;
+pub(crate) const FM_FORWARD: c_int = 0x02;
+pub(crate) const SEARCH_REV: c_int = 0x01;
+pub(crate) const SEARCH_ECHO: c_int = 0x02;
+pub(crate) const SEARCH_MARK: c_int = 0x200;
+pub(crate) const SMT_BAD: c_int = 1;
+pub(crate) const SMT_RARE: c_int = 2;
 
 const NIL_OBJ: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

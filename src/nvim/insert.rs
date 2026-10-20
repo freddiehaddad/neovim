@@ -11,8 +11,12 @@
 
 use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::{FORWARD, ML_LINE_DIRTY};
+use crate::api::command::CMOD_KEEPJUMPS;
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::{pos_T, win_T};
+use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
+use crate::arglist::ML_EMPTY;
 use crate::autocmd::{
     EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
     EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
@@ -24,6 +28,7 @@ use crate::buffer::{
 };
 use crate::change::COM_MAX_LEN;
 use crate::change::kCpoListwm;
+use crate::change::kOptVeFlagOnemore;
 use crate::change::{
     OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes, del_char,
     get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes, open_line,
@@ -34,6 +39,7 @@ use crate::charset::{
 };
 use crate::clipboard::yankreg_T;
 use crate::context::{ctx_restore, ctx_switch};
+use crate::cursor::{VALID_VIRTCOL, kOptVeFlagAll};
 use crate::cursor::{
     char_before_cursor, check_cursor, check_cursor_col, check_visual_pos, coladvance, colnr_T,
     dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
@@ -41,6 +47,7 @@ use crate::cursor::{
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
+use crate::drawline::{VALID_WCOL, VALID_WROW};
 use crate::drawscreen::UPD_VALID;
 use crate::drawscreen::{
     redraw_later, redraw_statuslines, redrawWinline, redrawing, setcursor, show_cursor_info_later,
@@ -49,12 +56,13 @@ use crate::drawscreen::{
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
+use crate::eval::vars::{VV_CHAR, VV_INSERTMODE};
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
 use crate::ex_getln::cmdwin_do_action;
+use crate::ex_getln::{ABBR_OFF, B_IMODE_NONE};
 use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
-use crate::extmark::TriState;
 use crate::fileio::check_timestamps;
 use crate::fold::{
     foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
@@ -168,8 +176,6 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MB_MAXBYTES: usize = 30;
@@ -217,30 +223,15 @@ const fn IS_SPECIAL(c: c_int) -> bool {
 const kInsArrow: c_int = 1;
 const kInsJump: c_int = 2;
 
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
 const kUIMessages: c_int = 4;
 
 const HLF_8: usize = 1;
 
-const VALID_WROW: c_int = 0x01;
-const VALID_WCOL: c_int = 0x02;
-const VALID_VIRTCOL: c_int = 0x04;
-
-const B_IMODE_NONE: i64 = 0;
 const B_IMODE_LMAP: i64 = 1;
 
-const VV_INSERTMODE: c_int = 34;
-const VV_CHAR: c_int = 50;
-
-const kOptFdoFlagAll: c_uint = 0x01;
-const kOptFdoFlagHor: c_uint = 0x04;
+pub(crate) const kOptFdoFlagAll: c_uint = 0x01;
+pub(crate) const kOptFdoFlagHor: c_uint = 0x04;
 const kOptFdoFlagInsert: c_uint = 0x100;
-
-const kOptVeFlagAll: c_uint = 0x04;
-const kOptVeFlagOnemore: c_uint = 0x08;
 
 const kOptBoFlagBackspace: c_uint = 0x02;
 const kOptBoFlagCursor: c_uint = 0x04;
@@ -258,14 +249,10 @@ const kCpoBackspace: c_int = b'v' as c_int;
 const kCpoIndent: c_int = b'I' as c_int;
 const kCpoReplcnt: c_int = b'X' as c_int;
 
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-
 const BS_INDENT: c_int = b'i' as c_int;
 pub(crate) const BS_EOL: c_int = b'l' as c_int;
 pub(crate) const BS_START: c_int = b's' as c_int;
 pub(crate) const BS_NOSTOP: c_int = b'p' as c_int;
-
-const ABBR_OFF: c_int = 0x100;
 
 const INDENT_INC: c_int = 2;
 
@@ -283,9 +270,7 @@ const PC_STATUS_RIGHT: c_int = 1;
 const PC_STATUS_LEFT: c_int = 2;
 const PC_STATUS_SET: c_int = 3;
 
-const ML_EMPTY: c_int = 0x01;
-const ML_LINE_DIRTY: c_int = 0x02;
-const ML_ALLOCATED: c_int = 0x10;
+pub(crate) const ML_ALLOCATED: c_int = 0x10;
 
 #[repr(C)]
 struct InsertState {

@@ -11,6 +11,8 @@
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::api::private::converter::K_BOOL_VAR_FALSE;
+#[cfg(not(test))]
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType};
@@ -27,6 +29,8 @@ use crate::eval::typval::{
     tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_list_first, tv_list_last,
     tv_list_len,
 };
+#[cfg(not(test))]
+use crate::eval::vars::{VV_ERRMSG, VV_EXCEPTION, VV_TESTING};
 #[cfg(not(test))]
 use crate::eval::vars::{
     assert_error, get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim_var_string,
@@ -57,6 +61,8 @@ use crate::os::fs::os_fopen;
 #[cfg(not(test))]
 use crate::regexp::NUMBUFLEN;
 #[cfg(not(test))]
+use crate::runtime::ESTACK_NONE;
+#[cfg(not(test))]
 use crate::runtime::{estack_sfile, sourcing_lnum};
 #[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
@@ -65,12 +71,8 @@ use std::ffi::c_void;
 use std::ffi::{CStr, c_char, c_int};
 
 #[cfg(not(test))]
-const VAR_UNLOCKED: c_int = 0;
-#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
 
-#[cfg(not(test))]
-const ESTACK_NONE: c_int = 0;
 #[cfg(not(test))]
 const EOF_VAL: c_int = -1;
 
@@ -80,13 +82,6 @@ const NL: u8 = 0x0a;
 const FF: u8 = 0x0c;
 const CAR: u8 = 0x0d;
 const ESC: u8 = 0x1b;
-
-#[cfg(not(test))]
-const VV_ERRMSG: c_int = 3;
-#[cfg(not(test))]
-const VV_EXCEPTION: c_int = 30;
-#[cfg(not(test))]
-const VV_TESTING: c_int = 76;
 
 #[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -52,7 +52,6 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, TAB, is_special, key2termcap0, key2termcap1, special_to_buf, termcap2key,
 };
 use crate::kvec::KVec;
-use crate::lua::converter::LuaRef;
 use crate::lua::executor::{nlua_call_ref, nlua_exec_on_key};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{
@@ -100,7 +99,7 @@ pub use crate::fileio::FILE;
 
 const NUL: c_int = 0;
 
-const FLUSH_MINIMAL: flush_buffers_T = 0;
+pub(crate) const FLUSH_MINIMAL: flush_buffers_T = 0;
 const FLUSH_INPUT: flush_buffers_T = 2;
 
 const NSCRIPT: usize = 15;
@@ -140,16 +139,6 @@ const ESC_STR: &CStr = c"\x1b";
 const NL_STR: &CStr = c"\n";
 
 pub(crate) const kInsNone: c_int = 0;
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kOptBoFlagError: c_uint = 0x40;
-const LUA_NOREF: LuaRef = -2;
-const kRetNilBool: c_int = 1;
-
-const VV_MOUSE_WIN: c_int = 51;
-const VV_MOUSE_WINID: c_int = 52;
-const VV_MOUSE_LNUM: c_int = 53;
-const VV_MOUSE_COL: c_int = 54;
 
 const E_RECURSIVE_MAPPING: &CStr = c"E223: Recursive mapping";
 const E_CMD_MAPPING_MUST_END_WITH_CR: &CStr = c"E1255: <Cmd> mapping must end with <CR>";
@@ -321,11 +310,16 @@ static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::buffer::LUA_NOREF;
 use crate::api::buffer::VIML_INTERNAL_CALL;
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::api::vim::{kFalse, kNone};
+use crate::eval::vars::{VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID};
 use crate::event::r#loop::main_loop_events;
 use crate::ex_getln::K_LUA;
+use crate::ex_getln::kOptBoFlagError;
+use crate::lua::executor::kRetNilBool;
 use crate::math::{FAIL, OK};
 
 #[inline]

@@ -3,6 +3,9 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
+use crate::api::private::converter::VAR_UNLOCKED;
+use crate::buffer::VAR_FIXED;
+#[cfg(not(test))]
 use crate::clipboard::VarType;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, listitem_T};
@@ -19,6 +22,8 @@ use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 #[cfg(not(test))]
 use crate::eval::typval::TV_TRANSLATE;
 #[cfg(not(test))]
+use crate::eval::typval::VAR_LOCKED;
+#[cfg(not(test))]
 use crate::eval::typval::{
     tv_blob_copy, tv_blob_get, tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_clear,
     tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_copy, tv_dict_extend, tv_dict_item_remove,
@@ -28,6 +33,8 @@ use crate::eval::typval::{
     tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
 };
 use crate::eval::typval::{tv_blob_len, tv_list_first, tv_list_len};
+#[cfg(not(test))]
+use crate::eval::vars::{VV_KEY, VV_VAL};
 #[cfg(not(test))]
 use crate::eval::vars::{
     get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr, set_vim_var_string,
@@ -58,17 +65,6 @@ use std::ffi::c_int;
 use std::ffi::c_void;
 #[cfg(not(test))]
 use std::ffi::{CStr, c_char};
-
-#[cfg(not(test))]
-const VAR_UNLOCKED: c_int = 0;
-#[cfg(not(test))]
-const VAR_LOCKED: c_int = 1;
-const VAR_FIXED: c_int = 2;
-
-#[cfg(not(test))]
-const VV_VAL: c_int = 35;
-#[cfg(not(test))]
-const VV_KEY: c_int = 36;
 
 #[cfg(not(test))]
 #[derive(Clone, Copy, PartialEq, Eq)]

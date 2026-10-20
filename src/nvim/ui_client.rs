@@ -52,8 +52,6 @@ use std::mem::{size_of, zeroed};
 use std::ptr;
 
 const UI_CLIENT_STDIN_FD: Integer = 3;
-const kChannelStdinPipe: c_int = 0;
-const kLineFlagWrap: c_int = 1;
 const KEYSET_OPTIDX_highlight__url: u64 = 5;
 
 const OBJECT_NIL: Object = Object {
@@ -87,6 +85,8 @@ unsafe extern "C" {
     fn uv_os_getpid() -> c_int;
 }
 
+use crate::api::ui::kLineFlagWrap;
+use crate::channel::kChannelStdinPipe;
 pub use crate::fileio::FILE;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 

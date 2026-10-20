@@ -98,8 +98,6 @@ const DECOR_INLINE_INIT: DecorInline = DecorInline {
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;
 
-const kMTLineWise: MotionType = 1;
-
 const NUL: c_int = 0;
 const NL: c_int = 10;
 const Ctrl_V: c_int = 22;
@@ -108,20 +106,7 @@ const ESC: c_char = 27;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const OPT_LOCAL: c_int = 2;
-const kOptFollow: c_int = 114;
-const VV_CASCADING: c_int = 108;
-
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
-const kCtxRegs: c_int = 1;
-const kCtxCursor: c_int = 64;
-const kCtxMarks: c_int = 128;
-const kCtxVisual: c_int = 256;
-const kCtxMergeReg: c_int = 1;
+pub(crate) const kOptFollow: c_int = 114;
 
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 
@@ -183,9 +168,15 @@ const CONTEXT_INIT: Context = Context {
 };
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::command::CMOD_KEEPJUMPS;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::REMAP_NONE;
+use crate::api::vim::{kCtxRegs, kFalse, kNone, kTrue};
+use crate::context::{kCtxCursor, kCtxMarks, kCtxMergeReg, kCtxVisual};
 use crate::drawscreen::UPD_SOME_VALID;
+use crate::eval::funcs::kMTLineWise;
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTUnknown};
+use crate::eval::vars::VV_CASCADING;
 use crate::ex_getln::K_LUA;
 pub use crate::input::RedoState;
 use crate::log::LOGLVL_DBG;

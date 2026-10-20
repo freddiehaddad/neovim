@@ -63,8 +63,6 @@ pub use crate::highlight::OptionalKeys;
 
 #[cfg(not(test))]
 const AUCMD_MAX_PATTERNS: usize = 256;
-#[cfg(not(test))]
-const LUA_NOREF: LuaRef = -2;
 
 pub const kCallbackNone: c_int = 0;
 pub const kCallbackFuncref: c_int = 1;
@@ -145,6 +143,8 @@ pub struct AutoCmdVec {
     pub items: *mut AutoCmd,
 }
 
+#[cfg(not(test))]
+use crate::api::buffer::LUA_NOREF;
 pub use crate::api::private::helpers::TryState;
 #[cfg(not(test))]
 use crate::autocmd::{AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, BUFLOCAL_PAT_LEN, NUM_EVENTS};

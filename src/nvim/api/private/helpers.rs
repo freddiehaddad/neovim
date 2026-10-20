@@ -56,9 +56,9 @@ pub(crate) const DI_FLAGS_RO: u8 = 1;
 pub(crate) const DI_FLAGS_FIX: u8 = 4;
 pub(crate) const DI_FLAGS_LOCK: u8 = 8;
 
-const HLF_E: c_int = 6;
+pub(crate) const HLF_E: c_int = 6;
 
-const SID_API_CLIENT: scid_T = -9;
+pub(crate) const SID_API_CLIENT: scid_T = -9;
 pub(crate) const SID_LUA: scid_T = -8;
 
 const OBJECT_NIL: Object = Object {

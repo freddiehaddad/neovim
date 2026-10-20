@@ -100,26 +100,10 @@ pub const MAPTYPE_UNMAP: c_int = 1;
 pub const MAPTYPE_NOREMAP: c_int = 2;
 pub const MAPTYPE_UNMAP_LHS: c_int = 3;
 
-const MODE_NORMAL: c_int = 0x01;
-const MODE_VISUAL: c_int = 0x02;
-const MODE_OP_PENDING: c_int = 0x04;
-const MODE_CMDLINE: c_int = 0x08;
 const MODE_INSERT: c_int = 0x10;
-const MODE_LANGMAP: c_int = 0x20;
-const MODE_SELECT: c_int = 0x40;
-const MODE_TERMINAL: c_int = 0x80;
 
-const LUA_NOREF: LuaRef = -2;
 const HLF_8: c_int = 1;
 const kCpoBslash: c_int = b'B' as c_int;
-
-const ABBR_OFF: c_int = 0x100;
-
-const kRetObject: c_int = 0;
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const FC_LUAREF: c_int = 0x800;
-const VAR_UNLOCKED: c_int = 0;
 
 const KEYSET_OPTIDX_keymap__desc: u64 = 1;
 const KEYSET_OPTIDX_keymap__callback: u64 = 8;
@@ -158,14 +142,24 @@ pub struct typebuf_T {
     pub tb_change_cnt: c_int,
 }
 
+use crate::api::buffer::LUA_NOREF;
 pub use crate::api::command::regmatch_T;
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::api::vim::{kFalse, kNone};
 use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING};
 use crate::eval::kListLenUnknown;
+use crate::eval::userfunc::FC_LUAREF;
+use crate::ex_getln::ABBR_OFF;
 use crate::input::REMAP_SCRIPT;
 use crate::keycodes::K_ZERO;
 use crate::keycodes::KE_LUA;
+use crate::lua::executor::kRetObject;
 use crate::regexp::NUMBUFLEN;
+use crate::state::{
+    MODE_CMDLINE, MODE_LANGMAP, MODE_NORMAL, MODE_OP_PENDING, MODE_SELECT, MODE_TERMINAL,
+    MODE_VISUAL,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

@@ -51,24 +51,12 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 const NUL: c_char = 0;
-const FORWARD: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
-const VREPLACE_FLAG: c_int = 0x200;
-
-const CMOD_LOCKMARKS: c_int = 0x0800;
 
 const INSCHAR_DO_COM: c_int = 2;
 const INSCHAR_COM_LIST: c_int = 16;
-
-const OPENLINE_DELSPACES: c_int = 0x01;
-const OPENLINE_DO_COM: c_int = 0x02;
-const OPENLINE_KEEPTRAIL: c_int = 0x04;
-const OPENLINE_MARKFIX: c_int = 0x08;
-const OPENLINE_COM_LIST: c_int = 0x10;
-const OPENLINE_FORMAT: c_int = 0x20;
 
 const COM_MIDDLE: c_char = b'm' as c_char;
 
@@ -82,17 +70,18 @@ const kFoRigorousTw: c_int = b']' as c_int;
 const kFoWrap: c_int = b't' as c_int;
 const kFoWrapComs: c_int = b'c' as c_int;
 
-const OPT_LOCAL: c_int = 0x02;
-const kOptFormatexpr: c_int = 115;
-
-const VV_COUNT: c_int = 0;
-const VV_LNUM: c_int = 9;
-const VV_CHAR: c_int = 50;
-
 pub type MotionType = c_int;
 pub type InsArrow = c_int;
+use crate::api::buffer::FORWARD;
+use crate::api::command::CMOD_LOCKMARKS;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::change::{COM_END, COM_FIRST, COM_START};
+use crate::change::{
+    OPENLINE_COM_LIST, OPENLINE_DELSPACES, OPENLINE_DO_COM, OPENLINE_FORMAT, OPENLINE_KEEPTRAIL,
+    OPENLINE_MARKFIX,
+};
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID};
+use crate::eval::vars::{VV_CHAR, VV_COUNT, VV_LNUM};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::TriState;
 use crate::indent::kFoQComs;
@@ -101,6 +90,8 @@ use crate::insert::{INSCHAR_FORMAT, INSCHAR_NO_FEX};
 use crate::insert::{kFoAuto, kFoInsBlank, kFoWhitePar};
 use crate::math::FAIL;
 use crate::option::kBufOptFormatexpr;
+use crate::option::kOptFormatexpr;
+use crate::state::{MODE_NORMAL, VREPLACE_FLAG};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

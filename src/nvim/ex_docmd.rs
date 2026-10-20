@@ -76,7 +76,7 @@ use crate::eval::userfunc::{
     get_func_line,
 };
 use crate::eval::vars::{
-    VimVarIndex, ex_let, ex_lockvar, ex_unlet, get_vim_var_list, get_vim_var_str, set_vim_var_nr,
+    ex_let, ex_lockvar, ex_unlet, get_vim_var_list, get_vim_var_str, set_vim_var_nr,
     set_vim_var_string, v_exception, v_throwpoint, var_redir_start, var_redir_stop,
 };
 use crate::eval::window::{win_find_nr, win_has_winnr};
@@ -270,37 +270,66 @@ pub use crate::mark::MarkGet;
 pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::FORWARD;
 use crate::api::command::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS,
 };
+use crate::api::command::{
+    CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
+    CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
+    CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGOPT, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL,
+    EX_EXTRA, EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_SBOXOK, EX_TRLBAR, EX_XFILE, EX_ZEROR,
+};
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
+use crate::api::options::{BF_DUMMY, SID_NONE, kOptFiletype};
+use crate::api::private::helpers::HLF_E;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BACKWARD, kCdScopeGlobal, kFalse, kNone, kTrue};
 use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::arglist::ML_EMPTY;
 use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN};
+use crate::autocmd::{
+    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_CHANINFO, HLF_T, kOptEventignore,
+};
 use crate::autocmd::{
     EVENT_CMDUNDEFINED, EVENT_EXITPRE, EVENT_QUITPRE, EVENT_TABNEWENTERED, PROF_YES,
 };
 use crate::buffer::{
     DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
 };
+use crate::channel::kChannelStdinPipe;
 pub use crate::cmdexpand::LineGetter;
+use crate::cmdexpand::{EX_NOTRLCOM, WILD_ADD_SLASH, WILD_ICASE, WILD_LIST_NOTFOUND, WILD_NOERROR};
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, WILD_EXPAND_FREE};
 use crate::dialog::VIM_YES;
 use crate::drawscreen::{UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
 use crate::eval::fs::{VALID_HEAD, VALID_PATH};
+use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
+use crate::eval::funcs::{DOCMD_KEYTYPED, SEARCH_KEEP, kMTLineWise};
 use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
+use crate::eval::kMarkAll;
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::eval::vars::ENV_STARTREASON;
+use crate::eval::vars::VV_PROGPATH;
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_ARGV, VV_EXITREASON, VV_HLSEARCH, VV_OLDFILES,
 };
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, DIALOG_MSG_SIZE, ECMD_LAST, ECMD_ONE, RE_SUBST};
+use crate::ex_cmds::{
+    ECMD_ADDBUF, ECMD_ALTBUF, ECMD_FORCEIT, ECMD_HIDE, ECMD_OLDBUF, EXFLAG_LIST, EXFLAG_NR,
+    EXFLAG_PRINT, SEARCH_HIS, kWinPreview,
+};
 use crate::file_search::{FNAME_HYP, FNAME_MESS};
 use crate::log::LOGLVL_INF;
+#[cfg(windows)]
+use crate::lua::executor::kRetObject;
 use crate::ops::{OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK};
+use crate::regexp::kMarkBufLocal;
 use crate::regexp::{NUMBUFLEN, RE_MAGIC};
 use crate::register::{PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE};
+use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -319,32 +348,13 @@ pub(crate) const UNDO_HASH_SIZE: usize = 32;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const DOCMD_REPEAT: c_int = 0x04;
-const DOCMD_KEYTYPED: c_int = 0x08;
-const DOCMD_EXCRESET: c_int = 0x10;
-const DOCMD_KEEPLINE: c_int = 0x20;
+pub(crate) const DOCMD_EXCRESET: c_int = 0x10;
+pub(crate) const DOCMD_KEEPLINE: c_int = 0x20;
 
-const EX_RANGE: u32 = 0x001;
-const EX_BANG: u32 = 0x002;
-const EX_EXTRA: u32 = 0x004;
-const EX_XFILE: u32 = 0x008;
-const EX_NOSPC: u32 = 0x010;
-const EX_DFLALL: u32 = 0x020;
 const EX_WHOLEFOLD: u32 = 0x040;
-const EX_NEEDARG: u32 = 0x080;
-const EX_TRLBAR: u32 = 0x100;
-const EX_REGSTR: u32 = 0x200;
-const EX_COUNT: u32 = 0x400;
-const EX_NOTRLCOM: u32 = 0x800;
-const EX_ZEROR: u32 = 0x1000;
 const EX_CTRLV: u32 = 0x2000;
-const EX_CMDARG: u32 = 0x4000;
-const EX_BUFNAME: u32 = 0x8000;
+pub(crate) const EX_BUFNAME: u32 = 0x8000;
 const EX_BUFUNL: u32 = 0x10000;
-const EX_ARGOPT: u32 = 0x20000;
-const EX_SBOXOK: u32 = 0x40000;
 const EX_BUFLOCK_OK: u32 = 0x80000;
 const EX_MODIFY: u32 = 0x100000;
 const EX_FLAGS: u32 = 0x200000;
@@ -354,36 +364,7 @@ const ADDR_TABS_RELATIVE: cmd_addr_T = 6;
 const ADDR_QUICKFIX_VALID: cmd_addr_T = 7;
 const ADDR_UNSIGNED: cmd_addr_T = 9;
 
-const EXFLAG_LIST: c_int = 0x01;
-const EXFLAG_NR: c_int = 0x02;
-const EXFLAG_PRINT: c_int = 0x04;
-
-const CMOD_SANDBOX: c_int = 0x0001;
-const CMOD_SILENT: c_int = 0x0002;
-const CMOD_ERRSILENT: c_int = 0x0004;
-const CMOD_UNSILENT: c_int = 0x0008;
-const CMOD_NOAUTOCMD: c_int = 0x0010;
-const CMOD_HIDE: c_int = 0x0020;
-const CMOD_BROWSE: c_int = 0x0040;
-const CMOD_CONFIRM: c_int = 0x0080;
-const CMOD_KEEPALT: c_int = 0x0100;
-const CMOD_KEEPMARKS: c_int = 0x0200;
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-const CMOD_NOSWAPFILE: c_int = 0x2000;
-
-const WSP_VERT: c_int = 0x02;
-const WSP_HOR: c_int = 0x04;
-const WSP_TOP: c_int = 0x08;
-const WSP_BOT: c_int = 0x10;
-const WSP_BELOW: c_int = 0x40;
-const WSP_ABOVE: c_int = 0x80;
-
 const kUICmdline: c_int = 0;
-
-const HLF_E: c_int = 6;
-const HLF_T: c_int = 23;
 
 const Ctrl_B: c_char = 2;
 const Ctrl_C: c_char = 3;
@@ -411,62 +392,20 @@ const Ctrl_RSB: c_char = 29;
 const Ctrl_HAT: c_char = 30;
 const Ctrl__: c_char = 31;
 
-const kOptEventignore: c_int = 88;
-const kOptFiletype: c_int = 97;
-const kOptFindfunc: c_int = 99;
-const OPT_LOCAL: c_int = 0x02;
-const SID_NONE: c_int = -6;
-
-const WILD_LIST_NOTFOUND: c_int = 0x01;
-const WILD_ADD_SLASH: c_int = 0x10;
-const WILD_ICASE: c_int = 0x100;
-const WILD_NOERROR: c_int = 0x800;
-
-const kMarkBufLocal: MarkGet = 0;
-const kMarkAll: MarkGet = 1;
-
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
+pub(crate) const kOptFindfunc: c_int = 99;
 
 const kCpoBar: c_int = b'b' as c_int;
 const kCpoAltread: c_int = b'a' as c_int;
 const kCpoNosymlinks: c_int = b'~' as c_int;
 const kCpoExecbuf: c_int = b'e' as c_int;
 
-const VV_PROGPATH: VimVarIndex = 60;
-
-const EVENT_CHANINFO: event_T = 23;
-
 pub(crate) const FLUSH_TYPEAHEAD: c_int = 1;
-#[cfg(windows)]
-const kRetObject: c_int = 0;
-const kChannelStdinPipe: c_int = 0;
-const kWinPreview: c_int = 2;
-
-const ML_EMPTY: c_int = 0x01;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 
-const ECMD_HIDE: c_int = 0x01;
-const ECMD_OLDBUF: c_int = 0x04;
-const ECMD_FORCEIT: c_int = 0x08;
-const ECMD_ADDBUF: c_int = 0x10;
-const ECMD_ALTBUF: c_int = 0x20;
-
-const kCdScopeBuffer: CdScope = 0;
-const kCdScopeWindow: CdScope = 1;
-const kCdScopeTabpage: CdScope = 2;
-const kCdScopeGlobal: CdScope = 3;
-
 pub(crate) const kCdCauseManual: CdCause = 0;
 
-const kMTLineWise: c_int = 1;
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
-const BF_DUMMY: c_int = 0x80;
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
 const KE_FILLER: c_char = b'X' as c_char;
@@ -478,9 +417,7 @@ pub(crate) const ACTION_SHOW: c_int = 1;
 pub(crate) const ACTION_GOTO: c_int = 2;
 pub(crate) const ACTION_SPLIT: c_int = 3;
 pub(crate) const ACTION_SHOW_ALL: c_int = 4;
-const SEARCH_MSG: c_int = 0x0c;
-const SEARCH_HIS: c_int = 0x20;
-const SEARCH_KEEP: c_int = 0x400;
+pub(crate) const SEARCH_MSG: c_int = 0x0c;
 
 pub(crate) const DT_TAG: c_int = 1;
 pub(crate) const DT_POP: c_int = 2;

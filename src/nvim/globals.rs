@@ -45,12 +45,12 @@ use crate::os::fs::NvimStats;
 use crate::popupmenu::PumWant;
 use crate::regexp::reg_extmatch_T;
 use crate::state::MODE_MAX_LENGTH;
+use crate::state::MODE_NORMAL;
 use crate::textformat::InsState;
 
 pub(crate) const DFLT_ROWS: c_int = 24;
 pub(crate) const DFLT_COLS: c_int = 80;
 pub(crate) const PROF_NONE: c_int = 0;
-const MODE_NORMAL: c_int = 0x01;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const HLF_COUNT: usize = 76;
 

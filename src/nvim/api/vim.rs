@@ -140,49 +140,31 @@ pub(crate) const MAXPATHL: usize = 4096;
 pub(crate) const ERR_BUFLEN: usize = 256;
 const SIGN_SHOW_MAX: usize = 9;
 
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
+pub(crate) const BACKWARD: c_int = -1;
 
 pub(crate) const REMAP_YES: c_int = 0;
 pub(crate) const REMAP_NONE: c_int = -1;
 
-const DIP_ALL: c_int = 0x01;
-const DIP_DIRFILE: c_int = 0x200;
-
-const kCdScopeGlobal: c_int = 3;
+pub(crate) const kCdScopeGlobal: c_int = 3;
 
 pub(crate) const BCO_ENTER: c_int = 1;
 pub(crate) const BCO_NOHELP: c_int = 4;
 
-const OPT_LOCAL: c_int = 2;
-const kOptScopeBuf: c_int = 2;
-const kOptBufhidden: c_int = 27;
-const kOptBuftype: c_int = 29;
-const kOptCotFlagPopup: c_uint = 0x100;
+pub(crate) const kOptCotFlagPopup: c_uint = 0x100;
 
-const LUA_NOREF: LuaRef = -2;
 pub(crate) const kChannelStreamInternal: ChannelStreamType = 4;
 
-const kRetObject: c_int = 0;
-const kRetNilBool: c_int = 1;
+pub(crate) const kNone: c_int = -1;
+pub(crate) const kFalse: c_int = 0;
+pub(crate) const kTrue: c_int = 1;
 
-const kNone: c_int = -1;
-const kFalse: c_int = 0;
-const kTrue: c_int = 1;
-
-const kCtxRegs: CtxStateFlags = 1;
+pub(crate) const kCtxRegs: CtxStateFlags = 1;
 pub(crate) const kCtxJumps: CtxStateFlags = 2;
 pub(crate) const kCtxBufs: CtxStateFlags = 4;
 pub(crate) const kCtxGVars: CtxStateFlags = 8;
 pub(crate) const kCtxSFuncs: CtxStateFlags = 16;
 pub(crate) const kCtxFuncs: CtxStateFlags = 32;
 const kCtxAll: CtxStateFlags = kCtxRegs | kCtxJumps | kCtxBufs | kCtxGVars | kCtxSFuncs | kCtxFuncs;
-
-const EVENT_CHANINFO: c_int = 23;
-
-const VV_LNUM: c_int = 9;
-const VV_RELNUM: c_int = 102;
-const VV_VIRTNUM: c_int = 103;
 
 pub(crate) const HLF_N: c_int = 12;
 pub(crate) const HLF_LNA: c_int = 13;
@@ -361,11 +343,18 @@ pub use crate::api::private::helpers::HlMessageChunk;
 
 pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
 use crate::api::buffer::INTERNAL_CALL_MASK;
+use crate::api::buffer::{FORWARD, LUA_NOREF};
+use crate::api::deprecated::{OPT_LOCAL, kOptScopeBuf};
+use crate::api::options::{kOptBufhidden, kOptBuftype};
 pub use crate::api::private::helpers::ArrayBuilder;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::autocmd::EVENT_CHANINFO;
 use crate::buffer::{BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO};
 use crate::drawscreen::{UPD_CLEAR, UPD_NOT_VALID, UPD_VALID};
+use crate::eval::vars::{VV_LNUM, VV_RELNUM, VV_VIRTNUM};
+use crate::lua::executor::{kRetNilBool, kRetObject};
 use crate::runtime::DOSO_NONE;
+use crate::runtime::{DIP_ALL, DIP_DIRFILE};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

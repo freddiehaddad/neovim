@@ -85,14 +85,9 @@ use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MB_MAXBYTES: usize = 30;
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
 const DB_COUNT: usize = 8;
 const MAX_DIFF_ANCHORS: usize = 20;
 const LBUFLEN: usize = 50;
@@ -127,10 +122,6 @@ pub(crate) const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
 const XDF_PATIENCE_DIFF: c_int = 1 << 14;
 const XDF_HISTOGRAM_DIFF: c_int = 1 << 15;
 const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
-const ML_EMPTY: c_int = 0x01;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-const WSP_VERT: c_int = 0x02;
-const OPT_LOCAL: c_int = 0x02;
 pub(crate) const kOptDiff: OptIndex = 70;
 pub(crate) const kOptDiffopt: OptIndex = 73;
 pub(crate) const kOptFoldmethod: OptIndex = 109;
@@ -140,8 +131,7 @@ const CMD_split: cmdidx_T = 426;
 pub(crate) const kShellOptFilter: c_int = 1;
 pub(crate) const kShellOptDoOut: c_int = 4;
 pub(crate) const kShellOptSilent: c_int = 8;
-const kOptBoFlagOperator: c_uint = 0x4000;
-const kExtmarkUndo: ExtmarkOp = 1;
+pub(crate) const kOptBoFlagOperator: c_uint = 0x4000;
 pub(crate) const HLF_ADD: hlf_T = 30;
 pub(crate) const HLF_CHD: hlf_T = 31;
 pub(crate) const HLF_TXD: hlf_T = 33;
@@ -219,14 +209,20 @@ struct linemap_entry_T {
     lineoff: c_int,
 }
 use crate::api::buffer::kExtmarkNOOP;
+use crate::api::buffer::{FORWARD, kExtmarkUndo};
 use crate::api::command::ADDR_LINES;
+use crate::api::command::CMOD_LOCKMARKS;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::deprecated::kOptScopeWin;
 #[cfg(unix)]
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
+use crate::arglist::ML_EMPTY;
 use crate::autocmd::EVENT_DIFFUPDATED;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
 use crate::math::{FAIL, OK};
 pub use crate::optionstr::OptKeyDict_dip;
+use crate::window::WSP_VERT;
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;
 static mut diff_flags: c_int =

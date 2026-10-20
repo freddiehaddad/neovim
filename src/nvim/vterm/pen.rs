@@ -18,10 +18,10 @@ pub type VTermValueType = c_int;
 pub type VTermProp = c_int;
 
 const VTERM_COLOR_RGB: u8 = 0x00;
-const VTERM_COLOR_INDEXED: u8 = 0x01;
+pub(crate) const VTERM_COLOR_INDEXED: u8 = 0x01;
 const VTERM_COLOR_TYPE_MASK: u8 = 0x01;
-const VTERM_COLOR_DEFAULT_FG: u8 = 0x02;
-const VTERM_COLOR_DEFAULT_BG: u8 = 0x04;
+pub(crate) const VTERM_COLOR_DEFAULT_FG: u8 = 0x02;
+pub(crate) const VTERM_COLOR_DEFAULT_BG: u8 = 0x04;
 const VTERM_COLOR_DEFAULT_MASK: u8 = 0x06;
 
 pub(crate) const VTERM_VALUETYPE_BOOL: VTermValueType = 1;

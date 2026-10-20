@@ -78,9 +78,6 @@ const UV_EPIPE: c_int = -4047;
 #[cfg(not(windows))]
 const UV_EPIPE: c_int = -32;
 
-#[cfg(not(test))]
-const EVENT_CHANINFO: event_T = 23;
-
 const kClientTypeUnknown: ClientType = -1;
 const kClientTypeRemote: ClientType = 0;
 const kClientTypeUi: ClientType = 1;
@@ -88,8 +85,6 @@ const kClientTypeEmbedder: ClientType = 2;
 const kClientTypeHost: ClientType = 3;
 const kClientTypePlugin: ClientType = 4;
 const kClientTypeMsgpackRpc: ClientType = 5;
-
-const kChannelStreamStdio: ChannelStreamType = 2;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
@@ -225,7 +220,10 @@ use crate::api::private::dispatch::{
 use crate::api::ui::kUIExtCount;
 use crate::api::vim::kChannelStreamInternal;
 #[cfg(not(test))]
+use crate::autocmd::EVENT_CHANINFO;
+#[cfg(not(test))]
 use crate::channel::kChannelPartRpc;
+use crate::channel::kChannelStreamStdio;
 use crate::channel::{kChannelStreamProc, kChannelStreamSocket};
 #[cfg(not(test))]
 use crate::event::libuv_proc::UV_PROCESS;

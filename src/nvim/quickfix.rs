@@ -127,32 +127,47 @@ use std::ptr;
 
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::FORWARD;
 pub use crate::api::buffer::bcount_t;
+use crate::api::command::CMOD_HIDE;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::api::options::kOptSwapfile;
+use crate::api::options::{BF_DUMMY, kOptBufhidden, kOptBuftype, kOptFiletype};
+use crate::api::vim::BACKWARD;
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{BCO_ENTER, BCO_NOHELP, HLF_N};
+use crate::arglist::ML_EMPTY;
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_FILETYPE, EVENT_QUICKFIXCMDPOST, EVENT_QUICKFIXCMDPRE,
 };
+use crate::autocmd::{EVENT_BUFWINENTER, OPT_NOWIN};
 use crate::buffer::NOTDONE;
+use crate::buffer::{BF_NEW, VAR_FIXED, kExtmarkNoUndo};
+use crate::cmdexpand::HLF_D;
 use crate::diff::kOptFoldmethod;
 use crate::drawline::HLF_QFL;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+use crate::eval::funcs::SEARCH_KEEP;
 use crate::eval::funcs::kOptCpoptions;
 use crate::eval::kListLenMayKnow;
 pub use crate::eval::vars::scid_T;
 use crate::ex_cmds::kShmOverall;
 use crate::ex_cmds::{BL_FIX, BL_WHITE, ECMD_ONE, VGR_FUZZY, VGR_GLOBAL, VGR_NOJUMP};
+use crate::ex_cmds::{ECMD_HIDE, ECMD_NOWINENTER, ECMD_OLDBUF, ECMD_SET_HELP};
 use crate::ex_cmds2::{CMD_cdo, CMD_cfdo, CMD_ldo, CMD_lfdo};
 pub use crate::extmark::ExtmarkOp;
 use crate::fileio::EINTR;
 pub use crate::fileio::FILE;
+use crate::fileio::{READ_DUMMY, READ_NEW};
 use crate::mark::{BUF_HAS_LL_ENTRY, BUF_HAS_QF_ENTRY};
 pub use crate::os::time::time_t;
 use crate::regexp::{RE_MAGIC, RE_STRING};
 pub use crate::search::Direction;
 use crate::viml::parser::parser::CONV_NONE;
+use crate::window::{
+    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HELP, WSP_NEWLOC, WSP_QUICKFIX, WSP_TOP, WSP_VERT,
+};
 
 const NUL: c_char = 0;
 const TAB: c_char = 0x09;
@@ -194,52 +209,14 @@ const QF_GETLIST_ALL: c_int = 0xFFF;
 pub(crate) const CMDBUFFSIZE: usize = 1024;
 const MAXLNUM: linenr_T = 0x7fffffff;
 
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 const FORWARD_FILE: Direction = 3;
 const BACKWARD_FILE: Direction = -3;
 
-const WSP_VERT: c_int = 0x02;
-const WSP_TOP: c_int = 0x08;
-const WSP_BOT: c_int = 0x10;
-const WSP_HELP: c_int = 0x20;
-const WSP_BELOW: c_int = 0x40;
-const WSP_ABOVE: c_int = 0x80;
-const WSP_NEWLOC: c_int = 0x100;
-const WSP_QUICKFIX: c_int = 0x400;
-
-const ECMD_HIDE: c_int = 0x01;
-const ECMD_SET_HELP: c_int = 0x02;
-const ECMD_OLDBUF: c_int = 0x04;
-const ECMD_NOWINENTER: c_int = 0x40;
-
-const SEARCH_KEEP: c_int = 0x400;
-
-const HLF_D: c_int = 5;
-
-const OPT_LOCAL: c_int = 0x02;
-const OPT_NOWIN: c_int = 0x10;
-
-const ML_EMPTY: c_int = 0x01;
-const VAR_FIXED: c_int = 2;
-const kExtmarkNoUndo: ExtmarkOp = 2;
-
-const kOptSwbFlagUsetab: c_uint = 0x02;
+pub(crate) const kOptSwbFlagUsetab: c_uint = 0x02;
 const kOptSwbFlagUselast: c_uint = 0x20;
 const kOptFdoFlagQuickfix: c_uint = 0x20;
 
-const CMOD_HIDE: c_int = 0x0020;
-const BF_NEW: c_int = 0x10;
-const BF_DUMMY: c_int = 0x80;
-const READ_NEW: c_int = 0x01;
-const READ_DUMMY: c_int = 0x10;
-
-const kOptBufhidden: OptIndex = 27;
-const kOptBuftype: OptIndex = 29;
 pub(crate) const kOptErrorfile: OptIndex = 86;
-const kOptFiletype: OptIndex = 97;
-
-const EVENT_BUFWINENTER: event_T = 15;
 
 const CMD_cNext: cmdidx_T = 46;
 const CMD_cNfile: cmdidx_T = 47;

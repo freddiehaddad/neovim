@@ -69,10 +69,13 @@ use crate::diff::kShellOptDoOut;
 use crate::diff::kShellOptSilent;
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::fs::{SEEK_END, SEEK_SET};
+use crate::eval::vars::VV_SHELL_ERROR;
 use crate::ex_cmds::{kShellOptRead, kShellOptWrite};
 pub use crate::fileio::FILE;
 pub use crate::option::OptInt;
+use crate::path::{EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT};
 pub use crate::profile::proftime_T;
+use crate::state::MODE_EXTERNCMD;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
@@ -88,14 +91,6 @@ const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 const kShellOptExpand: c_int = 2;
 const kShellOptHideMess: c_int = 64;
 
-const EW_DIR: c_int = 0x01;
-const EW_FILE: c_int = 0x02;
-const EW_NOTFOUND: c_int = 0x04;
-const EW_SILENT: c_int = 0x20;
-const EW_EXEC: c_int = 0x40;
-const EW_KEEPDOLLAR: c_int = 0x800;
-const EW_SHELLCMD: c_int = 0x2000;
-
 const STYLE_ECHO: c_int = 0;
 const STYLE_GLOB: c_int = 1;
 const STYLE_VIMGLOB: c_int = 2;
@@ -103,8 +98,6 @@ const STYLE_PRINT: c_int = 3;
 const STYLE_BT: c_int = 4;
 const STYLE_GLOBSTAR: c_int = 5;
 
-const MODE_EXTERNCMD: c_int = 0x5000;
-const VV_SHELL_ERROR: c_int = 6;
 const kUIMessages: c_int = 4;
 const HLF_SE: c_int = 72;
 const HLF_SO: c_int = 73;

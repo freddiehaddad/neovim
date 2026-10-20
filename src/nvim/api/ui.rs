@@ -57,6 +57,8 @@ use std::mem::{size_of, zeroed};
 use std::ptr;
 
 #[cfg(windows)]
+use crate::channel::kChannelStreamStdio;
+#[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 
 pub(crate) const MAX_SCHAR_SIZE: usize = 32;
@@ -67,9 +69,7 @@ const DEFAULT_GRID_HANDLE: Integer = 1;
 pub(crate) const NO_SCREEN: c_int = 2;
 pub(crate) const CHAN_STDIO: u64 = 1;
 
-#[cfg(windows)]
-const kChannelStreamStdio: c_int = 2;
-const kChannelPartAll: c_int = 4;
+pub(crate) const kChannelPartAll: c_int = 4;
 
 const kUICmdline: usize = 0;
 const kUIPopupmenu: usize = 1;
@@ -81,7 +81,7 @@ pub(crate) const kUIHlState: usize = 7;
 pub(crate) const kUITermColors: usize = 8;
 pub(crate) const kUIExtCount: usize = 10;
 
-const kLineFlagWrap: c_int = 1;
+pub(crate) const kLineFlagWrap: c_int = 1;
 
 const ARRAY_INIT: Array = Array {
     items: ptr::null_mut(),

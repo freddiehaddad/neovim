@@ -47,15 +47,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 #[cfg(not(test))]
-const MODE_NORMAL: c_int = 0x01;
-#[cfg(not(test))]
-const ESTACK_NONE: c_int = 0;
-#[cfg(not(test))]
-const DOCMD_VERBOSE: c_int = 0x01;
-#[cfg(not(test))]
-const DOCMD_EXCRESET: c_int = 0x10;
-
-#[cfg(not(test))]
 const K_SPECIAL: u8 = 0x80;
 
 #[cfg(not(test))]
@@ -71,9 +62,6 @@ const CMD_BREAKDEL: c_int = 38;
 const CMD_PROFILE: c_int = 338;
 #[cfg(not(test))]
 const CMD_PROFDEL: c_int = 339;
-
-#[cfg(not(test))]
-const EXPR_IS: c_int = 9;
 
 #[cfg(not(test))]
 const CMD_CONT: c_int = 1;
@@ -155,14 +143,24 @@ pub use crate::input::tasave_T;
 #[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
+use crate::autocmd::DOCMD_VERBOSE;
+#[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
 pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
 use crate::drawscreen::UPD_NOT_VALID;
 #[cfg(not(test))]
+use crate::eval::EXPR_IS;
+#[cfg(not(test))]
+use crate::ex_docmd::DOCMD_EXCRESET;
+#[cfg(not(test))]
 use crate::keycodes::{KE_SNR, KS_EXTRA};
 #[cfg(not(test))]
 use crate::regexp::{RE_MAGIC, RE_STRING};
+#[cfg(not(test))]
+use crate::runtime::ESTACK_NONE;
+#[cfg(not(test))]
+use crate::state::MODE_NORMAL;
 
 #[cfg(not(test))]
 #[inline]

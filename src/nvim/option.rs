@@ -153,58 +153,66 @@ pub type set_prefix_T = c_int;
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
+use crate::api::command::CMOD_NOSWAPFILE;
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL, kOptScopeBuf};
 use crate::api::deprecated::{kOptInvalid, kOptScopeGlobal, kOptScopeWin};
 use crate::api::options::IOSIZE;
 use crate::api::options::{
     OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, kOptModeline, kOptScopeTab,
     kOptSwapfile,
 };
+use crate::api::options::{SID_NONE, kOptBufhidden, kOptBuftype, kOptFiletype};
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{BCO_ENTER, BCO_NOHELP, ERR_BUFLEN};
+use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::api::win_config::kCtxNoDisplay;
+use crate::autocmd::OPT_NOWIN;
 use crate::autocmd::kOptModified;
+use crate::buffer::OPT_MODELINE;
 use crate::buffer::{BCO_ALWAYS, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL};
 use crate::charset::EOL_MAC;
 use crate::diff::{kOptDiff, kOptFoldmethod};
 use crate::drawline::kOptFlagInsecure;
+use crate::drawline::{kOptCuloptFlagLine, kOptCuloptFlagNumber, kOptCuloptFlagScreenline};
 use crate::drawscreen::{UPD_CLEAR, UPD_NOT_VALID, UPD_SOME_VALID};
+use crate::eval::STR2NR_ALL;
 use crate::eval::vars::{FORCE_BIN, kOptFlagFunc};
+use crate::ex_cmds::OPT_WINONLY;
 use crate::ex_cmds::kOptFoldcolumn;
+use crate::ex_cmds2::BF_SYN_SET;
 use crate::ex_docmd::UNDO_HASH_SIZE;
+use crate::ex_docmd::kOptFindfunc;
+use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT};
+use crate::ex_session::OPT_SKIPRTP;
 pub use crate::extmark::TriState;
 use crate::file_search::{kBufOptIncludeexpr, kOptIncludeexpr};
+use crate::fileio::kOptFileencoding;
 use crate::fileio::{EOL_DOS, EOL_UNIX};
 use crate::fuzzy::FUZZY_SCORE_NONE;
 use crate::help::kOptIskeyword;
+use crate::highlight::HL_GLOBAL;
 use crate::indent::{
     kBufOptIndentexpr, kOptBreakindentopt, kOptIndentexpr, kOptTabstop, kOptVartabstop,
 };
 use crate::insert::{BS_EOL, BS_NOSTOP, BS_START};
 use crate::insexpand::VAR_STRING;
 use crate::insexpand::kOptComplete;
+use crate::mcursor::kOptFollow;
 use crate::normal::{kOptFoldenable, kOptFoldlevel};
 use crate::regexp::NUMBUFLEN;
+use crate::runtime::DIP_ALL;
+use crate::state::MODE_TERMINAL;
 use crate::window::MIN_COLUMNS;
 
 const NUL: c_char = 0;
 const MAXCOL: i32 = 0x7fffffff;
 
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
-const OPT_MODELINE: c_int = 0x04;
-const OPT_WINONLY: c_int = 0x08;
-const OPT_NOWIN: c_int = 0x10;
 const OPT_ONECOLUMN: c_int = 0x20;
-const OPT_SKIPRTP: c_int = 0x80;
 
 const PREFIX_NO: set_prefix_T = 0;
 const PREFIX_INV: set_prefix_T = 2;
 
-const kOptScopeBuf: OptScope = 2;
 const kOptScopeSize: OptScope = 4;
 
 const kOptFlagExpand: u32 = 1 << 0;
@@ -244,9 +252,7 @@ const kOptBackupskip: OptIndex = 19;
 const kOptBinary: OptIndex = 21;
 const kOptBomb: OptIndex = 22;
 const kOptBreakindent: OptIndex = 24;
-const kOptBufhidden: OptIndex = 27;
 pub(crate) const kOptBuflisted: OptIndex = 28;
-const kOptBuftype: OptIndex = 29;
 const kOptBusy: OptIndex = 30;
 const kOptCdpath: OptIndex = 33;
 const kOptChannel: OptIndex = 35;
@@ -256,7 +262,7 @@ const kOptCinkeys: OptIndex = 39;
 const kOptCinoptions: OptIndex = 40;
 const kOptCinscopedecls: OptIndex = 41;
 const kOptCinwords: OptIndex = 42;
-const kOptCmdheight: OptIndex = 44;
+pub(crate) const kOptCmdheight: OptIndex = 44;
 const kOptCmdwinheight: OptIndex = 45;
 const kOptColorcolumn: OptIndex = 46;
 const kOptColumns: OptIndex = 47;
@@ -283,12 +289,9 @@ const kOptEqualprg: OptIndex = 84;
 const kOptErrorformat: OptIndex = 87;
 pub(crate) const kOptEventignorewin: OptIndex = 89;
 const kOptExpandtab: OptIndex = 90;
-const kOptFileencoding: OptIndex = 92;
 pub(crate) const kOptFileformat: OptIndex = 94;
 pub(crate) const kOptFileformats: OptIndex = 95;
-const kOptFiletype: OptIndex = 97;
 const kOptFillchars: OptIndex = 98;
-const kOptFindfunc: OptIndex = 99;
 const kOptFixendofline: OptIndex = 100;
 pub(crate) const kOptFoldexpr: OptIndex = 104;
 const kOptFoldignore: OptIndex = 105;
@@ -296,8 +299,7 @@ const kOptFoldmarker: OptIndex = 108;
 const kOptFoldminlines: OptIndex = 110;
 const kOptFoldnestmax: OptIndex = 111;
 pub(crate) const kOptFoldtext: OptIndex = 113;
-const kOptFollow: OptIndex = 114;
-const kOptFormatexpr: OptIndex = 115;
+pub(crate) const kOptFormatexpr: OptIndex = 115;
 const kOptFormatlistpat: OptIndex = 116;
 const kOptFormatoptions: OptIndex = 117;
 const kOptFormatprg: OptIndex = 118;
@@ -349,7 +351,7 @@ const kOptRevins: OptIndex = 240;
 pub(crate) const kOptRightleft: OptIndex = 241;
 const kOptRightleftcmd: OptIndex = 242;
 const kOptRuler: OptIndex = 243;
-const kOptRuntimepath: OptIndex = 245;
+pub(crate) const kOptRuntimepath: OptIndex = 245;
 const kOptScroll: OptIndex = 246;
 const kOptScrollback: OptIndex = 247;
 const kOptScrollbind: OptIndex = 248;
@@ -479,32 +481,18 @@ const kBufOptWrapmargin: usize = 92;
 const kCpoBufopt: c_int = b's' as c_int;
 const kCpoBufoptglob: c_int = b'S' as c_int;
 
-const kOptCuloptFlagLine: u8 = 0x01;
-const kOptCuloptFlagScreenline: u8 = 0x02;
-const kOptCuloptFlagNumber: u8 = 0x04;
-
 const kOptVeFlagNone: c_uint = 0x10;
 const kOptVeFlagNoneU: c_uint = 0x20;
 
-const SB_MAX: OptInt = 1_000_000;
+pub(crate) const SB_MAX: OptInt = 1_000_000;
 const MAX_NUMBERWIDTH: OptInt = 20;
 const TABSTOP_MAX: OptInt = 9999;
 const MAX_MCO: OptInt = 6;
-const DIP_ALL: c_int = 0x01;
-const MODE_TERMINAL: c_int = 0x80;
-const HL_GLOBAL: i32 = 0x4000;
-const CMOD_NOSWAPFILE: c_int = 0x2000;
-const BF_SYN_SET: c_int = 0x200;
 
-const B_IMODE_USE_INSERT: OptInt = -1;
-const B_IMODE_NONE: OptInt = 0;
 const B_IMODE_LAST: OptInt = 1;
 
-const SID_NONE: scid_T = -6;
-const STR2NR_ALL: c_int = 0x7f;
 const HLF_W: c_int = 26;
 const Ctrl_C: OptInt = 3;
-const kCtxNoDisplay: c_int = 4;
 
 #[cfg(unix)]
 const ROOT_UID: u32 = 0;

@@ -71,6 +71,7 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type SpellAddType = c_int;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
 use crate::eval::fs::SEEK_SET;
@@ -83,6 +84,10 @@ pub use crate::os::time::time_t;
 pub use crate::regexp::regprog_T;
 use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING};
 use crate::spell::{MAXWLEN, SP_FORMERROR};
+use crate::spell::{
+    WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP, WF_NOCOMPAFT,
+    WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC,
+};
 use crate::viml::parser::parser::CONV_NONE;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
@@ -106,21 +111,10 @@ const VIMSUGMAGIC: &[u8; 6] = b"VIMsug";
 const VIMSUGMAGICL: usize = 6;
 const VIMSUGVERSION: c_int = 1;
 
-const WF_REGION: c_int = 0x01;
-const WF_RARE: c_int = 0x08;
-const WF_BANNED: c_int = 0x10;
 const WF_AFX: c_int = 0x20;
-const WF_FIXCAP: c_int = 0x40;
-const WF_KEEPCAP: c_int = 0x80;
 
-const WF_HAS_AFF: c_int = 0x0100;
-const WF_NEEDCOMP: c_int = 0x0200;
-const WF_NOSUGGEST: c_int = 0x0400;
-const WF_COMPROOT: c_int = 0x0800;
-const WF_NOCOMPBEF: c_int = 0x1000;
-const WF_NOCOMPAFT: c_int = 0x2000;
+pub(crate) const WF_NOSUGGEST: c_int = 0x0400;
 
-const WFP_NC: c_int = 0x02;
 const WFP_UP: c_int = 0x04;
 const WFP_COMPPERMIT: c_int = 0x08;
 const WFP_COMPFORBID: c_int = 0x10;
@@ -194,8 +188,6 @@ const CONDIT_COMB: c_int = 1;
 const CONDIT_CFIX: c_int = 2;
 const CONDIT_SUF: c_int = 4;
 const CONDIT_AFF: c_int = 8;
-
-const OPT_LOCAL: c_int = 0x02;
 
 const e_spell_trunc: *const c_char = c"E758: Truncated spell file".as_ptr();
 const e_error_while_reading_sug_file_str: *const c_char =

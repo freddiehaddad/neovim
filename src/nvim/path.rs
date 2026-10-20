@@ -15,6 +15,8 @@ use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipw
 #[cfg(not(test))]
 use crate::cmdexpand::globpath;
 #[cfg(not(test))]
+use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE};
+#[cfg(not(test))]
 use crate::diff::kShellOptSilent;
 #[cfg(not(test))]
 use crate::eval::eval_to_string;
@@ -132,11 +134,6 @@ pub const EW_NOBREAK: c_int = 0x40000;
 pub const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 pub const kPathCmpExpand: PathCmpFlags = 1 << 1;
 pub const kPathCmpFull: PathCmpFlags = 1 << 2;
-
-#[cfg(not(test))]
-const WILD_ADD_SLASH: c_int = 0x10;
-#[cfg(not(test))]
-const WILD_ICASE: c_int = 0x100;
 
 #[cfg(not(test))]
 static mut SCANDIR_COUNT: c_int = 0;

@@ -40,12 +40,12 @@ pub use crate::cursor::linenr_T;
 use crate::decoration::kMTFilterSelect;
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
 use crate::insert::kCharsizeFast;
+use crate::state::MODE_NORMAL;
 pub type CSType = bool;
 
 const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
 const MAXCOL: colnr_T = 0x7fffffff;
-const MODE_NORMAL: c_int = 0x01;
 const kInvalidByteCells: c_int = 4;
 
 const kCharsizeRegular: CSType = false;

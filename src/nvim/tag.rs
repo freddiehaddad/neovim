@@ -117,33 +117,15 @@ const NOTAGFILE: c_int = 99;
 const TAG_SEP: c_char = 0x02;
 const ML_EXTRA: usize = 3;
 
-const GETF_SETMARK: c_int = 0x01;
-
-const WSP_VERT: c_int = 0x02;
-const SEARCH_KEEP: c_int = 0x400;
-const DIP_ALL: c_int = 0x01;
-
-const WILD_LIST_NOTFOUND: c_int = 0x01;
-const WILD_SILENT: c_int = 0x40;
-
-const HLF_D: c_int = 5;
 const HLF_W: c_int = 26;
-
-const VV_SWAPCOMMAND: c_int = 49;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const kSpecialVarNull: SpecialVarValue = 0;
-const VAR_UNLOCKED: VarLockStatus = 0;
-const VAR_FIXED: VarLockStatus = 2;
 
 const kCpoTagpat: c_int = b't' as c_int;
-const kOptJopFlagView: c_uint = 0x02;
 const kOptFdoFlagTag: c_uint = 0x80;
-const kOptSwbFlagUseopen: c_uint = 0x01;
-const kOptSwbFlagUsetab: c_uint = 0x02;
-const kOptSwbFlagNewtab: c_uint = 0x08;
-const kOptSwbFlagVsplit: c_uint = 0x10;
+pub(crate) const kOptSwbFlagUseopen: c_uint = 0x01;
 const kOptTcFlagFollowic: c_uint = 0x01;
 const kOptTcFlagIgnore: c_uint = 0x02;
 const kOptTcFlagMatch: c_uint = 0x04;
@@ -181,11 +163,18 @@ pub use crate::r#match::SearchState;
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::options::IOSIZE;
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::MAXPATHL;
+use crate::buffer::{
+    GETF_SETMARK, VAR_FIXED, kOptJopFlagView, kOptSwbFlagNewtab, kOptSwbFlagVsplit,
+};
 use crate::buffer::{GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, NOTDONE};
 use crate::cmdexpand::{EXPAND_FILES, TAG_MANY, WILD_EXPAND_FREE};
+use crate::cmdexpand::{HLF_D, WILD_LIST_NOTFOUND, WILD_SILENT};
 use crate::drawscreen::UPD_VALID;
 use crate::eval::fs::{SEEK_END, SEEK_SET};
+use crate::eval::funcs::SEARCH_KEEP;
+use crate::eval::vars::VV_SWAPCOMMAND;
 use crate::ex_docmd::{
     DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG,
 };
@@ -197,8 +186,11 @@ use crate::insexpand::{TAG_INS_COMP, TAG_NOIC};
 use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
 use crate::quickfix::CMDBUFFSIZE;
+use crate::quickfix::kOptSwbFlagUsetab;
 use crate::regexp::{NSUBEXP, RE_MAGIC};
+use crate::runtime::DIP_ALL;
 use crate::viml::parser::parser::CONV_NONE;
+use crate::window::WSP_VERT;
 
 #[derive(Clone, Copy)]
 struct tagptrs_T {

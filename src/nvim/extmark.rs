@@ -49,12 +49,6 @@ pub type extmark_undo_vec_t = KVec<ExtmarkUndoObject>;
 
 const MAXLNUM: linenr_T = 0x7fffffff;
 
-const kNone: TriState = -1;
-const kTrue: TriState = 1;
-
-const kExtmarkUndo: ExtmarkOp = 1;
-const kExtmarkNoUndo: ExtmarkOp = 2;
-
 const kExtmarkNone: ExtmarkType = 0x1;
 
 pub(crate) const kExtmarkSplice: UndoObjectType = 0;
@@ -115,7 +109,10 @@ pub struct ExtmarkUndoObject {
     pub data: ExtmarkUndoData,
 }
 
+use crate::api::buffer::kExtmarkUndo;
 use crate::api::extmark::{kSHUIWatched, kSHUIWatchedOverlay};
+use crate::api::vim::{kNone, kTrue};
+use crate::buffer::kExtmarkNoUndo;
 pub use crate::undo::u_header_T;
 
 #[inline]

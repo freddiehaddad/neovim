@@ -48,6 +48,7 @@ pub use crate::eval::buffer::varnumber_T;
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP};
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;
+use crate::state::MODE_LANGMAP;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -77,8 +78,6 @@ const kBoolVarTrue: c_int = 1;
 
 const KEYMAP_LOADED: i16 = 2;
 const B_IMODE_LMAP: c_int = 1;
-
-const MODE_LANGMAP: c_int = 0x20;
 
 const KMAP_MAXLEN: usize = 20;
 const KMAP_LLEN: usize = 200;

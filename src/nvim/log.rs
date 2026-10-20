@@ -54,9 +54,6 @@ pub const LOGLVL_WRN: c_int = 3;
 pub const LOGLVL_ERR: c_int = 4;
 
 #[cfg(not(test))]
-const VV_SEND_SERVER: c_int = 28;
-
-#[cfg(not(test))]
 #[repr(C)]
 struct UvTimeval64 {
     tv_sec: i64,
@@ -227,6 +224,8 @@ macro_rules! logmsg {
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::eval::vars::VV_SEND_SERVER;
 #[cfg(not(test))]
 use crate::fileio::EOF;
 pub use logmsg;

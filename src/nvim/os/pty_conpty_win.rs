@@ -33,12 +33,6 @@ pub type HRESULT = c_long;
 
 #[cfg(windows)]
 pub use crate::extmark::TriState;
-#[cfg(windows)]
-pub const kNone: TriState = -1;
-#[cfg(windows)]
-pub const kFalse: TriState = 0;
-#[cfg(windows)]
-pub const kTrue: TriState = 1;
 
 #[cfg(all(not(test), windows))]
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
@@ -197,6 +191,8 @@ unsafe extern "system" {
     ) -> BOOL;
 }
 
+#[cfg(windows)]
+use crate::api::vim::{kFalse, kNone, kTrue};
 #[cfg(all(not(test), windows))]
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 #[cfg(all(not(test), windows))]

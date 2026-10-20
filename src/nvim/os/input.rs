@@ -39,8 +39,6 @@ const MAX_KEY_CODE_LEN: usize = 6;
 const INPUT_BUFFER_SIZE: usize = (READ_BUFFER_SIZE * 4) + MAX_KEY_CODE_LEN;
 
 const MODE_INSERT: c_int = 0x10;
-const EVENT_CURSORHOLD: c_int = 38;
-const EVENT_CURSORHOLDI: c_int = 39;
 
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
@@ -59,10 +57,8 @@ const MOD_MASK_2CLICK: u8 = 0x20;
 const MOD_MASK_3CLICK: u8 = 0x40;
 const MOD_MASK_4CLICK: u8 = 0x60;
 
-const FSK_KEYCODE: c_int = 0x01;
 const Ctrl_C: u8 = 3;
 
-const VV_USERACTIVE: c_int = 106;
 const BREAKCHECK_SKIP: c_int = 1000;
 
 pub use crate::mapping::typebuf_T;
@@ -149,8 +145,11 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
 }
 
 use crate::autocmd::PROF_YES;
+use crate::autocmd::{EVENT_CURSORHOLD, EVENT_CURSORHOLDI};
+use crate::eval::vars::VV_USERACTIVE;
 use crate::event::r#loop::main_loop_events;
 use crate::event::stream::UV_TTY;
+use crate::keycodes::FSK_KEYCODE;
 use crate::keycodes::{KE_COMPLETE_DELAY, KE_EVENT, KS_EXTRA, KS_MODIFIER};
 
 unsafe extern "C" fn cursorhold_event(_argv: *mut *mut c_void) {

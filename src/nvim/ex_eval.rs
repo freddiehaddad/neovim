@@ -40,12 +40,6 @@ pub use crate::option::OptInt;
 const NUL: c_char = 0;
 const CSTACK_LEN: usize = 50;
 
-const ESTACK_NONE: c_int = 0;
-
-const VV_EXCEPTION: c_int = 30;
-const VV_THROWPOINT: c_int = 31;
-const VV_STACKTRACE: c_int = 93;
-
 const CMD_else: c_int = 142;
 const CMD_elseif: c_int = 143;
 const CMD_endwhile: c_int = 149;
@@ -166,8 +160,10 @@ pub struct exception_state_T {
 
 use crate::api::options::IOSIZE;
 pub use crate::eval::vars::evalarg_T;
+use crate::eval::vars::{VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT};
 use crate::math::{FAIL, OK};
 use crate::regexp::{RE_MAGIC, RE_STRING};
+use crate::runtime::ESTACK_NONE;
 
 static mut cause_abort: bool = false;
 

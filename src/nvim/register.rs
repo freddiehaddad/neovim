@@ -9,21 +9,27 @@
 )]
 
 use crate::api::buffer::kExtmarkNOOP;
+use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::command::exarg_T;
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
+use crate::api::vim::BACKWARD;
 use crate::api::vim::{REMAP_NONE, REMAP_YES};
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
     EVENT_TEXTYANKPOST, apply_autocmds, has_event,
 };
+use crate::buffer::VAR_FIXED;
 use crate::buffer::{buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::SIN_NOMARK;
+use crate::change::kOptVeFlagOnemore;
 use crate::change::{changed_bytes, changed_lines, del_chars};
 use crate::charset::{ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
 use crate::clipboard::{
     MotionType, adjust_clipboard_name, get_clipboard, set_clipboard, yankreg_T,
 };
+use crate::cursor::kOptVeFlagAll;
 use crate::cursor::{
     coladvance_force, colnr_T, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
     get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, linenr_T,
@@ -42,7 +48,7 @@ use crate::eval::{eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
 use crate::ex_getln::{cmdline_paste_str, getcmdline};
-use crate::extmark::{ExtmarkOp, bcount_t, extmark_splice, extmark_splice_cols};
+use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::hasFolding;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, ga_set_growsize, garray_T};
@@ -95,7 +101,7 @@ use crate::terminal::terminal_paste;
 use crate::textformat::oparg_T;
 use crate::ui::ui_has;
 use crate::undo::{u_save, u_save_cursor};
-use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
+use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
@@ -112,8 +118,6 @@ const Ctrl_U: u8 = 21;
 const Ctrl_V: c_int = 22;
 const Ctrl_W: c_int = 23;
 
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
@@ -139,19 +143,13 @@ pub const YREG_PASTE: c_int = 0;
 pub const YREG_YANK: c_int = 1;
 pub const YREG_PUT: c_int = 2;
 
-const VAR_FIXED: c_int = 2;
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
-
-const CMOD_LOCKMARKS: c_int = 0x0800;
 
 const HLF_8: c_int = 1;
 
 const kUIMessages: UIExtension = 4;
 const kCpoRegappend: c_int = b'>' as c_int;
-const kOptVeFlagAll: c_uint = 0x04;
-const kOptVeFlagOnemore: c_uint = 0x08;
-const kExtmarkUndo: ExtmarkOp = 1;
 
 const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =
     c"E883: Register '%c' cannot contain multiple lines";

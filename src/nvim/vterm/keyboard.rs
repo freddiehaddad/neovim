@@ -21,21 +21,21 @@ pub type VTermKey = c_int;
 const NUL: c_int = 0;
 
 const C1_SS3: u8 = 0x8f;
-const C1_CSI: u8 = 0x9b;
+pub(crate) const C1_CSI: u8 = 0x9b;
 
 pub(crate) const BUFIDX_PRIMARY: usize = 0;
 pub(crate) const BUFIDX_ALTSCREEN: usize = 1;
 
-const VTERM_MOD_NONE: c_int = 0x00;
-const VTERM_MOD_SHIFT: c_int = 0x01;
-const VTERM_MOD_ALT: c_int = 0x02;
-const VTERM_MOD_CTRL: c_int = 0x04;
+pub(crate) const VTERM_MOD_NONE: c_int = 0x00;
+pub(crate) const VTERM_MOD_SHIFT: c_int = 0x01;
+pub(crate) const VTERM_MOD_ALT: c_int = 0x02;
+pub(crate) const VTERM_MOD_CTRL: c_int = 0x04;
 
-const VTERM_KEY_NONE: c_int = 0;
-const VTERM_KEY_ENTER: c_int = 1;
-const VTERM_KEY_TAB: c_int = 2;
-const VTERM_KEY_BACKSPACE: c_int = 3;
-const VTERM_KEY_FUNCTION_0: c_int = 256;
+pub(crate) const VTERM_KEY_NONE: c_int = 0;
+pub(crate) const VTERM_KEY_ENTER: c_int = 1;
+pub(crate) const VTERM_KEY_TAB: c_int = 2;
+pub(crate) const VTERM_KEY_BACKSPACE: c_int = 3;
+pub(crate) const VTERM_KEY_FUNCTION_0: c_int = 256;
 const VTERM_KEY_FUNCTION_MAX: c_int = VTERM_KEY_FUNCTION_0 + 255;
 const VTERM_KEY_KP_0: c_int = VTERM_KEY_FUNCTION_MAX + 1;
 

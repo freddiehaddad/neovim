@@ -13,15 +13,15 @@ use crate::math::xctz;
 use crate::tui::termkey::termkey::fill_utf8;
 use crate::vterm::vterm::vterm_push_output_ctrl_bytes;
 
+use crate::vterm::keyboard::C1_CSI;
 pub use crate::vterm::keyboard::VTermModifier;
 
-const C1_CSI: u8 = 0x9b;
 const CSI_ARGS_MAX: usize = 32;
 pub(crate) const CSI_LEADER_MAX: usize = 16;
 pub(crate) const INTERMED_MAX: usize = 16;
 
-const MOUSE_WANT_DRAG: c_int = 0x02;
-const MOUSE_WANT_MOVE: c_int = 0x04;
+pub(crate) const MOUSE_WANT_DRAG: c_int = 0x02;
+pub(crate) const MOUSE_WANT_MOVE: c_int = 0x04;
 
 pub(crate) const MOUSE_X10: c_int = 0;
 pub(crate) const MOUSE_UTF8: c_int = 1;

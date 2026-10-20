@@ -44,9 +44,13 @@ use crate::window::tabpage_index;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
+use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE};
 use crate::drawscreen::FR_LEAF;
+use crate::eval::VAR_FLAVOUR_SESSION;
+use crate::eval::vars::VV_THIS_SESSION;
 use crate::ex_getln::VSE_NONE;
 pub use crate::fileio::FILE;
 use crate::math::{FAIL, OK};
@@ -55,19 +59,12 @@ use crate::runtime::DOSO_NONE;
 const NUL: c_char = 0;
 const MAXCOL: c_int = 0x7fffffff;
 
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
-const OPT_SKIPRTP: c_int = 0x80;
-const VAR_FLAVOUR_SESSION: c_int = 2;
-const kCdCauseOther: c_int = -1;
-const VV_THIS_SESSION: c_int = 7;
+pub(crate) const OPT_SKIPRTP: c_int = 0x80;
+pub(crate) const kCdCauseOther: c_int = -1;
 
 const CMD_mksession: c_int = 287;
 const CMD_mkvimrc: c_int = 289;
 const CMD_mkview: c_int = 290;
-
-const EVENT_SESSIONWRITEPOST: c_int = 100;
-const EVENT_SESSIONWRITEPRE: c_int = 101;
 
 const kOptSsopFlagBuffers: c_uint = 0x01;
 const kOptSsopFlagResize: c_uint = 0x04;
@@ -77,8 +74,8 @@ const kOptSsopFlagOptions: c_uint = 0x20;
 const kOptSsopFlagHelp: c_uint = 0x40;
 const kOptSsopFlagBlank: c_uint = 0x80;
 const kOptSsopFlagGlobals: c_uint = 0x100;
-const kOptSsopFlagSesdir: c_uint = 0x800;
-const kOptSsopFlagCurdir: c_uint = 0x1000;
+pub(crate) const kOptSsopFlagSesdir: c_uint = 0x800;
+pub(crate) const kOptSsopFlagCurdir: c_uint = 0x1000;
 const kOptSsopFlagFolds: c_uint = 0x2000;
 const kOptSsopFlagCursor: c_uint = 0x4000;
 const kOptSsopFlagTabpages: c_uint = 0x8000;

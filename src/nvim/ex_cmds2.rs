@@ -56,24 +56,27 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub use crate::api::autocmd::event_T;
+use crate::api::buffer::FORWARD;
+use crate::api::command::CMOD_CONFIRM;
 use crate::api::vim::MAXPATHL;
+use crate::arglist::ML_EMPTY;
 use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo};
 use crate::autocmd::EVENT_SYNTAX;
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
 use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD};
 pub use crate::cursor::linenr_T;
 use crate::dialog::{VIM_ALL, VIM_DISCARDALL, VIM_NO, VIM_YES};
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::funcs::VIM_QUESTION;
+use crate::eval::vars::VV_SWAPCOMMAND;
 use crate::ex_cmds::DIALOG_MSG_SIZE;
 use crate::math::{FAIL, OK};
+use crate::runtime::DIP_ALL;
 
 const NUL: c_char = 0;
-const FORWARD: c_int = 1;
 const MAXLNUM: usize = 0x7fffffff;
 
 const CCGD_ALLBUF: c_int = 8;
-
-const CMOD_CONFIRM: c_int = 0x0080;
 
 const kUIMessages: UIExtension = 4;
 
@@ -89,12 +92,7 @@ const CMD_sfirst: cmdidx_T = 410;
 const CMD_tabdo: cmdidx_T = 461;
 const CMD_windo: cmdidx_T = 535;
 
-const BF_SYN_SET: c_int = 0x200;
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const DIP_ALL: c_int = 0x01;
-const ML_EMPTY: c_int = 0x01;
-const VV_SWAPCOMMAND: c_int = 49;
+pub(crate) const BF_SYN_SET: c_int = 0x200;
 
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 

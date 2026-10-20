@@ -2,6 +2,8 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
+#[cfg(not(test))]
+use crate::api::buffer::LUA_NOREF;
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
@@ -20,6 +22,8 @@ use crate::eval::executor::blob_T;
 use crate::eval::typval::{
     tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
 };
+#[cfg(not(test))]
+use crate::eval::userfunc::FC_LUAREF;
 #[cfg(not(test))]
 use crate::eval::userfunc::{find_func, register_luafunc};
 #[cfg(not(test))]
@@ -42,14 +46,10 @@ use crate::memory::xstrdup;
 use std::ffi::CStr;
 use std::ffi::{c_char, c_int, c_void};
 
-const VAR_UNLOCKED: c_int = 0;
+pub(crate) const VAR_UNLOCKED: c_int = 0;
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 const K_BOOL_VAR_TRUE: i64 = 1;
-#[cfg(not(test))]
-const LUA_NOREF: c_int = -2;
-#[cfg(not(test))]
-const FC_LUAREF: c_int = 0x800;
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -20,7 +20,7 @@ use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
 use crate::api::tabpage::{
     GridView, ScreenGrid, WinConfig, frame_T, lpos_T, pos_T, tabpage_T, win_T,
 };
-use crate::api::win_config::{UIExtension, WinStyle};
+use crate::api::win_config::UIExtension;
 use crate::arglist::{alist_T, alist_unlink};
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
@@ -37,7 +37,7 @@ use crate::buffer::{
 use crate::charset::{ascii_isdigit, getdigits_int};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::cmdidx_T;
-use crate::context::{CtxSwitchFlags, ctx_restore, ctx_switch, is_ctx_win};
+use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T};
 use crate::decoration::{clear_virttext, decor_conceal_line};
 use crate::diff::{diff_clear, diffopt_closeoff};
@@ -135,26 +135,39 @@ use std::ptr;
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
 pub type WinKind = c_int;
+use crate::api::buffer::FORWARD;
+use crate::api::command::CMOD_CONFIRM;
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::kCdScopeGlobal;
 use crate::api::vim::{BCO_ENTER, BCO_NOHELP};
 use crate::api::win_config::{
     FR_COL, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeLaststatus, kFloatRelativeTabline,
     kFloatRelativeWindow, kWinStyleUnused, kZIndexFloatDefault,
 };
+use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents, kWinStyleMinimal};
+use crate::api::window::kCtxKeepCwd;
 use crate::buffer::NOTDONE;
+use crate::buffer::{VALID_TOPLINE, VAR_SCOPE};
 pub use crate::context::CdCause;
 use crate::context::kCdCauseWindow;
+use crate::drawline::{VALID_CROW, VALID_WCOL};
 use crate::drawscreen::{FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_VALID};
+use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 pub use crate::eval::vars::scid_T;
+use crate::ex_cmds::ECMD_HIDE;
 use crate::ex_cmds::{BL_FIX, BL_SOL};
 pub use crate::ex_docmd::CdScope;
 use crate::ex_docmd::{ACTION_SPLIT, FIND_ANY, FIND_DEFINE};
 use crate::message::kZIndexMessages;
+use crate::option::kOptCmdheight;
 use crate::option::kOptWindow;
+use crate::quickfix::kOptSwbFlagUsetab;
 use crate::regexp::NUMBUFLEN;
 use crate::runtime::SID_WINLAYOUT;
 use crate::statusline::kUITabline;
+use crate::tag::kOptSwbFlagUseopen;
 
 pub const WSP_ROOM: c_int = 0x01;
 pub const WSP_VERT: c_int = 0x02;
@@ -176,7 +189,6 @@ pub const LOWEST_WIN_ID: c_int = 1000;
 const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
 const CAR: c_int = b'\r' as c_int;
-const FORWARD: c_int = 1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
@@ -217,38 +229,15 @@ const Ctrl_RSB: c_int = 29;
 const Ctrl_HAT: c_int = 30;
 const Ctrl__: c_int = 31;
 
-const ECMD_HIDE: c_int = 0x01;
-const CMOD_CONFIRM: c_int = 0x0080;
-
-const VALID_WCOL: c_int = 0x02;
-const VALID_CROW: c_int = 0x10;
-const VALID_TOPLINE: c_int = 0x80;
-
-const kOptSwbFlagUseopen: c_uint = 0x01;
-const kOptSwbFlagUsetab: c_uint = 0x02;
 const kOptTclFlagLeft: c_uint = 0x01;
 const kOptTclFlagUselast: c_uint = 0x02;
 
-const kOptCmdheight: OptIndex = 44;
 const kWinOptScroll: usize = 33;
 
 const kUIMessages: UIExtension = 4;
 const kUIMultigrid: UIExtension = 6;
 
-const kWinStyleMinimal: WinStyle = 1;
 const kWinNormal: WinKind = 0;
-
-const kCtxKeepCwd: CtxSwitchFlags = 1;
-const kCtxNoDisplay: CtxSwitchFlags = 4;
-const kCtxNoEvents: CtxSwitchFlags = 8;
-
-const kCdScopeBuffer: CdScope = 0;
-const kCdScopeWindow: CdScope = 1;
-const kCdScopeTabpage: CdScope = 2;
-const kCdScopeGlobal: CdScope = 3;
-
-const VAR_UNLOCKED: c_int = 0;
-const VAR_SCOPE: c_int = 1;
 
 const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,

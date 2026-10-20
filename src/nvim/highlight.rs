@@ -26,7 +26,7 @@ use crate::highlight_group::{
     highlight_attr_set_all, highlight_changed, name_to_color, name_to_ctermcolor, set_hl_group,
     syn_check_group, syn_id2name, syn_ns_id2attr,
 };
-use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_call_ref;
 use crate::map::{
     ColorItem, ColorKey, HlAttrs, HlEntry, Map, Set, cstr_t, map_put_ref_ColorKey_ColorItem,
@@ -51,13 +51,11 @@ pub use crate::api::extmark::HLGroupID;
 pub use crate::msgpack_rpc::channel::RemoteUI;
 pub type HlKind = c_int;
 
-const LUA_NOREF: LuaRef = -2;
-const kRetObject: c_int = 0;
 const MAX_TYPENR: u32 = 65535;
 
 pub(crate) const HLF_NONE: usize = 0;
-const HLF_PNI: c_int = 41;
-const HLF_PST: c_int = 50;
+pub(crate) const HLF_PNI: c_int = 41;
+pub(crate) const HLF_PST: c_int = 50;
 pub(crate) const HLF_INACTIVE: usize = 60;
 const HLF_NFLOAT: usize = 62;
 const HLF_BORDER: usize = 64;
@@ -72,27 +70,11 @@ const kHlBlend: HlKind = 5;
 const kHlBlendThrough: HlKind = 6;
 const kHlInvalid: HlKind = 7;
 
-const HL_INVERSE: i32 = 0x01;
-const HL_BOLD: i32 = 0x02;
-const HL_ITALIC: i32 = 0x04;
-const HL_UNDERLINE_MASK: i32 = 0x38;
-const HL_UNDERLINE: i32 = 0x08;
-const HL_UNDERCURL: i32 = 0x10;
-const HL_UNDERDOUBLE: i32 = 0x18;
-const HL_UNDERDOTTED: i32 = 0x20;
-const HL_UNDERDASHED: i32 = 0x28;
-const HL_STANDOUT: i32 = 0x0040;
-const HL_STRIKETHROUGH: i32 = 0x0080;
-const HL_ALTFONT: i32 = 0x0100;
-const HL_DIM: i32 = 0x0200;
-const HL_NOCOMBINE: i32 = 0x0400;
-const HL_BG_INDEXED: i32 = 0x0800;
-const HL_FG_INDEXED: i32 = 0x1000;
-const HL_DEFAULT: i32 = 0x2000;
-const HL_GLOBAL: i32 = 0x4000;
-const HL_BLINK: i32 = 0x8000;
-const HL_CONCEALED: i32 = 0x10000;
-const HL_OVERLINE: i32 = 0x20000;
+pub(crate) const HL_ALTFONT: i32 = 0x0100;
+pub(crate) const HL_BG_INDEXED: i32 = 0x0800;
+pub(crate) const HL_FG_INDEXED: i32 = 0x1000;
+pub(crate) const HL_DEFAULT: i32 = 0x2000;
+pub(crate) const HL_GLOBAL: i32 = 0x4000;
 
 pub(crate) const KEYSET_OPTIDX_highlight__bg: c_int = 1;
 pub(crate) const KEYSET_OPTIDX_highlight__fg: c_int = 2;
@@ -275,10 +257,17 @@ unsafe fn is_none_str(s: *const c_char) -> bool {
     !s.is_null() && unsafe { CStr::from_ptr(s).to_bytes().eq_ignore_ascii_case(b"NONE") }
 }
 
+use crate::api::buffer::LUA_NOREF;
 use crate::api::private::dispatch::{
     KeyDict_highlight_cterm_get_field, KeyDict_highlight_get_field,
 };
 use crate::api::ui::HLATTRS_DICT_SIZE;
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
+use crate::eval::funcs::{
+    HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_NOCOMBINE, HL_STANDOUT,
+    HL_UNDERCURL, HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
+};
+use crate::lua::executor::kRetObject;
 
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {

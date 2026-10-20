@@ -55,8 +55,11 @@ use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID};
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::vars::{VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM};
 pub use crate::extmark::ExtmarkOp;
 pub use crate::extmark::TriState;
 
@@ -67,10 +70,6 @@ const MAXLNUM: linenr_T = 0x7fffffff;
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
 const FD_OPEN: c_char = 0;
 const FD_CLOSED: c_char = 1;
 const FD_LEVEL: c_char = 2;
@@ -80,16 +79,8 @@ const DONE_ACTION: c_int = 1;
 const DONE_FOLD: c_int = 2;
 
 const MODE_INSERT: c_int = 0x10;
-const FORWARD: c_int = 1;
 
-const kExtmarkUndo: ExtmarkOp = 1;
 const kWinOptFoldtext: usize = 22;
-
-const VV_LNUM: c_int = 9;
-const VV_FOLDSTART: c_int = 23;
-const VV_FOLDEND: c_int = 24;
-const VV_FOLDDASHES: c_int = 25;
-const VV_FOLDLEVEL: c_int = 26;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LevelGetterKind {

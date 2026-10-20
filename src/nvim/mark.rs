@@ -62,16 +62,24 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
+use crate::api::buffer::FORWARD;
 use crate::api::buffer::{kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
+use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::api::options::IOSIZE;
+use crate::api::vim::BACKWARD;
 use crate::api::vim::MAXPATHL;
 use crate::autocmd::AUGROUP_ALL;
+use crate::autocmd::EVENT_MARKSET;
 use crate::buffer::NMARKS;
+use crate::buffer::{GETF_SETMARK, kMarkAdjustNormal};
+use crate::cmdexpand::HLF_D;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
 pub use crate::path::PathCmpFlags;
+use crate::path::kPathCmpLiteral;
+use crate::regexp::kMarkBufLocal;
 
 #[repr(C)]
 pub struct WinInfo {
@@ -86,8 +94,6 @@ pub struct WinInfo {
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
@@ -96,34 +102,24 @@ const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NMARK_LOCAL_MAX: c_int = 126;
 const JUMPLISTSIZE: c_int = 100;
 
-const kMarkMoveSuccess: MarkMoveRes = 1;
-const kMarkMoveFailed: MarkMoveRes = 2;
-const kMarkSwitchedBuf: MarkMoveRes = 4;
+pub(crate) const kMarkMoveSuccess: MarkMoveRes = 1;
+pub(crate) const kMarkMoveFailed: MarkMoveRes = 2;
+pub(crate) const kMarkSwitchedBuf: MarkMoveRes = 4;
 const kMarkChangedCol: MarkMoveRes = 8;
-const kMarkChangedLine: MarkMoveRes = 16;
-const kMarkChangedCursor: MarkMoveRes = 32;
+pub(crate) const kMarkChangedLine: MarkMoveRes = 16;
+pub(crate) const kMarkChangedCursor: MarkMoveRes = 32;
 
-const kMarkBeginLine: MarkMove = 1;
-const kMarkContext: MarkMove = 2;
-const kMarkSetView: MarkMove = 8;
-const kMarkJumpList: MarkMove = 16;
+pub(crate) const kMarkBeginLine: MarkMove = 1;
+pub(crate) const kMarkContext: MarkMove = 2;
+pub(crate) const kMarkSetView: MarkMove = 8;
+pub(crate) const kMarkJumpList: MarkMove = 16;
 
-const kMarkBufLocal: MarkGet = 0;
+pub(crate) const kMarkAdjustTerm: MarkAdjustMode = 2;
 
-const kMarkAdjustNormal: MarkAdjustMode = 0;
-const kMarkAdjustTerm: MarkAdjustMode = 2;
-
-const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 const kOptJopFlagStack: c_uint = 0x01;
 
-const GETF_SETMARK: c_int = 0x01;
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const CMOD_LOCKMARKS: c_int = 0x0800;
 pub(crate) const BUF_HAS_QF_ENTRY: c_int = 1;
 pub(crate) const BUF_HAS_LL_ENTRY: c_int = 2;
-
-const HLF_D: c_int = 5;
-const EVENT_MARKSET: c_int = 83;
 
 const INIT_FMARKV: fmarkv_T = fmarkv_T {
     topline_offset: MAXLNUM,

@@ -73,12 +73,19 @@ use std::ptr;
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::kExtmarkNOOP;
+use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
+use crate::api::vim::BACKWARD;
 pub use crate::api::win_config::UIExtension;
+use crate::arglist::ML_EMPTY;
 use crate::autocmd::EVENT_FILECHANGEDRO;
+use crate::buffer::{BF_NEVERLOADED, BF_NEW};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+use crate::eval::vars::VV_WARNINGMSG;
 pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
 pub use crate::mbyte::GraphemeState;
+use crate::regexp::GRAPHEME_STATE_INIT;
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;
 pub const OPENLINE_DO_COM: c_int = 0x02;
@@ -90,12 +97,9 @@ pub const OPENLINE_FORCE_INDENT: c_int = 0x40;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const GRAPHEME_STATE_INIT: GraphemeState = 0;
 const MB_MAXCHAR: usize = 6;
 const JUMPLISTSIZE: c_int = 100;
 pub(crate) const COM_MAX_LEN: usize = 50;
@@ -111,29 +115,19 @@ pub(crate) const COM_LEFT: c_char = b'l' as c_char;
 pub(crate) const COM_RIGHT: c_char = b'r' as c_char;
 const COM_NOBACK: c_char = b'O' as c_char;
 
-const KEY_OPEN_FORW: c_int = 0x101;
-const KEY_OPEN_BACK: c_int = 0x102;
+pub(crate) const KEY_OPEN_FORW: c_int = 0x101;
+pub(crate) const KEY_OPEN_BACK: c_int = 0x102;
 
 pub(crate) const SIN_INSERT: c_int = 2;
 pub(crate) const SIN_NOMARK: c_int = 8;
 
-const ML_EMPTY: c_int = 0x01;
 pub(crate) const ML_DEL_MESSAGE: c_int = 1;
 
-const BF_NEVERLOADED: c_int = 0x04;
-const BF_NEW: c_int = 0x10;
-
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-
-const kExtmarkUndo: ExtmarkOp = 1;
-
-const kOptVeFlagOnemore: c_uint = 0x08;
+pub(crate) const kOptVeFlagOnemore: c_uint = 0x08;
 pub(crate) const kCpoDollar: c_int = b'$' as c_int;
 pub(crate) const kCpoListwm: c_int = b'L' as c_int;
 const kFoNoOpenComs: c_int = b'/' as c_int;
 
-const VV_WARNINGMSG: c_int = 4;
 const HLF_W: c_int = 26;
 const kUIMessages: UIExtension = 4;
 

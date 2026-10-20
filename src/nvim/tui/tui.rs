@@ -95,8 +95,6 @@ const ARENA_EMPTY: Arena = Arena {
     size: 0,
 };
 
-const kRetObject: LuaRetMode = 0;
-
 pub const kTermModeLeftAndRightMargins: TermMode = 69;
 pub const kTermModeMouseButtonEvent: TermMode = 1002;
 pub const kTermModeMouseAnyEvent: TermMode = 1003;
@@ -112,8 +110,6 @@ pub const kTermModeSet: TermModeState = 1;
 pub const kTermModeReset: TermModeState = 2;
 pub const kTermModePermanentlySet: TermModeState = 3;
 pub const kTermModePermanentlyReset: TermModeState = 4;
-
-const kLineFlagWrap: LineFlags = 1;
 
 const EXIT_TIMEOUT_MS: i64 = 1000;
 const OUTBUF_SIZE: usize = 0xffff;
@@ -151,25 +147,6 @@ const XTERM_SETAF_16: *const c_char =
     c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e39%;m".as_ptr();
 const XTERM_SETAB_16: *const c_char =
     c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e39%;m".as_ptr();
-
-const HL_INVERSE: i32 = 0x01;
-const HL_BOLD: i32 = 0x02;
-const HL_ITALIC: i32 = 0x04;
-const HL_UNDERLINE_MASK: i32 = 0x38;
-const HL_UNDERLINE: i32 = 0x08;
-const HL_UNDERCURL: i32 = 0x10;
-const HL_UNDERDOUBLE: i32 = 0x18;
-const HL_UNDERDOTTED: i32 = 0x20;
-const HL_UNDERDASHED: i32 = 0x28;
-const HL_STANDOUT: i32 = 0x0040;
-const HL_STRIKETHROUGH: i32 = 0x0080;
-const HL_ALTFONT: i32 = 0x0100;
-const HL_DIM: i32 = 0x0200;
-const HL_BLINK: i32 = 0x8000;
-const HL_CONCEALED: i32 = 0x10000;
-const HL_OVERLINE: i32 = 0x20000;
-const HL_BG_INDEXED: i32 = 0x0800;
-const HL_FG_INDEXED: i32 = 0x1000;
 
 const HLATTRS_INIT: HlAttrs = HlAttrs {
     rgb_ae_attr: 0,
@@ -318,10 +295,18 @@ unsafe extern "C" {
 use crate::os::os_win_console::GetConsoleMode;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::ui::kLineFlagWrap;
 use crate::channel::STDOUT_FILENO;
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
+use crate::eval::funcs::{
+    HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_STANDOUT, HL_UNDERCURL,
+    HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
+};
 use crate::event::r#loop::UV_RUN_DEFAULT;
 use crate::globals::{DFLT_COLS, DFLT_ROWS};
+use crate::highlight::{HL_ALTFONT, HL_BG_INDEXED, HL_FG_INDEXED};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN};
+use crate::lua::executor::kRetObject;
 #[cfg(unix)]
 use crate::os::pty_proc_unix as unix_termios;
 use crate::os::signal::SIGWINCH;

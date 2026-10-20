@@ -11,8 +11,10 @@
 )]
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::FORWARD;
 use crate::api::deprecated::kVPosEndOfLine;
-use crate::api::deprecated::{DecorVirtText, VirtLine, VirtLines, VirtText, VirtTextPos};
+use crate::api::deprecated::{DecorVirtText, VirtLine, VirtLines, VirtText};
+use crate::api::extmark::kVPosWinCol;
 use crate::api::extmark::{DecorRange, NS};
 use crate::api::extmark::{
     kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLineRightAlign, kVPosInline,
@@ -22,11 +24,14 @@ use crate::api::options::CharBuf;
 use crate::api::tabpage::{GridView, pos_T, win_T};
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC};
+use crate::api::vim::{kFalse, kTrue};
 use crate::buffer::{bt_quickfix, buf_meta_total};
+use crate::charset::kOptDyFlagUhex;
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, rl_mirror_ascii, skiptowhite, skipwhite, transchar_buf,
     transchar_hex, transstr_buf, vim_isprintc,
 };
+use crate::cursor::VALID_VIRTCOL;
 use crate::cursor::{colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq};
 use crate::decoration::SCL_NUM;
 use crate::decoration::{
@@ -35,6 +40,7 @@ use crate::decoration::{
     decor_redraw_signs, decor_virt_line_rows, decor_virt_lines, decor_virt_pos,
     decor_virt_pos_kind, next_virt_text_chunk,
 };
+use crate::decoration::{kDecorKindUIWatched, kDecorKindVirtText};
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{HLF_ADD, HLF_CHD, HLF_TXA, HLF_TXD};
 use crate::diff::{
@@ -81,12 +87,13 @@ use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, s
 use crate::state::virtual_active;
 use crate::statusline::{build_statuscol_str, foldinfo_T, hlf_T, statuscol_T};
 use crate::strings::{vim_snprintf, vim_strchr};
+use crate::syntax::HL_CONCEAL;
 use crate::syntax::{
     get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present, syntax_start,
 };
 use crate::terminal::{Terminal, terminal_get_line_attributes};
 use crate::ui::ui_rgb_attached;
-use std::ffi::{CStr, c_char, c_int, c_uint};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 type HlMode = u8;
@@ -101,35 +108,24 @@ const SIGN_SHOW_MAX: usize = 9;
 const SIGN_WIDTH: c_int = 2;
 const MAX_STCWIDTH: c_int = 20 + 9 * SIGN_WIDTH + 9;
 const SPWORDLEN: usize = 150;
-const FORWARD: c_int = 1;
-const SMT_ALL: c_int = 0;
+pub(crate) const SMT_ALL: c_int = 0;
 const MODE_INSERT: c_int = 0x10;
 
-const VALID_WROW: c_int = 0x01;
-const VALID_WCOL: c_int = 0x02;
-const VALID_VIRTCOL: c_int = 0x04;
-const VALID_CHEIGHT: c_int = 0x08;
-const VALID_CROW: c_int = 0x10;
+pub(crate) const VALID_WROW: c_int = 0x01;
+pub(crate) const VALID_WCOL: c_int = 0x02;
+pub(crate) const VALID_CHEIGHT: c_int = 0x08;
+pub(crate) const VALID_CROW: c_int = 0x10;
 
 pub(crate) const SLF_RIGHTLEFT: c_int = 1;
 pub(crate) const SLF_WRAP: c_int = 2;
 pub(crate) const SLF_INC_VCOL: c_int = 4;
 
 pub(crate) const kOptFlagInsecure: u32 = 1 << 18;
-const kOptCuloptFlagLine: u8 = 0x01;
-const kOptCuloptFlagScreenline: u8 = 0x02;
-const kOptCuloptFlagNumber: u8 = 0x04;
-const kOptSpoFlagNoplainbuffer: u32 = 0x02;
-const kOptDyFlagUhex: c_uint = 0x04;
+pub(crate) const kOptCuloptFlagLine: u8 = 0x01;
+pub(crate) const kOptCuloptFlagScreenline: u8 = 0x02;
+pub(crate) const kOptCuloptFlagNumber: u8 = 0x04;
+pub(crate) const kOptSpoFlagNoplainbuffer: u32 = 0x02;
 pub(crate) const kCpoNumcol: c_int = b'n' as c_int;
-
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
-const kDecorKindVirtText: u8 = 2;
-const kDecorKindUIWatched: u8 = 4;
-
-const kVPosWinCol: VirtTextPos = 5;
 
 const kHlModeReplace: HlMode = 1;
 const kHlModeCombine: HlMode = 2;
@@ -138,18 +134,17 @@ const kHlModeBlend: HlMode = 3;
 const STL_FOLDCOL: c_int = b'C' as c_int;
 const STL_SIGNCOL: c_int = b's' as c_int;
 
-const HL_UNDERLINE_MASK: i32 = 0x38;
-const HL_STRIKETHROUGH: i32 = 0x0080;
-const HL_OVERLINE: i32 = 0x20000;
-const HL_CONCEAL: c_int = 0x20000;
+pub(crate) const HL_UNDERLINE_MASK: i32 = 0x38;
+pub(crate) const HL_STRIKETHROUGH: i32 = 0x0080;
+pub(crate) const HL_OVERLINE: i32 = 0x20000;
 
 const HLF_8: c_int = 1;
-const HLF_AT: c_int = 4;
+pub(crate) const HLF_AT: c_int = 4;
 const HLF_I: c_int = 7;
-const HLF_CLF: c_int = 17;
+pub(crate) const HLF_CLF: c_int = 17;
 const HLF_V: c_int = 24;
 const HLF_FL: c_int = 28;
-const HLF_FC: c_int = 29;
+pub(crate) const HLF_FC: c_int = 29;
 const HLF_DED: c_int = 32;
 const HLF_CONCEAL: c_int = 36;
 const HLF_CUC: c_int = 55;

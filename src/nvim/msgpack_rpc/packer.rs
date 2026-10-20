@@ -1,5 +1,6 @@
 //! Msgpack-RPC serializer (`src/nvim/msgpack_rpc/packer.c`).
 
+use crate::api::buffer::LUA_NOREF;
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::kvec::KVecWithInit;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
@@ -9,7 +10,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
-const LUA_NOREF: c_int = -2;
 
 #[allow(non_camel_case_types)]
 pub type handle_T = c_int;

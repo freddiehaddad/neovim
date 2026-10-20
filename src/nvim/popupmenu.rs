@@ -67,22 +67,26 @@ use crate::ui::{
 };
 use crate::ui_compositor::{ui_comp_compose_grid, ui_comp_put_grid, ui_comp_remove_grid};
 use crate::window::{goto_tabpage_tp, valid_tabpage, win_enter, win_setheight, win_valid};
-use crate::winfloat::{
-    WinKind, win_config_float, win_float_close, win_float_find, win_float_special,
-};
+use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_float_special};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::kOptSwapfile;
+use crate::api::options::{kOptBufhidden, kOptBuftype};
+use crate::api::vim::kOptCotFlagPopup;
 use crate::api::win_config::kZIndexFloatDefault;
 use crate::diff::kOptDiff;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID};
 use crate::ex_cmds::ECMD_ONE;
 pub use crate::ex_getln::hlf_T;
+use crate::highlight::{HLF_PNI, HLF_PST};
+use crate::insexpand::{kOptCotFlagFuzzy, kWinInfo};
 use crate::math::OK;
 pub use crate::option::OptInt;
 use crate::option::kOptBuflisted;
 pub use crate::optionstr::OptIndex;
+use crate::state::MODE_CMDLINE;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -112,13 +116,10 @@ const MAXCOL: colnr_T = 0x7fffffff;
 const PUM_DEF_HEIGHT: c_int = 10;
 const DEFAULT_GRID_HANDLE: c_int = 1;
 
-const MODE_CMDLINE: c_int = 0x08;
-
 const CPT_ABBR: c_int = 0;
 const CPT_KIND: c_int = 1;
 const CPT_MENU: c_int = 2;
 
-const HLF_PNI: hlf_T = 41;
 const HLF_PSI: hlf_T = 42;
 const HLF_PMNI: hlf_T = 43;
 const HLF_PMSI: hlf_T = 44;
@@ -127,7 +128,6 @@ const HLF_PSK: hlf_T = 46;
 const HLF_PNX: hlf_T = 47;
 const HLF_PSX: hlf_T = 48;
 const HLF_PSB: hlf_T = 49;
-const HLF_PST: hlf_T = 50;
 const HLF_PBR: hlf_T = 51;
 
 const kUICmdline: UIExtension = 0;
@@ -138,15 +138,7 @@ const kUIMultigrid: UIExtension = 6;
 const kZIndexPopupMenu: c_int = 100;
 const kZIndexCmdlinePopupMenu: c_int = 250;
 
-const kWinInfo: WinKind = 1;
-
-const kOptCotFlagFuzzy: c_uint = 0x01;
-const kOptCotFlagPopup: c_uint = 0x100;
 const kOptCotFlagPreview: c_uint = 0x800;
-
-const OPT_LOCAL: c_int = 0x02;
-const kOptBufhidden: OptIndex = 27;
-const kOptBuftype: OptIndex = 29;
 
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;

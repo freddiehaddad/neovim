@@ -8,6 +8,10 @@
 )]
 
 #[cfg(not(test))]
+use crate::api::buffer::FORWARD;
+#[cfg(not(test))]
+use crate::api::private::converter::VAR_UNLOCKED;
+#[cfg(not(test))]
 use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
@@ -90,11 +94,7 @@ const SCORE_MATCH_CAPITAL: f64 = 0.7;
 const SCORE_MATCH_DOT: f64 = 0.6;
 
 #[cfg(not(test))]
-const VAR_UNLOCKED: c_int = 0;
-#[cfg(not(test))]
 const K_CALLBACK_NONE: c_int = 0;
-#[cfg(not(test))]
-const FORWARD: c_int = 1;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

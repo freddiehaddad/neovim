@@ -50,7 +50,7 @@ use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
 const NUL: c_char = 0;
 const DEFAULT_GRID_HANDLE: handle_T = 1;
 
-const kOptRdbFlagInvalid: c_uint = 0x04;
+pub(crate) const kOptRdbFlagInvalid: c_uint = 0x04;
 const kOptRdbFlagNodelta: c_uint = 0x08;
 
 const kUIMultigrid: UIExtension = 6;

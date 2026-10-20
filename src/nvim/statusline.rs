@@ -77,13 +77,7 @@ const TMPLEN: usize = 70;
 const MAX_STL_EVAL_DEPTH: c_int = 100;
 const SIGN_WIDTH: usize = 2;
 const MAX_STCWIDTH: c_int = 20 + 9 * (SIGN_WIDTH as c_int) + 9;
-const ML_EMPTY: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
-const OPT_LOCAL: c_int = 0x02;
-
-const VV_LNUM: c_int = 9;
-const VV_RELNUM: c_int = 102;
-const VV_VIRTNUM: c_int = 103;
 
 const kOptRulerformat: OptIndex = 244;
 const kOptTabline: OptIndex = 306;
@@ -92,12 +86,8 @@ pub(crate) const kUITabline: UIExtension = 2;
 const kUIWildmenu: UIExtension = 3;
 const kUIMessages: UIExtension = 4;
 
-const HLF_CLF: hlf_T = 17;
 const HLF_S: hlf_T = 19;
 const HLF_SNC: hlf_T = 20;
-const HLF_C: hlf_T = 21;
-const HLF_T: hlf_T = 23;
-const HLF_FC: hlf_T = 29;
 const HLF_TP: hlf_T = 52;
 const HLF_TPS: hlf_T = 53;
 const HLF_TPF: hlf_T = 54;
@@ -212,12 +202,18 @@ pub struct foldinfo_T {
     pub fi_lines: linenr_T,
 }
 
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::deprecated::kOptInvalid;
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
+use crate::arglist::ML_EMPTY;
+use crate::autocmd::HLF_T;
 use crate::charset::EOL_MAC;
 use crate::decoration::SCL_NUM;
 pub use crate::decoration::SignTextAttrs;
+use crate::drawline::{HLF_CLF, HLF_FC};
+use crate::drawscreen::HLF_C;
+use crate::eval::vars::{VV_LNUM, VV_RELNUM, VV_VIRTNUM};
 use crate::mouse::{kStlClickDisabled, kStlClickFuncRun, kStlClickTabClose, kStlClickTabSwitch};
 use crate::option::{kOptStatuscolumn, kOptStatusline, kOptWinbar};
 use crate::optionstr::{STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL};

@@ -83,26 +83,12 @@ const MENU_TIP_MODE: c_int = 1 << MENU_INDEX_TIP;
 
 const MNU_HIDDEN_CHAR: c_char = b']' as c_char;
 
-const kTrue: c_int = 1;
-const kFalse: c_int = 0;
-const kNone: c_int = -1;
-
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;
 
 const HLF_8: c_int = 1;
-const HLF_D: c_int = 5;
 
-const MODE_NORMAL: c_int = 0x01;
-const MODE_VISUAL: c_int = 0x02;
-const MODE_CMDLINE: c_int = 0x08;
 const MODE_INSERT: c_int = 0x10;
-const MODE_LANGMAP: c_int = 0x20;
-const MODE_TERMINAL: c_int = 0x80;
-const MODE_HITRETURN: c_int = 0x2000 | MODE_NORMAL;
-const MODE_ASKMORE: c_int = 0x3000;
-
-const EVENT_MENUPOPUP: c_int = 84;
 
 const MENU_MODE_CHARS: [&CStr; MENU_MODES] = [c"n", c"v", c"s", c"o", c"i", c"c", c"tl", c"t"];
 
@@ -137,6 +123,9 @@ struct menutrans_T {
 }
 
 use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::autocmd::EVENT_MENUPOPUP;
+use crate::cmdexpand::HLF_D;
 use crate::cmdexpand::{EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL};
 use crate::eval::funcs::MENU_ALL_MODES;
 use crate::eval::funcs::MENU_INDEX_TIP;
@@ -146,6 +135,10 @@ pub use crate::input::{RedoState, StuffBuf, UngotKey, tasave_T};
 pub use crate::mapping::typebuf_T;
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;
+use crate::state::{
+    MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_LANGMAP, MODE_NORMAL, MODE_TERMINAL,
+    MODE_VISUAL,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

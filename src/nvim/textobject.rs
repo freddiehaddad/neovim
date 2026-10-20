@@ -29,26 +29,25 @@ use crate::normal::unadjust_for_sel;
 use crate::option_vars::*;
 use crate::search::{findmatch, findmatchlimit, linewhite};
 use crate::strings::vim_strchr;
-use crate::textformat::{MotionType, oparg_T};
+use crate::textformat::oparg_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::api::buffer::FORWARD;
+use crate::api::vim::BACKWARD;
 use crate::drawscreen::UPD_INVERTED;
 use crate::eval::funcs::kMTCharWise;
+use crate::eval::funcs::kMTLineWise;
 use crate::math::{FAIL, OK};
+use crate::normal::FM_FORWARD;
 pub use crate::search::Direction;
 use crate::search::kCpoMatchbsl;
 
 const NUL: c_char = 0;
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 const MAXCOL: colnr_T = 0x7fffffff;
-const FM_FORWARD: c_int = 0x02;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
-
-const kMTLineWise: MotionType = 1;
 
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 

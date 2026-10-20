@@ -56,9 +56,12 @@ use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::kCtxRegs;
 use crate::api::vim::{
     BCO_ENTER, BCO_NOHELP, kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxSFuncs,
 };
+use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
+use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 pub use crate::cursor::colnr_T;
 use crate::math::OK;
 use crate::shada::{kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo};
@@ -73,18 +76,13 @@ const NUM_SAVED_REGISTERS: c_int = 37;
 
 pub(crate) const kCdCauseWindow: CdCause = 1;
 
-const kCtxRegs: CtxStateFlags = 1;
-const kCtxCursor: CtxStateFlags = 64;
-const kCtxMarks: CtxStateFlags = 128;
-const kCtxVisual: CtxStateFlags = 256;
+pub(crate) const kCtxCursor: CtxStateFlags = 64;
+pub(crate) const kCtxMarks: CtxStateFlags = 128;
+pub(crate) const kCtxVisual: CtxStateFlags = 256;
 
-const kCtxMergeReg: CtxLoadFlags = 1;
+pub(crate) const kCtxMergeReg: CtxLoadFlags = 1;
 
-const kCtxKeepCwd: CtxSwitchFlags = 1;
-const kCtxKeepDirs: CtxSwitchFlags = 2;
-const kCtxNoDisplay: CtxSwitchFlags = 4;
-const kCtxNoEvents: CtxSwitchFlags = 8;
-const kCtxValidate: CtxSwitchFlags = 16;
+pub(crate) const kCtxKeepDirs: CtxSwitchFlags = 2;
 
 const kCtxSwitchNone: c_int = 0;
 const kCtxSwitchWin: c_int = 1;

@@ -202,14 +202,21 @@ pub struct vimoption_T {
     pub script_ctx: sctx_T,
 }
 
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
+use crate::api::options::SID_NONE;
 pub use crate::api::private::helpers::TryState;
 use crate::buffer::{STL_IN_ICON, STL_IN_TITLE};
 use crate::charset::EOL_MAC;
+use crate::charset::kOptDyFlagUhex;
 use crate::decoration::SCL_NUM;
 use crate::diff::kOptDiffopt;
 use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID, UPD_VALID};
+use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT};
+use crate::ex_session::{kOptSsopFlagCurdir, kOptSsopFlagSesdir};
+use crate::fileio::kOptFileencoding;
 use crate::indent::kOptBreakindentopt;
+use crate::message::kOptMessagesopt;
 use crate::option::kOptFlagOneComma;
 use crate::option::{
     kOptBackupcopy, kOptComments, kOptCompleteopt, kOptEventignorewin, kOptFileformat,
@@ -297,9 +304,6 @@ const NUL: c_char = 0;
 const LSIZE: usize = 512;
 const MAXLNUM: i32 = 0x7fffffff;
 
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
-
 const kOptAmbiwidth: OptIndex = 2;
 const kOptBackupext: OptIndex = 18;
 const kOptBelloff: OptIndex = 20;
@@ -307,10 +311,8 @@ const kOptCasemap: OptIndex = 31;
 const kOptClipboard: OptIndex = 43;
 const kOptDisplay: OptIndex = 76;
 const kOptEncoding: OptIndex = 80;
-const kOptFileencoding: OptIndex = 92;
 const kOptFoldopen: OptIndex = 112;
 const kOptJumpoptions: OptIndex = 158;
-const kOptMessagesopt: OptIndex = 190;
 const kOptMousescroll: OptIndex = 203;
 const kOptPatchmode: OptIndex = 218;
 pub(crate) const kOptPreviewpopup: OptIndex = 222;
@@ -322,14 +324,9 @@ const kOptTermpastefilter: OptIndex = 319;
 const kOptViewoptions: OptIndex = 346;
 const kOptWildoptions: OptIndex = 357;
 
-const kOptBkcFlagYes: c_uint = 0x01;
-const kOptBkcFlagAuto: c_uint = 0x02;
+pub(crate) const kOptBkcFlagYes: c_uint = 0x01;
+pub(crate) const kOptBkcFlagAuto: c_uint = 0x02;
 const kOptBkcFlagNo: c_uint = 0x04;
-
-const kOptDyFlagUhex: c_uint = 0x04;
-
-const kOptSsopFlagSesdir: c_uint = 0x800;
-const kOptSsopFlagCurdir: c_uint = 0x1000;
 
 const KEYSET_OPTIDX_mousescroll__hor: u32 = 1;
 const KEYSET_OPTIDX_mousescroll__ver: u32 = 2;
@@ -343,14 +340,10 @@ pub(crate) const STL_TRUNCMARK: c_char = b'<' as c_char;
 pub(crate) const STL_USER_HL: c_char = b'*' as c_char;
 pub(crate) const STL_HIGHLIGHT: c_char = b'#' as c_char;
 
-const SID_NONE: scid_T = -6;
-
 const CPT_ABBR: c_uint = 0;
 const CPT_KIND: c_uint = 1;
 const CPT_MENU: c_uint = 2;
 
-const B_IMODE_USE_INSERT: i64 = -1;
-const B_IMODE_NONE: i64 = 0;
 const B_IMODE_LMAP: i64 = 1;
 
 const kUIMessages: UIExtension = 4;

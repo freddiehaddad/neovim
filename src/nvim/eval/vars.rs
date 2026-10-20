@@ -107,13 +107,19 @@ pub use crate::optionstr::OptIndex;
 type ex_unletlock_callback =
     unsafe extern "C" fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
 
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::deprecated::kOptInvalid;
 use crate::api::options::IOSIZE;
+use crate::api::private::converter::VAR_UNLOCKED;
 pub use crate::api::private::converter::partial_T;
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA};
+use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
+use crate::buffer::{VAR_FIXED, VAR_SCOPE};
 use crate::drawscreen::UPD_SOME_VALID;
 use crate::eval::GLV_QUIET;
+use crate::eval::VAR_DEF_SCOPE;
 use crate::eval::typval::{DI_FLAGS_ALLOC, TV_CSTRING, TV_TRANSLATE};
 use crate::eval::{DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, kListLenUnknown};
 use crate::regexp::NUMBUFLEN;
@@ -159,12 +165,6 @@ const VV_RO_SBX: c_char = 4;
 
 const DI_FLAGS_RO_SBX: u8 = 2;
 
-const VAR_UNLOCKED: VarLockStatus = 0;
-const VAR_FIXED: VarLockStatus = 2;
-
-const VAR_SCOPE: ScopeType = 1;
-const VAR_DEF_SCOPE: ScopeType = 2;
-
 const VAR_TYPE_NUMBER: varnumber_T = 0;
 const VAR_TYPE_STRING: varnumber_T = 1;
 const VAR_TYPE_FUNC: varnumber_T = 2;
@@ -178,10 +178,6 @@ const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const kSpecialVarNull: SpecialVarValue = 0;
 
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
 const CHAN_STDERR: varnumber_T = 2;
 pub(crate) const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
@@ -193,10 +189,6 @@ pub(crate) const FORCE_NOBIN: c_int = 2;
 pub(crate) const BAD_KEEP: c_int = -1;
 pub(crate) const BAD_DROP: c_int = -2;
 
-const kCtxNoDisplay: c_int = 4;
-const kCtxNoEvents: c_int = 8;
-
-const OPT_LOCAL: c_int = 0x02;
 const kOptCharconvert: OptIndex = 36;
 const kOptDiffexpr: OptIndex = 72;
 const kOptPatchexpr: OptIndex = 217;

@@ -15,7 +15,6 @@ use crate::eval::{get_v_event, restore_v_event};
 use crate::event::r#loop::main_loop_events;
 use crate::event::multiqueue::{Event, multiqueue_empty, multiqueue_get};
 use crate::ex_getln::{cmdline_overstrike, get_cmdline_info};
-use crate::extmark::TriState;
 use crate::globals::*;
 use crate::hashtab::hashtab_T;
 use crate::input::{
@@ -30,8 +29,6 @@ use crate::strings::{strcmp, strcpy, vim_snprintf};
 use crate::ui::ui_flush;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
-
-const kNone: TriState = -1;
 
 pub const MODE_MAX_LENGTH: usize = 4;
 
@@ -58,12 +55,7 @@ pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
 const Ctrl_V: c_int = 22;
 
-const kOptVeFlagAll: c_uint = 0x04;
-const kOptVeFlagBlock: c_uint = 0x05;
 const kOptVeFlagInsert: c_uint = 0x06;
-
-const EVENT_MODECHANGED: c_int = 85;
-const EVENT_SAFESTATE: c_int = 96;
 
 pub type state_check_callback = Option<unsafe extern "C" fn(state: *mut VimState) -> c_int>;
 pub type state_execute_callback =
@@ -75,6 +67,10 @@ pub struct VimState {
     pub execute: state_execute_callback,
 }
 
+use crate::api::vim::kNone;
+use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE};
+use crate::cursor::kOptVeFlagAll;
+use crate::drawscreen::kOptVeFlagBlock;
 use crate::ex_getln::K_EVENT;
 use crate::log::LOGLVL_DBG;
 pub use crate::mapping::typebuf_T;

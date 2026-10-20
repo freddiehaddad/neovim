@@ -12,6 +12,7 @@ use crate::api::deprecated::{DECOR_ID_INVALID, kVPosEndOfLine};
 use crate::api::deprecated::{
     DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
 };
+use crate::api::extmark::kVPosWinCol;
 use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
     DecorState, colnr_T, ns_in_win, virt_text_to_array,
@@ -29,6 +30,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Dict, Object};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::buffer::buf_meta_total;
 use crate::change::changed_lines_invalidate_buf;
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
@@ -70,10 +72,6 @@ const SIGN_WIDTH: usize = 2;
 const SIGN_SHOW_MAX: c_int = 9;
 pub(crate) const SCL_NUM: c_int = -2;
 
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
 const kExtmarkNone: u16 = 0x1;
 const kExtmarkSign: u16 = 0x2;
 const kExtmarkVirtText: u16 = 0x8;
@@ -81,11 +79,9 @@ const kExtmarkVirtLines: u16 = 0x10;
 const kExtmarkHighlight: u16 = 0x20;
 
 const kDecorKindHighlight: DecorRangeKind = 0;
-const kDecorKindVirtText: DecorRangeKind = 2;
+pub(crate) const kDecorKindVirtText: DecorRangeKind = 2;
 const kDecorKindVirtLines: DecorRangeKind = 3;
-const kDecorKindUIWatched: DecorRangeKind = 4;
-
-const kVPosWinCol: VirtTextPos = 5;
+pub(crate) const kDecorKindUIWatched: DecorRangeKind = 4;
 
 pub(crate) const kMTFilterSelect: u32 = u32::MAX;
 

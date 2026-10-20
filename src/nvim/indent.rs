@@ -69,14 +69,20 @@ pub use crate::optionstr::OptIndex;
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
+use crate::api::buffer::kExtmarkUndo;
+use crate::api::command::CMOD_LOCKMARKS;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::change::{SIN_INSERT, SIN_NOMARK};
+use crate::charset::kOptDyFlagUhex;
 use crate::drawscreen::UPD_INVERTED;
 pub use crate::eval::deprecated::EvalFuncData;
+use crate::eval::vars::VV_LNUM;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::math::{FAIL, OK};
 pub use crate::optionstr::{CharBuf, OptKeyDict_briopt};
 use crate::regexp::{RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING};
+use crate::state::{REPLACE_FLAG, VREPLACE_FLAG};
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
@@ -90,23 +96,14 @@ pub(crate) const INDENT_SET: c_int = 1;
 pub(crate) const INDENT_DEC: c_int = 3;
 
 const MODE_INSERT: c_int = 0x10;
-const REPLACE_FLAG: c_int = 0x100;
-const VREPLACE_FLAG: c_int = 0x200;
 
-const CMOD_LOCKMARKS: c_int = 0x0800;
-
-const kExtmarkUndo: ExtmarkOp = 1;
 pub(crate) const kFoQComs: c_int = b'q' as c_int;
-const kOptDyFlagUhex: c_uint = 0x04;
 
-const OPT_LOCAL: c_int = 0x02;
 pub(crate) const kOptBreakindentopt: OptIndex = 25;
 pub(crate) const kOptIndentexpr: OptIndex = 149;
 pub(crate) const kOptTabstop: OptIndex = 308;
 pub(crate) const kOptVartabstop: OptIndex = 342;
 pub(crate) const kBufOptIndentexpr: usize = 48;
-
-const VV_LNUM: c_int = 9;
 
 const KEYSET_OPTIDX_briopt__min: u64 = 1;
 const KEYSET_OPTIDX_briopt__sbr: u64 = 2;

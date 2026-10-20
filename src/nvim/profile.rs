@@ -48,8 +48,6 @@ const NS_PER_SEC: f64 = 1_000_000_000.0;
 const PROF_PAUSED: c_int = 2;
 
 #[cfg(not(test))]
-const VV_PROFILING: c_int = 37;
-#[cfg(not(test))]
 const K_SPECIAL: u8 = 0x80;
 #[cfg(not(test))]
 const NL: c_char = b'\n' as c_char;
@@ -121,6 +119,8 @@ use crate::api::options::IOSIZE;
 use crate::autocmd::PROF_YES;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
 use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
+#[cfg(not(test))]
+use crate::eval::vars::VV_PROFILING;
 #[cfg(not(test))]
 use crate::globals::PROF_NONE;
 pub use crate::os::env::expand_T;

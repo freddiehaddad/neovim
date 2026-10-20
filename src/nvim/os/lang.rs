@@ -51,17 +51,6 @@ use std::ptr;
 #[cfg(not(test))]
 const NUL: c_char = 0;
 
-#[cfg(not(test))]
-const VV_LANG: c_int = 13;
-#[cfg(not(test))]
-const VV_LC_TIME: c_int = 14;
-#[cfg(not(test))]
-const VV_CTYPE: c_int = 15;
-#[cfg(not(test))]
-const VV_PROGPATH: c_int = 60;
-#[cfg(not(test))]
-const VV_COLLATE: c_int = 90;
-
 #[cfg(all(not(test), windows))]
 const LC_ALL: c_int = 0;
 #[cfg(windows)]
@@ -130,6 +119,8 @@ unsafe extern "C" {
 use crate::api::vim::MAXPATHL;
 #[cfg(all(not(test), unix))]
 use crate::diff::kShellOptSilent;
+#[cfg(not(test))]
+use crate::eval::vars::{VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH};
 #[cfg(not(windows))]
 #[cfg(not(test))]
 use crate::strings::strtok_r;

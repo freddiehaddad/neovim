@@ -3,6 +3,9 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
+use crate::api::buffer::LUA_NOREF;
+#[cfg(not(test))]
+use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
 use crate::api::private::converter::partial_T;
 #[cfg(not(test))]
@@ -39,6 +42,8 @@ use crate::eval::typval::{
     tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
     tv_list_first, tv_list_last, tv_list_len, tv_list_ref,
 };
+#[cfg(not(test))]
+use crate::eval::userfunc::FC_LUAREF;
 #[cfg(not(test))]
 use crate::eval::userfunc::{find_func, register_luafunc};
 #[cfg(not(test))]
@@ -84,15 +89,10 @@ pub type lua_Number = f64;
 pub type lua_Integer = isize;
 
 #[cfg(not(test))]
-const VAR_UNLOCKED: c_int = 0;
-#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
-const LUA_NOREF: LuaRef = -2;
-#[cfg(not(test))]
-const FC_LUAREF: c_int = 0x800;
 
 #[cfg(not(test))]
-const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
+pub(crate) const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 #[cfg(not(test))]
 const K_NLUA_PUSH_FREE_REFS: c_int = 0x02;
 

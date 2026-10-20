@@ -10,6 +10,7 @@
 
 use crate::api::tabpage::win_T;
 use crate::change::inserted_bytes;
+use crate::change::kOptVeFlagOnemore;
 use crate::drawscreen::UPD_NOT_VALID;
 use crate::drawscreen::redraw_later;
 use crate::eval::deprecated::{buf_T, pos_T};
@@ -29,6 +30,7 @@ use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg, linetabsize,
     linetabsize_eol, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
 };
+use crate::state::MODE_TERMINAL;
 use crate::state::virtual_active;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
@@ -68,13 +70,11 @@ const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const VALID_VIRTCOL: c_int = 0x04;
+pub(crate) const VALID_VIRTCOL: c_int = 0x04;
 
 const MODE_INSERT: c_int = 0x10;
-const MODE_TERMINAL: c_int = 0x80;
 
-const kOptVeFlagAll: c_uint = 0x04;
-const kOptVeFlagOnemore: c_uint = 0x08;
+pub(crate) const kOptVeFlagAll: c_uint = 0x04;
 
 /// Return the screen position of the cursor (`getviscol`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

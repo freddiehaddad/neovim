@@ -59,7 +59,6 @@ const TAB: c_char = b'\t' as c_char;
 const NL: c_char = b'\n' as c_char;
 const MAXCOL: usize = 0x7fff_ffff;
 const MB_MAXCHAR: c_int = 6;
-const GRAPHEME_STATE_INIT: GraphemeState = 0;
 
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
@@ -67,13 +66,7 @@ const KE_FILLER: u8 = 0x58;
 
 const ENC_8BIT: c_int = 0x01;
 const ENC_DBCS: c_int = 0x02;
-const ENC_UNICODE: c_int = 0x04;
 const ENC_ENDIAN_B: c_int = 0x10;
-const ENC_ENDIAN_L: c_int = 0x20;
-const ENC_2BYTE: c_int = 0x40;
-const ENC_4BYTE: c_int = 0x80;
-const ENC_2WORD: c_int = 0x100;
-const ENC_LATIN1: c_int = 0x200;
 const ENC_LATIN9: c_int = 0x400;
 const ENC_MACROMAN: c_int = 0x800;
 
@@ -984,9 +977,11 @@ use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::drawscreen::UPD_NOT_VALID;
 use crate::fileio::ICONV_EINVAL;
+use crate::fileio::{ENC_2BYTE, ENC_2WORD, ENC_4BYTE, ENC_ENDIAN_L, ENC_LATIN1, ENC_UNICODE};
 use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
+use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 

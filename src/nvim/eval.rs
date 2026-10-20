@@ -239,10 +239,17 @@ use crate::api::autocmd::{
 };
 #[cfg(not(test))]
 use crate::api::deprecated::kOptInvalid;
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
+use crate::api::private::converter::VAR_UNLOCKED;
+#[cfg(not(test))]
+use crate::api::private::helpers::HLF_E;
 #[cfg(not(test))]
 use crate::autocmd::PROF_YES;
+#[cfg(not(test))]
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
 use crate::buffer::NOTDONE;
+use crate::buffer::VAR_FIXED;
 use crate::channel::kChannelStreamProc;
 use crate::charset::VARNUMBER_MIN;
 #[cfg(not(test))]
@@ -251,6 +258,8 @@ use crate::eval::funcs::E_STRING_LIST_OR_BLOB_REQUIRED;
 use crate::eval::funcs::{UV_TIMER, kOptCpoptions};
 use crate::eval::typval::TV_CSTRING;
 pub use crate::eval::typval::float_T;
+#[cfg(not(test))]
+use crate::lua::executor::kRetObject;
 #[cfg(not(test))]
 use crate::option::{kOptFoldexpr, kOptFoldtext};
 use crate::regexp::NUMBUFLEN;
@@ -310,9 +319,7 @@ pub(crate) const DICT_MAXNEST: c_int = 100;
 
 const VARNUMBER_MAX: varnumber_T = i64::MAX;
 
-const VAR_UNLOCKED: c_int = 0;
-const VAR_FIXED: c_int = 2;
-const VAR_DEF_SCOPE: c_int = 2;
+pub(crate) const VAR_DEF_SCOPE: c_int = 2;
 
 const kBoolVarFalse: varnumber_T = 0;
 const kBoolVarTrue: varnumber_T = 1;
@@ -321,26 +328,14 @@ pub(crate) const kListLenUnknown: isize = -1;
 pub(crate) const kListLenShouldKnow: isize = -2;
 pub(crate) const kListLenMayKnow: isize = -3;
 
-#[cfg(not(test))]
-const kRetObject: c_int = 0;
-const kMarkAll: c_int = 1;
+pub(crate) const kMarkAll: c_int = 1;
 #[cfg(not(test))]
 const kUIMessages: c_int = 4;
-#[cfg(not(test))]
-const HLF_E: c_int = 6;
-
-#[cfg(not(test))]
-const DOCMD_VERBOSE: c_int = 0x01;
-#[cfg(not(test))]
-const DOCMD_NOWAIT: c_int = 0x02;
-
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
 
 #[cfg(not(test))]
 const kWinOptFoldexpr: usize = 15;
 
-const STR2NR_ALL: c_int = 0x7f;
+pub(crate) const STR2NR_ALL: c_int = 0x7f;
 
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
 

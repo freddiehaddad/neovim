@@ -75,18 +75,18 @@ pub(crate) const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
 pub(crate) const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
 pub(crate) const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 
-const LUA_NOREF: LuaRef = -2;
+pub(crate) const LUA_NOREF: LuaRef = -2;
 
 pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
-const kExtmarkUndo: ExtmarkOp = 1;
+pub(crate) const kExtmarkUndo: ExtmarkOp = 1;
 
 pub(crate) const kMarkAdjustApi: MarkAdjustMode = 1;
 pub(crate) const kMarkAllNoResolve: MarkGet = 2;
 
-const FORWARD: Direction = 1;
+pub(crate) const FORWARD: Direction = 1;
 
-const ML_LINE_DIRTY: c_int = 0x02;
-const VALID_BOTLINE_AP: c_int = 0x40;
+pub(crate) const ML_LINE_DIRTY: c_int = 0x02;
+pub(crate) const VALID_BOTLINE_AP: c_int = 0x40;
 const MODE_INSERT: c_int = 0x10;
 
 const KEYSET_OPTIDX_buf_attach__on_bytes: u64 = 2;

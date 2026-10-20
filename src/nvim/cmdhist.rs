@@ -44,9 +44,6 @@ pub const HIST_INPUT: c_int = 3;
 pub const HIST_DEBUG: c_int = 4;
 pub const HIST_COUNT: usize = 5;
 
-#[cfg(not(test))]
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-
 static mut HISTORY: [*mut histentry_T; HIST_COUNT] = [std::ptr::null_mut(); HIST_COUNT];
 static mut HISIDX: [c_int; HIST_COUNT] = [-1; HIST_COUNT];
 static mut HISNUM: [c_int; HIST_COUNT] = [0; HIST_COUNT];
@@ -70,6 +67,8 @@ pub struct histentry_T {
     pub additional_data: *mut c_void,
 }
 
+#[cfg(not(test))]
+use crate::api::command::CMOD_KEEPPATTERNS;
 pub use crate::api::command::cmdmod_T;
 pub use crate::api::command::regmatch_T;
 #[cfg(not(test))]

@@ -57,15 +57,11 @@ pub use crate::option::set_prefix_T;
 pub use crate::optionstr::OptIndex;
 
 pub(crate) const IOSIZE: usize = 1024 + 1;
-const SID_NONE: scid_T = -6;
-const BF_DUMMY: c_int = 0x80;
-
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
+pub(crate) const SID_NONE: scid_T = -6;
+pub(crate) const BF_DUMMY: c_int = 0x80;
 
 pub(crate) const PREFIX_NONE: set_prefix_T = 1;
 
-const kOptScopeBuf: OptScope = 2;
 pub(crate) const kOptScopeTab: OptScope = 3;
 
 pub(crate) const OP_NONE: set_op_T = 0;
@@ -73,9 +69,9 @@ pub(crate) const OP_ADDING: set_op_T = 1;
 pub(crate) const OP_PREPENDING: set_op_T = 2;
 pub(crate) const OP_REMOVING: set_op_T = 3;
 
-const kOptBufhidden: OptIndex = 27;
-const kOptBuftype: OptIndex = 29;
-const kOptFiletype: OptIndex = 97;
+pub(crate) const kOptBufhidden: OptIndex = 27;
+pub(crate) const kOptBuftype: OptIndex = 29;
+pub(crate) const kOptFiletype: OptIndex = 97;
 pub(crate) const kOptModeline: OptIndex = 192;
 pub(crate) const kOptSwapfile: OptIndex = 301;
 
@@ -87,6 +83,7 @@ const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL, kOptScopeBuf};
 use crate::api::deprecated::{kOptInvalid, kOptScopeGlobal, kOptScopeWin};
 use crate::autocmd::EVENT_FILETYPE;
 use crate::buffer::BLN_DUMMY;

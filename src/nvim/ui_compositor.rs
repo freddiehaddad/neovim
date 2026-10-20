@@ -35,15 +35,15 @@ pub use crate::option::OptInt;
 pub use crate::tui::tui::LineFlags;
 
 const kUIMultigrid: UIExtension = 6;
-const kLineFlagWrap: LineFlags = 1;
-const kLineFlagInvalid: LineFlags = 2;
 
 const kOptRdbFlagCompositor: c_uint = 0x01;
-const kOptRdbFlagInvalid: c_uint = 0x04;
 
 const HLF_MSGSEP: usize = 61;
 
+use crate::api::ui::kLineFlagWrap;
+use crate::grid::kOptRdbFlagInvalid;
 pub use crate::msgpack_rpc::channel::RemoteUI;
+use crate::ui::kLineFlagInvalid;
 
 static mut composed_uis: c_int = 0;
 static mut layers: KVec<*mut ScreenGrid> = KVec {

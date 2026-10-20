@@ -20,6 +20,7 @@ use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
+use crate::lua::executor::kRetObject;
 use crate::lua::executor::nlua_exec;
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
@@ -37,7 +38,6 @@ const NUL: c_char = 0;
 const kUIMessages: UIExtension = 4;
 const kUIMultigrid: UIExtension = 6;
 const kShmIntro: c_int = b'I' as c_int;
-const kRetObject: c_int = 0;
 const HLF_8: usize = 1;
 
 static VIM_VERSIONS: [c_int; 5] = [801, 802, 900, 901, 902];

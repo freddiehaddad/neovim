@@ -36,7 +36,7 @@ use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::do_cmdline;
 use crate::ex_getln::getexline;
-use crate::extmark::{ExtmarkOp, TriState, bcount_t, extmark_splice, extmark_splice_cols};
+use crate::extmark::{TriState, bcount_t, extmark_splice, extmark_splice_cols};
 use crate::fold::{deleteFold, foldCreate, foldOpenCursor, hasFolding, opFoldRange};
 use crate::globals::*;
 use crate::indent::{
@@ -96,10 +96,19 @@ use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
+use crate::api::buffer::kExtmarkUndo;
+use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::options::IOSIZE;
+use crate::api::vim::kNone;
+use crate::arglist::ML_EMPTY;
+use crate::change::kOptVeFlagOnemore;
 use crate::change::{COM_END, kCpoDollar};
 use crate::charset::{STR2NR_BIN, STR2NR_HEX, STR2NR_OCT};
 pub use crate::cmdexpand::LineGetter;
+use crate::cursor::{VALID_VIRTCOL, kOptVeFlagAll};
+use crate::diff::kOptBoFlagOperator;
+use crate::drawline::{VALID_WCOL, VALID_WROW};
+use crate::eval::funcs::kMTLineWise;
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::ex_getln::K_LUA;
@@ -154,19 +163,6 @@ const Ctrl_V: c_int = 22;
 const Ctrl_X: c_int = 24;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const kMTLineWise: MotionType = 1;
-
-const kNone: TriState = -1;
-
-const kExtmarkUndo: ExtmarkOp = 1;
-
-const ML_EMPTY: c_int = 0x01;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-
-const VALID_WROW: c_int = 0x01;
-const VALID_WCOL: c_int = 0x02;
-const VALID_VIRTCOL: c_int = 0x04;
-
 const kCpoEmptyregion: c_int = b'E' as c_int;
 const kCpoFilter: c_int = b'!' as c_int;
 const kCpoJoincol: c_int = b'q' as c_int;
@@ -175,10 +171,6 @@ const kCpoYank: c_int = b'y' as c_int;
 const kFoMbyteJoin: c_int = b'M' as c_int;
 const kFoMbyteJoin2: c_int = b'B' as c_int;
 const kFoRemoveComs: c_int = b'j' as c_int;
-
-const kOptVeFlagAll: c_uint = 0x04;
-const kOptVeFlagOnemore: c_uint = 0x08;
-const kOptBoFlagOperator: c_uint = 0x4000;
 
 const OPCHARS: [[u8; 3]; 31] = [
     [0, 0, 0],                            // OP_NOP

@@ -707,12 +707,19 @@ pub enum cmdidx_T {
     CMD_USER_BUF = -2,
 }
 
+use crate::api::buffer::FORWARD;
+use crate::api::command::{EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE};
 pub use crate::api::command::{ExMagic as ExArgMagic, exarg_T};
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
+use crate::api::vim::BACKWARD;
 use crate::api::vim::MAXPATHL;
+use crate::autocmd::HLF_T;
 #[cfg(unix)]
 use crate::ex_getln::VSE_SHELL;
 use crate::ex_getln::{VSE_BUFFER, VSE_NONE};
+use crate::lua::executor::kRetObject;
 use crate::regexp::{RE_MAGIC, RE_STRING};
+use crate::runtime::{DIP_OPT, DIP_START};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -773,9 +780,6 @@ const TAB: c_char = b'\t' as c_char;
 const Ctrl_N: c_int = 14;
 const Ctrl_P: c_int = 16;
 const Ctrl_V: c_char = 22;
-
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 
 const MB_MAXBYTES: usize = 30;
 
@@ -909,16 +913,7 @@ pub const EXPAND_PACKDEL: c_int = 66;
 pub const EXPAND_PACKUPDATE: c_int = 67;
 pub const EXPAND_MARKS: c_int = 68;
 
-const EX_EXTRA: u32 = 0x004;
-const EX_XFILE: u32 = 0x008;
-const EX_NOSPC: u32 = 0x010;
-const EX_TRLBAR: u32 = 0x100;
-const EX_NOTRLCOM: u32 = 0x800;
-const EX_CMDARG: u32 = 0x4000;
-const EX_ARGOPT: u32 = 0x20000;
-
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
+pub(crate) const EX_NOTRLCOM: u32 = 0x800;
 
 const kOptWopFlagFuzzy: c_uint = 0x01;
 const kOptWopFlagTagfile: c_uint = 0x02;
@@ -928,7 +923,7 @@ const kOptWopFlagExacttext: c_uint = 0x08;
 const kOptWimFlagNoselect: c_int = 0x10;
 const kOptWimFlagNoinsert: c_int = 0x20;
 
-const kOptBoFlagWildmode: c_uint = 0x80000;
+pub(crate) const kOptBoFlagWildmode: c_uint = 0x80000;
 
 const kUICmdline: UIExtension = 0;
 const kUIPopupmenu: UIExtension = 1;
@@ -938,23 +933,18 @@ const kUIMessages: UIExtension = 4;
 const WM_SHOWN: c_int = 1;
 const WM_SCROLLED: c_int = 2;
 
-const HLF_D: hlf_T = 5;
-const HLF_T: hlf_T = 23;
+pub(crate) const HLF_D: hlf_T = 5;
 const HLF_WM: hlf_T = 27;
-
-const DIP_START: c_int = 0x08;
-const DIP_OPT: c_int = 0x10;
 
 pub(crate) const RE_LAST: c_int = 2;
 
-const SEARCH_NFMSG: c_int = 0x08;
-const SEARCH_OPT: c_int = 0x10;
-const SEARCH_NOOF: c_int = 0x80;
-const SEARCH_START: c_int = 0x100;
-const SEARCH_PEEK: c_int = 0x800;
+pub(crate) const SEARCH_NFMSG: c_int = 0x08;
+pub(crate) const SEARCH_OPT: c_int = 0x10;
+pub(crate) const SEARCH_NOOF: c_int = 0x80;
+pub(crate) const SEARCH_START: c_int = 0x100;
+pub(crate) const SEARCH_PEEK: c_int = 0x800;
 
 pub(crate) const TAG_MANY: c_int = 300;
-const kRetObject: LuaRetMode = 0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FiletypeExpandWhat {

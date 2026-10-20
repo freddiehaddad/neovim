@@ -81,23 +81,15 @@ const kUIGlobalCount: usize = kUILinegrid;
 const kUIMultigrid: usize = 6;
 const kUIFloatDebug: usize = 9;
 
-const kLineFlagWrap: c_int = 1;
-const kLineFlagInvalid: c_int = 2;
+pub(crate) const kLineFlagInvalid: c_int = 2;
 
 const kOptBoFlagAll: c_uint = 0x01;
 const kOptRdbFlagLine: c_uint = 0x10;
 const kOptRdbFlagFlush: c_uint = 0x20;
-const kOptCmdheight: c_int = 44;
 
 const HLF_W: c_int = 26;
 
-const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
-const MODE_CMDLINE: c_int = 0x08;
-const MODE_HITRETURN: c_int = 0x2000 | MODE_NORMAL;
-const MODE_ASKMORE: c_int = 0x3000;
-const MODE_SETWSIZE: c_int = 0x4000;
-const MODE_EXTERNCMD: c_int = 0x5000;
 
 const kMouseNormal: c_int = b'n' as c_int;
 const kMouseReturn: c_int = b'r' as c_int;
@@ -106,16 +98,18 @@ const kMouseCommand: c_int = b'c' as c_int;
 const kMouseHelp: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
-const kRetNilBool: c_int = 1;
-
+use crate::api::ui::kLineFlagWrap;
 use crate::api::ui::{kUIExtCount, kUIHlState, kUITermColors};
 use crate::api::vim::MAXPATHL;
 use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
 use crate::log::LOGLVL_ERR;
+use crate::lua::executor::kRetNilBool;
 use crate::mouse::kMouseVisual;
 pub use crate::msgpack_rpc::channel::RemoteUI;
+use crate::option::kOptCmdheight;
+use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
 
 #[repr(C)]
 struct UIEventCallback {

@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::LUA_NOREF;
 use crate::api::extmark::kDecorProviderActive;
 use crate::api::extmark::{DecorProvider, NS, describe_ns, linenr_T};
 use crate::api::private::helpers::{
@@ -25,6 +26,7 @@ use crate::log::LOGLVL_ERR;
 use crate::log::logmsg;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, nlua_call_ref};
+use crate::lua::executor::{kRetMulti, kRetNilBool};
 use crate::memory::{xfree, xrealloc};
 use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;
@@ -32,11 +34,7 @@ use crate::msgpack_rpc::packer::Integer;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-const LUA_NOREF: LuaRef = -2;
 pub(crate) const CB_MAX_ERROR: u8 = 3;
-
-const kRetNilBool: c_int = 1;
-const kRetMulti: c_int = 3;
 
 const kDecorProviderWinDisabled: c_int = 2;
 const kDecorProviderRedrawDisabled: c_int = 3;

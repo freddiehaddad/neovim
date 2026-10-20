@@ -45,6 +45,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
+use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
@@ -53,10 +54,8 @@ use crate::lua::executor::kRetMultiStack;
 
 const MAXCOL: i64 = 0x7fffffff;
 
-const kCtxKeepCwd: c_int = 1;
-const kCtxNoDisplay: c_int = 4;
-const kCtxNoEvents: c_int = 8;
-const kCtxValidate: c_int = 16;
+pub(crate) const kCtxKeepCwd: c_int = 1;
+pub(crate) const kCtxValidate: c_int = 16;
 
 const KEYSET_OPTIDX_win_text_height__end_row: u64 = 1;
 const KEYSET_OPTIDX_win_text_height__end_vcol: u64 = 2;

@@ -5,9 +5,12 @@
 
 #[cfg(not(test))]
 use crate::api::private::converter::K_SPECIAL_VAR_NULL;
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::private::converter::partial_T;
 use crate::buffer::NOTDONE;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+#[cfg(not(test))]
+use crate::eval::decode::SURROGATE_FIRST_CHAR;
 use crate::eval::decode::dict_T;
 #[cfg(not(test))]
 use crate::eval::decode::dictitem_T;
@@ -58,7 +61,6 @@ use std::sync::atomic::AtomicBool;
 #[cfg(not(test))]
 use std::sync::atomic::Ordering;
 
-const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
 
@@ -81,8 +83,6 @@ const SURROGATE_HI_END: c_int = 0xDBFF;
 const SURROGATE_LO_START: c_int = 0xDC00;
 #[cfg(not(test))]
 const SURROGATE_LO_END: c_int = 0xDFFF;
-#[cfg(not(test))]
-const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 #[cfg(not(test))]
 const BS: c_int = 0x08;

@@ -10,6 +10,7 @@ use crate::api::autocmd::kCallbackNone;
 use crate::api::tabpage::lpos_T;
 use crate::change::COM_MAX_LEN;
 use crate::change::{COM_END, COM_LEFT, COM_RIGHT, COM_START};
+use crate::change::{KEY_OPEN_BACK, KEY_OPEN_FORW};
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
     vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
@@ -39,12 +40,10 @@ const NUL: c_char = 0;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MODE_INSERT: c_int = 0x10;
-const FM_BACKWARD: c_int = 0x01;
-const FM_BLOCKSTOP: c_int = 0x04;
-const FM_SKIPCOMM: c_int = 0x08;
-const KEY_OPEN_FORW: c_int = 0x101;
-const KEY_OPEN_BACK: c_int = 0x102;
-const KEY_COMPLETE: c_int = 0x103;
+pub(crate) const FM_BACKWARD: c_int = 0x01;
+pub(crate) const FM_BLOCKSTOP: c_int = 0x04;
+pub(crate) const FM_SKIPCOMM: c_int = 0x08;
+pub(crate) const KEY_COMPLETE: c_int = 0x103;
 const COM_MIDDLE: c_char = b'm' as c_char;
 const FIND_NAMESPACE_LIM: linenr_T = 20;
 const BRACE_IN_COL0: c_int = 1;

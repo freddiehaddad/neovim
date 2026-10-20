@@ -65,8 +65,6 @@ pub(crate) const EXPAND_BUF_LEN: usize = 256;
 #[cfg(not(test))]
 const INIT_SIZE: usize = 64;
 #[cfg(not(test))]
-const VV_PROGPATH: c_int = 60;
-#[cfg(not(test))]
 const RUNTIME_DIRNAME: &CStr = c"runtime";
 
 #[cfg(all(not(test), windows))]
@@ -187,6 +185,8 @@ unsafe extern "C" {
 #[cfg(all(not(test), unix))]
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::eval::vars::VV_PROGPATH;
 #[cfg(not(test))]
 use crate::math::OK;
 #[cfg(all(not(test), windows))]

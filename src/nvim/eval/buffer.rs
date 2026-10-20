@@ -52,7 +52,9 @@ use std::ptr;
 
 pub type varnumber_T = i64;
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::kExtmarkUndo;
 use crate::buffer::SEA_NONE;
+use crate::buffer::{kExtmarkNoUndo, kMarkAdjustNormal};
 use crate::change::ML_DEL_MESSAGE;
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
@@ -64,9 +66,6 @@ use crate::math::{FAIL, OK};
 const NUL: c_char = 0;
 const MAXLNUM: linenr_T = 0x7fffffff;
 
-const kMarkAdjustNormal: MarkAdjustMode = 0;
-const kExtmarkUndo: ExtmarkOp = 1;
-const kExtmarkNoUndo: ExtmarkOp = 2;
 pub(crate) const SEA_READONLY: c_int = 4;
 
 #[repr(C)]

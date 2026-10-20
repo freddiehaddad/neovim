@@ -53,17 +53,7 @@ pub const SHAPE_CURSOR: c_int = 2;
 const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
 
 #[cfg(not(test))]
-const MODE_CMDLINE: c_int = 0x08;
-#[cfg(not(test))]
 const MODE_INSERT: c_int = 0x10;
-#[cfg(not(test))]
-const MODE_TERMINAL: c_int = 0x80;
-#[cfg(not(test))]
-const REPLACE_FLAG: c_int = 0x100;
-#[cfg(not(test))]
-const VREPLACE_FLAG: c_int = 0x200;
-#[cfg(not(test))]
-const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,6 +85,8 @@ pub use crate::api::buffer::VisualState;
 pub use crate::eval::deprecated::pos_T;
 #[cfg(not(test))]
 use crate::log::LOGLVL_WRN;
+#[cfg(not(test))]
+use crate::state::{MODE_CMDLINE, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG};
 
 const fn entry(
     full_name: &'static CStr,

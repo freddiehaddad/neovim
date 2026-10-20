@@ -13,8 +13,6 @@ use crate::api::options::Buffer;
 #[cfg(not(test))]
 use crate::api::options::CtxSwitch;
 #[cfg(not(test))]
-use crate::api::options::OptIndex;
-#[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj,
 };
@@ -205,7 +203,15 @@ use std::ffi::c_uint;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+#[cfg(not(test))]
+use crate::api::buffer::{FORWARD, kExtmarkUndo};
+#[cfg(not(test))]
+use crate::api::deprecated::OPT_LOCAL;
 pub use crate::api::deprecated::StringBuilder;
+#[cfg(not(test))]
+use crate::api::options::kOptBuftype;
+#[cfg(not(test))]
+use crate::arglist::ML_EMPTY;
 #[cfg(not(test))]
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_TERMCLOSE, EVENT_TERMENTER, EVENT_TERMLEAVE, EVENT_TERMOPEN,
@@ -215,16 +221,38 @@ use crate::autocmd::{
 use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE};
 pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, kOptCuloptFlagNumber};
+#[cfg(not(test))]
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
+#[cfg(not(test))]
+use crate::eval::funcs::{
+    HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_UNDERCURL, HL_UNDERDOUBLE,
+    HL_UNDERLINE,
+};
 #[cfg(not(test))]
 use crate::eval::kListLenMayKnow;
 #[cfg(not(test))]
+use crate::eval::vars::VV_TERMREQUEST;
+#[cfg(not(test))]
 use crate::ex_getln::{K_EVENT, K_LUA};
+#[cfg(not(test))]
+use crate::highlight::{HL_BG_INDEXED, HL_FG_INDEXED};
 #[cfg(not(test))]
 use crate::input::K_PASTE_START;
 #[cfg(not(test))]
+use crate::mark::kMarkAdjustTerm;
+#[cfg(not(test))]
 use crate::mouse::{MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP};
+#[cfg(not(test))]
+use crate::option::SB_MAX;
+#[cfg(not(test))]
+use crate::state::MODE_TERMINAL;
 pub use crate::vterm::keyboard::VTermKey;
+#[cfg(not(test))]
+use crate::vterm::keyboard::{
+    VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_NONE, VTERM_KEY_TAB,
+    VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_NONE, VTERM_MOD_SHIFT,
+};
 #[cfg(not(test))]
 use crate::vterm::parser::VTERM_TERMINATOR_BEL;
 #[cfg(not(test))]
@@ -232,6 +260,8 @@ use crate::vterm::pen::{
     VTERM_ATTR_URI, VTERM_UNDERLINE_CURLY, VTERM_UNDERLINE_DOUBLE, VTERM_UNDERLINE_SINGLE,
     VTERM_VALUETYPE_INT,
 };
+#[cfg(not(test))]
+use crate::vterm::pen::{VTERM_COLOR_DEFAULT_BG, VTERM_COLOR_DEFAULT_FG, VTERM_COLOR_INDEXED};
 #[cfg(not(test))]
 use crate::vterm::screen::{VTERM_DAMAGE_SCROLL, VTERM_PROP_ALTSCREEN};
 #[cfg(not(test))]
@@ -249,16 +279,6 @@ const TEXTBUF_SIZE: usize = 0x1fff;
 #[cfg(not(test))]
 const SELECTIONBUF_SIZE: usize = 0x0400;
 
-#[cfg(not(test))]
-const SB_MAX: i64 = 1_000_000;
-#[cfg(not(test))]
-const ML_EMPTY: c_int = 0x01;
-#[cfg(not(test))]
-const OPT_LOCAL: c_int = 0x02;
-#[cfg(not(test))]
-const kOptBuftype: OptIndex = 29;
-#[cfg(not(test))]
-const kOptCuloptFlagNumber: u8 = 0x04;
 #[cfg(not(test))]
 const kOptBoFlagTerm: c_uint = 0x40000;
 
@@ -278,40 +298,13 @@ const kOptTpfFlagC0: c_uint = 0x20;
 const kOptTpfFlagC1: c_uint = 0x40;
 
 #[cfg(not(test))]
-const VV_TERMREQUEST: c_int = 10;
-
-#[cfg(not(test))]
 const VTERM_UNDERLINE_OFF: u32 = 0;
-
-#[cfg(not(test))]
-const VTERM_COLOR_INDEXED: u8 = 0x01;
-#[cfg(not(test))]
-const VTERM_COLOR_DEFAULT_FG: u8 = 0x02;
-#[cfg(not(test))]
-const VTERM_COLOR_DEFAULT_BG: u8 = 0x04;
 
 #[cfg(not(test))]
 const VTERM_SELECTION_CLIPBOARD: VTermSelectionMask = 1 << 0;
 #[cfg(not(test))]
 const VTERM_SELECTION_PRIMARY: VTermSelectionMask = 1 << 1;
 
-#[cfg(not(test))]
-const VTERM_MOD_NONE: VTermModifier = 0x00;
-#[cfg(not(test))]
-const VTERM_MOD_SHIFT: VTermModifier = 0x01;
-#[cfg(not(test))]
-const VTERM_MOD_ALT: VTermModifier = 0x02;
-#[cfg(not(test))]
-const VTERM_MOD_CTRL: VTermModifier = 0x04;
-
-#[cfg(not(test))]
-const VTERM_KEY_NONE: VTermKey = 0;
-#[cfg(not(test))]
-const VTERM_KEY_ENTER: VTermKey = 1;
-#[cfg(not(test))]
-const VTERM_KEY_TAB: VTermKey = 2;
-#[cfg(not(test))]
-const VTERM_KEY_BACKSPACE: VTermKey = 3;
 #[cfg(not(test))]
 const VTERM_KEY_ESCAPE: VTermKey = 4;
 #[cfg(not(test))]
@@ -334,8 +327,6 @@ const VTERM_KEY_END: VTermKey = 12;
 const VTERM_KEY_PAGEUP: VTermKey = 13;
 #[cfg(not(test))]
 const VTERM_KEY_PAGEDOWN: VTermKey = 14;
-#[cfg(not(test))]
-const VTERM_KEY_FUNCTION_0: VTermKey = 256;
 #[cfg(not(test))]
 const VTERM_KEY_KP_0: VTermKey = 512;
 #[cfg(not(test))]
@@ -383,47 +374,10 @@ const Ctrl_O: c_int = 15;
 const Ctrl_BSL: c_int = 28;
 
 #[cfg(not(test))]
-const MODE_TERMINAL: c_int = 0x80;
-
-#[cfg(not(test))]
-const FORWARD: c_int = 1;
-
-#[cfg(not(test))]
 const MAXLNUM: linenr_T = 0x7fffffff;
-#[cfg(not(test))]
-const kMarkAdjustTerm: c_int = 2;
-#[cfg(not(test))]
-const kExtmarkUndo: c_int = 1;
 
 #[cfg(not(test))]
 const TERM_ATTRS_MAX: c_int = 1024;
-
-#[cfg(not(test))]
-const HL_INVERSE: c_int = 0x01;
-#[cfg(not(test))]
-const HL_BOLD: c_int = 0x02;
-#[cfg(not(test))]
-const HL_ITALIC: c_int = 0x04;
-#[cfg(not(test))]
-const HL_UNDERLINE: c_int = 0x08;
-#[cfg(not(test))]
-const HL_UNDERCURL: c_int = 0x10;
-#[cfg(not(test))]
-const HL_UNDERDOUBLE: c_int = 0x18;
-#[cfg(not(test))]
-const HL_STRIKETHROUGH: c_int = 0x0080;
-#[cfg(not(test))]
-const HL_DIM: c_int = 0x0200;
-#[cfg(not(test))]
-const HL_BG_INDEXED: c_int = 0x0800;
-#[cfg(not(test))]
-const HL_FG_INDEXED: c_int = 0x1000;
-#[cfg(not(test))]
-const HL_BLINK: c_int = 0x8000;
-#[cfg(not(test))]
-const HL_CONCEALED: c_int = 0x10000;
-#[cfg(not(test))]
-const HL_OVERLINE: c_int = 0x20000;
 
 #[cfg(not(test))]
 #[repr(C)]

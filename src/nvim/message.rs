@@ -108,15 +108,9 @@ const MB_MAXCHAR: usize = 6;
 const MB_MAXBYTES: usize = 30;
 
 const HLF_8: c_int = 1;
-const HLF_AT: c_int = 4;
-const HLF_E: c_int = 6;
 pub(crate) const HLF_M: c_int = 10;
-const HLF_R: c_int = 18;
-const HLF_T: c_int = 23;
 const HLF_W: c_int = 26;
 const HLF_MSG: c_int = 63;
-
-const FLUSH_MINIMAL: c_int = 0;
 
 const kOptBoFlagMess: c_uint = 0x1000;
 const kOptBoFlagShell: c_uint = 0x10000;
@@ -124,20 +118,15 @@ const kOptRdbFlagNothrottle: c_uint = 0x02;
 const kShmTrunc: c_int = b't' as c_int;
 const kShmTruncall: c_int = b'T' as c_int;
 
-const kOptMessagesopt: c_int = 190;
+pub(crate) const kOptMessagesopt: c_int = 190;
 const KEYSET_OPTIDX_mopt__wait: u32 = 1;
 const KEYSET_OPTIDX_mopt__history: u32 = 3;
 
 const PROGRESS_TARGET_CMD: c_int = 0x01;
 
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
 const Ctrl_B: c_int = 2;
 const Ctrl_C: c_int = 3;
 const Ctrl_F: c_int = 6;
-
-const VAR_UNLOCKED: c_int = 0;
 
 const VERBOSE_KIND: &CStr = c"verbose";
 
@@ -442,12 +431,19 @@ macro_rules! swmsg {
     }};
 }
 use crate::api::autocmd::kCallbackNone;
+use crate::api::private::converter::VAR_UNLOCKED;
+use crate::api::private::helpers::HLF_E;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::HLF_N;
+use crate::api::vim::{kFalse, kTrue};
+use crate::autocmd::HLF_T;
 use crate::drawline::HLF_0;
+use crate::drawline::HLF_AT;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
 use crate::eval::userfunc::MSG_BUF_LEN;
+use crate::ex_cmds::HLF_R;
 use crate::ex_getln::K_EVENT;
+use crate::input::FLUSH_MINIMAL;
 pub use swmsg;
 
 #[inline]

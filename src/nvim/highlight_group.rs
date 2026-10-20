@@ -15,16 +15,23 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
+use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{
     ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
 };
+use crate::cmdexpand::HLF_D;
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration_provider::decor_provider_invalidate_hl;
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::drawscreen::redraw_all_later;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID};
 use crate::errors::*;
+use crate::eval::funcs::{
+    HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_NOCOMBINE, HL_STANDOUT,
+    HL_UNDERCURL, HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
+};
 use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_docmd::ends_excmd;
@@ -32,6 +39,7 @@ use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::grid::UIExtension;
+use crate::highlight::{HL_ALTFONT, HL_DEFAULT};
 use crate::highlight::{
     HLATTRS_INIT, KeyDict_highlight, OptionalKeys, RgbValue, hl_add_font_idx, hl_get_font,
     hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
@@ -59,6 +67,7 @@ use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::expand_T;
 use crate::os::time::os_delay;
+use crate::runtime::{DIP_OPT, DIP_START};
 use crate::runtime::{source_runtime_vim_lua, sourcing_lnum, sourcing_name};
 use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up, vim_strup};
 use crate::ui::{
@@ -87,43 +96,16 @@ const LIST_ATTR: c_int = 1;
 const LIST_STRING: c_int = 2;
 const LIST_INT: c_int = 3;
 
-const HL_INVERSE: c_int = 0x01;
-const HL_BOLD: c_int = 0x02;
-const HL_ITALIC: c_int = 0x04;
-const HL_UNDERLINE_MASK: c_int = 0x38;
-const HL_UNDERLINE: c_int = 0x08;
-const HL_UNDERCURL: c_int = 0x10;
-const HL_UNDERDOUBLE: c_int = 0x18;
-const HL_UNDERDOTTED: c_int = 0x20;
-const HL_UNDERDASHED: c_int = 0x28;
-const HL_STANDOUT: c_int = 0x0040;
-const HL_STRIKETHROUGH: c_int = 0x0080;
-const HL_ALTFONT: c_int = 0x0100;
-const HL_DIM: c_int = 0x0200;
-const HL_NOCOMBINE: c_int = 0x0400;
-const HL_DEFAULT: c_int = 0x2000;
-const HL_BLINK: c_int = 0x8000;
-const HL_CONCEALED: c_int = 0x10000;
-const HL_OVERLINE: c_int = 0x20000;
-
-const HLF_D: c_int = 5;
 const HLF_S: usize = 19;
 const HLF_SNC: usize = 20;
 const HLF_W: c_int = 26;
 const HLF_MSG: usize = 63;
 const HLF_COUNT: usize = 76;
 
-const DIP_START: c_int = 0x08;
-const DIP_OPT: c_int = 0x10;
-
 const kUIMessages: UIExtension = 4;
 const kUILinegrid: UIExtension = 5;
 
 const kOptBackground: OptIndex = 13;
-
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
 
 const KEYSET_OPTIDX_highlight__update: c_int = 14;
 

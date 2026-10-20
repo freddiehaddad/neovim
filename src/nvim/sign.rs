@@ -70,9 +70,6 @@ const NUL: c_char = 0;
 const SIGN_WIDTH: usize = 2;
 const SIGN_DEF_PRIO: c_int = 10;
 
-const HLF_D: c_int = 5;
-const ECMD_HIDE: c_int = 0x01;
-
 const SIGNCMD_DEFINE: c_int = 0;
 const SIGNCMD_UNDEFINE: c_int = 1;
 const SIGNCMD_LIST: c_int = 2;
@@ -118,6 +115,7 @@ pub struct sign_T {
 use crate::api::deprecated::DECOR_ID_INVALID;
 use crate::api::extmark::kSHIsSign;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::cmdexpand::HLF_D;
 use crate::cmdexpand::{
     EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN,
 };
@@ -125,6 +123,7 @@ use crate::drawscreen::UPD_NOT_VALID;
 use crate::eval::kListLenMayKnow;
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::ex_cmds::BL_WHITE;
+use crate::ex_cmds::ECMD_HIDE;
 use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
 

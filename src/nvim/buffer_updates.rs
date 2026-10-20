@@ -15,7 +15,6 @@ use crate::buffer::buf_get_changedtick;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::globals::*;
 use crate::log::logmsg;
-use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, nlua_call_ref};
 use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
@@ -31,13 +30,13 @@ const ARENA_EMPTY: Arena = Arena {
 };
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::buffer::LUA_NOREF;
 pub use crate::api::buffer::bcount_t;
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
 pub use crate::lua::executor::LuaRetMode;
+use crate::lua::executor::kRetNilBool;
 
-const LUA_NOREF: LuaRef = -2;
-const kRetNilBool: LuaRetMode = 1;
 const LOG_ERROR: c_int = 3;
 
 const NIL: Object = Object {

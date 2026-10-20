@@ -149,9 +149,6 @@ const SYNSPL_NOTOP: c_int = 2;
 const SYNFLD_START: c_int = 0;
 const SYNFLD_MINIMUM: c_int = 1;
 
-const HLF_D: c_int = 5;
-const EX_XFILE: u32 = 0x008;
-const EX_NOSPC: u32 = 0x010;
 const IDL_CACHE_SIZE: usize = 16;
 
 const ITEM_START: usize = 0;
@@ -183,6 +180,8 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
     c"lc=".as_ptr(),
 ];
 
+use crate::api::command::{EX_NOSPC, EX_XFILE};
+use crate::cmdexpand::HLF_D;
 use crate::math::{FAIL, OK};
 use crate::os::env::EXPAND_BUF_LEN;
 pub use crate::regexp::reg_extmatch_T;

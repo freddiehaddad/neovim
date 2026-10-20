@@ -62,7 +62,10 @@ pub use crate::os::time::Timestamp;
 
 pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::autocmd::AUGROUP_ALL;
+use crate::autocmd::EVENT_CMDATOM;
+use crate::eval::vars::VV_OP;
 use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
 use crate::ex_getln::{K_EVENT, K_LUA};
 use crate::mapping::MAXMAPLEN;
@@ -111,13 +114,7 @@ const NV_NCH_ARG: c_int = 0x400;
 const NV_MOTION: c_int = 0x800;
 const NV_JUMP: c_int = 0x1000;
 
-const EVENT_CMDATOM: c_int = 25;
-const VV_OP: c_int = 55;
 const kCpoRedo: c_int = b'r' as c_int;
-
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
 
 pub const kAComp: c_int = 0;
 pub const kAExcmd: c_int = 1;

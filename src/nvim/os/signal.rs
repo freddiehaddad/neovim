@@ -26,13 +26,12 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::options::IOSIZE;
+use crate::autocmd::EVENT_SIGNAL;
+use crate::eval::vars::VV_DYING;
 use crate::event::proc::{SIGHUP, SIGTERM};
 use crate::log::LOGLVL_ERR;
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
-
-const VV_DYING: c_int = 29;
-const EVENT_SIGNAL: c_int = 104;
 
 const SIGINT: c_int = 2;
 const SIGQUIT: c_int = 3;

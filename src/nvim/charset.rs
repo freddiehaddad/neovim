@@ -131,7 +131,7 @@ const Ctrl_V: c_char = 22;
 const MAXCOL: colnr_T = 0x7fffffff;
 
 pub(crate) const EOL_MAC: c_int = 2;
-const kOptDyFlagUhex: c_uint = 0x04;
+pub(crate) const kOptDyFlagUhex: c_uint = 0x04;
 
 const K_SPECIAL: c_int = 0x80;
 const KS_SPECIAL: c_int = 254;

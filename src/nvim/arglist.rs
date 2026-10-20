@@ -55,30 +55,25 @@ use crate::buffer::{BLN_CURBUF, BLN_LISTED};
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
 pub use crate::eval::buffer::varnumber_T;
+use crate::ex_cmds::{ECMD_FORCEIT, ECMD_HIDE, ECMD_OLDBUF};
 use crate::ex_cmds::{ECMD_LAST, ECMD_ONE};
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::os::env::expand_T;
 pub use crate::path::PathCmpFlags;
+use crate::path::{
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOERROR, EW_NOTFOUND, EW_NOTWILD, kPathCmpExpand,
+    kPathCmpFull, kPathCmpLiteral,
+};
 use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regprog_T;
+use crate::window::{WSP_BELOW, WSP_ROOM};
 
 const NUL: c_char = 0;
 
 const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
 const AL_DEL: c_int = 3;
-
-const EW_DIR: c_int = 0x01;
-const EW_FILE: c_int = 0x02;
-const EW_NOTFOUND: c_int = 0x04;
-const EW_ADDSLASH: c_int = 0x08;
-const EW_NOERROR: c_int = 0x200;
-const EW_NOTWILD: c_int = 0x400;
-
-const kPathCmpLiteral: PathCmpFlags = 1 << 0;
-const kPathCmpExpand: PathCmpFlags = 1 << 1;
-const kPathCmpFull: PathCmpFlags = 1 << 2;
 
 const CMD_args: cmdidx_T = 7;
 pub(crate) const CMD_argdo: cmdidx_T = 10;
@@ -87,18 +82,12 @@ const CMD_arglocal: cmdidx_T = 14;
 const CMD_drop: cmdidx_T = 132;
 const CMD_snext: cmdidx_T = 420;
 
-const ECMD_HIDE: c_int = 0x01;
-const ECMD_OLDBUF: c_int = 0x04;
-const ECMD_FORCEIT: c_int = 0x08;
-
 pub(crate) const CCGD_AW: c_int = 1;
 pub(crate) const CCGD_MULTWIN: c_int = 2;
 pub(crate) const CCGD_FORCEIT: c_int = 4;
 pub(crate) const CCGD_EXCMD: c_int = 16;
 
-const WSP_ROOM: c_int = 0x01;
-const WSP_BELOW: c_int = 0x40;
-const ML_EMPTY: c_int = 0x01;
+pub(crate) const ML_EMPTY: c_int = 0x01;
 
 const E_WINDOW_LAYOUT_CHANGED_UNEXPECTEDLY: &CStr = c"E249: Window layout changed unexpectedly";
 

@@ -9,6 +9,8 @@ use crate::cmdexpand::EXPAND_NOTHING;
 #[cfg(not(test))]
 use crate::eval::deprecated::Callback;
 #[cfg(not(test))]
+use crate::ex_cmds::HLF_R;
+#[cfg(not(test))]
 use crate::ex_getln::getcmdline_prompt;
 #[cfg(not(test))]
 use crate::globals::*;
@@ -43,9 +45,6 @@ const CTRL_C: c_int = 0x03;
 const CAR: c_int = 0x0d;
 #[cfg(not(test))]
 const ESC: c_int = 0x1b;
-
-#[cfg(not(test))]
-const HLF_R: c_int = 18;
 
 #[cfg(not(test))]
 const K_UI_MESSAGES: c_int = 4;

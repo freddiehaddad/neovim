@@ -38,7 +38,7 @@ use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::expr_map_locked;
 use crate::ex_getln::{text_locked, text_locked_msg};
 use crate::extmark::{
-    ExtmarkMove, ExtmarkOp, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
+    ExtmarkMove, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
     extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t,
 };
 #[cfg(unix)]
@@ -94,8 +94,11 @@ use std::ptr;
 use crate::os::fs::{os_fchown, os_fileinfo, uv_gid_t, uv_uid_t};
 
 use crate::api::buffer::kExtmarkNOOP;
+use crate::api::buffer::kExtmarkUndo;
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
+use crate::arglist::ML_EMPTY;
+use crate::autocmd::HLF_T;
 use crate::buffer::{NMARKS, NO_LOCAL_UNDOLEVEL};
 use crate::drawscreen::UPD_NOT_VALID;
 pub use crate::eval::buffer::varnumber_T;
@@ -119,11 +122,6 @@ const MAXLNUM: linenr_T = 0x7fffffff;
 const UH_CHANGED: c_int = 0x01;
 const UH_EMPTYBUF: c_int = 0x02;
 const UH_RELOAD: c_int = 0x04;
-
-const ML_EMPTY: c_int = 0x01;
-const HLF_T: c_int = 23;
-
-const kExtmarkUndo: ExtmarkOp = 1;
 
 const kShmUndo: c_int = b'u' as c_int;
 const kOptFdoFlagUndo: c_uint = 0x200;

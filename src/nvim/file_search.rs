@@ -68,27 +68,10 @@ const EMPTY_C: &CStr = c"";
 
 const FF_MAX_STAR_STAR_EXPAND: c_char = 30;
 
-const EW_DIR: c_int = 0x01;
-const EW_ADDSLASH: c_int = 0x08;
-const EW_SILENT: c_int = 0x20;
-const EW_NOTWILD: c_int = 0x400;
-
-const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 const kCpoDottag: c_int = b'd' as c_int;
 
-const VV_FNAME: c_int = 12;
 pub(crate) const kOptIncludeexpr: OptIndex = 147;
 pub(crate) const kBufOptIncludeexpr: usize = 47;
-const OPT_LOCAL: c_int = 0x02;
-
-const kCdScopeBuffer: CdScope = 0;
-const kCdScopeWindow: CdScope = 1;
-const kCdScopeTabpage: CdScope = 2;
-const kCdScopeGlobal: CdScope = 3;
-
-const kCdCauseOther: CdCause = -1;
-const kCdCauseBuffer: CdCause = 2;
-const kCdCauseAuto: CdCause = 3;
 
 const NULL_STRING: NvimString = NvimString {
     data: ptr::null_mut(),
@@ -98,12 +81,19 @@ const NULL_STRING: NvimString = NvimString {
 const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completion";
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::kCdScopeGlobal;
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE};
+use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
 use crate::context::kCdCauseWindow;
 pub use crate::eval::deprecated::FileID;
+use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
+use crate::eval::vars::VV_FNAME;
 use crate::ex_docmd::kCdCauseManual;
+use crate::ex_session::kCdCauseOther;
 use crate::math::{FAIL, OK};
+use crate::path::{EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, kPathCmpLiteral};
 
 #[repr(C)]
 pub struct ff_stack_T {

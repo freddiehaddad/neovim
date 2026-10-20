@@ -162,6 +162,9 @@ pub const fn key2termcap1(x: c_int) -> c_int {
 }
 
 pub use crate::charset::to_special;
+#[cfg(not(test))]
+use crate::eval::STR2NR_ALL;
+use crate::mouse::{MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RELEASE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2};
 
 pub const K_ZERO: c_int = termcap2key(KS_ZERO as c_int, KE_FILLER as c_int);
 pub const K_UP: c_int = termcap2key(b'k' as c_int, b'u' as c_int);
@@ -380,15 +383,6 @@ pub const FSK_KEEP_X_KEY: c_int = 0x02;
 pub const FSK_IN_STRING: c_int = 0x04;
 pub const FSK_SIMPLIFY: c_int = 0x08;
 
-const MOUSE_LEFT: c_int = 0x00;
-const MOUSE_MIDDLE: c_int = 0x01;
-const MOUSE_RIGHT: c_int = 0x02;
-const MOUSE_RELEASE: c_int = 0x03;
-const MOUSE_X1: c_int = 0x300;
-const MOUSE_X2: c_int = 0x400;
-
-#[cfg(not(test))]
-const STR2NR_ALL: c_int = 0x7f;
 #[cfg(not(test))]
 const K_CPO_BSLASH: c_int = b'B' as c_int;
 #[cfg(not(test))]

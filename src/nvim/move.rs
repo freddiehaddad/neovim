@@ -51,7 +51,15 @@ use crate::winfloat::win_check_anchored_floats;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+use crate::api::buffer::{FORWARD, VALID_BOTLINE_AP};
+use crate::api::vim::BACKWARD;
+use crate::buffer::VALID_TOPLINE;
+use crate::cursor::VALID_VIRTCOL;
 use crate::drawline::kCpoNumcol;
+use crate::drawline::{
+    VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kOptCuloptFlagScreenline,
+};
+use crate::drawscreen::VALID_BOTLINE;
 use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
 pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL};
@@ -60,21 +68,8 @@ pub use crate::option::OptInt;
 pub use crate::search::Direction;
 
 const NUL: c_char = 0;
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const SIGN_WIDTH: c_int = 2;
-
-const VALID_WROW: c_int = 0x01;
-const VALID_WCOL: c_int = 0x02;
-const VALID_VIRTCOL: c_int = 0x04;
-const VALID_CHEIGHT: c_int = 0x08;
-const VALID_CROW: c_int = 0x10;
-const VALID_BOTLINE: c_int = 0x20;
-const VALID_BOTLINE_AP: c_int = 0x40;
-const VALID_TOPLINE: c_int = 0x80;
-
-const kOptCuloptFlagScreenline: u8 = 0x02;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]

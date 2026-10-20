@@ -23,6 +23,7 @@ use std::ffi::CStr;
 use std::ffi::{c_char, c_int};
 
 pub use crate::charset::uvarnumber_T;
+use crate::eval::STR2NR_ALL;
 pub use crate::eval::typval::float_T;
 
 const NUL: u8 = 0;
@@ -38,8 +39,6 @@ const Ctrl_A: u8 = 1;
 const Ctrl_H: u8 = 8;
 const Ctrl_K: u8 = 11;
 const Ctrl_Z: u8 = 26;
-
-const STR2NR_ALL: c_int = 0x7f;
 
 pub type ExprCaseCompareStrategy = c_int;
 pub const kCCStrategyUseOption: ExprCaseCompareStrategy = 0;

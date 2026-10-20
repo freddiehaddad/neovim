@@ -60,32 +60,31 @@ pub use crate::api::autocmd::event_T;
 pub use crate::cmdexpand::cmd_addr_T;
 
 const NUL: c_char = 0;
-const LUA_NOREF: LuaRef = -2;
 pub(crate) const UC_BUFFER: c_int = 1;
 
 const CMD_iput: cmdidx_T = 200;
 const CMD_put: cmdidx_T = 350;
-const CMD_SIZE: cmdidx_T = 564;
-const CMD_USER: cmdidx_T = -1;
-const CMD_USER_BUF: cmdidx_T = -2;
+pub(crate) const CMD_SIZE: cmdidx_T = 564;
+pub(crate) const CMD_USER: cmdidx_T = -1;
+pub(crate) const CMD_USER_BUF: cmdidx_T = -2;
 
-const EX_RANGE: u32 = 0x001;
-const EX_BANG: u32 = 0x002;
-const EX_EXTRA: u32 = 0x004;
-const EX_XFILE: u32 = 0x008;
-const EX_NOSPC: u32 = 0x010;
-const EX_DFLALL: u32 = 0x020;
-const EX_NEEDARG: u32 = 0x080;
-const EX_TRLBAR: u32 = 0x100;
-const EX_REGSTR: u32 = 0x200;
-const EX_COUNT: u32 = 0x400;
-const EX_ZEROR: u32 = 0x1000;
-const EX_CMDARG: u32 = 0x4000;
-const EX_ARGOPT: u32 = 0x20000;
-const EX_SBOXOK: u32 = 0x40000;
-const EX_KEEPSCRIPT: u32 = 0x4000000;
-const EX_PREVIEW: u32 = 0x8000000;
-const EX_ARGSPACE: u32 = 0x40000000;
+pub(crate) const EX_RANGE: u32 = 0x001;
+pub(crate) const EX_BANG: u32 = 0x002;
+pub(crate) const EX_EXTRA: u32 = 0x004;
+pub(crate) const EX_XFILE: u32 = 0x008;
+pub(crate) const EX_NOSPC: u32 = 0x010;
+pub(crate) const EX_DFLALL: u32 = 0x020;
+pub(crate) const EX_NEEDARG: u32 = 0x080;
+pub(crate) const EX_TRLBAR: u32 = 0x100;
+pub(crate) const EX_REGSTR: u32 = 0x200;
+pub(crate) const EX_COUNT: u32 = 0x400;
+pub(crate) const EX_ZEROR: u32 = 0x1000;
+pub(crate) const EX_CMDARG: u32 = 0x4000;
+pub(crate) const EX_ARGOPT: u32 = 0x20000;
+pub(crate) const EX_SBOXOK: u32 = 0x40000;
+pub(crate) const EX_KEEPSCRIPT: u32 = 0x4000000;
+pub(crate) const EX_PREVIEW: u32 = 0x8000000;
+pub(crate) const EX_ARGSPACE: u32 = 0x40000000;
 
 pub(crate) const ADDR_LINES: cmd_addr_T = 0;
 pub(crate) const ADDR_WINDOWS: cmd_addr_T = 1;
@@ -97,27 +96,20 @@ pub(crate) const ADDR_QUICKFIX: cmd_addr_T = 8;
 pub(crate) const ADDR_OTHER: cmd_addr_T = 10;
 pub(crate) const ADDR_NONE: cmd_addr_T = 11;
 
-const CMOD_SANDBOX: c_int = 0x0001;
-const CMOD_SILENT: c_int = 0x0002;
-const CMOD_ERRSILENT: c_int = 0x0004;
-const CMOD_UNSILENT: c_int = 0x0008;
-const CMOD_NOAUTOCMD: c_int = 0x0010;
-const CMOD_HIDE: c_int = 0x0020;
-const CMOD_BROWSE: c_int = 0x0040;
-const CMOD_CONFIRM: c_int = 0x0080;
-const CMOD_KEEPALT: c_int = 0x0100;
-const CMOD_KEEPMARKS: c_int = 0x0200;
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-const CMOD_NOSWAPFILE: c_int = 0x2000;
-
-const WSP_VERT: c_int = 0x02;
-const WSP_HOR: c_int = 0x04;
-const WSP_TOP: c_int = 0x08;
-const WSP_BOT: c_int = 0x10;
-const WSP_BELOW: c_int = 0x40;
-const WSP_ABOVE: c_int = 0x80;
+pub(crate) const CMOD_SANDBOX: c_int = 0x0001;
+pub(crate) const CMOD_SILENT: c_int = 0x0002;
+pub(crate) const CMOD_ERRSILENT: c_int = 0x0004;
+pub(crate) const CMOD_UNSILENT: c_int = 0x0008;
+pub(crate) const CMOD_NOAUTOCMD: c_int = 0x0010;
+pub(crate) const CMOD_HIDE: c_int = 0x0020;
+pub(crate) const CMOD_BROWSE: c_int = 0x0040;
+pub(crate) const CMOD_CONFIRM: c_int = 0x0080;
+pub(crate) const CMOD_KEEPALT: c_int = 0x0100;
+pub(crate) const CMOD_KEEPMARKS: c_int = 0x0200;
+pub(crate) const CMOD_KEEPJUMPS: c_int = 0x0400;
+pub(crate) const CMOD_LOCKMARKS: c_int = 0x0800;
+pub(crate) const CMOD_KEEPPATTERNS: c_int = 0x1000;
+pub(crate) const CMOD_NOSWAPFILE: c_int = 0x2000;
 
 const KEYSET_OPTIDX_cmd__cmd: u64 = 1;
 const KEYSET_OPTIDX_cmd__reg: u64 = 2;
@@ -197,11 +189,13 @@ pub struct exarg_T {
     pub magic: ExMagic,
 }
 
+use crate::api::buffer::LUA_NOREF;
 use crate::autocmd::EVENT_CMDUNDEFINED;
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::math::{FAIL, OK};
 use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regmatch_T;
+use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

@@ -36,19 +36,18 @@ use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::typval::{
-    VarLockStatus, callback_copy, callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_dict,
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
-    tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number,
-    tv_dict_get_string, tv_dict_get_tv, tv_dict_set_keys_readonly, tv_dict_unref,
-    tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_append_dict,
-    tv_list_unref,
+    callback_copy, callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list,
+    tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc,
+    tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number, tv_dict_get_string,
+    tv_dict_get_tv, tv_dict_set_keys_readonly, tv_dict_unref, tv_get_number_chk, tv_get_string,
+    tv_get_string_chk, tv_list_alloc, tv_list_append_dict, tv_list_unref,
 };
 use crate::eval::userfunc::callback_call_retnr;
 use crate::eval::vars::{VV_COMPLETED_ITEM, set_vim_var_dict};
 use crate::eval::{callback_call, get_v_event, restore_v_event, set_ref_in_callback};
 use crate::ex_eval::aborting;
 use crate::ex_getln::tilde_replace;
-use crate::extmark::{ExtmarkOp, ExtmarkUndoObject, extmark_apply_undo, extmark_splice_delete};
+use crate::extmark::{ExtmarkUndoObject, extmark_apply_undo, extmark_splice_delete};
 use crate::fileio::{fclose, vim_fgets};
 use crate::fuzzy::{
     FUZZY_SCORE_NONE, fuzzy_match_str, fuzzy_match_str_in_line, search_for_fuzzy_match,
@@ -155,8 +154,6 @@ pub const CPT_INFO: usize = 3;
 pub const CPT_COUNT: usize = 4;
 
 const NUL: c_char = 0;
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 const kDirectionNotSet: Direction = 0;
 
 pub(crate) const ACTION_EXPAND: c_int = 5;
@@ -188,8 +185,7 @@ const Ctrl_X: c_int = 24;
 const Ctrl_Z: c_int = 26;
 const Ctrl_RSB: c_int = 29;
 
-const kExtmarkUndo: ExtmarkOp = 1;
-const kWinInfo: WinKind = 1;
+pub(crate) const kWinInfo: WinKind = 1;
 const kUIMessages: UIExtension = 4;
 
 const VAR_UNKNOWN: VarType = VarType::VAR_UNKNOWN;
@@ -197,24 +193,15 @@ const VAR_NUMBER: VarType = VarType::VAR_NUMBER;
 pub(crate) const VAR_STRING: VarType = VarType::VAR_STRING;
 const VAR_LIST: VarType = VarType::VAR_LIST;
 const VAR_DICT: VarType = VarType::VAR_DICT;
-const VAR_FIXED: VarLockStatus = 2;
 
-const HLF_E: hlf_T = 6;
-const HLF_R: hlf_T = 18;
 const HLF_W: hlf_T = 26;
 const HLF_COUNT: hlf_T = 76;
 
-const KEY_COMPLETE: c_int = 0x103;
-const OPENLINE_KEEPTRAIL: c_int = 0x04;
-const OPENLINE_FORCE_INDENT: c_int = 0x40;
-
-const OPT_GLOBAL: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
 pub(crate) const kOptComplete: OptIndex = 51;
 
 const kOptBoFlagComplete: c_uint = 0x08;
 
-const kOptCotFlagFuzzy: c_uint = 0x01;
+pub(crate) const kOptCotFlagFuzzy: c_uint = 0x01;
 const kOptCotFlagLongest: c_uint = 0x02;
 const kOptCotFlagMenu: c_uint = 0x04;
 const kOptCotFlagMenuone: c_uint = 0x08;
@@ -227,13 +214,8 @@ const kOptCotFlagPreselect: c_uint = 0x400;
 
 pub(crate) const kShmCompletionscan: c_int = b'C' as c_int;
 
-const SEARCH_NFMSG: c_int = 0x08;
-const SEARCH_KEEP: c_int = 0x400;
-
 pub(crate) const TAG_NOIC: c_int = 8;
 pub(crate) const TAG_INS_COMP: c_int = 64;
-
-const SMT_ALL: c_int = 0;
 
 const CTRL_X_WANT_IDENT: c_int = 0x100;
 const CTRL_X_NORMAL: c_int = 0;
@@ -496,17 +478,28 @@ struct cpt_source_T {
 }
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
+use crate::api::private::helpers::HLF_E;
+use crate::api::vim::BACKWARD;
 use crate::buffer::NOTDONE;
+use crate::buffer::VAR_FIXED;
+use crate::change::{OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL};
+use crate::cmdexpand::SEARCH_NFMSG;
 use crate::cmdexpand::{
     EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL, RE_LAST, TAG_MANY,
 };
+use crate::drawline::SMT_ALL;
 use crate::drawscreen::kShmCompletionmenu;
+use crate::eval::funcs::SEARCH_KEEP;
 use crate::eval::kListLenMayKnow;
+use crate::ex_cmds::HLF_R;
 use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
 use crate::ex_docmd::{FIND_ANY, FIND_DEFINE};
 use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
 use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
+use crate::indent_c::KEY_COMPLETE;
 use crate::input::kInsNone;
 use crate::insert::BS_START;
 use crate::regexp::RE_MAGIC;

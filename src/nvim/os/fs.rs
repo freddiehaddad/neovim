@@ -113,14 +113,10 @@ const UV_EINTR: c_int = -4;
 #[cfg(not(windows))]
 const UV_EINVAL: c_int = -22;
 
-const S_IFMT: u64 = 0o170000;
-const S_IFDIR: u64 = 0o040000;
-#[cfg(not(test))]
-const S_IFREG: u64 = 0o100000;
 #[cfg(all(not(test), unix))]
 const S_IFBLK: u64 = 0o060000;
-#[cfg(not(test))]
-const S_IFLNK: u64 = 0o120000;
+#[cfg(any(not(test), unix))]
+pub(crate) const S_IFLNK: u64 = 0o120000;
 
 #[cfg(not(test))]
 const R_OK: c_int = 4;
@@ -302,8 +298,11 @@ use crate::event::r#loop::{uv_chdir, uv_cwd, uv_fs_req_cleanup};
 #[cfg(all(not(test), windows))]
 use crate::event::stream::{UV_FILE, UV_TTY};
 use crate::fileio::O_RDONLY;
+#[cfg(not(test))]
+use crate::fileio::S_IFREG;
 #[cfg(all(not(test), windows))]
 use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
+use crate::fileio::{S_IFDIR, S_IFMT};
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
 use crate::math::FAIL;

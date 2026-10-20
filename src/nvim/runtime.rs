@@ -162,30 +162,13 @@ pub const DIP_NOAFTER: c_int = 0x40;
 pub const DIP_AFTER: c_int = 0x80;
 pub const DIP_DIRFILE: c_int = 0x200;
 
-const VAR_LOCKED: c_int = 1;
-const VAR_FIXED: c_int = 2;
-
-const WILD_ADD_SLASH: c_int = 0x10;
-
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
-const kOptRuntimepath: c_int = 245;
 const kCpoConcat: c_int = b'C' as c_int;
-const kRetNilBool: c_int = 1;
 
-const SID_MODELINE: scid_T = -1;
-const SID_CMDARG: scid_T = -2;
-const SID_CARG: scid_T = -3;
-const SID_ENV: scid_T = -4;
+pub(crate) const SID_CMDARG: scid_T = -2;
+pub(crate) const SID_CARG: scid_T = -3;
+pub(crate) const SID_ENV: scid_T = -4;
 pub(crate) const SID_ERROR: scid_T = -5;
 pub(crate) const SID_WINLAYOUT: scid_T = -7;
-const SID_API_CLIENT: scid_T = -9;
-
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const DOCMD_REPEAT: c_int = 0x04;
 
 const AUTOLOAD_CHAR: u8 = b'#';
 
@@ -292,15 +275,23 @@ static mut APP_LOAD: c_int = 0;
 static mut APP_BOTH: c_int = 0;
 
 use crate::api::options::IOSIZE;
+use crate::api::private::helpers::SID_API_CLIENT;
 use crate::api::private::helpers::SID_LUA;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::autocmd::PROF_YES;
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE};
+use crate::buffer::{SID_MODELINE, VAR_FIXED};
 use crate::cmdexpand::EXPAND_RUNTIME;
+use crate::cmdexpand::WILD_ADD_SLASH;
+use crate::eval::typval::VAR_LOCKED;
 use crate::eval::vars::SID_STR;
 use crate::fileio::EINTR;
 use crate::fileio::O_RDONLY;
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
+use crate::lua::executor::kRetNilBool;
+use crate::option::kOptRuntimepath;
 use crate::regexp::{RE_MAGIC, RE_STRING};
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;

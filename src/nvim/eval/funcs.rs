@@ -152,8 +152,8 @@ use crate::message::{
 };
 use crate::r#move::{update_curswant, win_col_off};
 use crate::msgpack_rpc::channel::{
-    Channel, ChannelPart, channel_prefix, channel_stream_ptr, channel_tail, find_channel,
-    get_client_info, rpc_send_call, rpc_send_event,
+    Channel, channel_prefix, channel_stream_ptr, channel_tail, find_channel, get_client_info,
+    rpc_send_call, rpc_send_event,
 };
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, packer_string_buffer, packer_take_string};
 use crate::msgpack_rpc::server::{
@@ -242,16 +242,9 @@ const MB_MAXCHAR: usize = 6;
 const MAXCOL: colnr_T = 0x7fffffff;
 const VARNUMBER_MAX: varnumber_T = varnumber_T::MAX;
 
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const kSpecialVarNull: SpecialVarValue = 0;
-
-const VAR_UNLOCKED: VarLockStatus = 0;
-const VAR_FIXED: VarLockStatus = 2;
 
 const VAR_TYPE_NUMBER: c_int = 0;
 const VAR_TYPE_STRING: c_int = 1;
@@ -263,15 +256,9 @@ const VAR_TYPE_BOOL: c_int = 6;
 const VAR_TYPE_SPECIAL: c_int = 7;
 const VAR_TYPE_BLOB: c_int = 10;
 
-const kRetObject: c_int = 0;
-const kRetNilBool: c_int = 1;
-
 pub(crate) const TFN_INT: c_int = 1;
 pub(crate) const TFN_NO_DEREF: c_int = 8;
 
-const kChannelPartAll: ChannelPart = 4;
-
-const kChannelStdinPipe: ChannelStdinMode = 0;
 const kChannelStdinNull: ChannelStdinMode = 1;
 
 const VIM_GENERIC: c_int = 0;
@@ -280,16 +267,11 @@ pub(crate) const VIM_WARNING: c_int = 2;
 const VIM_INFO: c_int = 3;
 pub(crate) const VIM_QUESTION: c_int = 4;
 
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const DOCMD_REPEAT: c_int = 0x04;
-const DOCMD_KEYTYPED: c_int = 0x08;
+pub(crate) const DOCMD_KEYTYPED: c_int = 0x08;
 
 pub(crate) const MENU_INDEX_TIP: c_int = 7;
 pub(crate) const MENU_ALL_MODES: c_int = (1 << MENU_INDEX_TIP) - 1;
-const EX_NOSPC: u32 = 0x010;
 const AUTOLOAD_CHAR: c_int = b'#' as c_int;
-const VALID_VIRTCOL: c_int = 0x04;
 const Ctrl_V: c_char = 22;
 
 pub(crate) const UV_TIMER: c_int = 13;
@@ -301,13 +283,9 @@ pub(crate) const MPACK_EOF: c_int = 1;
 pub(crate) const MPACK_ERROR: c_int = 2;
 pub(crate) const MPACK_NOMEM: c_int = 3;
 
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
-
-const SEARCH_END: c_int = 0x40;
-const SEARCH_START: c_int = 0x100;
-const SEARCH_KEEP: c_int = 0x400;
-const SEARCH_COL: c_int = 0x1000;
+pub(crate) const SEARCH_END: c_int = 0x40;
+pub(crate) const SEARCH_KEEP: c_int = 0x400;
+pub(crate) const SEARCH_COL: c_int = 0x1000;
 
 const SP_NOMOVE: c_int = 0x01;
 const SP_REPEAT: c_int = 0x02;
@@ -322,31 +300,28 @@ pub(crate) const kOptCpoptions: OptIndex = 61;
 
 pub(crate) const kMTUnknown: MotionType = -1;
 pub(crate) const kMTCharWise: MotionType = 0;
-const kMTLineWise: MotionType = 1;
+pub(crate) const kMTLineWise: MotionType = 1;
 pub(crate) const kMTBlockWise: MotionType = 2;
 
-const SMT_ALL: c_int = 0;
 pub(crate) const HLF_SPB: hlf_T = 37;
 pub(crate) const HLF_SPC: hlf_T = 38;
 pub(crate) const HLF_SPR: hlf_T = 39;
 pub(crate) const HLF_SPL: hlf_T = 40;
 const HLF_COUNT: hlf_T = 76;
 
-const HL_INVERSE: c_int = 0x01;
-const HL_BOLD: c_int = 0x02;
-const HL_ITALIC: c_int = 0x04;
-const HL_UNDERLINE: c_int = 0x08;
-const HL_UNDERCURL: c_int = 0x10;
-const HL_UNDERDOUBLE: c_int = 0x18;
-const HL_UNDERDOTTED: c_int = 0x20;
-const HL_UNDERDASHED: c_int = 0x28;
-const HL_STANDOUT: c_int = 0x0040;
-const HL_STRIKETHROUGH: c_int = 0x0080;
-const HL_DIM: c_int = 0x0200;
-const HL_NOCOMBINE: c_int = 0x0400;
-const HL_BLINK: c_int = 0x8000;
-const HL_CONCEALED: c_int = 0x10000;
-const HL_OVERLINE: c_int = 0x20000;
+pub(crate) const HL_INVERSE: c_int = 0x01;
+pub(crate) const HL_BOLD: c_int = 0x02;
+pub(crate) const HL_ITALIC: c_int = 0x04;
+pub(crate) const HL_UNDERLINE: c_int = 0x08;
+pub(crate) const HL_UNDERCURL: c_int = 0x10;
+pub(crate) const HL_UNDERDOUBLE: c_int = 0x18;
+pub(crate) const HL_UNDERDOTTED: c_int = 0x20;
+pub(crate) const HL_UNDERDASHED: c_int = 0x28;
+pub(crate) const HL_STANDOUT: c_int = 0x0040;
+pub(crate) const HL_DIM: c_int = 0x0200;
+pub(crate) const HL_NOCOMBINE: c_int = 0x0400;
+pub(crate) const HL_BLINK: c_int = 0x8000;
+pub(crate) const HL_CONCEALED: c_int = 0x10000;
 
 #[cfg(windows)]
 const ENV_SEPCHAR: c_char = b';' as c_char;
@@ -10421,26 +10396,37 @@ pub unsafe extern "C" fn f_xor(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::FORWARD;
 use crate::api::buffer::VIML_INTERNAL_CALL;
+use crate::api::command::EX_NOSPC;
 use crate::api::options::IOSIZE;
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::private::helpers::DI_FLAGS_LOCK;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::ui::kChannelPartAll;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 #[cfg(not(test))]
 use crate::arglist::{f_argc, f_argidx, f_arglistid, f_argv};
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE};
+use crate::buffer::VAR_FIXED;
+use crate::channel::kChannelStdinPipe;
 use crate::channel::{
     kChannelPartRpc, kChannelPartStderr, kChannelPartStdin, kChannelPartStdout, kChannelStreamProc,
     kProcTypePty,
 };
 use crate::charset::VARNUMBER_MIN;
+use crate::cmdexpand::SEARCH_START;
 #[cfg(not(test))]
 use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype};
 #[cfg(not(test))]
 use crate::cmdhist::{f_histadd, f_histdel, f_histget, f_histnr};
+use crate::cursor::VALID_VIRTCOL;
 #[cfg(not(test))]
 use crate::diff::{f_diff_filler, f_diff_hlID};
 #[cfg(not(test))]
 use crate::digraph::{f_digraph_get, f_digraph_getlist, f_digraph_set, f_digraph_setlist};
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, SMT_ALL};
 #[cfg(not(test))]
 use crate::eval::buffer::{
     f_append, f_appendbufline, f_bufadd, f_bufexists, f_buflisted, f_bufload, f_bufloaded,
@@ -10511,6 +10497,7 @@ use crate::input::{f_getchar, f_getcharmod, f_getcharstr};
 use crate::insexpand::{
     f_complete, f_complete_add, f_complete_check, f_complete_info, f_preinserted,
 };
+use crate::lua::executor::{kRetNilBool, kRetObject};
 #[cfg(not(test))]
 use crate::mapping::{f_hasmapto, f_maparg, f_mapcheck, f_maplist, f_mapset};
 #[cfg(not(test))]

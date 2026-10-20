@@ -23,7 +23,6 @@ use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
 use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
-use crate::extmark::TriState;
 use crate::fold::{closeFold, hasFolding, openFold};
 use crate::globals::*;
 use crate::grid::{get_win_by_grid_handle, grid_adjust};
@@ -64,7 +63,7 @@ use crate::search::findmatch;
 use crate::state::virtual_active;
 use crate::statusline::stl_connected;
 use crate::strings::vim_strchr;
-use crate::textformat::{MotionType, oparg_T};
+use crate::textformat::oparg_T;
 use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
 use crate::ui_compositor::ui_comp_mouse_focus;
 use crate::window::{
@@ -74,13 +73,22 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
+use crate::api::buffer::{FORWARD, VALID_BOTLINE_AP};
+use crate::api::vim::{BACKWARD, kNone};
+use crate::buffer::{VALID_TOPLINE, VAR_FIXED};
+use crate::drawline::{VALID_CROW, VALID_WROW};
+use crate::drawscreen::VALID_BOTLINE;
 use crate::drawscreen::{FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID};
 pub use crate::eval::deprecated::EvalFuncData;
 use crate::eval::funcs::kMTCharWise;
+use crate::eval::funcs::kMTLineWise;
+use crate::eval::vars::{VV_LNUM, VV_VIRTNUM};
+use crate::insexpand::kWinInfo;
 use crate::math::FAIL;
 use crate::ops::OP_NOP;
 use crate::register::{PUT_CURSEND, PUT_FIXINDENT};
 pub use crate::search::Direction;
+use crate::state::{MODE_NORMAL, REPLACE_FLAG};
 
 pub const IN_UNKNOWN: c_int = 0;
 pub const IN_BUFFER: c_int = 1;
@@ -113,8 +121,6 @@ pub const MSCR_LEFT: c_int = -1;
 pub const MSCR_RIGHT: c_int = -2;
 
 const NUL: c_char = 0;
-const FORWARD: c_int = 1;
-const BACKWARD: c_int = -1;
 
 const Ctrl_G: c_int = 0x07;
 const Ctrl_O: c_int = 0x0f;
@@ -133,26 +139,11 @@ const MOD_MASK_3CLICK: c_int = 0x40;
 const MOD_MASK_4CLICK: c_int = 0x60;
 const MOD_MASK_MULTI_CLICK: c_int = MOD_MASK_2CLICK | MOD_MASK_3CLICK | MOD_MASK_4CLICK;
 
-const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
-const REPLACE_FLAG: c_int = 0x100;
-
-const VALID_WROW: c_int = 0x01;
-const VALID_CROW: c_int = 0x10;
-const VALID_BOTLINE: c_int = 0x20;
-const VALID_BOTLINE_AP: c_int = 0x40;
-const VALID_TOPLINE: c_int = 0x80;
 
 const DEFAULT_GRID_HANDLE: c_int = 1;
 
-const VV_LNUM: c_int = 9;
-const VV_VIRTNUM: c_int = 103;
-
 pub(crate) const kMouseVisual: c_int = b'v' as c_int;
-const kWinInfo: c_int = 1;
-const kNone: TriState = -1;
-const kMTLineWise: MotionType = 1;
-const VAR_FIXED: c_int = 2;
 const ZERO_POS: pos_T = pos_T {
     lnum: 0,
     col: 0,

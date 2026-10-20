@@ -57,9 +57,6 @@ const XDF_HISTOGRAM_DIFF: c_ulong = 1 << 15;
 const XDF_INDENT_HEURISTIC: c_ulong = 1 << 23;
 
 #[cfg(not(test))]
-const LUA_NOREF: c_int = -2;
-
-#[cfg(not(test))]
 const KEYSET_OPTIDX_CTXLEN: u64 = 1;
 #[cfg(not(test))]
 const KEYSET_OPTIDX_ON_HUNK: u64 = 2;
@@ -142,6 +139,8 @@ struct HunkPriv {
     iwhite: bool,
 }
 
+#[cfg(not(test))]
+use crate::api::buffer::LUA_NOREF;
 #[cfg(not(test))]
 use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
 #[cfg(not(test))]

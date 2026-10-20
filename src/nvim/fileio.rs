@@ -157,31 +157,19 @@ pub(crate) const EOL_DOS: c_int = 1;
 
 const BAD_REPLACE: c_int = b'?' as c_int;
 
-const OPT_LOCAL: c_int = 0x02;
-const kOptFileencoding: c_int = 92;
+pub(crate) const kOptFileencoding: c_int = 92;
 
-const ENC_UNICODE: c_int = 0x04;
-const ENC_ENDIAN_L: c_int = 0x20;
-const ENC_2BYTE: c_int = 0x40;
-const ENC_4BYTE: c_int = 0x80;
-const ENC_2WORD: c_int = 0x100;
-const ENC_LATIN1: c_int = 0x200;
+pub(crate) const ENC_UNICODE: c_int = 0x04;
+pub(crate) const ENC_ENDIAN_L: c_int = 0x20;
+pub(crate) const ENC_2BYTE: c_int = 0x40;
+pub(crate) const ENC_4BYTE: c_int = 0x80;
+pub(crate) const ENC_2WORD: c_int = 0x100;
+pub(crate) const ENC_LATIN1: c_int = 0x200;
 
-const BF_CHECK_RO: c_int = 0x02;
-const BF_NOTEDITED: c_int = 0x08;
-const BF_NEW: c_int = 0x10;
 const BF_NEW_W: c_int = 0x20;
 
-const ML_EMPTY: c_int = 0x01;
-const MF_DIRTY_YES: c_int = 1;
-const MF_DIRTY_YES_NOSYNC: c_int = 2;
-
-const CMOD_LOCKMARKS: c_int = 0x0800;
-
-const HLF_E: c_int = 6;
 const HLF_W: c_int = 26;
 const kUIMessages: c_int = 4;
-const kPathCmpLiteral: c_int = 1 << 0;
 
 const kCpoFnamer: c_int = b'f' as c_int;
 pub(crate) const kShmOver: c_int = b'o' as c_int;
@@ -192,12 +180,10 @@ pub(crate) const EINTR: c_int = 4;
 pub(crate) const ICONV_EINVAL: c_int = 22;
 const UV_FS_COPYFILE_EXCL: c_int = 0x0001;
 
-const S_IFMT: u64 = 0o170000;
+pub(crate) const S_IFMT: u64 = 0o170000;
 const S_IFIFO: u64 = 0o010000;
-const S_IFDIR: u64 = 0o040000;
-const S_IFREG: u64 = 0o100000;
-#[cfg(unix)]
-const S_IFLNK: u64 = 0o120000;
+pub(crate) const S_IFDIR: u64 = 0o040000;
+pub(crate) const S_IFREG: u64 = 0o100000;
 const S_IFSOCK: u64 = 0o140000;
 
 const LOG_DEBUG: c_int = 1;
@@ -253,9 +239,14 @@ static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
 use crate::api::autocmd::kCallbackNone;
+use crate::api::command::CMOD_LOCKMARKS;
 pub use crate::api::command::regmatch_T;
+use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
+use crate::api::private::helpers::HLF_E;
 use crate::api::vim::MAXPATHL;
+use crate::arglist::ML_EMPTY;
+use crate::buffer::{BF_CHECK_RO, BF_NEW, BF_NOTEDITED, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
 use crate::buffer::{BLN_DUMMY, NOTDONE, SEA_QUIT};
 use crate::buffer::{kShmFileinfo, kShmRo};
 use crate::charset::EOL_MAC;
@@ -267,6 +258,9 @@ use crate::ex_cmds::kShmOverall;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_docmd::UNDO_HASH_SIZE;
 use crate::math::{FAIL, OK};
+#[cfg(unix)]
+use crate::os::fs::S_IFLNK;
+use crate::path::kPathCmpLiteral;
 use crate::regexp::RE_MAGIC;
 
 unsafe extern "C" {

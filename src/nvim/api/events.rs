@@ -18,6 +18,8 @@ use crate::api::private::validate::{ObjectType, api_err_exp};
 #[cfg(not(test))]
 use crate::autocmd::do_termresponse_autocmd;
 #[cfg(not(test))]
+use crate::eval::vars::VV_TERMRESPONSE;
+#[cfg(not(test))]
 use crate::eval::vars::set_vim_var_string;
 #[cfg(not(test))]
 use crate::log::LOGLVL_ERR;
@@ -26,11 +28,6 @@ use crate::log::logmsg;
 use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use std::ffi::CStr;
-#[cfg(not(test))]
-use std::ffi::c_int;
-
-#[cfg(not(test))]
-const VV_TERMRESPONSE: c_int = 11;
 
 /// Emitted on the client channel if an async API request responds with an error.
 ///

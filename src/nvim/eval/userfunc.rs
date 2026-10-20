@@ -103,13 +103,18 @@ pub type FnameTransError = c_int;
 pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
 pub type ArgvFunc =
     Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
+use crate::api::buffer::LUA_NOREF;
 use crate::api::options::IOSIZE;
+use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::autocmd::PROF_YES;
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
+use crate::buffer::{VAR_FIXED, VAR_SCOPE};
 use crate::cmdexpand::EXPAND_USER_FUNC;
 pub use crate::cmdexpand::LineGetter;
 use crate::eval::GLV_READ_ONLY;
+use crate::eval::VAR_DEF_SCOPE;
 use crate::eval::funcs::{TFN_INT, TFN_NO_DEREF};
 use crate::eval::typval::TV_CSTRING;
 use crate::eval::{EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, TFN_NO_AUTOLOAD, TFN_QUIET};
@@ -145,19 +150,8 @@ pub(crate) const FIXVAR_CNT: usize = 12;
 pub(crate) const MSG_BUF_LEN: usize = 480;
 const MSG_BUF_CLEN: c_int = (MSG_BUF_LEN / 6) as c_int;
 
-const VAR_UNLOCKED: c_int = 0;
-const VAR_FIXED: c_int = 2;
-const VAR_SCOPE: c_int = 1;
-const VAR_DEF_SCOPE: c_int = 2;
-
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const DOCMD_REPEAT: c_int = 0x04;
-
-const LUA_NOREF: c_int = -2;
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
 
-const EVENT_FUNCUNDEFINED: c_int = 69;
 const kUICmdline: c_int = 0;
 
 #[repr(C)]

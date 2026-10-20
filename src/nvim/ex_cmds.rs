@@ -150,12 +150,22 @@ use crate::charset::rem_backslash;
 use crate::os::fs::os_nodetype;
 
 use crate::api::buffer::kExtmarkNOOP;
+use crate::api::buffer::kExtmarkUndo;
+use crate::api::command::{
+    CMOD_CONFIRM, CMOD_KEEPALT, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
+};
 use crate::api::options::IOSIZE;
+use crate::api::options::SID_NONE;
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{BCO_ENTER, HLF_N};
 pub use crate::api::win_config::UIExtension;
+use crate::arglist::ML_EMPTY;
 use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN};
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
 use crate::buffer::kShmFileinfo;
+use crate::buffer::{
+    BF_CHECK_RO, BF_NEVERLOADED, BF_NEW, BF_NOTEDITED, BF_READERR, kCdCauseBuffer,
+};
 use crate::buffer::{KEYMAP_INIT, SEA_DIALOG, SEA_QUIT};
 use crate::change::ML_DEL_MESSAGE;
 use crate::charset::{EOL_MAC, STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT};
@@ -166,6 +176,7 @@ use crate::diff::{kShellOptDoOut, kShellOptFilter};
 use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
 pub use crate::eval::typval::float_T;
 use crate::eval::userfunc::MSG_BUF_LEN;
+use crate::eval::vars::VV_SWAPCOMMAND;
 pub use crate::extmark::ExtmarkOp;
 pub use crate::option::OptInt;
 #[cfg(unix)]
@@ -189,28 +200,18 @@ pub(crate) const BL_FIX: c_int = 4;
 
 pub(crate) const RE_SUBST: c_int = 1;
 pub(crate) const RE_BOTH: c_int = 2;
-const SEARCH_HIS: c_int = 0x20;
+pub(crate) const SEARCH_HIS: c_int = 0x20;
 
-const kExtmarkUndo: ExtmarkOp = 1;
-
-const ML_EMPTY: c_int = 0x01;
-
-const CMOD_CONFIRM: c_int = 0x0080;
-const CMOD_KEEPALT: c_int = 0x0100;
-const CMOD_KEEPMARKS: c_int = 0x0200;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-
-const EXFLAG_LIST: c_int = 0x01;
-const EXFLAG_NR: c_int = 0x02;
-const EXFLAG_PRINT: c_int = 0x04;
+pub(crate) const EXFLAG_LIST: c_int = 0x01;
+pub(crate) const EXFLAG_NR: c_int = 0x02;
+pub(crate) const EXFLAG_PRINT: c_int = 0x04;
 
 pub(crate) const kShellOptRead: c_int = 16;
 pub(crate) const kShellOptWrite: c_int = 32;
 
 const kUIMessages: UIExtension = 4;
 
-const HLF_R: c_int = 18;
+pub(crate) const HLF_R: c_int = 18;
 
 pub(crate) const kShmOverall: c_int = b'O' as c_int;
 
@@ -219,20 +220,9 @@ const kCpoOvernew: c_int = b'O' as c_int;
 const kCpoRemmark: c_int = b'R' as c_int;
 pub(crate) const kCpoUndo: c_int = b'u' as c_int;
 
-const BF_CHECK_RO: c_int = 0x02;
-const BF_NEVERLOADED: c_int = 0x04;
-const BF_NOTEDITED: c_int = 0x08;
-const BF_NEW: c_int = 0x10;
-const BF_READERR: c_int = 0x40;
-
-const OPT_WINONLY: c_int = 0x08;
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const kCdCauseBuffer: c_int = 2;
-const VV_SWAPCOMMAND: c_int = 49;
+pub(crate) const OPT_WINONLY: c_int = 0x08;
 const B_IMODE_LMAP: OptInt = 1;
-const kWinPreview: c_int = 2;
-const SID_NONE: c_int = -6;
+pub(crate) const kWinPreview: c_int = 2;
 
 pub(crate) const kOptFoldcolumn: OptIndex = 102;
 pub(crate) const kOptInccommand: OptIndex = 145;

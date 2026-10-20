@@ -90,29 +90,18 @@ const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
 const MAXLNUM: i64 = 0x7fffffff;
 
-const VAR_UNLOCKED: c_int = 0;
 pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 
 pub(crate) const VALID_PATH: c_int = 1;
 pub(crate) const VALID_HEAD: c_int = 2;
 
-const VV_VAL: c_int = 35;
-const SID_API_CLIENT: c_int = -9;
-
-const WILD_USE_NL: c_int = 0x04;
-const WILD_KEEP_ALL: c_int = 0x20;
-const WILD_SILENT: c_int = 0x40;
-const WILD_ICASE: c_int = 0x100;
-const WILD_ALLLINKS: c_int = 0x200;
-
 pub(crate) const SEEK_SET: c_int = 0;
 pub(crate) const SEEK_END: c_int = 2;
 
 const kCdScopeInvalid: c_int = -1;
-const kCdScopeBuffer: c_int = 0;
-const kCdScopeWindow: c_int = 1;
-const kCdScopeTabpage: c_int = 2;
-const kCdScopeGlobal: c_int = 3;
+pub(crate) const kCdScopeBuffer: c_int = 0;
+pub(crate) const kCdScopeWindow: c_int = 1;
+pub(crate) const kCdScopeTabpage: c_int = 2;
 
 const S_IFMT_MASK: u64 = 0xF000;
 const S_IFIFO_VAL: u64 = 0x1000;
@@ -128,8 +117,13 @@ const S_IFSOCK_VAL: u64 = 0xC000;
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
 
 use crate::api::options::IOSIZE;
+use crate::api::private::converter::VAR_UNLOCKED;
+use crate::api::private::helpers::SID_API_CLIENT;
 use crate::api::vim::MAXPATHL;
+use crate::api::vim::kCdScopeGlobal;
 use crate::cmdexpand::{EXPAND_FILES, WILD_ALL, WILD_ALL_KEEP};
+use crate::cmdexpand::{WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT, WILD_USE_NL};
+use crate::eval::vars::VV_VAL;
 pub use crate::fileio::FILE;
 use crate::regexp::NUMBUFLEN;
 

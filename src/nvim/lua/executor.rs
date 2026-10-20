@@ -191,7 +191,6 @@ pub(crate) const LUA_REGISTRYINDEX: c_int = -10000;
 #[cfg(not(test))]
 pub(crate) const LUA_GLOBALSINDEX: c_int = -10002;
 
-const LUA_NOREF: LuaRef = -2;
 #[cfg(not(test))]
 const LUA_REFNIL: LuaRef = -1;
 
@@ -199,9 +198,6 @@ const LUA_REFNIL: LuaRef = -1;
 const LUA_ERRRUN: c_int = 2;
 #[cfg(not(test))]
 const LUA_ERRMEM: c_int = 4;
-
-#[cfg(not(test))]
-const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 
 #[cfg(not(test))]
 const LUVF_CALLBACK_NOEXIT: c_int = 0x01;
@@ -214,70 +210,12 @@ const kThread: isize = 1;
 const kThreadCallback: isize = 2;
 
 #[cfg(not(test))]
-const VAR_FIXED: c_int = 2;
-
-#[cfg(not(test))]
 const kUICmdline: c_int = 0;
 #[cfg(not(test))]
 const kUIGlobalCount: usize = 5;
 
 #[cfg(not(test))]
-const WSP_VERT: c_int = 0x02;
-#[cfg(not(test))]
-const WSP_HOR: c_int = 0x04;
-#[cfg(not(test))]
-const WSP_TOP: c_int = 0x08;
-#[cfg(not(test))]
-const WSP_BOT: c_int = 0x10;
-#[cfg(not(test))]
-const WSP_BELOW: c_int = 0x40;
-#[cfg(not(test))]
-const WSP_ABOVE: c_int = 0x80;
-
-#[cfg(not(test))]
-const CMOD_SANDBOX: c_int = 0x0001;
-#[cfg(not(test))]
-const CMOD_SILENT: c_int = 0x0002;
-#[cfg(not(test))]
-const CMOD_ERRSILENT: c_int = 0x0004;
-#[cfg(not(test))]
-const CMOD_UNSILENT: c_int = 0x0008;
-#[cfg(not(test))]
-const CMOD_NOAUTOCMD: c_int = 0x0010;
-#[cfg(not(test))]
-const CMOD_HIDE: c_int = 0x0020;
-#[cfg(not(test))]
-const CMOD_BROWSE: c_int = 0x0040;
-#[cfg(not(test))]
-const CMOD_CONFIRM: c_int = 0x0080;
-#[cfg(not(test))]
-const CMOD_KEEPALT: c_int = 0x0100;
-#[cfg(not(test))]
-const CMOD_KEEPMARKS: c_int = 0x0200;
-#[cfg(not(test))]
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-#[cfg(not(test))]
-const CMOD_LOCKMARKS: c_int = 0x0800;
-#[cfg(not(test))]
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-#[cfg(not(test))]
-const CMOD_NOSWAPFILE: c_int = 0x2000;
-
-#[cfg(not(test))]
-const EX_EXTRA: u32 = 0x00000004;
-#[cfg(not(test))]
-const EX_NOSPC: u32 = 0x00000010;
-#[cfg(not(test))]
-const EX_NEEDARG: u32 = 0x00000080;
-#[cfg(not(test))]
-const EX_ARGSPACE: u32 = 0x40000000;
-
-#[cfg(not(test))]
 const CMD_equal: c_int = 559;
-#[cfg(not(test))]
-const CMD_SIZE: c_int = 564;
-const CMD_USER: c_int = -1;
-const CMD_USER_BUF: c_int = -2;
 
 const OBJECT_NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
@@ -545,14 +483,28 @@ unsafe extern "system" {
 use crate::api::autocmd::kCallbackNone;
 #[cfg(not(test))]
 use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::buffer::LUA_NOREF;
+#[cfg(not(test))]
+use crate::api::command::{
+    CMD_SIZE, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
+    CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
+    CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE, EX_EXTRA, EX_NEEDARG, EX_NOSPC,
+};
+use crate::api::command::{CMD_USER, CMD_USER_BUF};
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
+use crate::buffer::VAR_FIXED;
+#[cfg(not(test))]
 use crate::lua::base64::LUA_TSTRING;
+#[cfg(not(test))]
+use crate::lua::converter::K_NLUA_PUSH_SPECIAL;
 #[cfg(not(test))]
 use crate::lua::converter::{LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TTABLE};
 #[cfg(not(test))]
 use crate::version::main_exitfree;
+#[cfg(not(test))]
+use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[cfg(not(test))]
 unsafe extern "C" {

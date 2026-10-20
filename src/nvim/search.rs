@@ -80,25 +80,35 @@ use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree};
 use crate::state::MODE_SHOWMATCH;
 use crate::strings::{atol, gettext, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
-use crate::textformat::{MotionType, oparg_T};
+use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::window::{win_enter, win_split, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub type Direction = c_int;
+use crate::api::buffer::FORWARD;
+use crate::api::command::CMOD_KEEPPATTERNS;
 use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::HLF_N;
+use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 pub use crate::api::win_config::UIExtension;
 use crate::cmdexpand::RE_LAST;
+use crate::cmdexpand::{HLF_D, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
 use crate::eval::funcs::RE_SEARCH;
+use crate::eval::funcs::{SEARCH_COL, SEARCH_END, SEARCH_KEEP, kMTLineWise};
+use crate::eval::vars::VV_SEARCHFORWARD;
+use crate::ex_cmds::{HLF_R, SEARCH_HIS};
 use crate::ex_cmds::{RE_BOTH, RE_SUBST};
+use crate::ex_docmd::SEARCH_MSG;
 use crate::ex_docmd::{ACTION_SHOW, ACTION_SHOW_ALL, ACTION_SPLIT, CHECK_PATH, FIND_DEFINE};
 pub use crate::fileio::FILE;
+use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM};
 use crate::insexpand::ACTION_EXPAND;
 use crate::insexpand::kShmCompletionscan;
 use crate::r#match::kCpoSearch;
+use crate::normal::{FM_FORWARD, SEARCH_ECHO, SEARCH_MARK, SEARCH_REV, kOptFdoFlagSearch};
 use crate::normal::{kCpoMatch, kShmSearchcount};
 pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
@@ -107,39 +117,11 @@ pub type AdditionalData = c_void;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const LSIZE: usize = 512;
 
-const SEARCH_REV: c_int = 0x01;
-const SEARCH_ECHO: c_int = 0x02;
-const SEARCH_MSG: c_int = 0x0c;
-const SEARCH_OPT: c_int = 0x10;
-const SEARCH_HIS: c_int = 0x20;
-const SEARCH_END: c_int = 0x40;
-const SEARCH_NOOF: c_int = 0x80;
-const SEARCH_START: c_int = 0x100;
-const SEARCH_MARK: c_int = 0x200;
-const SEARCH_KEEP: c_int = 0x400;
-const SEARCH_PEEK: c_int = 0x800;
-const SEARCH_COL: c_int = 0x1000;
-
-const FM_BACKWARD: c_int = 0x01;
-const FM_FORWARD: c_int = 0x02;
-const FM_BLOCKSTOP: c_int = 0x04;
-const FM_SKIPCOMM: c_int = 0x08;
-
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;
 const SEARCH_STAT_BUF_LEN: usize = 16;
-
-const kNone: TriState = -1;
-const kFalse: TriState = 0;
-const kTrue: TriState = 1;
-
-const kMTLineWise: MotionType = 1;
-
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
 
 const kCpoLineoff: c_int = b'o' as c_int;
 const kCpoScolon: c_int = b';' as c_int;
@@ -149,14 +131,8 @@ const kCpoShowmatch: c_int = b'm' as c_int;
 pub(crate) const kShmSearch: c_int = b's' as c_int;
 
 const kOptBoFlagShowmatch: c_uint = 0x2000;
-const kOptFdoFlagSearch: c_uint = 0x40;
 
 const kUIMessages: UIExtension = 4;
-
-const HLF_D: c_int = 5;
-const HLF_R: c_int = 18;
-
-const VV_SEARCHFORWARD: c_int = 56;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

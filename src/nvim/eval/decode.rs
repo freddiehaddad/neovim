@@ -34,7 +34,6 @@ use crate::memory::{xmalloc, xmallocz};
 use crate::message::{emsg, semsg};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
-const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
 #[cfg(not(test))]
@@ -56,7 +55,7 @@ const SURROGATE_LO_START: u64 = 0xDC00;
 #[cfg(not(test))]
 const SURROGATE_LO_END: u64 = 0xDFFF;
 #[cfg(not(test))]
-const SURROGATE_FIRST_CHAR: c_int = 0x10000;
+pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
 pub use crate::mpack::mpack_core::{
     MPACK_MAX_TOKEN_LEN, MPACK_OK, mpack_tokbuf_t, mpack_token_data_t, mpack_token_t,
@@ -66,6 +65,7 @@ pub use crate::mpack::object::{
     MPACK_MAX_OBJECT_DEPTH, mpack_data_t, mpack_node_t, mpack_parser_t, mpack_walk_cb,
 };
 
+use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL};
 #[cfg(not(test))]

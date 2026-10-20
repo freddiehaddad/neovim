@@ -102,8 +102,6 @@ pub use crate::search::AdditionalData;
 pub type ShaDaReadFileFlags = c_int;
 pub use crate::eval::var_flavour_T;
 
-const VAR_FLAVOUR_SESSION: var_flavour_T = 2;
-
 pub const kShaDaWantInfo: c_int = 1;
 pub const kShaDaWantMarks: c_int = 2;
 pub const kShaDaForceit: c_int = 4;
@@ -119,11 +117,7 @@ const NLOCALMARKS: usize = NMARKS + 3;
 const JUMPLISTSIZE: usize = 100;
 const NS_PER_SEC: u64 = 1_000_000_000;
 const VAR_TYPE_BLOB: Integer = 10;
-const kMarkBufLocal: c_int = 0;
 const SHADA_MPACK_FREE_SPACE: usize = 4 * MPACK_ITEM_SIZE;
-
-const S_IFMT: u64 = 0o170000;
-const S_IFDIR: u64 = 0o040000;
 
 #[cfg(unix)]
 const ROOT_UID: u32 = 0;
@@ -629,10 +623,13 @@ use crate::api::private::dispatch::{
 
 use crate::api::vim::MAXPATHL;
 use crate::buffer::{BLN_LISTED, NMARKS};
+use crate::eval::VAR_FLAVOUR_SESSION;
 use crate::eval::funcs::MPACK_EOF;
 use crate::eval::{VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SHADA, kListLenUnknown};
 use crate::event::r#loop::uv_strerror as os_strerror;
+use crate::fileio::{S_IFDIR, S_IFMT};
 use crate::mark::EXTRA_MARKS;
+use crate::regexp::kMarkBufLocal;
 use crate::version::longVersion;
 
 #[inline]

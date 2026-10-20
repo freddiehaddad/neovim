@@ -14,10 +14,13 @@ use crate::mbyte::{
     utf8len_tab,
 };
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
+use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
+use crate::vterm::keyboard::C1_CSI;
 use crate::vterm::keyboard::VTermStateFull;
 use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY};
 use crate::vterm::mouse::{MOUSE_RXVT, MOUSE_SGR, MOUSE_UTF8, MOUSE_X10};
+use crate::vterm::mouse::{MOUSE_WANT_DRAG, MOUSE_WANT_MOVE};
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::parser::{
     VTermParserCallbacks, VTermStringFragment, VTermTerminator, vterm_parser_set_callbacks,
@@ -39,7 +42,6 @@ use std::ptr;
 pub type VTermSelectionMask = c_int;
 
 const C1_DCS: u8 = 0x90;
-const C1_CSI: u8 = 0x9b;
 
 const VTERM_VERSION_MAJOR: c_int = 0;
 const VTERM_VERSION_MINOR: c_int = 3;
@@ -51,8 +53,6 @@ const KEY_ENCODING_REPORT_ALL_KEYS: c_int = 0x08;
 const KEY_ENCODING_REPORT_ASSOCIATED: c_int = 0x10;
 
 const MOUSE_WANT_CLICK: c_int = 0x01;
-const MOUSE_WANT_DRAG: c_int = 0x02;
-const MOUSE_WANT_MOVE: c_int = 0x04;
 
 pub(crate) const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
 pub(crate) const VTERM_PROP_CURSORBLINK: VTermProp = 2;
@@ -118,8 +118,6 @@ pub(crate) const VT_MODE_UTF8: u32 = 1 << 0;
 pub(crate) const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 
 const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
-
-const GRAPHEME_STATE_INIT: i32 = 0;
 
 /// Primary Device Attributes (DA1) response.
 #[cfg_attr(not(test), unsafe(no_mangle))]

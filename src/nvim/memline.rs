@@ -116,11 +116,8 @@ const B0_HAS_FENC: u8 = 8;
 
 const STACK_INCR: c_int = 5;
 
-const ML_EMPTY: c_int = 0x01;
-const ML_LINE_DIRTY: c_int = 0x02;
 const ML_LOCKED_DIRTY: c_int = 0x04;
 const ML_LOCKED_POS: c_int = 0x08;
-const ML_ALLOCATED: c_int = 0x10;
 
 const ML_APPEND_NEW: c_int = 1;
 const ML_APPEND_MARK: c_int = 2;
@@ -138,32 +135,15 @@ const MLCS_MAXL: c_int = 800;
 const MLCS_MINL: c_int = 400;
 
 const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
-const MF_DIRTY_YES: c_int = 1;
-const MF_DIRTY_YES_NOSYNC: c_int = 2;
 pub(crate) const MFS_FLUSH: c_int = 4;
 
 const O_RDWR: c_int = 2;
 
-const CMOD_NOSWAPFILE: c_int = 0x2000;
 const BF_RECOVERED: c_int = 0x01;
-const BF_DUMMY: c_int = 0x80;
 
-const HLF_E: c_int = 6;
-const READ_NEW: c_int = 0x01;
-const OPT_LOCAL: c_int = 0x02;
-const kOptFileencoding: c_int = 92;
 const kShmAttention: c_int = b'A' as c_int;
 const kUIMessages: c_int = 4;
 
-const VV_SWAPNAME: c_int = 47;
-const VV_SWAPCHOICE: c_int = 48;
-
-const EW_FILE: c_int = 0x02;
-const EW_KEEPALL: c_int = 0x10;
-const EW_SILENT: c_int = 0x20;
-
-const kPathCmpLiteral: c_int = 1 << 0;
-const kPathCmpFull: c_int = 1 << 2;
 pub(crate) const kPathDeviceUNC: c_int = 5;
 
 #[cfg(unix)]
@@ -289,14 +269,22 @@ static e_line_number_out_of_range_nr_past_the_end: &CStr =
 static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
+use crate::api::buffer::ML_LINE_DIRTY;
+use crate::api::command::CMOD_NOSWAPFILE;
+use crate::api::deprecated::OPT_LOCAL;
+use crate::api::options::BF_DUMMY;
 use crate::api::options::IOSIZE;
+use crate::api::private::helpers::HLF_E;
 use crate::api::vim::MAXPATHL;
+use crate::arglist::ML_EMPTY;
+use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
 use crate::buffer::{NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER};
 use crate::change::ML_DEL_MESSAGE;
 use crate::drawscreen::UPD_NOT_VALID;
 use crate::eval::buffer::SEA_READONLY;
 use crate::eval::fs::SEEK_END;
 use crate::eval::funcs::VIM_WARNING;
+use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME};
 use crate::event::r#loop::uv_strerror as os_strerror;
 use crate::ex_docmd::FLUSH_TYPEAHEAD;
 #[cfg(unix)]
@@ -304,12 +292,15 @@ use crate::fileio::readlink;
 #[cfg(windows)]
 use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
 use crate::fileio::{EOL_DOS, O_RDONLY};
+use crate::fileio::{READ_NEW, kOptFileencoding};
 #[cfg(not(windows))]
 use crate::fileio::{close, lseek as vim_lseek};
+use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
 use crate::memfile::{BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO};
 #[cfg(unix)]
 use crate::os::wasm_stubs::EINVAL;
+use crate::path::{EW_FILE, EW_KEEPALL, EW_SILENT, kPathCmpFull, kPathCmpLiteral};
 use crate::version::Versions;
 
 unsafe extern "C" {

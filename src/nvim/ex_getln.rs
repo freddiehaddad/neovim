@@ -137,7 +137,7 @@ use crate::register::{
     valid_yank_reg,
 };
 use crate::search::{
-    Direction, SearchOffset, do_search, parse_search_pattern_offset, pat_has_uppercase,
+    SearchOffset, do_search, parse_search_pattern_offset, pat_has_uppercase,
     restore_last_search_pattern, restore_search_patterns, save_last_search_pattern,
     save_search_patterns, searchit, searchit_arg_T,
 };
@@ -180,14 +180,24 @@ pub use crate::regexp::magic_T;
 pub type hlf_T = c_int;
 pub type disptick_T = u64;
 use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::FORWARD;
 use crate::api::command::ADDR_LINES;
+use crate::api::command::{CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE};
+use crate::api::options::SID_NONE;
+use crate::api::private::helpers::HLF_E;
+use crate::api::vim::BACKWARD;
 use crate::api::vim::REMAP_NONE;
+use crate::autocmd::DOCMD_NOWAIT;
 pub use crate::cmdexpand::LineGetter;
+use crate::cmdexpand::{SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START, kOptBoFlagWildmode};
+use crate::context::kCtxKeepDirs;
 use crate::eval::funcs::RE_SEARCH;
+use crate::eval::funcs::{SEARCH_COL, SEARCH_KEEP};
 pub use crate::eval::typval::BoolVarValue;
 use crate::ex_cmds::{Ctrl_E, Ctrl_Y, kOptInccommand};
 use crate::regexp::{MAGIC_ALL, MAGIC_ON, NUMBUFLEN};
 use crate::viml::parser::expressions::kExprFlagsDisallowEOC;
+use crate::window::WSP_BOT;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
@@ -224,30 +234,13 @@ pub(crate) const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_i
 pub(crate) const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
 const K_WILD: c_int = termcap2key(KS_EXTRA as c_int, KE_WILD as c_int);
 
-const ABBR_OFF: c_int = 0x100;
-
-const FORWARD: Direction = 1;
-const BACKWARD: Direction = -1;
+pub(crate) const ABBR_OFF: c_int = 0x100;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
 
-const SEARCH_OPT: c_int = 0x10;
-const SEARCH_NOOF: c_int = 0x80;
-const SEARCH_START: c_int = 0x100;
-const SEARCH_KEEP: c_int = 0x400;
-const SEARCH_PEEK: c_int = 0x800;
-const SEARCH_COL: c_int = 0x1000;
-
-const EX_RANGE: u32 = 0x001;
-const EX_PREVIEW: u32 = 0x8000000;
-const DOCMD_NOWAIT: c_int = 0x02;
-const CMOD_NOSWAPFILE: c_int = 0x2000;
-const WSP_BOT: c_int = 0x10;
-const SID_NONE: c_int = -6;
-
-const B_IMODE_USE_INSERT: OptInt = -1;
-const B_IMODE_NONE: OptInt = 0;
+pub(crate) const B_IMODE_USE_INSERT: OptInt = -1;
+pub(crate) const B_IMODE_NONE: OptInt = 0;
 const B_IMODE_LMAP: OptInt = 1;
 
 const kOptWimFlagFull: u8 = 0x01;
@@ -257,17 +250,12 @@ const kOptWimFlagLastused: u8 = 0x08;
 const kOptWimFlagNoselect: u8 = 0x10;
 const kOptWimFlagNoinsert: u8 = 0x20;
 
-const kOptBoFlagError: c_uint = 0x40;
-const kOptBoFlagWildmode: c_uint = 0x80000;
+pub(crate) const kOptBoFlagError: c_uint = 0x40;
 
 const kCpoEsc: c_int = b'x' as c_int;
 
 const kUICmdline: UIExtension = 0;
 const kUIMessages: UIExtension = 4;
-
-const HLF_E: hlf_T = 6;
-
-const kCtxKeepDirs: c_int = 2;
 
 const kCmdRedrawNone: c_int = 0;
 const kCmdRedrawPos: c_int = 1;

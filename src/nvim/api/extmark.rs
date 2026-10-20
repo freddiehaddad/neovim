@@ -61,6 +61,7 @@ use std::ptr;
 
 pub type NS = handle_T;
 pub type HLGroupID = Integer;
+use crate::api::buffer::LUA_NOREF;
 use crate::api::deprecated::{DECOR_ID_INVALID, kHlModeUnknown, kVPosEndOfLine};
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
@@ -72,7 +73,6 @@ pub type ExtmarkInfoArray = KVec<MTPair>;
 const NUL: c_char = 0;
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
-const LUA_NOREF: LuaRef = -2;
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
 const kExtmarkNone: ExtmarkType = 0x1;
@@ -85,7 +85,7 @@ pub(crate) const kVPosEndOfLineRightAlign: VirtTextPos = 1;
 pub(crate) const kVPosInline: VirtTextPos = 2;
 pub(crate) const kVPosOverlay: VirtTextPos = 3;
 pub(crate) const kVPosRightAlign: VirtTextPos = 4;
-const kVPosWinCol: VirtTextPos = 5;
+pub(crate) const kVPosWinCol: VirtTextPos = 5;
 
 pub(crate) const kVLLeftcol: c_int = 1;
 

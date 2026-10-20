@@ -101,9 +101,15 @@ use std::ptr;
 #[cfg(not(test))]
 use crate::api::autocmd::kCallbackNone;
 #[cfg(not(test))]
+use crate::api::command::CMOD_LOCKMARKS;
+#[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
+use crate::api::private::helpers::HLF_E;
+#[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::arglist::ML_EMPTY;
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
@@ -113,27 +119,38 @@ use crate::autocmd::{
 #[cfg(not(test))]
 use crate::buffer::NOTDONE;
 #[cfg(not(test))]
+use crate::buffer::{BF_NEW, BF_NOTEDITED, BF_READERR};
+#[cfg(not(test))]
 use crate::charset::EOL_MAC;
 pub use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
 use crate::eval::vars::FORCE_BIN;
 #[cfg(not(test))]
 use crate::ex_docmd::UNDO_HASH_SIZE;
+#[cfg(not(test))]
+use crate::fileio::FIO_NOCONVERT;
 pub use crate::fileio::iconv_t;
 #[cfg(not(test))]
 use crate::fileio::kShmOver;
 #[cfg(not(test))]
 use crate::fileio::{EOL_DOS, EOL_UNIX};
+use crate::fileio::{FIO_ENDIAN_L, FIO_LATIN1, FIO_UCS2, FIO_UCS4, FIO_UTF8, FIO_UTF16};
 #[cfg(not(test))]
 use crate::fileio::{ICONV_EINVAL, WRITEBUFSIZE};
+#[cfg(all(not(test), unix))]
+use crate::fileio::{S_IFDIR, S_IFMT, S_IFREG};
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;
+#[cfg(not(test))]
+use crate::optionstr::{kOptBkcFlagAuto, kOptBkcFlagYes};
 #[cfg(all(not(test), windows))]
 use crate::os::fs::NODE_OTHER;
 #[cfg(not(test))]
 use crate::os::fs::O_WRONLY;
 pub use crate::path::PathCmpFlags;
+#[cfg(not(test))]
+use crate::path::kPathCmpLiteral;
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
@@ -150,48 +167,11 @@ const SMALLBUFSIZE: usize = 256;
 const ICONV_MULT: usize = 8;
 
 #[cfg(not(test))]
-const ML_EMPTY: c_int = 0x01;
-
-#[cfg(not(test))]
-const BF_NOTEDITED: c_int = 0x08;
-#[cfg(not(test))]
-const BF_NEW: c_int = 0x10;
-#[cfg(not(test))]
-const BF_READERR: c_int = 0x40;
-#[cfg(not(test))]
 const BF_WRITE_MASK: c_int = BF_NOTEDITED + BF_NEW + BF_READERR;
-
-const FIO_LATIN1: c_int = 0x01;
-const FIO_UTF8: c_int = 0x02;
-const FIO_UCS2: c_int = 0x04;
-const FIO_UCS4: c_int = 0x08;
-const FIO_UTF16: c_int = 0x10;
-const FIO_ENDIAN_L: c_int = 0x80;
-#[cfg(not(test))]
-const FIO_NOCONVERT: c_int = 0x2000;
 
 #[cfg(not(test))]
 pub(crate) const NODE_WRITABLE: c_int = 1;
 
-#[cfg(all(not(test), unix))]
-const S_IFMT: u64 = 0o170000;
-#[cfg(all(not(test), unix))]
-const S_IFDIR: u64 = 0o040000;
-#[cfg(all(not(test), unix))]
-const S_IFREG: u64 = 0o100000;
-
-#[cfg(not(test))]
-const HLF_E: c_int = 6;
-#[cfg(not(test))]
-const kPathCmpLiteral: PathCmpFlags = 1 << 0;
-
-#[cfg(not(test))]
-const CMOD_LOCKMARKS: c_int = 0x0800;
-
-#[cfg(not(test))]
-const kOptBkcFlagYes: c_uint = 0x01;
-#[cfg(not(test))]
-const kOptBkcFlagAuto: c_uint = 0x02;
 #[cfg(all(not(test), unix))]
 const kOptBkcFlagBreaksymlink: c_uint = 0x08;
 #[cfg(all(not(test), unix))]

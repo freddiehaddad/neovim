@@ -73,16 +73,8 @@ pub(crate) const kZIndexFloatDefault: c_int = 50;
 
 pub(crate) const FR_COL: c_char = 2;
 
-const WSP_VERT: c_int = 0x02;
-const WSP_HOR: c_int = 0x04;
-const WSP_TOP: c_int = 0x08;
-const WSP_BOT: c_int = 0x10;
-const WSP_BELOW: c_int = 0x40;
-const WSP_ABOVE: c_int = 0x80;
-const WSP_NOENTER: c_int = 0x200;
-
-const kCtxNoDisplay: c_int = 4;
-const kCtxNoEvents: c_int = 8;
+pub(crate) const kCtxNoDisplay: c_int = 4;
+pub(crate) const kCtxNoEvents: c_int = 8;
 
 pub(crate) const kFloatAnchorEast: FloatAnchor = 1;
 pub(crate) const kFloatAnchorSouth: FloatAnchor = 2;
@@ -100,7 +92,7 @@ const kWinSplitAbove: WinSplit = 2;
 const kWinSplitBelow: WinSplit = 3;
 
 pub(crate) const kWinStyleUnused: WinStyle = 0;
-const kWinStyleMinimal: WinStyle = 1;
+pub(crate) const kWinStyleMinimal: WinStyle = 1;
 
 pub(crate) const kAlignLeft: AlignTextPos = 0;
 pub(crate) const kAlignCenter: AlignTextPos = 1;
@@ -138,6 +130,7 @@ pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::autocmd::EVENT_WINNEW;
 use crate::drawscreen::UPD_NOT_VALID;
+use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

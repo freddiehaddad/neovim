@@ -211,9 +211,9 @@ use crate::window::{
     win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
 #[cfg(not(test))]
-use std::ffi::c_void;
+use std::ffi::CStr;
 #[cfg(not(test))]
-use std::ffi::{CStr, c_uint};
+use std::ffi::c_void;
 use std::ffi::{c_char, c_int};
 #[cfg(not(test))]
 use std::io::Write;
@@ -254,36 +254,9 @@ const EDIT_TAG: c_int = 3;
 const EDIT_QF: c_int = 4;
 
 #[cfg(not(test))]
-const SID_CMDARG: c_int = -2;
-#[cfg(not(test))]
-const SID_CARG: c_int = -3;
-#[cfg(not(test))]
-const SID_ENV: c_int = -4;
-
-#[cfg(not(test))]
-const VAR_FIXED: c_int = 2;
-
-#[cfg(not(test))]
-const kNone: TriState = -1;
-#[cfg(not(test))]
-const kFalse: TriState = 0;
-#[cfg(not(test))]
-const kTrue: TriState = 1;
-
-#[cfg(not(test))]
-const kRetObject: c_int = 0;
-#[cfg(not(test))]
-const kPathCmpExpand: c_int = 2;
-
-#[cfg(not(test))]
 const kOptShadafile: OptIndex = 259;
 #[cfg(not(test))]
 const kOptVerbosefile: OptIndex = 344;
-
-#[cfg(not(test))]
-const kOptCbFlagUnnamed: c_uint = 0x01;
-#[cfg(not(test))]
-const kOptCbFlagUnnamedplus: c_uint = 0x02;
 
 #[cfg(all(not(test), windows))]
 const PATHSEP: u8 = b'\\';
@@ -365,6 +338,10 @@ use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
+use crate::api::vim::{kFalse, kNone, kTrue};
+#[cfg(not(test))]
+use crate::buffer::VAR_FIXED;
+#[cfg(not(test))]
 use crate::buffer::{SEA_DIALOG, SEA_NONE, SEA_QUIT};
 #[cfg(not(test))]
 use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
@@ -385,9 +362,17 @@ use crate::fileio::printf;
 #[cfg(not(test))]
 use crate::lua::executor::LUA_GLOBALSINDEX;
 #[cfg(not(test))]
+use crate::lua::executor::kRetObject;
+#[cfg(not(test))]
+use crate::normal::{kOptCbFlagUnnamed, kOptCbFlagUnnamedplus};
+#[cfg(not(test))]
 use crate::option::{kOptArabic, kOptKeymap, kOptRightleft, kOptWindow};
 #[cfg(not(test))]
+use crate::path::kPathCmpExpand;
+#[cfg(not(test))]
 use crate::quickfix::kOptErrorfile;
+#[cfg(not(test))]
+use crate::runtime::{SID_CARG, SID_CMDARG, SID_ENV};
 #[cfg(not(test))]
 use crate::version::main_exitfree;
 

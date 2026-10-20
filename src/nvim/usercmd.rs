@@ -8,21 +8,31 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::LUA_NOREF;
 use crate::api::command::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, UC_BUFFER,
 };
-use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
+use crate::api::command::{
+    CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
+    CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
+    CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE,
+    EX_BANG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_RANGE,
+    EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR,
+};
+use crate::api::command::{cmd_addr_T, cmdmod_T, exarg_T, ucmd_T};
 use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{
     arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj,
     nil_obj, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object};
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
 };
+use crate::cmdexpand::HLF_D;
 use crate::cmdexpand::{
     EXPAND_ARGLIST, EXPAND_AUGROUP, EXPAND_BREAKPOINT, EXPAND_BUFFERS, EXPAND_CHECKHEALTH,
     EXPAND_COLORS, EXPAND_COMMANDS, EXPAND_COMPILER, EXPAND_DIFF_BUFFERS, EXPAND_DIRECTORIES,
@@ -37,7 +47,9 @@ use crate::cmdexpand::{
     EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS,
 };
 use crate::eval::deprecated::buf_T;
+use crate::eval::funcs::DOCMD_KEYTYPED;
 use crate::eval::last_set_msg;
+use crate::ex_docmd::EX_BUFNAME;
 use crate::ex_docmd::{do_cmdline, ends_excmd};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -63,65 +75,18 @@ use crate::sign::expand_T;
 use crate::strings::{
     gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
 };
+use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 use crate::window::{prevwin_curwin, tabpage_index};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const NUL: c_char = 0;
 
-const LUA_NOREF: LuaRef = -2;
-
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
 const KE_FILLER: c_char = b'X' as c_char;
 
 const HLF_8: c_int = 1;
-const HLF_D: c_int = 5;
-
-const CMD_SIZE: cmdidx_T = 564;
-const CMD_USER: cmdidx_T = -1;
-const CMD_USER_BUF: cmdidx_T = -2;
-
-const EX_RANGE: u32 = 0x001;
-const EX_BANG: u32 = 0x002;
-const EX_EXTRA: u32 = 0x004;
-const EX_XFILE: u32 = 0x008;
-const EX_NOSPC: u32 = 0x010;
-const EX_DFLALL: u32 = 0x020;
-const EX_NEEDARG: u32 = 0x080;
-const EX_TRLBAR: u32 = 0x100;
-const EX_REGSTR: u32 = 0x200;
-const EX_COUNT: u32 = 0x400;
-const EX_ZEROR: u32 = 0x1000;
-const EX_BUFNAME: u32 = 0x8000;
-const EX_KEEPSCRIPT: u32 = 0x4000000;
-const EX_ARGSPACE: u32 = 0x40000000;
-
-const CMOD_SANDBOX: c_int = 0x0001;
-const CMOD_SILENT: c_int = 0x0002;
-const CMOD_ERRSILENT: c_int = 0x0004;
-const CMOD_UNSILENT: c_int = 0x0008;
-const CMOD_NOAUTOCMD: c_int = 0x0010;
-const CMOD_HIDE: c_int = 0x0020;
-const CMOD_BROWSE: c_int = 0x0040;
-const CMOD_CONFIRM: c_int = 0x0080;
-const CMOD_KEEPALT: c_int = 0x0100;
-const CMOD_KEEPMARKS: c_int = 0x0200;
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-const CMOD_NOSWAPFILE: c_int = 0x2000;
-
-const WSP_VERT: c_int = 0x02;
-const WSP_HOR: c_int = 0x04;
-const WSP_TOP: c_int = 0x08;
-const WSP_BOT: c_int = 0x10;
-const WSP_BELOW: c_int = 0x40;
-const WSP_ABOVE: c_int = 0x80;
-
-const DOCMD_VERBOSE: c_int = 0x01;
-const DOCMD_NOWAIT: c_int = 0x02;
-const DOCMD_KEYTYPED: c_int = 0x08;
 
 const E_ARGUMENT_REQUIRED_FOR_STR: &CStr = c"E179: Argument required for %s";
 const E_NO_SUCH_USER_DEFINED_COMMAND_STR: &CStr = c"E184: No such user-defined command: %s";
