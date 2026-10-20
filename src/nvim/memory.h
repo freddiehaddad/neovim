@@ -5,7 +5,6 @@
 #include <string.h>
 #include <time.h>  // IWYU pragma: keep
 
-#include "auto/config.h"
 #include "nvim/macros_defs.h"
 #include "nvim/memory_defs.h"  // IWYU pragma: keep
 
@@ -116,10 +115,6 @@ void free_all_mem(void);
 
 #define CLEAR_FIELD(field)  memset(&(field), 0, sizeof(field))
 #define CLEAR_POINTER(ptr)  memset((ptr), 0, sizeof(*(ptr)))
-
-#ifndef HAVE_STRNLEN
-# define strnlen xstrnlen  // Older versions of SunOS may not have strnlen
-#endif
 
 #define STRCPY(d, s)        strcpy((char *)(d), (char *)(s))  // NOLINT(runtime/printf)
 

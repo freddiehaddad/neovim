@@ -1,4 +1,3 @@
-#include "auto/config.h"  // IWYU pragma: keep
 #include "auto/versiondef_git.h"
 #include "nvim/main.h"
 #include "nvim/os/os_defs.h"

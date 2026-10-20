@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "auto/config.h"
 #include "nvim/api/private/defs.h"
 #include "nvim/ascii_defs.h"
 #include "nvim/buffer_defs.h"
@@ -58,7 +57,7 @@ void ml_setmarked(linenr_T lnum);
 linenr_T ml_firstmarked(void);
 void ml_clearmarked(void);
 size_t ml_flush_deleted_bytes(buf_T *buf, size_t *codepoints, size_t *codeunits);
-#ifdef HAVE_READLINK
+#ifndef MSWIN
 int resolve_symlink(const char *fname, char *buf);
 #endif
 char *makeswapname(char *fname, char *ffname, buf_T *buf, char *dir_name);

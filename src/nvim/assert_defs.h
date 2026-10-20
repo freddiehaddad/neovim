@@ -1,6 +1,5 @@
 #pragma once
 
-#include "auto/config.h"
 #include "nvim/log.h"
 
 // support static asserts (aka compile-time asserts)
@@ -137,7 +136,7 @@
 /// @param b  Operand 2.
 /// @param c  Where to store the result.
 /// @param t  Result type. Not used if compiler supports __builtin_add_overflow.
-#ifdef HAVE_BUILTIN_ADD_OVERFLOW
+#if defined(__GNUC__) || defined(__clang__)
 # define STRICT_ADD(a, b, c, t) \
   do { \
     if (__builtin_add_overflow(a, b, c)) { \
@@ -153,7 +152,7 @@
 /// @def STRICT_SUB
 /// @brief Subtracts (a - b) and stores result in `c`.  Aborts on overflow.
 /// @see STRICT_ADD
-#ifdef HAVE_BUILTIN_ADD_OVERFLOW
+#if defined(__GNUC__) || defined(__clang__)
 # define STRICT_SUB(a, b, c, t) \
   do { \
     if (__builtin_sub_overflow(a, b, c)) { \

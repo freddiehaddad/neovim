@@ -8,10 +8,8 @@
 #include <pthread.h>
 #include <sys/param.h>
 #include <sys/socket.h>
+#include <termios.h>
 #include <unistd.h>
-#ifdef HAVE_TERMIOS_H
-# include <termios.h>
-#endif
 // IWYU pragma: end_exports
 
 #define TEMP_DIR_NAMES { "$TMPDIR", "/tmp", ".", "~" }

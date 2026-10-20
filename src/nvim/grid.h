@@ -40,7 +40,7 @@ enum {
 ///
 /// If `x` is a compile time constant, schar_from_ascii(x) will also be.
 /// But the specific value varies per platform.
-#ifdef ORDER_BIG_ENDIAN
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 # define schar_from_ascii(x) ((schar_T)((x) << 24))
 #else
 # define schar_from_ascii(x) ((schar_T)(x))

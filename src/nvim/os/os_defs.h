@@ -3,16 +3,12 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include "auto/config.h"
-
-// Note: Some systems need both string.h and strings.h (Savage).
 #include <string.h>
-#ifdef HAVE_STRINGS_H
+#ifndef MSWIN
 # include <strings.h>  // IWYU pragma: export
 #endif
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #ifdef MSWIN
 # include "nvim/os/win_defs.h"
@@ -131,13 +127,7 @@ typedef __int64 off_T;
 # endif
 #else
 typedef off_t off_T;
-# ifdef HAVE_FSEEKO
-#  define vim_lseek lseek
-#  define vim_ftell ftello
-#  define vim_fseek fseeko
-# else
-#  define vim_lseek lseek
-#  define vim_ftell ftell
-#  define vim_fseek(a, b, c) fseek(a, (long)b, c)
-# endif
+# define vim_lseek lseek
+# define vim_ftell ftello
+# define vim_fseek fseeko
 #endif

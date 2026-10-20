@@ -3,7 +3,6 @@
 #include <stdarg.h>  // IWYU pragma: keep
 #include <string.h>
 
-#include "auto/config.h"
 #include "nvim/api/private/defs.h"  // IWYU pragma: keep
 #include "nvim/eval/typval_defs.h"  // IWYU pragma: keep
 #include "nvim/os/os_defs.h"
@@ -140,22 +139,10 @@ static inline char *strappend(char *const dst, const char *const src)
   return (char *)memmove(dst, src, src_len) + src_len;
 }
 
-#ifdef HAVE_STRCASECMP
+#ifndef MSWIN
 # define STRICMP(d, s)      strcasecmp((char *)(d), (char *)(s))
-#else
-# ifdef HAVE_STRICMP
-#  define STRICMP(d, s)     stricmp((char *)(d), (char *)(s))
-# else
-#  define STRICMP(d, s)     vim_stricmp((char *)(d), (char *)(s))
-# endif
-#endif
-
-#ifdef HAVE_STRNCASECMP
 # define STRNICMP(d, s, n)  strncasecmp((char *)(d), (char *)(s), (n))
 #else
-# ifdef HAVE_STRNICMP
-#  define STRNICMP(d, s, n) strnicmp((char *)(d), (char *)(s), (n))
-# else
-#  define STRNICMP(d, s, n) vim_strnicmp((char *)(d), (char *)(s), (n))
-# endif
+# define STRICMP(d, s)      vim_stricmp((char *)(d), (char *)(s))
+# define STRNICMP(d, s, n)  vim_strnicmp((char *)(d), (char *)(s), (n))
 #endif

@@ -3,18 +3,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "auto/config.h"
 #include "nvim/macros_defs.h"
 
-// USDT probes. Example invocation:
-//     NVIM_PROBE(nvim_foo_bar, 1, string.data);
-#ifdef HAVE_SYS_SDT_H
-# include <sys/sdt.h>  // IWYU pragma: keep
-
-# define NVIM_PROBE(name, n, ...) STAP_PROBE##n(neovim, name, __VA_ARGS__)
-#else
-# define NVIM_PROBE(name, n, ...)
-#endif
+#define NVIM_PROBE(name, n, ...)
 
 // uncrustify:off
 #if NVIM_HAS_INCLUDE(<sanitizer/asan_interface.h>)
@@ -46,7 +37,7 @@
 #define ELOG(...) logmsg(LOGLVL_ERR, NULL, __func__, __LINE__, true, __VA_ARGS__)
 #define ELOGN(...) logmsg(LOGLVL_ERR, NULL, __func__, __LINE__, false, __VA_ARGS__)
 
-#ifdef HAVE_EXECINFO_BACKTRACE
+#ifndef MSWIN
 # define LOG_CALLSTACK() log_callstack(__func__, __LINE__)
 # define LOG_CALLSTACK_TO_FILE(fp) log_callstack_to_file(fp, __func__, __LINE__)
 #endif
@@ -77,8 +68,6 @@ DLLEXPORT bool log_is_std_stream(FILE *fp);
 #ifndef MSWIN
 DLLEXPORT void log_callstack_to_file_trace(FILE *log_file, const char *func_name, int line_num,
                                            void *const *trace, int trace_size);
-#endif
-#ifdef HAVE_EXECINFO_BACKTRACE
 DLLEXPORT void log_callstack_to_file(FILE *log_file, const char *func_name, int line_num);
 DLLEXPORT void log_callstack(const char *func_name, int line_num);
 #endif

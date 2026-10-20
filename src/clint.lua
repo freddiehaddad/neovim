@@ -781,7 +781,6 @@ local function check_includes(filename, lines, error)
   }
 
   local skip_headers = {
-    'auto/config.h',
     'klib/klist.h',
     'klib/kvec.h',
     'mpack/mpack_core.h',

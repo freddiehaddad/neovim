@@ -276,58 +276,7 @@ pub fn build(b: *std.Build) !void {
     const support_unittests = use_luajit;
 
     const gen_config = b.addWriteFiles();
-
-    const version_lua = gen_config.add("nvim_version.lua", lua_version_info(b));
-
-    const ptrwidth = t.ptrBitWidth() / 8;
-    const sysconfig_step = b.addConfigHeader(.{
-        .style = .{ .cmake = b.path("cmake.config/config.h.in") },
-    }, .{
-        .SIZEOF_INT = t.cTypeByteSize(.int),
-        .SIZEOF_INTMAX_T = t.cTypeByteSize(.longlong), // TODO
-        .SIZEOF_LONG = t.cTypeByteSize(.long),
-        .SIZEOF_SIZE_T = ptrwidth,
-        .SIZEOF_VOID_PTR = ptrwidth,
-
-        .PROJECT_NAME = "nvim",
-
-        .HAVE__NSGETENVIRON = is_darwin,
-        .HAVE_FD_CLOEXEC = modern_unix,
-        .HAVE_FSEEKO = modern_unix,
-        .HAVE_LANGINFO_H = modern_unix,
-        .HAVE_NL_LANGINFO_CODESET = modern_unix,
-        .HAVE_NL_MSG_CAT_CNTR = t.isGnuLibC(),
-        .HAVE_PWD_FUNCS = modern_unix,
-        .HAVE_READLINK = modern_unix,
-        .HAVE_STRNLEN = modern_unix,
-        .HAVE_STRCASECMP = modern_unix,
-        .HAVE_STRINGS_H = modern_unix,
-        .HAVE_STRNCASECMP = modern_unix,
-        .HAVE_STRPTIME = modern_unix,
-        .HAVE_XATTR = is_linux,
-        .HAVE_SYS_SDT_H = false,
-        .HAVE_SYS_UTSNAME_H = modern_unix or is_wasm,
-        .HAVE_SYS_WAIT_H = false, // unused
-        .HAVE_TERMIOS_H = modern_unix,
-        .HAVE_WORKING_LIBINTL = t.isGnuLibC(),
-        .UNIX = modern_unix,
-        .CASE_INSENSITIVE_FILENAME = is_darwin or is_windows,
-        .HAVE_SYS_UIO_H = modern_unix,
-        .HAVE_READV = modern_unix,
-        .HAVE_DIRFD_AND_FLOCK = modern_unix,
-        .HAVE_FORKPTY = modern_unix and !is_darwin, // also on Darwin but we lack the headers :(
-        .HAVE_BE64TOH = modern_unix and !is_darwin,
-        .ORDER_BIG_ENDIAN = t.cpu.arch.endian() == .big,
-        .ENDIAN_INCLUDE_FILE = "endian.h",
-        .HAVE_EXECINFO_BACKTRACE = modern_unix and !t.isMuslLibC(),
-        .HAVE_BUILTIN_ADD_OVERFLOW = true,
-        .HAVE_WIMPLICIT_FALLTHROUGH_FLAG = true,
-        .HAVE_BITSCANFORWARD64 = null,
-
-        .VTERM_TEST_FILE = "test/vterm_test_output", // TODO(bfredl): revisit when porting libvterm tests
-    });
-
-    _ = gen_config.addCopyFile(sysconfig_step.getOutputFile(), "auto/config.h"); // run_preprocessor() workaronnd
+    _ = modern_unix;
 
     const opt_version_string = b.option(
         []const u8,

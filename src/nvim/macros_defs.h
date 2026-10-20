@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef NVIM_NLUA0
-# include "auto/config.h"
-#endif
-
 // EXTERN is only defined in main.c. That's where global variables are
 // actually defined and initialized.
 #ifndef EXTERN
@@ -148,14 +144,9 @@
 # define PRAGMA_DIAG_PUSH_IGNORE_MISSING_FORMAT_ATTRIBUTE \
   _Pragma("clang diagnostic push") \
   _Pragma("clang diagnostic ignored \"-Wmissing-format-attribute\"")
-# ifdef HAVE_WIMPLICIT_FALLTHROUGH_FLAG
-#  define PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH \
+# define PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH \
   _Pragma("clang diagnostic push") \
   _Pragma("clang diagnostic ignored \"-Wimplicit-fallthrough\"")
-# else
-#  define PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH \
-  _Pragma("clang diagnostic push")
-# endif
 # define PRAGMA_DIAG_POP \
   _Pragma("clang diagnostic pop")
 #elif defined(__GNUC__)
@@ -164,14 +155,9 @@
   _Pragma("GCC diagnostic ignored \"-Wmissing-prototypes\"")
 # define PRAGMA_DIAG_PUSH_IGNORE_MISSING_FORMAT_ATTRIBUTE \
   _Pragma("GCC diagnostic push")
-# ifdef HAVE_WIMPLICIT_FALLTHROUGH_FLAG
-#  define PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH \
+# define PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH \
   _Pragma("GCC diagnostic push") \
   _Pragma("GCC diagnostic ignored \"-Wimplicit-fallthrough\"")
-# else
-#  define PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH \
-  _Pragma("GCC diagnostic push")
-# endif
 # define PRAGMA_DIAG_POP \
   _Pragma("GCC diagnostic pop")
 #else
