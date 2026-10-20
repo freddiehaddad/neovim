@@ -51,9 +51,7 @@ use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
 #[cfg(not(test))]
 use crate::log::g_min_log_level;
 #[cfg(not(test))]
-use crate::lua::base64::lua_CFunction;
-#[cfg(not(test))]
-use crate::lua::base64::luaopen_base64;
+use crate::lua::base64::{lua_CFunction, luaopen_base64};
 use crate::lua::base64::{lua_State, luaL_Reg};
 #[cfg(not(test))]
 use crate::lua::converter::{

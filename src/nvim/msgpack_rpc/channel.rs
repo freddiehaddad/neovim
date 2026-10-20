@@ -19,7 +19,9 @@ use crate::api::private::validate::{
 #[cfg(not(test))]
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
 #[cfg(not(test))]
-use crate::channel::{channel_close, channel_decref, channel_event, channel_incref};
+use crate::channel::{
+    channel_close, channel_decref, channel_event, channel_incref, kChannelPartRpc,
+};
 use crate::eval::deprecated::{Callback, CallbackReader};
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_handle_size, uv_strerror};
@@ -221,10 +223,7 @@ use crate::api::ui::kUIExtCount;
 use crate::api::vim::kChannelStreamInternal;
 #[cfg(not(test))]
 use crate::autocmd::EVENT_CHANINFO;
-#[cfg(not(test))]
-use crate::channel::kChannelPartRpc;
-use crate::channel::kChannelStreamStdio;
-use crate::channel::{kChannelStreamProc, kChannelStreamSocket};
+use crate::channel::{kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio};
 #[cfg(not(test))]
 use crate::event::libuv_proc::UV_PROCESS;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};

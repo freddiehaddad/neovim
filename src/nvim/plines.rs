@@ -8,11 +8,11 @@
 )]
 
 use crate::api::deprecated::{DecorInline, DecorVirtText};
-use crate::api::extmark::ns_in_win;
+use crate::api::extmark::{kVPosInline, kVTIsLines, ns_in_win};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::charset::{ascii2cells, vim_isprintc, vim_strsize};
 use crate::cursor::{lt, ltoreq};
-use crate::decoration::{decor_conceal_line, decor_virt_lines};
+use crate::decoration::{decor_conceal_line, decor_virt_lines, kMTFilterSelect};
 use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::eval::deprecated::buf_T;
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
@@ -30,17 +30,13 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
-use crate::state::virtual_active;
+use crate::state::{MODE_NORMAL, virtual_active};
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
-use crate::api::extmark::{kVPosInline, kVTIsLines};
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
-use crate::decoration::kMTFilterSelect;
+pub use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
 use crate::insert::kCharsizeFast;
-use crate::state::MODE_NORMAL;
 pub type CSType = bool;
 
 const NUL: c_char = 0;

@@ -39,9 +39,7 @@ pub type schar_T = u32;
 pub type sattr_T = i32;
 pub type sscratch_T = i32;
 use crate::api::ui::MAX_SCHAR_SIZE;
-pub use crate::api::win_config::AlignTextPos;
-pub use crate::api::win_config::BorderTextType;
-pub use crate::api::win_config::UIExtension;
+pub use crate::api::win_config::{AlignTextPos, BorderTextType, UIExtension};
 use crate::api::win_config::{
     kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter, kBorderTextTitle,
 };

@@ -10,21 +10,19 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::private::helpers::cstr_as_string;
+use crate::api::private::helpers::{
+    api_free_object, api_metadata_raw, bool_obj, cstr_as_string, int_obj,
+};
 #[cfg(not(test))]
-use crate::api::private::helpers::{api_free_object, api_metadata_raw, bool_obj, int_obj};
-#[cfg(not(test))]
-use crate::api::private::validate::{Array, Dict, Error, ErrorType};
-#[cfg(not(test))]
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
+};
 #[cfg(not(test))]
 use crate::api::tabpage::tabpage_T;
 #[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[cfg(not(test))]
-use crate::arglist::{aentry_T, linenr_T};
-#[cfg(not(test))]
-use crate::arglist::{alist_add, alist_init, alist_name};
+use crate::arglist::{aentry_T, alist_add, alist_init, alist_name, linenr_T};
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
@@ -33,12 +31,15 @@ use crate::autocmd::{
 };
 #[cfg(not(test))]
 use crate::buffer::{
-    BLN_LISTED, buf_get_changedtick, buf_is_empty, buf_set_changedtick, buf_valid, buflist_new,
-    bufref_T, bufref_valid, do_autochdir, do_modelines, handle_swap_exists, open_buffer,
-    set_buflisted, set_bufref, set_curbuf, setfname,
+    BLN_LISTED, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick, buf_is_empty,
+    buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid, do_autochdir,
+    do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref, set_curbuf, setfname,
 };
 #[cfg(not(test))]
-use crate::channel::{channel_connect, channel_from_stdio, channel_init, channel_teardown};
+use crate::channel::{
+    STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, channel_connect, channel_from_stdio, channel_init,
+    channel_teardown,
+};
 use crate::charset::ascii_isdigit;
 #[cfg(not(test))]
 use crate::diff::{diff_win_options, diffopt_horizontal};
@@ -57,16 +58,16 @@ use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_ap
 #[cfg(not(test))]
 use crate::eval::userfunc::invoke_all_defer;
 #[cfg(not(test))]
-use crate::eval::vars::OptIndex;
-#[cfg(not(test))]
 use crate::eval::vars::{
-    OptInt, VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
+    OptIndex, OptInt, VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
     VV_SEND_SERVER, VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT,
     get_vim_var_list, get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr,
     set_vim_var_string, set_vim_var_type,
 };
 #[cfg(not(test))]
-use crate::eval::{eval_has_provider, eval_init, garbage_collect, set_argv_var, timer_teardown};
+use crate::eval::{
+    eval_has_provider, eval_init, garbage_collect, kListLenMayKnow, set_argv_var, timer_teardown,
+};
 #[cfg(not(test))]
 use crate::event::r#loop::{
     loop_close, loop_init, loop_poll_events, loop_queues, uv_guess_handle, uv_strerror,
@@ -80,7 +81,7 @@ use crate::event::socket::socket_address_tcp_host_end;
 #[cfg(not(test))]
 use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
 #[cfg(not(test))]
-use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd};
+use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd, kOptShortmess};
 #[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
 #[cfg(not(test))]
@@ -88,7 +89,7 @@ use crate::ex_getln::cmdline_init;
 #[cfg(not(test))]
 use crate::extmark::TriState;
 #[cfg(not(test))]
-use crate::fileio::{READ_NEW, READ_STDIN, fprintf, readfile, shorten_fnames};
+use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
 #[cfg(not(test))]
 use crate::garray::ga_grow;
 #[cfg(not(test))]
@@ -109,17 +110,15 @@ use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, log_init, logmsg_str};
 use crate::lua::converter::{lua_getfield, lua_pushstring, lua_tolstring};
 #[cfg(not(test))]
 use crate::lua::executor::{
-    get_global_lstate, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init, nlua_init_defaults,
-    nlua_pcall,
+    LUA_GLOBALSINDEX, get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file,
+    nlua_init, nlua_init_defaults, nlua_pcall,
 };
 #[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mark::setpcmark;
 #[cfg(not(test))]
-use crate::math::FAIL;
-#[cfg(not(test))]
-use crate::math::OK;
+use crate::math::{FAIL, OK};
 #[cfg(not(test))]
 use crate::mcursor::mc_init;
 #[cfg(not(test))]
@@ -127,9 +126,7 @@ use crate::memfile::memfile_T;
 #[cfg(not(test))]
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
 #[cfg(not(test))]
-use crate::memory::free_all_mem;
-#[cfg(not(test))]
-use crate::memory::{entered_free_all_mem, strequal, xfree, xmalloc, xstrdup};
+use crate::memory::{entered_free_all_mem, free_all_mem, strequal, xfree, xmalloc, xstrdup};
 #[cfg(not(test))]
 use crate::message::{msg_putchar, semsg, wait_return};
 #[cfg(not(test))]
@@ -141,11 +138,13 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 #[cfg(not(test))]
 use crate::msgpack_rpc::server::{server_init, server_teardown};
 #[cfg(not(test))]
-use crate::normal::{check_scrollbind, init_normal_cmds, normal_enter};
+use crate::normal::{
+    check_scrollbind, init_normal_cmds, kOptCbFlagUnnamed, kOptCbFlagUnnamedplus, normal_enter,
+};
 #[cfg(not(test))]
 use crate::option::{
-    reset_modifiable, set_init_1, set_init_2, set_init_3, set_init_tablocal, set_option_direct,
-    set_option_value_give_err, set_options_bin,
+    kOptArabic, kOptKeymap, kOptRightleft, kOptWindow, reset_modifiable, set_init_1, set_init_2,
+    set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err, set_options_bin,
 };
 #[cfg(not(test))]
 use crate::option_vars::*;
@@ -176,18 +175,19 @@ use crate::os::time::os_realtime;
 use crate::path::path_to_slash;
 #[cfg(not(test))]
 use crate::path::{
-    concat_fnames, path_equal, path_fix_case, path_guess_exepath, path_tail, vim_FullName,
+    concat_fnames, kPathCmpExpand, path_equal, path_fix_case, path_guess_exepath, path_tail,
+    vim_FullName,
 };
 #[cfg(not(test))]
 use crate::profile::{FILE, profile_dump, time_finish, time_init, time_msg, time_start};
 #[cfg(not(test))]
-use crate::quickfix::{qf_init, qf_init_stack, qf_jump};
+use crate::quickfix::{kOptErrorfile, qf_init, qf_init_stack, qf_jump};
 #[cfg(not(test))]
 use crate::register::get_default_register_name;
 #[cfg(not(test))]
 use crate::runtime::{
-    DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, do_source, estack_init, estack_pop, estack_push,
-    load_plugins, runtime_init,
+    DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, SID_CARG, SID_CMDARG, SID_ENV, do_source,
+    estack_init, estack_pop, estack_push, load_plugins, runtime_init,
 };
 #[cfg(not(test))]
 use crate::shada::{shada_read_everything, shada_write_file};
@@ -204,7 +204,7 @@ use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 #[cfg(not(test))]
 use crate::ui_compositor::ui_comp_syn_init;
 #[cfg(not(test))]
-use crate::version::list_version;
+use crate::version::{list_version, main_exitfree};
 #[cfg(not(test))]
 use crate::window::{
     goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first, win_close,
@@ -336,19 +336,7 @@ static mut REALLY_EXITING: bool = false;
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
-use crate::api::vim::MAXPATHL;
-#[cfg(not(test))]
-use crate::api::vim::{kFalse, kNone, kTrue};
-#[cfg(not(test))]
-use crate::buffer::VAR_FIXED;
-#[cfg(not(test))]
-use crate::buffer::{SEA_DIALOG, SEA_NONE, SEA_QUIT};
-#[cfg(not(test))]
-use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-#[cfg(not(test))]
-use crate::eval::kListLenMayKnow;
-#[cfg(not(test))]
-use crate::ex_cmds::kOptShortmess;
+use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 #[cfg(not(test))]
 #[cfg(all(not(test), windows))]
 use crate::fileio::_close as close;
@@ -357,24 +345,6 @@ use crate::fileio::_close as close;
 use crate::fileio::close;
 #[cfg(all(not(test), windows))]
 use crate::fileio::dup2;
-#[cfg(not(test))]
-use crate::fileio::printf;
-#[cfg(not(test))]
-use crate::lua::executor::LUA_GLOBALSINDEX;
-#[cfg(not(test))]
-use crate::lua::executor::kRetObject;
-#[cfg(not(test))]
-use crate::normal::{kOptCbFlagUnnamed, kOptCbFlagUnnamedplus};
-#[cfg(not(test))]
-use crate::option::{kOptArabic, kOptKeymap, kOptRightleft, kOptWindow};
-#[cfg(not(test))]
-use crate::path::kPathCmpExpand;
-#[cfg(not(test))]
-use crate::quickfix::kOptErrorfile;
-#[cfg(not(test))]
-use crate::runtime::{SID_CARG, SID_CMDARG, SID_ENV};
-#[cfg(not(test))]
-use crate::version::main_exitfree;
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "system" {

@@ -35,7 +35,9 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup};
-pub(super) use crate::message::semsg;
+pub(super) use crate::message::{
+    emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave,
+};
 pub(super) use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
@@ -927,9 +929,6 @@ static mut regexp_engine: c_int = 0;
 pub(super) use crate::eval::partial_name;
 pub(super) use crate::eval::typval::tv_get_string_buf_chk;
 pub(super) use crate::eval::userfunc::call_func;
-pub(super) use crate::message::{
-    emsg, iemsg, internal_error, msg_puts, verbose_enter, verbose_leave,
-};
 pub(super) use crate::strings::{gettext, vim_strchr, vim_strsave_escaped};
 
 #[inline]

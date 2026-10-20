@@ -9,9 +9,9 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
-use crate::api::options::CtxSwitch;
-use crate::api::private::helpers::cstr_as_obj;
+use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
+use crate::api::options::{CtxSwitch, IOSIZE};
+use crate::api::private::helpers::{HLF_E, cstr_as_obj};
 use crate::api::tabpage::pos_T;
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFNEW, EVENT_BUFNEWFILE, EVENT_BUFREADCMD,
@@ -21,25 +21,27 @@ use crate::autocmd::{
     apply_autocmds_exarg, apply_autocmds_group, augroup_exists, augroup_find, do_doautocmd,
 };
 use crate::buffer::{
-    bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty, buflist_new,
-    bufref_T, bufref_valid, do_modelines, set_bufref, setfname, wipe_buffer,
+    BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE,
+    SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty,
+    buflist_new, bufref_T, bufref_valid, do_modelines, kShmFileinfo, kShmRo, set_bufref, setfname,
+    wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
 use crate::change::{appended_lines_mark, save_file_ff, unchanged};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
-use crate::charset::{ascii_isdigit, ascii_isspace, skipdigits};
+use crate::charset::{EOL_MAC, ascii_isdigit, ascii_isspace, skipdigits};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, linenr_T};
 use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
-use crate::drawscreen::{redraw_curbuf_later, status_redraw_all};
+use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
 use crate::errors::*;
 use crate::eval::deprecated::buf_T;
-use crate::eval::fs::FileInfo;
+use crate::eval::fs::{FileInfo, SEEK_SET};
 use crate::eval::vars::{
-    VV_FCS_CHOICE, VV_FCS_REASON, VV_WARNINGMSG, eval_charconvert, get_vim_var_str,
-    set_vim_var_string,
+    BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_FCS_CHOICE, VV_FCS_REASON, VV_WARNINGMSG,
+    eval_charconvert, get_vim_var_str, set_vim_var_string,
 };
 #[cfg(not(test))]
 use crate::eval::vars::{VV_TESTING, get_vim_var_nr};
@@ -83,15 +85,15 @@ use crate::os::fs::{
     os_rmdir, os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, vim_acl_T,
 };
 #[cfg(unix)]
-use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, uv_gid_t, uv_uid_t};
+use crate::os::fs::{S_IFLNK, os_fchown, os_fileinfo_link, os_setperm, uv_gid_t, uv_uid_t};
 use crate::os::input::os_breakcheck;
 use crate::os::time::{os_hrtime, time_t};
 use crate::os::users::os_get_username;
 use crate::path::{
-    add_pathsep, after_pathsep, dir_of_file_exists, path_equal, path_is_absolute,
+    add_pathsep, after_pathsep, dir_of_file_exists, kPathCmpLiteral, path_equal, path_is_absolute,
     path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
 };
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
@@ -239,29 +241,14 @@ static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::CMOD_LOCKMARKS;
 pub use crate::api::command::regmatch_T;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::IOSIZE;
-use crate::api::private::helpers::HLF_E;
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
-use crate::buffer::{BF_CHECK_RO, BF_NEW, BF_NOTEDITED, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
-use crate::buffer::{BLN_DUMMY, NOTDONE, SEA_QUIT};
-use crate::buffer::{kShmFileinfo, kShmRo};
-use crate::charset::EOL_MAC;
-use crate::drawscreen::UPD_NOT_VALID;
-use crate::eval::fs::SEEK_SET;
 use crate::eval::funcs::VIM_WARNING;
-use crate::eval::vars::{BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN};
-use crate::ex_cmds::kShmOverall;
-use crate::ex_cmds::{BL_FIX, BL_WHITE};
+use crate::ex_cmds::{BL_FIX, BL_WHITE, kShmOverall};
 use crate::ex_docmd::UNDO_HASH_SIZE;
 use crate::math::{FAIL, OK};
-#[cfg(unix)]
-use crate::os::fs::S_IFLNK;
-use crate::path::kPathCmpLiteral;
-use crate::regexp::RE_MAGIC;
 
 unsafe extern "C" {
 

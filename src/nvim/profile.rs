@@ -10,7 +10,7 @@ use crate::eval::decode::{dict_T, dictitem_T};
 #[cfg(not(test))]
 use crate::eval::userfunc::{func_tbl_get, get_current_funccal};
 #[cfg(not(test))]
-use crate::eval::vars::set_vim_var_nr;
+use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 #[cfg(not(test))]
 use crate::event::r#loop::uv_err_name;
 #[cfg(not(test))]
@@ -119,8 +119,6 @@ use crate::api::options::IOSIZE;
 use crate::autocmd::PROF_YES;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
 use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
-#[cfg(not(test))]
-use crate::eval::vars::VV_PROFILING;
 #[cfg(not(test))]
 use crate::globals::PROF_NONE;
 pub use crate::os::env::expand_T;

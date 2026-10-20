@@ -10,24 +10,27 @@
 
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::command::exarg_T;
-use crate::api::deprecated::VirtText;
+use crate::api::deprecated::{OPT_LOCAL, VirtText};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,
     cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{WinConfig, lpos_T, win_T};
-use crate::api::win_config::{UIExtension, parse_winborder};
+use crate::api::win_config::{UIExtension, kZIndexFloatDefault, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
 use crate::charset::{transstr, vim_strsize};
 use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
 use crate::cursor::{colnr_T, linenr_T};
-use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
+use crate::drawscreen::{
+    UPD_NOT_VALID, UPD_SOME_VALID, conceal_cursor_line, redraw_later, setcursor_mayforce,
+    update_screen,
+};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::typval::{tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
-use crate::ex_cmds::{do_ecmd, prepare_tagpreview};
+use crate::ex_cmds::{ECMD_ONE, do_ecmd, prepare_tagpreview};
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::garray::{ga_clear, garray_T};
 use crate::globals::*;
@@ -36,11 +39,12 @@ use crate::grid::{
     grid_invalidate, grid_line_fill, grid_line_flush, grid_line_put_schar, grid_line_puts, schar_T,
     schar_from_ascii, schar_from_str, screengrid_line_start,
 };
-use crate::highlight::{hl_combine_attr, hl_get_ui_attr, win_hl_attr};
+use crate::highlight::{HLF_PNI, HLF_PST, hl_combine_attr, hl_get_ui_attr, win_hl_attr};
 use crate::highlight_group::syn_check_group;
 use crate::input::{vgetc, vungetc};
 use crate::insexpand::{
-    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader,
+    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader, kOptCotFlagFuzzy,
+    kWinInfo,
 };
 use crate::keycodes::{
     CAR, ESC, K_DOWN, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_MOUSEDOWN, K_MOUSEMOVE, K_MOUSEUP,
@@ -56,7 +60,7 @@ use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator
 use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
 use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
-use crate::option::set_option_value_give_err;
+use crate::option::{kOptBuflisted, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::plines::{plines_m_win, win_linetabsize};
 use crate::strings::{gettext, reverse_text, strchr};
@@ -71,20 +75,12 @@ use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_flo
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::kOptSwapfile;
-use crate::api::options::{kOptBufhidden, kOptBuftype};
+use crate::api::options::{kOptBufhidden, kOptBuftype, kOptSwapfile};
 use crate::api::vim::kOptCotFlagPopup;
-use crate::api::win_config::kZIndexFloatDefault;
 use crate::diff::kOptDiff;
-use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID};
-use crate::ex_cmds::ECMD_ONE;
 pub use crate::ex_getln::hlf_T;
-use crate::highlight::{HLF_PNI, HLF_PST};
-use crate::insexpand::{kOptCotFlagFuzzy, kWinInfo};
 use crate::math::OK;
 pub use crate::option::OptInt;
-use crate::option::kOptBuflisted;
 pub use crate::optionstr::OptIndex;
 use crate::state::MODE_CMDLINE;
 

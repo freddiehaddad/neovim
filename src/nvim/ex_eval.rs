@@ -16,7 +16,9 @@ use crate::debugger::dbg_check_skipped;
 use crate::errors::*;
 use crate::eval::typval::{tv_clear, tv_free, tv_list_ref, tv_list_unref};
 use crate::eval::userfunc::{do_return, get_return_cmd};
-use crate::eval::vars::{set_vim_var_list, set_vim_var_string};
+use crate::eval::vars::{
+    VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, set_vim_var_list, set_vim_var_string,
+};
 use crate::eval::{
     clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
     free_for_info, next_for_item,
@@ -26,8 +28,10 @@ use crate::globals::*;
 use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
-use crate::regexp::{skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree};
-use crate::runtime::{do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
+use crate::regexp::{
+    RE_MAGIC, RE_STRING, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
+};
+use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{
     concat_str, gettext, strcat, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     xstrnsave,
@@ -160,10 +164,7 @@ pub struct exception_state_T {
 
 use crate::api::options::IOSIZE;
 pub use crate::eval::vars::evalarg_T;
-use crate::eval::vars::{VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT};
 use crate::math::{FAIL, OK};
-use crate::regexp::{RE_MAGIC, RE_STRING};
-use crate::runtime::ESTACK_NONE;
 
 static mut cause_abort: bool = false;
 

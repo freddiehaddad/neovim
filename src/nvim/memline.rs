@@ -9,28 +9,32 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::cstr_as_string;
+use crate::api::private::helpers::{HLF_E, cstr_as_string};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
-use crate::buffer::{buf_inc_changedtick, buf_spname, open_buffer, setfname};
-use crate::change::{changed_internal, unchanged};
+use crate::buffer::{
+    MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER,
+    buf_inc_changedtick, buf_spname, open_buffer, setfname,
+};
+use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
 use crate::charset::ascii_isalpha;
 use crate::clipboard::{list_T, typval_T};
 use crate::cursor::{check_cursor, coladvance, colnr_T, linenr_T};
 use crate::dialog::do_dialog;
-use crate::drawscreen::redraw_curbuf_later;
+use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{buf_T, pos_T};
-use crate::eval::fs::FileInfo;
+use crate::eval::fs::{FileInfo, SEEK_END};
 use crate::eval::typval::{
     tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
     tv_list_append_allocated_string, tv_list_first, tv_list_len,
 };
-use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
-    buf_store_file_info, modname, read_eintr, readfile, vim_deltempdir, vim_rename, vim_tempname,
+    EOL_DOS, O_RDONLY, READ_NEW, buf_store_file_info, kOptFileencoding, modname, read_eintr,
+    readfile, vim_deltempdir, vim_rename, vim_tempname,
 };
 use crate::globals::*;
 use crate::input::flush_buffers;
@@ -41,9 +45,9 @@ use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memfile::{
-    bhdr_T, blocknr_T, memfile_T, mf_close, mf_close_file, mf_free, mf_free_fnames, mf_get,
-    mf_need_trans, mf_new, mf_new_page_size, mf_open, mf_open_file, mf_put, mf_set_dirty,
-    mf_set_fnames, mf_sync, mf_trans_del, off_T,
+    BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO, bhdr_T, blocknr_T, memfile_T, mf_close, mf_close_file,
+    mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
+    mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, off_T,
 };
 use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy};
 use crate::message::{
@@ -65,8 +69,9 @@ use crate::os::users::os_get_username;
 #[cfg(unix)]
 use crate::path::path_is_absolute;
 use crate::path::{
-    FreeWild, after_pathsep, concat_fnames, expand_wildcards, fix_fname, path_equal, path_tail,
-    same_directory, shorten_dir, vim_FullName, vim_ispathsep,
+    EW_FILE, EW_KEEPALL, EW_SILENT, FreeWild, after_pathsep, concat_fnames, expand_wildcards,
+    fix_fname, kPathCmpFull, kPathCmpLiteral, path_equal, path_tail, same_directory, shorten_dir,
+    vim_FullName, vim_ispathsep,
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
@@ -272,35 +277,23 @@ static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer bloc
 use crate::api::buffer::ML_LINE_DIRTY;
 use crate::api::command::CMOD_NOSWAPFILE;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::BF_DUMMY;
-use crate::api::options::IOSIZE;
-use crate::api::private::helpers::HLF_E;
+use crate::api::options::{BF_DUMMY, IOSIZE};
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
-use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
-use crate::buffer::{NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER};
-use crate::change::ML_DEL_MESSAGE;
-use crate::drawscreen::UPD_NOT_VALID;
 use crate::eval::buffer::SEA_READONLY;
-use crate::eval::fs::SEEK_END;
 use crate::eval::funcs::VIM_WARNING;
-use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME};
 use crate::event::r#loop::uv_strerror as os_strerror;
 use crate::ex_docmd::FLUSH_TYPEAHEAD;
 #[cfg(unix)]
 use crate::fileio::readlink;
 #[cfg(windows)]
 use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
-use crate::fileio::{EOL_DOS, O_RDONLY};
-use crate::fileio::{READ_NEW, kOptFileencoding};
 #[cfg(not(windows))]
 use crate::fileio::{close, lseek as vim_lseek};
 use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
-use crate::memfile::{BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO};
 #[cfg(unix)]
-use crate::os::wasm_stubs::EINVAL;
-use crate::path::{EW_FILE, EW_KEEPALL, EW_SILENT, kPathCmpFull, kPathCmpLiteral};
+const EINVAL: c_int = 22;
 use crate::version::Versions;
 
 unsafe extern "C" {

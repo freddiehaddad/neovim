@@ -10,45 +10,45 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::options::optset_T;
+use crate::api::options::{IOSIZE, optset_T};
 use crate::api::private::converter::{sctx_T, ufunc_T};
 use crate::api::private::helpers::{
-    add_c, api_clear_error, arena_array, arena_dict, arena_string, boolean_obj, cstr_as_obj,
-    cstr_as_string, cstr_to_string, dict_obj, integer_obj, string_obj,
+    SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
+    boolean_obj, cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, integer_obj, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
 use crate::autocmd::{
-    AutoPatCmd, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE, apply_autocmds,
-    funccal_entry_T, has_autocmd,
+    AutoPatCmd, DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
+    EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd,
 };
 use crate::charset::{skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::globpath;
+use crate::cmdexpand::{EXPAND_RUNTIME, WILD_ADD_SLASH, globpath};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem};
 use crate::eval::typval::{
-    tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
+    VAR_LOCKED, tv_check_for_opt_dict_arg, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_func,
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_dict_find, tv_dict_get_string, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_string,
     tv_list_append_tv,
 };
 use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal};
-use crate::eval::vars::new_script_vars;
+use crate::eval::vars::{SID_STR, new_script_vars};
 use crate::eval::{eval_to_number, get_copyID};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, getline_cookie, getline_equal};
 use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, report_make_pending};
 use crate::ex_session::FILE;
-#[cfg(windows)]
-use crate::fileio::_fdopen;
 #[cfg(not(windows))]
 use crate::fileio::fdopen;
-use crate::fileio::{fclose, fgets};
+#[cfg(windows)]
+use crate::fileio::{_fdopen, EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
+use crate::fileio::{EINTR, O_RDONLY, fclose, fgets};
 use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear, ga_clear_strings, ga_concat, ga_concat_len, ga_grow,
     ga_init, ga_remove_duplicate_strings, ga_set_growsize, garray_T,
@@ -57,7 +57,9 @@ use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::input::openscript;
 use crate::kvec::KVec;
-use crate::lua::executor::{nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe};
+use crate::lua::executor::{
+    kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
+};
 use crate::lua::stdlib::regmatch_T;
 use crate::map::{
     Map, Set, map_put_ref_String_int, map_ref_String_int, mh_get_String, mh_put_String,
@@ -79,7 +81,7 @@ use crate::message::{
     smsg, verbose_enter, verbose_leave,
 };
 use crate::msgpack_rpc::packer::Integer;
-use crate::option::{copy_option_part, set_option_value_give_err, vimrc_found};
+use crate::option::{copy_option_part, kOptRuntimepath, set_option_value_give_err, vimrc_found};
 use crate::option_vars::*;
 use crate::os::env::{
     expand_env, expand_env_save, home_replace, home_replace_save, os_setenv, vim_env_iter,
@@ -98,7 +100,7 @@ use crate::profile::{
     profile_reset, profile_self, profile_start, profile_sub_wait, profile_zero, proftime_T,
     script_line_end, script_line_start, scriptitem_T, time_msg, time_pop, time_push,
 };
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec, vim_regfree};
 use crate::sign::expand_T;
 use crate::strings::{gettext, strstr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::usercmd::add_win_cmd_modifiers;
@@ -274,25 +276,8 @@ static mut APP_ADD_DIR: c_int = 0;
 static mut APP_LOAD: c_int = 0;
 static mut APP_BOTH: c_int = 0;
 
-use crate::api::options::IOSIZE;
-use crate::api::private::helpers::SID_API_CLIENT;
-use crate::api::private::helpers::SID_LUA;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{kFalse, kNone, kTrue};
-use crate::autocmd::PROF_YES;
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE};
+use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
-use crate::cmdexpand::EXPAND_RUNTIME;
-use crate::cmdexpand::WILD_ADD_SLASH;
-use crate::eval::typval::VAR_LOCKED;
-use crate::eval::vars::SID_STR;
-use crate::fileio::EINTR;
-use crate::fileio::O_RDONLY;
-#[cfg(windows)]
-use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
-use crate::lua::executor::kRetNilBool;
-use crate::option::kOptRuntimepath;
-use crate::regexp::{RE_MAGIC, RE_STRING};
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 

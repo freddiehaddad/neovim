@@ -8,31 +8,26 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::kExtmarkNOOP;
-use crate::api::buffer::{FORWARD, kExtmarkUndo};
-use crate::api::command::CMOD_LOCKMARKS;
-use crate::api::command::exarg_T;
+use crate::api::buffer::{FORWARD, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
-use crate::api::vim::BACKWARD;
-use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::api::vim::{BACKWARD, REMAP_NONE, REMAP_YES};
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
     EVENT_TEXTYANKPOST, apply_autocmds, has_event,
 };
-use crate::buffer::VAR_FIXED;
-use crate::buffer::{buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname};
+use crate::buffer::{
+    VAR_FIXED, buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname,
+};
 use crate::buffer_updates::buf_updates_send_changes;
-use crate::change::SIN_NOMARK;
-use crate::change::kOptVeFlagOnemore;
-use crate::change::{changed_bytes, changed_lines, del_chars};
+use crate::change::{SIN_NOMARK, changed_bytes, changed_lines, del_chars, kOptVeFlagOnemore};
 use crate::charset::{ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
 use crate::clipboard::{
     MotionType, adjust_clipboard_name, get_clipboard, set_clipboard, yankreg_T,
 };
-use crate::cursor::kOptVeFlagAll;
 use crate::cursor::{
     coladvance_force, colnr_T, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, linenr_T,
+    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, getvpos, kOptVeFlagAll, linenr_T,
 };
 use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
@@ -61,8 +56,9 @@ use crate::input::{
 };
 use crate::insert::{beginline, get_last_insert, get_last_insert_save, oneright, stuff_inserted};
 use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
-use crate::keycodes::K_COMMAND;
-use crate::keycodes::{K_SPECIAL, KE_COMMAND, KS_EXTRA, vim_strsave_escape_ks, vim_unescape_ks};
+use crate::keycodes::{
+    K_COMMAND, K_SPECIAL, KE_COMMAND, KS_EXTRA, vim_strsave_escape_ks, vim_unescape_ks,
+};
 use crate::map_glyph_cache::NvimString;
 use crate::mark::mark_adjust;
 use crate::math::{FAIL, OK};
@@ -79,8 +75,7 @@ use crate::message::{
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
 };
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
-use crate::normal::{FIND_IDENT, FIND_STRING};
-use crate::normal::{exec_stuffed, find_ident_under_cursor};
+use crate::normal::{FIND_IDENT, FIND_STRING, exec_stuffed, find_ident_under_cursor};
 use crate::ops::{adjust_cursor_eol, block_prep, charwise_block_prep, get_op_char};
 use crate::option::get_ve_flags;
 use crate::option_vars::*;

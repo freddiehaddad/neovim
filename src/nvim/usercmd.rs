@@ -11,16 +11,13 @@
 use crate::api::buffer::LUA_NOREF;
 use crate::api::command::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, UC_BUFFER,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
+    CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
+    CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
+    CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG,
+    EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, UC_BUFFER, cmd_addr_T, cmdmod_T,
+    exarg_T, ucmd_T,
 };
-use crate::api::command::{
-    CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
-    CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
-    CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE,
-    EX_BANG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_RANGE,
-    EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR,
-};
-use crate::api::command::{cmd_addr_T, cmdmod_T, exarg_T, ucmd_T};
 use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{
     arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj,
@@ -32,7 +29,6 @@ use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
 };
-use crate::cmdexpand::HLF_D;
 use crate::cmdexpand::{
     EXPAND_ARGLIST, EXPAND_AUGROUP, EXPAND_BREAKPOINT, EXPAND_BUFFERS, EXPAND_CHECKHEALTH,
     EXPAND_COLORS, EXPAND_COMMANDS, EXPAND_COMPILER, EXPAND_DIFF_BUFFERS, EXPAND_DIRECTORIES,
@@ -44,13 +40,12 @@ use crate::cmdexpand::{
     EXPAND_SHELLCMD, EXPAND_SHELLCMDLINE, EXPAND_SIGN, EXPAND_SYNTIME, EXPAND_TAGS,
     EXPAND_TAGS_LISTFILES, EXPAND_UNSUCCESSFUL, EXPAND_USER, EXPAND_USER_ADDR_TYPE,
     EXPAND_USER_CMD_FLAGS, EXPAND_USER_COMMANDS, EXPAND_USER_COMPLETE, EXPAND_USER_DEFINED,
-    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS,
+    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS, HLF_D,
 };
 use crate::eval::deprecated::buf_T;
 use crate::eval::funcs::DOCMD_KEYTYPED;
 use crate::eval::last_set_msg;
-use crate::ex_docmd::EX_BUFNAME;
-use crate::ex_docmd::{do_cmdline, ends_excmd};
+use crate::ex_docmd::{EX_BUFNAME, do_cmdline, ends_excmd};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::keycodes::replace_termcodes;
@@ -75,8 +70,9 @@ use crate::sign::expand_T;
 use crate::strings::{
     gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
 };
-use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
-use crate::window::{prevwin_curwin, tabpage_index};
+use crate::window::{
+    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
+};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 

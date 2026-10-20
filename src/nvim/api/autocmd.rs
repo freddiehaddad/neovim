@@ -21,12 +21,12 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Array, Error, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{
-    Dict, KeyValuePair, api_err_conflict, api_err_invalid, api_err_required,
+    Dict, ErrorType, KeyValuePair, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
+    api_err_required, check_string_array,
 };
 #[cfg(not(test))]
-use crate::api::private::validate::{ErrorType, ObjectType, api_err_exp, check_string_array};
-#[cfg(not(test))]
 use crate::autocmd::{
+    AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, BUFLOCAL_PAT_LEN, NUM_EVENTS,
     apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
     aucmd_span_pattern, augroup_add, augroup_del, augroup_del_by_id, augroup_exists, augroup_find,
     augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat,
@@ -46,9 +46,7 @@ use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
-use crate::memory::arena_memdupz;
-#[cfg(not(test))]
-use crate::memory::{xfree, xstrndup};
+use crate::memory::{arena_memdupz, xfree, xstrndup};
 use crate::msgpack_rpc::packer::Integer;
 #[cfg(not(test))]
 use std::ffi::CStr;
@@ -58,7 +56,7 @@ use std::ffi::{c_char, c_int};
 
 pub use crate::api::tabpage::Buffer;
 pub type event_T = c_int;
-pub use crate::api::private::helpers::ArrayBuilder;
+pub use crate::api::private::helpers::{ArrayBuilder, TryState};
 pub use crate::highlight::OptionalKeys;
 
 #[cfg(not(test))]
@@ -145,9 +143,6 @@ pub struct AutoCmdVec {
 
 #[cfg(not(test))]
 use crate::api::buffer::LUA_NOREF;
-pub use crate::api::private::helpers::TryState;
-#[cfg(not(test))]
-use crate::autocmd::{AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, BUFLOCAL_PAT_LEN, NUM_EVENTS};
 #[cfg(not(test))]
 use crate::math::FAIL;
 

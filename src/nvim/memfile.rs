@@ -30,7 +30,7 @@ use crate::map::{
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
 #[cfg(not(test))]
-use crate::memline::{ml_get_buf, ml_open_file};
+use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
 #[cfg(not(test))]
 use crate::message::{emsg, iemsg, semsg};
@@ -55,8 +55,6 @@ use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
 use crate::eval::fs::{SEEK_END, SEEK_SET};
 pub use crate::fileio::off_T;
 use crate::math::{FAIL, OK};
-#[cfg(not(test))]
-use crate::memline::MFS_FLUSH;
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;
 #[cfg(not(test))]

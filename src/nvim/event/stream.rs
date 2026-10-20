@@ -8,13 +8,13 @@
 )]
 
 use crate::event::r#loop::{
-    uv_close, uv_guess_handle, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init,
-    uv_pipe_init, uv_pipe_open, uv_run,
+    UV_RUN_NOWAIT, uv_close, uv_guess_handle, uv_handle_size, uv_is_closing, uv_loop_close,
+    uv_loop_init, uv_pipe_init, uv_pipe_open, uv_run,
 };
 #[cfg(windows)]
 use crate::event::r#loop::{uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
-use crate::log::{g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, LOGLVL_WRN, g_min_log_level, logmsg};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -69,8 +69,6 @@ unsafe extern "C" {
 
 }
 
-use crate::event::r#loop::UV_RUN_NOWAIT;
-use crate::log::{LOGLVL_DBG, LOGLVL_WRN};
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 

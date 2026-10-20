@@ -19,18 +19,16 @@ use crate::eval::fs::modify_fname;
 #[cfg(not(test))]
 use crate::eval::skip_expr;
 #[cfg(not(test))]
-use crate::eval::vars::get_vim_var_str;
+use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
 #[cfg(not(test))]
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
 #[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
-#[cfg(all(not(test), windows))]
-use crate::mbyte::utf_valid_string;
-#[cfg(all(not(test), windows))]
-use crate::mbyte::utf16_to_utf8;
 #[cfg(not(test))]
 use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len};
+#[cfg(all(not(test), windows))]
+use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 use crate::memory::{xfree, xmalloc, xmemrchr, xstrdup, xstrlcpy};
 #[cfg(not(test))]
 use crate::memory::{xmemcpyz, xmemdupz, xstrlcat};
@@ -185,8 +183,6 @@ unsafe extern "C" {
 #[cfg(all(not(test), unix))]
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
-#[cfg(not(test))]
-use crate::eval::vars::VV_PROGPATH;
 #[cfg(not(test))]
 use crate::math::OK;
 #[cfg(all(not(test), windows))]

@@ -8,7 +8,8 @@
 )]
 
 use crate::event::r#loop::{
-    uv_close, uv_handle_size, uv_loop_size, uv_signal_init, uv_signal_start, uv_signal_stop,
+    UV_SIGNAL, uv_close, uv_handle_size, uv_loop_size, uv_signal_init, uv_signal_start,
+    uv_signal_stop,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 use std::ffi::{c_int, c_void};
@@ -16,7 +17,6 @@ use std::ptr;
 
 const UV_HANDLE: c_int = 5;
 
-use crate::event::r#loop::UV_SIGNAL;
 pub use crate::event::r#loop::{
     Loop, uv_close_cb, uv_handle_t, uv_loop_t, uv_signal_cb, uv_signal_t,
 };

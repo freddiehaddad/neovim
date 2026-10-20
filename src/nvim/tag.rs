@@ -12,14 +12,21 @@
 use crate::api::command::exarg_T;
 use crate::api::tabpage::{taggy_T, win_T};
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
-use crate::buffer::{bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile};
+use crate::buffer::{
+    GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, NOTDONE, VAR_FIXED,
+    bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile, kOptJopFlagView,
+    kOptSwbFlagNewtab, kOptSwbFlagVsplit,
+};
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_islower, ascii_iswhite, skipdigits, vim_isblankline,
 };
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::{ExpandInit, ExpandOne};
+use crate::cmdexpand::{
+    EXPAND_FILES, ExpandInit, ExpandOne, HLF_D, TAG_MANY, WILD_EXPAND_FREE, WILD_LIST_NOTFOUND,
+    WILD_SILENT,
+};
 use crate::cursor::{check_cursor, linenr_T};
-use crate::drawscreen::redraw_later;
+use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{fmark_T, fmarkv_T, pos_T};
@@ -29,12 +36,15 @@ use crate::eval::typval::{
     tv_dict_get_string, tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
     tv_list_append_number, tv_list_append_tv, tv_list_free,
 };
-use crate::eval::vars::set_vim_var_string;
+use crate::eval::vars::{VV_SWAPCOMMAND, set_vim_var_string};
 use crate::eval::{callback_call, list2fpos, set_ref_in_callback};
 use crate::ex_cmds::{getfile, prepare_tagpreview};
-use crate::ex_docmd::{do_cmdline_cmd, set_no_hlsearch};
+use crate::ex_docmd::{
+    DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG,
+    do_cmdline_cmd, set_no_hlsearch,
+};
 use crate::file_search::{
-    vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
+    FINDFILE_FILE, vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
 };
 #[cfg(windows)]
 use crate::fileio::{_fseeki64, _ftelli64};
@@ -47,8 +57,11 @@ use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear, hash_hash, hash_init, hash_lookup, hashitem_empty, hashtab_T,
 };
-use crate::help::help_heuristic;
-use crate::insexpand::{ins_compl_check_keys, ins_compl_interrupted};
+use crate::help::{
+    DT_HELP, TAG_HELP, TAG_KEEP_LANG, TAG_NAMES, TAG_NO_TAGFUNC, TAG_REGEXP, TAG_VERBOSE,
+    help_heuristic,
+};
+use crate::insexpand::{TAG_INS_COMP, TAG_NOIC, ins_compl_check_keys, ins_compl_interrupted};
 use crate::lua::executor::nlua_call_excmd;
 use crate::mark::{fm_getname, mark_view_make, mark_view_restore, setpcmark};
 use crate::mbyte::{
@@ -69,9 +82,9 @@ use crate::path::{
     FreeWild, FullName_save, PathCmpFlags, kPathCmpExpand, kPathCmpFull, path_equal,
     path_has_wildcard, path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
-use crate::quickfix::set_errorlist;
-use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
-use crate::runtime::do_in_runtimepath;
+use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
+use crate::regexp::{NSUBEXP, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+use crate::runtime::{DIP_ALL, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
@@ -79,18 +92,16 @@ use crate::strings::{
     vim_snprintf_safelen, vim_strchr, xstrnsave,
 };
 use crate::window::{
-    check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_close, win_enter,
-    win_split, win_valid,
+    WSP_VERT, check_can_set_curbuf_forceit, swbuf_goto_win_with_buf, tabpage_index, win_close,
+    win_enter, win_split, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::eval::funcs::SpecialVarValue;
-pub use crate::eval::typval::BoolVarValue;
-pub use crate::eval::typval::VarLockStatus;
-pub use crate::fileio::FILE;
-pub use crate::fileio::off_T;
+pub use crate::eval::typval::{BoolVarValue, VarLockStatus};
+pub use crate::fileio::{FILE, off_T};
 pub use crate::option::OptInt;
 pub use crate::regexp::regprog_T;
 
@@ -165,32 +176,11 @@ use crate::api::autocmd::kCallbackNone;
 use crate::api::options::IOSIZE;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::MAXPATHL;
-use crate::buffer::{
-    GETF_SETMARK, VAR_FIXED, kOptJopFlagView, kOptSwbFlagNewtab, kOptSwbFlagVsplit,
-};
-use crate::buffer::{GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, NOTDONE};
-use crate::cmdexpand::{EXPAND_FILES, TAG_MANY, WILD_EXPAND_FREE};
-use crate::cmdexpand::{HLF_D, WILD_LIST_NOTFOUND, WILD_SILENT};
-use crate::drawscreen::UPD_VALID;
 use crate::eval::fs::{SEEK_END, SEEK_SET};
 use crate::eval::funcs::SEARCH_KEEP;
-use crate::eval::vars::VV_SWAPCOMMAND;
-use crate::ex_docmd::{
-    DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG,
-};
-use crate::file_search::FINDFILE_FILE;
-use crate::help::{
-    DT_HELP, TAG_HELP, TAG_KEEP_LANG, TAG_NAMES, TAG_NO_TAGFUNC, TAG_REGEXP, TAG_VERBOSE,
-};
-use crate::insexpand::{TAG_INS_COMP, TAG_NOIC};
 use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
-use crate::quickfix::CMDBUFFSIZE;
-use crate::quickfix::kOptSwbFlagUsetab;
-use crate::regexp::{NSUBEXP, RE_MAGIC};
-use crate::runtime::DIP_ALL;
 use crate::viml::parser::parser::CONV_NONE;
-use crate::window::WSP_VERT;
 
 #[derive(Clone, Copy)]
 struct tagptrs_T {

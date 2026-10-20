@@ -7,8 +7,8 @@
     clippy::missing_safety_doc
 )]
 
-use crate::autocmd::apply_autocmds;
-use crate::eval::vars::set_vim_var_nr;
+use crate::autocmd::{EVENT_SIGNAL, apply_autocmds};
+use crate::eval::vars::{VV_DYING, set_vim_var_nr};
 use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
@@ -16,7 +16,7 @@ use crate::event::signal::{
 use crate::ex_cmds2::autowrite_all;
 use crate::globals::main_loop;
 use crate::globals::*;
-use crate::log::logmsg;
+use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
 #[cfg(unix)]
 use crate::memline::ml_sync_all;
@@ -26,10 +26,7 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::options::IOSIZE;
-use crate::autocmd::EVENT_SIGNAL;
-use crate::eval::vars::VV_DYING;
 use crate::event::proc::{SIGHUP, SIGTERM};
-use crate::log::LOGLVL_ERR;
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
 

@@ -17,16 +17,16 @@ use crate::eval::fs::{FileInfo, uv_stat_t};
 #[cfg(all(not(test), windows))]
 use crate::event::r#loop::uv_guess_handle;
 #[cfg(not(test))]
-use crate::event::r#loop::{uv_req_size, uv_strerror, uv_translate_sys_error};
+use crate::event::r#loop::{
+    uv_chdir, uv_cwd, uv_fs_req_cleanup, uv_req_size, uv_strerror, uv_translate_sys_error,
+};
 use crate::file_search::FileID;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(all(not(test), unix))]
 use crate::log::logmsg;
 #[cfg(all(not(test), windows))]
-use crate::mbyte::mb_strnicmp;
-#[cfg(all(not(test), windows))]
-use crate::mbyte::{utf8_to_utf16, utf16_to_utf8};
+use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
 #[cfg(all(not(test), windows))]
 use crate::memory::xmallocz;
 #[cfg(not(test))]
@@ -293,16 +293,13 @@ use crate::api::vim::MAXPATHL;
 use crate::bufwrite::NODE_WRITABLE;
 #[cfg(not(test))]
 use crate::channel::STDIN_FILENO;
-#[cfg(not(test))]
-use crate::event::r#loop::{uv_chdir, uv_cwd, uv_fs_req_cleanup};
 #[cfg(all(not(test), windows))]
 use crate::event::stream::{UV_FILE, UV_TTY};
-use crate::fileio::O_RDONLY;
 #[cfg(not(test))]
 use crate::fileio::S_IFREG;
 #[cfg(all(not(test), windows))]
 use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
-use crate::fileio::{S_IFDIR, S_IFMT};
+use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT};
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
 use crate::math::FAIL;

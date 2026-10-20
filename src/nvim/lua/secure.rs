@@ -10,7 +10,7 @@ use crate::lua::converter::{
     lua_toboolean, lua_tolstring,
 };
 #[cfg(not(test))]
-use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
+use crate::lua::executor::{LUA_GLOBALSINDEX, get_global_lstate, nlua_error, nlua_pcall};
 #[cfg(not(test))]
 use crate::memory::{xcalloc, xfree, xmemdupz};
 #[cfg(not(test))]
@@ -22,8 +22,6 @@ use std::ffi::c_void;
 use std::ffi::{CStr, c_char};
 
 pub use crate::api::command::exarg_T;
-#[cfg(not(test))]
-use crate::lua::executor::LUA_GLOBALSINDEX;
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {

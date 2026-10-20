@@ -16,13 +16,13 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, win_T};
-use crate::autocmd::{aucmd_defer, has_event};
+use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
 use crate::buffer::{buf_get_changedtick, bufref_valid, set_bufref};
 use crate::charset::is_special;
 use crate::cursor::equalpos;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::buf_T;
-use crate::eval::vars::get_vim_var_str;
+use crate::eval::vars::{VV_OP, get_vim_var_str};
 use crate::extmark::TriState;
 use crate::globals::*;
 use crate::input::{
@@ -43,8 +43,11 @@ use crate::mcursor::{
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
 use crate::memory::{xfree, xmemdupz, xrealloc, xstrdup};
-use crate::normal::nv_is;
-use crate::ops::{get_extra_op_char, get_op_char, op_redoable, op_self_select};
+use crate::normal::{REPLACE_CR_NCHAR, nv_is};
+use crate::ops::{
+    OP_APPEND, OP_CHANGE, OP_INSERT, OP_NOP, OP_NR_ADD, OP_NR_SUB, OP_REPLACE, get_extra_op_char,
+    get_op_char, op_redoable, op_self_select,
+};
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
@@ -63,14 +66,9 @@ pub use crate::os::time::Timestamp;
 pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
-use crate::autocmd::AUGROUP_ALL;
-use crate::autocmd::EVENT_CMDATOM;
-use crate::eval::vars::VV_OP;
 use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
 use crate::ex_getln::{K_EVENT, K_LUA};
 use crate::mapping::MAXMAPLEN;
-use crate::normal::REPLACE_CR_NCHAR;
-use crate::ops::{OP_APPEND, OP_CHANGE, OP_INSERT, OP_NOP, OP_NR_ADD, OP_NR_SUB, OP_REPLACE};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]

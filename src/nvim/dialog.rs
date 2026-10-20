@@ -21,9 +21,7 @@ use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_p
 #[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
 #[cfg(not(test))]
-use crate::message::HLF_M;
-#[cfg(not(test))]
-use crate::message::{display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
+use crate::message::{HLF_M, display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
 #[cfg(not(test))]
 use crate::mouse::setmouse;
 #[cfg(not(test))]

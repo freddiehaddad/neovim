@@ -9,18 +9,23 @@
 )]
 
 use crate::api::autocmd::OptionalKeys;
-use crate::api::deprecated::VirtText;
+use crate::api::deprecated::{OPT_LOCAL, VirtText, kOptScopeBuf};
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_obj, error_init, find_buffer_by_handle,
     find_window_by_handle,
 };
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
-use crate::api::vim::nvim_create_buf;
-use crate::api::win_config::{UIExtension, parse_bordertext, parse_winborder};
+use crate::api::vim::{MAXPATHL, nvim_create_buf};
+use crate::api::win_config::{
+    UIExtension, kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth,
+    kFloatRelativeCursor, kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse,
+    kFloatRelativeWindow, kWinStyleMinimal, kWinStyleUnused, kZIndexFloatDefault, parse_bordertext,
+    parse_winborder,
+};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::decoration::clear_virttext;
-use crate::drawscreen::{redraw_later, set_must_redraw};
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::eval::deprecated::pos_T;
 use crate::fileio::shorten_buf_fname;
@@ -28,29 +33,29 @@ use crate::globals::*;
 use crate::grid::grid_adjust;
 use crate::kvec::KVec;
 use crate::memory::{xfree, xrealloc, xstrdup};
-use crate::message::emsg;
+use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
 use crate::option::{parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
-use crate::optionstr::{free_string_option, opt_keyset};
+use crate::optionstr::{free_string_option, kOptPreviewpopup, opt_keyset};
 use crate::os::fs::os_dirname;
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext, qsort};
 use crate::ui::ui_has;
 use crate::window::{
-    last_status, lastwin_nofloating, merge_win_config, tabpage_win_valid, win_alloc, win_append,
-    win_close, win_comp_pos, win_enter, win_find_tabpage, win_free, win_init, win_remove,
-    win_remove_status_line, win_set_buf, win_set_inner_size, win_valid, winframe_remove,
+    STATUS_HEIGHT, last_status, lastwin_nofloating, merge_win_config, tabpage_win_valid, win_alloc,
+    win_append, win_close, win_comp_pos, win_enter, win_find_tabpage, win_free, win_init,
+    win_remove, win_remove_status_line, win_set_buf, win_set_inner_size, win_valid,
+    winframe_remove,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub use crate::cursor::linenr_T;
 pub use crate::eval::vars::scid_T;
-pub use crate::option::OptInt;
-pub use crate::option::OptScope;
-pub use crate::optionstr::OptIndex;
+pub use crate::option::{OptInt, OptScope};
+pub use crate::optionstr::{OptIndex, OptKeyDict_pvp};
 pub use crate::window::WinKind;
 
 const NUL: c_char = 0;
@@ -61,23 +66,10 @@ const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;
 const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
-use crate::api::deprecated::{OPT_LOCAL, kOptScopeBuf};
 use crate::api::options::kOptBufhidden;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::vim::MAXPATHL;
-use crate::api::win_config::kWinStyleMinimal;
-use crate::api::win_config::{
-    kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeCursor,
-    kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse, kFloatRelativeWindow,
-    kWinStyleUnused, kZIndexFloatDefault,
-};
-use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
 use crate::ex_cmds::kWinPreview;
 use crate::math::FAIL;
-use crate::message::kZIndexMessages;
-pub use crate::optionstr::OptKeyDict_pvp;
-use crate::optionstr::kOptPreviewpopup;
-use crate::window::STATUS_HEIGHT;
 
 const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,

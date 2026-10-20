@@ -6,23 +6,21 @@
 use crate::charset::getdigits_int32;
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
-use crate::drawscreen::redraw_all_later;
+use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 #[cfg(not(test))]
 use crate::eval::deprecated::Callback;
 #[cfg(not(test))]
 use crate::eval::typval::tv_free;
 #[cfg(not(test))]
-use crate::eval::{eval_expr, typval_compare, typval_tostring};
+use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 #[cfg(not(test))]
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
+use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd};
 #[cfg(not(test))]
 use crate::ex_getln::{getcmdline_prompt, getexline};
 #[cfg(not(test))]
 use crate::fileio::file_pat_to_reg_pat;
 #[cfg(not(test))]
-use crate::garray::garray_T;
-#[cfg(not(test))]
-use crate::garray::{ga_clear, ga_grow};
+use crate::garray::{ga_clear, ga_grow, garray_T};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -38,9 +36,9 @@ use crate::os::env::{expand_env_save, home_replace};
 #[cfg(not(test))]
 use crate::path::fix_fname;
 #[cfg(not(test))]
-use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 #[cfg(not(test))]
-use crate::runtime::{estack_sfile, sourcing_lnum};
+use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 #[cfg(not(test))]
 use std::ffi::c_void;
 use std::ffi::{CStr, c_char, c_int};
@@ -148,17 +146,7 @@ use crate::autocmd::DOCMD_VERBOSE;
 use crate::cmdexpand::EXPAND_NOTHING;
 pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
-use crate::drawscreen::UPD_NOT_VALID;
-#[cfg(not(test))]
-use crate::eval::EXPR_IS;
-#[cfg(not(test))]
-use crate::ex_docmd::DOCMD_EXCRESET;
-#[cfg(not(test))]
 use crate::keycodes::{KE_SNR, KS_EXTRA};
-#[cfg(not(test))]
-use crate::regexp::{RE_MAGIC, RE_STRING};
-#[cfg(not(test))]
-use crate::runtime::ESTACK_NONE;
 #[cfg(not(test))]
 use crate::state::MODE_NORMAL;
 

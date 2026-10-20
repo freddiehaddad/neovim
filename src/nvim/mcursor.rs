@@ -9,27 +9,30 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{VisualState, nvim_buf_set_text};
-use crate::api::deprecated::DecorInline;
+use crate::api::buffer::{LUA_INTERNAL_CALL, VisualState, nvim_buf_set_text};
+use crate::api::deprecated::{DecorInline, OPT_LOCAL};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
     api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
 };
 use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::tabpage::pos_T;
-use crate::api::vim::nvim_feedkeys;
+use crate::api::vim::{REMAP_NONE, kCtxRegs, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
-use crate::context::{Context, ctx_free, ctx_load, ctx_save, handle_get_buffer};
+use crate::context::{
+    Context, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor, kCtxMarks, kCtxMergeReg,
+    kCtxVisual,
+};
 use crate::cursor::{
     check_cursor, check_cursor_col, check_pos, colnr_T, equalpos, getvpos, linenr_T, lt, ltoreq,
 };
-use crate::drawscreen::redraw_all_later;
+use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
-use crate::eval::vars::{get_vim_var_tv, set_vim_var_bool};
+use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
 use crate::ex_docmd::{
     exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
@@ -52,7 +55,7 @@ use crate::input_cmdatom::{
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL};
 use crate::kvec::KVec;
-use crate::log::{g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::lua::executor::nlua_call_typval;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::mark_get_visual;
@@ -76,8 +79,8 @@ use crate::os::time::os_realtime;
 use crate::plines::getvcols;
 use crate::popupmenu::pum_visible;
 use crate::register::{
-    get_reg_contents, get_unname_register, get_y_previous, get_y_register, reg_max_ts,
-    write_reg_contents_ex,
+    DELETION_REGISTER, PLUS_REGISTER, STAR_REGISTER, get_reg_contents, get_unname_register,
+    get_y_previous, get_y_register, reg_max_ts, write_reg_contents_ex,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
@@ -167,21 +170,11 @@ const CONTEXT_INIT: Context = Context {
     },
 };
 
-use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::api::command::CMOD_KEEPJUMPS;
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::vim::REMAP_NONE;
-use crate::api::vim::{kCtxRegs, kFalse, kNone, kTrue};
-use crate::context::{kCtxCursor, kCtxMarks, kCtxMergeReg, kCtxVisual};
-use crate::drawscreen::UPD_SOME_VALID;
-use crate::eval::funcs::kMTLineWise;
-use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTUnknown};
-use crate::eval::vars::VV_CASCADING;
+use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::ex_getln::K_LUA;
 pub use crate::input::RedoState;
-use crate::log::LOGLVL_DBG;
 use crate::math::FAIL;
-use crate::register::{DELETION_REGISTER, PLUS_REGISTER, STAR_REGISTER};
 
 #[repr(C)]
 struct McSandbox {

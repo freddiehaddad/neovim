@@ -19,33 +19,25 @@ use crate::eval::deprecated::buf_T;
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 #[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
-use crate::lua::base64::LUA_TSTRING;
-#[cfg(not(test))]
-use crate::lua::base64::lua_CFunction;
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
-use crate::lua::base64::luaL_Reg;
-#[cfg(not(test))]
-use crate::lua::converter::LuaRef;
-#[cfg(not(test))]
-use crate::lua::converter::{LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TNUMBER, LUA_TTABLE};
+use crate::lua::base64::{LUA_TSTRING, lua_CFunction, luaL_Reg};
 #[cfg(not(test))]
 use crate::lua::converter::{
-    lua_Integer, lua_Number, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop,
-    lua_isstring, lua_newuserdata, lua_objlen, lua_pcall, lua_pushboolean, lua_pushcclosure,
-    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
-    lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean,
-    lua_tointeger, lua_tolstring, lua_touserdata, lua_type, luaL_argerror, luaL_checkinteger,
-    luaL_checklstring, luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register,
-    luaL_unref,
+    LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TNUMBER, LUA_TTABLE, LuaRef, lua_Integer,
+    lua_Number, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_isstring,
+    lua_newuserdata, lua_objlen, lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger,
+    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti,
+    lua_rawseti, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean, lua_tointeger,
+    lua_tolstring, lua_touserdata, lua_type, luaL_argerror, luaL_checkinteger, luaL_checklstring,
+    luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
 #[cfg(not(test))]
 use crate::lua::executor::{LUA_GLOBALSINDEX, LUA_REGISTRYINDEX};
 #[cfg(not(test))]
-use crate::map::{Map, Set, cstr_t, mh_get_cstr_t, ptr_t};
-#[cfg(not(test))]
-use crate::map::{map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t};
+use crate::map::{
+    Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
+};
 #[cfg(not(test))]
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
 #[cfg(not(test))]

@@ -13,9 +13,9 @@ use crate::cursor::{
     clearpos, coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,
     get_cursor_pos_ptr, inc_cursor, linenr_T, lt, ltoreq,
 };
-use crate::drawscreen::{redraw_curbuf_later, showmode};
+use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, showmode};
 use crate::eval::deprecated::pos_T;
-use crate::eval::funcs::do_searchpair;
+use crate::eval::funcs::{do_searchpair, kMTCharWise, kMTLineWise};
 use crate::fold::hasFolding;
 use crate::globals::*;
 use crate::indent::inindent;
@@ -25,9 +25,9 @@ use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
 use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
 use crate::memory::{xfree, xmalloc};
 use crate::r#move::adjust_skipcol;
-use crate::normal::unadjust_for_sel;
+use crate::normal::{FM_FORWARD, unadjust_for_sel};
 use crate::option_vars::*;
-use crate::search::{findmatch, findmatchlimit, linewhite};
+use crate::search::{findmatch, findmatchlimit, kCpoMatchbsl, linewhite};
 use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
 use std::ffi::{CStr, c_char, c_int};
@@ -36,13 +36,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::api::buffer::FORWARD;
 use crate::api::vim::BACKWARD;
-use crate::drawscreen::UPD_INVERTED;
-use crate::eval::funcs::kMTCharWise;
-use crate::eval::funcs::kMTLineWise;
 use crate::math::{FAIL, OK};
-use crate::normal::FM_FORWARD;
 pub use crate::search::Direction;
-use crate::search::kCpoMatchbsl;
 
 const NUL: c_char = 0;
 const MAXCOL: colnr_T = 0x7fffffff;

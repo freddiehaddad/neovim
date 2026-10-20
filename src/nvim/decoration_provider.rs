@@ -9,8 +9,7 @@
 )]
 
 use crate::api::buffer::LUA_NOREF;
-use crate::api::extmark::kDecorProviderActive;
-use crate::api::extmark::{DecorProvider, NS, describe_ns, linenr_T};
+use crate::api::extmark::{DecorProvider, NS, describe_ns, kDecorProviderActive, linenr_T};
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, api_object_to_bool, buffer_obj, error_init,
     integer_obj, window_obj,
@@ -22,11 +21,9 @@ use crate::eval::deprecated::buf_T;
 use crate::globals::*;
 use crate::highlight::hl_check_ns;
 use crate::kvec::KVec;
-use crate::log::LOGLVL_ERR;
-use crate::log::logmsg;
+use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
-use crate::lua::executor::{api_free_luaref, nlua_call_ref};
-use crate::lua::executor::{kRetMulti, kRetNilBool};
+use crate::lua::executor::{api_free_luaref, kRetMulti, kRetNilBool, nlua_call_ref};
 use crate::memory::{xfree, xrealloc};
 use crate::message::msg_schedule_semsg_multiline;
 use crate::r#move::validate_botline_win;

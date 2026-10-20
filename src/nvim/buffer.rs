@@ -10,11 +10,13 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::options::{CharBuf, CtxSwitch};
-use crate::api::private::helpers::{cstr_as_string, tv_dict_is_watched};
+use crate::api::options::{BF_DUMMY, CharBuf, CtxSwitch, IOSIZE};
+use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
-use crate::arglist::{alist_T, check_arg_idx};
+use crate::arglist::{ML_EMPTY, alist_T, check_arg_idx};
 use crate::autocmd::{
+    EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFENTER, EVENT_BUFHIDDEN, EVENT_BUFLEAVE, EVENT_BUFNEW,
+    EVENT_BUFUNLOAD, EVENT_BUFWINENTER, EVENT_BUFWINLEAVE, EVENT_BUFWIPEOUT, EVENT_STDINREADPOST,
     apply_autocmds, apply_autocmds_retval, apply_autocmds_win, aubuflocal_remove, augroup_exists,
     block_autocmds, do_doautocmd, unblock_autocmds,
 };
@@ -33,7 +35,7 @@ use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor_col, check_cursor_lnum, colnr_T, linenr_T};
 use crate::diff::{diff_buf_add, diff_buf_delete, diff_mode_buf, diffopt_hiddenoff};
 use crate::digraph::{keymap_ga_clear, keymap_init};
-use crate::drawscreen::{redraw_later, redrawing, status_redraw_all};
+use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawing, status_redraw_all};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{ChangedtickDictItem, FileID, buf_T, fmark_T, fmarkv_T, synblock_T};
@@ -42,7 +44,7 @@ use crate::eval::typval::{
     tv_dict_watcher_notify,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
-use crate::ex_cmds::{do_ecmd, getfile};
+use crate::ex_cmds::{ECMD_FORCEIT, ECMD_ONE, do_ecmd, getfile};
 use crate::ex_cmds2::{autowrite, can_abandon, dialog_changed, dialog_close_terminal};
 use crate::ex_docmd::{do_cmdline_cmd, ex_errmsg, tabpage_new};
 use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
@@ -50,6 +52,7 @@ use crate::ex_getln::text_or_buf_locked;
 use crate::extmark::extmark_free_all;
 use crate::file_search::vim_chdirfile;
 use crate::fileio::{
+    READ_BUFFER, READ_DUMMY, READ_FIFO, READ_NEW, READ_NOFILE, READ_NOWINENTER, READ_STDIN,
     buf_check_timestamp, file_pat_to_reg_pat, prep_exarg, readfile, shorten_fnames,
 };
 use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse, foldUpdateAll};
@@ -106,7 +109,7 @@ use crate::path::{
 };
 use crate::plines::win_get_fill;
 use crate::quickfix::qf_stack_get_bufnr;
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
 use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
@@ -122,11 +125,11 @@ use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
 use crate::usercmd::uc_clear;
 use crate::version::min_vim_version;
 use crate::window::{
-    check_can_set_curbuf_forceit, check_colorcolumn, close_windows, free_wininfo,
-    global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window, lastwin_nofloating,
-    one_window, swbuf_goto_win_with_buf, tabline_height, tabpage_index, update_cwd, win_close,
-    win_enter, win_locked, win_move_after, win_split, win_valid, win_valid_any_tab,
-    window_layout_lock, window_layout_unlock,
+    WSP_BELOW, WSP_ROOM, WSP_VERT, check_can_set_curbuf_forceit, check_colorcolumn, close_windows,
+    free_wininfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window,
+    lastwin_nofloating, one_window, swbuf_goto_win_with_buf, tabline_height, tabpage_index,
+    update_cwd, win_close, win_enter, win_locked, win_move_after, win_split, win_valid,
+    win_valid_any_tab, window_layout_lock, window_layout_unlock,
 };
 use crate::winfloat::{win_float_update_preview, win_set_minimal_style};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -259,26 +262,9 @@ use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::FORWARD;
 use crate::api::command::{CMOD_CONFIRM, CMOD_HIDE, CMOD_KEEPALT};
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::BF_DUMMY;
-use crate::api::options::IOSIZE;
 pub use crate::api::options::bufref_T;
-use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{BCO_ENTER, BCO_NOHELP};
+use crate::api::vim::{BCO_ENTER, BCO_NOHELP, MAXPATHL};
 use crate::api::win_config::{kCtxNoDisplay, kWinStyleMinimal};
-use crate::arglist::ML_EMPTY;
-use crate::autocmd::{
-    EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFENTER, EVENT_BUFHIDDEN, EVENT_BUFLEAVE, EVENT_BUFNEW,
-    EVENT_BUFUNLOAD, EVENT_BUFWINENTER, EVENT_BUFWINLEAVE, EVENT_BUFWIPEOUT, EVENT_STDINREADPOST,
-};
-use crate::drawscreen::UPD_NOT_VALID;
-use crate::ex_cmds::ECMD_FORCEIT;
-use crate::ex_cmds::ECMD_ONE;
-use crate::fileio::{
-    READ_BUFFER, READ_DUMMY, READ_FIFO, READ_NEW, READ_NOFILE, READ_NOWINENTER, READ_STDIN,
-};
-use crate::regexp::RE_MAGIC;
-use crate::window::{WSP_BELOW, WSP_ROOM, WSP_VERT};
 
 #[repr(C)]
 struct memfile_head_T {

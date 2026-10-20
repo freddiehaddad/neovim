@@ -9,16 +9,16 @@
 )]
 
 use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, cstr_to_string};
-use crate::autocmd::{apply_autocmds, has_event};
+use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
 use crate::clipboard::typval_T;
-use crate::context::CdCause;
+use crate::context::{CdCause, kCdCauseWindow};
 use crate::cursor::get_cursor_line_ptr;
 use crate::errors::*;
 use crate::eval::typval::{
     tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly, tv_get_string,
 };
-use crate::eval::vars::set_vim_var_string;
+use crate::eval::vars::{VV_FNAME, set_vim_var_string};
 use crate::eval::{eval_expr_option_tv, get_v_event, restore_v_event};
 use crate::globals::*;
 use crate::map_glyph_cache::NvimString;
@@ -32,9 +32,10 @@ use crate::os::env::expand_env_esc;
 use crate::os::fs::{os_chdir, os_dirname, os_fileid, os_fileid_equal, os_isdir, os_path_exists};
 use crate::os::input::os_breakcheck;
 use crate::path::{
-    FreeWild, FullName_save, after_pathsep, expand_wildcards, path_cmp, path_equal,
-    path_has_drive_letter, path_is_url, path_shorten_fname, path_tail, path_tail_with_sep,
-    path_with_url, simplify_filename, vim_isAbsName, vim_ispathsep,
+    EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FreeWild, FullName_save, after_pathsep,
+    expand_wildcards, kPathCmpLiteral, path_cmp, path_equal, path_has_drive_letter, path_is_url,
+    path_shorten_fname, path_tail, path_tail_with_sep, path_with_url, simplify_filename,
+    vim_isAbsName, vim_ispathsep,
 };
 #[cfg(windows)]
 use crate::path::{path_to_slash, vim_FullName};
@@ -82,18 +83,13 @@ const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completi
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::kCdScopeGlobal;
-use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE};
+use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
 use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
-use crate::context::kCdCauseWindow;
 pub use crate::eval::deprecated::FileID;
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
-use crate::eval::vars::VV_FNAME;
 use crate::ex_docmd::kCdCauseManual;
 use crate::ex_session::kCdCauseOther;
 use crate::math::{FAIL, OK};
-use crate::path::{EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, kPathCmpLiteral};
 
 #[repr(C)]
 pub struct ff_stack_T {

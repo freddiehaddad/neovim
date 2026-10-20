@@ -9,7 +9,7 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::autocmd::apply_autocmds;
+use crate::autocmd::{EVENT_MENUPOPUP, apply_autocmds};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, gchar_cursor};
@@ -26,7 +26,7 @@ use crate::ex_docmd::{ends_excmd, exec_normal_cmd, restore_current_state, save_c
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::indent::EvalFuncData;
-use crate::input::ins_typebuf;
+use crate::input::{REMAP_SCRIPT, ins_typebuf};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
@@ -37,7 +37,10 @@ use crate::message::{
 use crate::option_vars::*;
 use crate::popupmenu::pum_show_popupmenu;
 use crate::sign::expand_T;
-use crate::state::get_real_state;
+use crate::state::{
+    MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_LANGMAP, MODE_NORMAL, MODE_TERMINAL,
+    MODE_VISUAL, get_real_state,
+};
 #[cfg(unix)]
 use crate::strings::strcasecmp;
 #[cfg(windows)]
@@ -122,23 +125,16 @@ struct menutrans_T {
     to: *mut c_char,
 }
 
-use crate::api::vim::{REMAP_NONE, REMAP_YES};
-use crate::api::vim::{kFalse, kNone, kTrue};
-use crate::autocmd::EVENT_MENUPOPUP;
-use crate::cmdexpand::HLF_D;
-use crate::cmdexpand::{EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL};
-use crate::eval::funcs::MENU_ALL_MODES;
-use crate::eval::funcs::MENU_INDEX_TIP;
+use crate::api::vim::{REMAP_NONE, REMAP_YES, kFalse, kNone, kTrue};
+use crate::cmdexpand::{
+    EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL, HLF_D,
+};
+use crate::eval::funcs::{MENU_ALL_MODES, MENU_INDEX_TIP};
 use crate::eval::kListLenMayKnow;
-use crate::input::REMAP_SCRIPT;
 pub use crate::input::{RedoState, StuffBuf, UngotKey, tasave_T};
 pub use crate::mapping::typebuf_T;
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;
-use crate::state::{
-    MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_LANGMAP, MODE_NORMAL, MODE_TERMINAL,
-    MODE_VISUAL,
-};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

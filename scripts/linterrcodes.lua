@@ -9,7 +9,6 @@
 --- @type table<string, integer>
 local dup_allowed = {
   E109 = 2,
-  E1098 = 2,
   E110 = 2,
   E112 = 3,
   E114 = 2,

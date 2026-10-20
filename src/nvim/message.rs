@@ -11,19 +11,21 @@
 use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
 use crate::api::private::helpers::{
-    api_free_array, copy_string, cstr_as_string, cstr_to_string, ga_take_string,
+    HLF_E, api_free_array, copy_string, cstr_as_string, cstr_to_string, ga_take_string,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::vim::{HlMessage, HlMessageChunk, MessageData};
+use crate::api::vim::{HLF_N, HlMessage, HlMessageChunk, MessageData, kFalse, kTrue};
 use crate::api::win_config::UIExtension;
-use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, apply_autocmds_group, has_event};
+use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
     ascii_iswhite, ascii2cells, char2cells, k_second, skipwhite, transchar_buf, transchar_byte_buf,
     vim_isprintc, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
-use crate::drawscreen::{redraw_all_later, redraw_later, set_must_redraw};
+use crate::drawscreen::{
+    UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_later, set_must_redraw,
+};
 use crate::errors::*;
 use crate::eval::callback_call;
 use crate::eval::typval::tv_clear;
@@ -49,8 +51,8 @@ use crate::highlight::{hl_attr, hl_combine_attr};
 use crate::highlight_group::{highlight_changed, syn_check_group, syn_id2attr};
 use crate::indent::tabstop_padding;
 use crate::input::{
-    beep_flush, char_avail, flush_buffers, get_keystroke, requeue_key, safe_vgetc, stuff_empty,
-    typeahead_noflush,
+    FLUSH_MINIMAL, beep_flush, char_avail, flush_buffers, get_keystroke, requeue_key, safe_vgetc,
+    stuff_empty, typeahead_noflush,
 };
 use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
@@ -432,18 +434,11 @@ macro_rules! swmsg {
 }
 use crate::api::autocmd::kCallbackNone;
 use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::private::helpers::HLF_E;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::vim::HLF_N;
-use crate::api::vim::{kFalse, kTrue};
-use crate::autocmd::HLF_T;
-use crate::drawline::HLF_0;
-use crate::drawline::HLF_AT;
-use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+use crate::drawline::{HLF_0, HLF_AT};
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::ex_cmds::HLF_R;
 use crate::ex_getln::K_EVENT;
-use crate::input::FLUSH_MINIMAL;
 pub use swmsg;
 
 #[inline]

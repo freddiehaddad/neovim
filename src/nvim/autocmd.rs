@@ -12,13 +12,11 @@
 use crate::api::autocmd::{AutoCmd, AutoCmdVec, AutoPat, Buffer, event_T, kCallbackLua};
 use crate::api::command::exarg_T;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::CtxSwitch;
-use crate::api::options::SID_NONE;
+use crate::api::options::{CtxSwitch, SID_NONE};
 use crate::api::private::converter::{object_to_vim, sctx_T};
-use crate::api::private::helpers::HLF_E;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object, cstr_as_obj,
-    cstr_as_string, cstr_to_string, dict_obj, find_buffer_by_handle, integer_obj,
+    HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
+    cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, find_buffer_by_handle, integer_obj,
     static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
@@ -26,8 +24,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::win_T;
 use crate::api::ui::NO_SCREEN;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{bt_nofile, buflist_findnr, bufref_valid, do_modelines, set_bufref};
 use crate::charset::{ascii_iswhite, getdigits_int, skipdigits, skipwhite, varnumber_T};
 use crate::clipboard::typval_T;
@@ -40,8 +37,10 @@ use crate::eval::typval::{
     tv_dict_set_keys_readonly,
 };
 use crate::eval::userfunc::{restore_funccal, save_funccal};
-use crate::eval::vars::{VV_CMDBANG, VV_OPTION_TYPE, VV_TERMRESPONSE};
-use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_cmdarg, set_vim_var_nr};
+use crate::eval::vars::{
+    VV_CMDBANG, VV_OPTION_TYPE, VV_TERMRESPONSE, get_vim_var_nr, get_vim_var_str, set_cmdarg,
+    set_vim_var_nr,
+};
 use crate::eval::{callback_call, get_v_event, last_set_msg, restore_v_event};
 use crate::event::r#loop::{Loop, loop_queues};
 use crate::event::multiqueue::{
@@ -56,8 +55,7 @@ use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::input_cmdatom::bufref_T;
 use crate::insexpand::ins_compl_active;
 use crate::lua::converter::LuaRef;
-use crate::lua::executor::kRetNilBool;
-use crate::lua::executor::{nlua_call_ref, nlua_set_sctx};
+use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::map::{
     Map, Set, map_del_String_int, map_del_int_String, map_put_ref_String_int,
     map_put_ref_int_String, map_ref_String_int, map_ref_int_String,
@@ -80,10 +78,8 @@ use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
-use crate::regexp::{RE_MAGIC, RE_NOBREAK};
-use crate::regexp::{vim_regcomp, vim_regfree};
-use crate::runtime::ETYPE_AUCMD;
-use crate::runtime::{estack_pop, estack_push, exestack};
+use crate::regexp::{RE_MAGIC, RE_NOBREAK, vim_regcomp, vim_regfree};
+use crate::runtime::{ETYPE_AUCMD, estack_pop, estack_push, exestack};
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
 use crate::strings::gettext;

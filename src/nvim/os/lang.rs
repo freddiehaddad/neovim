@@ -16,7 +16,9 @@ use crate::charset::{
     buf_init_isk_chartab, init_isf_chartab, init_isi_chartab, skiptowhite, skipwhite,
 };
 #[cfg(not(test))]
-use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::eval::vars::{
+    VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH, get_vim_var_str, set_vim_var_string,
+};
 #[cfg(all(not(test), unix))]
 use crate::garray::{ga_grow, ga_init, garray_T};
 #[cfg(not(test))]
@@ -119,8 +121,6 @@ unsafe extern "C" {
 use crate::api::vim::MAXPATHL;
 #[cfg(all(not(test), unix))]
 use crate::diff::kShellOptSilent;
-#[cfg(not(test))]
-use crate::eval::vars::{VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH};
 #[cfg(not(windows))]
 #[cfg(not(test))]
 use crate::strings::strtok_r;

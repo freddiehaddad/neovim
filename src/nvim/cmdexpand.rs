@@ -9,14 +9,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::regmatch_T;
+use crate::api::command::{
+    EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE, regmatch_T,
+};
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, cstr_as_string, cstrn_to_string,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::pos_T;
 use crate::arglist::get_arglist_name;
-use crate::autocmd::{aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name};
+use crate::autocmd::{
+    HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
+};
 use crate::buffer::ExpandBufnames;
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite,
@@ -44,9 +48,9 @@ use crate::ex_docmd::{
     get_command_name, set_no_hlsearch, skip_cmd_arg, skip_range,
 };
 use crate::ex_getln::{
-    cmd_screencol, cursorcmd, escape_fname, get_cmdline_info, get_cmdline_last_prompt_id,
-    parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff, redrawcmd, tilde_replace,
-    vim_strsave_fnameescape,
+    VSE_BUFFER, VSE_NONE, cmd_screencol, cursorcmd, escape_fname, get_cmdline_info,
+    get_cmdline_last_prompt_id, parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff,
+    redrawcmd, tilde_replace, vim_strsave_fnameescape,
 };
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{
@@ -64,7 +68,7 @@ use crate::input::{beep_flush, char_avail, vpeekc};
 use crate::insexpand::find_word_end;
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::lua::executor::{
-    nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
+    kRetObject, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
@@ -99,9 +103,12 @@ use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
 };
 use crate::profile::{get_profile_name, scriptitem_T, set_context_in_profile_cmd};
-use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree};
+use crate::regexp::{
+    RE_MAGIC, RE_STRING, skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree,
+};
 use crate::runtime::{
-    ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, script_items, set_context_in_runtime_cmd,
+    DIP_OPT, DIP_START, ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, script_items,
+    set_context_in_runtime_cmd,
 };
 use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
@@ -708,18 +715,11 @@ pub enum cmdidx_T {
 }
 
 use crate::api::buffer::FORWARD;
-use crate::api::command::{EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE};
 pub use crate::api::command::{ExMagic as ExArgMagic, exarg_T};
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
-use crate::api::vim::BACKWARD;
-use crate::api::vim::MAXPATHL;
-use crate::autocmd::HLF_T;
+use crate::api::vim::{BACKWARD, MAXPATHL};
 #[cfg(unix)]
 use crate::ex_getln::VSE_SHELL;
-use crate::ex_getln::{VSE_BUFFER, VSE_NONE};
-use crate::lua::executor::kRetObject;
-use crate::regexp::{RE_MAGIC, RE_STRING};
-use crate::runtime::{DIP_OPT, DIP_START};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

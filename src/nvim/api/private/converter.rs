@@ -23,25 +23,19 @@ use crate::eval::typval::{
     tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
 };
 #[cfg(not(test))]
-use crate::eval::userfunc::FC_LUAREF;
-#[cfg(not(test))]
-use crate::eval::userfunc::{find_func, register_luafunc};
+use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
 use crate::garray::garray_T;
 #[cfg(not(test))]
-use crate::hashtab::hashitem_T;
-#[cfg(not(test))]
-use crate::hashtab::hashitem_empty;
+use crate::hashtab::{hashitem_T, hashitem_empty};
 #[cfg(not(test))]
 use crate::lua::executor::api_new_luaref;
 #[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
-use crate::memory::arena_memdupz;
-#[cfg(not(test))]
-use crate::memory::xstrdup;
+use crate::memory::{arena_memdupz, xstrdup};
 #[cfg(not(test))]
 use std::ffi::CStr;
 use std::ffi::{c_char, c_int, c_void};

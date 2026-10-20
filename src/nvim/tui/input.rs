@@ -64,9 +64,7 @@ use crate::channel::STDIN_FILENO;
 #[cfg(not(test))]
 use crate::eval::funcs::UV_TIMER;
 pub use crate::option::OptInt;
-pub use crate::tui::tui::TUIData;
-pub use crate::tui::tui::TermMode;
-pub use crate::tui::tui::TermModeState;
+pub use crate::tui::tui::{TUIData, TermMode, TermModeState};
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
 

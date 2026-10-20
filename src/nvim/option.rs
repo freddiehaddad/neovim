@@ -8,9 +8,12 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::regmatch_T;
+use crate::api::command::{CMOD_NOSWAPFILE, regmatch_T};
 use crate::api::extmark::nvim_create_namespace;
-use crate::api::options::CtxSwitch;
+use crate::api::options::{
+    CtxSwitch, IOSIZE, OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, SID_NONE,
+    kOptBufhidden, kOptBuftype, kOptFiletype, kOptModeline, kOptScopeTab, kOptSwapfile,
+};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{
     api_free_string, api_set_error, arena_dict, boolean_obj, copy_object, cstr_as_obj,
@@ -20,15 +23,18 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T, winopt_T};
 use crate::autocmd::{
-    EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, apply_autocmds,
-    aucmd_defer_modified, do_filetype_autocmd,
+    EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, OPT_NOWIN, apply_autocmds,
+    aucmd_defer_modified, do_filetype_autocmd, kOptModified,
 };
-use crate::buffer::{bt_prompt, buf_is_empty, do_autochdir, free_buf_options, maketitle};
+use crate::buffer::{
+    BCO_ALWAYS, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL, OPT_MODELINE, bt_prompt, buf_is_empty,
+    do_autochdir, free_buf_options, maketitle,
+};
 use crate::change::save_file_ff;
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{
-    ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite, buf_init_isk_chartab,
+    EOL_MAC, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite, buf_init_isk_chartab,
     init_isf_chartab, init_isi_chartab, skiptowhite_esc, skipwhite, trans_characters, transchar,
     vim_str2nr, vim_strsize,
 };
@@ -42,10 +48,11 @@ use crate::cmdexpand::{
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
 use crate::decoration_provider::get_decor_provider;
-use crate::diff::diff_buf_adjust;
+use crate::diff::{diff_buf_adjust, kOptDiff, kOptFoldmethod};
 use crate::drawscreen::{
-    check_screensize, comp_col, redraw_all_later, redraw_buf_later, redraw_buf_status_later,
-    redraw_later, screen_resize, showmode, status_redraw_all, status_redraw_curbuf,
+    UPD_CLEAR, UPD_NOT_VALID, UPD_SOME_VALID, check_screensize, comp_col, redraw_all_later,
+    redraw_buf_later, redraw_buf_status_later, redraw_later, screen_resize, showmode,
+    status_redraw_all, status_redraw_curbuf,
 };
 use crate::errors::*;
 use crate::eval::decode::dict_T;
@@ -56,29 +63,34 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
 use crate::eval::vars::{
-    VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD, VV_OPTION_OLDGLOBAL, VV_OPTION_OLDLOCAL,
-    VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str, opt_to_tv, reset_v_option_vars,
-    set_vim_var_string, set_vim_var_tv,
+    FORCE_BIN, VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD, VV_OPTION_OLDGLOBAL,
+    VV_OPTION_OLDLOCAL, VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str, kOptFlagFunc, opt_to_tv,
+    reset_v_option_vars, set_vim_var_string, set_vim_var_tv,
 };
-use crate::eval::{callback_from_typval, eval_expr, last_set_msg};
-use crate::ex_docmd::{free_findfunc_option, set_no_hlsearch};
-use crate::ex_getln::{check_opt_wim, did_set_cedit, gotocmdline};
-use crate::ex_session::{FILE, put_eol, put_line};
+use crate::eval::{STR2NR_ALL, callback_from_typval, eval_expr, last_set_msg};
+use crate::ex_docmd::{UNDO_HASH_SIZE, free_findfunc_option, kOptFindfunc, set_no_hlsearch};
+use crate::ex_getln::{
+    B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim, did_set_cedit, gotocmdline,
+};
+use crate::ex_session::{FILE, OPT_SKIPRTP, put_eol, put_line};
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::fileio::{fprintf, fputs};
+use crate::fileio::{EOL_DOS, EOL_UNIX, fprintf, fputs, kOptFileencoding};
 use crate::fold::{
     foldUpdateAll, foldmethodIsDiff, foldmethodIsIndent, foldmethodIsSyntax, newFoldLevel,
 };
-use crate::fuzzy::{fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
+use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::highlight::{hl_invalidate_blends, ns_hl_def};
+use crate::highlight::{HL_GLOBAL, hl_invalidate_blends, ns_hl_def};
 use crate::highlight_group::{highlight_changed, syn_check_group};
-use crate::indent::{briopt_check, tabstop_set};
+use crate::indent::{
+    briopt_check, kBufOptIndentexpr, kOptBreakindentopt, kOptIndentexpr, kOptTabstop,
+    kOptVartabstop, tabstop_set,
+};
 use crate::indent_c::parse_cino;
 use crate::input_cmdatom::atom_follow_changed;
-use crate::insexpand::set_buflocal_cpt_callbacks;
+use crate::insexpand::{VAR_STRING, kOptComplete, set_buflocal_cpt_callbacks};
 use crate::keycodes::{
     FSK_KEEP_X_KEY, FSK_KEYCODE, FSK_SIMPLIFY, K_KENTER, K_ZERO, find_special_key,
     find_special_key_in_table, get_special_key_code, get_special_key_name,
@@ -91,7 +103,7 @@ use crate::map_glyph_cache::NvimString;
 use crate::mapping::{langmap_init, put_escstr};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_locale, utfc_ptr2len};
-use crate::mcursor::mc_ins_replay_can_join;
+use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
 use crate::memory::{
@@ -103,7 +115,7 @@ use crate::message::{
 };
 use crate::mouse::setmouse;
 use crate::r#move::changed_window_setting;
-use crate::normal::{do_check_scrollbind, get_vtopline};
+use crate::normal::{do_check_scrollbind, get_vtopline, kOptFoldenable, kOptFoldlevel};
 use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
 use crate::optionstr::{
@@ -123,8 +135,8 @@ use crate::path::{
 };
 use crate::popupmenu::{pum_drawn, pum_redraw};
 use crate::quickfix::{ll_resize_stack, qf_resize_stack};
-use crate::regexp::vim_regexec;
-use crate::runtime::{runtimepath_default, source_runtime_vim_lua, sourcing_lnum};
+use crate::regexp::{NUMBUFLEN, vim_regexec};
+use crate::runtime::{DIP_ALL, runtimepath_default, source_runtime_vim_lua, sourcing_lnum};
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
@@ -137,10 +149,11 @@ use crate::terminal::on_scrollback_option_changed;
 use crate::ui::ui_call_option_set;
 use crate::undo::{bufIsChanged, curbufIsChanged, u_compute_hash, u_read_undo, u_sync};
 use crate::window::{
-    STATUS_HEIGHT, check_colorcolumn, command_height, frame_new_height, global_stl_height,
-    last_status, min_rows, min_rows_for_all_tabpages, set_winbar, set_winbar_all, set_winbar_win,
-    tabline_height, unuse_tabpage, use_tabpage, win_comp_pos, win_comp_scroll, win_default_scroll,
-    win_equal, win_find_tabpage, win_new_screen_rows, win_setheight, win_setwidth,
+    MIN_COLUMNS, STATUS_HEIGHT, check_colorcolumn, command_height, frame_new_height,
+    global_stl_height, last_status, min_rows, min_rows_for_all_tabpages, set_winbar,
+    set_winbar_all, set_winbar_win, tabline_height, unuse_tabpage, use_tabpage, win_comp_pos,
+    win_comp_scroll, win_default_scroll, win_equal, win_find_tabpage, win_new_screen_rows,
+    win_setheight, win_setwidth,
 };
 use crate::winfloat::win_float_update_statusline;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -153,57 +166,22 @@ pub type set_prefix_T = c_int;
 use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
-use crate::api::command::CMOD_NOSWAPFILE;
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL, kOptScopeBuf};
-use crate::api::deprecated::{kOptInvalid, kOptScopeGlobal, kOptScopeWin};
-use crate::api::options::IOSIZE;
-use crate::api::options::{
-    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, kOptModeline, kOptScopeTab,
-    kOptSwapfile,
+use crate::api::deprecated::{
+    OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
 };
-use crate::api::options::{SID_NONE, kOptBufhidden, kOptBuftype, kOptFiletype};
 use crate::api::ui::NO_SCREEN;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{BCO_ENTER, BCO_NOHELP, ERR_BUFLEN};
-use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::api::vim::{BCO_ENTER, BCO_NOHELP, ERR_BUFLEN, MAXPATHL, kFalse, kNone, kTrue};
 use crate::api::win_config::kCtxNoDisplay;
-use crate::autocmd::OPT_NOWIN;
-use crate::autocmd::kOptModified;
-use crate::buffer::OPT_MODELINE;
-use crate::buffer::{BCO_ALWAYS, KEYMAP_INIT, NO_LOCAL_UNDOLEVEL};
-use crate::charset::EOL_MAC;
-use crate::diff::{kOptDiff, kOptFoldmethod};
-use crate::drawline::kOptFlagInsecure;
-use crate::drawline::{kOptCuloptFlagLine, kOptCuloptFlagNumber, kOptCuloptFlagScreenline};
-use crate::drawscreen::{UPD_CLEAR, UPD_NOT_VALID, UPD_SOME_VALID};
-use crate::eval::STR2NR_ALL;
-use crate::eval::vars::{FORCE_BIN, kOptFlagFunc};
-use crate::ex_cmds::OPT_WINONLY;
-use crate::ex_cmds::kOptFoldcolumn;
+use crate::drawline::{
+    kOptCuloptFlagLine, kOptCuloptFlagNumber, kOptCuloptFlagScreenline, kOptFlagInsecure,
+};
+use crate::ex_cmds::{OPT_WINONLY, kOptFoldcolumn};
 use crate::ex_cmds2::BF_SYN_SET;
-use crate::ex_docmd::UNDO_HASH_SIZE;
-use crate::ex_docmd::kOptFindfunc;
-use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT};
-use crate::ex_session::OPT_SKIPRTP;
 pub use crate::extmark::TriState;
 use crate::file_search::{kBufOptIncludeexpr, kOptIncludeexpr};
-use crate::fileio::kOptFileencoding;
-use crate::fileio::{EOL_DOS, EOL_UNIX};
-use crate::fuzzy::FUZZY_SCORE_NONE;
 use crate::help::kOptIskeyword;
-use crate::highlight::HL_GLOBAL;
-use crate::indent::{
-    kBufOptIndentexpr, kOptBreakindentopt, kOptIndentexpr, kOptTabstop, kOptVartabstop,
-};
 use crate::insert::{BS_EOL, BS_NOSTOP, BS_START};
-use crate::insexpand::VAR_STRING;
-use crate::insexpand::kOptComplete;
-use crate::mcursor::kOptFollow;
-use crate::normal::{kOptFoldenable, kOptFoldlevel};
-use crate::regexp::NUMBUFLEN;
-use crate::runtime::DIP_ALL;
 use crate::state::MODE_TERMINAL;
-use crate::window::MIN_COLUMNS;
 
 const NUL: c_char = 0;
 const MAXCOL: i32 = 0x7fffffff;

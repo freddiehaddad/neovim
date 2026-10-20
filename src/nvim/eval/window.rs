@@ -39,9 +39,9 @@ use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::end_visual_mode;
 use crate::strings::gettext;
 use crate::window::{
-    check_split_disallowed, find_tabpage, goto_tabpage_win, tabpage_index, valid_tabpage,
-    win_drag_status_line, win_drag_vsep_line, win_get_tabwin, win_goto, win_horz_neighbor,
-    win_splitmove, win_valid, win_vert_neighbor,
+    LOWEST_WIN_ID, WSP_ABOVE, WSP_BELOW, WSP_VERT, check_split_disallowed, find_tabpage,
+    goto_tabpage_win, tabpage_index, valid_tabpage, win_drag_status_line, win_drag_vsep_line,
+    win_get_tabwin, win_goto, win_horz_neighbor, win_splitmove, win_valid, win_vert_neighbor,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
@@ -49,14 +49,11 @@ use std::ptr;
 
 use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{FR_LEAF, FR_ROW};
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::{kListLenMayKnow, kListLenUnknown};
 use crate::math::{FAIL, OK};
-use crate::window::LOWEST_WIN_ID;
-use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_VERT};
 pub type dictitem_T = ScopeDictDictItem;
 
 const NUL: c_char = 0;

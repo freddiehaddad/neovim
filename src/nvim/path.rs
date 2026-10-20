@@ -13,9 +13,7 @@ use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
 #[cfg(not(test))]
-use crate::cmdexpand::globpath;
-#[cfg(not(test))]
-use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE};
+use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE, globpath};
 #[cfg(not(test))]
 use crate::diff::kShellOptSilent;
 #[cfg(not(test))]
@@ -50,14 +48,12 @@ use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv, vim_env_iter};
 #[cfg(not(test))]
-use crate::os::fs::{Directory, os_scandir_next};
+use crate::os::fs::{
+    Directory, os_closedir, os_file_is_readable, os_fileid, os_fileid_equal, os_fileinfo,
+    os_fileinfo_id_equal, os_scandir, os_scandir_next,
+};
 use crate::os::fs::{
     os_can_exe, os_dirname, os_fileinfo_link, os_isdir, os_path_exists, os_realpath,
-};
-#[cfg(not(test))]
-use crate::os::fs::{
-    os_closedir, os_file_is_readable, os_fileid, os_fileid_equal, os_fileinfo,
-    os_fileinfo_id_equal, os_scandir,
 };
 #[cfg(not(test))]
 use crate::os::input::os_breakcheck;
@@ -66,9 +62,7 @@ use crate::os::shell::get_cmd_output;
 #[cfg(all(not(test), unix))]
 use crate::os::shell::os_expand_wildcards;
 #[cfg(not(test))]
-use crate::regexp::{RE_MAGIC, RE_NOBREAK, RE_STRING};
-#[cfg(not(test))]
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_NOBREAK, RE_STRING, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::vim_strchr;
 #[cfg(not(test))]
 use crate::strings::{concat_str, tolower, vim_snprintf};

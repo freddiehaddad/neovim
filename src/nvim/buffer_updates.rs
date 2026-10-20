@@ -8,14 +8,14 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::buf_collect_lines;
+use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, buf_collect_lines};
 use crate::api::private::helpers::{arena_array, array_obj, boolean_obj, buffer_obj, integer_obj};
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::buffer::buf_get_changedtick;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
 use crate::globals::*;
 use crate::log::logmsg;
-use crate::lua::executor::{api_free_luaref, nlua_call_ref};
+use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref};
 use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -29,13 +29,9 @@ const ARENA_EMPTY: Arena = Arena {
     size: 0,
 };
 
-use crate::api::buffer::LUA_INTERNAL_CALL;
-use crate::api::buffer::LUA_NOREF;
 pub use crate::api::buffer::bcount_t;
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::lua::executor::LuaRetMode;
-use crate::lua::executor::kRetNilBool;
 
 const LOG_ERROR: c_int = 3;
 

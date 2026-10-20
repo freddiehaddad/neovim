@@ -17,24 +17,25 @@ use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, Object
 use crate::api::tabpage::{WinConfig, fcs_chars_T, lcs_chars_T, lpos_T, pos_T, win_T};
 use crate::api::win_config::parse_winborder;
 use crate::autocmd::{check_ei, get_event_name_no_group};
-use crate::buffer::modifiable;
+use crate::buffer::{STL_IN_ICON, STL_IN_TITLE, modifiable};
 use crate::charset::{
-    ascii_isdigit, buf_init_isk_chartab, char2cells, check_isopt, getdigits_int, hexhex2nr,
-    init_isf_chartab, init_isi_chartab, transchar, transchar_byte, try_getdigits,
+    EOL_MAC, ascii_isdigit, buf_init_isk_chartab, char2cells, check_isopt, getdigits_int,
+    hexhex2nr, init_isf_chartab, init_isi_chartab, kOptDyFlagUhex, transchar, transchar_byte,
+    try_getdigits,
 };
 use crate::cmdexpand::{CompleteListItemGetter, ExpandGeneric};
 use crate::cursor::{coladvance, colnr_T};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
-use crate::diff::{diffanchors_changed, diffopt_changed};
+use crate::diff::{diffanchors_changed, diffopt_changed, kOptDiffopt};
 use crate::digraph::keymap_init;
 use crate::drawscreen::{
-    comp_col, redraw_all_later, redraw_buf_later, redraw_curbuf_later, redraw_later, redrawWinline,
-    status_redraw_buf,
+    UPD_INVERTED, UPD_NOT_VALID, UPD_VALID, comp_col, redraw_all_later, redraw_buf_later,
+    redraw_curbuf_later, redraw_later, redrawWinline, status_redraw_buf,
 };
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value};
-use crate::ex_getln::check_opt_wim;
+use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim};
 use crate::fold::{
     foldUpdateAll, foldmethodIsDiff, foldmethodIsExpr, foldmethodIsIndent, foldmethodIsMarker,
     newFoldLevel,
@@ -42,7 +43,7 @@ use crate::fold::{
 use crate::globals::*;
 use crate::grid::{schar_T, schar_from_char, schar_from_str};
 use crate::highlight_group::{get_highlight_name, init_highlight};
-use crate::indent::{briopt_check, tabstop_set};
+use crate::indent::{briopt_check, kOptBreakindentopt, tabstop_set};
 use crate::indent_c::parse_cino;
 use crate::insexpand::set_cpt_callbacks;
 use crate::lua::converter::Boolean;
@@ -54,12 +55,15 @@ use crate::mbyte::{
 };
 use crate::memline::ml_setflags;
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdup, xmemdupz, xstrdup};
-use crate::message::{msg_grid_validate, verbose_open, verbose_stop};
+use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
 use crate::r#move::validate_virtcol;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
     copy_option_part, did_set_title, fill_culopt_flags, get_fileformat, get_option,
-    get_option_default, opt_error, option_next_keyval, option_slice_eq, optval_free_read,
+    get_option_default, kOptBackupcopy, kOptComments, kOptCompleteopt, kOptEventignorewin,
+    kOptFileformat, kOptFileformats, kOptFlagComma, kOptFlagNDname, kOptFlagNFname,
+    kOptFlagOneComma, kOptListchars, kOptStatusline, kOptTagcase, kOptVarsofttabstop,
+    kOptVirtualedit, opt_error, option_next_keyval, option_slice_eq, optval_free_read,
     parse_winhl_opt, redraw_titles, set_iminsert_global, set_imsearch_global, set_option_direct,
     skip_to_option_part, valid_name,
 };
@@ -87,7 +91,7 @@ pub type OptScopeFlags = u8;
 pub use crate::api::win_config::UIExtension;
 pub use crate::eval::vars::scid_T;
 pub use crate::highlight::OptionalKeys;
-pub use crate::lua::converter::{FieldHashfn, KeySetLink};
+pub use crate::lua::converter::{FieldHashfn, KeySetLink, OptKeySet};
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -129,8 +133,6 @@ pub struct OptSchemaItem {
 }
 
 unsafe impl Sync for OptSchemaItem {}
-
-pub use crate::lua::converter::OptKeySet;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -203,26 +205,11 @@ pub struct vimoption_T {
 }
 
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
-use crate::api::options::IOSIZE;
-use crate::api::options::SID_NONE;
+use crate::api::options::{IOSIZE, SID_NONE};
 pub use crate::api::private::helpers::TryState;
-use crate::buffer::{STL_IN_ICON, STL_IN_TITLE};
-use crate::charset::EOL_MAC;
-use crate::charset::kOptDyFlagUhex;
 use crate::decoration::SCL_NUM;
-use crate::diff::kOptDiffopt;
-use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID, UPD_VALID};
-use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT};
 use crate::ex_session::{kOptSsopFlagCurdir, kOptSsopFlagSesdir};
 use crate::fileio::kOptFileencoding;
-use crate::indent::kOptBreakindentopt;
-use crate::message::kOptMessagesopt;
-use crate::option::kOptFlagOneComma;
-use crate::option::{
-    kOptBackupcopy, kOptComments, kOptCompleteopt, kOptEventignorewin, kOptFileformat,
-    kOptFileformats, kOptFlagComma, kOptFlagNDname, kOptFlagNFname, kOptListchars, kOptStatusline,
-    kOptTagcase, kOptVarsofttabstop, kOptVirtualedit,
-};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

@@ -9,9 +9,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::options::CtxSwitch;
+use crate::api::options::{CtxSwitch, IOSIZE};
 use crate::api::private::helpers::{
-    cstr_as_string, cstr_to_string, nil_obj, string_obj, tv_dict_is_watched,
+    DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA, cstr_as_string, cstr_to_string, nil_obj,
+    string_obj, tv_dict_is_watched,
 };
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T};
@@ -21,7 +22,7 @@ use crate::charset::{
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cmdexpand::{cmdidx_T, exarg_T};
 use crate::context::{ctx_restore, ctx_switch};
-use crate::drawscreen::redraw_all_later;
+use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::{dict_T, dictitem_T};
@@ -30,14 +31,14 @@ use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::executor::blob_T;
 use crate::eval::funcs::{tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
-    tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_alloc_lock,
-    tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_remove, tv_dict_set_keys_readonly,
-    tv_dict_unref, tv_dict_watcher_notify, tv_get_bool_chk, tv_get_number, tv_get_number_chk,
-    tv_get_string, tv_get_string_buf_chk, tv_get_string_chk, tv_is_func, tv_item_lock,
-    tv_list_alloc, tv_list_append_allocated_string, tv_list_append_string, tv_list_append_tv,
-    tv_list_find_nr, tv_list_find_str, tv_list_first, tv_list_free, tv_list_item_remove,
-    tv_list_len, tv_list_ref, tv_list_remove_items, tv_list_set_lock, tv_list_set_ret,
-    tv_list_unref, value_check_lock,
+    DI_FLAGS_ALLOC, TV_CSTRING, TV_TRANSLATE, tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add,
+    tv_dict_alloc, tv_dict_alloc_lock, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_remove,
+    tv_dict_set_keys_readonly, tv_dict_unref, tv_dict_watcher_notify, tv_get_bool_chk,
+    tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
+    tv_is_func, tv_item_lock, tv_list_alloc, tv_list_append_allocated_string,
+    tv_list_append_string, tv_list_append_tv, tv_list_find_nr, tv_list_find_str, tv_list_first,
+    tv_list_free, tv_list_item_remove, tv_list_len, tv_list_ref, tv_list_remove_items,
+    tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
 };
 use crate::eval::userfunc::{
     find_hi_in_scoped_ht, find_var_in_scoped_ht, function_exists, get_current_funccal_dict,
@@ -46,10 +47,11 @@ use crate::eval::userfunc::{
 };
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{
-    callback_call, clear_evalarg, clear_lval, eval_isnamec1, eval_lavars_used, eval_option,
-    eval_to_string, eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end,
-    get_env_len, get_lval, get_name_len, handle_subscript, may_call_simple_func, num_divide,
-    num_modulus, partial_unref, set_ref_in_ht, set_var_lval, skip_expr,
+    DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE, callback_call,
+    clear_evalarg, clear_lval, eval_isnamec1, eval_lavars_used, eval_option, eval_to_string, eval0,
+    eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
+    get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide, num_modulus,
+    partial_unref, set_ref_in_ht, set_var_lval, skip_expr,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd};
@@ -82,7 +84,7 @@ use crate::os::env::{
     expand_T, os_env_exists, os_getenv_noalloc, os_unsetenv, vim_getenv, vim_setenv_ext,
     vim_unsetenv_ext,
 };
-use crate::register::{get_reg_contents, write_reg_contents};
+use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, script_items, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
@@ -96,8 +98,7 @@ use std::ptr;
 
 pub type VimVarIndex = c_int;
 pub use crate::eval::funcs::SpecialVarValue;
-pub use crate::eval::typval::BoolVarValue;
-pub use crate::eval::typval::VarLockStatus;
+pub use crate::eval::typval::{BoolVarValue, VarLockStatus};
 pub type ScopeType = c_int;
 pub type scid_T = c_int;
 pub use crate::cmdexpand::LineGetter;
@@ -107,23 +108,13 @@ pub use crate::optionstr::OptIndex;
 type ex_unletlock_callback =
     unsafe extern "C" fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
 
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::deprecated::kOptInvalid;
-use crate::api::options::IOSIZE;
+use crate::api::deprecated::{OPT_LOCAL, kOptInvalid};
 use crate::api::private::converter::VAR_UNLOCKED;
 pub use crate::api::private::converter::partial_T;
-use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA};
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
-use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
-use crate::buffer::{VAR_FIXED, VAR_SCOPE};
-use crate::drawscreen::UPD_SOME_VALID;
-use crate::eval::GLV_QUIET;
-use crate::eval::VAR_DEF_SCOPE;
-use crate::eval::typval::{DI_FLAGS_ALLOC, TV_CSTRING, TV_TRANSLATE};
-use crate::eval::{DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, kListLenUnknown};
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
 use crate::regexp::NUMBUFLEN;
-use crate::register::kGRegExprSrc;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

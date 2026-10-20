@@ -14,7 +14,7 @@ use crate::arabic::arabic_combine;
 use crate::charset::{ascii_iswhite, ascii2cells, varnumber_T, vim_isprintc, vim_iswordc_tab};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::cursor::{colnr_T, get_cursor_pos_ptr};
-use crate::drawscreen::redraw_all_later;
+use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, pos_T};
 use crate::eval::typval::{
@@ -975,14 +975,13 @@ unsafe extern "system" {
 
 use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::drawscreen::UPD_NOT_VALID;
-use crate::fileio::ICONV_EINVAL;
-use crate::fileio::{ENC_2BYTE, ENC_2WORD, ENC_4BYTE, ENC_ENDIAN_L, ENC_LATIN1, ENC_UNICODE};
+use crate::fileio::{
+    ENC_2BYTE, ENC_2WORD, ENC_4BYTE, ENC_ENDIAN_L, ENC_LATIN1, ENC_UNICODE, ICONV_EINVAL,
+};
 use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
-use crate::regexp::GRAPHEME_STATE_INIT;
-use crate::regexp::NUMBUFLEN;
+use crate::regexp::{GRAPHEME_STATE_INIT, NUMBUFLEN};
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]

@@ -17,62 +17,56 @@ use crate::api::tabpage::{pos_T, win_T};
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
-use crate::buffer::kShmFileinfo;
-use crate::buffer::{GETF_ALT, GETF_SETMARK, kOptJopFlagView};
-use crate::buffer::{buf_get_changedtick, buf_hide, buflist_getfile, fileinfo, modifiable};
-use crate::change::COM_MAX_LEN;
-use crate::change::ML_DEL_MESSAGE;
-use crate::change::{OPENLINE_DO_COM, kOptVeFlagOnemore};
+use crate::buffer::{
+    GETF_ALT, GETF_SETMARK, buf_get_changedtick, buf_hide, buflist_getfile, fileinfo,
+    kOptJopFlagView, kShmFileinfo, modifiable,
+};
 use crate::change::{
-    changed_lines, del_chars, deleted_lines, get_leader_len, ins_char, ins_char_bytes, open_line,
+    COM_MAX_LEN, ML_DEL_MESSAGE, OPENLINE_DO_COM, changed_lines, del_chars, deleted_lines,
+    get_leader_len, ins_char, ins_char_bytes, kOptVeFlagOnemore, open_line,
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, skipwhite, transchar, vim_isprintc,
     vim_iswordp, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
-use crate::cmdexpand::RE_LAST;
-use crate::cmdexpand::{SEARCH_OPT, SEARCH_START};
+use crate::cmdexpand::{RE_LAST, SEARCH_OPT, SEARCH_START};
 use crate::cmdhist::{HIST_SEARCH, add_to_history, init_history};
-use crate::cursor::kOptVeFlagAll;
 use crate::cursor::{
     adjust_cursor_col, check_cursor, check_cursor_col, check_cursor_lnum, clearpos, coladvance,
     coladvance_force, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor, linenr_T,
-    lt, set_leftcol,
+    get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor,
+    kOptVeFlagAll, linenr_T, lt, set_leftcol,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::{diff_move_to, diff_set_topline, ex_diffupdate, nv_diffgetput};
 use crate::digraph::get_digraph;
 use crate::drawline::{SMT_ALL, VALID_CROW, VALID_WCOL};
-use crate::drawscreen::GETVCOL_END_EXCL_LBR;
-use crate::drawscreen::kOptVeFlagBlock;
 use crate::drawscreen::{
-    UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, conceal_check_cursor_line,
-    redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, show_cursor_info_later,
-    showmode, update_screen, win_cursorline_standout,
+    GETVCOL_END_EXCL_LBR, UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID,
+    conceal_check_cursor_line, kOptVeFlagBlock, redraw_curbuf_later, redraw_later,
+    redraw_statuslines, setcursor, show_cursor_info_later, showmode, update_screen,
+    win_cursorline_standout,
 };
 use crate::errors::*;
 use crate::eval::buffer::{prompt_invoke_callback, varnumber_T};
 use crate::eval::deprecated::{buf_T, fmark_T, synblock_T, visualinfo_T};
-use crate::eval::funcs::kMTLineWise;
-use crate::eval::funcs::{kMTCharWise, kMTUnknown};
+use crate::eval::funcs::{kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::eval::kMarkAll;
 use crate::eval::typval::tv_clear;
-use crate::eval::vars::VV_OP;
-use crate::eval::vars::{set_reg_var, set_vcount, set_vim_var_string};
-use crate::ex_cmds::ECMD_HIDE;
-use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y, ECMD_LAST};
-use crate::ex_cmds::{do_ascii, do_ecmd};
+use crate::eval::vars::{VV_OP, set_reg_var, set_vcount, set_vim_var_string};
+use crate::ex_cmds::{
+    BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y, ECMD_HIDE, ECMD_LAST, do_ascii, do_ecmd,
+};
 use crate::ex_cmds2::autowrite;
-use crate::ex_docmd::{ACTION_GOTO, ACTION_SHOW, ACTION_SHOW_ALL, DT_POP, FIND_ANY, FIND_DEFINE};
-use crate::ex_docmd::{DOCMD_KEEPLINE, SEARCH_MSG};
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_sleep, update_topline_cursor};
+use crate::ex_docmd::{
+    ACTION_GOTO, ACTION_SHOW, ACTION_SHOW_ALL, DOCMD_KEEPLINE, DT_POP, FIND_ANY, FIND_DEFINE,
+    SEARCH_MSG, do_cmdline, do_cmdline_cmd, do_sleep, update_topline_cursor,
+};
 use crate::ex_eval::discard_current_exception;
-use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
 use crate::ex_getln::{
-    VSE_NONE, cmdwin_do_action, compute_cmdrow, curbuf_locked, getcmdline, getexline, text_locked,
-    text_locked_msg, vim_strsave_fnameescape,
+    K_EVENT, K_LUA, K_SELECT, VSE_NONE, cmdwin_do_action, compute_cmdrow, curbuf_locked,
+    getcmdline, getexline, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
 use crate::file_search::grab_file_name;
 use crate::fileio::check_timestamps;
@@ -84,15 +78,12 @@ use crate::fold::{
 use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::help::ex_help;
-use crate::indent_c::check_linecomment;
-use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM};
-use crate::input::K_PASTE_START;
-use crate::input::kInsNone;
+use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM, check_linecomment};
 use crate::input::{
-    beep_flush, char_avail, getcmdkeycmd, gotchars_ignore, map_execute_lua, paste_repeat,
-    plain_vgetc, prep_redo, readbuf1_empty, redo_append_char, redo_append_str, requeue_key,
-    safe_vgetc, start_redo, stuff_empty, stuffReadbuff, stuffcharReadbuff, stuffnumReadbuff,
-    typebuf_maplen, typebuf_typed, vgetc, vpeekc, vungetc,
+    K_PASTE_START, beep_flush, char_avail, getcmdkeycmd, gotchars_ignore, kInsNone,
+    map_execute_lua, paste_repeat, plain_vgetc, prep_redo, readbuf1_empty, redo_append_char,
+    redo_append_str, requeue_key, safe_vgetc, start_redo, stuff_empty, stuffReadbuff,
+    stuffcharReadbuff, stuffnumReadbuff, typebuf_maplen, typebuf_typed, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::{
     CmdFrame, CmdSpec, InsSession, atom_capture_op, atom_cmd_end, atom_cmd_spec, atom_cmd_start,
@@ -101,9 +92,9 @@ use crate::input_cmdatom::{
 };
 use crate::insert::{
     beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner, edit, get_literal,
-    ins_copychar, oneleft, oneright, prompt_curpos_editable, set_last_insert,
+    ins_copychar, kOptFdoFlagAll, kOptFdoFlagHor, oneleft, oneright, prompt_curpos_editable,
+    set_last_insert,
 };
-use crate::insert::{kOptFdoFlagAll, kOptFdoFlagHor};
 use crate::keycodes::{
     CAR, DEL, ESC, K_BS, K_C_END, K_C_HOME, K_C_LEFT, K_C_RIGHT, K_COMMAND, K_DEL, K_DOWN, K_END,
     K_F1, K_HELP, K_HOME, K_IGNORE, K_INS, K_KDEL, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KPAGEDOWN,
@@ -117,12 +108,10 @@ use crate::keycodes::{
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::{add_map, langmap_adjust_mb};
 use crate::mark::{
-    MarkMove, MarkMoveRes, checkpcmark, get_changelist, get_jumplist, getnextmark, mark_get,
-    mark_mb_adjustpos, mark_move_to, pos_to_mark, setmark, setpcmark,
-};
-use crate::mark::{
-    kMarkBeginLine, kMarkChangedCursor, kMarkChangedLine, kMarkContext, kMarkJumpList,
-    kMarkMoveFailed, kMarkMoveSuccess, kMarkSetView, kMarkSwitchedBuf,
+    MarkMove, MarkMoveRes, checkpcmark, get_changelist, get_jumplist, getnextmark, kMarkBeginLine,
+    kMarkChangedCursor, kMarkChangedLine, kMarkContext, kMarkJumpList, kMarkMoveFailed,
+    kMarkMoveSuccess, kMarkSetView, kMarkSwitchedBuf, mark_get, mark_mb_adjustpos, mark_move_to,
+    pos_to_mark, setmark, setpcmark,
 };
 use crate::r#match::{HLF_L, HLF_LC};
 use crate::math::{FAIL, OK, vim_append_digit_int};
@@ -169,8 +158,6 @@ use crate::profile::{time_finish, time_msg};
 use crate::quickfix::qf_view_result;
 use crate::register::{
     PUT_BLOCK_INNER, PUT_CURSEND, PUT_FIXINDENT, PUT_LINE, PUT_LINE_FORWARD, PUT_LINE_SPLIT,
-};
-use crate::register::{
     copy_register, do_execreg, do_put, do_record, free_register, get_default_register_name,
     get_expr_register, valid_yank_reg,
 };

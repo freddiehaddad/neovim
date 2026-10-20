@@ -30,21 +30,17 @@ use crate::eval::typval::{
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
 };
 #[cfg(not(test))]
-use crate::eval::{callback_call, get_v_event, restore_v_event};
+use crate::eval::{callback_call, get_v_event, kListLenMayKnow, restore_v_event};
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_queues, uv_strerror};
-#[cfg(not(test))]
-use crate::event::multiqueue::multiqueue_free;
-#[cfg(not(test))]
-use crate::event::multiqueue::multiqueue_new_child;
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 #[cfg(not(test))]
-use crate::event::proc::exit_on_closed_chan;
-#[cfg(not(test))]
-use crate::event::proc::proc_free;
+use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::proc::{
     Proc, proc_err, proc_header, proc_in, proc_out, proc_size, proc_spawn, proc_stop, proc_tail,
 };
+#[cfg(not(test))]
+use crate::event::proc::{exit_on_closed_chan, proc_free};
 #[cfg(not(test))]
 use crate::event::rstream::rstream_init_fd;
 use crate::event::rstream::{
@@ -178,12 +174,9 @@ pub struct TerminalOptions {
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::LUA_NOREF;
 use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::ui::CHAN_STDIO;
-use crate::api::ui::kChannelPartAll;
+use crate::api::ui::{CHAN_STDIO, kChannelPartAll};
 use crate::api::vim::kChannelStreamInternal;
 use crate::autocmd::{EVENT_CHANCLOSE, EVENT_CHANOPEN};
-#[cfg(not(test))]
-use crate::eval::kListLenMayKnow;
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::dup2;
 

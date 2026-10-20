@@ -15,7 +15,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::channel::{channel_connect, channel_job_start};
+use crate::channel::{channel_connect, channel_job_start, kChannelStdinPipe};
 use crate::eval::deprecated::{Callback, CallbackReader};
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
@@ -24,11 +24,11 @@ use crate::event::multiqueue::{
 };
 use crate::event::socket::socket_address_tcp_host_end;
 #[cfg(not(windows))]
-use crate::fileio::dup;
+use crate::fileio::{close as close_fd, dup};
 use crate::globals::*;
 use crate::grid::{sattr_T, schar_T};
 use crate::highlight::{HLATTRS_INIT, KeyDict_highlight, dict2hlattrs};
-use crate::log::logmsg;
+use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 use crate::main_init::os_exit;
 use crate::map::HlAttrs;
 use crate::memory::{Arena, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup};
@@ -78,17 +78,13 @@ static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 
 #[cfg(windows)]
 use crate::fileio::_close as close_fd;
-#[cfg(not(windows))]
-use crate::fileio::close as close_fd;
 
 unsafe extern "C" {
     fn uv_os_getpid() -> c_int;
 }
 
 use crate::api::ui::kLineFlagWrap;
-use crate::channel::kChannelStdinPipe;
 pub use crate::fileio::FILE;
-use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
 unsafe fn cstr_obj(s: *const c_char) -> Object {

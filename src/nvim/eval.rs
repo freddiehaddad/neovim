@@ -10,22 +10,41 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(not(test))]
-use crate::api::private::helpers::cstr_as_string;
 use crate::api::private::helpers::tv_dict_is_watched;
+#[cfg(not(test))]
+use crate::api::private::helpers::{
+    HLF_E, api_clear_error, arena_array, cstr_as_string, cstr_to_string,
+};
 use crate::charset::{
-    ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper, ascii_iswhite,
-    ascii_iswhite_or_nul, ascii_isxdigit,
+    VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
+    ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits, skiptowhite,
+    skipwhite, vim_str2nr,
 };
 use crate::eval::typval::{
-    tv_blob_get, tv_blob_len, tv_dict_hi2di, tv_is_func, tv_list_first, tv_list_last, tv_list_len,
-    tv_list_ref, tv_list_set_lock, tv_list_set_ret,
+    DictWatcher, QUEUE, TV_CSTRING, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret,
+    tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get,
+    tv_blob_len, tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref,
+    tv_check_lock, tv_check_num, tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr,
+    tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents,
+    tv_dict_free_dict, tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc,
+    tv_dict_item_free, tv_dict_unref, tv_dict_watcher_notify, tv_dict_wrong_func_name,
+    tv_empty_string, tv_equal, tv_get_float, tv_get_number, tv_get_number_chk, tv_get_string,
+    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_in_free_unref_items,
+    tv_is_func, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_owned_tv,
+    tv_list_append_string, tv_list_assign_range, tv_list_check_range_index_one,
+    tv_list_check_range_index_two, tv_list_concat, tv_list_copy, tv_list_equal, tv_list_find,
+    tv_list_find_nr, tv_list_first, tv_list_free, tv_list_free_contents, tv_list_free_list,
+    tv_list_join, tv_list_last, tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret,
+    tv_list_slice_or_index, tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool,
+    value_check_lock,
 };
 #[cfg(not(test))]
-use crate::event::r#loop::uv_handle_size;
+use crate::event::r#loop::{loop_queues, uv_handle_size};
 #[cfg(not(test))]
 use crate::strings::{atol, gettext};
-use crate::strings::{strcmp, strlen, strncmp, strpbrk, strstr, strtod, vim_snprintf};
+use crate::strings::{
+    concat_str, strcmp, strlen, strncmp, strpbrk, strstr, strtod, vim_snprintf, vim_strchr,
+};
 pub mod buffer;
 pub mod decode;
 pub mod deprecated;
@@ -41,96 +60,79 @@ pub mod vars;
 pub mod window;
 
 #[cfg(not(test))]
-use crate::api::private::helpers::{api_clear_error, arena_array, cstr_to_string};
-use crate::buffer::bt_prompt;
-#[cfg(not(test))]
 use crate::buffer::buflist_findnr;
+use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt};
 #[cfg(not(test))]
 use crate::channel::callback_reader_free;
 #[cfg(not(test))]
 use crate::errors::*;
 #[cfg(not(test))]
-use crate::eval::funcs::get_list_line;
+use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, UV_TIMER, get_list_line, kOptCpoptions};
 #[cfg(not(test))]
-use crate::eval::typval::callback_copy;
-#[cfg(not(test))]
-use crate::eval::typval::{callback_free, callback_put};
-use crate::eval::typval::{
-    tv_blob_check_index, tv_blob_check_range, tv_blob_set_range, tv_blob_slice_or_index,
-    tv_check_num, tv_check_str, tv_dict_equal, tv_dict_get_callback, tv_dict_get_number,
-    tv_dict_watcher_notify, tv_equal, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_list_assign_range, tv_list_check_range_index_one, tv_list_copy,
-    tv_list_join, tv_list_slice_or_index,
-};
-use crate::eval::typval::{
-    tv_dict_copy, tv_list_check_range_index_two, tv_list_concat, tv_list_equal, tv_list_find_nr,
-};
-use crate::eval::userfunc::eval_fname_script;
+use crate::eval::typval::{callback_copy, callback_free, callback_put};
 use crate::eval::userfunc::{
-    call_func, call_simple_func, call_simple_luafunc, deref_func_name, free_unref_funccal,
-    get_func_tv, get_funccal_args_ht, get_lambda_tv, get_scriptlocal_funcname, make_partial,
-    set_ref_in_call_stack, set_ref_in_func, set_ref_in_func_args, set_ref_in_functions,
-    set_ref_in_previous_funccal,
+    call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
+    find_func, free_all_functions, free_unref_funccal, func_init, func_ptr_unref, func_ref,
+    func_unref, funcexe_T, get_func_tv, get_funccal_args_ht, get_lambda_tv,
+    get_scriptlocal_funcname, make_partial, restore_funccal, save_funccal, set_ref_in_call_stack,
+    set_ref_in_func, set_ref_in_func_args, set_ref_in_functions, set_ref_in_previous_funccal,
 };
 #[cfg(not(test))]
 use crate::eval::vars::opt_to_tv;
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::cmd_has_expr_args;
-use crate::ex_docmd::{check_nextcmd, ends_excmd};
+use crate::ex_docmd::{check_nextcmd, cmd_has_expr_args, ends_excmd};
 #[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline, set_ref_in_findfunc};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
-use crate::lua::executor::nlua_call_ref;
-#[cfg(not(test))]
 use crate::lua::executor::{
-    nlua_is_deferred_safe, nlua_is_table_from_lua, nlua_register_table_as_callable,
+    kRetObject, nlua_call_ref, nlua_is_deferred_safe, nlua_is_table_from_lua,
+    nlua_register_table_as_callable,
 };
 #[cfg(not(test))]
 use crate::message::{
     emsg, emsg_multiline, iemsg, internal_error, msg, msg_clr_eos, msg_end, msg_ext_no_fast,
     msg_ext_set_append, msg_ext_set_kind, msg_multiline, msg_outnum, msg_puts, msg_puts_hl,
-    msg_puts_len, msg_sb_eol, msg_start, verb_msg, verbose_enter, verbose_enter_scroll,
-    verbose_leave, verbose_leave_scroll,
+    msg_puts_len, msg_sb_eol, msg_start, semsg, semsg_multiline, smsg, verb_msg, verbose_enter,
+    verbose_enter_scroll, verbose_leave, verbose_leave_scroll,
 };
-#[cfg(not(test))]
-use crate::message::{semsg, semsg_multiline, smsg};
 use crate::r#move::{check_cursor_moved, update_topline, validate_botline_win};
 #[cfg(not(test))]
 use crate::option::{
     find_option_end, get_option_value, get_tty_option, is_option_hidden, is_tty_option,
-    optval_free, set_option_value_give_err, was_set_insecurely,
+    kOptFoldexpr, kOptFoldtext, optval_free, set_option_value_give_err, was_set_insecurely,
 };
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::quickfix::set_ref_in_quickfix;
 #[cfg(not(test))]
-use crate::regexp::vim_regsub;
+use crate::regexp::{
+    RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, vim_regcomp, vim_regexec_nl, vim_regfree,
+    vim_regsub,
+};
+use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter};
+use crate::runtime::{
+    exestack, free_autoload_scriptnames, free_scriptnames, script_autoload, sourcing_a_script,
+};
 #[cfg(not(test))]
-use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
-use crate::register::op_global_reg_iter;
-#[cfg(not(test))]
-use crate::runtime::get_scriptname;
-use crate::runtime::{script_autoload, sourcing_a_script};
-use crate::strings::{concat_str, vim_strchr};
+use crate::runtime::{get_scriptname, script_is_lua};
 #[cfg(not(test))]
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::offset_of;
 use std::ptr;
 
+use crate::api::private::converter::{VAR_UNLOCKED, sctx_T, ufunc_T};
 #[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
-use crate::api::private::converter::{sctx_T, ufunc_T};
 #[cfg(not(test))]
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{win_T, xfmark_T};
 use crate::autocmd::funccal_entry_T;
-use crate::charset::{hex2nr, skipdigits, skiptowhite, skipwhite, vim_str2nr};
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T, yankreg_T};
 use crate::cmdexpand::{
     EXPAND_COMMANDS, EXPAND_ENV_VARS, EXPAND_EXPRESSION, EXPAND_FUNCTIONS, EXPAND_NOTHING,
@@ -145,23 +147,8 @@ use crate::eval::encode::encode_tv2echo;
 use crate::eval::encode::{encode_list_write, encode_tv2string};
 use crate::eval::executor::{blob_T, eexe_mod_op};
 use crate::eval::gc::{gc_first_dict, gc_first_list};
-use crate::eval::typval::{
-    DictWatcher, QUEUE, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret, tv_blob_copy, tv_blob_equal,
-    tv_blob_set_append, tv_blob_unref, tv_check_lock, tv_clear, tv_copy, tv_dict_add,
-    tv_dict_add_nr, tv_dict_alloc, tv_dict_find, tv_dict_free, tv_dict_free_contents,
-    tv_dict_free_dict, tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref,
-    tv_dict_wrong_func_name, tv_empty_string, tv_get_float, tv_get_number, tv_get_number_chk,
-    tv_in_free_unref_items, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_owned_tv, tv_list_append_string, tv_list_find, tv_list_free,
-    tv_list_free_contents, tv_list_free_list, tv_list_unref, tv_list_watch_add,
-    tv_list_watch_remove, tv2bool, value_check_lock,
-};
 #[cfg(not(test))]
 use crate::eval::userfunc::get_current_funccal;
-use crate::eval::userfunc::{
-    find_func, free_all_functions, func_init, func_ptr_unref, func_ref, func_unref, funcexe_T,
-    restore_funccal, save_funccal,
-};
 use crate::eval::vars::{
     OptIndex, VV_ARGV, VV_EVENT, VV_LUA, VV_SHELL_ERROR, check_vars, eval_one_expr_in_str,
     eval_variable, evalvars_clear, evalvars_init, ex_let_vars, find_var, garbage_collect_globvars,
@@ -170,17 +157,13 @@ use crate::eval::vars::{
     skip_var_list, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
 };
 #[cfg(not(test))]
-use crate::event::r#loop::loop_queues;
-#[cfg(not(test))]
-use crate::event::multiqueue::multiqueue_free;
-#[cfg(not(test))]
-use crate::event::multiqueue::multiqueue_new_child;
+use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::proc::{Proc, proc_header};
-#[cfg(not(test))]
-use crate::event::time::watcher_fields;
 use crate::event::time::{TimeWatcher, TimeWatcherFields, time_watcher_start};
 #[cfg(not(test))]
-use crate::event::time::{time_watcher_close, time_watcher_init, time_watcher_stop};
+use crate::event::time::{
+    time_watcher_close, time_watcher_init, time_watcher_stop, watcher_fields,
+};
 use crate::ex_eval::aborting;
 #[cfg(not(test))]
 use crate::ex_eval::discard_current_exception;
@@ -225,10 +208,6 @@ use crate::os::lang::free_locales;
 use crate::os::shell::shell_argv_to_str;
 use crate::os::shell::{os_system, shell_build_argv, shell_free_argv};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
-use crate::register::get_reg_contents;
-#[cfg(not(test))]
-use crate::runtime::script_is_lua;
-use crate::runtime::{exestack, free_autoload_scriptnames, free_scriptnames};
 use crate::state::save_v_event_T;
 use crate::tag::set_ref_in_tagfunc;
 
@@ -241,31 +220,11 @@ use crate::api::autocmd::{
 use crate::api::deprecated::kOptInvalid;
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::IOSIZE;
-use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
-use crate::api::private::helpers::HLF_E;
-#[cfg(not(test))]
-use crate::autocmd::PROF_YES;
-#[cfg(not(test))]
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
-use crate::buffer::NOTDONE;
-use crate::buffer::VAR_FIXED;
+use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::channel::kChannelStreamProc;
-use crate::charset::VARNUMBER_MIN;
-#[cfg(not(test))]
-use crate::eval::funcs::E_STRING_LIST_OR_BLOB_REQUIRED;
-#[cfg(not(test))]
-use crate::eval::funcs::{UV_TIMER, kOptCpoptions};
-use crate::eval::typval::TV_CSTRING;
 pub use crate::eval::typval::float_T;
-#[cfg(not(test))]
-use crate::lua::executor::kRetObject;
-#[cfg(not(test))]
-use crate::option::{kOptFoldexpr, kOptFoldtext};
 use crate::regexp::NUMBUFLEN;
-#[cfg(not(test))]
-use crate::regexp::{RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC};
-use crate::register::kGRegExprSrc;
 use crate::viml::parser::parser::CONV_NONE;
 pub type timer_T = c_void;
 pub type var_flavour_T = c_int;

@@ -23,7 +23,7 @@ use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::xstrdup;
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
-use crate::msgpack_rpc::packer::Integer;
+use crate::msgpack_rpc::packer::{EXT_OBJECT_TYPE_SHIFT, Integer};
 #[cfg(not(test))]
 use crate::ui_client::{
     handle_ui_client_redraw, ui_client_event_grid_line, ui_client_get_redraw_handler,
@@ -38,8 +38,7 @@ const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
 pub type AdditionalDataBuilder = KVec<c_char>;
 pub type StringArray = KVec<NvimString>;
-pub use crate::grid::sattr_T;
-pub use crate::grid::schar_T;
+pub use crate::grid::{sattr_T, schar_T};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -104,7 +103,6 @@ use crate::mpack::mpack_core::mpack_rtoken;
 #[cfg(not(test))]
 use crate::mpack::mpack_core::{mpack_read, mpack_tokbuf_init};
 use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
-use crate::msgpack_rpc::packer::EXT_OBJECT_TYPE_SHIFT;
 
 #[cfg(not(test))]
 #[inline]

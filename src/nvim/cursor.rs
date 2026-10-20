@@ -9,10 +9,8 @@
 )]
 
 use crate::api::tabpage::win_T;
-use crate::change::inserted_bytes;
-use crate::change::kOptVeFlagOnemore;
-use crate::drawscreen::UPD_NOT_VALID;
-use crate::drawscreen::redraw_later;
+use crate::change::{inserted_bytes, kOptVeFlagOnemore};
+use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
@@ -30,8 +28,7 @@ use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg, linetabsize,
     linetabsize_eol, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
 };
-use crate::state::MODE_TERMINAL;
-use crate::state::virtual_active;
+use crate::state::{MODE_TERMINAL, virtual_active};
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 

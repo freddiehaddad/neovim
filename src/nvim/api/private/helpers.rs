@@ -3674,8 +3674,7 @@ static PACKED_API_METADATA_SUFFIX: &[u8] = &[
     109, 95, 116, 97, 98, 112, 97, 103, 101, 95,
 ];
 
-use crate::api::buffer::LUA_INTERNAL_CALL;
-use crate::api::buffer::VIML_INTERNAL_CALL;
+use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
 use crate::version::nvim_version_build;
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();

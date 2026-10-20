@@ -6,9 +6,7 @@
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::buffer::VAR_FIXED;
 #[cfg(not(test))]
-use crate::clipboard::VarType;
-#[cfg(not(test))]
-use crate::clipboard::{TypvalVval, listitem_T};
+use crate::clipboard::{TypvalVval, VarType, listitem_T};
 use crate::clipboard::{list_T, typval_T};
 #[cfg(not(test))]
 use crate::errors::*;
@@ -20,25 +18,20 @@ use crate::eval::executor::blob_T;
 #[cfg(not(test))]
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 #[cfg(not(test))]
-use crate::eval::typval::TV_TRANSLATE;
-#[cfg(not(test))]
-use crate::eval::typval::VAR_LOCKED;
-#[cfg(not(test))]
 use crate::eval::typval::{
-    tv_blob_copy, tv_blob_get, tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_clear,
-    tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_copy, tv_dict_extend, tv_dict_item_remove,
-    tv_dict_remove, tv_dict_unref, tv_equal, tv_get_bool_chk, tv_get_number_chk, tv_get_string,
-    tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy,
-    tv_list_extend, tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_remove,
-    tv_list_reverse, tv_list_set_lock, tv_list_set_ret, tv_list_unref, value_check_lock,
+    TV_TRANSLATE, VAR_LOCKED, tv_blob_copy, tv_blob_get, tv_blob_remove,
+    tv_check_for_string_or_list_or_blob_arg, tv_clear, tv_copy, tv_dict_add_tv, tv_dict_alloc_ret,
+    tv_dict_copy, tv_dict_extend, tv_dict_item_remove, tv_dict_remove, tv_dict_unref, tv_equal,
+    tv_get_bool_chk, tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc_ret,
+    tv_list_append_owned_tv, tv_list_append_tv, tv_list_copy, tv_list_extend, tv_list_find,
+    tv_list_insert_tv, tv_list_item_remove, tv_list_remove, tv_list_reverse, tv_list_set_lock,
+    tv_list_set_ret, tv_list_unref, value_check_lock,
 };
 use crate::eval::typval::{tv_blob_len, tv_list_first, tv_list_len};
 #[cfg(not(test))]
-use crate::eval::vars::{VV_KEY, VV_VAL};
-#[cfg(not(test))]
 use crate::eval::vars::{
-    get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr, set_vim_var_string,
-    set_vim_var_type, var_check_fixed, var_check_ro,
+    VV_KEY, VV_VAL, get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr,
+    set_vim_var_string, set_vim_var_type, var_check_fixed, var_check_ro,
 };
 #[cfg(not(test))]
 use crate::eval::{eval_expr_typval, get_copyID};

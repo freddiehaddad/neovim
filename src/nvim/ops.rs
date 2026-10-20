@@ -14,18 +14,21 @@ use crate::api::autocmd::kCallbackNone;
 use crate::api::tabpage::pos_T;
 use crate::buffer::{buf_get_changedtick, col_print, modifiable};
 use crate::change::{
-    appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
-    get_last_leader_offset, get_leader_len, ins_char, ins_str, truncate_line,
+    COM_END, appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
+    get_last_leader_offset, get_leader_len, ins_char, ins_str, kCpoDollar, kOptVeFlagOnemore,
+    truncate_line,
 };
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit,
-    getwhitecols, getwhitecols_curline, skipwhite, uvarnumber_T, vim_str2nr,
+    STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper,
+    ascii_iswhite, ascii_isxdigit, getwhitecols, getwhitecols_curline, skipwhite, uvarnumber_T,
+    vim_str2nr,
 };
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T, yankreg_T};
 use crate::cursor::{
-    check_cursor, check_cursor_col, check_pos, coladvance, coladvance_force, colnr_T, dec_cursor,
-    equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_ptr,
-    getviscol, getviscol2, getvpos, inc_cursor, linenr_T, lt, ltoreq,
+    VALID_VIRTCOL, check_cursor, check_cursor_col, check_pos, coladvance, coladvance_force,
+    colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
+    get_cursor_pos_ptr, getviscol, getviscol2, getvpos, inc_cursor, kOptVeFlagAll, linenr_T, lt,
+    ltoreq,
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
@@ -35,14 +38,14 @@ use crate::eval::deprecated::buf_T;
 use crate::eval::typval::{callback_free, tv_clear, tv_dict_add_nr};
 use crate::eval::{callback_call, set_ref_in_callback};
 use crate::ex_docmd::do_cmdline;
-use crate::ex_getln::getexline;
+use crate::ex_getln::{K_LUA, getexline};
 use crate::extmark::{TriState, bcount_t, extmark_splice, extmark_splice_cols};
 use crate::fold::{deleteFold, foldCreate, foldOpenCursor, hasFolding, opFoldRange};
 use crate::globals::*;
 use crate::indent::{
-    change_indent, fix_indent, get_expr_indent, get_indent, get_lisp_indent, get_sw_value_indent,
-    inindent, may_do_si, op_reindent, preprocs_left, set_indent, tabstop_fromto,
-    use_indentexpr_for_lisp,
+    INDENT_SET, SIN_CHANGED, change_indent, fix_indent, get_expr_indent, get_indent,
+    get_lisp_indent, get_sw_value_indent, inindent, may_do_si, op_reindent, preprocs_left,
+    set_indent, tabstop_fromto, use_indentexpr_for_lisp,
 };
 use crate::indent_c::get_c_indent;
 use crate::input::{
@@ -53,7 +56,7 @@ use crate::input_cmdatom::{
     InsSession, VisualIns, atom_capture_op, atom_ins_end, atom_ins_start, atom_suppress,
     atom_visual_redoable, cmdarg_T, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
 };
-use crate::insert::{beginline, display_dollar, edit};
+use crate::insert::{beginline, display_dollar, edit, kFoAuto};
 use crate::keycodes::K_COMMAND;
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
 use crate::math::{FAIL, OK, trim_to_int};
@@ -72,8 +75,9 @@ use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, sm
 use crate::mouse::setmouse;
 use crate::r#move::validate_virtcol;
 use crate::normal::{
-    clearop, clearopbeep, exec_stuffed, may_clear_cmdline, restore_visual_mode, unadjust_for_sel,
-    unadjust_for_sel_inner, visualinfo,
+    CA_COMMAND_BUSY, CA_NO_ADJ_OP_END, REPLACE_CR_NCHAR, REPLACE_NL_NCHAR, clearop, clearopbeep,
+    exec_stuffed, may_clear_cmdline, restore_visual_mode, unadjust_for_sel, unadjust_for_sel_inner,
+    visualinfo,
 };
 use crate::option::{get_equalprg, get_fileformat, get_ve_flags};
 use crate::option_vars::*;
@@ -101,21 +105,12 @@ use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::options::IOSIZE;
 use crate::api::vim::kNone;
 use crate::arglist::ML_EMPTY;
-use crate::change::kOptVeFlagOnemore;
-use crate::change::{COM_END, kCpoDollar};
-use crate::charset::{STR2NR_BIN, STR2NR_HEX, STR2NR_OCT};
 pub use crate::cmdexpand::LineGetter;
-use crate::cursor::{VALID_VIRTCOL, kOptVeFlagAll};
 use crate::diff::kOptBoFlagOperator;
 use crate::drawline::{VALID_WCOL, VALID_WROW};
-use crate::eval::funcs::kMTLineWise;
-use crate::eval::funcs::{kMTBlockWise, kMTCharWise};
+use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
-use crate::ex_getln::K_LUA;
 use crate::fileio::EOL_DOS;
-use crate::indent::{INDENT_SET, SIN_CHANGED};
-use crate::insert::kFoAuto;
-use crate::normal::{CA_COMMAND_BUSY, CA_NO_ADJ_OP_END, REPLACE_CR_NCHAR, REPLACE_NL_NCHAR};
 pub use crate::option::OptInt;
 use crate::regexp::NUMBUFLEN;
 

@@ -1,12 +1,9 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
 
-pub use crate::grid::schar_from_ascii;
+pub use crate::grid::{sattr_T, schar_T, schar_from_ascii};
 use std::ffi::{c_int, c_void};
 
 use crate::memory::{xcalloc, xfree, xmalloc};
-
-pub use crate::grid::sattr_T;
-pub use crate::grid::schar_T;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

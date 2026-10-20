@@ -11,7 +11,7 @@
 #[cfg(windows)]
 use crate::eval::typval::tv_dict_to_env;
 #[cfg(windows)]
-use crate::event::r#loop::{uv_req_size, uv_run, uv_translate_sys_error};
+use crate::event::r#loop::{Loop, loop_schedule_fast, uv_req_size, uv_run, uv_translate_sys_error};
 #[cfg(windows)]
 use crate::log::logmsg;
 #[cfg(windows)]
@@ -35,8 +35,6 @@ use std::ptr;
 
 #[cfg(windows)]
 use crate::eval::decode::dict_T;
-#[cfg(windows)]
-use crate::event::r#loop::{Loop, loop_schedule_fast};
 #[cfg(windows)]
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event};
 #[cfg(windows)]

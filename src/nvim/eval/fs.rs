@@ -8,11 +8,14 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::find_buffer_by_handle;
+use crate::api::private::helpers::{SID_API_CLIENT, find_buffer_by_handle};
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::{ExpandCleanup, ExpandInit, ExpandOne, globpath};
+use crate::cmdexpand::{
+    EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_ALL_KEEP, WILD_ALLLINKS,
+    WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT, WILD_USE_NL, globpath,
+};
 use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::executor::blob_T;
@@ -24,7 +27,7 @@ use crate::eval::typval::{
     tv_list_item_remove, tv_list_len, tv_list_set_ret,
 };
 use crate::eval::userfunc::{add_defer, can_add_defer};
-use crate::eval::vars::{prepare_vimvar, restore_vimvar, set_vim_var_string};
+use crate::eval::vars::{VV_VAL, prepare_vimvar, restore_vimvar, set_vim_var_string};
 use crate::eval::window::find_win_by_nr;
 use crate::eval::{do_string_sub, eval_expr_typval};
 use crate::event::r#loop::uv_strerror;
@@ -64,14 +67,12 @@ use crate::os::fs::{
 use crate::os::fs::{os_is_reparse_point_include, os_realpath, os_resolve_shortcut};
 #[cfg(unix)]
 use crate::path::path_next_component;
-#[cfg(windows)]
-use crate::path::path_to_slash_save;
-#[cfg(windows)]
-use crate::path::slash_adjust;
 use crate::path::{
     FullName_save, add_pathsep, after_pathsep, path_cmp, path_is_absolute, path_tail,
     path_tail_with_sep, shorten_dir_len, simplify_filename, vim_isAbsName, vim_ispathsep,
 };
+#[cfg(windows)]
+use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
 use crate::sign::expand_T;
 #[cfg(unix)]
@@ -82,7 +83,7 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 pub use crate::eval::buffer::varnumber_T;
-pub use crate::fileio::off_T;
+pub use crate::fileio::{FILE, off_T};
 pub type CheckItem =
     Option<unsafe extern "C" fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
 
@@ -118,13 +119,7 @@ const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
 
 use crate::api::options::IOSIZE;
 use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::private::helpers::SID_API_CLIENT;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::kCdScopeGlobal;
-use crate::cmdexpand::{EXPAND_FILES, WILD_ALL, WILD_ALL_KEEP};
-use crate::cmdexpand::{WILD_ALLLINKS, WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT, WILD_USE_NL};
-use crate::eval::vars::VV_VAL;
-pub use crate::fileio::FILE;
+use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]

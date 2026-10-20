@@ -15,18 +15,14 @@ use crate::api::private::converter::VAR_UNLOCKED;
 use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
-use crate::clipboard::{TypvalVval, VarType};
-#[cfg(not(test))]
-use crate::clipboard::{list_T, listitem_T};
+use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T};
 #[cfg(not(test))]
 use crate::cursor::equalpos;
 use crate::cursor_shape::pos_T;
 #[cfg(not(test))]
 use crate::eval::callback_call;
 #[cfg(not(test))]
-use crate::eval::decode::K_LIST_LEN_MAY_KNOW;
-#[cfg(not(test))]
-use crate::eval::decode::dict_T;
+use crate::eval::decode::{K_LIST_LEN_MAY_KNOW, dict_T};
 #[cfg(not(test))]
 use crate::eval::deprecated::Callback;
 use crate::eval::deprecated::{EvalFuncData, buf_T};

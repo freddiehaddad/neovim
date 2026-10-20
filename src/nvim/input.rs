@@ -11,7 +11,7 @@
 
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType};
-use crate::api::vim::nvim_paste;
+use crate::api::vim::{MAXPATHL, REMAP_NONE, REMAP_YES, kFalse, kNone, nvim_paste};
 use crate::charset::{ascii_iswhite, skipwhite, to_special};
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
@@ -23,12 +23,16 @@ use crate::eval::typval::{
     tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string, tv_dict_has_key,
     tv_get_bool_chk,
 };
-use crate::eval::vars::set_vim_var_nr;
-use crate::event::r#loop::uv_strerror;
+use crate::eval::vars::{
+    VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID, set_vim_var_nr,
+};
+use crate::event::r#loop::{main_loop_events, uv_strerror};
 use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::update_topline_cursor;
-use crate::ex_getln::{get_cmdline_info, putcmdline, redrawcmd, redrawcmdline, unputcmdline};
+use crate::ex_getln::{
+    K_LUA, get_cmdline_info, kOptBoFlagError, putcmdline, redrawcmd, redrawcmdline, unputcmdline,
+};
 use crate::extmark::TriState;
 use crate::fileio::fputc;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
@@ -52,7 +56,7 @@ use crate::keycodes::{
     MOD_MASK_SHIFT, NL, TAB, is_special, key2termcap0, key2termcap1, special_to_buf, termcap2key,
 };
 use crate::kvec::KVec;
-use crate::lua::executor::{nlua_call_ref, nlua_exec_on_key};
+use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{
     MAXMAPLEN, eval_map_expr, get_buf_maphash_list, get_maphash_list, langmap_adjust_mb,
@@ -309,17 +313,7 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
-use crate::api::buffer::LUA_INTERNAL_CALL;
-use crate::api::buffer::LUA_NOREF;
-use crate::api::buffer::VIML_INTERNAL_CALL;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{REMAP_NONE, REMAP_YES};
-use crate::api::vim::{kFalse, kNone};
-use crate::eval::vars::{VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID};
-use crate::event::r#loop::main_loop_events;
-use crate::ex_getln::K_LUA;
-use crate::ex_getln::kOptBoFlagError;
-use crate::lua::executor::kRetNilBool;
+use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, VIML_INTERNAL_CALL};
 use crate::math::{FAIL, OK};
 
 #[inline]

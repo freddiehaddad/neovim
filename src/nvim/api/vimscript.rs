@@ -20,11 +20,9 @@ use crate::api::private::helpers::{
     boolean_obj, dict_obj, error_set, float_obj, integer_obj, string_obj, try_enter, try_leave,
 };
 use crate::api::private::helpers::{cstr_as_string, nil_obj};
-#[cfg(not(test))]
-use crate::api::private::validate::KeyValuePair;
 use crate::api::private::validate::{Array, Dict, Error, Object};
 #[cfg(not(test))]
-use crate::api::private::validate::{ErrorType, ObjectType, api_err_exp};
+use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectType, api_err_exp};
 #[cfg(not(test))]
 use crate::clipboard::{VarType, typval_T};
 #[cfg(not(test))]
@@ -47,21 +45,17 @@ use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
-use crate::memory::xfree;
-#[cfg(not(test))]
-use crate::memory::xmemdupz;
+use crate::memory::{xfree, xmemdupz};
 #[cfg(not(test))]
 use crate::msgpack_rpc::packer::Integer;
 #[cfg(not(test))]
 use crate::runtime::do_source_str;
 #[cfg(not(test))]
-use crate::viml::parser::expressions::ExprASTNode;
-#[cfg(not(test))]
 use crate::viml::parser::expressions::{
-    ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab, kExprAsgnPlain,
-    kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet, kExprNodeAssignment,
-    kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment, kExprNodeFloat,
-    kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
+    ExprASTNode, ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab,
+    kExprAsgnPlain, kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet,
+    kExprNodeAssignment, kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment,
+    kExprNodeFloat, kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
     kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_free_ast, viml_pexpr_parse,
 };
 #[cfg(not(test))]

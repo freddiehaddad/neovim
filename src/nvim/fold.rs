@@ -21,11 +21,16 @@ use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T, ltoreq};
 use crate::decoration::{clear_virttext, next_virt_text_chunk};
 use crate::diff::{diff_infold, diff_lnum_win};
-use crate::drawscreen::{redraw_buf_later, redraw_later, redraw_win_range_later};
+use crate::drawscreen::{
+    UPD_INVERTED, UPD_NOT_VALID, redraw_buf_later, redraw_later, redraw_win_range_later,
+};
 use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::typval::tv_get_lnum;
-use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, set_vim_var_nr, set_vim_var_string};
+use crate::eval::vars::{
+    VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM, get_vim_var_nr,
+    get_vim_var_str, set_vim_var_nr, set_vim_var_string,
+};
 use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::ex_session::{FILE, put_eol, put_line};
 use crate::extmark::extmark_splice_cols;
@@ -57,11 +62,8 @@ use std::ptr;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{FORWARD, kExtmarkUndo};
 use crate::api::vim::{kFalse, kNone, kTrue};
-use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID};
 pub use crate::eval::buffer::varnumber_T;
-use crate::eval::vars::{VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM};
-pub use crate::extmark::ExtmarkOp;
-pub use crate::extmark::TriState;
+pub use crate::extmark::{ExtmarkOp, TriState};
 
 pub const FOLD_TEXT_LEN: usize = 51;
 const MAX_LEVEL: c_int = 20;

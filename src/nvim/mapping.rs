@@ -10,10 +10,10 @@
 )]
 
 use crate::api::autocmd::{ArrayBuilder, Buffer};
-use crate::api::buffer::KeyDict_keymap;
+use crate::api::buffer::{KeyDict_keymap, LUA_NOREF};
 use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
-use crate::api::private::converter::{object_to_vim_take_luaref, sctx_T};
+use crate::api::private::converter::{VAR_UNLOCKED, object_to_vim_take_luaref, sctx_T};
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
     arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, find_buffer_by_handle,
@@ -26,7 +26,7 @@ use crate::charset::{
     ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, transchar, vim_iswordp,
 };
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::cmdline_fuzzy_complete;
+use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, cmdline_fuzzy_complete};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
@@ -35,9 +35,9 @@ use crate::eval::typval::{
     tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
     tv_list_alloc_ret, tv_list_append_dict,
 };
-use crate::eval::userfunc::find_func;
+use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::set_vim_var_char;
-use crate::eval::{eval_to_string, last_set_msg};
+use crate::eval::{eval_to_string, kListLenUnknown, last_set_msg};
 use crate::ex_cmds::check_secure;
 use crate::ex_session::{FILE, put_eol};
 use crate::fileio::{fputc, fputs};
@@ -46,15 +46,15 @@ use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear, ga_concat, ga_grow, ga_init, garray_T,
 };
 use crate::globals::*;
-use crate::input::{ins_typebuf, noremap_keys};
+use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
-    K_SPECIAL, KE_FILLER, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, REPTERM_DO_LT,
-    REPTERM_FROM_PART, REPTERM_NO_SIMPLIFY, get_special_key_name, replace_termcodes,
+    K_SPECIAL, K_ZERO, KE_FILLER, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO,
+    REPTERM_DO_LT, REPTERM_FROM_PART, REPTERM_NO_SIMPLIFY, get_special_key_name, replace_termcodes,
     vim_strsave_escape_ks, vim_unescape_ks,
 };
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{
-    api_free_luaref, api_new_luaref, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
+    api_free_luaref, api_new_luaref, kRetObject, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
@@ -71,7 +71,7 @@ use crate::message::{
 };
 use crate::option::opt_error;
 use crate::option_vars::*;
-use crate::regexp::vim_regexec;
+use crate::regexp::{NUMBUFLEN, vim_regexec};
 use crate::runtime::sourcing_lnum;
 use crate::sign::expand_T;
 use crate::strings::{atoi, gettext, sort_strings, strpbrk, strstr, vim_snprintf, vim_strchr};
@@ -142,20 +142,9 @@ pub struct typebuf_T {
     pub tb_change_cnt: c_int,
 }
 
-use crate::api::buffer::LUA_NOREF;
 pub use crate::api::command::regmatch_T;
-use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::vim::{REMAP_NONE, REMAP_YES};
-use crate::api::vim::{kFalse, kNone};
-use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING};
-use crate::eval::kListLenUnknown;
-use crate::eval::userfunc::FC_LUAREF;
+use crate::api::vim::{REMAP_NONE, REMAP_YES, kFalse, kNone};
 use crate::ex_getln::ABBR_OFF;
-use crate::input::REMAP_SCRIPT;
-use crate::keycodes::K_ZERO;
-use crate::keycodes::KE_LUA;
-use crate::lua::executor::kRetObject;
-use crate::regexp::NUMBUFLEN;
 use crate::state::{
     MODE_CMDLINE, MODE_LANGMAP, MODE_NORMAL, MODE_OP_PENDING, MODE_SELECT, MODE_TERMINAL,
     MODE_VISUAL,

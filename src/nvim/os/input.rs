@@ -8,9 +8,11 @@
     clippy::too_many_arguments
 )]
 
-use crate::autocmd::{apply_autocmds, trigger_cursorhold};
-use crate::eval::vars::set_vim_var_nr;
-use crate::event::r#loop::{loop_poll_events, main_loop_ptr, uv_guess_handle};
+use crate::autocmd::{
+    EVENT_CURSORHOLD, EVENT_CURSORHOLDI, PROF_YES, apply_autocmds, trigger_cursorhold,
+};
+use crate::eval::vars::{VV_USERACTIVE, set_vim_var_nr};
+use crate::event::r#loop::{loop_poll_events, main_loop_events, main_loop_ptr, uv_guess_handle};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
     multiqueue_put_event,
@@ -20,7 +22,10 @@ use crate::input::{before_blocking, typebuf_changed};
 use crate::insexpand::{
     ins_compl_active, ins_compl_autocomplete_elapsed, ins_compl_autocomplete_pending,
 };
-use crate::keycodes::{get_mouse_button, trans_special};
+use crate::keycodes::{
+    FSK_KEYCODE, KE_COMPLETE_DELAY, KE_EVENT, KS_EXTRA, KS_MODIFIER, get_mouse_button,
+    trans_special,
+};
 use crate::main_init::getout;
 use crate::map_glyph_cache::NvimString;
 use crate::option_vars::*;
@@ -144,13 +149,7 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
     }
 }
 
-use crate::autocmd::PROF_YES;
-use crate::autocmd::{EVENT_CURSORHOLD, EVENT_CURSORHOLDI};
-use crate::eval::vars::VV_USERACTIVE;
-use crate::event::r#loop::main_loop_events;
 use crate::event::stream::UV_TTY;
-use crate::keycodes::FSK_KEYCODE;
-use crate::keycodes::{KE_COMPLETE_DELAY, KE_EVENT, KS_EXTRA, KS_MODIFIER};
 
 unsafe extern "C" fn cursorhold_event(_argv: *mut *mut c_void) {
     unsafe {

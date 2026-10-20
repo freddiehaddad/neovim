@@ -24,9 +24,7 @@ use crate::main_init::preserve_exit;
 #[cfg(not(test))]
 use crate::memfile::mf_release_all;
 #[cfg(not(test))]
-use crate::message::semsg;
-#[cfg(not(test))]
-use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, set_keep_msg};
+use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, semsg, set_keep_msg};
 #[cfg(not(test))]
 use crate::option::free_all_options;
 #[cfg(not(test))]

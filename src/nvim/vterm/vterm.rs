@@ -12,19 +12,16 @@ use std::ptr;
 
 use crate::memory::{xfree, xmalloc};
 use crate::vterm::mouse::VTerm;
-use crate::vterm::parser::NORMAL;
-use crate::vterm::parser::VTermParserCallbacks;
+use crate::vterm::parser::{NORMAL, VTermParserCallbacks};
 use crate::vterm::pen::{
     VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
     VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
     VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
     VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTERM_VALUETYPE_BOOL, VTERM_VALUETYPE_COLOR,
-    VTERM_VALUETYPE_INT,
+    VTERM_VALUETYPE_INT, VTermAttr, VTermRect, VTermValueType,
 };
-use crate::vterm::pen::{VTermAttr, VTermRect, VTermValueType};
 use crate::vterm::screen::vterm_screen_free;
-use crate::vterm::state::vterm_state_free;
-use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
+use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8, vterm_state_free};
 
 pub type VTermOutputCallback =
     Option<unsafe extern "C" fn(s: *const c_char, len: usize, user: *mut c_void)>;

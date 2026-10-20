@@ -20,13 +20,11 @@ use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{
     ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
 };
-use crate::cmdexpand::HLF_D;
-use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING};
+use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, HLF_D};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration_provider::decor_provider_invalidate_hl;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
-use crate::drawscreen::redraw_all_later;
-use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID};
+use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_NOCOMBINE, HL_STANDOUT,
@@ -39,14 +37,11 @@ use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::grid::UIExtension;
-use crate::highlight::{HL_ALTFONT, HL_DEFAULT};
 use crate::highlight::{
-    HLATTRS_INIT, KeyDict_highlight, OptionalKeys, RgbValue, hl_add_font_idx, hl_get_font,
-    hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
-};
-use crate::highlight::{
-    HLF_INACTIVE, HLF_NONE, KEYSET_OPTIDX_highlight__bg, KEYSET_OPTIDX_highlight__fg,
-    KEYSET_OPTIDX_highlight__font, KEYSET_OPTIDX_highlight__sp,
+    HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_INACTIVE, HLF_NONE, KEYSET_OPTIDX_highlight__bg,
+    KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font, KEYSET_OPTIDX_highlight__sp,
+    KeyDict_highlight, OptionalKeys, RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr,
+    hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
@@ -67,8 +62,7 @@ use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::expand_T;
 use crate::os::time::os_delay;
-use crate::runtime::{DIP_OPT, DIP_START};
-use crate::runtime::{source_runtime_vim_lua, sourcing_lnum, sourcing_name};
+use crate::runtime::{DIP_OPT, DIP_START, source_runtime_vim_lua, sourcing_lnum, sourcing_name};
 use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up, vim_strup};
 use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,

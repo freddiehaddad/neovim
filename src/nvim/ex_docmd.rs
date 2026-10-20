@@ -9,11 +9,18 @@
     clippy::needless_range_loop
 )]
 
-use crate::api::command::{cmdmod_T, exarg_T, regmatch_T};
+use crate::api::command::{
+    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
+    CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
+    CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGOPT, EX_BANG,
+    EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_SBOXOK,
+    EX_TRLBAR, EX_XFILE, EX_ZEROR, cmdmod_T, exarg_T, regmatch_T,
+};
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
-    api_clear_error, boolean_obj, cstr_as_obj, error_init, error_set, integer_obj,
+    HLF_E, api_clear_error, boolean_obj, cstr_as_obj, error_init, error_set, integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
@@ -21,19 +28,23 @@ use crate::api::ui::{remote_ui_connect, remote_ui_restart, ui_detach_channel, ui
 use crate::api::vimscript::nvim_command;
 use crate::api::win_config::bufref_T;
 use crate::arglist::{
-    alist_T, arg_all, check_arg_idx, ex_all, ex_argadd, ex_argdedupe, ex_argdelete, ex_argedit,
-    ex_args, ex_argument, ex_last, ex_next, ex_previous, ex_rewind,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, alist_T, arg_all, check_arg_idx,
+    ex_all, ex_argadd, ex_argdedupe, ex_argdelete, ex_argedit, ex_args, ex_argument, ex_last,
+    ex_next, ex_previous, ex_rewind,
 };
 use crate::autocmd::{
-    apply_autocmds, apply_autocmds_win, check_nomodeline, do_augroup, do_autocmd, do_doautocmd,
-    ex_doautoall, getnextac, has_event, may_trigger_vim_suspend_resume,
+    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_CHANINFO, EVENT_CMDUNDEFINED, EVENT_EXITPRE,
+    EVENT_QUITPRE, EVENT_TABNEWENTERED, HLF_T, PROF_YES, apply_autocmds, apply_autocmds_win,
+    check_nomodeline, do_augroup, do_autocmd, do_doautocmd, ex_doautoall, getnextac, has_event,
+    kOptEventignore, may_trigger_vim_suspend_resume,
 };
 use crate::buffer::{
+    DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
     bt_prompt, bt_quickfix, buf_hide, buf_spname, buflist_findnr, buflist_findpat, buflist_list,
     bufref_valid, do_bufdel, do_modelines, ex_buffer_all, get_highest_fnum, goto_buffer, maketitle,
     no_write_message, otherfile, set_bufref, setaltfname, setfname,
 };
-use crate::channel::{channel_event, channel_job_start};
+use crate::channel::{channel_event, channel_job_start, kChannelStdinPipe};
 use crate::charset::{
     backslash_halve, getdigits, getdigits_int, getdigits_int32, skipdigits, skiptowhite_esc,
     skipwhite,
@@ -42,8 +53,9 @@ use crate::clipboard::{
     TypvalVval, VarType, end_batch_changes, list_T, start_batch_changes, typval_T,
 };
 use crate::cmdexpand::{
-    CompleteListItemGetter, ExpandGeneric, ExpandInit, ExpandOne, cmdidx_T,
-    expand_process_user_list,
+    CompleteListItemGetter, EX_NOTRLCOM, EXPAND_FILES, EXPAND_NOTHING, ExpandGeneric, ExpandInit,
+    ExpandOne, WILD_ADD_SLASH, WILD_EXPAND_FREE, WILD_ICASE, WILD_LIST_NOTFOUND, WILD_NOERROR,
+    cmdidx_T, expand_process_user_list,
 };
 use crate::cmdhist::ex_history;
 use crate::context::{ctx_did_chdir, is_ctx_win};
@@ -52,46 +64,54 @@ use crate::debugger::{
     dbg_breakpoint, dbg_check_breakpoint, dbg_find_breakpoint, do_debug, ex_breakadd, ex_breakdel,
     ex_breaklist, ex_debug, ex_debuggreedy,
 };
-use crate::dialog::{ask_yesno, vim_dialog_yesno};
+use crate::dialog::{VIM_YES, ask_yesno, vim_dialog_yesno};
 use crate::diff::{
     ex_diffgetput, ex_diffoff, ex_diffpatch, ex_diffsplit, ex_diffthis, ex_diffupdate,
 };
 use crate::digraph::{ex_loadkeymap, listdigraphs, putdigraph};
 use crate::drawscreen::{
-    clearmode, redraw_all_later, redraw_curbuf_later, redraw_later, redraw_statuslines,
-    screen_resize, setcursor_mayforce, showmode, status_redraw_all, status_redraw_curbuf,
-    update_screen,
+    UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, clearmode, redraw_all_later,
+    redraw_curbuf_later, redraw_later, redraw_statuslines, screen_resize, setcursor_mayforce,
+    showmode, status_redraw_all, status_redraw_curbuf, update_screen,
 };
 use crate::eval::deprecated::{Callback, CallbackReader, EvalFuncData};
-use crate::eval::fs::modify_fname;
-use crate::eval::funcs::create_environment;
+use crate::eval::fs::{
+    VALID_HEAD, VALID_PATH, kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow, modify_fname,
+};
+use crate::eval::funcs::{
+    DOCMD_KEYTYPED, RE_SEARCH, SEARCH_KEEP, VIM_QUESTION, create_environment, kMTLineWise,
+};
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_str, tv_dict_alloc, tv_dict_get_string, tv_get_string,
     tv_list_alloc_ret, tv_list_append_allocated_string, tv_list_copy, tv_list_find,
     tv_list_find_str, tv_list_free,
 };
 use crate::eval::userfunc::{
-    current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
+    MSG_BUF_LEN, current_func_returned, do_return, ex_call, ex_delfunction, ex_function, ex_return,
     func_breakpoint, func_dbg_tick, func_has_abort, func_has_ended, func_level, func_name,
     get_func_line,
 };
 use crate::eval::vars::{
-    ex_let, ex_lockvar, ex_unlet, get_vim_var_list, get_vim_var_str, set_vim_var_nr,
-    set_vim_var_string, v_exception, v_throwpoint, var_redir_start, var_redir_stop,
+    BAD_DROP, BAD_KEEP, ENV_STARTREASON, FORCE_BIN, FORCE_NOBIN, VV_ARGV, VV_EXITREASON,
+    VV_HLSEARCH, VV_OLDFILES, VV_PROGPATH, ex_let, ex_lockvar, ex_unlet, get_vim_var_list,
+    get_vim_var_str, set_vim_var_nr, set_vim_var_string, v_exception, v_throwpoint,
+    var_redir_start, var_redir_stop,
 };
 use crate::eval::window::{win_find_nr, win_has_winnr};
 use crate::eval::{
-    callback_call, eval_to_string, ex_echo, ex_echohl, ex_execute, get_copyID, set_ref_in_callback,
-    skip_expr,
+    callback_call, eval_to_string, ex_echo, ex_echohl, ex_execute, get_copyID, kMarkAll,
+    set_ref_in_callback, skip_expr,
 };
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
 use crate::event::proc::{Proc, proc_stop, proc_wait};
 use crate::ex_cmds::{
+    BL_FIX, BL_SOL, BL_WHITE, DIALOG_MSG_SIZE, ECMD_ADDBUF, ECMD_ALTBUF, ECMD_FORCEIT, ECMD_HIDE,
+    ECMD_LAST, ECMD_OLDBUF, ECMD_ONE, EXFLAG_LIST, EXFLAG_NR, EXFLAG_PRINT, RE_SUBST, SEARCH_HIS,
     do_ascii, do_bang, do_ecmd, do_move, do_wqall, do_write, ex_align, ex_append, ex_change,
     ex_copy, ex_file, ex_global, ex_oldfiles, ex_sort, ex_substitute, ex_substitute_preview,
-    ex_uniq, ex_update, ex_wnext, ex_write, ex_z, global_exe, prepare_tagpreview, print_line,
-    skip_vimgrep_pat,
+    ex_uniq, ex_update, ex_wnext, ex_write, ex_z, global_exe, kWinPreview, prepare_tagpreview,
+    print_line, skip_vimgrep_pat,
 };
 use crate::ex_cmds2::{
     autowrite_all, check_changed, check_changed_any, check_fname, dialog_changed, ex_checktime,
@@ -114,7 +134,8 @@ use crate::ex_getln::{
 };
 use crate::ex_session::{ex_loadview, ex_mkrc};
 use crate::file_search::{
-    do_autocmd_dirchanged, file_name_at_cursor, find_file_in_path, vim_chdir, vim_findfile_cleanup,
+    FNAME_HYP, FNAME_MESS, do_autocmd_dirchanged, file_name_at_cursor, find_file_in_path,
+    vim_chdir, vim_findfile_cleanup,
 };
 use crate::fileio::{fclose, readfile, shorten_fnames};
 use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
@@ -128,7 +149,7 @@ use crate::input::{
     typebuf_typed, vpeekc,
 };
 use crate::insert::beginline;
-use crate::log::{log_should_log, logmsg};
+use crate::log::{LOGLVL_INF, log_should_log, logmsg};
 use crate::lua::executor::{ex_lua, ex_luado, ex_luafile, nlua_call_excmd, nlua_call_typval};
 use crate::lua::secure::ex_trust;
 use crate::main_init::getout;
@@ -167,7 +188,9 @@ use crate::normal::{
     FIND_EVAL, FIND_IDENT, FIND_STRING, do_check_scrollbind, end_visual_mode,
     find_ident_under_cursor, get_vtopline, normal_cmd, set_cursor_for_append_to_line,
 };
-use crate::ops::{clear_oparg, do_join, op_delete, op_shift};
+use crate::ops::{
+    OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK, clear_oparg, do_join, op_delete, op_shift,
+};
 use crate::option::{
     ex_set, get_findfunc, get_option_sctx, get_scrolloff_value, set_option_direct,
     set_option_value_give_err,
@@ -197,9 +220,10 @@ use crate::quickfix::{
     ex_cwindow, ex_helpgrep, ex_make, ex_vimgrep, grep_internal, qf_age, qf_get_cur_idx,
     qf_get_cur_valid_idx, qf_get_size, qf_get_valid_size, qf_history, qf_list,
 };
-use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
+use crate::regexp::{NUMBUFLEN, RE_MAGIC, kMarkBufLocal, skip_regexp, vim_regcomp, vim_regfree};
 use crate::register::{
-    do_execreg, do_put, ex_display, op_yank, set_expr_line, valid_yank_reg, write_reg_contents,
+    PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE, do_execreg, do_put, ex_display, op_yank, set_expr_line,
+    valid_yank_reg, write_reg_contents,
 };
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, do_finish, estack_pop,
@@ -239,17 +263,18 @@ use crate::usercmd::{
 };
 use crate::version::{ex_intro, ex_version};
 use crate::window::{
-    check_can_set_curbuf_forceit, close_others, do_window, find_tabpage, goto_tabpage,
-    only_one_window, tabpage_index, tabpage_move, trigger_tabclosedpre, update_cwd, valid_tabpage,
-    win_close, win_close_othertab, win_enter, win_goto, win_new_tabpage, win_setheight_win,
-    win_setwidth_win, win_split, win_valid, window_layout_locked,
+    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, check_can_set_curbuf_forceit,
+    close_others, do_window, find_tabpage, goto_tabpage, only_one_window, tabpage_index,
+    tabpage_move, trigger_tabclosedpre, update_cwd, valid_tabpage, win_close, win_close_othertab,
+    win_enter, win_goto, win_new_tabpage, win_setheight_win, win_setwidth_win, win_split,
+    win_valid, window_layout_locked,
 };
 use crate::winfloat::{win_float_close, win_float_remove};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 #[cfg(windows)]
-use crate::lua::executor::nlua_exec;
+use crate::lua::executor::{kRetObject, nlua_exec};
 #[cfg(not(windows))]
 use crate::msgpack_rpc::server::server_stop;
 #[cfg(unix)]
@@ -257,7 +282,7 @@ use crate::os::fs::os_isdir;
 #[cfg(windows)]
 use crate::path::slash_adjust;
 
-pub use crate::cmdexpand::cmd_addr_T;
+pub use crate::cmdexpand::{LineGetter, cmd_addr_T};
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::eval::typval::BoolVarValue;
 pub use crate::extmark::TriState;
@@ -271,65 +296,11 @@ pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::FORWARD;
-use crate::api::command::{
-    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS,
-};
-use crate::api::command::{
-    CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
-    CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
-    CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGOPT, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL,
-    EX_EXTRA, EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_SBOXOK, EX_TRLBAR, EX_XFILE, EX_ZEROR,
-};
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::IOSIZE;
-use crate::api::options::{BF_DUMMY, SID_NONE, kOptFiletype};
-use crate::api::private::helpers::HLF_E;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{BACKWARD, kCdScopeGlobal, kFalse, kNone, kTrue};
-use crate::api::vim::{REMAP_NONE, REMAP_YES};
-use crate::arglist::ML_EMPTY;
-use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN};
-use crate::autocmd::{
-    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_CHANINFO, HLF_T, kOptEventignore,
+use crate::api::options::{BF_DUMMY, IOSIZE, SID_NONE, kOptFiletype};
+use crate::api::vim::{
+    BACKWARD, MAXPATHL, REMAP_NONE, REMAP_YES, kCdScopeGlobal, kFalse, kNone, kTrue,
 };
-use crate::autocmd::{
-    EVENT_CMDUNDEFINED, EVENT_EXITPRE, EVENT_QUITPRE, EVENT_TABNEWENTERED, PROF_YES,
-};
-use crate::buffer::{
-    DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
-};
-use crate::channel::kChannelStdinPipe;
-pub use crate::cmdexpand::LineGetter;
-use crate::cmdexpand::{EX_NOTRLCOM, WILD_ADD_SLASH, WILD_ICASE, WILD_LIST_NOTFOUND, WILD_NOERROR};
-use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, WILD_EXPAND_FREE};
-use crate::dialog::VIM_YES;
-use crate::drawscreen::{UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
-use crate::eval::fs::{VALID_HEAD, VALID_PATH};
-use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
-use crate::eval::funcs::{DOCMD_KEYTYPED, SEARCH_KEEP, kMTLineWise};
-use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
-use crate::eval::kMarkAll;
-use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::eval::vars::ENV_STARTREASON;
-use crate::eval::vars::VV_PROGPATH;
-use crate::eval::vars::{
-    BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_ARGV, VV_EXITREASON, VV_HLSEARCH, VV_OLDFILES,
-};
-use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, DIALOG_MSG_SIZE, ECMD_LAST, ECMD_ONE, RE_SUBST};
-use crate::ex_cmds::{
-    ECMD_ADDBUF, ECMD_ALTBUF, ECMD_FORCEIT, ECMD_HIDE, ECMD_OLDBUF, EXFLAG_LIST, EXFLAG_NR,
-    EXFLAG_PRINT, SEARCH_HIS, kWinPreview,
-};
-use crate::file_search::{FNAME_HYP, FNAME_MESS};
-use crate::log::LOGLVL_INF;
-#[cfg(windows)]
-use crate::lua::executor::kRetObject;
-use crate::ops::{OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK};
-use crate::regexp::kMarkBufLocal;
-use crate::regexp::{NUMBUFLEN, RE_MAGIC};
-use crate::register::{PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE};
-use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

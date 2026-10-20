@@ -5,17 +5,12 @@
 
 #[cfg(not(test))]
 use crate::api::private::converter::K_SPECIAL_VAR_NULL;
-use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::private::converter::partial_T;
+use crate::api::private::converter::{VAR_UNLOCKED, partial_T};
 use crate::buffer::NOTDONE;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
-#[cfg(not(test))]
-use crate::eval::decode::SURROGATE_FIRST_CHAR;
 use crate::eval::decode::dict_T;
 #[cfg(not(test))]
-use crate::eval::decode::dictitem_T;
-#[cfg(not(test))]
-use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP};
+use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR, dictitem_T};
 use crate::eval::executor::blob_T;
 use crate::eval::typval::tv_list_first;
 #[cfg(not(test))]
@@ -24,9 +19,7 @@ use crate::eval::typval::{
     tv_list_last, tv_list_len,
 };
 #[cfg(not(test))]
-use crate::eval::vars::NUM_MSGPACK_TYPES;
-#[cfg(not(test))]
-use crate::eval::vars::eval_msgpack_type_lists;
+use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
 #[cfg(not(test))]

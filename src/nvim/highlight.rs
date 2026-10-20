@@ -18,7 +18,7 @@ use crate::api::private::validate::{
     api_err_invalid,
 };
 use crate::api::tabpage::win_T;
-use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_hl_group_set};
+use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
 use crate::decoration_provider::get_decor_provider;
 use crate::drawscreen::screen_invalidate_highlights;
 use crate::globals::*;
@@ -27,7 +27,7 @@ use crate::highlight_group::{
     syn_check_group, syn_id2name, syn_ns_id2attr,
 };
 use crate::lua::converter::Boolean;
-use crate::lua::executor::nlua_call_ref;
+use crate::lua::executor::{kRetObject, nlua_call_ref};
 use crate::map::{
     ColorItem, ColorKey, HlAttrs, HlEntry, Map, Set, cstr_t, map_put_ref_ColorKey_ColorItem,
     map_put_ref_int_ptr_t, map_put_ref_uint64_t_int, map_ref_ColorKey_ColorItem, map_ref_int_ptr_t,
@@ -261,13 +261,11 @@ use crate::api::buffer::LUA_NOREF;
 use crate::api::private::dispatch::{
     KeyDict_highlight_cterm_get_field, KeyDict_highlight_get_field,
 };
-use crate::api::ui::HLATTRS_DICT_SIZE;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_NOCOMBINE, HL_STANDOUT,
     HL_UNDERCURL, HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
 };
-use crate::lua::executor::kRetObject;
 
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {

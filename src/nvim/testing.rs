@@ -10,9 +10,7 @@
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
-use crate::api::private::converter::K_BOOL_VAR_FALSE;
-#[cfg(not(test))]
-use crate::api::private::converter::VAR_UNLOCKED;
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, VAR_UNLOCKED};
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType};
@@ -30,10 +28,9 @@ use crate::eval::typval::{
     tv_list_len,
 };
 #[cfg(not(test))]
-use crate::eval::vars::{VV_ERRMSG, VV_EXCEPTION, VV_TESTING};
-#[cfg(not(test))]
 use crate::eval::vars::{
-    assert_error, get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim_var_string,
+    VV_ERRMSG, VV_EXCEPTION, VV_TESTING, assert_error, get_vim_var_nr, get_vim_var_str,
+    get_vim_var_tv, set_vim_var_string,
 };
 #[cfg(not(test))]
 use crate::eval::{garbage_collect, pattern_match};
@@ -61,9 +58,7 @@ use crate::os::fs::os_fopen;
 #[cfg(not(test))]
 use crate::regexp::NUMBUFLEN;
 #[cfg(not(test))]
-use crate::runtime::ESTACK_NONE;
-#[cfg(not(test))]
-use crate::runtime::{estack_sfile, sourcing_lnum};
+use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 #[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 #[cfg(not(test))]

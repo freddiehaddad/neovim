@@ -9,11 +9,11 @@
 )]
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{cmdidx_T, exarg_T};
+use crate::api::command::{ADDR_LINES, CMOD_LOCKMARKS, cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::api::tabpage::{tabpage_T, win_T};
-use crate::autocmd::apply_autocmds;
+use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
     bt_prompt, buf_get_changedtick, buf_is_empty, buf_valid, buflist_findnr, buflist_findpat,
     bufref_valid, modifiable, set_bufref,
@@ -25,7 +25,7 @@ use crate::clipboard::typval_T;
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::decoration::decor_conceal_line;
-use crate::drawscreen::redraw_later;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
@@ -35,9 +35,8 @@ use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
 use crate::ex_docmd::{do_cmdline_cmd, do_exedit, get_address};
 pub use crate::ex_getln::hlf_T;
-pub use crate::extmark::ExtmarkOp;
-pub use crate::extmark::TriState;
 use crate::extmark::extmark_adjust;
+pub use crate::extmark::{ExtmarkOp, TriState};
 pub use crate::fileio::FILE;
 use crate::fileio::{buf_check_timestamp, fclose, fwrite, vim_fgets, vim_tempname};
 #[cfg(unix)]
@@ -64,7 +63,7 @@ use crate::normal::check_scrollbind;
 pub use crate::option::OptScope;
 use crate::option::{set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
-pub use crate::optionstr::OptIndex;
+pub use crate::optionstr::{OptIndex, OptKeyDict_dip};
 use crate::optionstr::{free_string_option, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
@@ -76,8 +75,8 @@ use crate::strings::{
 use crate::ui::vim_beep;
 use crate::undo::{u_save, u_sync};
 use crate::window::{
-    frames_locked, scroll_to_fraction, set_fraction, win_split, win_valid, window_layout_lock,
-    window_layout_unlock,
+    WSP_VERT, frames_locked, scroll_to_fraction, set_fraction, win_split, win_valid,
+    window_layout_lock, window_layout_unlock,
 };
 use crate::xdiff::xdiffi::xdl_diff;
 use crate::xdiff::{xdemitcb_t, xdemitconf_t, xpparam_t};
@@ -208,21 +207,13 @@ struct linemap_entry_T {
     num_bytes: colnr_T,
     lineoff: c_int,
 }
-use crate::api::buffer::kExtmarkNOOP;
-use crate::api::buffer::{FORWARD, kExtmarkUndo};
-use crate::api::command::ADDR_LINES;
-use crate::api::command::CMOD_LOCKMARKS;
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::deprecated::kOptScopeWin;
+use crate::api::buffer::{FORWARD, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::deprecated::{OPT_LOCAL, kOptScopeWin};
 #[cfg(unix)]
 use crate::api::vim::MAXPATHL;
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
-use crate::autocmd::EVENT_DIFFUPDATED;
-use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
 use crate::math::{FAIL, OK};
-pub use crate::optionstr::OptKeyDict_dip;
-use crate::window::WSP_VERT;
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;
 static mut diff_flags: c_int =

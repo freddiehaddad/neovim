@@ -9,18 +9,19 @@
 )]
 
 use crate::api::tabpage::{pos_T, win_T};
-use crate::buffer::{bt_prompt, bt_quickfix};
+use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
 use crate::charset::{ascii_iswhite, vim_iswordc};
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cursor::{coladvance, equalpos, get_cursor_pos_ptr, lt, ltoreq, set_leftcol};
 use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
 use crate::drawscreen::{
-    redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
+    FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID, VALID_BOTLINE, redraw_curbuf_later, redraw_later,
+    redraw_statuslines, setcursor, update_screen,
 };
 use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
-use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
+use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
 use crate::fold::{closeFold, hasFolding, openFold};
@@ -49,7 +50,7 @@ use crate::r#move::{check_topfill, pagescroll, scroll_redraw, win_col_off, win_c
 use crate::normal::{
     clearop, clearopbeep, end_visual_mode, exec_stuffed, may_start_select, nv_scroll_line,
 };
-use crate::ops::clear_oparg;
+use crate::ops::{OP_NOP, clear_oparg};
 use crate::option::get_scrolloff_value;
 use crate::option_vars::*;
 use crate::plines::{
@@ -58,9 +59,9 @@ use crate::plines::{
     win_get_fill,
 };
 use crate::popupmenu::pum_visible;
-use crate::register::{do_put, insert_reg, yank_register_mline};
+use crate::register::{PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline};
 use crate::search::findmatch;
-use crate::state::virtual_active;
+use crate::state::{MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
 use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
@@ -75,20 +76,12 @@ use std::ptr;
 
 use crate::api::buffer::{FORWARD, VALID_BOTLINE_AP};
 use crate::api::vim::{BACKWARD, kNone};
-use crate::buffer::{VALID_TOPLINE, VAR_FIXED};
 use crate::drawline::{VALID_CROW, VALID_WROW};
-use crate::drawscreen::VALID_BOTLINE;
-use crate::drawscreen::{FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID};
 pub use crate::eval::deprecated::EvalFuncData;
-use crate::eval::funcs::kMTCharWise;
-use crate::eval::funcs::kMTLineWise;
-use crate::eval::vars::{VV_LNUM, VV_VIRTNUM};
+use crate::eval::funcs::{kMTCharWise, kMTLineWise};
 use crate::insexpand::kWinInfo;
 use crate::math::FAIL;
-use crate::ops::OP_NOP;
-use crate::register::{PUT_CURSEND, PUT_FIXINDENT};
 pub use crate::search::Direction;
-use crate::state::{MODE_NORMAL, REPLACE_FLAG};
 
 pub const IN_UNKNOWN: c_int = 0;
 pub const IN_BUFFER: c_int = 1;

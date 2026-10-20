@@ -8,13 +8,15 @@
 )]
 
 use crate::channel::channel_from_connection;
-use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str, set_vim_var_string};
 use crate::event::r#loop::{uv_freeaddrinfo, uv_handle_get_type, uv_handle_size, uv_strerror};
-use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
+use crate::event::socket::{
+    ADDRESS_MAX_SIZE, socket_watcher_close, socket_watcher_init, socket_watcher_start,
+};
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::log::logmsg;
+use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{strequal, xcalloc, xfree, xmalloc, xstrdup, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_noalloc, os_unsetenv};
 use crate::os::stdpaths::get_appname;
@@ -33,14 +35,9 @@ const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
 use crate::api::options::IOSIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
-use crate::eval::vars::VV_SEND_SERVER;
-pub use crate::event::r#loop::Loop;
-pub use crate::event::r#loop::uv_handle_t;
-use crate::event::socket::ADDRESS_MAX_SIZE;
-pub use crate::event::socket::SocketWatcher;
-pub use crate::event::socket::{socket_cb, socket_close_cb};
+pub use crate::event::r#loop::{Loop, uv_handle_t};
+pub use crate::event::socket::{SocketWatcher, socket_cb, socket_close_cb};
 use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
-use crate::log::{LOGLVL_ERR, LOGLVL_WRN};
 
 static mut watchers: garray_T = garray_T {
     ga_len: 0,

@@ -16,7 +16,9 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, xfmark_T};
 use crate::arglist::alist_T;
-use crate::buffer::{bt_quickfix, bt_terminal, buflist_findnr, buflist_new, buflist_setfpos};
+use crate::buffer::{
+    BLN_LISTED, NMARKS, bt_quickfix, bt_terminal, buflist_findnr, buflist_new, buflist_setfpos,
+};
 use crate::clipboard::{MotionType, TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, clr_history,
@@ -31,12 +33,15 @@ use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc, tv_list_append_allocated_string, tv_list_len,
 };
 use crate::eval::vars::{VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list};
-use crate::eval::{get_copyID, set_ref_in_ht, set_ref_in_list_items, var_flavour, var_set_global};
+use crate::eval::{
+    VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, kListLenUnknown,
+    set_ref_in_ht, set_ref_in_list_items, var_flavour, var_set_global,
+};
 use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
 use crate::ex_docmd::set_no_hlsearch;
+use crate::fileio::{S_IFDIR, S_IFMT, modname, vim_rename};
 #[cfg(unix)]
 use crate::fileio::{getgid, getuid};
-use crate::fileio::{modname, vim_rename};
 use crate::globals::*;
 use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::lua::converter::Boolean;
@@ -47,8 +52,9 @@ use crate::map::{
 };
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::mark::{
-    cleanup_jumplist, free_fmark, free_xfmark, mark_buffer_iter, mark_get, mark_global_iter,
-    mark_jumplist_iter, mark_set_global, mark_set_local, set_last_cursor, setpcmark,
+    EXTRA_MARKS, cleanup_jumplist, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
+    mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local, set_last_cursor,
+    setpcmark,
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
@@ -77,7 +83,7 @@ use crate::os::time::{Timestamp, os_time};
 use crate::path::{
     concat_fnames_realloc, kPathCmpLiteral, path_equal, path_tail_with_sep, path_try_shorten_fname,
 };
-use crate::regexp::regtilde;
+use crate::regexp::{kMarkBufLocal, regtilde};
 use crate::register::{
     NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set, reg_empty,
 };
@@ -622,14 +628,8 @@ use crate::api::private::dispatch::{
 };
 
 use crate::api::vim::MAXPATHL;
-use crate::buffer::{BLN_LISTED, NMARKS};
-use crate::eval::VAR_FLAVOUR_SESSION;
 use crate::eval::funcs::MPACK_EOF;
-use crate::eval::{VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SHADA, kListLenUnknown};
 use crate::event::r#loop::uv_strerror as os_strerror;
-use crate::fileio::{S_IFDIR, S_IFMT};
-use crate::mark::EXTRA_MARKS;
-use crate::regexp::kMarkBufLocal;
 use crate::version::longVersion;
 
 #[inline]

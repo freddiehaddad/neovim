@@ -8,9 +8,12 @@
     clippy::too_many_arguments
 )]
 
-use crate::charset::{ascii_isdigit, ascii_iswhite, rem_backslash};
 #[cfg(not(test))]
-use crate::charset::{skipwhite, transstr, vim_str2nr};
+use crate::charset::{
+    STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE, skipwhite,
+    transstr, vim_str2nr,
+};
+use crate::charset::{ascii_isdigit, ascii_iswhite, rem_backslash};
 use crate::clipboard::{VarType, typval_T};
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
@@ -2887,8 +2890,6 @@ macro_rules! vim_snprintf_safelen {
         )
     };
 }
-#[cfg(not(test))]
-use crate::charset::{STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE};
 #[cfg(not(test))]
 use crate::eval::kListLenUnknown;
 #[cfg(not(test))]

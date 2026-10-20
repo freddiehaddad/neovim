@@ -9,8 +9,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::event_T;
-use crate::api::autocmd::kCallbackNone;
+use crate::api::autocmd::{event_T, kCallbackNone};
 use crate::api::buffer::{FORWARD, ML_LINE_DIRTY};
 use crate::api::command::CMOD_KEEPJUMPS;
 use crate::api::options::CtxSwitch;
@@ -26,12 +25,10 @@ use crate::buffer::{
     bt_cmdwin, bt_prompt, bt_quickfix, buf_get_changedtick, buf_is_empty, buf_meta_total,
     bufref_valid, set_bufref,
 };
-use crate::change::COM_MAX_LEN;
-use crate::change::kCpoListwm;
-use crate::change::kOptVeFlagOnemore;
 use crate::change::{
-    OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes, del_char,
-    get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes, open_line,
+    COM_MAX_LEN, OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes,
+    del_char, get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes,
+    kCpoListwm, kOptVeFlagOnemore, open_line,
 };
 use crate::charset::{
     ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells, hex2nr,
@@ -39,30 +36,27 @@ use crate::charset::{
 };
 use crate::clipboard::yankreg_T;
 use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::{VALID_VIRTCOL, kOptVeFlagAll};
 use crate::cursor::{
-    char_before_cursor, check_cursor, check_cursor_col, check_visual_pos, coladvance, colnr_T,
-    dec_cursor, equalpos, gchar_cursor, get_cursor_line_len, get_cursor_line_ptr,
-    get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor, linenr_T, lt,
+    VALID_VIRTCOL, char_before_cursor, check_cursor, check_cursor_col, check_visual_pos,
+    coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
+    get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor,
+    kOptVeFlagAll, linenr_T, lt,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
 use crate::drawline::{VALID_WCOL, VALID_WROW};
-use crate::drawscreen::UPD_VALID;
 use crate::drawscreen::{
-    redraw_later, redraw_statuslines, redrawWinline, redrawing, setcursor, show_cursor_info_later,
-    showmode, skip_showmode, status_redraw_curbuf, unshowmode, update_screen,
+    UPD_VALID, redraw_later, redraw_statuslines, redrawWinline, redrawing, setcursor,
+    show_cursor_info_later, showmode, skip_showmode, status_redraw_curbuf, unshowmode,
+    update_screen,
 };
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
-use crate::eval::vars::{VV_CHAR, VV_INSERTMODE};
-use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
-use crate::ex_getln::cmdwin_do_action;
-use crate::ex_getln::{ABBR_OFF, B_IMODE_NONE};
-use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
+use crate::ex_getln::{ABBR_OFF, B_IMODE_NONE, K_EVENT, K_LUA, K_SELECT, cmdwin_do_action};
 use crate::fileio::check_timestamps;
 use crate::fold::{
     foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
@@ -73,19 +67,17 @@ use crate::grid::{
     schar_T, schar_from_ascii,
 };
 use crate::highlight_group::highlight_changed;
-use crate::indent::{INDENT_DEC, INDENT_SET};
 use crate::indent::{
-    change_indent, fix_indent, get_indent, get_sts_value, get_sw_value, inindent, ins_try_si,
-    may_do_si, tabstop_at, tabstop_count, tabstop_first, tabstop_padding, tabstop_start,
+    INDENT_DEC, INDENT_SET, change_indent, fix_indent, get_indent, get_sts_value, get_sw_value,
+    inindent, ins_try_si, may_do_si, tabstop_at, tabstop_count, tabstop_first, tabstop_padding,
+    tabstop_start,
 };
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
-use crate::input::kInsNone;
-use crate::input::{K_COMPLETE_DELAY, K_PASTE_START};
 use crate::input::{
-    char_avail, getcmdkeycmd, langmap_adjust, map_execute_lua, merge_modifiers, paste_repeat,
-    plain_vgetc, prep_redo, redo_append_char, redo_append_lit, redo_append_str, redo_keys,
-    start_redo_ins, stop_redo_ins, stuff_empty, stuffReadbuffLen, stuffRedoReadbuff,
-    stuffcharReadbuff, vgetc, vpeekc, vungetc,
+    K_COMPLETE_DELAY, K_PASTE_START, char_avail, getcmdkeycmd, kInsNone, langmap_adjust,
+    map_execute_lua, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
+    redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins, stuff_empty,
+    stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
 };
 use crate::input_cmdatom::{CmdSpec, bufref_T};
 use crate::insexpand::{

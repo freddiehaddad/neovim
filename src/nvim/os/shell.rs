@@ -11,7 +11,7 @@
 use crate::buffer::read_buffer_into;
 use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
-use crate::eval::vars::set_vim_var_nr;
+use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
 use crate::event::r#loop::{
     loop_poll_events, loop_queues, main_loop_ptr, uv_err_name, uv_strerror,
 };
@@ -27,7 +27,7 @@ use crate::event::stream::{Stream, stream_fields, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
-use crate::ex_cmds::{check_secure, make_filter_cmd};
+use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
 use crate::fileio::{fclose, fopen, fread, fseek, ftell, vim_tempname};
 use crate::globals::*;
 use crate::map_glyph_cache::NvimString;
@@ -48,7 +48,10 @@ use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
 use crate::os::time::{os_delay, os_hrtime};
 #[cfg(unix)]
 use crate::path::invocation_path_tail;
-use crate::path::{add_pathsep, path_has_wildcard, path_tail};
+use crate::path::{
+    EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT, add_pathsep,
+    path_has_wildcard, path_tail,
+};
 use crate::profile::{prof_child_enter, prof_child_exit};
 use crate::strings::{
     gettext, strcat, strcpy, strlen as c_strlen, strstr, vim_snprintf, vim_strchr,
@@ -62,18 +65,13 @@ use std::ptr;
 pub use crate::api::deprecated::StringBuilder;
 use crate::api::vim::MAXPATHL;
 use crate::autocmd::PROF_YES;
-use crate::channel::kProcTypeUv;
-use crate::channel::{STDERR_FILENO, STDOUT_FILENO};
+use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
 pub use crate::cursor::linenr_T;
-use crate::diff::kShellOptDoOut;
-use crate::diff::kShellOptSilent;
+use crate::diff::{kShellOptDoOut, kShellOptSilent};
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::fs::{SEEK_END, SEEK_SET};
-use crate::eval::vars::VV_SHELL_ERROR;
-use crate::ex_cmds::{kShellOptRead, kShellOptWrite};
 pub use crate::fileio::FILE;
 pub use crate::option::OptInt;
-use crate::path::{EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT};
 pub use crate::profile::proftime_T;
 use crate::state::MODE_EXTERNCMD;
 

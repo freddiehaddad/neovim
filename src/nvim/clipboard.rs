@@ -18,9 +18,10 @@ use crate::message::{emsg, msg, redirecting};
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
-use crate::register::{PLUS_REGISTER, STAR_REGISTER};
-#[cfg(not(test))]
-use crate::register::{free_register, get_y_previous, get_y_register, update_yankreg_width};
+use crate::register::{
+    PLUS_REGISTER, STAR_REGISTER, free_register, get_y_previous, get_y_register,
+    update_yankreg_width,
+};
 #[cfg(not(test))]
 use std::ffi::c_uint;
 use std::ffi::{CStr, c_char, c_int, c_void};

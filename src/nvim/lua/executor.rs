@@ -9,7 +9,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{cmdmod_T, exarg_T, ucmd_T};
+use crate::api::command::{CMD_USER, CMD_USER_BUF, cmdmod_T, exarg_T, ucmd_T};
 #[cfg(not(test))]
 use crate::api::extmark::ns_initialized;
 use crate::api::private::converter::sctx_T;
@@ -40,15 +40,14 @@ use crate::eval::userfunc::FCERR_NONE;
 #[cfg(not(test))]
 use crate::eval::userfunc::{EvalFuncDef, FCERR_OTHER, call_func, funcexe_T, register_luafunc};
 #[cfg(not(test))]
-use crate::event::r#loop::uv_thread_t;
-#[cfg(not(test))]
 use crate::event::r#loop::{
-    loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred,
+    loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t,
 };
 #[cfg(not(test))]
-use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
-#[cfg(not(test))]
-use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
+use crate::event::multiqueue::{
+    EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
+    multiqueue_put_event,
+};
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
 #[cfg(not(test))]
@@ -71,21 +70,22 @@ use crate::input::vgetc;
 use crate::keycodes::{special_to_buf, vim_unescape_ks};
 #[cfg(not(test))]
 use crate::log::log_get_stderr;
-#[cfg(not(test))]
-use crate::lua::base64::lua_CFunction;
 use crate::lua::base64::lua_State;
-use crate::lua::converter::{LuaRef, nlua_ref_state_t};
+#[cfg(not(test))]
+use crate::lua::base64::{LUA_TSTRING, lua_CFunction};
 #[cfg(not(test))]
 use crate::lua::converter::{
-    lua_Integer, lua_checkstack, lua_concat, lua_createtable, lua_error, lua_getfield,
-    lua_getmetatable, lua_gettop, lua_isnumber, lua_isstring, lua_newuserdata, lua_next, lua_pcall,
-    lua_pushboolean, lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil,
-    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield,
-    lua_setmetatable, lua_settop, lua_toboolean, lua_tointeger, lua_tolstring, lua_touserdata,
-    lua_type, luaL_checkinteger, luaL_checklstring, luaL_error, luaL_ref, luaL_unref, luaL_where,
+    K_NLUA_PUSH_SPECIAL, LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TTABLE, lua_Integer,
+    lua_checkstack, lua_concat, lua_createtable, lua_error, lua_getfield, lua_getmetatable,
+    lua_gettop, lua_isnumber, lua_isstring, lua_newuserdata, lua_next, lua_pcall, lua_pushboolean,
+    lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
+    lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable,
+    lua_settop, lua_toboolean, lua_tointeger, lua_tolstring, lua_touserdata, lua_type,
+    luaL_checkinteger, luaL_checklstring, luaL_error, luaL_ref, luaL_unref, luaL_where,
     nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object, nlua_pop_typval,
     nlua_push_Array, nlua_push_Object, nlua_push_typval,
 };
+use crate::lua::converter::{LuaRef, nlua_ref_state_t};
 #[cfg(not(test))]
 use crate::lua::stdlib::nlua_state_add_stdlib;
 #[cfg(not(test))]
@@ -490,17 +490,10 @@ use crate::api::command::{
     CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
     CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE, EX_EXTRA, EX_NEEDARG, EX_NOSPC,
 };
-use crate::api::command::{CMD_USER, CMD_USER_BUF};
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::buffer::VAR_FIXED;
-#[cfg(not(test))]
-use crate::lua::base64::LUA_TSTRING;
-#[cfg(not(test))]
-use crate::lua::converter::K_NLUA_PUSH_SPECIAL;
-#[cfg(not(test))]
-use crate::lua::converter::{LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TTABLE};
 #[cfg(not(test))]
 use crate::version::main_exitfree;
 #[cfg(not(test))]

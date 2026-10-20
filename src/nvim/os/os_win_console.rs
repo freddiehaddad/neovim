@@ -11,7 +11,7 @@
 #[cfg(all(not(test), windows))]
 use crate::globals::*;
 #[cfg(all(not(test), windows))]
-use crate::log::logmsg;
+use crate::log::{LOGLVL_INF, LOGLVL_WRN, logmsg};
 #[cfg(all(not(test), windows))]
 use crate::os::env::{os_getenv, os_getenv_noalloc};
 #[cfg(all(not(test), windows))]
@@ -139,14 +139,10 @@ unsafe extern "system" {
 use crate::api::vim::MAXPATHL;
 #[cfg(windows)]
 use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
-#[cfg(windows)]
-use crate::fileio::_close;
 #[cfg(all(not(test), windows))]
 use crate::fileio::_get_osfhandle;
 #[cfg(windows)]
-use crate::fileio::O_RDONLY;
-#[cfg(all(not(test), windows))]
-use crate::log::{LOGLVL_INF, LOGLVL_WRN};
+use crate::fileio::{_close, O_RDONLY};
 
 #[cfg(windows)]
 unsafe extern "C" {

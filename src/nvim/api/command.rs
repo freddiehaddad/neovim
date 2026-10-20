@@ -28,7 +28,7 @@ use crate::api::private::validate::{
     api_err_required,
 };
 use crate::api::tabpage::Buffer;
-use crate::autocmd::{apply_autocmds, has_event};
+use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
 use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_long};
 use crate::ex_docmd::{
     excmd_get_argt, execute_cmd, find_ex_command, get_command_name, getargcmd, getargopt,
@@ -44,7 +44,7 @@ use crate::map_glyph_cache::NvimString;
 use crate::mbyte::mb_islower;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
-use crate::regexp::vim_regcomp;
+use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
 use crate::usercmd::{
     commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
@@ -53,8 +53,7 @@ use crate::usercmd::{
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub type cmdidx_T = c_int;
 pub use crate::api::autocmd::event_T;
 pub use crate::cmdexpand::cmd_addr_T;
@@ -190,10 +189,8 @@ pub struct exarg_T {
 }
 
 use crate::api::buffer::LUA_NOREF;
-use crate::autocmd::EVENT_CMDUNDEFINED;
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::math::{FAIL, OK};
-use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regmatch_T;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 

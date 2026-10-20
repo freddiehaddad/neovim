@@ -23,16 +23,16 @@ use crate::vterm::pen::{
     VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
     VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
     VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTERM_VALUETYPE_BOOL, VTERM_VALUETYPE_COLOR,
-    VTERM_VALUETYPE_INT,
+    VTERM_VALUETYPE_INT, VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType,
 };
-use crate::vterm::pen::{VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType};
-use crate::vterm::screen::{ScreenCell, VTermGlyphInfo, VTermScreen, VTermScreenCell, getcell};
-use crate::vterm::screen::{VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE};
-use crate::vterm::state::VTermSelectionMask;
+use crate::vterm::screen::{
+    ScreenCell, VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermScreen,
+    VTermScreenCell, getcell,
+};
 use crate::vterm::state::{
     VTERM_PROP_CURSORBLINK, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORVISIBLE,
     VTERM_PROP_FOCUSREPORT, VTERM_PROP_ICONNAME, VTERM_PROP_MOUSE, VTERM_PROP_SYNCOUTPUT,
-    VTERM_PROP_THEMEUPDATES, VTERM_PROP_TITLE,
+    VTERM_PROP_THEMEUPDATES, VTERM_PROP_TITLE, VTermSelectionMask,
 };
 
 pub type VTermAttrMask = c_int;

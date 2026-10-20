@@ -19,15 +19,15 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::ScreenGrid;
 use crate::api::ui::{
-    remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
-    remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
-    remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
-    remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
-    remote_ui_mode_change, remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on,
-    remote_ui_msg_set_pos, remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot,
-    remote_ui_set_icon, remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send,
-    remote_ui_update_menu, remote_ui_visual_bell, remote_ui_win_viewport,
-    remote_ui_win_viewport_margins,
+    kLineFlagWrap, kUIExtCount, kUIHlState, kUITermColors, remote_ui__set_restart_on_crash_exit,
+    remote_ui_bell, remote_ui_busy_start, remote_ui_busy_stop, remote_ui_chdir,
+    remote_ui_default_colors_set, remote_ui_error_exit, remote_ui_event, remote_ui_flush,
+    remote_ui_grid_clear, remote_ui_grid_cursor_goto, remote_ui_grid_resize, remote_ui_grid_scroll,
+    remote_ui_hl_attr_define, remote_ui_hl_group_set, remote_ui_mode_change,
+    remote_ui_mode_info_set, remote_ui_mouse_off, remote_ui_mouse_on, remote_ui_msg_set_pos,
+    remote_ui_option_set, remote_ui_raw_line, remote_ui_screenshot, remote_ui_set_icon,
+    remote_ui_set_title, remote_ui_suspend, remote_ui_ui_send, remote_ui_update_menu,
+    remote_ui_visual_bell, remote_ui_win_viewport, remote_ui_win_viewport_margins,
 };
 use crate::api::win_config::UIExtension;
 use crate::autocmd::do_autocmd_uienter;
@@ -43,8 +43,8 @@ use crate::ex_getln::cmdline_ui_flush;
 use crate::globals::*;
 use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
-use crate::log::logmsg;
-use crate::lua::executor::{api_free_luaref, nlua_call_ref_ctx};
+use crate::log::{LOGLVL_ERR, logmsg};
+use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
 use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
@@ -53,7 +53,7 @@ use crate::message::{
     msg_source, msg_ui_refresh,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::option::{set_option_value, ui_refresh_options};
+use crate::option::{kOptCmdheight, set_option_value, ui_refresh_options};
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_sleep};
 use crate::strings::{gettext, strcmp, vim_strchr};
@@ -98,17 +98,12 @@ const kMouseCommand: c_int = b'c' as c_int;
 const kMouseHelp: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
-use crate::api::ui::kLineFlagWrap;
-use crate::api::ui::{kUIExtCount, kUIHlState, kUITermColors};
 use crate::api::vim::MAXPATHL;
 use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
-use crate::log::LOGLVL_ERR;
-use crate::lua::executor::kRetNilBool;
 use crate::mouse::kMouseVisual;
 pub use crate::msgpack_rpc::channel::RemoteUI;
-use crate::option::kOptCmdheight;
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
 
 #[repr(C)]

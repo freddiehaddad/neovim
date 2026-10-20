@@ -16,7 +16,7 @@ use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiq
 use crate::event::stream::{
     Stream, UV_NAMED_PIPE, UV_TCP, stream_fields, stream_init, stream_may_close, stream_uv_ptr,
 };
-use crate::log::logmsg;
+use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::os::fs::{os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
@@ -65,14 +65,12 @@ const UV_ENOENT: c_int = -4058;
 #[cfg(not(windows))]
 const UV_ENOENT: c_int = -2;
 
-pub use crate::event::r#loop::Loop;
+pub use crate::event::r#loop::{
+    Loop, uv_close_cb, uv_connect_cb, uv_connect_t, uv_handle_t, uv_loop_t,
+};
 pub type SocketWatcher = c_void;
-pub use crate::event::r#loop::uv_loop_t;
-pub use crate::event::r#loop::{uv_close_cb, uv_connect_cb, uv_connect_t, uv_handle_t};
 pub use crate::event::rstream::RStream;
-pub use crate::event::stream::uv_pipe_t;
-pub use crate::event::stream::uv_stream_t;
-use crate::log::{LOGLVL_ERR, LOGLVL_WRN};
+pub use crate::event::stream::{uv_pipe_t, uv_stream_t};
 pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 

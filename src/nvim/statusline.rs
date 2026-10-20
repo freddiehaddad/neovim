@@ -16,19 +16,20 @@ use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{ScreenGrid, win_T};
 use crate::buffer::{append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos};
 use crate::charset::{
-    ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf, vim_strnsize,
-    vim_strsize,
+    EOL_MAC, ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf,
+    vim_strnsize, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
 use crate::digraph::get_keymap_str;
-use crate::drawline::{fill_foldcolumn, use_cursor_line_highlight};
-use crate::drawscreen::{compute_foldcolumn, redrawing};
+use crate::drawline::{HLF_CLF, HLF_FC, fill_foldcolumn, use_cursor_line_highlight};
+use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::buf_T;
 use crate::eval::eval_to_string_safe;
 use crate::eval::vars::{
-    do_unlet, get_vim_var_nr, set_internal_string_var, set_var, set_vim_var_nr,
+    VV_LNUM, VV_RELNUM, VV_VIRTNUM, do_unlet, get_vim_var_nr, set_internal_string_var, set_var,
+    set_vim_var_nr,
 };
 use crate::globals::*;
 use crate::grid::{
@@ -47,11 +48,13 @@ use crate::memory::{
     xstrlcpy,
 };
 use crate::message::msg_clr_eos;
-use crate::mouse::StlClickDefinition;
+use crate::mouse::{
+    StlClickDefinition, kStlClickDisabled, kStlClickFuncRun, kStlClickTabClose, kStlClickTabSwitch,
+};
 use crate::normal::showcmd_update_clear_state;
 use crate::option::{
-    find_option, get_fileformat, get_option_default, optval_free_read, set_option_direct,
-    was_set_insecurely,
+    find_option, get_fileformat, get_option_default, kOptStatuscolumn, kOptStatusline, kOptWinbar,
+    optval_free_read, set_option_direct, was_set_insecurely,
 };
 use crate::option_vars::*;
 use crate::os::env::home_replace;
@@ -202,20 +205,13 @@ pub struct foldinfo_T {
     pub fi_lines: linenr_T,
 }
 
-use crate::api::deprecated::OPT_LOCAL;
-use crate::api::deprecated::kOptInvalid;
+use crate::api::deprecated::{OPT_LOCAL, kOptInvalid};
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
-use crate::charset::EOL_MAC;
 use crate::decoration::SCL_NUM;
 pub use crate::decoration::SignTextAttrs;
-use crate::drawline::{HLF_CLF, HLF_FC};
-use crate::drawscreen::HLF_C;
-use crate::eval::vars::{VV_LNUM, VV_RELNUM, VV_VIRTNUM};
-use crate::mouse::{kStlClickDisabled, kStlClickFuncRun, kStlClickTabClose, kStlClickTabSwitch};
-use crate::option::{kOptStatuscolumn, kOptStatusline, kOptWinbar};
 use crate::optionstr::{STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL};
 use crate::runtime::SID_ERROR;
 

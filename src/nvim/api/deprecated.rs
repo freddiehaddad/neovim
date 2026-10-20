@@ -34,7 +34,7 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
-use crate::lua::executor::nlua_exec;
+use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::map_glyph_cache::NvimString;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
@@ -126,7 +126,6 @@ pub struct KeyDict_empty {
 }
 
 pub use crate::api::private::dispatch::ApiDispatchWrapper;
-use crate::lua::executor::kRetObject;
 
 static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
 static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();

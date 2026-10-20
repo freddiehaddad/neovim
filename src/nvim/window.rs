@@ -20,7 +20,11 @@ use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
 use crate::api::tabpage::{
     GridView, ScreenGrid, WinConfig, frame_T, lpos_T, pos_T, tabpage_T, win_T,
 };
-use crate::api::win_config::UIExtension;
+use crate::api::win_config::{
+    FR_COL, UIExtension, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
+    kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kWinStyleMinimal,
+    kWinStyleUnused, kZIndexFloatDefault,
+};
 use crate::arglist::{alist_T, alist_unlink};
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
@@ -30,20 +34,21 @@ use crate::autocmd::{
     block_autocmds, event_ignored, has_event, unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, bt_help, bt_prompt, bt_quickfix,
-    buf_hide, buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new,
-    bufref_T, bufref_valid, close_buffer, do_autochdir, do_buffer, maketitle, set_bufref,
+    BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, NOTDONE, VALID_TOPLINE, VAR_SCOPE,
+    bt_help, bt_prompt, bt_quickfix, buf_hide, buf_valid, buflist_findname_exp, buflist_findnr,
+    buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer, do_autochdir, do_buffer,
+    maketitle, set_bufref,
 };
 use crate::charset::{ascii_isdigit, getdigits_int};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::cmdidx_T;
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
+use crate::context::{ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T};
 use crate::decoration::{clear_virttext, decor_conceal_line};
 use crate::diff::{diff_clear, diffopt_closeoff};
 use crate::drawscreen::{
-    UPD_SOME_VALID, comp_col, redraw_all_later, redraw_later, redrawWinline, showmode,
-    status_redraw_all,
+    FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, comp_col, redraw_all_later,
+    redraw_later, redrawWinline, showmode, status_redraw_all,
 };
 use crate::errors::*;
 use crate::eval::decode::dict_T;
@@ -55,9 +60,9 @@ use crate::eval::typval::{
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::eval::window::win_has_winnr;
 use crate::eval::{get_v_event, restore_v_event};
-use crate::ex_cmds::{ECMD_LASTL, do_ecmd};
+use crate::ex_cmds::{BL_FIX, BL_SOL, ECMD_HIDE, ECMD_LASTL, do_ecmd};
 use crate::ex_cmds2::{can_abandon, dialog_changed};
-use crate::ex_docmd::{do_cmdline_cmd, tabpage_close};
+use crate::ex_docmd::{ACTION_SPLIT, FIND_ANY, FIND_DEFINE, do_cmdline_cmd, tabpage_close};
 use crate::ex_eval::aborting;
 use crate::ex_getln::{
     compute_cmdrow, curbuf_locked, is_in_cmdwin, text_locked, text_locked_msg, text_or_buf_locked,
@@ -83,8 +88,8 @@ use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
-    emsg, iemsg, internal_error, msg, msg_clr_eos_force, msg_grid_validate, msg_ui_flush, semsg,
-    set_keep_msg,
+    emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
+    msg_ui_flush, semsg, set_keep_msg,
 };
 use crate::mouse::{StlClickDefinition, reset_dragwin, setmouse};
 use crate::r#move::{
@@ -98,24 +103,24 @@ use crate::normal::{
     reset_VIsual_and_resel,
 };
 use crate::option::{
-    buf_copy_options, clear_winopt, get_scrolloff_value, option_was_set, set_option_value,
-    win_copy_options,
+    buf_copy_options, clear_winopt, get_scrolloff_value, kOptCmdheight, kOptWindow, option_was_set,
+    set_option_value, win_copy_options,
 };
 use crate::option_vars::*;
 use crate::os::fs::{os_chdir, os_dirname};
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::plines::{plines_win, plines_win_col, plines_win_nofill, win_text_height};
 use crate::popupmenu::pum_pos_ui_flush;
-use crate::quickfix::{copy_loclist_stack, qf_free_all, qf_view_result};
+use crate::quickfix::{copy_loclist_stack, kOptSwbFlagUsetab, qf_free_all, qf_view_result};
 use crate::search::find_pattern_in_path;
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_NORMAL, MODE_TERMINAL, get_real_state, save_v_event_T,
     virtual_active,
 };
-use crate::statusline::stl_clear_click_defs;
+use crate::statusline::{kUITabline, stl_clear_click_defs};
 use crate::strings::{gettext, vim_snprintf};
 use crate::syntax::reset_synblock;
-use crate::tag::tagstack_clear_entry;
+use crate::tag::{kOptSwbFlagUseopen, tagstack_clear_entry};
 use crate::terminal::{Terminal, terminal_check_size};
 use crate::ui::{
     ui_call_grid_destroy, ui_call_win_close, ui_call_win_external_pos, ui_call_win_float_pos,
@@ -139,35 +144,15 @@ use crate::api::buffer::FORWARD;
 use crate::api::command::CMOD_CONFIRM;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::kCdScopeGlobal;
-use crate::api::vim::{BCO_ENTER, BCO_NOHELP};
-use crate::api::win_config::{
-    FR_COL, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeLaststatus, kFloatRelativeTabline,
-    kFloatRelativeWindow, kWinStyleUnused, kZIndexFloatDefault,
-};
-use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents, kWinStyleMinimal};
+use crate::api::vim::{BCO_ENTER, BCO_NOHELP, MAXPATHL, kCdScopeGlobal};
 use crate::api::window::kCtxKeepCwd;
-use crate::buffer::NOTDONE;
-use crate::buffer::{VALID_TOPLINE, VAR_SCOPE};
 pub use crate::context::CdCause;
-use crate::context::kCdCauseWindow;
 use crate::drawline::{VALID_CROW, VALID_WCOL};
-use crate::drawscreen::{FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_VALID};
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
 pub use crate::eval::vars::scid_T;
-use crate::ex_cmds::ECMD_HIDE;
-use crate::ex_cmds::{BL_FIX, BL_SOL};
 pub use crate::ex_docmd::CdScope;
-use crate::ex_docmd::{ACTION_SPLIT, FIND_ANY, FIND_DEFINE};
-use crate::message::kZIndexMessages;
-use crate::option::kOptCmdheight;
-use crate::option::kOptWindow;
-use crate::quickfix::kOptSwbFlagUsetab;
 use crate::regexp::NUMBUFLEN;
 use crate::runtime::SID_WINLAYOUT;
-use crate::statusline::kUITabline;
-use crate::tag::kOptSwbFlagUseopen;
 
 pub const WSP_ROOM: c_int = 0x01;
 pub const WSP_VERT: c_int = 0x02;

@@ -42,7 +42,7 @@ use crate::window::{
 };
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
-pub use crate::eval::deprecated::pos_T;
+pub use crate::eval::deprecated::{ScopeDictDictItem, pos_T};
 
 pub type Buffer = handle_T;
 pub type Window = handle_T;
@@ -287,8 +287,6 @@ pub struct frame_T {
     pub fr_child: *mut frame_T,
     pub fr_win: *mut win_T,
 }
-
-pub use crate::eval::deprecated::ScopeDictDictItem;
 
 #[repr(C)]
 pub struct win_T {

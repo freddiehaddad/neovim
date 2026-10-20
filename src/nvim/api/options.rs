@@ -22,8 +22,10 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
 };
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
-use crate::autocmd::{block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds};
-use crate::buffer::{buflist_new, bufref_valid, set_bufref, wipe_buffer};
+use crate::autocmd::{
+    EVENT_FILETYPE, block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds,
+};
+use crate::buffer::{BLN_DUMMY, buflist_new, bufref_valid, set_bufref, wipe_buffer};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
@@ -44,17 +46,12 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub use crate::api::autocmd::event_T;
-pub use crate::api::tabpage::Buffer;
-pub use crate::api::tabpage::Tabpage;
-pub use crate::api::tabpage::Window;
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::api::tabpage::{Buffer, Tabpage, Window};
+pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::eval::vars::scid_T;
 pub use crate::highlight::OptionalKeys;
-pub use crate::option::OptScope;
-pub use crate::option::set_op_T;
-pub use crate::option::set_prefix_T;
-pub use crate::optionstr::OptIndex;
+pub use crate::option::{OptScope, set_op_T, set_prefix_T};
+pub use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, optset_T, vimoption_T};
 
 pub(crate) const IOSIZE: usize = 1024 + 1;
 pub(crate) const SID_NONE: scid_T = -6;
@@ -83,14 +80,12 @@ const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
-use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL, kOptScopeBuf};
-use crate::api::deprecated::{kOptInvalid, kOptScopeGlobal, kOptScopeWin};
-use crate::autocmd::EVENT_FILETYPE;
-use crate::buffer::BLN_DUMMY;
+use crate::api::deprecated::{
+    OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
+};
 pub use crate::eval::deprecated::{buf_T, memline_T};
 use crate::math::{FAIL, OK};
 pub use crate::memfile::memfile_T;
-pub use crate::optionstr::{CharBuf, OptSetPrep, optset_T, vimoption_T};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

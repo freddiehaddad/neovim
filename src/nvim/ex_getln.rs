@@ -9,20 +9,21 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::event_T;
-use crate::api::command::{cmdmod_T, exarg_T};
+use crate::api::autocmd::{event_T, kCallbackNone};
+use crate::api::command::{ADDR_LINES, CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE, cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
-use crate::api::options::CtxSwitch;
+use crate::api::options::{CtxSwitch, SID_NONE};
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_free_array, arena_array, array_obj, cbuf_as_string, cstr_as_obj,
-    cstr_as_string, error_init, integer_obj, string_obj, try_enter, try_leave,
+    HLF_E, add_c, api_clear_error, api_free_array, arena_array, array_obj, cbuf_as_string,
+    cstr_as_obj, cstr_as_string, error_init, integer_obj, string_obj, try_enter, try_leave,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{pos_T, win_T};
-use crate::api::vim::nvim_create_buf;
+use crate::api::vim::{BACKWARD, REMAP_NONE, nvim_create_buf};
 use crate::autocmd::{
-    EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE, EVENT_CMDLINELEAVEPRE,
-    EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, has_event, unblock_autocmds,
+    DOCMD_NOWAIT, EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE,
+    EVENT_CMDLINELEAVEPRE, EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, has_event,
+    unblock_autocmds,
 };
 use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, buf_clear, buf_valid, buflist_findnr, do_buffer};
 use crate::charset::{
@@ -32,18 +33,19 @@ use crate::charset::{
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
     CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL,
-    ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL,
-    WILD_EXPAND_KEEP, WILD_FREE, WILD_FUNC_TRIGGER, WILD_LONGEST, WILD_MAY_EXPAND_PATTERN,
-    WILD_NEXT, WILD_NO_BEEP, WILD_NOINSERT, WILD_NOSELECT, WILD_PAGEDOWN, WILD_PAGEUP, WILD_PREV,
-    WILD_PUM_WANT, XP_BS_NONE, clear_cmdline_orig, cmdline_pum_active, cmdline_pum_cleanup,
-    cmdline_pum_remove, nextwild, set_expand_context, showmatches, wildmenu_cleanup,
+    ExpandCleanup, ExpandInit, ExpandOne, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START,
+    WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL, WILD_EXPAND_KEEP, WILD_FREE,
+    WILD_FUNC_TRIGGER, WILD_LONGEST, WILD_MAY_EXPAND_PATTERN, WILD_NEXT, WILD_NO_BEEP,
+    WILD_NOINSERT, WILD_NOSELECT, WILD_PAGEDOWN, WILD_PAGEUP, WILD_PREV, WILD_PUM_WANT, XP_BS_NONE,
+    clear_cmdline_orig, cmdline_pum_active, cmdline_pum_cleanup, cmdline_pum_remove,
+    kOptBoFlagWildmode, nextwild, set_expand_context, showmatches, wildmenu_cleanup,
     wildmenu_process_key, wildmenu_translate_key,
 };
 use crate::cmdhist::{
     HIST_INVALID, HIST_SEARCH, add_to_history, get_hisidx, get_hislen, get_histentry,
     hist_char2type, init_history,
 };
-use crate::context::{ctx_restore, ctx_switch};
+use crate::context::{ctx_restore, ctx_switch, kCtxKeepDirs};
 use crate::cursor::{
     clearpos, coladvance, colnr_T, equalpos, gchar_cursor, get_cursor_pos_ptr, linenr_T, lt,
 };
@@ -68,7 +70,7 @@ use crate::eval::window::viewstate_T;
 use crate::eval::{callback_call, eval_has_provider, get_echo_hl_id, get_v_event, restore_v_event};
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::Event;
-use crate::ex_cmds::rename_buffer;
+use crate::ex_cmds::{Ctrl_E, Ctrl_Y, kOptInccommand, rename_buffer};
 use crate::ex_docmd::{
     do_cmdline, execute_cmd, expr_map_locked, parse_cmd_address, parse_cmdline,
     parse_command_modifiers, set_no_hlsearch, skip_range, undo_cmdmod,
@@ -131,7 +133,7 @@ use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
 use crate::popupmenu::pum_check_clear;
 use crate::profile::{profile_setlimit, proftime_T};
-use crate::regexp::skip_regexp_ex;
+use crate::regexp::{MAGIC_ALL, MAGIC_ON, NUMBUFLEN, skip_regexp_ex};
 use crate::register::{
     cmdline_paste_reg, get_expr_line, get_expr_register, get_spec_reg, is_literal_register,
     valid_yank_reg,
@@ -159,14 +161,16 @@ use crate::ui::{
 };
 use crate::undo::{UndoCheckpoint, u_checkpoint, u_rollback, u_sync};
 use crate::usercmd::{cmdcomplete_type_to_str, parse_compl_arg};
-use crate::viml::parser::expressions::{ExprAST, viml_pexpr_free_ast, viml_pexpr_parse};
+use crate::viml::parser::expressions::{
+    ExprAST, kExprFlagsDisallowEOC, viml_pexpr_free_ast, viml_pexpr_parse,
+};
 use crate::viml::parser::parser::{
     CONV_NONE, ParserHighlight, ParserHighlightChunk, ParserInputReader, ParserLine,
     ParserPosition, ParserState, parser_simple_get_line, vimconv_T, viml_parser_destroy,
 };
 use crate::window::{
-    close_windows, global_stl_height, lastwin_nofloating, may_trigger_win_scrolled_resized,
-    win_enter, win_size_restore, win_size_save, win_split,
+    WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
+    may_trigger_win_scrolled_resized, win_enter, win_size_restore, win_size_save, win_split,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -179,25 +183,10 @@ pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
 pub type hlf_T = c_int;
 pub type disptick_T = u64;
-use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::FORWARD;
-use crate::api::command::ADDR_LINES;
-use crate::api::command::{CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE};
-use crate::api::options::SID_NONE;
-use crate::api::private::helpers::HLF_E;
-use crate::api::vim::BACKWARD;
-use crate::api::vim::REMAP_NONE;
-use crate::autocmd::DOCMD_NOWAIT;
 pub use crate::cmdexpand::LineGetter;
-use crate::cmdexpand::{SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START, kOptBoFlagWildmode};
-use crate::context::kCtxKeepDirs;
-use crate::eval::funcs::RE_SEARCH;
-use crate::eval::funcs::{SEARCH_COL, SEARCH_KEEP};
+use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_KEEP};
 pub use crate::eval::typval::BoolVarValue;
-use crate::ex_cmds::{Ctrl_E, Ctrl_Y, kOptInccommand};
-use crate::regexp::{MAGIC_ALL, MAGIC_ON, NUMBUFLEN};
-use crate::viml::parser::expressions::kExprFlagsDisallowEOC;
-use crate::window::WSP_BOT;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;

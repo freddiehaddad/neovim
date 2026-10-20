@@ -9,9 +9,9 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::deprecated::DecorInline;
+use crate::api::deprecated::{DECOR_ID_INVALID, DecorInline};
 use crate::api::extmark::{
-    DecorPriority, DecorSignHighlight, NS, describe_ns, linenr_T, nvim_create_namespace,
+    DecorPriority, DecorSignHighlight, NS, describe_ns, kSHIsSign, linenr_T, nvim_create_namespace,
 };
 use crate::api::private::helpers::cstr_as_string;
 use crate::buffer::{buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
@@ -22,7 +22,7 @@ use crate::charset::{
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::check_cursor_lnum;
 use crate::decoration::{SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
-use crate::drawscreen::redraw_buf_later;
+use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
@@ -34,7 +34,7 @@ use crate::eval::typval::{
     tv_get_number_chk, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_number,
 };
-use crate::ex_cmds::do_ecmd;
+use crate::ex_cmds::{BL_WHITE, ECMD_HIDE, do_ecmd};
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
@@ -112,18 +112,12 @@ pub struct sign_T {
     pub sn_priority: c_int,
 }
 
-use crate::api::deprecated::DECOR_ID_INVALID;
-use crate::api::extmark::kSHIsSign;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::cmdexpand::HLF_D;
 use crate::cmdexpand::{
-    EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN,
+    EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN, HLF_D,
 };
-use crate::drawscreen::UPD_NOT_VALID;
 use crate::eval::kListLenMayKnow;
 use crate::eval::userfunc::MSG_BUF_LEN;
-use crate::ex_cmds::BL_WHITE;
-use crate::ex_cmds::ECMD_HIDE;
 use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
 

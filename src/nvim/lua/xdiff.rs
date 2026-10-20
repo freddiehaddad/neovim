@@ -9,21 +9,18 @@
 
 #[cfg(not(test))]
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
-#[cfg(not(test))]
-use crate::api::private::validate::ErrorType;
 use crate::api::private::validate::Object;
 #[cfg(not(test))]
-use crate::api::private::validate::{Error, ObjectData, ObjectType};
+use crate::api::private::validate::{Error, ErrorType, ObjectData, ObjectType};
 #[cfg(not(test))]
-use crate::linematch::mmfile_t;
-#[cfg(not(test))]
-use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
+use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers, mmfile_t};
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::converter::{
-    lua_concat, lua_createtable, lua_error, lua_gettop, lua_isnumber, lua_objlen, lua_pcall,
-    lua_pushinteger, lua_pushlstring, lua_pushstring, lua_pushvalue, lua_rawseti, lua_settop,
-    lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error, luaL_where, nlua_pop_keydict,
+    LUA_TFUNCTION, LUA_TTABLE, lua_concat, lua_createtable, lua_error, lua_gettop, lua_isnumber,
+    lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushstring, lua_pushvalue,
+    lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error,
+    luaL_where, nlua_pop_keydict,
 };
 #[cfg(not(test))]
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
@@ -150,8 +147,6 @@ use crate::diff::{
 };
 #[cfg(not(test))]
 use crate::lua::base64::LUA_TSTRING;
-#[cfg(not(test))]
-use crate::lua::converter::{LUA_TFUNCTION, LUA_TTABLE};
 
 #[cfg(not(test))]
 unsafe fn lua_pushhunk(

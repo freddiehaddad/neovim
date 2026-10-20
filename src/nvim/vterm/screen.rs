@@ -10,11 +10,14 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::vterm::keyboard::{VTermColor, VTermStateFull};
+use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, VTermColor, VTermStateFull};
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::pen::{
-    VTermAttr, VTermProp, VTermRect, VTermStateCallbacks, VTermValue,
-    vterm_state_convert_color_to_rgb,
+    VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
+    VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
+    VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
+    VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTermAttr, VTermProp, VTermRect, VTermStateCallbacks,
+    VTermValue, vterm_state_convert_color_to_rgb,
 };
 use crate::vterm::state::{
     VTermStateFallbacks, vterm_obtain_state, vterm_state_get_lineinfo, vterm_state_reset,
@@ -25,13 +28,6 @@ use crate::vterm::vterm::{
 };
 
 pub use crate::grid::schar_T;
-use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY};
-use crate::vterm::pen::{
-    VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
-    VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
-    VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
-    VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI,
-};
 pub type VTermDamageSize = c_int;
 
 const VTERM_DAMAGE_CELL: VTermDamageSize = 0;

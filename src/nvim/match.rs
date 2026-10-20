@@ -12,7 +12,7 @@ use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
 use crate::charset::{ascii_iswhite, skiptowhite, skipwhite};
 use crate::clipboard::{VarType, list_T, typval_T};
-use crate::drawscreen::{redraw_later, redraw_win_range_later};
+use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_range_later};
 use crate::errors::*;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::funcs::get_optional_window;
@@ -34,20 +34,19 @@ use crate::memory::{xcalloc, xfree, xmemdupz, xstrdup};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
-use crate::regexp::{re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree};
+use crate::regexp::{
+    NUMBUFLEN, RE_MAGIC, re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi, vim_regfree,
+};
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
-use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID};
+pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::kListLenMayKnow;
 pub use crate::eval::window::dictitem_T;
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
-use crate::regexp::{NUMBUFLEN, RE_MAGIC};
 pub use crate::regexp::{regmmatch_T, regprog_T};
 
 const NUL: c_char = 0;

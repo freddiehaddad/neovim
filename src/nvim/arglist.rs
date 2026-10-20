@@ -12,8 +12,8 @@ use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::bufref_T;
 use crate::buffer::{
-    buf_hide, buf_is_empty, buf_set_name, buflist_add, buflist_findnr, bufref_valid,
-    curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
+    BLN_CURBUF, BLN_LISTED, buf_hide, buf_is_empty, buf_set_name, buflist_add, buflist_findnr,
+    bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
 };
 use crate::charset::{ascii_isspace, rem_backslash, skipwhite};
 use crate::clipboard::{VarType, typval_T};
@@ -25,7 +25,7 @@ use crate::eval::typval::{
     tv_get_number, tv_get_number_chk, tv_list_alloc_ret, tv_list_append_string,
 };
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
-use crate::ex_cmds::do_ecmd;
+use crate::ex_cmds::{ECMD_FORCEIT, ECMD_HIDE, ECMD_LAST, ECMD_OLDBUF, ECMD_ONE, do_ecmd};
 use crate::ex_cmds2::{autowrite, check_changed};
 use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
@@ -38,36 +38,28 @@ use crate::normal::reset_VIsual_and_resel;
 use crate::option_vars::*;
 use crate::os::input::os_breakcheck;
 use crate::path::{
-    FreeWild, FullName_save, expand_wildcards, fix_fname, gen_expand_wildcards, path_equal,
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOERROR, EW_NOTFOUND, EW_NOTWILD, FreeWild, FullName_save,
+    expand_wildcards, fix_fname, gen_expand_wildcards, kPathCmpExpand, kPathCmpFull,
+    kPathCmpLiteral, path_equal,
 };
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
 use crate::undo::bufIsChanged;
 use crate::version::list_in_columns;
 use crate::window::{
-    check_can_set_curbuf_forceit, goto_tabpage_tp, lastwin_nofloating, tabpage_index,
-    valid_tabpage, win_close, win_enter, win_move_after, win_split, win_valid,
+    WSP_BELOW, WSP_ROOM, check_can_set_curbuf_forceit, goto_tabpage_tp, lastwin_nofloating,
+    tabpage_index, valid_tabpage, win_close, win_enter, win_move_after, win_split, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::buffer::{BLN_CURBUF, BLN_LISTED};
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::eval::buffer::varnumber_T;
-use crate::ex_cmds::{ECMD_FORCEIT, ECMD_HIDE, ECMD_OLDBUF};
-use crate::ex_cmds::{ECMD_LAST, ECMD_ONE};
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::os::env::expand_T;
 pub use crate::path::PathCmpFlags;
-use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOERROR, EW_NOTFOUND, EW_NOTWILD, kPathCmpExpand,
-    kPathCmpFull, kPathCmpLiteral,
-};
-use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regprog_T;
-use crate::window::{WSP_BELOW, WSP_ROOM};
 
 const NUL: c_char = 0;
 

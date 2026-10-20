@@ -10,8 +10,7 @@
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
-use crate::vterm::mouse::VTerm;
-use crate::vterm::mouse::{CSI_LEADER_MAX, INTERMED_MAX};
+use crate::vterm::mouse::{CSI_LEADER_MAX, INTERMED_MAX, VTerm};
 
 pub type VTermTerminator = c_int;
 

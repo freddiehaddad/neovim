@@ -20,7 +20,7 @@ use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, synblock_T};
 use crate::fileio::{
-    buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell, fwrite, get2c, get3c,
+    EOF, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell, fwrite, get2c, get3c,
     get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets, vim_tempname,
 };
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
@@ -40,7 +40,7 @@ use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
 };
-use crate::option::{copy_option_part, set_option_value_give_err};
+use crate::option::{copy_option_part, kOptSpellfile, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::env::home_replace;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
@@ -51,13 +51,15 @@ use crate::path::{
     FreeWild, dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail,
     path_tail_with_sep, vim_ispathsep,
 };
-use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
-    byte_in_str, captype, clear_spell_chartab, close_spellbuf, count_common_word, did_set_spelltab,
-    e_format, first_lang, free_sal_items, init_spell_chartab, init_syl_tab, int_wordlist,
-    onecap_copy, open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug,
-    slang_free, spell_casefold, spell_enc, spell_soundfold, spelltab,
+    MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
+    WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, byte_in_str, captype,
+    clear_spell_chartab, close_spellbuf, count_common_word, did_set_spelltab, e_format, first_lang,
+    free_sal_items, init_spell_chartab, init_syl_tab, int_wordlist, onecap_copy, open_spellbuf,
+    parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, slang_free, spell_casefold,
+    spell_enc, spell_soundfold, spelltab,
 };
 use crate::spellsuggest::{fromto_T, idx_T, langp_T, salfirst_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
@@ -75,19 +77,11 @@ use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
 use crate::eval::fs::SEEK_SET;
-use crate::fileio::EOF;
 pub use crate::fileio::FILE;
 use crate::math::{FAIL, OK};
-use crate::option::kOptSpellfile;
 pub use crate::optionstr::OptIndex;
 pub use crate::os::time::time_t;
 pub use crate::regexp::regprog_T;
-use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING};
-use crate::spell::{MAXWLEN, SP_FORMERROR};
-use crate::spell::{
-    WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP, WF_NOCOMPAFT,
-    WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC,
-};
 use crate::viml::parser::parser::CONV_NONE;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;

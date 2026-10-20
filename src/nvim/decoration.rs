@@ -8,20 +8,16 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::deprecated::{DECOR_ID_INVALID, kVPosEndOfLine};
 use crate::api::deprecated::{
-    DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
+    DECOR_ID_INVALID, DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText,
+    VirtTextPos, kVPosEndOfLine,
 };
-use crate::api::extmark::kVPosWinCol;
 use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
-    DecorState, colnr_T, ns_in_win, virt_text_to_array,
-};
-use crate::api::extmark::{
-    kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn,
-    kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll,
-    kVLOverflowTrunc, kVLOverflowWrap, kVPosInline, kVPosOverlay, kVTHide, kVTIsLines,
-    kVTLinesAbove, kVTRepeatLinebreak,
+    DecorState, colnr_T, kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign,
+    kSHSpellOff, kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto,
+    kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap, kVPosInline, kVPosOverlay, kVPosWinCol,
+    kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak, ns_in_win, virt_text_to_array,
 };
 use crate::api::private::helpers::{
     arena_array, arena_string, array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj,

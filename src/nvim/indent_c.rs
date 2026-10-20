@@ -8,9 +8,9 @@
 )]
 use crate::api::autocmd::kCallbackNone;
 use crate::api::tabpage::lpos_T;
-use crate::change::COM_MAX_LEN;
-use crate::change::{COM_END, COM_LEFT, COM_RIGHT, COM_START};
-use crate::change::{KEY_OPEN_BACK, KEY_OPEN_FORW};
+use crate::change::{
+    COM_END, COM_LEFT, COM_MAX_LEN, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,
+};
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
     vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
@@ -24,8 +24,7 @@ use crate::indent::{
     EvalFuncData, fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value,
 };
 use crate::keycodes::get_special_key_code;
-use crate::math::trim_to_int;
-use crate::math::{FAIL, OK};
+use crate::math::{FAIL, OK, trim_to_int};
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_pos};
 use crate::memory::{xfree, xmalloc, xstrdup};

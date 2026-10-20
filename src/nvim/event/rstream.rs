@@ -17,8 +17,7 @@ use crate::event::stream::{
     stream_may_close, stream_size, stream_uv_ptr, uv_handle_t, uv_idle_t, uv_loop_t, uv_stream_t,
 };
 use crate::event::wstream::uv_buf_t;
-use crate::log::LOGLVL_DBG;
-use crate::log::{g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;

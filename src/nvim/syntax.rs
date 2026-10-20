@@ -9,7 +9,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{exarg_T, regmatch_T};
+use crate::api::command::{EX_NOSPC, EX_XFILE, exarg_T, regmatch_T};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 use crate::buffer::buf_get_changedtick;
@@ -17,7 +17,7 @@ use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, check_isopt, getdigits_int, getdigits_int32,
     parse_isopt, skiptowhite, skipwhite, str_foldcase, vim_isprintc, vim_iswordp_buf,
 };
-use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX};
+use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SYNTAX, HLF_D};
 use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redraw_later};
 use crate::errors::*;
@@ -48,7 +48,7 @@ use crate::message::{
 };
 use crate::option_vars::*;
 use crate::optionstr::clear_string_option;
-use crate::os::env::expand_T;
+use crate::os::env::{EXPAND_BUF_LEN, expand_T};
 use crate::os::input::line_breakcheck;
 use crate::path::path_is_absolute;
 #[cfg(windows)]
@@ -58,8 +58,8 @@ use crate::profile::{
     profile_zero, proftime_T,
 };
 use crate::regexp::{
-    ref_extmatch, skip_regexp, unref_extmatch, vim_regcomp, vim_regcomp_had_eol, vim_regexec,
-    vim_regexec_multi, vim_regfree,
+    NSUBEXP, RE_MAGIC, REX_SET, REX_USE, ref_extmatch, skip_regexp, unref_extmatch, vim_regcomp,
+    vim_regcomp_had_eol, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
@@ -75,7 +75,7 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub use crate::ex_getln::disptick_T;
-pub use crate::regexp::regprog_T;
+pub use crate::regexp::{reg_extmatch_T, regprog_T};
 
 const NUL: c_char = 0;
 const MAXCOL: colnr_T = 0x7fffffff;
@@ -180,12 +180,7 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
     c"lc=".as_ptr(),
 ];
 
-use crate::api::command::{EX_NOSPC, EX_XFILE};
-use crate::cmdexpand::HLF_D;
 use crate::math::{FAIL, OK};
-use crate::os::env::EXPAND_BUF_LEN;
-pub use crate::regexp::reg_extmatch_T;
-use crate::regexp::{NSUBEXP, RE_MAGIC, REX_SET, REX_USE};
 use crate::sign::EXP_SUBCMD;
 
 #[repr(C)]

@@ -24,13 +24,13 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::check_cursor_col;
-use crate::drawscreen::redraw_later;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
-use crate::lua::executor::nlua_call_ref;
+use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 use crate::message::emsg;
@@ -46,11 +46,8 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
-use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::lua::executor::LuaRetMode;
-use crate::lua::executor::kRetMultiStack;
 
 const MAXCOL: i64 = 0x7fffffff;
 

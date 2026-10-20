@@ -24,7 +24,7 @@ use crate::api::private::validate::{
     check_string_array,
 };
 use crate::api::tabpage::{Buffer, pos_T, win_T};
-use crate::buffer::{buf_ensure_loaded, do_buffer};
+use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_ensure_loaded, do_buffer};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::change::changed_lines;
 use crate::context::{ctx_restore, ctx_switch};
@@ -35,9 +35,9 @@ use crate::extmark::extmark_splice;
 use crate::globals::*;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef, lua_createtable, lua_pushlstring, lua_rawseti};
-use crate::lua::executor::nlua_call_ref;
+use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::map_glyph_cache::NvimString;
-use crate::mapping::{keymap_array, modify_keymap};
+use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
 use crate::mark::{mark_adjust_buf, mark_get};
 use crate::marktree::kMTMetaLines;
 use crate::memline::{
@@ -55,13 +55,11 @@ use crate::undo::u_save_buf;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub type bcount_t = isize;
-pub use crate::extmark::ExtmarkOp;
+pub use crate::extmark::{ExtmarkOp, u_header_T};
 pub use crate::lua::executor::LuaRetMode;
-pub use crate::mark::MarkAdjustMode;
-pub use crate::mark::MarkGet;
+pub use crate::mark::{MarkAdjustMode, MarkGet};
 pub use crate::search::Direction;
 
 const NUL: c_char = 0;
@@ -157,10 +155,6 @@ pub struct VisualState {
     pub resel: VisualExtent,
 }
 
-use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE};
-pub use crate::extmark::u_header_T;
-use crate::lua::executor::kRetMultiStack;
-use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS};
 use crate::math::{FAIL, OK};
 
 const NIL: Object = Object {

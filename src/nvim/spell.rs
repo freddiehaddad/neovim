@@ -8,10 +8,10 @@
     clippy::too_many_arguments
 )]
 use crate::api::command::{exarg_T, regmatch_T};
-use crate::api::options::bufref_T;
+use crate::api::options::{IOSIZE, bufref_T};
 use crate::api::private::helpers::boolean_obj;
 use crate::api::tabpage::win_T;
-use crate::autocmd::apply_autocmds;
+use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
 use crate::change::inserted_bytes;
 use crate::charset::{
@@ -23,7 +23,7 @@ use crate::decoration::{
     decor_redraw_col, decor_redraw_line, decor_redraw_reset, decor_state_free,
 };
 use crate::decoration_provider::decor_providers_invoke_spell;
-use crate::drawscreen::redraw_later;
+use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::ex_cmds::do_sub_msg;
@@ -51,8 +51,8 @@ use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
 use crate::option::{
-    copy_option_part, get_option_value, optval_free, set_option_value_give_err, shortmess,
-    valid_name,
+    copy_option_part, get_option_value, kOptSpell, kOptSpelllang, optval_free,
+    set_option_value_give_err, shortmess, valid_name,
 };
 use crate::option_vars::*;
 use crate::os::fs::os_remove;
@@ -60,9 +60,9 @@ use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regexec_prog, vim_regfree};
-use crate::runtime::do_in_runtimepath;
-use crate::search::do_search;
+use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regexec_prog, vim_regfree};
+use crate::runtime::{DIP_ALL, do_in_runtimepath};
+use crate::search::{do_search, kShmSearch};
 use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
@@ -80,23 +80,14 @@ pub type smt_T = c_int;
 pub use crate::api::autocmd::event_T;
 use crate::api::buffer::FORWARD;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::IOSIZE;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
-use crate::autocmd::EVENT_SPELLFILEMISSING;
+use crate::api::vim::{BACKWARD, MAXPATHL, kFalse, kNone, kTrue};
 use crate::drawline::{SMT_ALL, kOptSpoFlagNoplainbuffer};
-use crate::drawscreen::UPD_NOT_VALID;
-use crate::eval::funcs::SEARCH_KEEP;
-use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
+use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR, SEARCH_KEEP};
 use crate::math::{FAIL, OK};
 use crate::normal::{SMT_BAD, SMT_RARE};
-use crate::option::{kOptSpell, kOptSpelllang};
 pub use crate::optionstr::OptIndex;
-use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regprog_T;
-use crate::runtime::DIP_ALL;
 pub use crate::search::Direction;
-use crate::search::kShmSearch;
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const MAXCOL: colnr_T = 0x7fffffff;

@@ -12,11 +12,14 @@
 )]
 
 use crate::api::buffer::{
-    KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded, nvim_buf_del_keymap,
+    FORWARD, INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, LUA_NOREF,
+    api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
-use crate::api::deprecated::{KeyDict_empty, buffer_del_line, buffer_get_line, buffer_set_line};
+use crate::api::deprecated::{
+    KeyDict_empty, OPT_LOCAL, buffer_del_line, buffer_get_line, buffer_set_line, kOptScopeBuf,
+};
 use crate::api::extmark::NS;
-use crate::api::options::CharBuf;
+use crate::api::options::{CharBuf, kOptBufhidden, kOptBuftype};
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     add_c, api_metadata, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
@@ -33,12 +36,13 @@ use crate::api::private::validate::{
 use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, pos_T, win_T};
 use crate::api::win_config::bufref_T;
 use crate::autocmd::{
-    EVENT_BUFADD, EVENT_BUFNEW, apply_autocmds, block_autocmds, may_trigger_vim_suspend_resume,
-    unblock_autocmds,
+    EVENT_BUFADD, EVENT_BUFNEW, EVENT_CHANINFO, apply_autocmds, block_autocmds,
+    may_trigger_vim_suspend_resume, unblock_autocmds,
 };
 use crate::buffer::{
-    buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, bufref_valid, do_buffer,
-    read_buffer_into, set_bufref,
+    BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, buf_close_terminal,
+    buf_get_changedtick, buflist_new, buflist_nr2name, bufref_valid, do_buffer, read_buffer_into,
+    set_bufref,
 };
 use crate::channel::{
     InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
@@ -52,12 +56,14 @@ use crate::cursor::{get_cursor_rel_lnum, linenr_T};
 use crate::decoration::decor_redraw_signs;
 use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::{
-    redraw_all_later, redraw_buf_later, redraw_buf_range_later, redraw_later, setcursor_mayforce,
-    update_screen, win_update_cursorline,
+    UPD_CLEAR, UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_buf_later,
+    redraw_buf_range_later, redraw_later, setcursor_mayforce, update_screen, win_update_cursorline,
 };
 use crate::eval::deprecated::buf_T;
 use crate::eval::typval::tv_dict_find;
-use crate::eval::vars::{get_globvar_dict, get_vimvar_dict, set_vim_var_nr};
+use crate::eval::vars::{
+    VV_LNUM, VV_RELNUM, VV_VIRTNUM, get_globvar_dict, get_vimvar_dict, set_vim_var_nr,
+};
 use crate::ex_docmd::{do_chdir, exec_normal};
 use crate::ex_eval::aborting;
 use crate::fold::fold_info;
@@ -82,7 +88,8 @@ use crate::keycodes::{
 };
 use crate::lua::converter::{Boolean, Float, LuaRef};
 use crate::lua::executor::{
-    api_free_luaref, nlua_call_ref, nlua_exec, nlua_get_global_ref_count, nlua_is_deferred_safe,
+    api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
+    nlua_is_deferred_safe,
 };
 use crate::map::HlAttrs;
 use crate::map_glyph_cache::NvimString;
@@ -115,7 +122,8 @@ use crate::register::{
     PUT_CURSEND, do_put, finish_yankreg_from_object, prepare_yankreg_from_object,
 };
 use crate::runtime::{
-    do_in_runtimepath, do_source, get_lib_dir, runtime_get_named, runtime_inspect, script_autoload,
+    DIP_ALL, DIP_DIRFILE, DOSO_NONE, do_in_runtimepath, do_source, get_lib_dir, runtime_get_named,
+    runtime_inspect, script_autoload,
 };
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
@@ -335,26 +343,12 @@ pub struct KeyDict_redraw {
     pub buf: Buffer,
 }
 
-pub use crate::api::private::helpers::TryState;
+pub use crate::api::private::helpers::{ArrayBuilder, HlMessageChunk, TryState};
 
 pub use crate::mapping::typebuf_T;
 
-pub use crate::api::private::helpers::HlMessageChunk;
-
 pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
-use crate::api::buffer::INTERNAL_CALL_MASK;
-use crate::api::buffer::{FORWARD, LUA_NOREF};
-use crate::api::deprecated::{OPT_LOCAL, kOptScopeBuf};
-use crate::api::options::{kOptBufhidden, kOptBuftype};
-pub use crate::api::private::helpers::ArrayBuilder;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::autocmd::EVENT_CHANINFO;
-use crate::buffer::{BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO};
-use crate::drawscreen::{UPD_CLEAR, UPD_NOT_VALID, UPD_VALID};
-use crate::eval::vars::{VV_LNUM, VV_RELNUM, VV_VIRTNUM};
-use crate::lua::executor::{kRetNilBool, kRetObject};
-use crate::runtime::DOSO_NONE;
-use crate::runtime::{DIP_ALL, DIP_DIRFILE};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

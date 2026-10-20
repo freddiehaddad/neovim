@@ -16,22 +16,21 @@ use crate::mbyte::{
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
-use crate::vterm::keyboard::C1_CSI;
-use crate::vterm::keyboard::VTermStateFull;
-use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY};
-use crate::vterm::mouse::{MOUSE_RXVT, MOUSE_SGR, MOUSE_UTF8, MOUSE_X10};
-use crate::vterm::mouse::{MOUSE_WANT_DRAG, MOUSE_WANT_MOVE};
-use crate::vterm::mouse::{VTerm, VTermPos};
+use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, C1_CSI, VTermStateFull};
+use crate::vterm::mouse::{
+    MOUSE_RXVT, MOUSE_SGR, MOUSE_UTF8, MOUSE_WANT_DRAG, MOUSE_WANT_MOVE, MOUSE_X10, VTerm, VTermPos,
+};
 use crate::vterm::parser::{
     VTermParserCallbacks, VTermStringFragment, VTermTerminator, vterm_parser_set_callbacks,
 };
-use crate::vterm::pen::{CSI_ARG_FLAG_MORE_U32, CSI_ARG_MASK_U32};
 use crate::vterm::pen::{
-    VTermProp, VTermRect, VTermStateCallbacks, VTermValue, vterm_state_getpen, vterm_state_newpen,
-    vterm_state_resetpen, vterm_state_savepen, vterm_state_setpen,
+    CSI_ARG_FLAG_MORE_U32, CSI_ARG_MASK_U32, VTermProp, VTermRect, VTermStateCallbacks, VTermValue,
+    vterm_state_getpen, vterm_state_newpen, vterm_state_resetpen, vterm_state_savepen,
+    vterm_state_setpen,
 };
-use crate::vterm::screen::{VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE};
-use crate::vterm::screen::{VTermGlyphInfo, VTermLineInfo, VTermStateFields};
+use crate::vterm::screen::{
+    VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE, VTermGlyphInfo, VTermLineInfo, VTermStateFields,
+};
 use crate::vterm::vterm::{
     vterm_allocator_free, vterm_allocator_malloc, vterm_push_output_bytes,
     vterm_push_output_ctrl_bytes, vterm_push_output_str_bytes, vterm_scroll_rect,

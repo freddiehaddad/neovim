@@ -8,13 +8,13 @@
 )]
 
 use crate::api::tabpage::win_T;
-use crate::autocmd::{apply_autocmds, has_event};
-use crate::drawscreen::{setcursor, update_screen};
+use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE, apply_autocmds, has_event};
+use crate::drawscreen::{kOptVeFlagBlock, setcursor, update_screen};
 use crate::eval::typval::{tv_dict_add_str, tv_dict_set_keys_readonly};
 use crate::eval::{get_v_event, restore_v_event};
 use crate::event::r#loop::main_loop_events;
 use crate::event::multiqueue::{Event, multiqueue_empty, multiqueue_get};
-use crate::ex_getln::{cmdline_overstrike, get_cmdline_info};
+use crate::ex_getln::{K_EVENT, cmdline_overstrike, get_cmdline_info};
 use crate::globals::*;
 use crate::hashtab::hashtab_T;
 use crate::input::{
@@ -22,7 +22,7 @@ use crate::input::{
 };
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
 use crate::keycodes::get_special_key_name;
-use crate::log::{g_min_log_level, logmsg};
+use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
 use crate::strings::{strcmp, strcpy, vim_snprintf};
@@ -68,11 +68,7 @@ pub struct VimState {
 }
 
 use crate::api::vim::kNone;
-use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE};
 use crate::cursor::kOptVeFlagAll;
-use crate::drawscreen::kOptVeFlagBlock;
-use crate::ex_getln::K_EVENT;
-use crate::log::LOGLVL_DBG;
 pub use crate::mapping::typebuf_T;
 
 #[repr(C)]

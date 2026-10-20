@@ -8,10 +8,8 @@
 )]
 
 #[cfg(not(test))]
-use crate::charset::ascii_isalpha;
-pub use crate::charset::is_special;
-#[cfg(not(test))]
-use crate::charset::{ascii_isdigit, transchar, vim_isprintc, vim_str2nr};
+use crate::charset::{ascii_isalpha, ascii_isdigit, transchar, vim_isprintc, vim_str2nr};
+pub use crate::charset::{is_special, to_special};
 #[cfg(not(test))]
 use crate::eval::vars::get_var_value;
 #[cfg(not(test))]
@@ -161,7 +159,6 @@ pub const fn key2termcap1(x: c_int) -> c_int {
     (((-x) as u32 >> 8) & 0xff) as c_int
 }
 
-pub use crate::charset::to_special;
 #[cfg(not(test))]
 use crate::eval::STR2NR_ALL;
 use crate::mouse::{MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RELEASE, MOUSE_RIGHT, MOUSE_X1, MOUSE_X2};

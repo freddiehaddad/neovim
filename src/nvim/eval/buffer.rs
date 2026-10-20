@@ -11,11 +11,13 @@
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::win_T;
 use crate::buffer::{
-    bt_cmdwin, bt_nofilename, bt_prompt, buf_ensure_loaded, buf_get_changedtick, buflist_add,
-    buflist_findlnum, buflist_findname_exp, buflist_findnr, buflist_new, first_win_in_tab,
+    SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, buf_ensure_loaded, buf_get_changedtick,
+    buflist_add, buflist_findlnum, buflist_findname_exp, buflist_findnr, buflist_new,
+    first_win_in_tab, kExtmarkNoUndo, kMarkAdjustNormal,
 };
 use crate::change::{
-    appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark, inserted_bytes,
+    ML_DEL_MESSAGE, appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark,
+    inserted_bytes,
 };
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch};
@@ -31,7 +33,9 @@ use crate::eval::typval::{
     tv_list_item_remove, tv_list_last, tv_list_len,
 };
 use crate::eval::window::win_has_winnr;
-use crate::eval::{callback_call, callback_from_typval, prompt_get_input, typval_tostring};
+use crate::eval::{
+    callback_call, callback_from_typval, kListLenMayKnow, prompt_get_input, typval_tostring,
+};
 use crate::ex_cmds::check_secure;
 use crate::extmark::extmark_splice_cols;
 use crate::globals::*;
@@ -53,12 +57,7 @@ use std::ptr;
 pub type varnumber_T = i64;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::kExtmarkUndo;
-use crate::buffer::SEA_NONE;
-use crate::buffer::{kExtmarkNoUndo, kMarkAdjustNormal};
-use crate::change::ML_DEL_MESSAGE;
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
-use crate::eval::kListLenMayKnow;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub use crate::extmark::ExtmarkOp;
 pub use crate::mark::MarkAdjustMode;
 use crate::math::{FAIL, OK};

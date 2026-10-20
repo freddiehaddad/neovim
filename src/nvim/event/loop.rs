@@ -13,8 +13,7 @@ use crate::event::multiqueue::{
     multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
     multiqueue_put_event, multiqueue_size,
 };
-use crate::log::LOGLVL_ERR;
-use crate::log::{log_uv_handles, logmsg};
+use crate::log::{LOGLVL_ERR, log_uv_handles, logmsg};
 use crate::memory::{xfree, xmalloc};
 use crate::os::time::os_hrtime;
 use std::ffi::{c_int, c_void};

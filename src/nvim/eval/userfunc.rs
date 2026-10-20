@@ -9,13 +9,16 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::converter::{partial_T, ufunc_T};
-use crate::autocmd::{apply_autocmds, funccal_entry_T};
+use crate::api::private::converter::{VAR_UNLOCKED, partial_T, ufunc_T};
+use crate::autocmd::{
+    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED, PROF_YES, apply_autocmds,
+    funccal_entry_T,
+};
 use crate::charset::{
     ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite, vim_strsize,
 };
 use crate::clipboard::{VarType, listitem_T, typval_T};
-use crate::cmdexpand::{cmdidx_T, exarg_T};
+use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, exarg_T};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
@@ -24,10 +27,11 @@ use crate::eval::decode::{dict_T, dictitem_T};
 use crate::eval::deprecated::{Callback, EvalFuncData};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::funcs::{
-    call_internal_func, call_internal_method, check_internal_func, find_internal_func,
+    TFN_INT, TFN_NO_DEREF, call_internal_func, call_internal_method, check_internal_func,
+    find_internal_func,
 };
 use crate::eval::typval::{
-    tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    TV_CSTRING, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
     tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_append,
     tv_list_init_static, tv_list_set_lock, value_check_lock,
 };
@@ -36,10 +40,11 @@ use crate::eval::vars::{
     init_var_dict, list_hashtable_vars, lval_T, skip_var_list, vars_clear, vars_clear_ext,
 };
 use crate::eval::{
-    callback_call, check_luafunc_name, clear_evalarg, clear_lval, eval_isnamec, eval_isnamec1,
-    eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end, garbage_collect,
-    get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg, partial_name, partial_unref,
-    set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
+    EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET,
+    VAR_DEF_SCOPE, callback_call, check_luafunc_name, clear_evalarg, clear_lval, eval_isnamec,
+    eval_isnamec1, eval_lavars_used, eval0, eval1, fill_evalarg_from_eap, find_name_end,
+    garbage_collect, get_id_len, get_lval, handle_subscript, is_luafunc, last_set_msg,
+    partial_name, partial_unref, set_ref_in_ht, set_ref_in_item, set_ref_in_list_items, skip_expr,
 };
 use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
 use crate::ex_eval::{
@@ -84,7 +89,7 @@ use crate::profile::{
     prof_def_func, profile_add, profile_end, profile_self, profile_start, profile_sub_wait,
     profile_zero, proftime_T, script_prof_restore, script_prof_save,
 };
-use crate::regexp::{skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{NUMBUFLEN, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
 use crate::runtime::{
     autoload_name, estack_pop, estack_push_ufunc, exestack, get_sourced_lnum, script_autoload,
     script_items, sourcing_lnum, sourcing_name,
@@ -105,20 +110,9 @@ pub type ArgvFunc =
     Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
 use crate::api::buffer::LUA_NOREF;
 use crate::api::options::IOSIZE;
-use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
-use crate::autocmd::PROF_YES;
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED};
-use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
-use crate::buffer::{VAR_FIXED, VAR_SCOPE};
-use crate::cmdexpand::EXPAND_USER_FUNC;
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
 pub use crate::cmdexpand::LineGetter;
-use crate::eval::GLV_READ_ONLY;
-use crate::eval::VAR_DEF_SCOPE;
-use crate::eval::funcs::{TFN_INT, TFN_NO_DEREF};
-use crate::eval::typval::TV_CSTRING;
-use crate::eval::{EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, TFN_NO_AUTOLOAD, TFN_QUIET};
-use crate::regexp::{NUMBUFLEN, RE_MAGIC};
 
 pub const FC_ABORT: c_int = 0x01;
 pub const FC_RANGE: c_int = 0x02;

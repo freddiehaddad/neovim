@@ -13,8 +13,8 @@
 
 use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{
-    DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow, VirtLines, VirtText,
-    VirtTextChunk, VirtTextPos,
+    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
+    VirtLines, VirtText, VirtTextChunk, VirtTextPos, kHlModeUnknown, kVPosEndOfLine,
 };
 use crate::api::private::helpers::{
     add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
@@ -31,7 +31,7 @@ use crate::decoration::{
     decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
 };
 use crate::decoration_provider::{decor_provider_clear, get_decor_provider};
-use crate::drawscreen::redraw_all_later;
+use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::eval::deprecated::buf_T;
 use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
 use crate::globals::*;
@@ -62,10 +62,7 @@ use std::ptr;
 pub type NS = handle_T;
 pub type HLGroupID = Integer;
 use crate::api::buffer::LUA_NOREF;
-use crate::api::deprecated::{DECOR_ID_INVALID, kHlModeUnknown, kVPosEndOfLine};
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
-use crate::drawscreen::UPD_NOT_VALID;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub type DecorPriority = u16;
 pub type ExtmarkType = c_int;
 pub type ExtmarkInfoArray = KVec<MTPair>;

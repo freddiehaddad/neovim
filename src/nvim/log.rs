@@ -11,13 +11,13 @@
 )]
 
 #[cfg(not(test))]
-use crate::eval::vars::get_vim_var_str;
+use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 #[cfg(not(test))]
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 #[cfg(all(not(test), unix))]
 use crate::fileio::fgets;
 #[cfg(not(test))]
-use crate::fileio::{fclose, fflush, fopen, fprintf, fputc};
+use crate::fileio::{EOF, fclose, fflush, fopen, fprintf, fputc};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -224,10 +224,6 @@ macro_rules! logmsg {
 use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
-#[cfg(not(test))]
-use crate::eval::vars::VV_SEND_SERVER;
-#[cfg(not(test))]
-use crate::fileio::EOF;
 pub use logmsg;
 
 unsafe fn log_try_create(fname: *const c_char) -> bool {

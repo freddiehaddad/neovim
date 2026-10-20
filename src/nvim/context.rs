@@ -42,8 +42,8 @@ use crate::option_vars::*;
 use crate::os::fs::{os_chdir, os_dirname};
 use crate::register::{free_register, get_y_register};
 use crate::shada::{
-    shada_encode_buflist, shada_encode_gvars, shada_encode_jumps, shada_encode_regs,
-    shada_read_string,
+    kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo, shada_encode_buflist,
+    shada_encode_gvars, shada_encode_jumps, shada_encode_regs, shada_read_string,
 };
 use crate::window::{
     close_tabpage, entering_window, goto_tabpage_tp, leaving_window, unuse_tabpage, update_cwd,
@@ -55,16 +55,14 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::kCtxRegs;
 use crate::api::vim::{
-    BCO_ENTER, BCO_NOHELP, kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxSFuncs,
+    BCO_ENTER, BCO_NOHELP, MAXPATHL, kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxRegs,
+    kCtxSFuncs,
 };
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 pub use crate::cursor::colnr_T;
 use crate::math::OK;
-use crate::shada::{kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo};
 pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
 pub type CtxSwitchFlags = c_int;

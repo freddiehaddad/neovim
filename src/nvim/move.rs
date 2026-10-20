@@ -9,13 +9,14 @@
 )]
 
 use crate::api::tabpage::{pos_T, win_T};
-use crate::buffer::{buf_get_changedtick, buf_is_empty};
+use crate::buffer::{VALID_TOPLINE, buf_get_changedtick, buf_is_empty};
 use crate::clipboard::typval_T;
-use crate::cursor::{check_cursor, check_cursor_lnum, coladvance, equalpos};
+use crate::cursor::{VALID_VIRTCOL, check_cursor, check_cursor_lnum, coladvance, equalpos};
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::diff_get_corresponding_line;
 use crate::drawscreen::{
-    conceal_cursor_line, number_width, redraw_buf_later, redraw_later, redrawWinline, redrawing,
+    UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, VALID_BOTLINE, conceal_cursor_line,
+    number_width, redraw_buf_later, redraw_later, redrawWinline, redrawing,
     win_cursorline_standout, win_scroll_lines,
 };
 use crate::errors::*;
@@ -53,14 +54,9 @@ use std::ptr;
 
 use crate::api::buffer::{FORWARD, VALID_BOTLINE_AP};
 use crate::api::vim::BACKWARD;
-use crate::buffer::VALID_TOPLINE;
-use crate::cursor::VALID_VIRTCOL;
-use crate::drawline::kCpoNumcol;
 use crate::drawline::{
-    VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kOptCuloptFlagScreenline,
+    VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
 };
-use crate::drawscreen::VALID_BOTLINE;
-use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
 pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::math::{FAIL, OK};

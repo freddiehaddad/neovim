@@ -31,7 +31,9 @@ use crate::option_vars::*;
 use crate::os::time::os_time;
 use crate::profile::expand_T;
 #[cfg(not(test))]
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{
+    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
+};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -69,12 +71,9 @@ pub struct histentry_T {
 
 #[cfg(not(test))]
 use crate::api::command::CMOD_KEEPPATTERNS;
-pub use crate::api::command::cmdmod_T;
-pub use crate::api::command::regmatch_T;
+pub use crate::api::command::{cmdmod_T, regmatch_T};
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
-#[cfg(not(test))]
-use crate::regexp::{NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING};
 
 #[cfg(not(test))]
 #[inline]

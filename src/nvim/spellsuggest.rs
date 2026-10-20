@@ -43,12 +43,13 @@ use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::spell::{
-    allcap_copy, byte_in_str, can_compound, captype, check_need_cap, make_case_word,
-    match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang, repl_from,
-    repl_to, spell_casefold, spell_check, spell_iswordp, spell_iswordp_nmw, spell_move_to,
-    spell_soundfold, spell_valid_case, spelltab, valid_word_prefix,
+    MAXWLEN, WF_ALLCAP, WF_BANNED, WF_FIXCAP, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
+    WF_REGION, WFP_RARE, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
+    make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
+    repl_from, repl_to, spell_casefold, spell_check, spell_iswordp, spell_iswordp_nmw,
+    spell_move_to, spell_soundfold, spell_valid_case, spelltab, valid_word_prefix,
 };
-use crate::spellfile::suggest_load_files;
+use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
     atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strncpy, vim_snprintf,
     vim_strchr, xstrnsave,
@@ -68,14 +69,7 @@ pub use crate::eval::buffer::varnumber_T;
 pub use crate::ex_getln::hlf_T;
 pub use crate::fileio::FILE;
 use crate::math::{FAIL, OK};
-use crate::spell::MAXWLEN;
 pub use crate::spell::smt_T;
-use crate::spell::{
-    WF_ALLCAP, WF_BANNED, WF_FIXCAP, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE, WF_REGION,
-    WFP_RARE,
-};
-use crate::spellfile::MAXREGIONS;
-use crate::spellfile::WF_NOSUGGEST;
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const NUL: c_char = 0;

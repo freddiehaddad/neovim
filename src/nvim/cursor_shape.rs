@@ -6,9 +6,7 @@
 use crate::api::private::helpers::{arena_array, arena_dict};
 use crate::api::private::validate::Array;
 #[cfg(not(test))]
-use crate::api::private::validate::{Dict, KeyValuePair, Object};
-#[cfg(not(test))]
-use crate::api::private::validate::{ObjectData, ObjectType};
+use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::charset::getdigits_int;
 #[cfg(not(test))]
@@ -18,7 +16,7 @@ use crate::globals::*;
 #[cfg(not(test))]
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 #[cfg(not(test))]
-use crate::log::logmsg;
+use crate::log::{LOGLVL_WRN, logmsg};
 #[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
@@ -83,8 +81,6 @@ unsafe impl Sync for cursorentry_T {}
 
 pub use crate::api::buffer::VisualState;
 pub use crate::eval::deprecated::pos_T;
-#[cfg(not(test))]
-use crate::log::LOGLVL_WRN;
 #[cfg(not(test))]
 use crate::state::{MODE_CMDLINE, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG};
 

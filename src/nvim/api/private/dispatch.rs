@@ -14,12 +14,13 @@ use crate::api::autocmd::{
     nvim_get_autocmds,
 };
 use crate::api::buffer::{
-    KeyDict_buf_attach, KeyDict_buf_delete, KeyDict_keymap, KeyDict_keymap_del, nvim__buf_stats,
-    nvim_buf_attach, nvim_buf_del_keymap, nvim_buf_del_mark, nvim_buf_del_var, nvim_buf_delete,
-    nvim_buf_detach, nvim_buf_get_changedtick, nvim_buf_get_keymap, nvim_buf_get_lines,
-    nvim_buf_get_mark, nvim_buf_get_name, nvim_buf_get_offset, nvim_buf_get_text, nvim_buf_get_var,
-    nvim_buf_is_loaded, nvim_buf_is_valid, nvim_buf_line_count, nvim_buf_set_keymap,
-    nvim_buf_set_lines, nvim_buf_set_mark, nvim_buf_set_name, nvim_buf_set_text, nvim_buf_set_var,
+    KeyDict_buf_attach, KeyDict_buf_delete, KeyDict_keymap, KeyDict_keymap_del, LUA_INTERNAL_CALL,
+    nvim__buf_stats, nvim_buf_attach, nvim_buf_call, nvim_buf_del_keymap, nvim_buf_del_mark,
+    nvim_buf_del_var, nvim_buf_delete, nvim_buf_detach, nvim_buf_get_changedtick,
+    nvim_buf_get_keymap, nvim_buf_get_lines, nvim_buf_get_mark, nvim_buf_get_name,
+    nvim_buf_get_offset, nvim_buf_get_text, nvim_buf_get_var, nvim_buf_is_loaded,
+    nvim_buf_is_valid, nvim_buf_line_count, nvim_buf_set_keymap, nvim_buf_set_lines,
+    nvim_buf_set_mark, nvim_buf_set_name, nvim_buf_set_text, nvim_buf_set_var,
 };
 use crate::api::command::{
     KeyDict_cmd, KeyDict_cmd_magic, KeyDict_cmd_mods, KeyDict_cmd_mods_filter, KeyDict_cmd_opts,
@@ -44,14 +45,17 @@ use crate::api::extmark::{
     KeyDict_set_extmark, nvim__buf_debug_extmarks, nvim__ns_get, nvim__ns_set,
     nvim_buf_clear_namespace, nvim_buf_del_extmark, nvim_buf_get_extmark_by_id,
     nvim_buf_get_extmarks, nvim_buf_set_extmark, nvim_create_namespace, nvim_get_namespaces,
+    nvim_set_decoration_provider,
 };
 use crate::api::options::{
-    KeyDict_option, nvim_get_all_options_info, nvim_get_option_info2, nvim_get_option_value,
-    nvim_set_option_value,
+    KeyDict_option, nvim__option_to_object, nvim_get_all_options_info, nvim_get_option_info2,
+    nvim_get_option_value, nvim_set_option_value,
 };
 use crate::api::private::helpers::{
-    api_dict_to_keydict, api_keydict_to_dict, api_set_error, api_set_error_str, array_obj,
-    boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj, string_obj, tabpage_obj, window_obj,
+    api_clear_error, api_dict_to_keydict, api_free_dict, api_free_object, api_free_string,
+    api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object, api_set_error,
+    api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj,
+    string_obj, tabpage_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
@@ -93,7 +97,7 @@ use crate::api::win_config::{
     KeyDict_win_config, nvim_open_win, nvim_win_get_config, nvim_win_set_config,
 };
 use crate::api::window::{
-    KeyDict_win_resize, KeyDict_win_text_height, nvim_win_close, nvim_win_del_var,
+    KeyDict_win_resize, KeyDict_win_text_height, nvim_win_call, nvim_win_close, nvim_win_del_var,
     nvim_win_get_buf, nvim_win_get_cursor, nvim_win_get_height, nvim_win_get_number,
     nvim_win_get_position, nvim_win_get_tabpage, nvim_win_get_var, nvim_win_get_width,
     nvim_win_hide, nvim_win_is_valid, nvim_win_resize, nvim_win_set_buf, nvim_win_set_cursor,
@@ -102,10 +106,19 @@ use crate::api::window::{
 use crate::ex_getln::{get_text_locked_msg, text_locked};
 use crate::highlight::{KeyDict_highlight, KeyDict_highlight_cterm};
 use crate::highlight_group::KeyDict_get_highlight;
-use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink};
+use crate::lua::converter::{
+    Boolean, FieldHashfn, Float, KeySetLink, LuaRef, lua_concat, lua_createtable, lua_error,
+    lua_gettop, lua_pushcclosure, lua_pushstring, lua_setfield, luaL_error, luaL_where,
+    nlua_pop_Array, nlua_pop_Boolean, nlua_pop_Dict, nlua_pop_Float, nlua_pop_Integer,
+    nlua_pop_LuaRef, nlua_pop_Object, nlua_pop_String, nlua_pop_handle as nlua_pop_Buffer,
+    nlua_pop_handle as nlua_pop_Tabpage, nlua_pop_handle as nlua_pop_Window, nlua_pop_keydict,
+    nlua_push_Array, nlua_push_Boolean, nlua_push_Dict, nlua_push_Float, nlua_push_Integer,
+    nlua_push_Object, nlua_push_String, nlua_push_handle as nlua_push_Buffer,
+    nlua_push_handle as nlua_push_Tabpage, nlua_push_handle as nlua_push_Window, nlua_push_keydict,
+};
 use crate::lua::xdiff::KeyDict_xdl_diff;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::Arena;
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::shada::{
     KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
@@ -16873,29 +16886,9 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
     }
 }
 
-use crate::api::buffer::LUA_INTERNAL_CALL;
-use crate::api::buffer::nvim_buf_call;
-use crate::api::extmark::nvim_set_decoration_provider;
-use crate::api::options::nvim__option_to_object;
-use crate::api::private::helpers::{
-    api_clear_error, api_free_dict, api_free_object, api_free_string, api_luarefs_free_keydict,
-    api_luarefs_free_object,
-};
-use crate::api::window::nvim_win_call;
 use crate::errors::e_fast_api_disabled;
 use crate::lua::base64::lua_State;
-use crate::lua::converter::{
-    LuaRef, lua_concat, lua_createtable, lua_error, lua_gettop, lua_pushcclosure, lua_pushstring,
-    lua_setfield, luaL_error, luaL_where, nlua_pop_Array, nlua_pop_Boolean, nlua_pop_Dict,
-    nlua_pop_Float, nlua_pop_Integer, nlua_pop_LuaRef, nlua_pop_Object, nlua_pop_String,
-    nlua_pop_handle as nlua_pop_Buffer, nlua_pop_handle as nlua_pop_Tabpage,
-    nlua_pop_handle as nlua_pop_Window, nlua_pop_keydict, nlua_push_Array, nlua_push_Boolean,
-    nlua_push_Dict, nlua_push_Float, nlua_push_Integer, nlua_push_Object, nlua_push_String,
-    nlua_push_handle as nlua_push_Buffer, nlua_push_handle as nlua_push_Tabpage,
-    nlua_push_handle as nlua_push_Window, nlua_push_keydict,
-};
 use crate::lua::executor::{active_lstate, api_free_luaref, nlua_is_deferred_safe};
-use crate::memory::{arena_finish, arena_mem_free};
 
 const kNluaPushSpecial: c_int = 0x01;
 const kNluaPushFreeRefs: c_int = 0x02;

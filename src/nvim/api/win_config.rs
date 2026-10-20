@@ -25,11 +25,11 @@ use crate::api::private::validate::{
     api_err_required,
 };
 use crate::api::tabpage::{Buffer, WinConfig, Window, frame_T, lpos_T, tabpage_T, win_T};
-use crate::autocmd::{apply_autocmds_win, block_autocmds, unblock_autocmds};
+use crate::autocmd::{EVENT_WINNEW, apply_autocmds_win, block_autocmds, unblock_autocmds};
 use crate::buffer::{bufref_valid, set_bufref};
 use crate::charset::transstr;
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
-use crate::drawscreen::{redraw_later, set_must_redraw};
+use crate::drawscreen::{UPD_NOT_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::ex_docmd::expr_map_locked;
 use crate::globals::*;
@@ -45,6 +45,7 @@ use crate::option_vars::*;
 use crate::ui::ui_has;
 use crate::ui_compositor::ui_comp_remove_grid;
 use crate::window::{
+    WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT,
     check_split_disallowed_err, clear_float_config, goto_tabpage_win, last_status,
     lastwin_nofloating, merge_win_config, one_window, win_append, win_comp_pos, win_find_tabpage,
     win_goto, win_locked, win_remove, win_set_buf, win_setheight_win, win_setwidth_win,
@@ -128,9 +129,6 @@ const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
 
 pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::autocmd::EVENT_WINNEW;
-use crate::drawscreen::UPD_NOT_VALID;
-use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_NOENTER, WSP_TOP, WSP_VERT};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

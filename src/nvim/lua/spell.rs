@@ -10,7 +10,7 @@
 use crate::errors::*;
 use crate::eval::deprecated::synblock_T;
 use crate::globals::*;
-use crate::lua::base64::{lua_State, luaL_Reg};
+use crate::lua::base64::{LUA_TSTRING, lua_State, luaL_Reg};
 use crate::lua::converter::{
     lua_Integer, lua_createtable, lua_gettop, lua_pushinteger, lua_pushlstring, lua_pushstring,
     lua_rawseti, lua_tolstring, lua_type, luaL_argerror, luaL_error, luaL_register,
@@ -23,7 +23,6 @@ use std::ptr;
 
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 pub use crate::ex_getln::hlf_T;
-use crate::lua::base64::LUA_TSTRING;
 
 const NUL: c_char = 0;
 

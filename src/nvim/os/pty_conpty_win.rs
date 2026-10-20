@@ -11,7 +11,7 @@
 #[cfg(all(not(test), windows))]
 use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym, uv_translate_sys_error};
 #[cfg(all(not(test), windows))]
-use crate::log::logmsg;
+use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 #[cfg(all(not(test), windows))]
 use crate::os::env::os_get_pid;
 #[cfg(all(not(test), windows))]
@@ -193,8 +193,6 @@ unsafe extern "system" {
 
 #[cfg(windows)]
 use crate::api::vim::{kFalse, kNone, kTrue};
-#[cfg(all(not(test), windows))]
-use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 

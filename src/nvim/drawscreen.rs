@@ -10,27 +10,27 @@
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::deprecated::{DecorVirtText, DecorVirtTextData, VirtText, VirtTextChunk};
-use crate::api::extmark::NS;
+use crate::api::extmark::{NS, kVPosWinCol};
 use crate::api::tabpage::{frame_T, win_T};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
-use crate::buffer::{buf_meta_total, maketitle};
+use crate::buffer::{STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_meta_total, maketitle};
 use crate::charset::{vim_isprintc, vim_strsize};
 use crate::cmdexpand::cmdline_pum_display;
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::decoration::{
-    buf_signcols_count_range, decor_conceal_line, decor_range_add_virt, decor_redraw_reset,
-    decor_virt_lines, win_lines_concealed,
+    SCL_NUM, buf_signcols_count_range, decor_conceal_line, decor_range_add_virt,
+    decor_redraw_reset, decor_virt_lines, win_lines_concealed,
 };
 use crate::decoration_provider::{
     decor_providers_invoke_buf, decor_providers_invoke_end, decor_providers_invoke_win,
     decor_providers_start,
 };
 use crate::diff::diff_redraw;
-use crate::digraph::get_keymap_str;
-use crate::drawline::win_line;
+use crate::digraph::{HLF_CM, get_keymap_str};
+use crate::drawline::{HLF_AT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
 use crate::eval::deprecated::{buf_T, pos_T};
-use crate::eval::vars::set_vim_var_nr;
+use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
 use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
 use crate::globals::*;
@@ -92,29 +92,18 @@ use crate::ui::{
 use crate::ui_compositor::ui_comp_set_screen_valid;
 use crate::version::{intro_message, may_show_intro};
 use crate::window::{
-    frame2win, global_stl_height, last_stl_height, min_rows, min_rows_for_all_tabpages,
-    win_fdccol_count, win_new_screensize, win_ui_flush,
+    MIN_COLUMNS, frame2win, global_stl_height, last_stl_height, min_rows,
+    min_rows_for_all_tabpages, win_fdccol_count, win_new_screensize, win_ui_flush,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::extmark::kVPosWinCol;
 use crate::api::ui::NO_SCREEN;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::kFalse;
-use crate::api::vim::{HLF_N, HLF_SC};
+use crate::api::vim::{HLF_N, HLF_SC, MAXPATHL, kFalse};
 use crate::api::win_config::FR_COL;
-use crate::buffer::VALID_TOPLINE;
-use crate::buffer::{STL_IN_ICON, STL_IN_TITLE};
-use crate::decoration::SCL_NUM;
-use crate::digraph::HLF_CM;
-use crate::drawline::kCpoNumcol;
-use crate::drawline::{HLF_AT, HLF_FC, VALID_WCOL};
-use crate::eval::vars::VV_ECHOSPACE;
 pub use crate::ex_getln::disptick_T;
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
-use crate::window::MIN_COLUMNS;
 
 const NUL: c_char = 0;
 const Ctrl_V: c_int = 22;

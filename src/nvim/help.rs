@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
+use crate::api::command::{CMOD_KEEPALT, exarg_T};
 use crate::api::private::helpers::cstr_as_obj;
 use crate::api::tabpage::win_T;
 use crate::buffer::{bt_help, buflist_findnr, set_buflisted, wipe_buffer};
@@ -18,7 +18,7 @@ use crate::charset::{
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::errors::*;
 use crate::eval::typval::tv_clear;
-use crate::ex_cmds::do_ecmd;
+use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::fileio::fclose;
 use crate::globals::*;
@@ -32,25 +32,19 @@ use crate::os::fs::os_fopen;
 use crate::path::FreeWild;
 use crate::strings::{gettext, qsort};
 use crate::tag::{do_tag, find_tags};
-use crate::window::{win_close, win_enter, win_setheight, win_split};
+use crate::window::{WSP_BOT, WSP_HELP, WSP_TOP, win_close, win_enter, win_setheight, win_split};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::command::CMOD_KEEPALT;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::IOSIZE;
-use crate::api::options::kOptBuftype;
+use crate::api::options::{IOSIZE, kOptBuftype};
 use crate::cmdexpand::TAG_MANY;
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 use crate::diff::kOptFoldmethod;
 pub use crate::eval::vars::scid_T;
-use crate::ex_cmds::ECMD_LASTL;
-use crate::ex_cmds::{ECMD_HIDE, ECMD_SET_HELP};
 use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
-use crate::window::{WSP_BOT, WSP_HELP, WSP_TOP};
 
 const NUL: c_char = 0;
 const MAXCOL: c_int = 0x7fffffff;

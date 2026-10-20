@@ -9,7 +9,7 @@
 )]
 
 use crate::api::deprecated::DecorInline;
-use crate::api::extmark::{ExtmarkInfoArray, ExtmarkType};
+use crate::api::extmark::{ExtmarkInfoArray, ExtmarkType, kSHUIWatched, kSHUIWatchedOverlay};
 use crate::api::private::validate::Error;
 use crate::buffer_updates::buf_updates_send_splice;
 use crate::decoration::{
@@ -40,8 +40,7 @@ use std::ffi::c_int;
 use std::ptr;
 
 pub use crate::api::buffer::bcount_t;
-pub use crate::cursor::colnr_T;
-pub use crate::cursor::linenr_T;
+pub use crate::cursor::{colnr_T, linenr_T};
 pub type ExtmarkOp = c_int;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
@@ -110,7 +109,6 @@ pub struct ExtmarkUndoObject {
 }
 
 use crate::api::buffer::kExtmarkUndo;
-use crate::api::extmark::{kSHUIWatched, kSHUIWatchedOverlay};
 use crate::api::vim::{kNone, kTrue};
 use crate::buffer::kExtmarkNoUndo;
 pub use crate::undo::u_header_T;

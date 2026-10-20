@@ -9,12 +9,13 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
+use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{win_T, winopt_T, xfmark_T};
-use crate::autocmd::{aucmd_defer, has_event};
+use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
-    bt_prompt, buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name, first_win_in_tab,
+    GETF_SETMARK, NMARKS, bt_prompt, buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name,
+    first_win_in_tab, kMarkAdjustNormal,
 };
 use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::clipboard::list_T;
@@ -47,7 +48,7 @@ use crate::os::env::expand_env;
 use crate::os::fs::os_dirname;
 use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_time};
-use crate::path::{path_equal, path_shorten_fname, vim_ispathsep_nocolon};
+use crate::path::{kPathCmpLiteral, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
 use crate::plines::linetabsize_eol;
 use crate::quickfix::qf_mark_adjust;
 use crate::strings::{gettext, xstrnsave};
@@ -62,23 +63,15 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
-use crate::api::buffer::FORWARD;
-use crate::api::buffer::{kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
-use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
+use crate::api::buffer::{FORWARD, kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
 use crate::api::options::IOSIZE;
-use crate::api::vim::BACKWARD;
-use crate::api::vim::MAXPATHL;
-use crate::autocmd::AUGROUP_ALL;
-use crate::autocmd::EVENT_MARKSET;
-use crate::buffer::NMARKS;
-use crate::buffer::{GETF_SETMARK, kMarkAdjustNormal};
+use crate::api::vim::{BACKWARD, MAXPATHL};
 use crate::cmdexpand::HLF_D;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
 pub use crate::path::PathCmpFlags;
-use crate::path::kPathCmpLiteral;
 use crate::regexp::kMarkBufLocal;
 
 #[repr(C)]

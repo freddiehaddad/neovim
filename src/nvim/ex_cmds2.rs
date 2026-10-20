@@ -8,31 +8,38 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{cmdidx_T, exarg_T};
+use crate::api::command::{CMOD_CONFIRM, cmdidx_T, exarg_T};
 use crate::api::options::CtxSwitch;
 use crate::api::win_config::{UIExtension, bufref_T};
 use crate::arglist::{
-    aentry_T, alist_T, do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
+    do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
 };
-use crate::autocmd::{apply_autocmds, au_event_disable, au_event_restore};
+use crate::autocmd::{
+    DOCMD_NOWAIT, DOCMD_VERBOSE, EVENT_SYNTAX, apply_autocmds, au_event_disable, au_event_restore,
+};
 use crate::buffer::{
-    bt_dontwrite, buf_hide, buf_set_name, buf_spname, buflist_findnr, bufref_valid,
-    first_win_in_tab, goto_buffer, no_write_message, no_write_message_nobang, set_bufref,
-    set_curbuf,
+    DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, buf_hide, buf_set_name, buf_spname,
+    buflist_findnr, bufref_valid, first_win_in_tab, goto_buffer, no_write_message,
+    no_write_message_nobang, set_bufref, set_curbuf,
 };
 use crate::bufwrite::buf_write;
 use crate::change::unchanged;
 use crate::channel::channel_job_running;
 use crate::context::{ctx_restore, ctx_switch};
-use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
+use crate::dialog::{
+    VIM_ALL, VIM_DISCARDALL, VIM_NO, VIM_YES, vim_dialog_yesnoallcancel, vim_dialog_yesnocancel,
+};
 use crate::errors::*;
 use crate::eval::deprecated::buf_T;
 use crate::eval::eval_call_provider;
 use crate::eval::typval::{
     tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
 };
-use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var, set_vim_var_string};
-use crate::ex_cmds::{check_overwrite, set_swapcommand};
+use crate::eval::vars::{
+    VV_SWAPCOMMAND, do_unlet, get_var_value, set_internal_string_var, set_vim_var_string,
+};
+use crate::ex_cmds::{DIALOG_MSG_SIZE, check_overwrite, set_swapcommand};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
 use crate::ex_getln::script_get;
 use crate::fileio::{buf_check_timestamp, check_timestamps};
@@ -45,7 +52,7 @@ use crate::normal::do_check_scrollbind;
 use crate::option_vars::*;
 use crate::path::vim_FullName;
 use crate::quickfix::{ex_cc, ex_cnext, qf_get_cur_idx, qf_get_valid_size};
-use crate::runtime::source_runtime_vim_lua;
+use crate::runtime::{DIP_ALL, source_runtime_vim_lua};
 use crate::strings::{gettext, vim_snprintf};
 use crate::ui::ui_has;
 use crate::undo::bufIsChanged;
@@ -57,21 +64,11 @@ use std::ptr;
 
 pub use crate::api::autocmd::event_T;
 use crate::api::buffer::FORWARD;
-use crate::api::command::CMOD_CONFIRM;
 use crate::api::vim::MAXPATHL;
-use crate::arglist::ML_EMPTY;
-use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo};
-use crate::autocmd::EVENT_SYNTAX;
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE};
-use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD};
 pub use crate::cursor::linenr_T;
-use crate::dialog::{VIM_ALL, VIM_DISCARDALL, VIM_NO, VIM_YES};
 pub use crate::eval::buffer::varnumber_T;
 use crate::eval::funcs::VIM_QUESTION;
-use crate::eval::vars::VV_SWAPCOMMAND;
-use crate::ex_cmds::DIALOG_MSG_SIZE;
 use crate::math::{FAIL, OK};
-use crate::runtime::DIP_ALL;
 
 const NUL: c_char = 0;
 const MAXLNUM: usize = 0x7fffffff;

@@ -11,32 +11,34 @@
 )]
 
 use crate::api::private::converter::{
-    object_to_vim, object_to_vim_take_luaref, partial_T, sctx_T, vim_to_object,
+    VAR_UNLOCKED, object_to_vim, object_to_vim_take_luaref, partial_T, sctx_T, vim_to_object,
 };
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, api_free_string, api_metadata, cbuf_to_string,
+    DI_FLAGS_LOCK, api_clear_error, api_free_object, api_free_string, api_metadata, cbuf_to_string,
     cstr_as_string, dict_set_var,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{ScreenGrid, tabpage_T, win_T};
-use crate::api::vim::nvim_feedkeys;
+use crate::api::vim::{BACKWARD, MAXPATHL, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{
-    EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds, au_exists, autocmd_supported,
-    funccal_entry_T,
+    DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_BUFFILEPOST, EVENT_BUFFILEPRE, apply_autocmds,
+    au_exists, autocmd_supported, funccal_entry_T,
 };
-use crate::buffer::{buf_close_terminal, buflist_findnr, buflist_findpat, setfname};
+use crate::buffer::{VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, setfname};
 use crate::channel::{
     channel_close, channel_connect, channel_create_event, channel_decref, channel_from_stdio,
-    channel_incref, channel_job_start, channel_send, channel_terminal_alloc,
+    channel_incref, channel_job_start, channel_send, channel_terminal_alloc, kChannelPartRpc,
+    kChannelPartStderr, kChannelPartStdin, kChannelPartStdout, kChannelStdinPipe,
+    kChannelStreamProc, kProcTypePty,
 };
-use crate::charset::{ascii_isdigit, getdigits_int, skipwhite};
+use crate::charset::{VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cmdexpand::{
-    EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_ALL_KEEP, WILD_ICASE,
-    WILD_KEEP_ALL, WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH, cmdidx_T,
-    cmdline_pum_active, exarg_T,
+    EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP,
+    WILD_ICASE, WILD_KEEP_ALL, WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH,
+    cmdidx_T, cmdline_pum_active, exarg_T,
 };
-use crate::cursor::{check_cursor, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T};
+use crate::cursor::{VALID_VIRTCOL, check_cursor, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T};
 use crate::dialog::{do_dialog, prompt_for_input};
 use crate::errors::*;
 use crate::eval::buffer::{find_buffer, varnumber_T};
@@ -53,7 +55,7 @@ use crate::eval::executor::blob_T;
 #[cfg(unix)]
 use crate::eval::typval::tv_dict_extend;
 use crate::eval::typval::{
-    callback_free, check_repeat_count, tv_blob_alloc_ret, tv_blob_get, tv_blob_len,
+    TV_TRANSLATE, callback_free, check_repeat_count, tv_blob_alloc_ret, tv_blob_get, tv_blob_len,
     tv_blob_set_range, tv_check_for_buffer_arg, tv_check_for_dict_arg, tv_check_for_list_arg,
     tv_check_for_list_or_blob_arg, tv_check_for_lnum_arg, tv_check_for_nonempty_string_arg,
     tv_check_for_nonnull_dict_arg, tv_check_for_number_arg, tv_check_for_opt_bool_arg,
@@ -86,12 +88,13 @@ use crate::eval::vars::{
 };
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id, win_id2wp_tp};
 use crate::eval::{
-    add_timer_info, add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx,
-    callback_from_typval, clear_lval, common_job_callbacks, do_string_sub, eval_expr_to_bool,
-    eval_expr_typval, eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job,
-    find_timer_by_nr, get_callback_depth, get_copyID, get_lval, list2fpos, partial_name,
-    save_tv_as_string, script_host_eval, string2float, timer_due_cb, timer_start, timer_stop,
-    timer_stop_all, timer_tail, tv_to_argv, var_item_copy, var2fpos,
+    FNE_CHECK_START, GLV_NO_AUTOLOAD, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET, add_timer_info,
+    add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx, callback_from_typval,
+    clear_lval, common_job_callbacks, do_string_sub, eval_expr_to_bool, eval_expr_typval,
+    eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job, find_timer_by_nr,
+    get_callback_depth, get_copyID, get_lval, kListLenMayKnow, kListLenShouldKnow, kListLenUnknown,
+    list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float, timer_due_cb,
+    timer_start, timer_stop, timer_stop_all, timer_tail, tv_to_argv, var_item_copy, var2fpos,
 };
 #[cfg(unix)]
 use crate::event::r#loop::uv_kill;
@@ -110,7 +113,9 @@ use crate::event::time::{
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{cmd_exists, do_cmdline, do_cmdline_cmd, eval_vars, expand_filename};
 use crate::ex_eval::aborting;
-use crate::ex_getln::{get_user_input, text_locked, text_locked_msg, vim_strsave_fnameescape};
+use crate::ex_getln::{
+    VSE_NONE, get_user_input, text_locked, text_locked_msg, vim_strsave_fnameescape,
+};
 use crate::garray::{ga_append, ga_append_via_ptr, ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{grid_getchar, schar_T, schar_from_char, schar_get, schar_get_first_codepoint};
@@ -123,8 +128,8 @@ use crate::input::{restore_typeahead, save_typeahead, stuff_empty, tasave_T, usi
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::vim_strsave_escape_ks;
 use crate::lua::executor::{
-    nlua_call_luaeval, nlua_call_typval, nlua_exec, nlua_func_exists, nlua_is_table_from_lua,
-    nlua_register_table_as_callable,
+    kRetNilBool, kRetObject, nlua_call_luaeval, nlua_call_typval, nlua_exec, nlua_func_exists,
+    nlua_is_table_from_lua, nlua_register_table_as_callable,
 };
 use crate::lua::stdlib::regmatch_T;
 use crate::map_glyph_cache::NvimString;
@@ -186,11 +191,14 @@ use crate::profile::{
     estack_T, funccall_T, profile_end, profile_msg, profile_setlimit, profile_signed,
     profile_start, profile_sub, proftime_T,
 };
-use crate::regexp::{reg_submatch, reg_submatch_list, vim_regcomp, vim_regexec_nl, vim_regfree};
+use crate::regexp::{
+    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, reg_submatch, reg_submatch_list, vim_regcomp,
+    vim_regexec_nl, vim_regfree,
+};
 use crate::register::{
     YREG_YANK, block_def, format_reg_type, get_reg_contents, get_reg_type, get_register_name,
-    get_unname_register, get_yank_register, op_reg_set_previous, write_reg_contents_ex,
-    write_reg_contents_lst,
+    get_unname_register, get_yank_register, kGRegExprSrc, kGRegList, op_reg_set_previous,
+    write_reg_contents_ex, write_reg_contents_lst,
 };
 use crate::runtime::exestack;
 use crate::search::{
@@ -204,7 +212,7 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 #[cfg(windows)]
 use crate::strings::mb_strup_buf;
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    atoi, gettext, strcmp, strlen, strncmp, strtoul, vim_snprintf, vim_snprintf_safelen,
     vim_snprintf_typval_only, vim_strchr, vim_stricmp as c_stricmp, vim_strnicmp as c_strnicmp,
     vim_strsave_escaped, vim_strsave_shellescape,
 };
@@ -223,9 +231,7 @@ use crate::window::find_tabpage;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::eval::typval::BoolVarValue;
-pub use crate::eval::typval::VarLockStatus;
-pub use crate::eval::typval::float_T;
+pub use crate::eval::typval::{BoolVarValue, VarLockStatus, float_T};
 pub use crate::extmark::TriState;
 pub type SpecialVarValue = c_int;
 pub use crate::channel::ChannelStdinMode;
@@ -410,8 +416,6 @@ use crate::os::os_win_console::{CloseHandle, OpenProcess};
 unsafe extern "system" {
     fn DebugBreakProcess(Process: *mut c_void) -> c_int;
 }
-
-use crate::strings::strtoul;
 
 const fn compute_build_has_flags() -> u32 {
     let mut flags = 0u32;
@@ -10396,32 +10400,16 @@ pub unsafe extern "C" fn f_xor(argvars: *mut typval_T, rettv: *mut typval_T, _fp
 }
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::FORWARD;
-use crate::api::buffer::VIML_INTERNAL_CALL;
+use crate::api::buffer::{FORWARD, VIML_INTERNAL_CALL};
 use crate::api::command::EX_NOSPC;
 use crate::api::options::IOSIZE;
-use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::private::helpers::DI_FLAGS_LOCK;
-use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::ui::kChannelPartAll;
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
+use crate::api::ui::{MAX_SCHAR_SIZE, kChannelPartAll};
 #[cfg(not(test))]
 use crate::arglist::{f_argc, f_argidx, f_arglistid, f_argv};
-use crate::autocmd::{DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE};
-use crate::buffer::VAR_FIXED;
-use crate::channel::kChannelStdinPipe;
-use crate::channel::{
-    kChannelPartRpc, kChannelPartStderr, kChannelPartStdin, kChannelPartStdout, kChannelStreamProc,
-    kProcTypePty,
-};
-use crate::charset::VARNUMBER_MIN;
-use crate::cmdexpand::SEARCH_START;
 #[cfg(not(test))]
 use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype};
 #[cfg(not(test))]
 use crate::cmdhist::{f_histadd, f_histdel, f_histget, f_histnr};
-use crate::cursor::VALID_VIRTCOL;
 #[cfg(not(test))]
 use crate::diff::{f_diff_filler, f_diff_hlID};
 #[cfg(not(test))]
@@ -10449,7 +10437,6 @@ use crate::eval::list::{
     f_add, f_count, f_extend, f_extendnew, f_filter, f_foreach, f_insert, f_map, f_mapnew,
     f_remove, f_reverse,
 };
-use crate::eval::typval::TV_TRANSLATE;
 #[cfg(not(test))]
 use crate::eval::typval::{
     f_blob2list, f_has_key, f_items, f_join, f_keys, f_list2blob, f_list2str, f_sort, f_uniq,
@@ -10468,16 +10455,10 @@ use crate::eval::window::{
     f_win_screenpos, f_win_splitmove, f_winbufnr, f_wincol, f_winheight, f_winlayout, f_winline,
     f_winnr, f_winrestcmd, f_winrestview, f_winsaveview, f_winwidth,
 };
-use crate::eval::{
-    FNE_CHECK_START, TFN_NO_AUTOLOAD, TFN_QUIET, kListLenMayKnow, kListLenShouldKnow,
-    kListLenUnknown,
-};
-use crate::eval::{GLV_NO_AUTOLOAD, GLV_READ_ONLY};
 #[cfg(not(test))]
 use crate::eval::{f_slice, f_system, f_systemlist};
 #[cfg(not(test))]
 use crate::ex_docmd::f_fullcommand;
-use crate::ex_getln::VSE_NONE;
 #[cfg(not(test))]
 use crate::ex_getln::{
     f_getcmdcomplpat, f_getcmdcompltype, f_getcmdline, f_getcmdpos, f_getcmdprompt,
@@ -10497,7 +10478,6 @@ use crate::input::{f_getchar, f_getcharmod, f_getcharstr};
 use crate::insexpand::{
     f_complete, f_complete_add, f_complete_check, f_complete_info, f_preinserted,
 };
-use crate::lua::executor::{kRetNilBool, kRetObject};
 #[cfg(not(test))]
 use crate::mapping::{f_hasmapto, f_maparg, f_mapcheck, f_maplist, f_mapset};
 #[cfg(not(test))]
@@ -10515,8 +10495,6 @@ use crate::mouse::f_getmousepos;
 use crate::r#move::{f_screenpos, f_virtcol2col};
 #[cfg(not(test))]
 use crate::quickfix::{f_getloclist, f_getqflist, f_setloclist, f_setqflist};
-use crate::regexp::{NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING};
-use crate::register::{kGRegExprSrc, kGRegList};
 #[cfg(not(test))]
 use crate::runtime::{f_getscriptinfo, f_getstacktrace};
 #[cfg(not(test))]

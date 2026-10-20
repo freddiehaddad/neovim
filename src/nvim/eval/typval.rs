@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::converter::{partial_T, ufunc_T};
+use crate::api::private::converter::{VAR_UNLOCKED, partial_T, ufunc_T};
 use crate::charset::vim_str2nr;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::cursor::linenr_T;
@@ -28,8 +28,8 @@ use crate::eval::userfunc::{func_unref, get_funccal_local_ht};
 use crate::eval::vars::{get_globvar_dict, var_wrong_func_name};
 use crate::eval::vars::{valid_varname, var_check_fixed, var_check_ro};
 use crate::eval::{
-    callback_call, callback_from_typval, func_equal, partial_name, set_selfdict, var_item_copy,
-    var2fpos,
+    DICT_MAXNEST, STR2NR_ALL, callback_call, callback_from_typval, func_equal, kListLenMayKnow,
+    partial_name, set_selfdict, var_item_copy, var2fpos,
 };
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_unref};
@@ -68,13 +68,9 @@ use crate::api::autocmd::{
     kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
 };
 use crate::api::buffer::LUA_NOREF;
-use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
-use crate::buffer::VAR_FIXED;
-use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
-use crate::eval::STR2NR_ALL;
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED};
 pub use crate::eval::buffer::varnumber_T;
-use crate::eval::{DICT_MAXNEST, kListLenMayKnow};
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;

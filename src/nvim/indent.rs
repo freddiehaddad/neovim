@@ -9,25 +9,27 @@
 )]
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{exarg_T, regmatch_T};
+use crate::api::command::{CMOD_LOCKMARKS, exarg_T, regmatch_T};
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::api::tabpage::win_T;
 use crate::buffer::{buf_get_changedtick, modifiable};
-use crate::change::{changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str};
+use crate::change::{
+    SIN_INSERT, SIN_NOMARK, changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str,
+};
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
-    getwhitecols_curline, skipwhite, vim_strsize,
+    getwhitecols_curline, kOptDyFlagUhex, skipwhite, vim_strsize,
 };
 use crate::clipboard::typval_T;
 use crate::cursor::{
     check_cursor, coladvance, colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, lt,
 };
-use crate::drawscreen::redraw_curbuf_later;
+use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later};
 use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::eval_expr_option_number;
 use crate::eval::typval::tv_get_lnum;
-use crate::eval::vars::set_vim_var_nr;
+use crate::eval::vars::{VV_LNUM, set_vim_var_nr};
 use crate::ex_docmd::handle_did_throw;
 use crate::extmark::extmark_splice_cols;
 use crate::globals::*;
@@ -53,7 +55,9 @@ use crate::plines::{
     init_charsize_arg, utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, win_charsize,
     win_chartabsize,
 };
-use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{
+    RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
+};
 use crate::search::{findmatch, linewhite};
 use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr, xstrnsave};
 use crate::textformat::{has_format_option, oparg_T};
@@ -65,23 +69,16 @@ pub use crate::eval::buffer::varnumber_T;
 pub use crate::extmark::ExtmarkOp;
 pub use crate::msgpack_rpc::packer::handle_T;
 pub use crate::option::OptInt;
-pub use crate::optionstr::OptIndex;
+pub use crate::optionstr::{CharBuf, OptIndex, OptKeyDict_briopt};
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
 use crate::api::buffer::kExtmarkUndo;
-use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
-use crate::change::{SIN_INSERT, SIN_NOMARK};
-use crate::charset::kOptDyFlagUhex;
-use crate::drawscreen::UPD_INVERTED;
 pub use crate::eval::deprecated::EvalFuncData;
-use crate::eval::vars::VV_LNUM;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::math::{FAIL, OK};
-pub use crate::optionstr::{CharBuf, OptKeyDict_briopt};
-use crate::regexp::{RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING};
 use crate::state::{REPLACE_FLAG, VREPLACE_FLAG};
 
 const NUL: c_char = 0;

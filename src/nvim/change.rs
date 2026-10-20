@@ -9,8 +9,10 @@
 )]
 
 use crate::api::tabpage::{pos_T, win_T};
-use crate::autocmd::{apply_autocmds, aucmd_defer_modified};
-use crate::buffer::{bt_dontwrite, bt_prompt, buf_inc_changedtick, buf_meta_total};
+use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
+use crate::buffer::{
+    BF_NEVERLOADED, BF_NEW, bt_dontwrite, bt_prompt, buf_inc_changedtick, buf_meta_total,
+};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
@@ -21,10 +23,11 @@ use crate::cursor::{
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
-    redraw_buf_status_later, redraw_later, redrawWinline, set_must_redraw, showmode,
+    UPD_NOT_VALID, UPD_VALID, redraw_buf_status_later, redraw_later, redrawWinline,
+    set_must_redraw, showmode,
 };
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
-use crate::eval::vars::set_vim_var_string;
+use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
 use crate::extmark::{bcount_t, extmark_adjust, extmark_splice, extmark_splice_cols};
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
 use crate::globals::*;
@@ -72,16 +75,11 @@ use std::ptr;
 
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::kExtmarkNOOP;
-use crate::api::buffer::{FORWARD, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::api::vim::BACKWARD;
 pub use crate::api::win_config::UIExtension;
 use crate::arglist::ML_EMPTY;
-use crate::autocmd::EVENT_FILECHANGEDRO;
-use crate::buffer::{BF_NEVERLOADED, BF_NEW};
-use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
-use crate::eval::vars::VV_WARNINGMSG;
 pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
 pub use crate::mbyte::GraphemeState;

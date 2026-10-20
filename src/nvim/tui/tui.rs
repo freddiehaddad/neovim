@@ -23,9 +23,9 @@ use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry
 #[cfg(unix)]
 use crate::event::r#loop::uv_tty_set_mode;
 use crate::event::r#loop::{
-    Loop, loop_poll_events, loop_purge, loop_queues, loop_size, uv_chdir, uv_close, uv_is_closing,
-    uv_loop_close, uv_loop_init, uv_pipe_init, uv_pipe_open, uv_run, uv_strerror, uv_timer_init,
-    uv_timer_start, uv_tty_init, uv_write,
+    Loop, UV_RUN_DEFAULT, loop_poll_events, loop_purge, loop_queues, loop_size, uv_chdir, uv_close,
+    uv_is_closing, uv_loop_close, uv_loop_init, uv_pipe_init, uv_pipe_open, uv_run, uv_strerror,
+    uv_timer_init, uv_timer_start, uv_tty_init, uv_write,
 };
 #[cfg(windows)]
 use crate::event::r#loop::{uv_handle_get_type, uv_handle_size};
@@ -44,8 +44,8 @@ use crate::fileio::{fclose, fopen, fwrite};
 use crate::globals::*;
 use crate::grid::{schar_cache_clear_if_full, schar_get, schar_get_ascii};
 use crate::kvec::KVec;
-use crate::log::{g_min_log_level, logmsg};
-use crate::lua::executor::nlua_exec;
+use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
+use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::map::{HlAttrs, Set, cstr_t, mh_put_cstr_t};
 use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
@@ -76,7 +76,7 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
 #[cfg(windows)]
-use crate::os::os_win_console::os_tty_guess_term;
+use crate::os::os_win_console::{GetConsoleMode, os_tty_guess_term};
 use crate::tui::terminfo::*;
 
 pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_write_cb};
@@ -291,22 +291,15 @@ unsafe extern "C" {
     fn getpgrp() -> c_int;
 }
 
-#[cfg(windows)]
-use crate::os::os_win_console::GetConsoleMode;
-
-use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::ui::kLineFlagWrap;
+use crate::api::ui::{MAX_SCHAR_SIZE, kLineFlagWrap};
 use crate::channel::STDOUT_FILENO;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_STANDOUT, HL_UNDERCURL,
     HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
 };
-use crate::event::r#loop::UV_RUN_DEFAULT;
 use crate::globals::{DFLT_COLS, DFLT_ROWS};
 use crate::highlight::{HL_ALTFONT, HL_BG_INDEXED, HL_FG_INDEXED};
-use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN};
-use crate::lua::executor::kRetObject;
 #[cfg(unix)]
 use crate::os::pty_proc_unix as unix_termios;
 use crate::os::signal::SIGWINCH;

@@ -5,11 +5,9 @@
 
 use crate::api::buffer::LUA_NOREF;
 #[cfg(not(test))]
-use crate::api::private::converter::VAR_UNLOCKED;
-#[cfg(not(test))]
-use crate::api::private::converter::partial_T;
-#[cfg(not(test))]
-use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL};
+use crate::api::private::converter::{
+    K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL, VAR_UNLOCKED, partial_T,
+};
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
@@ -25,14 +23,14 @@ use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType};
 #[cfg(not(test))]
-use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP};
-#[cfg(not(test))]
-use crate::eval::decode::{decode_create_map_special_dict, decode_string, dict_T, dictitem_T};
-#[cfg(not(test))]
-use crate::eval::encode::{K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING};
+use crate::eval::decode::{
+    K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string, dict_T,
+    dictitem_T,
+};
 #[cfg(not(test))]
 use crate::eval::encode::{
-    MPConvStackData, MPConvStackVal, MPConvStackValType, encode_vim_list_to_buf,
+    K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING, MPConvStackData, MPConvStackVal,
+    MPConvStackValType, encode_vim_list_to_buf,
 };
 #[cfg(not(test))]
 use crate::eval::executor::blob_T;
@@ -43,13 +41,9 @@ use crate::eval::typval::{
     tv_list_first, tv_list_last, tv_list_len, tv_list_ref,
 };
 #[cfg(not(test))]
-use crate::eval::userfunc::FC_LUAREF;
+use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 #[cfg(not(test))]
-use crate::eval::userfunc::{find_func, register_luafunc};
-#[cfg(not(test))]
-use crate::eval::vars::NUM_MSGPACK_TYPES;
-#[cfg(not(test))]
-use crate::eval::vars::eval_msgpack_type_lists;
+use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
 #[cfg(not(test))]
@@ -68,9 +62,7 @@ use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::memory::Arena;
 #[cfg(not(test))]
-use crate::memory::arena_memdupz;
-#[cfg(not(test))]
-use crate::memory::{xfree, xstrdup};
+use crate::memory::{arena_memdupz, xfree, xstrdup};
 #[cfg(not(test))]
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
