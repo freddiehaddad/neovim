@@ -146,27 +146,13 @@ test/old/testdir/%.vim: phony_force nvim
 functionaltest-lua: | nvim
 	$(CMAKE) --build build --target functionaltest
 
-FORMAT=formatc formatlua formatquery format
-LINT=lintlua lintsh lintc clang-analyzer lintcommit lintdoc lintdocurls lint emmylua-check lintquery linterrcodes
+FORMAT=formatrust formatlua formatquery format
+LINT=lintlua lintsh lintrust lintcommit lintdoc lintdocurls lint emmylua-check lintquery linterrcodes
 TEST=functionaltest unittest
 generated-sources benchmark $(FORMAT) $(LINT) $(TEST) doc: | build/.ran-cmake
 	$(CMAKE) --build build --target $@
 
 test: $(TEST)
-
-# iwyu-fix-includes can be downloaded from
-# https://github.com/include-what-you-use/include-what-you-use/blob/master/fix_includes.py.
-# Create a iwyu-fix-includes shell script in your $PATH that invokes the python script.
-iwyu: build/.ran-cmake
-	$(CMAKE) --preset iwyu
-	$(CMAKE) --build build > build/iwyu.log
-	iwyu-fix-includes --only_re="src/nvim" --ignore_re="(src/nvim/eval/encode.c\
-	|src/nvim/auto/\
-	|src/nvim/os/lang.c\
-	|src/nvim/map.c\
-	)" --nosafe_headers < build/iwyu.log
-	$(CMAKE) -B build -U ENABLE_IWYU
-	$(CMAKE) --build build
 
 clean:
 ifneq ($(wildcard build),)
@@ -177,8 +163,6 @@ endif
 distclean:
 	$(call rmdir, $(DEPS_BUILD_DIR))
 	$(call rmdir, build)
-	$(call rmdir, .zig-cache)
-	$(call rmdir, zig-out)
 	$(MAKE) clean
 
 install: checkprefix nvim

@@ -198,47 +198,9 @@ target_include_directories(main_lib INTERFACE
 
 file(MAKE_DIRECTORY ${TOUCHES_DIR})
 
-file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS ${NVIM_CDEF_DIR}/nvim/*.h)
-file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ${NVIM_CDEF_DIR}/mpack/*.h ${NVIM_CDEF_DIR}/klib/*.h)
-
 if(PREFER_LUA)
   target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
 endif()
-
-foreach(subdir
-        os
-        api/private
-        msgpack_rpc
-        tui
-        tui/termkey
-        vterm
-        event
-        eval
-        lib
-        viml/parser
-       )
-
-  file(GLOB headers CONFIGURE_DEPENDS ${NVIM_CDEF_DIR}/nvim/${subdir}/*.h)
-  list(APPEND NVIM_HEADERS ${headers})
-endforeach()
-
-# Sort file lists to ensure generated files are created in the same order from
-# build to build.
-list(SORT NVIM_HEADERS)
-
-list(APPEND UNCRUSTIFY_NVIM_SOURCES ${NVIM_HEADERS})
-
-foreach(hfile ${NVIM_HEADERS})
-  get_filename_component(f ${hfile} NAME)
-  if(WIN32 AND ${f} MATCHES "^(unix_defs.h)$")
-    list(REMOVE_ITEM NVIM_HEADERS ${hfile})
-  endif()
-  if(NOT WIN32 AND ${f} MATCHES "^(win_defs.h)$")
-    list(REMOVE_ITEM NVIM_HEADERS ${hfile})
-  endif()
-endforeach()
-
-list(APPEND LINT_NVIM_SOURCES ${NVIM_HEADERS})
 
 # Log level (NVIM_LOG_DEBUG in log.h)
 if(CI_BUILD)
@@ -299,8 +261,7 @@ else()
 endif()
 
 target_sources(main_lib INTERFACE
-  ${NVIM_HEADERS}
-  ${EXTERNAL_HEADERS})
+  ${CMAKE_CURRENT_LIST_DIR}/main_init.rs)
 
 find_program(CARGO_PRG cargo
   HINTS "$ENV{HOME}/.cargo/bin" "$ENV{USERPROFILE}/.cargo/bin"
@@ -509,50 +470,20 @@ target_link_libraries(libnvim PRIVATE main_lib PUBLIC libuv)
 # Lint
 #-------------------------------------------------------------------------------
 
-if(CI_BUILD)
-  set(LINT_OUTPUT_FORMAT gh_action)
-else()
-  set(LINT_OUTPUT_FORMAT vs7)
-endif()
-add_glob_target(
-  TARGET lintc-clint
-  COMMAND $<TARGET_FILE:nvim_bin>
-  FLAGS --clean -l ${PROJECT_SOURCE_DIR}/src/clint.lua --output=${LINT_OUTPUT_FORMAT}
-  FILES ${LINT_NVIM_SOURCES}
-  EXCLUDE
-    tui/terminfo_defs.h)
-add_dependencies(lintc-clint nvim_bin)
+add_custom_target(lintrust
+  COMMAND ${CMAKE_COMMAND} -E env
+    "CARGO_TARGET_DIR=${NVIM_RUST_TARGET_DIR}"
+    "${CARGO_PRG}" clippy
+    --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
+    --all-targets -- -D warnings
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  USES_TERMINAL)
 
-set(UNCRUSTIFY_PRG ${DEPS_BIN_DIR}/uncrustify)
-set(UNCRUSTIFY_CONFIG ${PROJECT_SOURCE_DIR}/src/uncrustify.cfg)
-
-add_custom_target(uncrustify_update_config
-  ${UNCRUSTIFY_PRG} -c ${UNCRUSTIFY_CONFIG} --update-config-with-doc -o ${UNCRUSTIFY_CONFIG})
-
-add_glob_target(
-  TARGET lintc-uncrustify
-  COMMAND ${UNCRUSTIFY_PRG}
-  FLAGS -c ${UNCRUSTIFY_CONFIG} -q --check
-  FILES ${UNCRUSTIFY_NVIM_SOURCES})
-
-add_glob_target(
-  TARGET formatc
-  COMMAND ${UNCRUSTIFY_PRG}
-  FLAGS -c ${UNCRUSTIFY_CONFIG} --replace --no-backup
-  FILES ${UNCRUSTIFY_NVIM_SOURCES})
-
-# TODO(bfredl): there is a bug in "uncrustify --update-config-with-doc" which breaks
-# our config (backslash escape in strings). Once fixed these two lines should be deleted
-# and the following two commented lines be uncomennetd.
-add_dependencies(lintc-uncrustify uncrustify)
-add_dependencies(formatc uncrustify)
-#add_dependencies(lintc-uncrustify uncrustify_update_config)
-#add_dependencies(formatc uncrustify_update_config)
-
-add_dependencies(uncrustify_update_config uncrustify)
-
-add_custom_target(lintc)
-add_dependencies(lintc lintc-clint lintc-uncrustify)
+add_custom_target(formatrust
+  COMMAND "${CARGO_PRG}" fmt
+    --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  USES_TERMINAL)
 
 #-------------------------------------------------------------------------------
 # Docs

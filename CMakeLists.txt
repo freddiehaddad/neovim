@@ -273,7 +273,7 @@ add_custom_target(linterrcodes
 add_dependencies(linterrcodes nvim_bin)
 
 add_custom_target(lint)
-add_dependencies(lint lintc lintlua lintsh lintquery)
+add_dependencies(lint lintrust lintlua lintsh lintquery)
 
 # Format
 add_glob_target(
@@ -298,7 +298,7 @@ add_custom_target(formatquery
   format ${PROJECT_SOURCE_DIR}/runtime/queries)
 
 add_custom_target(format)
-add_dependencies(format formatc formatlua formatquery)
+add_dependencies(format formatrust formatlua formatquery)
 
 install_helper(
   FILES ${CMAKE_SOURCE_DIR}/src/man/nvim.1
@@ -319,15 +319,6 @@ add_custom_target(uninstall
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
   add_subdirectory(cmake.packaging)
 endif()
-
-get_externalproject_options(uncrustify ${DEPS_IGNORE_SHA})
-ExternalProject_Add(uncrustify
-  DOWNLOAD_DIR ${DEPS_DOWNLOAD_DIR}/uncrustify
-  CMAKE_ARGS ${DEPS_CMAKE_ARGS}
-    -D CMAKE_RUNTIME_OUTPUT_DIRECTORY=${DEPS_BIN_DIR}
-    -D CMAKE_SKIP_RPATH=true
-  EXCLUDE_FROM_ALL TRUE
-  ${EXTERNALPROJECT_OPTIONS})
 
 if (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm|aarch|ARM")
   set(EMMYLUA_ARCH arm64)
