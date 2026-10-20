@@ -279,27 +279,6 @@ pub fn build(b: *std.Build) !void {
 
     const version_lua = gen_config.add("nvim_version.lua", lua_version_info(b));
 
-    // Note: these represent the actually resolved target and host platforms, which are often
-    // more verbose than what needs to be passed in (often -Dhost=native is auto-decteted)
-    // TODO(bfredl): we could include stuff like specific cpu features and os version but eh
-    var config_str = b.fmt("zig build -Doptimize={s} -Dtarget={s}", .{ @tagName(optimize), try t.linuxTriple(b.graph.arena) });
-    if (cross_compiling) {
-        config_str = b.fmt("{s} -Dhost={s}", .{ config_str, try target_host.result.linuxTriple(b.graph.arena) });
-    }
-
-    const versiondef_step = b.addConfigHeader(.{
-        .style = .{ .cmake = b.path("cmake.config/versiondef.h.in") },
-    }, .{
-        .NVIM_VERSION_MAJOR = version.major,
-        .NVIM_VERSION_MINOR = version.minor,
-        .NVIM_VERSION_PATCH = version.patch,
-        .NVIM_VERSION_PRERELEASE = version.prerelease,
-        .NVIM_VERSION_MEDIUM = "",
-        .VERSION_STRING = "TODO", // TODO(bfredl): not sure what to put here. summary already in "config_str"
-        .CONFIG = config_str,
-    });
-    _ = gen_config.addCopyFile(versiondef_step.getOutputFile(), "auto/versiondef.h"); // run_preprocessor() workaronnd
-
     const ptrwidth = t.ptrBitWidth() / 8;
     const sysconfig_step = b.addConfigHeader(.{
         .style = .{ .cmake = b.path("cmake.config/config.h.in") },

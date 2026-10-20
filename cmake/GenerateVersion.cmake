@@ -9,7 +9,7 @@ execute_process(
   RESULT_VARIABLE RES)
 if(RES)
   message(STATUS "Using NVIM_VERSION: ${NVIM_VERSION}")
-  file(WRITE "${OUTPUT}" "")
+  file(WRITE "${OUTPUT}" "#define NVIM_VERSION_MEDIUM \"${NVIM_VERSION}\"\n")
   return()
 endif()
 

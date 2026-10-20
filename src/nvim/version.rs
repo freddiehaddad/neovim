@@ -3775,6 +3775,14 @@ const fn make_cstr_buf<const N: usize>(opt: Option<&str>) -> [u8; N] {
     buf
 }
 
+const fn make_cstr_buf_or<const N: usize>(opt: Option<&str>, fallback: &str) -> [u8; N] {
+    let s = match opt {
+        Some(v) if !v.is_empty() => v,
+        _ => fallback,
+    };
+    make_cstr_buf(Some(s))
+}
+
 const fn env_flag_enabled(opt: Option<&str>, default: bool) -> bool {
     match opt {
         Some(s) => !s.is_empty() && s.as_bytes()[0] != b'0',
@@ -3782,6 +3790,9 @@ const fn env_flag_enabled(opt: Option<&str>, default: bool) -> bool {
     }
 }
 
+static VERSION_BUILDTYPE_BUF: [u8; 256] =
+    make_cstr_buf_or(option_env!("NVIM_BUILD_TYPE"), "Build type: Debug");
+static VERSION_CFLAGS_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_VERSION_CFLAGS"));
 static DEFAULT_VIM_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT_VIM_DIR"));
 static DEFAULT_VIMRUNTIME_DIR_BUF: [u8; 4096] =
     make_cstr_buf(option_env!("NVIM_DEFAULT_VIMRUNTIME_DIR"));
@@ -3794,6 +3805,19 @@ pub static nvim_version_minor: c_int = 13;
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static nvim_version_patch: c_int = 0;
 
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut version_buildtype: *mut c_char = (&raw const VERSION_BUILDTYPE_BUF)
+    .cast::<c_char>()
+    .cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut version_cflags: *mut c_char = if match option_env!("NVIM_VERSION_CFLAGS") {
+    Some(s) => !s.is_empty(),
+    None => false,
+} {
+    (&raw const VERSION_CFLAGS_BUF).cast::<c_char>().cast_mut()
+} else {
+    ptr::null_mut()
+};
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub static mut default_vim_dir: *mut c_char =
     (&raw const DEFAULT_VIM_DIR_BUF).cast::<c_char>().cast_mut();
@@ -3809,8 +3833,6 @@ pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), 
 
 unsafe extern "C" {
     pub static mut longVersion: *mut c_char;
-    pub static mut version_buildtype: *mut c_char;
-    pub static mut version_cflags: *mut c_char;
 }
 
 /// Compares a version string to the current Nvim version (`has_nvim_version`).
