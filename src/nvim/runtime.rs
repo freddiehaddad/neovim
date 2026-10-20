@@ -313,10 +313,7 @@ static mut APP_ADD_DIR: c_int = 0;
 static mut APP_LOAD: c_int = 0;
 static mut APP_BOTH: c_int = 0;
 
-unsafe extern "C" {
-    static mut default_lib_dir: *mut c_char;
-
-}
+use crate::version::default_lib_dir;
 
 #[inline]
 const fn cstr_literal(s: &'static CStr) -> NvimString {

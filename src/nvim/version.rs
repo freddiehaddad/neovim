@@ -3762,18 +3762,55 @@ pub static mut Versions: [*mut c_char; 5] = [
     c"9.2".as_ptr().cast_mut(),
 ];
 
+const fn make_cstr_buf<const N: usize>(opt: Option<&str>) -> [u8; N] {
+    let mut buf = [0u8; N];
+    if let Some(s) = opt {
+        let bytes = s.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() && i + 1 < N {
+            buf[i] = bytes[i];
+            i += 1;
+        }
+    }
+    buf
+}
+
+const fn env_flag_enabled(opt: Option<&str>, default: bool) -> bool {
+    match opt {
+        Some(s) => !s.is_empty() && s.as_bytes()[0] != b'0',
+        None => default,
+    }
+}
+
+static DEFAULT_VIM_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT_VIM_DIR"));
+static DEFAULT_VIMRUNTIME_DIR_BUF: [u8; 4096] =
+    make_cstr_buf(option_env!("NVIM_DEFAULT_VIMRUNTIME_DIR"));
+static DEFAULT_LIB_DIR_BUF: [u8; 4096] = make_cstr_buf(option_env!("NVIM_DEFAULT_LIB_DIR"));
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static nvim_version_major: c_int = 0;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static nvim_version_minor: c_int = 13;
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static nvim_version_patch: c_int = 0;
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut default_vim_dir: *mut c_char =
+    (&raw const DEFAULT_VIM_DIR_BUF).cast::<c_char>().cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut default_vimruntime_dir: *mut c_char = (&raw const DEFAULT_VIMRUNTIME_DIR_BUF)
+    .cast::<c_char>()
+    .cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static mut default_lib_dir: *mut c_char =
+    (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>().cast_mut();
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
+
 unsafe extern "C" {
     pub static mut longVersion: *mut c_char;
     pub static mut version_buildtype: *mut c_char;
     pub static mut version_cflags: *mut c_char;
-    pub static mut version_sys_vimrc_file: *const c_char;
-    pub static nvim_version_major: c_int;
-    pub static nvim_version_minor: c_int;
-    pub static nvim_version_patch: c_int;
-
-    pub static mut default_vim_dir: *mut c_char;
-    pub static mut default_vimruntime_dir: *mut c_char;
-    pub static main_exitfree: bool;
 }
 
 /// Compares a version string to the current Nvim version (`has_nvim_version`).
@@ -3806,11 +3843,8 @@ pub unsafe extern "C" fn has_nvim_version(version_str: *const c_char) -> bool {
             }
         }
 
-        #[cfg(not(test))]
         let (cur_major, cur_minor, cur_patch) =
             (nvim_version_major, nvim_version_minor, nvim_version_patch);
-        #[cfg(test)]
-        let (cur_major, cur_minor, cur_patch) = (0, 13, 0);
 
         major < cur_major
             || (major == cur_major
@@ -4027,11 +4061,9 @@ pub unsafe extern "C" fn list_version() {
             }
             version_msg(c"\n\n".as_ptr());
 
-            if !version_sys_vimrc_file.is_null() {
-                version_msg(gettext(c"   system vimrc file: \"".as_ptr()));
-                version_msg(version_sys_vimrc_file);
-                version_msg(c"\"\n".as_ptr());
-            }
+            version_msg(gettext(c"   system vimrc file: \"".as_ptr()));
+            version_msg(c"$VIM/sysinit.vim".as_ptr());
+            version_msg(c"\"\n".as_ptr());
 
             if *default_vim_dir != NUL {
                 version_msg(gettext(c"  fall-back for $VIM: \"".as_ptr()));

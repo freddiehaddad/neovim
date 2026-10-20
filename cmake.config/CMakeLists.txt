@@ -190,8 +190,3 @@ configure_file(versiondef.h.in auto/versiondef.h.gen)
 file(GENERATE
   OUTPUT "${PROJECT_BINARY_DIR}/cmake.config/auto/versiondef-$<CONFIG>.h"
   INPUT "${PROJECT_BINARY_DIR}/cmake.config/auto/versiondef.h.gen")
-
-configure_file (
-  "${PROJECT_SOURCE_DIR}/cmake.config/pathdef.h.in"
-  "${PROJECT_BINARY_DIR}/cmake.config/auto/pathdef.h"
-  ESCAPE_QUOTES)

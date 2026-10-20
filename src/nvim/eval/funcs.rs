@@ -478,10 +478,26 @@ unsafe extern "system" {
 
 use crate::strings::strtoul;
 
-unsafe extern "C" {
-    #[cfg(not(test))]
-    static nvim_build_has_flags: u32;
+const fn compute_build_has_flags() -> u32 {
+    let mut flags = 0u32;
+    if match option_env!("NVIM_HAVE_UNIBILIUM") {
+        Some(s) => !s.is_empty() && s.as_bytes()[0] != b'0',
+        None => true,
+    } {
+        flags |= 1 << 1;
+    }
+    if cfg!(target_os = "linux") {
+        flags |= 1 << 2;
+    }
+    if cfg!(target_os = "android") {
+        flags |= 1 << 3;
+    }
+    flags
+}
 
+const NVIM_BUILD_HAS_FLAGS: u32 = compute_build_has_flags();
+
+unsafe extern "C" {
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
     fn c_mktime(tm: *mut Tm) -> time_t;
@@ -4479,10 +4495,7 @@ unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
                 return true;
             }
         }
-        #[cfg(not(test))]
-        let flags = nvim_build_has_flags;
-        #[cfg(test)]
-        let flags = 0u32;
+        let flags = NVIM_BUILD_HAS_FLAGS;
         ((flags & (1 << 0)) != 0 && c_stricmp(name, c"acl".as_ptr()) == 0)
             || ((flags & (1 << 1)) != 0 && c_stricmp(name, c"terminfo".as_ptr()) == 0)
             || ((flags & (1 << 2)) != 0 && c_stricmp(name, c"xattr".as_ptr()) == 0)

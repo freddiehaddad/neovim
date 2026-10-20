@@ -349,18 +349,6 @@ pub fn build(b: *std.Build) !void {
     });
 
     _ = gen_config.addCopyFile(sysconfig_step.getOutputFile(), "auto/config.h"); // run_preprocessor() workaronnd
-    //
-    const system_install_path = b.option([]const u8, "install-path", "Install path (for packagers)");
-    const vim_dir, const lib_dir = if (system_install_path) |path| confinstall: {
-        const good_path = try replace_backslashes(b, path);
-        break :confinstall .{ b.fmt("{s}/share/nvim", .{good_path}), b.fmt("{s}/lib/nvim", .{good_path}) };
-    } else .{ "", "" };
-
-    _ = gen_config.add("auto/pathdef.h", b.fmt(
-        \\char *default_vim_dir = "{s}";
-        \\char *default_vimruntime_dir = "";
-        \\char *default_lib_dir = "{s}";
-    , .{ vim_dir, lib_dir }));
 
     const opt_version_string = b.option(
         []const u8,

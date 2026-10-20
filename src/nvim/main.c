@@ -1,9 +1,7 @@
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "auto/config.h"  // IWYU pragma: keep
-#include "auto/pathdef.h"
 #include "auto/versiondef.h"
 #include "auto/versiondef_git.h"
 #include "nvim/api/private/helpers.h"
@@ -34,35 +32,6 @@ char *version_cflags = "Compilation: " NVIM_VERSION_CFLAGS;
 #else
 char *version_cflags = NULL;
 #endif
-#ifdef SYS_VIMRC_FILE
-const char *version_sys_vimrc_file = SYS_VIMRC_FILE;
-#else
-const char *version_sys_vimrc_file = NULL;
-#endif
-const int nvim_version_major = NVIM_VERSION_MAJOR;
-const int nvim_version_minor = NVIM_VERSION_MINOR;
-const int nvim_version_patch = NVIM_VERSION_PATCH;
-
-#ifdef EXITFREE
-const bool main_exitfree = true;
-#else
-const bool main_exitfree = false;
-#endif
-
-const uint32_t nvim_build_has_flags =
-#ifdef HAVE_ACL
-  (1U << 0) |
-#endif
-#ifdef HAVE_UNIBILIUM
-  (1U << 1) |
-#endif
-#ifdef HAVE_XATTR
-  (1U << 2) |
-#endif
-#ifdef __TERMUX__
-  (1U << 3) |
-#endif
-  0U;
 
 const uint8_t *api_get_packed_metadata(size_t *len)
 {
