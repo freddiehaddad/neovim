@@ -79,8 +79,6 @@ typedef struct {
 #include "lua_api_c_bindings.generated.h"  // IWYU pragma: keep
 #include "main.c.generated.h"
 
-#include "options.generated.h"
-
 PRAGMA_DIAG_PUSH_IGNORE_MISSING_PROTOTYPES
 PRAGMA_DIAG_PUSH_IGNORE_IMPLICIT_FALLTHROUGH
 #include "funcs.generated.h"
@@ -261,12 +259,6 @@ const char *const eval_has_list[] = {
 const EvalFuncDef *eval_func_def_at(int idx)
 {
   return &functions[idx];
-}
-
-vimoption_T *get_option(OptIndex opt_idx)
-{
-  assert(opt_idx != kOptInvalid);
-  return &options[opt_idx];
 }
 
 const void *nlua_get_builtin_modules(size_t *count)
