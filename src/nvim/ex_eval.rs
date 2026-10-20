@@ -5,8 +5,7 @@
     non_snake_case,
     non_upper_case_globals,
     clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::collapsible_if
+    clippy::too_many_arguments
 )]
 
 use crate::api::command::{exarg_T, regmatch_T};
@@ -1424,12 +1423,11 @@ pub unsafe extern "C" fn ex_endtry(eap: *mut exarg_T) {
                 && ((*cstack).cs_flags[u_idx] & CSF_FINALLY) == 0
                 && (*cstack).cs_pending[u_idx] == 0))
             && dbg_check_skipped(eap.cast())
+            && got_int
         {
-            if got_int {
-                skip = true;
-                do_intthrow(cstack);
-                rethrow = did_throw && ((*cstack).cs_flags[u_idx] & CSF_FINALLY) == 0;
-            }
+            skip = true;
+            do_intthrow(cstack);
+            rethrow = did_throw && ((*cstack).cs_flags[u_idx] & CSF_FINALLY) == 0;
         }
 
         if !skip {

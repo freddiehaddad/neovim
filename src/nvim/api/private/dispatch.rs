@@ -4,9 +4,7 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_if,
-    clippy::missing_safety_doc,
-    clippy::too_many_lines
+    clippy::missing_safety_doc
 )]
 
 use crate::api::autocmd::{
@@ -4365,11 +4363,10 @@ pub unsafe extern "C" fn handle_nvim_get_autocmds(
             );
             return ret;
         }
-        if args.size >= 1 {
-            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *".as_ptr(), error) {
+        if args.size >= 1
+            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_get_autocmds(&raw mut arg_1, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -4404,11 +4401,10 @@ pub unsafe extern "C" fn handle_nvim_create_autocmd(
             return ret;
         }
         let arg_1: Object = *args.items.add(0);
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_create_autocmd(channel_id, arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -4482,11 +4478,10 @@ pub unsafe extern "C" fn handle_nvim_clear_autocmds(
             );
             return ret;
         }
-        if args.size >= 1 {
-            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *".as_ptr(), error) {
+        if args.size >= 1
+            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_clear_autocmds(&raw mut arg_1, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -4529,11 +4524,10 @@ pub unsafe extern "C" fn handle_nvim_create_augroup(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_create_augroup(channel_id, arg_1, &raw mut arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -4650,11 +4644,10 @@ pub unsafe extern "C" fn handle_nvim_exec_autocmds(
             return ret;
         }
         let arg_1: Object = *args.items.add(0);
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_exec_autocmds(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -4749,11 +4742,10 @@ pub unsafe extern "C" fn handle_nvim_buf_attach(
         ) {
             return ret;
         }
-        if args.size >= 3 {
-            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *".as_ptr(), error) {
+        if args.size >= 3
+            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &raw mut arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -5134,11 +5126,10 @@ pub unsafe extern "C" fn handle_nvim_buf_get_text(
         ) {
             return ret;
         }
-        if args.size >= 6 {
-            if !extract_keydict(*args.items.add(5), &raw mut arg_6, Some(KeyDict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *".as_ptr(), error) {
+        if args.size >= 6
+            && !extract_keydict(*args.items.add(5), &raw mut arg_6, Some(KeyDict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_get_text(
             channel_id,
             arg_1,
@@ -5424,11 +5415,10 @@ pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
         ) {
             return ret;
         }
-        if args.size >= 5 {
-            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *".as_ptr(), error) {
+        if args.size >= 5
+            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_buf_set_keymap(
             channel_id,
             arg_1,
@@ -5500,11 +5490,10 @@ pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
         ) {
             return ret;
         }
-        if args.size >= 4 {
-            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
+        if args.size >= 4
+            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -5779,11 +5768,10 @@ pub unsafe extern "C" fn handle_nvim_buf_delete(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *".as_ptr(), error) {
                 return ret;
             }
-        }
         if text_locked() {
             api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
             return ret;
@@ -5947,11 +5935,10 @@ pub unsafe extern "C" fn handle_nvim_buf_set_mark(
         ) {
             return ret;
         }
-        if args.size >= 5 {
-            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *".as_ptr(), error) {
+        if args.size >= 5
+            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -6087,17 +6074,17 @@ pub unsafe extern "C" fn handle_nvim_parse_cmd(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(
+        if args.size >= 2
+            && !extract_keydict(
                 *args.items.add(1),
                 &raw mut arg_2,
                 Some(KeyDict_empty_get_field),
                 c"Wrong type for argument 2 when calling nvim_parse_cmd, expecting Dict(empty) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         let mut rv = nvim_parse_cmd(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -6147,17 +6134,17 @@ pub unsafe extern "C" fn handle_nvim_cmd(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(
+        if args.size >= 2
+            && !extract_keydict(
                 *args.items.add(1),
                 &raw mut arg_2,
                 Some(KeyDict_cmd_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim_cmd, expecting Dict(cmd_opts) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         let rv = nvim_cmd(channel_id, &raw mut arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -6203,11 +6190,10 @@ pub unsafe extern "C" fn handle_nvim_create_user_command(
             return ret;
         }
         let arg_2: Object = *args.items.add(1);
-        if args.size >= 3 {
-            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
+        if args.size >= 3
+            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_create_user_command(channel_id, arg_1, arg_2, &raw mut arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -6290,11 +6276,10 @@ pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
             return ret;
         }
         let arg_3: Object = *args.items.add(2);
-        if args.size >= 4 {
-            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
+        if args.size >= 4
+            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -6379,11 +6364,10 @@ pub unsafe extern "C" fn handle_nvim_get_commands(
             );
             return ret;
         }
-        if args.size >= 1 {
-            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
+        if args.size >= 1
+            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_get_commands(&raw mut arg_1, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -6428,11 +6412,10 @@ pub unsafe extern "C" fn handle_nvim_buf_get_commands(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_get_commands(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -6857,11 +6840,10 @@ pub unsafe extern "C" fn handle_nvim_buf_set_virtual_text(
         ) {
             return ret;
         }
-        if args.size >= 5 {
-            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *".as_ptr(), error) {
+        if args.size >= 5
+            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8688,11 +8670,10 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmark_by_id(
         ) {
             return ret;
         }
-        if args.size >= 4 {
-            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *".as_ptr(), error) {
+        if args.size >= 4
+            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &raw mut arg_4, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8749,11 +8730,10 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
         }
         let arg_3: Object = *args.items.add(2);
         let arg_4: Object = *args.items.add(3);
-        if args.size >= 5 {
-            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
+        if args.size >= 5
+            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -8828,11 +8808,10 @@ pub unsafe extern "C" fn handle_nvim_buf_set_extmark(
         ) {
             return ret;
         }
-        if args.size >= 5 {
-            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *".as_ptr(), error) {
+        if args.size >= 5
+            && !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -9073,17 +9052,17 @@ pub unsafe extern "C" fn handle_nvim__ns_set(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(
+        if args.size >= 2
+            && !extract_keydict(
                 *args.items.add(1),
                 &raw mut arg_2,
                 Some(KeyDict_ns_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim__ns_set, expecting Dict(ns_opts) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         nvim__ns_set(arg_1, &raw mut arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -9173,11 +9152,10 @@ pub unsafe extern "C" fn handle_nvim_get_option_value(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_get_option_value(arg_1, &raw mut arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -9222,11 +9200,10 @@ pub unsafe extern "C" fn handle_nvim_set_option_value(
             return ret;
         }
         let arg_2: Object = *args.items.add(1);
-        if args.size >= 3 {
-            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
+        if args.size >= 3
+            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &raw mut arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -9302,11 +9279,10 @@ pub unsafe extern "C" fn handle_nvim_get_option_info2(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_get_option_info2(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -10322,11 +10298,10 @@ pub unsafe extern "C" fn handle_nvim_get_hl(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_get_hl(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -10420,17 +10395,17 @@ pub unsafe extern "C" fn handle_nvim_get_hl_ns(
             );
             return ret;
         }
-        if args.size >= 1 {
-            if !extract_keydict(
+        if args.size >= 1
+            && !extract_keydict(
                 *args.items.add(0),
                 &raw mut arg_1,
                 Some(KeyDict_get_ns_get_field),
                 c"Wrong type for argument 1 when calling nvim_get_hl_ns, expecting Dict(get_ns) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         let rv = nvim_get_hl_ns(&raw mut arg_1, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -11096,11 +11071,10 @@ pub unsafe extern "C" fn handle_nvim__get_runtime(
         ) {
             return ret;
         }
-        if args.size >= 3 {
-            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *".as_ptr(), error) {
+        if args.size >= 3
+            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim__get_runtime(arg_1, arg_2, &raw mut arg_3, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -11504,17 +11478,17 @@ pub unsafe extern "C" fn handle_nvim_echo(
         ) {
             return ret;
         }
-        if args.size >= 3 {
-            if !extract_keydict(
+        if args.size >= 3
+            && !extract_keydict(
                 *args.items.add(2),
                 &raw mut arg_3,
                 Some(KeyDict_echo_opts_get_field),
                 c"Wrong type for argument 3 when calling nvim_echo, expecting Dict(echo_opts) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         let rv = nvim_echo(arg_1, arg_2, &raw mut arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -11817,11 +11791,10 @@ pub unsafe extern "C" fn handle_nvim_open_term(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *".as_ptr(), error) {
                 return ret;
             }
-        }
         if text_locked() {
             api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
             return ret;
@@ -12214,11 +12187,10 @@ pub unsafe extern "C" fn handle_nvim_get_context(
             );
             return ret;
         }
-        if args.size >= 1 {
-            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *".as_ptr(), error) {
+        if args.size >= 1
+            && !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_get_context(&raw mut arg_1, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -12387,17 +12359,17 @@ pub unsafe extern "C" fn handle_nvim_set_keymap(
         ) {
             return ret;
         }
-        if args.size >= 4 {
-            if !extract_keydict(
+        if args.size >= 4
+            && !extract_keydict(
                 *args.items.add(3),
                 &raw mut arg_4,
                 Some(KeyDict_keymap_get_field),
                 c"Wrong type for argument 4 when calling nvim_set_keymap, expecting Dict(keymap) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -12449,11 +12421,10 @@ pub unsafe extern "C" fn handle_nvim_del_keymap(
         ) {
             return ret;
         }
-        if args.size >= 3 {
-            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
+        if args.size >= 3
+            && !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_del_keymap(channel_id, arg_1, arg_2, &raw mut arg_3, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -13080,11 +13051,10 @@ pub unsafe extern "C" fn handle_nvim_select_popupmenu_item(
         ) {
             return ret;
         }
-        if args.size >= 4 {
-            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *".as_ptr(), error) {
+        if args.size >= 4
+            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &raw mut arg_4, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -13335,17 +13305,17 @@ pub unsafe extern "C" fn handle_nvim_get_mark(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(
+        if args.size >= 2
+            && !extract_keydict(
                 *args.items.add(1),
                 &raw mut arg_2,
                 Some(KeyDict_empty_get_field),
                 c"Wrong type for argument 2 when calling nvim_get_mark, expecting Dict(empty) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         let rv = nvim_get_mark(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -13390,11 +13360,10 @@ pub unsafe extern "C" fn handle_nvim_eval_statusline(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_eval_statusline(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -13438,11 +13407,10 @@ pub unsafe extern "C" fn handle_nvim__complete_set(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim__complete_set(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -13476,17 +13444,17 @@ pub unsafe extern "C" fn handle_nvim__redraw(
             );
             return ret;
         }
-        if args.size >= 1 {
-            if !extract_keydict(
+        if args.size >= 1
+            && !extract_keydict(
                 *args.items.add(0),
                 &raw mut arg_1,
                 Some(KeyDict_redraw_get_field),
                 c"Wrong type for argument 1 when calling nvim__redraw, expecting Dict(redraw) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         nvim__redraw(&raw mut arg_1, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -13577,17 +13545,17 @@ pub unsafe extern "C" fn handle_nvim_exec2(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(
+        if args.size >= 2
+            && !extract_keydict(
                 *args.items.add(1),
                 &raw mut arg_2,
                 Some(KeyDict_exec_opts_get_field),
                 c"Wrong type for argument 2 when calling nvim_exec2, expecting Dict(exec_opts) *"
                     .as_ptr(),
                 error,
-            ) {
-                return ret;
-            }
+            )
+        {
+            return ret;
         }
         let rv = nvim_exec2(channel_id, arg_1, &raw mut arg_2, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
@@ -14780,11 +14748,10 @@ pub unsafe extern "C" fn handle_nvim_win_text_height(
         ) {
             return ret;
         }
-        if args.size >= 2 {
-            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *".as_ptr(), error) {
+        if args.size >= 2
+            && !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *".as_ptr(), error) {
                 return ret;
             }
-        }
         let rv = nvim_win_text_height(arg_1, &raw mut arg_2, arena, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;
@@ -14846,11 +14813,10 @@ pub unsafe extern "C" fn handle_nvim_win_resize(
         ) {
             return ret;
         }
-        if args.size >= 4 {
-            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *".as_ptr(), error) {
+        if args.size >= 4
+            && !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *".as_ptr(), error) {
                 return ret;
             }
-        }
         nvim_win_resize(arg_1, arg_2, arg_3, &raw mut arg_4, error);
         if (*error).err_type != ErrorType::kErrorTypeNone {
             return ret;

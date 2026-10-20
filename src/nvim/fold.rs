@@ -6,8 +6,7 @@
     non_upper_case_globals,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
-    clippy::needless_range_loop,
-    clippy::collapsible_if
+    clippy::needless_range_loop
 )]
 
 use crate::api::deprecated::VirtText;
@@ -2930,12 +2929,11 @@ unsafe fn put_foldopen_recurse(
                     }
                 } else {
                     let level = i64::from(foldLevelWin(wp, off + (*fp).fd_top));
-                    if ((*fp).fd_flags == FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl >= level)
-                        || ((*fp).fd_flags != FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl < level)
+                    if (((*fp).fd_flags == FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl >= level)
+                        || ((*fp).fd_flags != FD_CLOSED && (*wp).w_onebuf_opt.wo_fdl < level))
+                        && put_fold_open_close(fd, fp, off) == FAIL
                     {
-                        if put_fold_open_close(fd, fp, off) == FAIL {
-                            return FAIL;
-                        }
+                        return FAIL;
                     }
                 }
             }

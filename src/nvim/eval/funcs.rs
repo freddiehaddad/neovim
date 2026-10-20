@@ -4,7 +4,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_if,
     clippy::enum_variant_names,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
@@ -2002,12 +2001,11 @@ unsafe fn get_col(argvars: *mut typval_T, rettv: *mut typval_T, charcol: bool) {
                     let p = ml_get_buf(bp, (*wp).w_cursor.lnum).add((*wp).w_cursor.col as usize);
                     if (*wp).w_cursor.coladd
                         >= win_chartabsize(wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
+                        && *p != NUL
                     {
-                        if *p != NUL {
-                            let l = utfc_ptr2len(p);
-                            if *p.add(l as usize) == NUL {
-                                col += l;
-                            }
+                        let l = utfc_ptr2len(p);
+                        if *p.add(l as usize) == NUL {
+                            col += l;
                         }
                     }
                 }

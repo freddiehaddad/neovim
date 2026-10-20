@@ -6,8 +6,6 @@
     non_upper_case_globals,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
-    clippy::collapsible_if,
-    clippy::collapsible_else_if,
     clippy::enum_variant_names
 )]
 
@@ -2765,15 +2763,13 @@ pub unsafe extern "C" fn utf_ClusterInfo_impl(
                 check_emoji = false;
             }
 
-            if cells == 1 {
-                if (*utf8proc_get_property(next_code)).boundclass()
+            if cells == 1
+                && ((*utf8proc_get_property(next_code)).boundclass()
                     == UTF8PROC_BOUNDCLASS_SPACINGMARK
-                    || (next_code & !1) == 0xFF9E
-                {
-                    if base.chr.len != 1 {
-                        cells = 2;
-                    }
-                }
+                    || (next_code & !1) == 0xFF9E)
+                && base.chr.len != 1
+            {
+                cells = 2;
             }
 
             prev_code = next_code;

@@ -6,7 +6,6 @@
     non_upper_case_globals,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
-    clippy::collapsible_if,
     clippy::needless_range_loop
 )]
 
@@ -5992,23 +5991,22 @@ unsafe fn parse_register(eap: *mut exarg_T) {
             && *(*eap).arg != NUL
             && (!is_user || *(*eap).arg != b'=' as c_char)
             && !(((*eap).argt & EX_COUNT) != 0 && ascii_isdigit_c(*(*eap).arg))
-        {
-            if valid_yank_reg(
+            && valid_yank_reg(
                 c_int::from(*(*eap).arg as u8),
                 !is_user
                     && (*eap).cmdidx != cmdidx_T::CMD_put as c_int
                     && (*eap).cmdidx != cmdidx_T::CMD_iput as c_int,
-            ) {
-                (*eap).regname = c_int::from(*(*eap).arg as u8);
-                (*eap).arg = (*eap).arg.add(1);
-                if *(*eap).arg.sub(1) == b'=' as c_char && *(*eap).arg != NUL {
-                    if (*eap).skip == 0 {
-                        set_expr_line(xstrdup((*eap).arg));
-                    }
-                    (*eap).arg = (*eap).arg.add(strlen((*eap).arg));
+            )
+        {
+            (*eap).regname = c_int::from(*(*eap).arg as u8);
+            (*eap).arg = (*eap).arg.add(1);
+            if *(*eap).arg.sub(1) == b'=' as c_char && *(*eap).arg != NUL {
+                if (*eap).skip == 0 {
+                    set_expr_line(xstrdup((*eap).arg));
                 }
-                (*eap).arg = skipwhite((*eap).arg);
+                (*eap).arg = (*eap).arg.add(strlen((*eap).arg));
             }
+            (*eap).arg = skipwhite((*eap).arg);
         }
     }
 }
@@ -6315,10 +6313,9 @@ unsafe fn execute_cmd0(
     preview: bool,
 ) -> c_int {
     unsafe {
-        if ((*eap).argt & EX_XFILE) != 0 {
-            if expand_filename(eap, (*eap).cmdlinep, errormsg) == FAIL {
-                return FAIL;
-            }
+        if ((*eap).argt & EX_XFILE) != 0 && expand_filename(eap, (*eap).cmdlinep, errormsg) == FAIL
+        {
+            return FAIL;
         }
 
         if ((*eap).argt & EX_BUFNAME) != 0
@@ -11313,10 +11310,8 @@ pub unsafe extern "C" fn ex_cd(eap: *mut exarg_T) {
             return;
         }
 
-        if do_chdir(new_dir, scope) {
-            if KeyTyped || p_verbose >= 5 {
-                ex_pwd(eap);
-            }
+        if do_chdir(new_dir, scope) && (KeyTyped || p_verbose >= 5) {
+            ex_pwd(eap);
         }
     }
 }

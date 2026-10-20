@@ -4,8 +4,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_else_if,
-    clippy::collapsible_if,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments

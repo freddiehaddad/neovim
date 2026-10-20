@@ -6,8 +6,6 @@
     non_upper_case_globals,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
-    clippy::collapsible_if,
-    clippy::collapsible_else_if,
     clippy::needless_range_loop
 )]
 

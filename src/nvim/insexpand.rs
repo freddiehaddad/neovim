@@ -5,8 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_else_if,
-    clippy::collapsible_if,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -4102,10 +4100,12 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
                 };
                 ret = tv_dict_add_list(retdict, key.as_ptr(), key.to_bytes().len(), li);
             }
-            if ret == OK && (what_flag & CI_WHAT_SELECTED) != 0 {
-                if !compl_curr_match.is_null() && (*compl_curr_match).cp_number == -1 {
-                    ins_compl_update_sequence_numbers();
-                }
+            if ret == OK
+                && (what_flag & CI_WHAT_SELECTED) != 0
+                && !compl_curr_match.is_null()
+                && (*compl_curr_match).cp_number == -1
+            {
+                ins_compl_update_sequence_numbers();
             }
             if ret == OK && !compl_first_match.is_null() {
                 let mut list_idx: c_int = 0;
@@ -6835,15 +6835,14 @@ pub unsafe extern "C" fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
         }
 
         let no_matches_found = is_first_match((*compl_first_match).cp_next);
-        if no_matches_found {
-            if compl_length > 1
+        if no_matches_found
+            && (compl_length > 1
                 || compl_status_adding()
                 || (ctrl_x_mode_not_default()
                     && !ctrl_x_mode_path_patterns()
-                    && !ctrl_x_mode_path_defines())
-            {
-                compl_cont_status &= !CONT_N_ADDS;
-            }
+                    && !ctrl_x_mode_path_defines()))
+        {
+            compl_cont_status &= !CONT_N_ADDS;
         }
 
         if ((*compl_curr_match).cp_flags & CP_CONT_S_IPOS) != 0 {

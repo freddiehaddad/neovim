@@ -8,8 +8,7 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::module_inception,
-    clippy::upper_case_acronyms,
-    clippy::collapsible_if
+    clippy::upper_case_acronyms
 )]
 
 use crate::api::private::helpers::{
@@ -922,11 +921,12 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         }
 
         (*tui).terminfo_found_in_db = false;
-        if !term.is_null() && !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false) {
-            if terminfo_from_database(&raw mut (*tui).ti, term, &raw mut (*tui).ti_arena) {
-                (*tui).term = arena_strdup(&raw mut (*tui).ti_arena, term);
-                (*tui).terminfo_found_in_db = true;
-            }
+        if !term.is_null()
+            && !os_env_exists(c"NVIM_TERMDEFS".as_ptr(), false)
+            && terminfo_from_database(&raw mut (*tui).ti, term, &raw mut (*tui).ti_arena)
+        {
+            (*tui).term = arena_strdup(&raw mut (*tui).ti_arena, term);
+            (*tui).terminfo_found_in_db = true;
         }
 
         if !(*tui).terminfo_found_in_db {
@@ -1235,17 +1235,18 @@ pub unsafe extern "C" fn tui_stop(tui: *mut TUIData) {
                 }
             }
         }
-        if !(*tui).stopped && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS {
-            if g_min_log_level <= LOGLVL_WRN {
-                logmsg!(
-                    LOGLVL_WRN,
-                    ptr::null(),
-                    c"tui_stop".as_ptr(),
-                    773,
-                    true,
-                    c"TUI: timed out waiting for DA1 response".as_ptr(),
-                );
-            }
+        if !(*tui).stopped
+            && ((os_hrtime() - wait_start) / 1_000_000) as i64 >= EXIT_TIMEOUT_MS
+            && g_min_log_level <= LOGLVL_WRN
+        {
+            logmsg!(
+                LOGLVL_WRN,
+                ptr::null(),
+                c"tui_stop".as_ptr(),
+                773,
+                true,
+                c"TUI: timed out waiting for DA1 response".as_ptr(),
+            );
         }
         (*tui).stopped = true;
 

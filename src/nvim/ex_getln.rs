@@ -4,7 +4,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_if,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -1792,20 +1791,19 @@ unsafe extern "C" fn command_line_execute(state: *mut VimState, key: c_int) -> c
         if (cmdline_pum_active() || wild_menu_showing != 0 || (*s).did_wild_list)
             && !key_is_wc
             && (*s).xpc.xp_numfiles > 0
+            && ((*s).c == Ctrl_E || (*s).c == Ctrl_Y)
         {
-            if (*s).c == Ctrl_E || (*s).c == Ctrl_Y {
-                wild_type = if (*s).c == Ctrl_E {
-                    WILD_CANCEL
-                } else {
-                    WILD_APPLY
-                };
-                nextwild(
-                    &raw mut (*s).xpc,
-                    wild_type,
-                    WILD_NO_BEEP,
-                    (*s).firstc != b'@' as c_int,
-                );
-            }
+            wild_type = if (*s).c == Ctrl_E {
+                WILD_CANCEL
+            } else {
+                WILD_APPLY
+            };
+            nextwild(
+                &raw mut (*s).xpc,
+                wild_type,
+                WILD_NO_BEEP,
+                (*s).firstc != b'@' as c_int,
+            );
         }
 
         if (KeyTyped
@@ -1909,45 +1907,45 @@ unsafe extern "C" fn command_line_execute(state: *mut VimState, key: c_int) -> c
 
         (*s).gotesc = false;
 
-        if (*s).c == K_S_TAB && KeyTyped {
-            if nextwild(
+        if (*s).c == K_S_TAB
+            && KeyTyped
+            && nextwild(
                 &raw mut (*s).xpc,
                 WILD_EXPAND_KEEP,
                 0,
                 (*s).firstc != b'@' as c_int,
             ) == OK
+        {
+            if (*s).xpc.xp_numfiles > 1
+                && ((!(*s).did_wild_list
+                    && (wim_flags[(*s).wim_index as usize] & kOptWimFlagList) != 0)
+                    || p_wmnu != 0)
             {
-                if (*s).xpc.xp_numfiles > 1
-                    && ((!(*s).did_wild_list
-                        && (wim_flags[(*s).wim_index as usize] & kOptWimFlagList) != 0)
-                        || p_wmnu != 0)
-                {
-                    let list = (wim_flags[(*s).wim_index as usize] & kOptWimFlagList) != 0;
-                    showmatches(
-                        &raw mut (*s).xpc,
-                        p_wmnu != 0 && !list,
-                        list,
-                        if p_wmnu != 0 {
-                            wim_flags[0] as c_int
-                        } else {
-                            0
-                        },
-                    );
-                }
-                nextwild(
+                let list = (wim_flags[(*s).wim_index as usize] & kOptWimFlagList) != 0;
+                showmatches(
                     &raw mut (*s).xpc,
-                    WILD_PREV,
-                    0,
-                    (*s).firstc != b'@' as c_int,
+                    p_wmnu != 0 && !list,
+                    list,
+                    if p_wmnu != 0 {
+                        wim_flags[0] as c_int
+                    } else {
+                        0
+                    },
                 );
-                nextwild(
-                    &raw mut (*s).xpc,
-                    WILD_PREV,
-                    0,
-                    (*s).firstc != b'@' as c_int,
-                );
-                return command_line_changed(s);
             }
+            nextwild(
+                &raw mut (*s).xpc,
+                WILD_PREV,
+                0,
+                (*s).firstc != b'@' as c_int,
+            );
+            nextwild(
+                &raw mut (*s).xpc,
+                WILD_PREV,
+                0,
+                (*s).firstc != b'@' as c_int,
+            );
+            return command_line_changed(s);
         }
 
         if (*s).c == NUL as c_int || (*s).c == K_ZERO {
@@ -3331,10 +3329,8 @@ unsafe fn command_line_changed(s: *mut CommandLineState) -> c_int {
 
         may_trigger_cursormovedc(s);
 
-        if p_arshape != 0 && p_tbidi == 0 {
-            if !ui_has(kUICmdline) && vpeekc() == NUL as c_int {
-                redrawcmd();
-            }
+        if p_arshape != 0 && p_tbidi == 0 && !ui_has(kUICmdline) && vpeekc() == NUL as c_int {
+            redrawcmd();
         }
 
         1

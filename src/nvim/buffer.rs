@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_if,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -706,18 +705,17 @@ pub unsafe extern "C" fn open_buffer(
                 (*curbuf).b_ffname,
                 (*curbuf).b_ffname.add(strlen((*curbuf).b_ffname)),
             ) != 0
+            && augroup_exists(c"filetypedetect".as_ptr())
         {
-            if augroup_exists(c"filetypedetect".as_ptr()) {
-                let mut bufref: bufref_T = std::mem::zeroed();
-                set_bufref(&raw mut bufref, curbuf);
-                do_doautocmd(
-                    c"filetypedetect BufRead".as_ptr().cast_mut(),
-                    false,
-                    ptr::null_mut(),
-                );
-                if !bufref_valid(&raw mut bufref) || curbuf != old_curbuf.br_buf || aborting() {
-                    return FAIL;
-                }
+            let mut bufref: bufref_T = std::mem::zeroed();
+            set_bufref(&raw mut bufref, curbuf);
+            do_doautocmd(
+                c"filetypedetect BufRead".as_ptr().cast_mut(),
+                false,
+                ptr::null_mut(),
+            );
+            if !bufref_valid(&raw mut bufref) || curbuf != old_curbuf.br_buf || aborting() {
+                return FAIL;
             }
         }
 
@@ -4670,14 +4668,13 @@ pub unsafe extern "C" fn buf_contents_changed(buf: *mut buf_T) -> bool {
                 READ_NEW | READ_DUMMY,
                 false,
             ) == OK
+            && (*buf).b_ml.ml_line_count == (*curbuf).b_ml.ml_line_count
         {
-            if (*buf).b_ml.ml_line_count == (*curbuf).b_ml.ml_line_count {
-                differ = false;
-                for lnum in 1..=(*curbuf).b_ml.ml_line_count {
-                    if strcmp(ml_get_buf(buf, lnum), ml_get(lnum)) != 0 {
-                        differ = true;
-                        break;
-                    }
+            differ = false;
+            for lnum in 1..=(*curbuf).b_ml.ml_line_count {
+                if strcmp(ml_get_buf(buf, lnum), ml_get(lnum)) != 0 {
+                    differ = true;
+                    break;
                 }
             }
         }

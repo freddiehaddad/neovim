@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::collapsible_if,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -3715,46 +3714,33 @@ unsafe fn findswapname(
                 break;
             }
 
-            if *fname.add(n - 2) == b'w' as c_char && *fname.add(n - 1) == b'p' as c_char {
-                if !recoverymode
-                    && !buf_fname.is_null()
-                    && !(*buf).b_help
-                    && ((*buf).b_flags & BF_DUMMY) == 0
-                {
-                    let mut b0 = std::mem::zeroed::<ZeroBlock>();
-                    let mut differ = false;
-                    let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
+            if *fname.add(n - 2) == b'w' as c_char
+                && *fname.add(n - 1) == b'p' as c_char
+                && !recoverymode
+                && !buf_fname.is_null()
+                && !(*buf).b_help
+                && ((*buf).b_flags & BF_DUMMY) == 0
+            {
+                let mut b0 = std::mem::zeroed::<ZeroBlock>();
+                let mut differ = false;
+                let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
 
-                    let fd = os_open(fname, O_RDONLY, 0);
-                    if fd >= 0 {
-                        if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
-                            == size_of::<ZeroBlock>() as isize
-                        {
-                            #[cfg(windows)]
-                            path_to_slash((&raw mut b0.b0_fname).cast());
-                            proc_running = swapfile_proc_running(&raw const b0, fname);
+                let fd = os_open(fname, O_RDONLY, 0);
+                if fd >= 0 {
+                    if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
+                        == size_of::<ZeroBlock>() as isize
+                    {
+                        #[cfg(windows)]
+                        path_to_slash((&raw mut b0.b0_fname).cast());
+                        proc_running = swapfile_proc_running(&raw const b0, fname);
 
-                            if (b0.flags() & B0_SAME_DIR) != 0 {
-                                if !path_equal(
-                                    path_tail((*buf).b_ffname),
-                                    path_tail((&raw const b0.b0_fname).cast()),
-                                    kPathCmpLiteral,
-                                ) || !same_directory(fname, (*buf).b_ffname)
-                                {
-                                    expand_env(
-                                        (&raw mut b0.b0_fname).cast(),
-                                        namebuff_ptr,
-                                        MAXPATHL as c_int,
-                                    );
-                                    if fnamecmp_ino(
-                                        (*buf).b_ffname,
-                                        namebuff_ptr,
-                                        char_to_long((&raw const b0.b0_ino).cast()),
-                                    ) {
-                                        differ = true;
-                                    }
-                                }
-                            } else {
+                        if (b0.flags() & B0_SAME_DIR) != 0 {
+                            if !path_equal(
+                                path_tail((*buf).b_ffname),
+                                path_tail((&raw const b0.b0_fname).cast()),
+                                kPathCmpLiteral,
+                            ) || !same_directory(fname, (*buf).b_ffname)
+                            {
                                 expand_env(
                                     (&raw mut b0.b0_fname).cast(),
                                     namebuff_ptr,
@@ -3768,118 +3754,131 @@ unsafe fn findswapname(
                                     differ = true;
                                 }
                             }
+                        } else {
+                            expand_env(
+                                (&raw mut b0.b0_fname).cast(),
+                                namebuff_ptr,
+                                MAXPATHL as c_int,
+                            );
+                            if fnamecmp_ino(
+                                (*buf).b_ffname,
+                                namebuff_ptr,
+                                char_to_long((&raw const b0.b0_ino).cast()),
+                            ) {
+                                differ = true;
+                            }
                         }
-                        close(fd);
+                    }
+                    close(fd);
+                }
+
+                if !differ
+                    && ((*curbuf).b_flags & BF_RECOVERED) == 0
+                    && vim_strchr(p_shm, kShmAttention).is_null()
+                {
+                    let mut choice: sea_choice_T = SEA_CHOICE_NONE;
+
+                    if os_path_exists((*buf).b_fname) && swapfile_unchanged(fname) {
+                        choice = SEA_CHOICE_DELETE;
+                        if p_verbose > 0 {
+                            verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
+                        }
                     }
 
-                    if !differ
-                        && ((*curbuf).b_flags & BF_RECOVERED) == 0
-                        && vim_strchr(p_shm, kShmAttention).is_null()
+                    if choice == SEA_CHOICE_NONE
+                        && swap_exists_action != SEA_NONE
+                        && has_autocmd(EVENT_SWAPEXISTS, buf_fname, buf)
                     {
-                        let mut choice: sea_choice_T = SEA_CHOICE_NONE;
+                        choice = do_swapexists(buf, fname);
+                    }
 
-                        if os_path_exists((*buf).b_fname) && swapfile_unchanged(fname) {
-                            choice = SEA_CHOICE_DELETE;
-                            if p_verbose > 0 {
-                                verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
-                            }
-                        }
+                    if choice == SEA_CHOICE_NONE && swap_exists_action == SEA_READONLY {
+                        choice = SEA_CHOICE_READONLY;
+                    }
 
-                        if choice == SEA_CHOICE_NONE
-                            && swap_exists_action != SEA_NONE
-                            && has_autocmd(EVENT_SWAPEXISTS, buf_fname, buf)
-                        {
-                            choice = do_swapexists(buf, fname);
-                        }
+                    proc_running = 0;
+                    if choice == SEA_CHOICE_NONE {
+                        no_wait_return += 1;
+                        let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
+                        let fhname = home_replace_save(ptr::null_mut(), fname);
+                        attention_message(buf, fname, fhname, &mut msg_sb);
 
-                        if choice == SEA_CHOICE_NONE && swap_exists_action == SEA_READONLY {
-                            choice = SEA_CHOICE_READONLY;
-                        }
+                        got_int = false;
+                        flush_buffers(FLUSH_TYPEAHEAD);
 
-                        proc_running = 0;
-                        if choice == SEA_CHOICE_NONE {
-                            no_wait_return += 1;
-                            let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
-                            let fhname = home_replace_save(ptr::null_mut(), fname);
-                            attention_message(buf, fname, fhname, &mut msg_sb);
-
-                            got_int = false;
-                            flush_buffers(FLUSH_TYPEAHEAD);
-
-                            if swap_exists_action != SEA_NONE {
-                                sb_push_cstr(&mut msg_sb, tr(c"Swap file \""));
-                                sb_push_cstr(&mut msg_sb, fhname);
-                                sb_push_cstr(&mut msg_sb, tr(c"\" already exists!"));
-                                msg_sb.push(0);
-                                let run_but =
-                                    tr(c"&Open Read-Only\n&Edit anyway\n&Recover\n&Quit\n&Abort");
-                                let but = tr(
+                        if swap_exists_action != SEA_NONE {
+                            sb_push_cstr(&mut msg_sb, tr(c"Swap file \""));
+                            sb_push_cstr(&mut msg_sb, fhname);
+                            sb_push_cstr(&mut msg_sb, tr(c"\" already exists!"));
+                            msg_sb.push(0);
+                            let run_but =
+                                tr(c"&Open Read-Only\n&Edit anyway\n&Recover\n&Quit\n&Abort");
+                            let but = tr(
                                     c"&Open Read-Only\n&Edit anyway\n&Recover\n&Delete it\n&Quit\n&Abort",
                                 );
-                                choice = do_dialog(
-                                    VIM_WARNING,
-                                    tr(c"VIM - ATTENTION"),
-                                    msg_sb.as_ptr().cast(),
-                                    if proc_running != 0 { run_but } else { but },
-                                    1,
-                                    ptr::null(),
-                                    0,
-                                );
+                            choice = do_dialog(
+                                VIM_WARNING,
+                                tr(c"VIM - ATTENTION"),
+                                msg_sb.as_ptr().cast(),
+                                if proc_running != 0 { run_but } else { but },
+                                1,
+                                ptr::null(),
+                                0,
+                            );
 
-                                if proc_running != 0 && choice >= 4 {
-                                    choice += 1;
-                                }
-                                msg_reset_scroll();
-                            } else {
-                                let mut need_clear = false;
-                                msg_ext_set_kind(c"wmsg".as_ptr());
-                                let msg_len = msg_sb.len();
-                                msg_sb.push(0);
-                                msg_multiline(
-                                    NvimString {
-                                        data: msg_sb.as_mut_ptr().cast(),
-                                        size: msg_len,
-                                    },
-                                    0,
-                                    false,
-                                    false,
-                                    &raw mut need_clear,
-                                );
+                            if proc_running != 0 && choice >= 4 {
+                                choice += 1;
                             }
-                            no_wait_return -= 1;
-                            xfree(fhname.cast());
+                            msg_reset_scroll();
+                        } else {
+                            let mut need_clear = false;
+                            msg_ext_set_kind(c"wmsg".as_ptr());
+                            let msg_len = msg_sb.len();
+                            msg_sb.push(0);
+                            msg_multiline(
+                                NvimString {
+                                    data: msg_sb.as_mut_ptr().cast(),
+                                    size: msg_len,
+                                },
+                                0,
+                                false,
+                                false,
+                                &raw mut need_clear,
+                            );
                         }
+                        no_wait_return -= 1;
+                        xfree(fhname.cast());
+                    }
 
-                        match choice {
-                            SEA_CHOICE_READONLY => {
-                                (*buf).b_p_ro = 1;
-                            }
-                            SEA_CHOICE_EDIT => {}
-                            SEA_CHOICE_RECOVER => {
-                                swap_exists_action = SEA_RECOVER;
-                            }
-                            SEA_CHOICE_DELETE => {
-                                os_remove(fname);
-                            }
-                            SEA_CHOICE_QUIT => {
-                                swap_exists_action = SEA_QUIT;
-                            }
-                            SEA_CHOICE_ABORT => {
-                                swap_exists_action = SEA_QUIT;
-                                got_int = true;
-                            }
-                            SEA_CHOICE_NONE => {
-                                msg_puts(c"\n".as_ptr());
-                                if msg_silent == 0 {
-                                    need_wait_return = true;
-                                }
-                            }
-                            _ => {}
+                    match choice {
+                        SEA_CHOICE_READONLY => {
+                            (*buf).b_p_ro = 1;
                         }
+                        SEA_CHOICE_EDIT => {}
+                        SEA_CHOICE_RECOVER => {
+                            swap_exists_action = SEA_RECOVER;
+                        }
+                        SEA_CHOICE_DELETE => {
+                            os_remove(fname);
+                        }
+                        SEA_CHOICE_QUIT => {
+                            swap_exists_action = SEA_QUIT;
+                        }
+                        SEA_CHOICE_ABORT => {
+                            swap_exists_action = SEA_QUIT;
+                            got_int = true;
+                        }
+                        SEA_CHOICE_NONE => {
+                            msg_puts(c"\n".as_ptr());
+                            if msg_silent == 0 {
+                                need_wait_return = true;
+                            }
+                        }
+                        _ => {}
+                    }
 
-                        if choice != SEA_CHOICE_NONE && !os_path_exists(fname) {
-                            break;
-                        }
+                    if choice != SEA_CHOICE_NONE && !os_path_exists(fname) {
+                        break;
                     }
                 }
             }
