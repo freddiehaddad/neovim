@@ -129,25 +129,25 @@ local config = {
     filename = 'api.txt',
     section_order = {
       -- Sections at the top, in a specific order:
-      'events.c',
-      'vim.c',
-      'vimscript.c',
+      'events.h',
+      'vim.h',
+      'vimscript.h',
 
       -- Sections in alphanumeric order:
-      'autocmd.c',
-      'buffer.c',
-      'command.c',
-      'extmark.c',
-      'options.c',
-      'tabpage.c',
-      'ui.c',
-      'win_config.c',
-      'window.c',
+      'autocmd.h',
+      'buffer.h',
+      'command.h',
+      'extmark.h',
+      'options.h',
+      'tabpage.h',
+      'ui.h',
+      'win_config.h',
+      'window.h',
     },
     fn_name_pat = 'nvim_.*',
     files = { 'src/nvim/api' },
     section_name = {
-      ['vim.c'] = 'Global',
+      ['vim.h'] = 'Global',
     },
     section_fmt = function(name)
       if name == 'Events' then

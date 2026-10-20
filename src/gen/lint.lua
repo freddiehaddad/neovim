@@ -39,19 +39,19 @@ local banned_verbs = {
 ---
 --- @type table<string, table<string, true>>
 local legacy_names = {
-  ['src/nvim/api/buffer.c'] = {
+  ['src/nvim/api/buffer.h'] = {
     nvim_buf_delete = true,
   },
-  ['src/nvim/api/window.c'] = {
+  ['src/nvim/api/window.h'] = {
     nvim_win_get_position = true,
   },
-  ['src/nvim/api/tabpage.c'] = {
+  ['src/nvim/api/tabpage.h'] = {
     nvim_tabpage_list_wins = true,
   },
-  ['src/nvim/api/ui.c'] = {
+  ['src/nvim/api/ui.h'] = {
     remote_ui_highlight_set = true,
   },
-  ['src/nvim/api/vim.c'] = {
+  ['src/nvim/api/vim.h'] = {
     nvim_list_bufs = true,
     nvim_list_chans = true,
     nvim_list_runtime_paths = true,
@@ -97,14 +97,14 @@ local legacy_names = {
   ['runtime/lua/vim/treesitter/query.lua'] = {
     _process_patterns = true,
   },
-  ['src/nvim/api/command.c'] = {
+  ['src/nvim/api/command.h'] = {
     create_user_command = true,
     nvim_buf_create_user_command = true,
     nvim_buf_del_user_command = true,
     nvim_create_user_command = true,
     nvim_del_user_command = true,
   },
-  ['src/nvim/api/vimscript.c'] = {
+  ['src/nvim/api/vimscript.h'] = {
     nvim_command = true,
   },
 }
