@@ -10,17 +10,17 @@ if(NOT NVIM_HOST_PRG)
 endif()
 file(MAKE_DIRECTORY ${GENERATED_RUNTIME_DIR}/syntax/vim)
 
-get_directory_property(LUA_GEN DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINITION LUA_GEN)
-get_directory_property(LUA_GEN_DEPS DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINITION LUA_GEN_DEPS)
+get_directory_property(NVIM_LUA DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINITION NVIM_LUA)
+get_directory_property(NVIM_LUA_DEPS DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINITION NVIM_LUA_DEPS)
 
 add_custom_command(OUTPUT ${GENERATED_SYN_VIM}
-  COMMAND ${LUA_GEN} ${SYN_VIM_GENERATOR} ${GENERATED_SYN_VIM} ${FUNCS_DATA}
+  COMMAND ${NVIM_LUA} ${SYN_VIM_GENERATOR} ${GENERATED_SYN_VIM} ${FUNCS_DATA}
     ${PROJECT_SOURCE_DIR}/src/nvim/options.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/auevents.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/ex_cmds.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/vvars.lua
   DEPENDS
-    ${LUA_GEN_DEPS}
+    ${NVIM_LUA_DEPS}
     ${SYN_VIM_GENERATOR}
     ${PROJECT_SOURCE_DIR}/src/nvim/ex_cmds.lua
     ${PROJECT_SOURCE_DIR}/src/nvim/auevents.lua

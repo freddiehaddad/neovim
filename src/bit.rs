@@ -20,9 +20,6 @@ const LUA_TNONE: c_int = -1;
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
     fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
     fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
     fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
@@ -347,29 +344,6 @@ pub unsafe extern "C-unwind" fn nvim_luaopen_bit(L: *mut lua_State) -> c_int {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C-unwind" fn luaopen_bit(L: *mut lua_State) -> c_int {
     unsafe { nvim_luaopen_bit(L) }
-}
-
-const LUA_GLOBALSINDEX: c_int = -10002;
-
-#[cfg_attr(not(test), unsafe(no_mangle))]
-pub unsafe extern "C-unwind" fn nvim_luaopen_nlua0(L: *mut lua_State) -> c_int {
-    #[cfg(not(test))]
-    unsafe {
-        lua_getfield(L, LUA_GLOBALSINDEX, c"vim".as_ptr());
-        let _ = crate::mpack::lmpack::luaopen_mpack(L.cast());
-        lua_setfield(L, -2, c"mpack".as_ptr());
-
-        let _ = crate::lpeg::lptree::luaopen_lpeg(L.cast());
-        lua_setfield(L, -3, c"lpeg".as_ptr());
-        lua_settop(L, -3);
-
-        1
-    }
-    #[cfg(test)]
-    {
-        let _ = L;
-        1
-    }
 }
 
 #[cfg(test)]

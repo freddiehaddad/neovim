@@ -1,15 +1,13 @@
 ---@diagnostic disable: no-unknown
--- Generates API metadata (.mpack) for RPC and eval generators.
+-- Generates API metadata (.mpack) for eval generators.
 
 local c_grammar = require('gen.c_grammar')
 
--- output file with exported functions metadata
-local exported_funcs_metadata_outputf = arg[1]
 -- output mpack file with raw metadata, for use by gen_eval.lua and gen_eval_files.lua
-local eval_funcs_metadata_outputf = arg[2]
-local dispatch_deprecated_inputf = arg[3]
-local pre_args = 3
-assert(#arg >= 3)
+local eval_funcs_metadata_outputf = arg[1]
+local dispatch_deprecated_inputf = arg[2]
+local pre_args = 2
+assert(#arg >= 2)
 
 local function real_type(type, exported)
   local ptype = c_grammar.typed_container:match(type)
@@ -274,42 +272,6 @@ for _, f in ipairs(shallowcopy(functions)) do
     functions[#functions + 1] = newf
   end
 end
-
---- don't expose internal attributes like "impl_name" in public metadata
---- @class gen_api_dispatch.Function.Exported
---- @field name string
---- @field parameters [string, string, boolean][] each param is `[ type, name, optional ]`
---- @field return_type string
---- @field method boolean
---- @field since integer
---- @field deprecated_since integer
-
---- @type gen_api_dispatch.Function.Exported[]
-local exported_functions = {}
-
-for _, f in ipairs(functions) do
-  if not (startswith(f.name, 'nvim__') or f.name == 'nvim_error_event' or f.name == 'redraw') then
-    --- @type gen_api_dispatch.Function.Exported
-    local f_exported = {
-      name = f.name,
-      method = f.method,
-      since = f.since,
-      deprecated_since = f.deprecated_since,
-      parameters = {},
-      return_type = real_type(f.return_type, true),
-    }
-    for i, param in ipairs(f.parameters) do
-      -- `opts` and every param after it are optional.
-      local optional = f.opts_idx ~= nil and i >= f.opts_idx
-      f_exported.parameters[i] = { real_type(param[1], true), param[2], optional }
-    end
-    exported_functions[#exported_functions + 1] = f_exported
-  end
-end
-
-local metadata_output = assert(io.open(exported_funcs_metadata_outputf, 'wb'))
-metadata_output:write(vim.mpack.encode(exported_functions))
-metadata_output:close()
 
 --- @cast functions {[integer]: gen_api_dispatch.Function, keysets: gen_api_dispatch.Keyset[]}
 functions.keysets = keysets

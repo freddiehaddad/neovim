@@ -17,14 +17,6 @@ set_target_properties(nvim_bin
 add_library(nvim_rs STATIC IMPORTED GLOBAL)
 target_link_libraries(main_lib INTERFACE nvim_rs)
 
-add_library(nlua0 MODULE)
-if(WIN32)
-  target_compile_definitions(nlua0 PUBLIC LUA_BUILD_AS_DLL LUA_LIB)
-  set_target_properties(nlua0 PROPERTIES ENABLE_EXPORTS TRUE)
-elseif(APPLE)
-  target_link_options(nlua0 PRIVATE -undefined dynamic_lookup)
-endif()
-
 # TODO(dundargoc): unittest stops working if I create an pseudo-imported
 # library "luv" as with the other dependencies. Figure out why and fix.
 find_package(Luv 1.43.0 REQUIRED)
@@ -63,7 +55,6 @@ option(PREFER_LUA "Prefer Lua over LuaJIT in the nvim executable." OFF)
 if(PREFER_LUA)
   find_package(Lua 5.1 EXACT REQUIRED)
   target_include_directories(main_lib SYSTEM BEFORE INTERFACE ${LUA_INCLUDE_DIR})
-  target_include_directories(nlua0 SYSTEM BEFORE PUBLIC ${LUA_INCLUDE_DIR})
   target_link_libraries(main_lib INTERFACE ${LUA_LIBRARIES})
   # Passive (not REQUIRED): if LUAJIT_FOUND is not set, fixtures for unittests is skipped.
   find_package(Luajit)
@@ -71,10 +62,6 @@ else()
   find_package(Luajit REQUIRED)
   target_include_directories(main_lib SYSTEM BEFORE INTERFACE ${LUAJIT_INCLUDE_DIR})
   target_link_libraries(main_lib INTERFACE ${LUAJIT_LIBRARY})
-  target_include_directories(nlua0 SYSTEM BEFORE PUBLIC ${LUAJIT_INCLUDE_DIR})
-  if(WIN32 OR CYGWIN)
-    target_link_libraries(nlua0 PUBLIC ${LUAJIT_LIBRARY})
-  endif()
 endif()
 
 #-------------------------------------------------------------------------------
@@ -296,8 +283,6 @@ endif()
 #-------------------------------------------------------------------------------
 
 set(EVAL_FUNCS_METADATA ${PROJECT_BINARY_DIR}/eval_funcs_metadata.mpack)
-set(EXPORTED_FUNCS_METADATA ${PROJECT_BINARY_DIR}/exported_funcs_metadata.mpack)
-set(UI_METADATA ${PROJECT_BINARY_DIR}/ui_metadata.mpack)
 set(BINARY_LIB_DIR ${PROJECT_BINARY_DIR}/lib/nvim)
 set(GENERATED_DIR ${PROJECT_BINARY_DIR}/src/nvim/auto)
 set(GENERATED_INCLUDES_DIR ${PROJECT_BINARY_DIR}/include)
@@ -308,15 +293,9 @@ set(NVIM_RUNTIME_DIR ${PROJECT_SOURCE_DIR}/runtime)
 
 # GENERATOR_DIR
 set(API_DISPATCH_GENERATOR ${GENERATOR_DIR}/gen_api_dispatch.lua)
-set(API_UI_EVENTS_GENERATOR ${GENERATOR_DIR}/gen_api_ui_events.lua)
-set(API_METADATA_GENERATOR ${GENERATOR_DIR}/gen_api_metadata.lua)
 set(FUNCS_GENERATOR ${GENERATOR_DIR}/gen_eval.lua)
 set(GENERATOR_C_GRAMMAR ${GENERATOR_DIR}/c_grammar.lua)
-set(GENERATOR_PRELOAD ${GENERATOR_DIR}/preload_nlua.lua)
 set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
-
-# GENERATED_DIR and GENERATED_INCLUDES_DIR
-set(GENERATED_API_METADATA ${GENERATED_DIR}/api/private/api_metadata.generated.h)
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.h)
 list(REMOVE_ITEM API_HEADERS ${CMAKE_CURRENT_LIST_DIR}/api/ui_events.in.h)
@@ -328,24 +307,15 @@ target_include_directories(main_lib INTERFACE
   "${PROJECT_BINARY_DIR}/cmake.config"
   "${PROJECT_SOURCE_DIR}/src")
 
-target_include_directories(nlua0 PUBLIC
-  "${PROJECT_SOURCE_DIR}/src"
-  "${PROJECT_BINARY_DIR}/cmake.config"
-  ${GENERATED_INCLUDES_DIR})
-
 file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
 file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
 file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/*.h ../klib/*.h ../lpeg/*.h)
 
-set(NLUA0_SOURCES)
-
 if(PREFER_LUA)
   target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
 endif()
-
-list(APPEND NLUA0_SOURCES ${PROJECT_SOURCE_DIR}/src/nlua0.c)
 
 foreach(subdir
         os
@@ -435,29 +405,17 @@ add_custom_target(update_version_stamp
     -P ${PROJECT_SOURCE_DIR}/cmake/GenerateVersion.cmake
   BYPRODUCTS ${NVIM_VERSION_GIT_H})
 
-if(CMAKE_CROSSCOMPILING AND NLUA0_HOST_PRG)
-  set(LUA_GEN ${LUA_GEN_PRG} ${GENERATOR_PRELOAD} ${PROJECT_SOURCE_DIR} ${NLUA0_HOST_PRG} ${PROJECT_BINARY_DIR})
-  set(LUA_GEN_DEPS ${GENERATOR_PRELOAD} ${NLUA0_HOST_PRG})
-else()
-  set(LUA_GEN ${LUA_GEN_PRG} ${GENERATOR_PRELOAD} ${PROJECT_SOURCE_DIR} $<TARGET_FILE:nlua0> ${PROJECT_BINARY_DIR})
-  set(LUA_GEN_DEPS ${GENERATOR_PRELOAD} $<TARGET_FILE:nlua0>)
-endif()
-
-# Like LUA_GEN but includes also vim.fn, vim.api, vim.uv, etc
 set(NVIM_LUA $<TARGET_FILE:nvim_bin> -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SOURCE_DIR})
-
-set(NVIM_VERSION_LUA ${PROJECT_BINARY_DIR}/nvim_version.lua)
-configure_file(${GENERATOR_DIR}/nvim_version.lua.in ${NVIM_VERSION_LUA})
+set(NVIM_LUA_DEPS nvim_bin nvim_runtime_deps ${NVIM_LUA_PRELOAD})
 
 add_custom_command(
-  OUTPUT ${EXPORTED_FUNCS_METADATA} ${EVAL_FUNCS_METADATA}
-         COMMAND ${LUA_GEN} ${API_DISPATCH_GENERATOR}
-                         ${EXPORTED_FUNCS_METADATA} ${EVAL_FUNCS_METADATA}
-                         ${CMAKE_CURRENT_LIST_DIR}/api/dispatch_deprecated.lua
-                         ${API_HEADERS}
-
+  OUTPUT ${EVAL_FUNCS_METADATA}
+  COMMAND ${NVIM_LUA} ${API_DISPATCH_GENERATOR}
+                      ${EVAL_FUNCS_METADATA}
+                      ${CMAKE_CURRENT_LIST_DIR}/api/dispatch_deprecated.lua
+                      ${API_HEADERS}
   DEPENDS
-    ${LUA_GEN_DEPS}
+    ${NVIM_LUA_DEPS}
     ${API_HEADERS}
     ${MSGPACK_RPC_HEADERS}
     ${API_DISPATCH_GENERATOR}
@@ -465,45 +423,12 @@ add_custom_command(
     ${CMAKE_CURRENT_LIST_DIR}/api/dispatch_deprecated.lua
 )
 
-add_custom_command(
-  OUTPUT ${GENERATED_API_METADATA}
-        COMMAND ${LUA_GEN} ${API_METADATA_GENERATOR}
-                        ${EXPORTED_FUNCS_METADATA}
-                         ${UI_METADATA}
-                         ${CMAKE_CURRENT_LIST_DIR}/api/ui.h
-                         ${NVIM_VERSION_GIT_H} ${NVIM_VERSION_LUA}
-                         ${GENERATOR_DIR}/dump_bin_array.lua
-                         ${GENERATED_API_METADATA}
-
-  DEPENDS
-    ${LUA_GEN_DEPS}
-    ${API_METADATA_GENERATOR}
-    ${GENERATOR_DIR}/dump_bin_array.lua
-    ${UI_METADATA}
-    ${EXPORTED_FUNCS_METADATA}
-    ${NVIM_VERSION_LUA}
-    ${NVIM_VERSION_GIT_H}
-)
-
-add_custom_command(
-  OUTPUT ${UI_METADATA}
-  COMMAND ${LUA_GEN} ${API_UI_EVENTS_GENERATOR}
-                     ${CMAKE_CURRENT_LIST_DIR}/api/ui_events.in.h
-                     ${UI_METADATA}
-  DEPENDS
-    ${LUA_GEN_DEPS}
-    ${API_UI_EVENTS_GENERATOR}
-    ${GENERATOR_C_GRAMMAR}
-    ${CMAKE_CURRENT_LIST_DIR}/api/ui_events.in.h
-)
-
 add_custom_command(OUTPUT ${FUNCS_DATA}
-  COMMAND ${LUA_GEN} ${FUNCS_GENERATOR} ${EVAL_FUNCS_METADATA} ${FUNCS_DATA} ${CMAKE_CURRENT_LIST_DIR}/eval.lua
-  DEPENDS ${LUA_GEN_DEPS} ${FUNCS_GENERATOR} ${CMAKE_CURRENT_LIST_DIR}/eval.lua ${EVAL_FUNCS_METADATA}
+  COMMAND ${NVIM_LUA} ${FUNCS_GENERATOR} ${EVAL_FUNCS_METADATA} ${FUNCS_DATA} ${CMAKE_CURRENT_LIST_DIR}/eval.lua
+  DEPENDS ${NVIM_LUA_DEPS} ${FUNCS_GENERATOR} ${CMAKE_CURRENT_LIST_DIR}/eval.lua ${EVAL_FUNCS_METADATA}
 )
 
 list(APPEND NVIM_GENERATED_FOR_SOURCES
-  "${GENERATED_API_METADATA}"
   "${NVIM_VERSION_GIT_H}"
 )
 
@@ -604,12 +529,6 @@ if(WIN32)
   # add windows resource file pointing to the neovim icon
   # this makes the icon appear for the neovim exe and associated filetypes
   target_sources(nvim_bin PRIVATE ${NVIM_RUNTIME_DIR}/windows_icon.rc)
-endif()
-
-target_sources(nlua0 PUBLIC ${NLUA0_SOURCES})
-target_link_libraries(nlua0 PRIVATE nvim_rs)
-if(WIN32)
-  target_link_libraries(nlua0 PRIVATE ws2_32 userenv bcrypt ntdll)
 endif()
 
 if(STATIC_BUILD)

@@ -422,8 +422,6 @@ pub fn build(b: *std.Build) !void {
         b,
         nlua0,
         &api_headers,
-        versiondef_git,
-        version_lua,
         !cross_compiling,
     );
 

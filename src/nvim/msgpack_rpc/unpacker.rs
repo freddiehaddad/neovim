@@ -9,15 +9,13 @@
 
 #[cfg(not(test))]
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
-#[cfg(not(test))]
-use crate::api::private::helpers::api_set_error;
-use crate::api::private::helpers::nil_obj;
-#[cfg(not(test))]
-use crate::api::private::validate::{Array, Dict, ErrorType, KeyValuePair, ObjectData};
-use crate::api::private::validate::{Error, Object, ObjectType};
-#[cfg(not(test))]
-use crate::eval::decode::{MPACK_OK, mpack_node_t, mpack_token_type_t};
-use crate::eval::decode::{mpack_parser_t, mpack_tokbuf_t, mpack_token_t};
+use crate::api::private::helpers::{api_set_error, nil_obj};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+};
+use crate::eval::decode::{
+    MPACK_OK, mpack_node_t, mpack_parser_t, mpack_tokbuf_t, mpack_token_t, mpack_token_type_t,
+};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -27,9 +25,9 @@ use crate::lua::converter::FieldHashfn;
 #[cfg(not(test))]
 use crate::lua::converter::{Boolean, OptKeySet};
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, arena_finish, arena_mem_free};
 #[cfg(not(test))]
-use crate::memory::{arena_alloc, xstrdup};
+use crate::memory::xstrdup;
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::packer::Integer;
 #[cfg(not(test))]
 use crate::ui_client::{
@@ -107,13 +105,12 @@ pub struct AdditionalDataHeader {
     pub nbytes: u32,
 }
 
-#[cfg(not(test))]
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
+use crate::mpack::mpack_core::mpack_rtoken;
 #[cfg(not(test))]
-use crate::mpack::mpack_core::{mpack_read, mpack_rtoken, mpack_tokbuf_init};
-#[cfg(not(test))]
+use crate::mpack::mpack_core::{mpack_read, mpack_tokbuf_init};
 use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
 
 #[inline]
@@ -125,7 +122,6 @@ const fn empty_arena() -> Arena {
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let p = (*parser).data.p.cast::<Unpacker>();
@@ -311,7 +307,6 @@ unsafe extern "C-unwind" fn api_parse_enter(parser: *mut mpack_parser_t, node: *
     }
 }
 
-#[cfg(not(test))]
 unsafe extern "C-unwind" fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {
 }
 
@@ -326,12 +321,6 @@ pub unsafe extern "C" fn unpack(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Object {
-    #[cfg(test)]
-    {
-        let _ = (&mut data, &mut size, arena, err);
-        nil_obj()
-    }
-    #[cfg(not(test))]
     unsafe {
         let mut unpacker = std::mem::zeroed::<Unpacker>();
         mpack_parser_init(&mut unpacker.parser, 0);
