@@ -1,7 +1,5 @@
 local ffi = require('ffi')
-local formatc = require('test.unit.formatc')
-local Set = require('test.unit.set')
-local Preprocess = require('test.unit.preprocess')
+local cdefs = require('test.unit.cdefs')
 local t_global = require('test.testutil')
 local paths = t_global.paths
 local assert = require('test.assert')
@@ -10,21 +8,9 @@ local harness = require('test.harness')
 local check_cores = t_global.check_cores
 local dedent = t_global.dedent
 local neq = t_global.neq
-local map = vim.tbl_map
 local eq = t_global.eq
-local trim = vim.trim
 
 local testutil_source = debug.getinfo(1, 'S').source
-
--- add some standard header locations
-for _, p in ipairs(paths.include_paths) do
-  Preprocess.add_to_include_path(p)
-end
-
--- add some nonstandard header locations
-if paths.apple_sysroot ~= '' then
-  Preprocess.add_apple_sysroot(paths.apple_sysroot)
-end
 
 local child_pid = nil --- @type integer?
 --- @generic F: function
@@ -127,190 +113,11 @@ local deinit = only_separate(function()
   end
 end)
 
--- a Set that keeps around the lines we've already seen
-local cdefs_init = Set:new()
-local cdefs_mod = nil
-local imported = Set:new()
-local pragma_pack_id = 1
+ffi.cdef(cdefs)
 
--- some things are just too complex for the LuaJIT C parser to digest. We
--- usually don't need them anyway.
---- @param body string
-local function filter_complex_blocks(body)
-  local result = {} --- @type string[]
-
-  for line in body:gmatch('[^\r\n]+') do
-    if
-      not (
-        string.find(line, '(^)', 1, true) ~= nil
-        or string.find(line, '_ISwupper', 1, true)
-        or string.find(line, '_Float')
-        or string.find(line, '__s128')
-        or string.find(line, '__u128')
-        or string.find(line, '__SVFloat32_t')
-        or string.find(line, '__SVFloat64_t')
-        or string.find(line, '__SVBool_t')
-        or string.find(line, '__f32x4_t')
-        or string.find(line, '__f64x2_t')
-        or string.find(line, '__sv_f32_t')
-        or string.find(line, '__sv_f64_t')
-        or string.find(line, 'extern __typeof')
-        or string.find(line, 'msgpack_zone_push_finalizer')
-        or string.find(line, 'msgpack_unpacker_reserve_buffer')
-        or string.find(line, 'value_init_')
-        or string.find(line, 'UUID_NULL') -- static const uuid_t UUID_NULL = {...}
-        or string.find(line, 'inline _Bool')
-        -- used by musl libc headers on 32-bit arches via __REDIR marco
-        or string.find(line, '__typeof__')
-        -- used by macOS headers
-        or string.find(line, 'typedef enum : ')
-        or string.find(line, 'mach_vm_range_recipe')
-        or string.find(line, 'ipc_info_object_type_t')
-        or string.find(line, '__Reply__mach_port_kobject_t')
-        -- C11 keyword, not understood by LuaJIT FFI. Emitted by some libc headers (e.g. ARM/clang glibc).
-        or string.find(line, '_Static_assert', 1, true)
-      )
-    then
-      -- Remove GCC's extension keyword which is just used to disable warnings.
-      line = string.gsub(line, '__extension__', '')
-
-      -- HACK: remove bitfields from specific structs as luajit can't seem to handle them.
-      if line:find('struct VTermState') then
-        line = string.gsub(line, 'state : 8;', 'state;')
-      end
-      if line:find('VTermStringFragment') then
-        line = string.gsub(line, 'size_t.*len : 30;', 'size_t len;')
-      end
-      result[#result + 1] = line
-    end
-  end
-
-  return table.concat(result, '\n')
-end
-
-local cdef = ffi.cdef
-
-local cimportstr
-
-local previous_defines_init = [[
-typedef struct { char bytes[16]; } __attribute__((aligned(16))) __uint128_t;
-typedef struct { char bytes[16]; } __attribute__((aligned(16))) __float128;
-]]
-
-local preprocess_cache_init = {} --- @type table<string,string>
-local previous_defines_mod = ''
-local preprocess_cache_mod = nil --- @type table<string,string>
-
-local function is_child_cdefs()
-  return os.getenv('NVIM_TEST_MAIN_CDEFS') ~= '1'
-end
-
---- use this helper to import C files, you can pass multiple paths at once,
---- this helper will return the C namespace of the nvim library.
----
 --- @param ... string
 local function cimport(...)
-  local previous_defines --- @type string
-  local preprocess_cache --- @type table<string,string>
-  local cdefs
-  if is_child_cdefs() and preprocess_cache_mod then
-    preprocess_cache = preprocess_cache_mod
-    previous_defines = previous_defines_mod
-    cdefs = cdefs_mod
-  else
-    preprocess_cache = preprocess_cache_init
-    previous_defines = previous_defines_init
-    cdefs = cdefs_init
-  end
-  for _, path in ipairs({ ... }) do
-    path = path:gsub('^%.?/src/', './test/unit/cdef/')
-    if not (path:sub(1, 1) == '/' or path:sub(1, 1) == '.' or path:sub(2, 2) == ':') then
-      path = './' .. path
-    end
-    if not preprocess_cache[path] then
-      local body --- @type string
-      body, previous_defines = Preprocess.preprocess(previous_defines, path)
-      -- format it (so that the lines are "unique" statements), also filter out
-      -- Objective-C blocks
-      if os.getenv('NVIM_TEST_PRINT_I') == '1' then
-        local lnum = 0
-        for line in body:gmatch('[^\n]+') do
-          lnum = lnum + 1
-          print(lnum, line)
-        end
-      end
-      body = formatc(body)
-      body = filter_complex_blocks(body)
-      -- add the formatted lines to a set
-      local new_cdefs = Set:new()
-      for line in body:gmatch('[^\r\n]+') do
-        line = trim(line)
-        -- give each #pragma pack a unique id, so that they don't get removed
-        -- if they are inserted into the set
-        -- (they are needed in the right order with the struct definitions,
-        -- otherwise luajit has wrong memory layouts for the structs)
-        if line:match('#pragma%s+pack') then
-          --- @type string
-          line = line .. ' // ' .. pragma_pack_id
-          pragma_pack_id = pragma_pack_id + 1
-        end
-        new_cdefs:add(line)
-      end
-
-      -- subtract the lines we've already imported from the new lines, then add
-      -- the new unique lines to the old lines (so they won't be imported again)
-      new_cdefs:diff(cdefs)
-      cdefs:union(new_cdefs)
-      -- request a sorted version of the new lines (same relative order as the
-      -- original preprocessed file) and feed that to the LuaJIT ffi
-      local new_lines = new_cdefs:to_table()
-      if os.getenv('NVIM_TEST_PRINT_CDEF') == '1' then
-        for lnum, line in ipairs(new_lines) do
-          print(lnum, line)
-        end
-      end
-      body = table.concat(new_lines, '\n')
-
-      preprocess_cache[path] = body
-    end
-    cimportstr(preprocess_cache, path)
-  end
   return lib
-end
-
-local function cimport_immediate(...)
-  local saved_pid = child_pid
-  child_pid = 0
-  local err, emsg = pcall(cimport, ...)
-  child_pid = saved_pid
-  if not err then
-    io.stderr:write(tostring(emsg) .. '\n')
-    assert(false)
-  else
-    return lib
-  end
-end
-
---- @param preprocess_cache table<string,string[]>
---- @param path string
-local function _cimportstr(preprocess_cache, path)
-  if imported:contains(path) then
-    return lib
-  end
-  local body = preprocess_cache[path]
-  if body == '' then
-    return lib
-  end
-  cdef(body)
-  imported:add(path)
-
-  return lib
-end
-
-if is_child_cdefs() then
-  cimportstr = child_call(_cimportstr, lib)
-else
-  cimportstr = _cimportstr
 end
 
 local function alloc_log_new()
@@ -428,8 +235,6 @@ local cstr = ffi.typeof('char[?]')
 local function to_cstr(string)
   return cstr(#string + 1, string)
 end
-
-cimport_immediate('./test/unit/fixtures/posix.h')
 
 local sc = {}
 
@@ -800,11 +605,6 @@ local function gen_itp(it)
   child_calls_mod = {}
   child_calls_mod_once = {}
   child_cleanups_mod_once = {}
-  preprocess_cache_mod = map(function(v)
-    return v
-  end, preprocess_cache_init)
-  previous_defines_mod = previous_defines_init
-  cdefs_mod = cdefs_init:copy()
   local function itp(name, func, allow_failure)
     if allow_failure and os.getenv('NVIM_TEST_RUN_FAILING_TESTS') ~= '1' then
       -- FIXME Fix tests with this true
@@ -832,16 +632,9 @@ local function gen_itp(it)
   return itp
 end
 
-local function cppimport(path)
-  return cimport(paths.test_source_path .. '/test/includes/pre/' .. path)
+local function cppimport(_)
+  return lib
 end
-
-cimport(
-  './src/nvim/types_defs.h',
-  './src/nvim/main.h',
-  './src/nvim/os/time.h',
-  './src/nvim/os/fs.h'
-)
 
 local function conv_enum(etab, eval)
   local n = tonumber(eval)

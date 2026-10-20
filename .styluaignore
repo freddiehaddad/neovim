@@ -4,6 +4,7 @@ runtime/lua/coxpcall.lua
 runtime/lua/uv/_meta.lua
 runtime/lua/vim/_meta
 runtime/lua/vim/re.lua
+test/unit/cdefs.lua
 
 # These are formatted explicitly by the "formatlua2" build task.
 test/functional/ui/decorations_spec.lua

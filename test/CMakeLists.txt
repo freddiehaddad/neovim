@@ -1,7 +1,5 @@
 add_subdirectory(functional/fixtures)  # compile test programs
 
-get_directory_property(TEST_INCLUDE_DIRS DIRECTORY ${PROJECT_SOURCE_DIR}/src/nvim DEFINITION TEST_INCLUDE_DIRS)
-
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(TEST_OPTIONS
       -D BUILD_DIR=${CMAKE_BINARY_DIR}

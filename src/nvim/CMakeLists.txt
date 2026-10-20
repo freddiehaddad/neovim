@@ -191,11 +191,6 @@ set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.rs)
 
-set(NVIM_CDEF_DIR ${PROJECT_SOURCE_DIR}/test/unit/cdef)
-
-target_include_directories(main_lib INTERFACE
-  "${NVIM_CDEF_DIR}")
-
 file(MAKE_DIRECTORY ${TOUCHES_DIR})
 
 if(PREFER_LUA)
@@ -214,23 +209,6 @@ endif()
 if(ENABLE_ASAN_UBSAN OR ENABLE_MSAN OR ENABLE_TSAN)
   target_compile_definitions(main_lib INTERFACE EXITFREE)
 endif()
-
-#-------------------------------------------------------------------------------
-# Header generation
-#-------------------------------------------------------------------------------
-
-get_directory_property(targets BUILDSYSTEM_TARGETS)
-foreach(target ${targets})
-  get_target_property(prop ${target} INTERFACE_INCLUDE_DIRECTORIES)
-  if(NOT "${prop}" STREQUAL "prop-NOTFOUND")
-    message(STATUS "${target} props '${prop}'")
-    foreach(gen_include ${prop})
-      list(APPEND TEST_INCLUDE_DIRS "${gen_include}")
-    endforeach()
-  endif()
-endforeach()
-
-list(REMOVE_DUPLICATES TEST_INCLUDE_DIRS)
 
 set(NVIM_VERSION
     "v${NVIM_VERSION_MAJOR}.${NVIM_VERSION_MINOR}.${NVIM_VERSION_PATCH}${NVIM_VERSION_PRERELEASE}")

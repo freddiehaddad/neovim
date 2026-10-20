@@ -3,4 +3,3 @@
 -- non-helper modules between files.
 require('ffi')
 require('test.unit.testutil')
-require('test.unit.preprocess')
