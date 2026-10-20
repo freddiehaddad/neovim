@@ -24,14 +24,6 @@ local repos = {
   'tree-sitter-grammars/tree-sitter-query',
   'tree-sitter-grammars/tree-sitter-markdown',
   'bytecodealliance/wasmtime',
-  'uncrustify/uncrustify',
-}
-
-local zig_mode = {
-  luajit = false,
-  uncrustify = false,
-  wasmtime = false,
-  libuv = false,
 }
 
 local dependency_table = {} --- @type table<string, string>
@@ -183,22 +175,6 @@ local function ref(name, _ref)
   end
 
   run_die({ 'git', 'add', deps_file })
-
-  local zig = zig_mode[symbol]
-  if zig ~= false then
-    if zig == 'nested' then
-      -- don't care about un-cding, "git commit" doesn't care and then we die
-      vim.fn.chdir('deps/' .. symbol)
-    end
-    -- note: get_gh_commit_sha is likely superfluous with zig. but use the same resolved hash, for consistency.
-    run_die({
-      'zig',
-      'fetch',
-      '--save=' .. symbol,
-      'git+https://github.com/' .. repo .. '#' .. _ref,
-    })
-    run_die({ 'git', 'add', 'build.zig.zon' })
-  end
 
   run_die({
     'git',
