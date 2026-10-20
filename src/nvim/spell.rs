@@ -11,12 +11,15 @@
 )]
 use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::options::bufref_T;
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+#[allow(unused_imports)]
+use crate::api::private::helpers::boolean_obj;
 use crate::api::tabpage::win_T;
 use crate::autocmd::apply_autocmds;
 #[allow(unused_imports)]
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
 use crate::change::inserted_bytes;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
 use crate::charset::{getwhitecols, skipbin, skipdigits, skiphex, skipwhite, vim_is_fname_char};
 use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T};
 use crate::decoration::{
@@ -226,25 +229,6 @@ pub static mut repl_from: *mut c_char = ptr::null_mut();
 pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-#[inline]
-const fn ascii_isalpha(c: c_char) -> bool {
-    (c as u8).is_ascii_alphabetic()
-}
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-#[inline]
-const fn boolean_obj(val: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: val },
-    }
-}
 #[inline]
 unsafe fn spell_isupper(c: c_int) -> bool {
     unsafe {

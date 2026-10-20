@@ -13,6 +13,10 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{arena_array, arena_string};
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj, string_obj,
+};
+#[allow(unused_imports)]
 use crate::change::changed_lines_invalidate_buf;
 #[allow(unused_imports)]
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
@@ -32,7 +36,7 @@ use crate::r#move::{changed_window_setting, win_col_off};
 #[allow(unused_imports)]
 use crate::sign::{buf_has_signs, describe_sign_text};
 use std::cmp::Ordering;
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::deprecated::{
@@ -42,7 +46,7 @@ use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
     DecorState, colnr_T, ns_in_win, virt_text_to_array,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Dict, KeyValuePair, Object};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::eval::deprecated::buf_T;
@@ -50,7 +54,6 @@ use crate::extmark::{TriState, extmark_set};
 use crate::grid::{schar_T, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
 use crate::highlight::{hl_add_url, hl_combine_attr};
 use crate::kvec::KVec;
-use crate::map_glyph_cache::NvimString;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorHighlightInline, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_MASK,
@@ -203,58 +206,6 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
     } else {
         ptr::null_mut()
     }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
 }
 
 #[inline]

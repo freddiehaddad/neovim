@@ -11,9 +11,13 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_obj;
+#[allow(unused_imports)]
 use crate::buffer::bt_help;
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, set_buflisted, wipe_buffer};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::charset::{buf_init_isk_chartab, skipwhite};
 use crate::errors::*;
@@ -54,10 +58,8 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::command::exarg_T;
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::clipboard::{TypvalVval, VarType, typval_T};
-use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xstrdup};
 
 pub use crate::cursor::colnr_T;
@@ -99,41 +101,6 @@ const kOptIskeyword: OptIndex = 155;
 const kBoolVarFalse: i64 = 0;
 const kBoolVarTrue: i64 = 1;
 const kSpecialVarNull: i64 = 0;
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
-const fn ascii_isalpha(c: c_char) -> bool {
-    (c as u8).is_ascii_alphabetic()
-}
-
-#[inline]
-const fn ascii_isalnum(c: c_char) -> bool {
-    (c as u8).is_ascii_alphanumeric()
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe {
-        let len = if s.is_null() {
-            0
-        } else {
-            CStr::from_ptr(s).to_bytes().len()
-        };
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: NvimString {
-                    data: s.cast_mut(),
-                    size: len,
-                },
-            },
-        }
-    }
-}
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

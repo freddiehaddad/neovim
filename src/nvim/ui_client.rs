@@ -96,16 +96,13 @@ static mut restart_pending: bool = false;
 static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
+#[cfg(windows)]
+use crate::fileio::_close as close_fd;
+#[cfg(not(windows))]
+use crate::fileio::close as close_fd;
 
 unsafe extern "C" {
-
     fn uv_os_getpid() -> c_int;
-    #[cfg(windows)]
-    #[link_name = "_close"]
-    fn close_fd(fd: c_int) -> c_int;
-    #[cfg(not(windows))]
-    #[link_name = "close"]
-    fn close_fd(fd: c_int) -> c_int;
 }
 
 pub use crate::fileio::FILE;

@@ -18,6 +18,10 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 #[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::ltoreq;
+#[allow(unused_imports)]
 use crate::diff::{diff_infold, diff_lnum_win};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -171,27 +175,6 @@ static E_NOFOLD: &CStr = c"E490: No fold found";
 #[inline]
 unsafe fn ngettext_wrap(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char {
     unsafe { crate::strings::ngettext(msgid1, msgid2, n) }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd <= b.coladd
-    }
 }
 
 #[inline]

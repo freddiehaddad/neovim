@@ -15,6 +15,12 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::arena_dict;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, nil_obj, string_obj,
+};
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -39,6 +45,8 @@ use crate::runtime::exestack;
 #[allow(unused_imports)]
 use crate::runtime::source_runtime_vim_lua;
 #[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
+#[allow(unused_imports)]
 use crate::strings::{atoi, gettext, strchr, strncmp};
 #[allow(unused_imports)]
 use crate::strings::{vim_memcpy_up, vim_strup};
@@ -47,14 +55,12 @@ use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
     ui_rgb_attached,
 };
-use std::ffi::{CStr, c_char, c_int, c_long};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::extmark::NS;
 use crate::api::private::converter::sctx_T;
-use crate::api::private::validate::{
-    Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
-};
+use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair, Object, ObjectType};
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
@@ -362,15 +368,7 @@ const E_UNEXPECTED_EQUAL_SIGN_STR: &CStr = c"E415: Unexpected equal sign: %s";
 const E_MISSING_EQUAL_SIGN_STR_2: &CStr = c"E416: Missing equal sign: %s";
 const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 
-unsafe extern "C" {
-
-    fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long;
-}
-
-#[inline]
-const fn ascii_iswhite(c: u8) -> bool {
-    c == b' ' || c == b'\t'
-}
+use crate::strings::strtol;
 
 #[inline]
 unsafe fn write_hex6(buf: *mut c_char, val: c_int) {
@@ -402,58 +400,6 @@ const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: *const c_char, value: Object) {
     debug_assert!(dict.size < dict.capacity);
     unsafe {
@@ -463,21 +409,6 @@ unsafe fn put_c(dict: &mut Dict, key: *const c_char, value: Object) {
         };
     }
     dict.size += 1;
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> i32 {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            0
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        }
-    }
 }
 
 #[inline]

@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
+#[allow(unused_imports)]
 use crate::event::r#loop::{
     uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
 };
@@ -280,30 +282,6 @@ const fn kitty_key_name(key: c_int) -> Option<&'static str> {
         57426 => Some("kDel"),
         57427 => Some("kOrigin"),
         _ => None,
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: i64) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
     }
 }
 

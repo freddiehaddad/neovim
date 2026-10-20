@@ -20,6 +20,12 @@ use crate::api::private::helpers::{
     find_buffer_by_handle, string_to_cstr,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj, string_obj,
+};
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::cmdexpand::cmdline_fuzzy_complete;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -63,6 +69,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::regexp::vim_regexec;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -346,11 +354,6 @@ const fn to_special(a: u8, b: u8) -> c_int {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
 const fn ascii_isspace(c: c_int) -> bool {
     (c >= 9 && c <= 13) || c == b' ' as c_int
 }
@@ -370,59 +373,6 @@ const fn cstr_literal(s: &'static CStr) -> NvimString {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        NvimString {
-            data: s as *mut c_char,
-            size: len,
-        }
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn luaref_obj(r: LuaRef) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeLuaRef,
-        data: ObjectData { luaref: r },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_as_string(s)) }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
@@ -438,17 +388,6 @@ unsafe fn nlua_clear_ref(r: &mut LuaRef) {
     if *r != LUA_NOREF {
         unsafe { api_free_luaref(*r) };
         *r = LUA_NOREF;
-    }
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> linenr_T {
-    unsafe {
-        if !exestack.ga_data.is_null() && exestack.ga_len > 0 {
-            (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_lnum
-        } else {
-            0
-        }
     }
 }
 

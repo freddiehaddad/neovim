@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::charset::vim_str2nr;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
+#[allow(unused_imports)]
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
@@ -644,26 +646,6 @@ const NODE_PROPS: [(ExprOpLvl, ExprOpAssociativity); 39] = [
     (ExprOpLvl::Value, ExprOpAssociativity::No),   // kExprNodeEnvironment
     (ExprOpLvl::Assignment, ExprOpAssociativity::Left), // kExprNodeAssignment
 ];
-
-#[inline]
-fn ascii_iswhite(b: u8) -> bool {
-    b == b' ' || b == TAB
-}
-
-#[inline]
-fn ascii_isdigit(b: u8) -> bool {
-    b.is_ascii_digit()
-}
-
-#[inline]
-fn ascii_isxdigit(b: u8) -> bool {
-    b.is_ascii_hexdigit()
-}
-
-#[inline]
-fn ascii_isalpha(b: u8) -> bool {
-    b.is_ascii_alphabetic()
-}
 
 #[inline]
 fn ascii_isident(b: u8) -> bool {

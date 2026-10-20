@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
@@ -18,6 +20,10 @@ use crate::api::private::helpers::api_typename;
 use crate::api::private::helpers::{
     arena_array, arena_dict, copy_string, find_buffer_by_handle, find_window_by_handle,
     object_to_hl_id,
+};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, cstr_as_string, dict_obj, integer_obj, string_obj,
 };
 #[allow(unused_imports)]
 use crate::charset::{transstr, vim_isprintc};
@@ -56,8 +62,7 @@ use crate::api::deprecated::{
     VirtTextChunk, VirtTextPos,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
-    api_err_invalid,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
 };
 use crate::api::tabpage::{Buffer, Window, win_T};
 use crate::eval::deprecated::buf_T;
@@ -375,62 +380,6 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        NvimString {
-            data: s as *mut c_char,
-            size: len,
-        }
-    }
-}
-
-#[inline]
 const fn cstr_literal(s: &'static CStr) -> NvimString {
     let bytes = s.to_bytes();
     NvimString {
@@ -466,14 +415,6 @@ unsafe fn strequal(a: *const c_char, b: &str) -> bool {
 unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
     unsafe {
         api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

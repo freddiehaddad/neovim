@@ -16,6 +16,8 @@ use crate::autocmd::apply_autocmds;
 use crate::buffer::buflist_findnr;
 #[allow(unused_imports)]
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal};
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_get_string;
@@ -125,11 +127,6 @@ pub struct wininfo_Prefix {
 }
 
 static mut did_lcd: bool = false;
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
 
 #[inline]
 unsafe fn cstr_to_str<'a>(p: *const c_char) -> &'a str {

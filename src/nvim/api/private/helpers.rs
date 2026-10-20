@@ -75,6 +75,111 @@ const OBJECT_NIL: Object = Object {
     data: ObjectData { integer: 0 },
 };
 
+#[inline]
+pub const fn nil_obj() -> Object {
+    OBJECT_NIL
+}
+
+#[inline]
+pub const fn boolean_obj(b: Boolean) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBoolean,
+        data: ObjectData { boolean: b },
+    }
+}
+
+#[inline]
+pub const fn integer_obj(i: Integer) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeInteger,
+        data: ObjectData { integer: i },
+    }
+}
+
+#[inline]
+pub const fn float_obj(f: Float) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeFloat,
+        data: ObjectData { floating: f },
+    }
+}
+
+#[inline]
+pub const fn string_obj(s: NvimString) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeString,
+        data: ObjectData { string: s },
+    }
+}
+
+#[inline]
+pub const fn buffer_obj(b: Buffer) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBuffer,
+        data: ObjectData {
+            integer: b as Integer,
+        },
+    }
+}
+
+#[inline]
+pub const fn window_obj(w: Window) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeWindow,
+        data: ObjectData {
+            integer: w as Integer,
+        },
+    }
+}
+
+#[inline]
+pub const fn tabpage_obj(t: Tabpage) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeTabpage,
+        data: ObjectData {
+            integer: t as Integer,
+        },
+    }
+}
+
+#[inline]
+pub const fn array_obj(a: Array) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeArray,
+        data: ObjectData { array: a },
+    }
+}
+
+#[inline]
+pub const fn dict_obj(d: Dict) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeDict,
+        data: ObjectData { dict: d },
+    }
+}
+
+#[inline]
+pub const fn luaref_obj(r: LuaRef) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeLuaRef,
+        data: ObjectData { luaref: r },
+    }
+}
+
+#[inline]
+pub unsafe fn cstr_as_obj(s: *const c_char) -> Object {
+    unsafe { string_obj(cstr_as_string(s)) }
+}
+
+#[inline]
+pub unsafe fn add_c(array: &mut Array, item: Object) {
+    debug_assert!(!array.items.is_null() && array.size < array.capacity);
+    unsafe {
+        *array.items.add(array.size) = item;
+    }
+    array.size += 1;
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TryState {

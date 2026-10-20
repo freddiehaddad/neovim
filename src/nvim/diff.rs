@@ -14,15 +14,21 @@ pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{cmd_addr_T, cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
+#[allow(unused_imports)]
+use crate::api::private::helpers::boolean_obj;
 use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T};
 use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
 use crate::buffer::{bt_prompt, buf_is_empty, buf_valid, bufref_valid, set_bufref};
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_findpat};
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::charset::{getdigits_int, getdigits_int32, skipwhite};
 use crate::clipboard::typval_T;
 use crate::context::{ctx_restore, ctx_switch};
@@ -282,27 +288,8 @@ static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
 #[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-#[inline]
 unsafe fn modifiable(buf: *const buf_T) -> bool {
     unsafe { (*buf).b_p_ma != 0 && (*buf).b_ro_locked == 0 }
-}
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
-#[inline]
-const fn boolean_obj(val: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: val },
-    }
 }
 #[inline]
 const fn static_cstr_as_obj(s: &'static std::ffi::CStr) -> Object {

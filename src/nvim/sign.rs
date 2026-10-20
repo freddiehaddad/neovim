@@ -11,7 +11,11 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_findname_exp, buflist_findnr};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_buf_later;
 use crate::errors::*;
@@ -37,6 +41,8 @@ use crate::ex_cmds::do_ecmd;
 #[allow(unused_imports)]
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
 #[allow(unused_imports)]
 use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 #[allow(unused_imports)]
@@ -192,28 +198,6 @@ const CMDS: [*const c_char; 7] = [
 ];
 
 #[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
-    #[cfg(target_endian = "big")]
-    {
-        (x as schar_T) << 24
-    }
-    #[cfg(not(target_endian = "big"))]
-    {
-        x as schar_T
-    }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
 unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
     unsafe { (*b).b_marktree[0].meta_root[m] }
 }
@@ -233,21 +217,6 @@ const fn mt_decor(key: MTKey) -> DecorInline {
     DecorInline {
         ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
         data: key.decor_data,
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
     }
 }
 

@@ -19,6 +19,8 @@ use crate::buffer::{bt_dontwrite, bt_prompt};
 #[allow(unused_imports)]
 use crate::charset::vim_strnsize;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
 use crate::cursor::check_visual_pos;
 #[allow(unused_imports)]
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
@@ -184,16 +186,6 @@ const INIT_FMARKV: fmarkv_T = fmarkv_T {
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {
     unsafe { gettext(s) }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
 }
 
 #[inline]

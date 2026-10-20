@@ -18,6 +18,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
 #[allow(unused_imports)]
+use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, dict_obj, string_obj};
+#[allow(unused_imports)]
 use crate::event::r#loop::{
     uv_chdir, uv_pipe_init, uv_pipe_open, uv_tty_init, uv_tty_set_mode, uv_write,
 };
@@ -405,22 +407,6 @@ unsafe fn tui_startup_delay_timer(tui: *mut TUIData) -> *mut uv_timer_t {
 }
 
 #[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
 fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut(),
@@ -431,36 +417,6 @@ fn static_cstr_as_string(s: &'static CStr) -> NvimString {
 #[inline]
 fn static_cstr_as_obj(s: &'static CStr) -> Object {
     string_obj(static_cstr_as_string(s))
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe {
-        if s.is_null() {
-            string_obj(NULL_STRING)
-        } else {
-            string_obj(NvimString {
-                data: s.cast_mut(),
-                size: CStr::from_ptr(s).to_bytes().len(),
-            })
-        }
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
 }
 
 #[inline]

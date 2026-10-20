@@ -24,6 +24,8 @@ use crate::os::env::os_shell_is_cmdexe;
 #[allow(unused_imports)]
 use crate::os::fs::os_can_exe;
 #[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
+#[allow(unused_imports)]
 use crate::strings::wcslen;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
@@ -52,11 +54,6 @@ use crate::os::pty_conpty_win::{
 };
 
 const NUL: c_char = 0;
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
 
 /// Emulate quote_cmd_arg of libuv and quotes command line argument.
 pub(crate) unsafe fn quote_cmd_arg(

@@ -12,11 +12,14 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{cstr_as_obj, cstr_as_string, string_obj};
 use crate::api::tabpage::win_T;
 use crate::arglist::get_arglist_exp;
 #[allow(unused_imports)]
 use crate::buffer::buflist_findname_exp;
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 use crate::charset::{getdigits_int, skipdigits, skipwhite};
 use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
@@ -37,7 +40,6 @@ use crate::hashtab::{
     hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
     hash_lookup, hashitem_T, hashitem_empty, hashtab_T,
 };
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr2char_adv, mb_toupper,
     string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
@@ -93,7 +95,7 @@ use crate::strings::{memcpy, memmove, memset};
 use crate::ui::ui_flush;
 #[allow(unused_imports)]
 use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
@@ -403,26 +405,6 @@ unsafe fn hi_empty(hi: *const hashitem_T) -> bool {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
 const fn tolower_asc(c: c_char) -> u8 {
     let b = c as u8;
     if b >= b'A' && b <= b'Z' {
@@ -430,19 +412,6 @@ const fn tolower_asc(c: c_char) -> u8 {
     } else {
         b
     }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
 }
 
 #[inline]

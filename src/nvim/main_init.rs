@@ -17,12 +17,16 @@ use crate::api::private::helpers::api_metadata_raw;
 #[allow(unused_imports)]
 use crate::api::ui::remote_ui_wait_for_attach;
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::open_buffer;
 #[allow(unused_imports)]
 use crate::buffer::{
     buf_set_changedtick, buflist_new, do_autochdir, do_modelines, handle_swap_exists,
     set_buflisted, set_curbuf, setfname,
 };
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::userfunc::invoke_all_defer;
@@ -325,16 +329,6 @@ unsafe extern "C" {
     fn _setmode(fd: c_int, mode: c_int) -> c_int;
     #[cfg(unix)]
     fn tcdrain(fd: c_int) -> c_int;
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 #[inline]

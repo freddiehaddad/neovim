@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
@@ -18,6 +20,10 @@ use crate::api::private::helpers::api_typename;
 use crate::api::private::helpers::{
     api_set_sctx, arena_array, arena_dict, arena_string, arena_take_arraybuilder,
     find_buffer_by_handle, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    boolean_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj, string_obj,
 };
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds_group, autocmd_register};
@@ -229,61 +235,6 @@ unsafe fn api_err_req(err: *mut Error, name: *const c_char) {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-const fn luaref_obj(r: LuaRef) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeLuaRef,
-        data: ObjectData { luaref: r },
-    }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
@@ -294,14 +245,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

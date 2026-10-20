@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_array, arena_array, arena_dict, arena_string, cstr_as_string,
 };
@@ -18,6 +20,8 @@ use crate::api::private::helpers::{
 use crate::buffer::{append_arg_number, buf_spname, get_rel_pos};
 #[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, calc_percentage};
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
 use crate::charset::{vim_strnsize, vim_strsize};
 #[allow(unused_imports)]
@@ -31,6 +35,8 @@ use crate::eval::vars::{do_unlet, set_internal_string_var, set_var};
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
 #[allow(unused_imports)]
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 #[allow(unused_imports)]
@@ -288,23 +294,6 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
-    #[cfg(target_endian = "big")]
-    {
-        (x as schar_T) << 24
-    }
-    #[cfg(not(target_endian = "big"))]
-    {
-        x as schar_T
-    }
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
 unsafe fn hl_attr(n: hlf_T) -> c_int {
     unsafe { *hl_attr_active.add(n as usize) }
 }
@@ -339,14 +328,6 @@ unsafe fn put_c(dict: &mut Dict, key: *const c_char, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

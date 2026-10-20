@@ -16,9 +16,15 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_string, cstr_to_string, string_to_array,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{boolean_obj, cstr_as_string};
+#[allow(unused_imports)]
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::bufref_valid;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
 #[allow(unused_imports)]
@@ -79,7 +85,7 @@ use std::ptr;
 use crate::api::buffer::{VisualState, nvim_buf_set_text};
 use crate::api::deprecated::DecorInline;
 use crate::api::extmark::nvim_create_namespace;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType};
 use crate::api::tabpage::pos_T;
 use crate::api::vim::nvim_feedkeys;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
@@ -299,32 +305,6 @@ static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
 #[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
-}
-
-#[inline]
 const fn to_special(a: c_int, b: c_int) -> c_int {
     if a == KS_SPECIAL as c_int {
         K_SPECIAL as c_int
@@ -360,35 +340,10 @@ const fn op_reg_index(regname: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    unsafe {
-        if s.is_null() {
-            NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }
-        } else {
-            NvimString {
-                data: s.cast_mut(),
-                size: strlen(s),
-            }
-        }
-    }
-}
-
-#[inline]
 const fn static_cstr_as_string(s: &'static [u8]) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut().cast(),
         size: s.len() - 1,
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
     }
 }
 

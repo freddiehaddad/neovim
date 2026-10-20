@@ -11,6 +11,8 @@
 
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
 use crate::eval::vars::eval_msgpack_type_lists;
 #[allow(unused_imports)]
 use crate::eval::{get_copyID, partial_name};
@@ -136,33 +138,6 @@ struct MPConvStackVal {
     tv: *mut typval_T,
     saved_copy_id: c_int,
     data: MPConvStackData,
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_last }
-    }
 }
 
 #[inline]

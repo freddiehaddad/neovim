@@ -28,6 +28,8 @@ use crate::fold::{fold_info, hasFolding};
 use crate::fold::{foldmethodIsSyntax, hasAnyFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
 use crate::input::char_avail;
 #[allow(unused_imports)]
 use crate::insexpand::ins_compl_show_pum;
@@ -257,18 +259,6 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
     },
     next: ptr::null_mut(),
 };
-
-#[inline]
-const fn schar_from_ascii(c: u8) -> schar_T {
-    #[cfg(target_endian = "big")]
-    {
-        (c as schar_T) << 24
-    }
-    #[cfg(target_endian = "little")]
-    {
-        c as schar_T
-    }
-}
 
 #[inline]
 unsafe fn w_endcol(wp: *const win_T) -> c_int {

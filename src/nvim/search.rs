@@ -13,8 +13,16 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
+#[allow(unused_imports)]
 use crate::drawscreen::showmode;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_list_len;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_check_for_nonnull_dict_arg, tv_dict_get_bool, tv_get_string_chk};
 #[allow(unused_imports)]
@@ -77,7 +85,7 @@ use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::change::get_leader_len;
 use crate::charset::{skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
-use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::{VarType, listitem_T, typval_T};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
     check_cursor, colnr_T, dec_cursor, get_cursor_line_len, get_cursor_line_ptr, inc_cursor,
@@ -332,37 +340,6 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    unsafe { if l.is_null() { 0 } else { (*l).lv_len } }
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    c >= b'0' as c_char && c <= b'9' as c_char
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
-}
-
-#[inline]
 const fn empty_pos(a: pos_T) -> bool {
     a.lnum == 0 && a.col == 0 && a.coladd == 0
 }
@@ -372,11 +349,6 @@ fn clearpos(a: &mut pos_T) {
     a.lnum = 0;
     a.col = 0;
     a.coladd = 0;
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 #[inline]

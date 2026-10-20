@@ -17,6 +17,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::copy_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_free_dict, api_free_string};
 #[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, bt_terminal};
@@ -24,6 +26,8 @@ use crate::buffer::{bt_quickfix, bt_terminal};
 use crate::buffer::{buflist_findnr, buflist_new, buflist_setfpos};
 #[allow(unused_imports)]
 use crate::eval::typval::tv_copy;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_list_len;
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_append_allocated_string};
 #[allow(unused_imports)]
@@ -42,6 +46,8 @@ use crate::fileio::vim_rename;
 #[allow(unused_imports)]
 use crate::fileio::{getgid, getuid};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::memory::strequal;
 use crate::message::{semsg, siemsg, smsg};
 #[allow(unused_imports)]
 use crate::message::{verbose_enter, verbose_leave};
@@ -63,7 +69,7 @@ use std::ptr;
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{pos_T, xfmark_T};
 use crate::arglist::alist_T;
-use crate::clipboard::{MotionType, TypvalVval, VarType, list_T, typval_T, yankreg_T};
+use crate::clipboard::{MotionType, TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdhist::{
     HIST_CMD, HIST_COUNT, HIST_DEBUG, HIST_EXPR, HIST_INPUT, HIST_SEARCH, clr_history,
     hist_get_array, hist_iter, histentry_T,
@@ -702,15 +708,6 @@ unsafe fn file_space(fp: *const FileDescriptor) -> usize {
 }
 
 #[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
 unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
     unsafe {
         (*hi)
@@ -723,29 +720,6 @@ unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
 #[inline]
 unsafe fn xmemdupz_cstr(data: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(data.cast::<c_void>(), len).cast::<c_char>() }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() || b.is_null() {
-        return a == b;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
 
 #[inline]

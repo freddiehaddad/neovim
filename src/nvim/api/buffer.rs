@@ -11,12 +11,16 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, arena_dict, buf_get_text, dict_get_value, dict_set_var,
     find_buffer_by_handle, normalize_index, set_mark, try_enter, try_leave,
 };
+#[allow(unused_imports)]
+use crate::api::private::helpers::{boolean_obj, cstr_as_string, integer_obj, string_obj};
 #[allow(unused_imports)]
 use crate::buffer::buf_ensure_loaded;
 #[allow(unused_imports)]
@@ -198,52 +202,12 @@ const NIL: Object = Object {
 };
 
 #[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
 const fn static_cstr_as_obj(s: &'static CStr) -> Object {
     let bytes = s.to_bytes();
     string_obj(NvimString {
         data: bytes.as_ptr() as *mut c_char,
         size: bytes.len(),
     })
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        NvimString {
-            data: s as *mut c_char,
-            size: len,
-        }
-    }
 }
 
 #[inline]
@@ -269,14 +233,6 @@ unsafe fn error_set(err: *const Error) -> bool {
 unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
     unsafe {
         api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

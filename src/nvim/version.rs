@@ -12,6 +12,8 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_free_object;
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_exec;
@@ -3785,11 +3787,6 @@ unsafe extern "C" {
     pub static mut default_vim_dir: *mut c_char;
     pub static mut default_vimruntime_dir: *mut c_char;
     pub static main_exitfree: bool;
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
 }
 
 /// Compares a version string to the current Nvim version (`has_nvim_version`).

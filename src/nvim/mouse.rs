@@ -13,7 +13,11 @@
 #[allow(unused_imports)]
 use crate::buffer::{bt_prompt, bt_quickfix};
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::cursor::set_leftcol;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
 #[allow(unused_imports)]
 use crate::decoration::decor_conceal_line;
 #[allow(unused_imports)]
@@ -222,32 +226,6 @@ static mut orig_topline: linenr_T = 0;
 static mut orig_topfill: c_int = 0;
 static mut got_click: bool = false;
 static mut dragwin: *mut win_T = ptr::null_mut();
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
-}
 
 #[inline]
 unsafe fn map_get_int_StcClicks(map: *mut Map<c_int, StcClicks>, key: c_int) -> StcClicks {

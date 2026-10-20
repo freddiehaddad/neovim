@@ -24,15 +24,21 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::copy_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{boolean_obj, cstr_as_obj, cstr_as_string};
+#[allow(unused_imports)]
 use crate::buffer::{
     buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, close_buffer, do_modelines,
     no_write_message, setfname, wipe_buffer,
 };
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     callback_copy, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string, tv_get_string_chk,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::window::win_id2wp;
 #[allow(unused_imports)]
@@ -81,6 +87,8 @@ use crate::os::time::c_time as time;
 use crate::regexp::vim_regexec_multi;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::{atoi, atol, gettext};
 #[allow(unused_imports)]
@@ -654,11 +662,6 @@ unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut n: usiz
 }
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
 unsafe fn c_strcmp(a: *const c_char, b: *const c_char) -> c_int {
     unsafe {
         let sa = CStr::from_ptr(a).to_bytes();
@@ -689,48 +692,10 @@ unsafe fn c_strcat(dst: *mut c_char, src: *const c_char) {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { c_strlen(s) },
-        }
-    }
-}
-
-#[inline]
 const fn cbuf_as_string(buf: *mut c_char, len: usize) -> NvimString {
     NvimString {
         data: buf,
         size: len,
-    }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData {
-            string: unsafe { cstr_as_string(s) },
-        },
     }
 }
 
@@ -786,24 +751,6 @@ unsafe fn tab_firstwin(tp: *const tabpage_T) -> *mut win_T {
         } else {
             (*tp).tp_firstwin
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
     }
 }
 

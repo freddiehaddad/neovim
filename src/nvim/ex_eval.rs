@@ -12,6 +12,8 @@
     clippy::collapsible_if
 )]
 
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::eval_for_line;
@@ -40,7 +42,8 @@ use crate::regexp::skip_regexp_err;
 use crate::regexp::{vim_regcomp, vim_regexec_nl, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::estack_sfile;
-use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::runtime::{do_finish, stacktrace_create};
 #[allow(unused_imports)]
@@ -195,30 +198,7 @@ pub struct exception_state_T {
 
 pub use crate::eval::vars::evalarg_T;
 
-use crate::profile::estack_T;
-
 static mut cause_abort: bool = false;
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_digit()
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> linenr_T {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            0
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        }
-    }
-}
 
 #[inline]
 unsafe fn check_skip(cstack: *const cstack_T) -> bool {

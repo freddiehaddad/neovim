@@ -11,6 +11,10 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
+#[allow(unused_imports)]
 use crate::drawscreen::{redraw_curbuf_later, showmode};
 #[allow(unused_imports)]
 use crate::eval::funcs::do_searchpair;
@@ -69,34 +73,8 @@ const kMTLineWise: MotionType = 1;
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 
 #[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
 unsafe fn lineempty(lnum: linenr_T) -> bool {
     unsafe { *ml_get(lnum) == NUL }
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
 }
 
 #[inline]

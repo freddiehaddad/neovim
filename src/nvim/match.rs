@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::charset::{skiptowhite, skipwhite};
 #[allow(unused_imports)]
 use crate::drawscreen::{redraw_later, redraw_win_range_later};
@@ -29,6 +31,8 @@ use crate::eval::typval::{
     tv_dict_get_number, tv_dict_get_string, tv_dict_get_string_buf, tv_get_string,
     tv_get_string_buf_chk,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::ex_docmd::{ends_excmd, set_no_hlsearch};
 #[allow(unused_imports)]
@@ -57,7 +61,7 @@ use std::ptr;
 
 use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
-use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::{VarType, list_T, typval_T};
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::window::find_win_by_nr_or_id;
 use crate::ex_docmd::{ex_errmsg, find_nextcmd};
@@ -143,31 +147,10 @@ pub struct SearchState {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
 unsafe fn tv_list_ref(l: *mut list_T) {
     unsafe {
         if !l.is_null() {
             (*l).lv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    unsafe { if l.is_null() { 0 } else { (*l).lv_len } }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    unsafe {
-        if l.is_null() {
-            ptr::null_mut()
-        } else {
-            (*l).lv_first
         }
     }
 }

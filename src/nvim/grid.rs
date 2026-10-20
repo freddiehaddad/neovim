@@ -119,7 +119,7 @@ static mut grid_line_flags: c_int = 0;
 static mut last_grid_handle: c_int = DEFAULT_GRID_HANDLE;
 
 #[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
+pub const fn schar_from_ascii(x: u8) -> schar_T {
     #[cfg(target_endian = "big")]
     {
         (x as schar_T) << 24

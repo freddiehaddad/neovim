@@ -17,9 +17,13 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::buffer::open_buffer;
 #[allow(unused_imports)]
 use crate::buffer::{buf_inc_changedtick, buf_spname, setfname};
+#[allow(unused_imports)]
+use crate::charset::ascii_isalpha;
 #[allow(unused_imports)]
 use crate::dialog::do_dialog;
 #[allow(unused_imports)]
@@ -28,6 +32,8 @@ use crate::eval::typval::tv_dict_add_nr;
 use crate::eval::typval::{
     tv_clear, tv_dict_add_str_len, tv_list_alloc_ret, tv_list_append_allocated_string,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
 #[allow(unused_imports)]
@@ -60,6 +66,8 @@ use crate::option::{get_fileformat, set_fileformat};
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
@@ -359,28 +367,6 @@ unsafe extern "C" {
 }
 
 #[inline]
-const fn ascii_isalpha(c: c_int) -> bool {
-    (c >= b'a' as c_int && c <= b'z' as c_int) || (c >= b'A' as c_int && c <= b'Z' as c_int)
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    unsafe {
-        if s.is_null() {
-            NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }
-        } else {
-            NvimString {
-                data: s.cast_mut(),
-                size: c_strlen(s),
-            }
-        }
-    }
-}
-
-#[inline]
 unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(string.cast(), len).cast() }
 }
@@ -411,14 +397,6 @@ unsafe fn pb_ptr(pp: *mut PointerBlock, idx: usize) -> *mut PointerEntry {
 #[inline]
 unsafe fn db_idx_ptr(dp: *mut DataBlock, idx: usize) -> *mut c_uint {
     unsafe { (&raw mut (*dp).db_index).cast::<c_uint>().add(idx) }
-}
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    if s.is_null() {
-        return 0;
-    }
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
 }
 
 #[inline]
@@ -463,24 +441,6 @@ unsafe fn c_strcmp(a: *const c_char, b: *const c_char) -> c_int {
             std::cmp::Ordering::Equal => 0,
             std::cmp::Ordering::Greater => 1,
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
     }
 }
 

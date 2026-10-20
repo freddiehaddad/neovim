@@ -13,6 +13,8 @@
 
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
 use crate::grid::{schar_from_buf, schar_from_char};
 #[allow(unused_imports)]
 use crate::highlight::hl_blend_attrs;
@@ -53,15 +55,6 @@ const kOptRdbFlagInvalid: c_uint = 0x04;
 const HLF_MSGSEP: usize = 61;
 
 pub use crate::msgpack_rpc::channel::RemoteUI;
-
-#[inline]
-const fn schar_from_ascii(c: u8) -> schar_T {
-    if cfg!(target_endian = "big") {
-        (c as schar_T) << 24
-    } else {
-        c as schar_T
-    }
-}
 
 static mut composed_uis: c_int = 0;
 static mut layers: KVec<*mut ScreenGrid> = KVec {

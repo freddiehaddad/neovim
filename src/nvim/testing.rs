@@ -19,6 +19,8 @@ use crate::eval::typval::{tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find}
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_get_float, tv_get_number_chk};
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
+#[allow(unused_imports)]
 use crate::eval::vars::assert_error;
 #[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_nr, get_vim_var_str, get_vim_var_tv, set_vim_var_string};
@@ -38,6 +40,8 @@ use crate::os::fs::os_fopen;
 #[allow(unused_imports)]
 use crate::runtime::estack_sfile;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
@@ -89,49 +93,7 @@ unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
     }
 }
 
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_last }
-    }
-}
-
 #[cfg(not(test))]
-#[inline]
-unsafe fn sourcing_lnum() -> i32 {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            0
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        }
-    }
-}
-
 #[cfg(not(test))]
 unsafe fn prepare_assert_error(gap: *mut garray_T) {
     unsafe {

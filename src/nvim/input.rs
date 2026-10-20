@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_clear_error;
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::cursor::get_cursor_line_ptr;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -432,11 +434,6 @@ unsafe fn mb_byte2len_check(b: c_int) -> c_int {
     } else {
         unsafe { utf_byte2len(b) }
     }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
 }
 
 #[inline]

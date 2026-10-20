@@ -10,9 +10,15 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_iswhite};
+#[allow(unused_imports)]
 use crate::charset::{vim_iswordc, vim_iswordp};
 #[allow(unused_imports)]
+use crate::cursor::equalpos;
+#[allow(unused_imports)]
 use crate::eval::callback_call;
+#[allow(unused_imports)]
+use crate::eval::typval::tv_list_len;
 #[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_find, tv_dict_has_key, tv_dict_unref, tv_list_alloc,
@@ -108,30 +114,6 @@ unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
         }
         p
     }
-}
-
-#[inline]
-fn ascii_iswhite(c: c_int) -> bool {
-    c == (b' ' as c_int) || c == (b'\t' as c_int)
-}
-
-#[inline]
-fn ascii_isalnum(c: c_int) -> bool {
-    (0..=0x7f).contains(&c) && (c as u8).is_ascii_alphanumeric()
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
 }
 
 #[cfg(not(test))]

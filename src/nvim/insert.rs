@@ -21,6 +21,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_cmdwin;
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
 use crate::buffer::{bt_prompt, buf_is_empty};
@@ -29,7 +31,11 @@ use crate::buffer::{bt_quickfix, set_bufref};
 #[allow(unused_imports)]
 use crate::change::get_leader_len;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
+#[allow(unused_imports)]
 use crate::cursor::check_visual_pos;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
 use crate::drawscreen::{
     redrawing, show_cursor_info_later, showmode, skip_showmode, status_redraw_curbuf, unshowmode,
@@ -50,6 +56,8 @@ use crate::fold::hasFoldingWin;
 #[allow(unused_imports)]
 use crate::fold::{foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding};
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
 #[allow(unused_imports)]
 use crate::highlight_group::highlight_changed;
 #[allow(unused_imports)]
@@ -100,6 +108,8 @@ use crate::option_vars::*;
 use crate::state::virtual_active;
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -404,68 +414,18 @@ unsafe fn ascii2cells(b: c_int) -> c_int {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
 const fn ascii_isspace(c: c_int) -> bool {
     (c >= 9 && c <= 13) || c == b' ' as c_int
 }
 
 #[inline]
-const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
+fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
     ascii_iswhite(c) || c == NL || c == CAR || c == NUL as c_int
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
-const fn ascii_isxdigit(c: c_int) -> bool {
-    ascii_isdigit(c)
-        || (c >= b'a' as c_int && c <= b'f' as c_int)
-        || (c >= b'A' as c_int && c <= b'F' as c_int)
 }
 
 #[inline]
 const fn is_special_ins(c: c_int) -> bool {
     c < b' ' as c_int || c >= DEL || c == b'0' as c_int || c == b'^' as c_int
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
-    #[cfg(target_endian = "big")]
-    {
-        (x as schar_T) << 24
-    }
-    #[cfg(not(target_endian = "big"))]
-    {
-        x as schar_T
-    }
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 #[inline]
@@ -507,15 +467,6 @@ fn mb_byte2len_check(b: c_int) -> c_int {
         1
     } else {
         c_int::from(utf8len_tab[b as usize])
-    }
-}
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    if s.is_null() {
-        0
-    } else {
-        unsafe { CStr::from_ptr(s).to_bytes().len() }
     }
 }
 

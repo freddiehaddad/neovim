@@ -19,7 +19,11 @@
     clippy::unnecessary_cast
 )]
 
+#[allow(unused_imports)]
+use crate::cursor::lt;
 use crate::errors::*;
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 pub(super) use crate::globals::*;
 pub(super) use crate::message::semsg;
 pub(super) use crate::option_vars::*;
@@ -967,35 +971,8 @@ pub(super) const fn ascii_isxdigit(c: c_int) -> bool {
 }
 
 #[inline]
-pub(super) fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
 pub(super) unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(string.cast(), len).cast() }
-}
-
-#[inline]
-pub(super) unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    unsafe {
-        if l.is_null() {
-            ptr::null_mut()
-        } else {
-            (*l).lv_first
-        }
-    }
-}
-
-#[inline]
-pub(super) unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    unsafe { if l.is_null() { 0 } else { (*l).lv_len } }
 }
 
 #[inline]

@@ -1,7 +1,9 @@
 //! Specialized `Set(glyph)` where interned strings are stored in a compact,
 //! NUL-separated `char` array (`src/nvim/map_glyph_cache.c`).
 
-use std::ffi::{CStr, c_char, c_void};
+#[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+use std::ffi::{c_char, c_void};
 
 use crate::map::mh_realloc;
 use crate::memory::xrealloc;
@@ -70,22 +72,6 @@ unsafe fn hash_string(s: NvimString) -> u32 {
         }
     }
     h
-}
-
-#[inline]
-unsafe fn cstr_as_string(str_ptr: *const c_char) -> NvimString {
-    if str_ptr.is_null() {
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
-        NvimString {
-            data: str_ptr.cast_mut(),
-            size: len,
-        }
-    }
 }
 
 #[inline]

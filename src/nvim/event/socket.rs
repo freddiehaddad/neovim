@@ -10,6 +10,8 @@
 )]
 
 use crate::globals::main_loop;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 
 #[allow(unused_imports)]
 use crate::charset::try_getdigits;
@@ -30,7 +32,7 @@ use crate::strings::gettext;
 use crate::strings::strrchr;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
@@ -138,11 +140,6 @@ struct UvConnectReq([u8; 256]);
 
 #[repr(C, align(8))]
 struct RStreamBuf([u8; 512]);
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
 
 use crate::event::r#loop::{uv_freeaddrinfo, uv_pipe_connect, uv_pipe_init};
 

@@ -13,6 +13,8 @@
     clippy::upper_case_acronyms
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::event::r#loop::{uv_guess_handle, uv_req_size, uv_strerror, uv_translate_sys_error};
@@ -41,6 +43,8 @@ use crate::path::{
 };
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::{strerror, wcslen};
 #[allow(unused_imports)]
@@ -290,7 +294,7 @@ struct IPersistFile {
 #[cfg(not(test))]
 use crate::event::r#loop::{uv_chdir, uv_cwd, uv_fs_req_cleanup};
 #[cfg(all(not(test), windows))]
-use crate::fileio::{_close, _fdopen, _get_osfhandle, _read, _write};
+use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::{close, dup, fcntl, fdopen, getuid, read, write};
 
@@ -426,13 +430,7 @@ unsafe extern "C" {
     ) -> c_int;
 
     #[cfg(windows)]
-    fn _dup(fd: c_int) -> c_int;
-    #[cfg(windows)]
     fn _errno() -> *mut c_int;
-    #[cfg(windows)]
-    fn wcspbrk(s: *const u16, accept: *const u16) -> *mut u16;
-    #[cfg(windows)]
-    fn wcsncpy(dest: *mut u16, src: *const u16, n: usize) -> *mut u16;
 
     #[cfg(not(windows))]
     fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> isize;
@@ -490,28 +488,6 @@ const fn s_isblk(m: u64) -> bool {
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
-}
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: s.cast_mut(),
-                size: c_strlen(s),
-            }
-        }
-    }
 }
 
 #[inline]
@@ -2186,12 +2162,13 @@ pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> boo
 
         let mut buf = [0u16; 260];
         let mut result = false;
-        let sep_accept = [b'\\' as u16, b'/' as u16, 0];
 
         while *p != 0 {
-            let mut q = wcspbrk(p, sep_accept.as_ptr());
-            if q.is_null() {
-                q = utf16_path.add(wcslen(utf16_path));
+            let mut q = p;
+            while *q != 0 && !is_sep(*q) {
+                q = q.add(1);
+            }
+            if *q == 0 {
                 p = q;
             } else {
                 p = q.add(1);
@@ -2200,7 +2177,7 @@ pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> boo
             if len >= 260 {
                 break;
             }
-            let _ = wcsncpy(buf.as_mut_ptr(), utf16_path, len);
+            ptr::copy_nonoverlapping(utf16_path, buf.as_mut_ptr(), len);
             buf[len] = 0;
             let attr = GetFileAttributesW(buf.as_ptr());
             if attr != 0xffff_ffff && (attr & 0x0400) != 0 {

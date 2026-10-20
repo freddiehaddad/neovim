@@ -1,5 +1,7 @@
 //! TUI screen cell grid (`src/nvim/tui/ugrid.c`).
 
+#[allow(unused_imports)]
+pub use crate::grid::schar_from_ascii;
 use std::ffi::{c_int, c_void};
 
 use crate::memory::{xcalloc, xfree, xmalloc};
@@ -22,11 +24,6 @@ pub struct UGrid {
     pub width: c_int,
     pub height: c_int,
     pub cells: *mut *mut UCell,
-}
-
-#[inline]
-pub const fn schar_from_ascii(x: u8) -> schar_T {
-    u32::from_ne_bytes([x, 0, 0, 0])
 }
 
 unsafe fn destroy_cells(grid: &mut UGrid) {

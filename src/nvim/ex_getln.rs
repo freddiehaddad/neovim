@@ -17,11 +17,21 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, arena_array, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, cstr_as_obj, cstr_as_string, integer_obj, string_obj,
+};
+#[allow(unused_imports)]
 use crate::buffer::{buf_clear, buflist_findnr, do_buffer};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_custom_title_later;
 use crate::errors::*;
@@ -32,6 +42,8 @@ use crate::eval::typval::{
     tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_dict_get_callback, tv_dict_get_number,
     tv_dict_get_string_buf_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::vars::heredoc_get;
 #[allow(unused_imports)]
@@ -111,7 +123,7 @@ use crate::api::autocmd::event_T;
 use crate::api::command::{cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::api::vim::nvim_create_buf;
 use crate::autocmd::{
@@ -122,7 +134,7 @@ use crate::buffer::{DOBUF_FIRST, DOBUF_GOTO, buf_valid};
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{skipwhite, vim_isIDc, vim_isprintc, vim_iswordc, vim_str2nr};
-use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
     CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL,
     ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL,
@@ -484,21 +496,6 @@ const fn ascii_isupper(c: c_int) -> bool {
 }
 
 #[inline]
-const fn ascii_isalpha(c: c_int) -> bool {
-    ascii_isupper(c) || ascii_islower(c)
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= (b'0' as c_int) && c <= (b'9' as c_int)
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == (b' ' as c_int) || c == (b'\t' as c_int)
-}
-
-#[inline]
 const fn ascii_isspace(c: c_int) -> bool {
     (c >= 9 && c <= 13) || c == (b' ' as c_int)
 }
@@ -517,88 +514,8 @@ const fn error_set(err: &Error) -> bool {
 }
 
 #[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_last }
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { strlen(s) },
-        }
-    }
-}
-
-#[inline]
 const fn cbuf_as_string(s: *mut c_char, len: usize) -> NvimString {
     NvimString { data: s, size: len }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        debug_assert!(arr.size < arr.capacity);
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
-    }
 }
 
 #[inline]
@@ -621,22 +538,6 @@ const fn clearpos(a: &mut pos_T) {
     a.lnum = 0;
     a.col = 0;
     a.coladd = 0;
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
 }
 
 #[inline]

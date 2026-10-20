@@ -15,7 +15,11 @@ use crate::api::command::{exarg_T, regmatch_T};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::charset::str_foldcase;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
 use crate::charset::{
     check_isopt, getdigits_int, getdigits_int32, parse_isopt, skiptowhite, skipwhite, vim_isprintc,
     vim_iswordp_buf,
@@ -431,22 +435,6 @@ unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
 }
 
 #[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    let b = c as u8;
-    b >= b'0' && b <= b'9'
-}
-
-#[inline]
-const fn ascii_isalpha(c: c_char) -> bool {
-    (c as u8).is_ascii_alphabetic()
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
 const fn toupper_asc(c: c_char) -> u8 {
     let b = c as u8;
     if b >= b'a' && b <= b'z' {
@@ -459,11 +447,6 @@ const fn toupper_asc(c: c_char) -> u8 {
 #[inline]
 unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
     unsafe { (*wp).w_s.cast::<synblock_T>() }
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> i64 {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 #[inline]

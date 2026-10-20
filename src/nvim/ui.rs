@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::float_obj;
+#[allow(unused_imports)]
 use crate::api::ui::{
     remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
     remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
@@ -1229,14 +1231,6 @@ const fn arr_obj(a: Array) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeArray,
         data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn float_obj(f: f64) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeFloat,
-        data: ObjectData { floating: f },
     }
 }
 

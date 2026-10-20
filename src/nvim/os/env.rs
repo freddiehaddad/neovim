@@ -40,6 +40,8 @@ use crate::path::{
 #[allow(unused_imports)]
 use crate::path::{path_to_slash, path_to_slash_save, vim_ispathsep};
 #[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::vim_strsave_escaped;
@@ -185,11 +187,6 @@ unsafe extern "system" {
     fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
     fn GetComputerNameW(lpBuffer: *mut u16, nSize: *mut u32) -> c_int;
     fn GetLastError() -> u32;
-}
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
 }
 
 #[inline]

@@ -15,10 +15,16 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_quickfix;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
+#[allow(unused_imports)]
 use crate::drawscreen::conceal_cursor_line;
 #[allow(unused_imports)]
 use crate::fold::get_foldtext;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
 #[allow(unused_imports)]
 use crate::insexpand::{ins_compl_col_range_attr, ins_compl_lnum_in_range, ins_compl_win_active};
 #[allow(unused_imports)]
@@ -261,28 +267,6 @@ unsafe fn vim_isbreak(c: c_int) -> bool {
 }
 
 #[inline]
-const fn schar_from_ascii(c: u8) -> schar_T {
-    #[cfg(target_endian = "big")]
-    {
-        (c as schar_T) << 24
-    }
-    #[cfg(target_endian = "little")]
-    {
-        c as schar_T
-    }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    c >= b'0' as c_char && c <= b'9' as c_char
-}
-
-#[inline]
 const fn tristate_to_bool(val: TriState, default: bool) -> bool {
     if val == kTrue {
         true
@@ -291,27 +275,6 @@ const fn tristate_to_bool(val: TriState, default: bool) -> bool {
     } else {
         default
     }
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
 }
 
 #[inline]

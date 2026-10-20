@@ -14,6 +14,8 @@ use crate::charset::vim_isprintc;
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
+#[allow(unused_imports)]
 use crate::decoration::decor_conceal_line;
 #[allow(unused_imports)]
 use crate::decoration::decor_virt_lines;
@@ -117,27 +119,6 @@ pub struct StrCharInfo {
 pub struct ClusterInfo {
     pub next: StrCharInfo,
     pub cells: c_int,
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
 }
 
 #[inline]

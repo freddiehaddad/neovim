@@ -12,9 +12,13 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::buf_set_changedtick;
 #[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bt_prompt, buf_is_empty};
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::get_buf_arg;
@@ -317,20 +321,10 @@ unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
 }
 
 #[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
 fn clearpos(a: &mut pos_T) {
     a.lnum = 0;
     a.col = 0;
     a.coladd = 0;
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.

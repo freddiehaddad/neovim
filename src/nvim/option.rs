@@ -14,13 +14,21 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, string_obj,
+};
 #[allow(unused_imports)]
 use crate::autocmd::do_filetype_autocmd;
 #[allow(unused_imports)]
 use crate::buffer::{do_autochdir, free_buf_options, maketitle};
 #[allow(unused_imports)]
 use crate::change::save_file_ff;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::cmdexpand::cmdline_fuzzy_complete;
 use crate::errors::*;
@@ -54,12 +62,18 @@ use crate::mapping::{langmap_init, put_escstr};
 #[allow(unused_imports)]
 use crate::mcursor::mc_ins_replay_can_join;
 #[allow(unused_imports)]
+use crate::memory::strequal;
+#[allow(unused_imports)]
 use crate::normal::do_check_scrollbind;
 #[allow(unused_imports)]
 use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
+#[allow(unused_imports)]
 use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::{gettext, strchr, strcmp, strncmp, strstr};
 #[allow(unused_imports)]
@@ -762,11 +776,6 @@ unsafe fn tr(s: *const c_char) -> *mut c_char {
 }
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
 unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe { strcmp(s1, s2) }
 }
@@ -789,41 +798,8 @@ unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
 }
 
 #[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    unsafe { c_strcmp(a, b) == 0 }
-}
-
-#[inline]
 unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
     unsafe { c_strncmp(a, b, n) == 0 }
-}
-
-#[inline]
-fn ascii_iswhite(c: c_char) -> bool {
-    matches!(c as u8, b' ' | b'\t')
-}
-
-#[inline]
-fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-fn ascii_isalpha(c: c_char) -> bool {
-    (c as u8).is_ascii_alphabetic()
-}
-
-#[inline]
-fn ascii_isalnum(c: c_char) -> bool {
-    (c as u8).is_ascii_alphanumeric()
-}
-
-#[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
 }
 
 #[inline]
@@ -832,59 +808,6 @@ const fn unset_obj() -> Object {
         obj_type: ObjectType::kObjectTypeUnset,
         data: ObjectData { integer: 0 },
     }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: i64) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn luaref_obj(r: LuaRef) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeLuaRef,
-        data: ObjectData { luaref: r },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_as_string(s)) }
 }
 
 #[inline]
@@ -952,15 +875,6 @@ unsafe fn put_c(dict: &mut Dict, k: *const c_char, v: Object) {
             value: v,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn add_c(array: &mut Array, item: Object) {
-    unsafe {
-        debug_assert!(array.size < array.capacity);
-        *array.items.add(array.size) = item;
-        array.size += 1;
     }
 }
 
@@ -2940,21 +2854,6 @@ pub unsafe extern "C" fn get_option_sctx(opt_idx: OptIndex) -> *mut sctx_T {
     unsafe {
         assert!(opt_idx != kOptInvalid);
         &raw mut (*get_option(opt_idx)).script_ctx
-    }
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> i32 {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            0
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        }
     }
 }
 

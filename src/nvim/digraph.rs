@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -21,6 +23,8 @@ use crate::eval::typval::{tv_check_for_opt_bool_arg, tv_get_string_buf_chk, tv_g
 use crate::eval::typval::{
     tv_get_bool, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_string,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
 #[allow(unused_imports)]
@@ -52,7 +56,7 @@ use std::ptr;
 use crate::api::command::exarg_T;
 use crate::api::tabpage::win_T;
 use crate::charset::{char2cells, getdigits_int, skiptowhite, skipwhite};
-use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
+use crate::clipboard::{VarType, list_T, typval_T};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::indent::EvalFuncData;
 use crate::keycodes::K_BS;
@@ -1645,29 +1649,6 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 #[inline]
 const fn is_special(c: c_int) -> bool {
     c < 0
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
 }
 
 /// Handle digraphs after typing a character (`do_digraph`).

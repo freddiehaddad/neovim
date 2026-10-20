@@ -10,7 +10,11 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
+use crate::api::private::helpers::integer_obj;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, arena_dict, dict_get_value, dict_set_var, find_buffer_by_handle,
@@ -100,27 +104,11 @@ const NIL: Object = Object {
 };
 
 #[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
 const fn cstr_as_string(s: &'static CStr) -> NvimString {
     let bytes = s.to_bytes();
     NvimString {
         data: bytes.as_ptr() as *mut c_char,
         size: bytes.len(),
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

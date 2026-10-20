@@ -10,11 +10,15 @@
 )]
 use crate::api::autocmd::kCallbackNone;
 use crate::api::tabpage::lpos_T;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::charset::{
     getdigits_int, getwhitecols_curline, skiptowhite, skipwhite, vim_isIDc, vim_iswordc,
     vim_iswordp, vim_strsize,
 };
 use crate::clipboard::typval_T;
+#[allow(unused_imports)]
+use crate::cursor::lt;
 use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T};
 use crate::eval::deprecated::{buf_T, pos_T};
 #[allow(unused_imports)]
@@ -107,14 +111,6 @@ static mut match_char_pos_copy: pos_T = pos_T {
     coladd: 0,
 };
 #[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-#[inline]
 const fn ctrl_chr(x: u8) -> c_int {
     let upper = if x >= b'a' && x <= b'z' {
         x - (b'a' - b'A')
@@ -122,16 +118,6 @@ const fn ctrl_chr(x: u8) -> c_int {
         x
     };
     (upper ^ 0x40) as c_int
-}
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
 }
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.

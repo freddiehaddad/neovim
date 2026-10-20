@@ -15,6 +15,8 @@ use crate::buffer::bt_nofilename;
 #[allow(unused_imports)]
 use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::{
     bt_cmdwin, buf_ensure_loaded, buflist_add, buflist_findlnum, buflist_findname_exp,
     buflist_findnr, buflist_new,
@@ -39,6 +41,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_dict_get_bool, tv_get_lnum, tv_get_string, tv_get_string_chk};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::{callback_call, prompt_get_input, typval_tostring};
 #[allow(unused_imports)]
@@ -121,38 +125,6 @@ unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
             (*tp).tp_firstwin
         }
     }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    unsafe {
-        if l.is_null() {
-            ptr::null_mut()
-        } else {
-            (*l).lv_first
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    unsafe {
-        if l.is_null() {
-            ptr::null_mut()
-        } else {
-            (*l).lv_last
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    unsafe { if l.is_null() { 0 } else { (*l).lv_len } }
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 /// Find a buffer by number or exact name (`find_buffer`).

@@ -10,6 +10,8 @@
     clippy::too_many_arguments
 )]
 use crate::change::inserted_bytes;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite};
 use crate::clipboard::{TypvalVval, VarType, listitem_T, typval_T};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
@@ -369,14 +371,6 @@ static mut spell_suggest_timeout: i64 = 5000;
 static mut sps_flags: c_int = SPS_BEST;
 static mut sps_limit: c_int = 9999;
 static mut expr_busy: bool = false;
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
 #[inline]
 const fn rescore(word_score: c_int, sound_score: c_int) -> c_int {
     (3 * word_score + sound_score) / 4

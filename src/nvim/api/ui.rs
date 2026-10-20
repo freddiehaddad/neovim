@@ -17,8 +17,12 @@
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
+#[allow(unused_imports)]
+use crate::api::private::helpers::dict_obj;
 use crate::errors::*;
 use crate::globals::*;
+#[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
 #[allow(unused_imports)]
 use crate::option::set_tty_option;
 use crate::option_vars::*;
@@ -151,23 +155,6 @@ const fn arr_obj(a: Array) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeArray,
         data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
-    if cfg!(target_endian = "big") {
-        (x as schar_T) << 24
-    } else {
-        x as schar_T
     }
 }
 

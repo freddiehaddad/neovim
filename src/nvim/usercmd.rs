@@ -13,6 +13,13 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::arena_dict;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj, nil_obj,
+    string_obj,
+};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
 use crate::eval::last_set_msg;
 #[allow(unused_imports)]
 use crate::ex_docmd::do_cmdline;
@@ -40,7 +47,8 @@ use crate::message::{
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
-use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::strings::{gettext, strcat, strchr, strcmp, strcpy, strncmp};
 #[allow(unused_imports)]
@@ -51,7 +59,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
-use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Dict, KeyValuePair, Object};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite};
 use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
@@ -59,8 +67,6 @@ use crate::keycodes::replace_termcodes;
 use crate::lua::converter::LuaRef;
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
-use crate::msgpack_rpc::packer::Integer;
-use crate::profile::estack_T;
 use crate::sign::expand_T;
 
 const NUL: c_char = 0;
@@ -314,43 +320,8 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 ];
 
 #[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-const fn ascii_isalpha(c: c_char) -> bool {
-    (c as u8).is_ascii_alphabetic()
-}
-
-#[inline]
-const fn ascii_isalnum(c: c_char) -> bool {
-    (c as u8).is_ascii_alphanumeric()
-}
-
-#[inline]
 const fn ascii_isupper(c: c_char) -> bool {
     (c as u8).is_ascii_uppercase()
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> i32 {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            0
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        }
-    }
 }
 
 #[inline]
@@ -2207,74 +2178,6 @@ pub unsafe extern "C" fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
 
         0
     }
-}
-
-#[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn luaref_obj(r: LuaRef) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeLuaRef,
-        data: ObjectData { luaref: r },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
 }
 
 #[inline]

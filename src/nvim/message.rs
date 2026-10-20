@@ -10,6 +10,8 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::callback_call;
@@ -23,6 +25,8 @@ use crate::fileio::printf;
 use crate::fileio::{fclose, fprintf, fputc, fputs};
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
 use crate::log::log_get_stderr;
 use crate::log::logmsg;
 #[allow(unused_imports)]
@@ -30,6 +34,8 @@ use crate::option::shortmess;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::runtime::estack_sfile;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::strings::{gettext, ngettext};
 #[allow(unused_imports)]
@@ -55,7 +61,6 @@ use crate::charset::{
     char2cells, skipwhite, transchar_buf, transchar_byte_buf, vim_isprintc, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
-use crate::cursor::linenr_T;
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
 use crate::drawscreen::{redraw_all_later, redraw_later, set_must_redraw};
 use crate::eval::typval::tv_clear;
@@ -179,11 +184,6 @@ const NIL_OBJ: Object = Object {
     data: ObjectData { integer: 0 },
 };
 
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
 /// Message history for `:messages`
 #[repr(C)]
 pub struct MessageHistoryEntry {
@@ -289,12 +289,8 @@ static mut SHOWMODE_CLEAR: bool = false;
 
 static mut pre_verbose_kind: *const c_char = ptr::null();
 
+use crate::memory::xstrnlen as strnlen;
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
-
-unsafe extern "C" {
-    fn strnlen(s: *const c_char, maxlen: usize) -> usize;
-
-}
 
 #[macro_export]
 macro_rules! smsg {
@@ -494,15 +490,6 @@ unsafe fn hl_attr(n: c_int) -> c_int {
 }
 
 #[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
-    if cfg!(target_endian = "big") {
-        (x as schar_T) << 24
-    } else {
-        x as schar_T
-    }
-}
-
-#[inline]
 unsafe fn ascii2cells(b: c_int) -> c_int {
     if (b' ' as c_int..=b'~' as c_int).contains(&b) {
         1
@@ -554,17 +541,6 @@ unsafe fn sourcing_name() -> *mut c_char {
             (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_name
         } else {
             ptr::null_mut()
-        }
-    }
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> linenr_T {
-    unsafe {
-        if have_sourcing_info() {
-            (*(exestack.ga_data as *const estack_T).add((exestack.ga_len - 1) as usize)).es_lnum
-        } else {
-            0
         }
     }
 }

@@ -11,9 +11,15 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_dict_to_keydict, arena_array, arena_dict};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, string_obj,
+};
 #[allow(unused_imports)]
 use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_hl_group_set};
 #[allow(unused_imports)]
@@ -304,58 +310,6 @@ const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
 }
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     debug_assert!(dict.size < dict.capacity);
     unsafe {
@@ -368,15 +322,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
         };
     }
     dict.size += 1;
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    debug_assert!(arr.size < arr.capacity);
-    unsafe {
-        *arr.items.add(arr.size) = item;
-    }
-    arr.size += 1;
 }
 
 #[inline]

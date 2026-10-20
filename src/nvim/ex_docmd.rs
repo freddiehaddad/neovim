@@ -16,6 +16,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 #[allow(unused_imports)]
+use crate::api::private::helpers::{boolean_obj, cstr_as_obj, integer_obj};
+#[allow(unused_imports)]
 use crate::api::vimscript::nvim_command;
 #[allow(unused_imports)]
 use crate::arglist::{arg_all, check_arg_idx};
@@ -866,16 +868,7 @@ const CMDMODS: [CmdModInfo; 24] = [
     },
 ];
 
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    #[link_name = "_stricmp"]
-    fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int;
-    #[cfg(not(windows))]
-    #[link_name = "strcasecmp"]
-    fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int;
-
-}
+use crate::strings::vim_stricmp as stricmp_c;
 
 #[allow(clippy::large_const_arrays)]
 const CMDNAMES: [CommandDefinition; 564] = [
@@ -5041,34 +5034,6 @@ unsafe fn cstr_as_nvim_string(s: *const c_char) -> NvimString {
                 size: strlen(s),
             }
         }
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe {
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: cstr_as_nvim_string(s),
-            },
-        }
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
     }
 }
 

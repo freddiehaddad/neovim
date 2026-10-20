@@ -113,11 +113,10 @@ unsafe extern "C" {
     fn bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
     #[cfg(target_os = "linux")]
     fn textdomain(domainname: *const c_char) -> *mut c_char;
-
-    #[cfg(not(windows))]
-    fn strtok_r(str_: *mut c_char, delim: *const c_char, saveptr: *mut *mut c_char) -> *mut c_char;
-
 }
+
+#[cfg(not(windows))]
+use crate::strings::strtok_r;
 
 #[inline]
 unsafe fn get_locale_val(what: c_int) -> *mut c_char {

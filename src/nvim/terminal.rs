@@ -25,6 +25,8 @@ use crate::autocmd::{
     apply_autocmds, block_autocmds, has_event, is_autocmd_blocked, unblock_autocmds,
 };
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::do_buffer;
 #[allow(unused_imports)]
 use crate::drawscreen::{
@@ -62,6 +64,8 @@ use crate::mbyte::{utf_ptr2char, utf_ptr2len};
 use crate::memline::ml_append_buf;
 #[allow(unused_imports)]
 use crate::memline::{ml_delete_buf, ml_replace_buf};
+#[allow(unused_imports)]
+use crate::memory::strequal;
 #[allow(unused_imports)]
 use crate::r#move::win_col_off;
 #[allow(unused_imports)]
@@ -444,11 +448,6 @@ static mut INVALIDATED_TERMINALS: Set<ptr_t> = Set {
 };
 
 #[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> i64 {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
-
-#[inline]
 const fn vterm_key_function(n: c_int) -> VTermKey {
     VTERM_KEY_FUNCTION_0 + n
 }
@@ -597,17 +596,6 @@ const fn cstr_slice_as_string(bytes: &'static [u8]) -> NvimString {
         data: bytes.as_ptr().cast::<c_char>().cast_mut(),
         size: bytes.len() - 1,
     }
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() && b.is_null() {
-        return true;
-    }
-    if a.is_null() || b.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
 
 unsafe extern "C" fn emit_termrequest(argv: *mut *mut c_void) {

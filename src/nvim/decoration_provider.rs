@@ -17,6 +17,8 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, api_object_to_bool,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{buffer_obj, integer_obj, window_obj};
+#[allow(unused_imports)]
 use crate::decoration::decor_check_to_be_deleted;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -33,13 +35,13 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::api::extmark::{DecorProvider, NS, linenr_T};
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::eval::deprecated::buf_T;
 use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
 use crate::memory::{xfree, xrealloc};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::Integer;
 
 const LUA_NOREF: LuaRef = -2;
 const CB_MAX_ERROR: u8 = 3;
@@ -64,34 +66,6 @@ const fn error_init() -> Error {
     Error {
         err_type: ErrorType::kErrorTypeNone,
         msg: ptr::null_mut(),
-    }
-}
-
-#[inline]
-const fn integer_obj(val: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: val },
-    }
-}
-
-#[inline]
-const fn window_obj(val: handle_T) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeWindow,
-        data: ObjectData {
-            integer: val as Integer,
-        },
-    }
-}
-
-#[inline]
-const fn buffer_obj(val: handle_T) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBuffer,
-        data: ObjectData {
-            integer: val as Integer,
-        },
     }
 }
 

@@ -17,6 +17,8 @@ use crate::api::private::helpers::{
     string_to_array,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{array_obj, string_obj};
+#[allow(unused_imports)]
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
 use crate::buffer::bt_prompt;
@@ -24,6 +26,8 @@ use crate::buffer::bt_prompt;
 use crate::buffer::do_autochdir;
 #[allow(unused_imports)]
 use crate::buffer::{bufref_valid, set_bufref};
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::cursor::{check_cursor, check_pos};
 #[allow(unused_imports)]
@@ -61,7 +65,7 @@ use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
 use crate::api::tabpage::{pos_T, tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
@@ -212,22 +216,6 @@ static mut CTX_DID_CHDIR: bool = false;
 static mut CTX_MARKS_NS_ID: u32 = 0;
 
 #[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
 const fn cstr_literal(s: &'static CStr) -> NvimString {
     let bytes = s.to_bytes();
     NvimString {
@@ -247,11 +235,6 @@ unsafe fn strequal(a: *const c_char, b: &str) -> bool {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
 }
 
 #[inline]

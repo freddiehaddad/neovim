@@ -15,9 +15,17 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
+#[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_getfile, fileinfo};
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
 use crate::drawscreen::setcursor;
 use crate::errors::*;
@@ -474,39 +482,8 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn ascii_iswhite_or_nul(c: c_int) -> bool {
+fn ascii_iswhite_or_nul(c: c_int) -> bool {
     ascii_iswhite(c) || c == NUL as c_int
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
 }
 
 #[inline]
@@ -566,42 +543,6 @@ unsafe fn win_hl_attr(wp: *mut win_T, hlf: usize) -> c_int {
 #[inline]
 unsafe fn hl_attr(hlf: usize) -> c_int {
     unsafe { *hl_attr_active.add(hlf) }
-}
-
-#[inline]
-const fn integer_obj(i: i64) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe {
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: cstr_as_string(s),
-            },
-        }
-    }
 }
 
 #[inline]

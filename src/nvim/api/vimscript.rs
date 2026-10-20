@@ -10,10 +10,16 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_set_sctx, arena_array, arena_dict, arena_string, try_enter, try_leave,
+};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, cstr_as_string, dict_obj, float_obj, integer_obj, nil_obj, string_obj,
 };
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_dict_find};
@@ -81,79 +87,8 @@ static mut EVAL_RECURSIVE: c_int = 0;
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
 
 #[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn float_obj(f: f64) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeFloat,
-        data: ObjectData { floating: f },
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
 fn error_set(err: *const Error) -> bool {
     unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: std::ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
 }
 
 #[inline]
@@ -179,14 +114,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

@@ -24,6 +24,8 @@ use crate::api::private::helpers::{
     api_clear_error, cstr_as_string, find_window_by_handle, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{dict_obj, integer_obj};
+#[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, apply_autocmds_win};
 #[allow(unused_imports)]
 use crate::buffer::bt_prompt;
@@ -34,6 +36,10 @@ use crate::buffer::{
     buf_hide, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, close_buffer,
     do_autochdir, do_buffer, maketitle,
 };
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::drawscreen::{comp_col, showmode};
 use crate::errors::*;
@@ -390,11 +396,6 @@ const fn error_set(err: &Error) -> bool {
 }
 
 #[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
 fn nowin() -> *mut win_T {
     (-1isize) as *mut win_T
 }
@@ -420,27 +421,6 @@ unsafe fn reset_binding(wp: *mut win_T) {
         (*wp).w_onebuf_opt.wo_scb = 0;
         (*wp).w_onebuf_opt.wo_crb = 0;
     }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
 }
 
 #[inline]

@@ -33,6 +33,8 @@ use crate::message::{emsg, internal_error};
 #[allow(unused_imports)]
 use crate::strings::strcasecmp;
 #[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::vim_stricmp;
@@ -291,11 +293,6 @@ unsafe fn tr(s: *const c_char) -> *mut c_char {
 }
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
 unsafe fn nlua_clear_ref(r: &mut LuaRef) {
     #[cfg(not(test))]
     if *r != LUA_NOREF {
@@ -399,6 +396,21 @@ unsafe fn tv_list_set_lock_inline(l: *mut list_T, lock: VarLockStatus) {
     unsafe {
         (*l).lv_lock = lock;
     }
+}
+
+#[inline]
+pub unsafe fn tv_list_len(l: *const list_T) -> c_int {
+    unsafe { tv_list_len_inline(l) }
+}
+
+#[inline]
+pub unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
+    unsafe { tv_list_first_inline(l) }
+}
+
+#[inline]
+pub unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
+    unsafe { tv_list_last_inline(l) }
 }
 
 #[inline]

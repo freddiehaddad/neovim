@@ -27,6 +27,8 @@ use crate::eval::typval::{
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
+#[allow(unused_imports)]
 use crate::eval::userfunc::add_defer;
 #[allow(unused_imports)]
 use crate::eval::userfunc::can_add_defer;
@@ -88,6 +90,8 @@ use crate::path::{
 use crate::runtime::script_is_lua;
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_shellescape, xstrnsave};
 #[allow(unused_imports)]
@@ -255,11 +259,6 @@ fn s_issock(_m: u64) -> bool {
 }
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
 unsafe fn tv_list_ref(l: *mut list_T) {
     if !l.is_null() {
         unsafe {
@@ -274,24 +273,6 @@ unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
         (*tv).v_type = VarType::VAR_LIST;
         (*tv).vval.v_list = l;
         tv_list_ref(l);
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
     }
 }
 

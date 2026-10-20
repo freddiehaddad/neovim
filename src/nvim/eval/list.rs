@@ -25,6 +25,8 @@ use crate::eval::typval::{tv_dict_copy, tv_list_copy, value_check_lock};
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_get_bool_chk, tv_get_number_chk};
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
+#[allow(unused_imports)]
 use crate::eval::vars::{get_vim_var_tv, set_vim_var_nr, set_vim_var_string, set_vim_var_type};
 #[allow(unused_imports)]
 use crate::eval::vars::{prepare_vimvar, restore_vimvar, var_check_fixed, var_check_ro};
@@ -84,24 +86,6 @@ unsafe fn tv_list_set_lock(l: *mut list_T, lock: c_int) {
         unsafe {
             (*l).lv_lock = lock;
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
     }
 }
 

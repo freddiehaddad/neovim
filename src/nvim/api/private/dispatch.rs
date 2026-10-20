@@ -16,6 +16,11 @@
     clippy::too_many_lines
 )]
 
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj, string_obj, tabpage_obj,
+    window_obj,
+};
 use std::ffi::{c_char, c_int};
 use std::mem::{offset_of, zeroed};
 use std::ptr;
@@ -153,84 +158,6 @@ pub struct MsgpackRpcRequestHandler {
 }
 
 unsafe impl Sync for MsgpackRpcRequestHandler {}
-
-#[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn float_obj(f: Float) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeFloat,
-        data: ObjectData { floating: f },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn buffer_obj(b: Buffer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBuffer,
-        data: ObjectData {
-            integer: b as Integer,
-        },
-    }
-}
-
-#[inline]
-const fn window_obj(w: Window) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeWindow,
-        data: ObjectData {
-            integer: w as Integer,
-        },
-    }
-}
-
-#[inline]
-const fn tabpage_obj(t: Tabpage) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeTabpage,
-        data: ObjectData {
-            integer: t as Integer,
-        },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
 
 #[inline]
 unsafe fn dlog_internal_call(channel_id: u64, func_name: *const c_char, msg: *const c_char) {

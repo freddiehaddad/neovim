@@ -20,6 +20,12 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
+#[allow(unused_imports)]
 use crate::event::r#loop::uv_handle_size;
 #[allow(unused_imports)]
 use crate::strings::strtod;
@@ -438,30 +444,6 @@ pub struct caller_scope {
 }
 
 #[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_digit()
-}
-
-#[inline]
-const fn ascii_isxdigit(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_hexdigit()
-}
-
-#[inline]
-const fn ascii_isalpha(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_alphabetic()
-}
-
-#[inline]
-const fn ascii_isalnum(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_alphanumeric()
-}
-
-#[inline]
 const fn ascii_isupper(c: c_char) -> bool {
     let b = c as u8;
     b.is_ascii_uppercase()
@@ -474,12 +456,7 @@ const fn ascii_islower(c: c_char) -> bool {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
-const fn ascii_iswhite_or_nul(c: c_char) -> bool {
+fn ascii_iswhite_or_nul(c: c_char) -> bool {
     ascii_iswhite(c) || c == NUL
 }
 
@@ -578,33 +555,6 @@ unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
 }
 
 #[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_last }
-    }
-}
-
-#[inline]
 unsafe fn tv_list_ref(l: *mut list_T) {
     if !l.is_null() {
         unsafe {
@@ -668,23 +618,6 @@ unsafe fn tv_dict_watcher_node_data(q: *mut QUEUE) -> *mut DictWatcher {
         q.cast::<u8>()
             .sub(offset_of!(DictWatcher, node))
             .cast::<DictWatcher>()
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: s.cast_mut(),
-                size: strlen(s),
-            }
-        }
     }
 }
 

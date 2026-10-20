@@ -15,13 +15,19 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_free_dict, api_free_string, cstr_to_string};
 #[allow(unused_imports)]
+use crate::api::private::helpers::{array_obj, boolean_obj, dict_obj, integer_obj};
+#[allow(unused_imports)]
 use crate::autocmd::aucmd_defer;
 #[allow(unused_imports)]
 use crate::autocmd::has_event;
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
 use crate::buffer::set_bufref;
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::eval::vars::get_vim_var_str;
 use crate::globals::*;
@@ -406,16 +412,6 @@ static mut typed: TypedState = TypedState {
 };
 
 #[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
 const fn is_special(c: c_int) -> bool {
     c < 0
 }
@@ -425,38 +421,6 @@ unsafe fn sb_concat(sb: &mut StringBuilder, s: *const c_char) {
     unsafe {
         let len = strlen(s);
         sb.concat_len(s, len);
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: i64) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
     }
 }
 

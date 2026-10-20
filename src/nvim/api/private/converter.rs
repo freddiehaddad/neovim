@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::nil_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{arena_array, arena_dict};
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -95,14 +97,6 @@ pub struct partial_T {
     pub pt_argc: c_int,
     pub pt_argv: *mut typval_T,
     pub pt_dict: *mut dict_T,
-}
-
-#[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
 }
 
 #[inline]

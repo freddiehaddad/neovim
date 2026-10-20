@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
@@ -20,6 +22,8 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, arena_array, find_buffer_by_handle,
     find_window_by_handle, object_to_hl_id, try_enter, try_leave,
 };
+#[allow(unused_imports)]
+use crate::api::private::helpers::{array_obj, cstr_as_string, integer_obj, string_obj};
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds_win, block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
@@ -36,6 +40,8 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 #[allow(unused_imports)]
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
+#[allow(unused_imports)]
+use crate::memory::strequal;
 #[allow(unused_imports)]
 use crate::r#move::changed_window_setting;
 #[allow(unused_imports)]
@@ -231,30 +237,6 @@ const NIL: Object = Object {
 };
 
 #[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
 }
@@ -262,22 +244,6 @@ const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
 #[inline]
 unsafe fn error_set(err: *const Error) -> bool {
     unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        NvimString {
-            data: s as *mut c_char,
-            size: len,
-        }
-    }
 }
 
 #[inline]
@@ -315,14 +281,6 @@ unsafe fn cstr_to_obj(s: *const c_char) -> Object {
 }
 
 #[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() || b.is_null() {
-        return a == b;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
-}
-
-#[inline]
 unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
     if a.is_null() {
         return false;
@@ -339,14 +297,6 @@ unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
         CStr::from_ptr(a)
             .to_bytes()
             .eq_ignore_ascii_case(b.as_bytes())
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

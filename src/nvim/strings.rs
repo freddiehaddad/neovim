@@ -11,6 +11,8 @@
     clippy::too_many_arguments
 )]
 
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -388,6 +390,134 @@ pub unsafe fn tolower(c: c_int) -> c_int {
 }
 
 #[inline]
+pub unsafe fn isalpha(c: c_int) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        unsafe extern "C" {
+            #[link_name = "isalpha"]
+            fn c_isalpha(c: c_int) -> c_int;
+        }
+        c_isalpha(c)
+    }
+    #[cfg(test)]
+    {
+        c_int::from((c as u8).is_ascii_alphabetic())
+    }
+}
+
+#[inline]
+pub unsafe fn strcspn(mut s: *const c_char, reject: *const c_char) -> usize {
+    unsafe {
+        let mut count = 0;
+        while *s != NUL {
+            let mut r = reject;
+            while *r != NUL {
+                if *s == *r {
+                    return count;
+                }
+                r = r.add(1);
+            }
+            s = s.add(1);
+            count += 1;
+        }
+        count
+    }
+}
+
+#[inline]
+pub unsafe fn strtok_r(
+    s: *mut c_char,
+    delim: *const c_char,
+    saveptr: *mut *mut c_char,
+) -> *mut c_char {
+    unsafe {
+        let mut cur = if !s.is_null() { s } else { *saveptr };
+        if cur.is_null() {
+            return ptr::null_mut();
+        }
+        let is_delim = |ch: c_char| -> bool {
+            let mut d = delim;
+            while *d != NUL {
+                if *d == ch {
+                    return true;
+                }
+                d = d.add(1);
+            }
+            false
+        };
+        while *cur != NUL && is_delim(*cur) {
+            cur = cur.add(1);
+        }
+        if *cur == NUL {
+            *saveptr = cur;
+            return ptr::null_mut();
+        }
+        let token = cur;
+        while *cur != NUL && !is_delim(*cur) {
+            cur = cur.add(1);
+        }
+        if *cur == NUL {
+            *saveptr = cur;
+        } else {
+            *cur = NUL;
+            *saveptr = cur.add(1);
+        }
+        token
+    }
+}
+
+#[inline]
+pub unsafe fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, mut base: c_int) -> c_ulong {
+    unsafe {
+        let mut s = nptr;
+        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = s.add(1);
+        }
+        let neg = if *s == b'-' as c_char {
+            s = s.add(1);
+            true
+        } else {
+            if *s == b'+' as c_char {
+                s = s.add(1);
+            }
+            false
+        };
+        if (base == 0 || base == 16)
+            && *s == b'0' as c_char
+            && matches!(*s.add(1) as u8, b'x' | b'X')
+        {
+            s = s.add(2);
+            base = 16;
+        } else if base == 0 {
+            base = if *s == b'0' as c_char { 8 } else { 10 };
+        }
+        let radix = base as u32;
+        let mut acc: c_ulong = 0;
+        let mut any = false;
+        loop {
+            let ch = *s as u8 as char;
+            let Some(digit) = ch.to_digit(radix) else {
+                break;
+            };
+            any = true;
+            acc = acc
+                .wrapping_mul(radix as c_ulong)
+                .wrapping_add(digit as c_ulong);
+            s = s.add(1);
+        }
+        if !endptr.is_null() {
+            *endptr = if any { s.cast_mut() } else { nptr.cast_mut() };
+        }
+        if neg { acc.wrapping_neg() } else { acc }
+    }
+}
+
+#[inline]
+pub unsafe fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_long {
+    unsafe { strtoul(nptr, endptr, base) as c_long }
+}
+
+#[inline]
 pub unsafe fn toupper(c: c_int) -> c_int {
     #[cfg(not(test))]
     unsafe {
@@ -518,16 +648,6 @@ pub unsafe fn strerror(errnum: c_int) -> *mut c_char {
         let _ = errnum;
         c"error".as_ptr().cast_mut()
     }
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    matches!(c as u8, b' ' | b'\t')
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
 }
 
 #[inline]
@@ -3954,6 +4074,23 @@ mod tests {
             assert!(!strchr(c"hello".as_ptr(), b'e' as c_int).is_null());
             assert!(!strstr(c"hello world".as_ptr(), c"world".as_ptr()).is_null());
             assert!(!strpbrk(c"hello".as_ptr(), c"xyzl".as_ptr()).is_null());
+            assert_eq!(strcspn(c"foo,bar".as_ptr(), c",".as_ptr()), 3);
+            assert_eq!(strtol(c"ff00aa".as_ptr(), ptr::null_mut(), 16), 0xff00aa);
+            let mut end: *mut c_char = ptr::null_mut();
+            let s = c"9.1.0123";
+            assert_eq!(strtoul(s.as_ptr(), &raw mut end, 10), 9);
+            assert_eq!(*end as u8, b'.');
+            let mut tok_buf = *b"en_US\nde_DE\n\0";
+            let mut saveptr: *mut c_char = ptr::null_mut();
+            let t1 = strtok_r(
+                tok_buf.as_mut_ptr().cast(),
+                c"\n".as_ptr(),
+                &raw mut saveptr,
+            );
+            assert_eq!(CStr::from_ptr(t1).to_bytes(), b"en_US");
+            let t2 = strtok_r(ptr::null_mut(), c"\n".as_ptr(), &raw mut saveptr);
+            assert_eq!(CStr::from_ptr(t2).to_bytes(), b"de_DE");
+            assert!(strtok_r(ptr::null_mut(), c"\n".as_ptr(), &raw mut saveptr).is_null());
         }
     }
 

@@ -9,6 +9,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
 use crate::mbyte::utf8len_tab;
 #[allow(unused_imports)]
 use crate::mbyte::{
@@ -187,18 +189,6 @@ pub struct VTermSelectionCallbacks {
         ) -> c_int,
     >,
     pub query: Option<unsafe extern "C" fn(mask: VTermSelectionMask, user: *mut c_void) -> c_int>,
-}
-
-#[inline]
-const fn schar_from_ascii(x: u8) -> schar_T {
-    #[cfg(target_endian = "big")]
-    {
-        (x as schar_T) << 24
-    }
-    #[cfg(not(target_endian = "big"))]
-    {
-        x as schar_T
-    }
 }
 
 #[inline]

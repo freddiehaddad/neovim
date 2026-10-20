@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
@@ -20,7 +22,13 @@ use crate::api::private::helpers::{
     find_buffer_by_handle, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    boolean_obj, cstr_as_string, dict_obj, integer_obj, string_obj,
+};
+#[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
 use crate::charset::getdigits_long;
 #[allow(unused_imports)]
@@ -61,8 +69,8 @@ use crate::api::autocmd::{OptionalKeys, TryState};
 use crate::api::deprecated::{KeyDict_empty, StringBuilder};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
-    api_err_invalid, api_err_required,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
+    api_err_required,
 };
 use crate::api::tabpage::Buffer;
 use crate::garray::{ga_clear, ga_init, garray_T};
@@ -354,54 +362,6 @@ use crate::api::private::dispatch::{
 };
 
 #[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
-        NvimString {
-            data: s as *mut c_char,
-            size: len,
-        }
-    }
-}
-
-#[inline]
 unsafe fn cstrn_as_string(s: *const c_char, maxsize: usize) -> NvimString {
     if s.is_null() {
         return NvimString {
@@ -478,12 +438,6 @@ const fn ascii_isupper(c: c_char) -> bool {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    let b = c as u8;
-    b == b' ' || b == b'\t'
-}
-
-#[inline]
 unsafe fn skipwhite(mut p: *mut c_char) -> *mut c_char {
     unsafe {
         while ascii_iswhite(*p) {
@@ -509,14 +463,6 @@ unsafe fn strequal(a: *const c_char, b: &str) -> bool {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
-    }
 }
 
 #[inline]

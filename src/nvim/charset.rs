@@ -35,6 +35,63 @@ pub use crate::api::deprecated::StringBuilder;
 pub use crate::eval::buffer::varnumber_T;
 pub type uvarnumber_T = u64;
 
+pub trait AsciiInt {
+    fn into_ascii_int(self) -> c_int;
+}
+
+impl AsciiInt for u8 {
+    #[inline]
+    fn into_ascii_int(self) -> c_int {
+        c_int::from(self)
+    }
+}
+
+impl AsciiInt for i8 {
+    #[inline]
+    fn into_ascii_int(self) -> c_int {
+        c_int::from(self)
+    }
+}
+
+impl AsciiInt for c_int {
+    #[inline]
+    fn into_ascii_int(self) -> c_int {
+        self
+    }
+}
+
+#[inline]
+pub fn ascii_iswhite<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    ch == b' ' as c_int || ch == b'\t' as c_int
+}
+
+#[inline]
+pub fn ascii_isdigit<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    (b'0' as c_int..=b'9' as c_int).contains(&ch)
+}
+
+#[inline]
+pub fn ascii_isalpha<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    (b'a' as c_int..=b'z' as c_int).contains(&ch) || (b'A' as c_int..=b'Z' as c_int).contains(&ch)
+}
+
+#[inline]
+pub fn ascii_isalnum<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    ascii_isalpha(ch) || ascii_isdigit(ch)
+}
+
+#[inline]
+pub fn ascii_isxdigit<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    ascii_isdigit(ch)
+        || (b'a' as c_int..=b'f' as c_int).contains(&ch)
+        || (b'A' as c_int..=b'F' as c_int).contains(&ch)
+}
+
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const NL: c_char = b'\n' as c_char;
@@ -92,16 +149,6 @@ unsafe fn get_chartab(chartab: *const u64, c: c_int) -> u64 {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
 const fn ascii_isbdigit(c: c_int) -> bool {
     c == b'0' as c_int || c == b'1' as c_int
 }
@@ -109,20 +156,6 @@ const fn ascii_isbdigit(c: c_int) -> bool {
 #[inline]
 const fn ascii_isodigit(c: c_int) -> bool {
     c >= b'0' as c_int && c <= b'7' as c_int
-}
-
-#[inline]
-const fn ascii_isxdigit(c: c_int) -> bool {
-    ascii_isdigit(c)
-        || (c >= b'a' as c_int && c <= b'f' as c_int)
-        || (c >= b'A' as c_int && c <= b'F' as c_int)
-}
-
-#[inline]
-const fn ascii_isalnum(c: c_int) -> bool {
-    ascii_isdigit(c)
-        || (c >= b'a' as c_int && c <= b'z' as c_int)
-        || (c >= b'A' as c_int && c <= b'Z' as c_int)
 }
 
 #[inline]

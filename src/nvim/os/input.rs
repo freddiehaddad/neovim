@@ -122,8 +122,52 @@ unsafe fn ensure_input_ptrs_init() {
     }
 }
 
-unsafe extern "C" {
-    fn sscanf(s: *const c_char, format: *const c_char, ...) -> c_int;
+unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> {
+    unsafe {
+        if s.is_null() || *s as u8 != b'<' {
+            return None;
+        }
+        let mut p = s.add(1);
+        let parse_int = |mut cur: *const c_char| -> Option<(c_int, *const c_char)> {
+            while matches!(*cur as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+                cur = cur.add(1);
+            }
+            let neg = if *cur as u8 == b'-' {
+                cur = cur.add(1);
+                true
+            } else {
+                if *cur as u8 == b'+' {
+                    cur = cur.add(1);
+                }
+                false
+            };
+            if !(*cur as u8).is_ascii_digit() {
+                return None;
+            }
+            let mut acc: i64 = 0;
+            while (*cur as u8).is_ascii_digit() {
+                acc = acc
+                    .saturating_mul(10)
+                    .saturating_add(i64::from((*cur as u8) - b'0'));
+                cur = cur.add(1);
+            }
+            let val = if neg { -acc } else { acc } as c_int;
+            Some((val, cur))
+        };
+        let (col, after_col) = parse_int(p)?;
+        p = after_col;
+        if *p as u8 != b',' {
+            return None;
+        }
+        p = p.add(1);
+        let (row, after_row) = parse_int(p)?;
+        p = after_row;
+        if *p as u8 != b'>' {
+            return None;
+        }
+        p = p.add(1);
+        Some((col, row, p.offset_from(s) as usize))
+    }
 }
 
 #[inline]
@@ -536,18 +580,7 @@ unsafe fn handle_mouse_event(
             return bufsize;
         }
 
-        let mut col: c_int = 0;
-        let mut row: c_int = 0;
-        let mut advance: c_int = 0;
-        if sscanf(
-            *ptr_p,
-            c"<%d,%d>%n".as_ptr(),
-            &raw mut col,
-            &raw mut row,
-            &raw mut advance,
-        ) != EOF
-            && advance != 0
-        {
+        if let Some((mut col, mut row, advance)) = parse_mouse_coords(*ptr_p) {
             if col >= 0 && row >= 0 {
                 if col >= Columns {
                     col = Columns - 1;
@@ -559,7 +592,7 @@ unsafe fn handle_mouse_event(
                 mouse_row = row;
                 mouse_col = col;
             }
-            *ptr_p = (*ptr_p).offset(advance as isize);
+            *ptr_p = (*ptr_p).add(advance);
         }
 
         let mut skip_event = false;
@@ -760,6 +793,13 @@ mod tests {
             assert_eq!(buf[1], KS_EXTRA);
             assert_eq!(push_event_key(buf.as_mut_ptr().add(2), 2), 1);
             assert_eq!(buf[2], KE_EVENT);
+
+            assert_eq!(
+                parse_mouse_coords(c"<12,34>rest".as_ptr()),
+                Some((12, 34, 7))
+            );
+            assert_eq!(parse_mouse_coords(c"<-1,0>".as_ptr()), Some((-1, 0, 6)));
+            assert_eq!(parse_mouse_coords(c"<12,34".as_ptr()), None);
         }
     }
 }

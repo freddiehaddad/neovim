@@ -24,7 +24,11 @@ use crate::buffer::{bt_cmdwin, buf_spname};
 #[allow(unused_imports)]
 use crate::change::deleted_lines_mark;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
 use crate::charset::{getwhitecols, str_foldcase, vim_isIDc};
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::set_ref_in_callback;
@@ -452,11 +456,6 @@ unsafe fn cbuf_to_string(data: *const c_char, size: usize) -> NvimString {
 }
 
 #[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
 unsafe fn kv_destroy_extmarks(v: *mut KVec<ExtmarkUndoObject>) {
     unsafe {
         xfree((*v).items.cast());
@@ -476,16 +475,6 @@ unsafe fn cstr_as_string(str_ptr: *mut c_char) -> NvimString {
             }
         }
     }
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
 }
 
 #[inline]

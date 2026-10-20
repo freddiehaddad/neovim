@@ -15,6 +15,8 @@ use crate::eval::string2float;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_list_append_number;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_len;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc,
     tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
@@ -253,15 +255,6 @@ unsafe fn tv_list_ref(l: *mut list_T) {
         unsafe {
             (*l).lv_refcount += 1;
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
     }
 }
 

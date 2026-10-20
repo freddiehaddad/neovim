@@ -41,6 +41,8 @@ use crate::regexp::{vim_regcomp, vim_regexec_prog, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::estack_sfile;
 use crate::runtime::exestack;
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
@@ -175,22 +177,6 @@ fn atoi_cstr(s: *const c_char) -> c_int {
 #[inline]
 unsafe fn debuggy_at(gap: *mut garray_T, idx: c_int) -> *mut debuggy {
     unsafe { (*gap).ga_data.cast::<debuggy>().add(idx as usize) }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn sourcing_lnum() -> i32 {
-    unsafe {
-        if exestack.ga_data.is_null() || exestack.ga_len <= 0 {
-            0
-        } else {
-            (*exestack
-                .ga_data
-                .cast::<estack_T>()
-                .add((exestack.ga_len - 1) as usize))
-            .es_lnum
-        }
-    }
 }
 
 unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {

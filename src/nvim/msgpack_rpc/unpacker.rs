@@ -12,6 +12,8 @@
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
+use crate::api::private::helpers::nil_obj;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::schar_from_buf;
@@ -198,14 +200,6 @@ unsafe fn mpack_unpack_float_fast(t: mpack_token_t) -> f64 {
             mpack_token_t,
             crate::mpack::mpack_core::mpack_token_t,
         >(t))
-    }
-}
-
-#[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
     }
 }
 

@@ -31,6 +31,8 @@ use crate::runtime::exestack;
 use crate::runtime::get_scriptname;
 use crate::runtime::script_items;
 #[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
+#[allow(unused_imports)]
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
@@ -207,17 +209,6 @@ unsafe fn script_id_valid(id: c_int) -> bool {
 }
 
 #[cfg(not(test))]
-#[inline]
-unsafe fn sourcing_lnum() -> i32 {
-    unsafe {
-        (*exestack
-            .ga_data
-            .cast::<estack_T>()
-            .add((exestack.ga_len - 1) as usize))
-        .es_lnum
-    }
-}
-
 #[inline]
 unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { *(*fp).uf_lines.ga_data.cast::<*mut c_char>().add(j as usize) }

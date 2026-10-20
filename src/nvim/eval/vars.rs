@@ -16,6 +16,10 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::{cstr_as_string, cstr_to_string};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{nil_obj, string_obj};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::callback_call;
@@ -38,6 +42,8 @@ use crate::eval::typval::{
     tv_list_append_string, tv_list_append_tv, tv_list_free, tv_list_item_remove,
     tv_list_remove_items, tv_list_unref, value_check_lock,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::userfunc::get_current_funccal_dict;
 #[allow(unused_imports)]
@@ -63,6 +69,8 @@ use crate::globals::*;
 use crate::lua::executor::nlua_funcref_str;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_set_sctx;
+#[allow(unused_imports)]
+use crate::memory::strequal;
 use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{
@@ -80,6 +88,8 @@ use crate::option_vars::*;
 use crate::runtime::{new_script_item, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -600,11 +610,6 @@ static mut redir_varname: *mut c_char = ptr::null_mut();
 use crate::option::get_option;
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
 unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         let mut p1 = s1.cast::<u8>();
@@ -668,24 +673,6 @@ unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
 }
 
 #[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() || b.is_null() {
-        return a == b;
-    }
-    unsafe { c_strcmp(a, b) == 0 }
-}
-
-#[inline]
-fn ascii_isdigit(c: c_int) -> bool {
-    (b'0' as c_int..=b'9' as c_int).contains(&c)
-}
-
-#[inline]
-fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
 fn ascii_isupper(c: c_char) -> bool {
     (c as u8).is_ascii_uppercase()
 }
@@ -739,24 +726,6 @@ unsafe fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
         unsafe {
             (*l).lv_lock = lock;
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
     }
 }
 
@@ -820,22 +789,6 @@ fn integer_obj(i: OptInt) -> Object {
     Object {
         obj_type: ObjectType::kObjectTypeInteger,
         data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
     }
 }
 

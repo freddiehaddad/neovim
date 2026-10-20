@@ -16,6 +16,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -24,6 +26,8 @@ use crate::eval::typval::{tv_check_for_string_arg, tv_get_string, tv_get_string_
 use crate::eval::typval::{
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::event::r#loop::uv_translate_sys_error;
 #[cfg(not(windows))]
@@ -955,11 +959,6 @@ unsafe extern "C" {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
 const fn toupper_asc(c: c_int) -> c_int {
     if c >= b'a' as c_int && c <= b'z' as c_int {
         c - 0x20
@@ -1014,24 +1013,6 @@ unsafe fn vim_strnicmp_asc(s1: *const c_char, s2: *const c_char, mut n: usize) -
         }
     }
     0
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
 }
 
 #[cfg(windows)]

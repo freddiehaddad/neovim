@@ -48,6 +48,27 @@ use crate::plines::{
 pub type colnr_T = i32;
 pub type linenr_T = i32;
 
+#[inline]
+pub const fn equalpos(a: pos_T, b: pos_T) -> bool {
+    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
+}
+
+#[inline]
+pub const fn lt(a: pos_T, b: pos_T) -> bool {
+    if a.lnum != b.lnum {
+        a.lnum < b.lnum
+    } else if a.col != b.col {
+        a.col < b.col
+    } else {
+        a.coladd < b.coladd
+    }
+}
+
+#[inline]
+pub const fn ltoreq(a: pos_T, b: pos_T) -> bool {
+    lt(a, b) || equalpos(a, b)
+}
+
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const FAIL: c_int = 0;

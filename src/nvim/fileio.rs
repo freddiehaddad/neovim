@@ -15,9 +15,13 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_obj;
+#[allow(unused_imports)]
 use crate::buffer::{buf_contents_changed, buflist_new, do_modelines, setfname, wipe_buffer};
 #[allow(unused_imports)]
 use crate::change::{appended_lines_mark, save_file_ff};
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::eval_charconvert;
@@ -56,6 +60,8 @@ use crate::option_vars::*;
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::shada::check_marks_read;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -344,6 +350,8 @@ unsafe extern "C" {
     #[cfg(windows)]
     pub fn _close(fd: c_int) -> c_int;
     #[cfg(windows)]
+    pub fn _dup(fd: c_int) -> c_int;
+    #[cfg(windows)]
     pub fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;
     #[cfg(windows)]
     pub fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
@@ -430,28 +438,6 @@ unsafe fn tr(s: *const c_char) -> *mut c_char {
 }
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData {
-            string: NvimString {
-                data: s.cast_mut(),
-                size: if s.is_null() {
-                    0
-                } else {
-                    unsafe { c_strlen(s) }
-                },
-            },
-        },
-    }
-}
-
-#[inline]
 const fn s_isdir(m: i32) -> bool {
     ((m as u64) & S_IFMT) == S_IFDIR
 }
@@ -479,11 +465,6 @@ const fn s_issock(m: i32) -> bool {
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
-}
-
-#[inline]
-const fn ascii_isdigit(c: u8) -> bool {
-    c.is_ascii_digit()
 }
 
 #[inline]

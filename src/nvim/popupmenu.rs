@@ -12,7 +12,13 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_array, arena_array};
+#[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, cstr_as_obj, cstr_as_string, string_obj,
+};
 #[allow(unused_imports)]
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 #[allow(unused_imports)]
@@ -34,6 +40,8 @@ use crate::ex_cmds::do_ecmd;
 use crate::ex_cmds::prepare_tagpreview;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
 use crate::grid::schar_from_str;
 #[allow(unused_imports)]
 use crate::highlight_group::syn_check_group;
@@ -45,6 +53,8 @@ use crate::insexpand::{
 };
 #[allow(unused_imports)]
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
+#[allow(unused_imports)]
+use crate::memory::strequal;
 #[allow(unused_imports)]
 use crate::message::emsg;
 #[allow(unused_imports)]
@@ -74,7 +84,7 @@ use std::ptr;
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::command::exarg_T;
 use crate::api::deprecated::VirtText;
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::win_config::{UIExtension, parse_winborder};
 use crate::charset::{transstr, vim_strsize};
@@ -252,64 +262,6 @@ static mut PUM_EXTERNAL: bool = false;
 static mut PUM_INVALID: bool = false;
 
 #[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() || b.is_null() {
-        a == b
-    } else {
-        unsafe { strcmp(a, b) == 0 }
-    }
-}
-
-#[inline]
-const fn schar_from_ascii(c: u8) -> schar_T {
-    c as schar_T
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    string_obj(unsafe { cstr_as_string(s) })
-}
-
-#[inline]
 unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
     unsafe {
         let base = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
@@ -334,14 +286,6 @@ unsafe fn cstr_to_string(s: *const c_char) -> NvimString {
             data: unsafe { xmemdupz(s.cast(), len).cast() },
             size: len,
         }
-    }
-}
-
-#[inline]
-unsafe fn add_c(a: &mut Array, v: Object) {
-    unsafe {
-        *a.items.add(a.size) = v;
-        a.size += 1;
     }
 }
 

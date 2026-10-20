@@ -24,6 +24,8 @@ use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_wat
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
+use crate::memory::strequal;
+#[allow(unused_imports)]
 use crate::os::env::os_getenv_noalloc;
 #[allow(unused_imports)]
 use crate::os::env::{os_env_exists, os_get_pid, os_unsetenv};
@@ -79,11 +81,6 @@ static mut watchers: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 static mut server_addr_count: u32 = 0;
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    unsafe { strcmp(a, b) == 0 }
-}
 
 #[inline]
 unsafe fn to_slash(path: *mut c_char) {

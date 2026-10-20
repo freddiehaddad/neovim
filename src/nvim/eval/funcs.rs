@@ -25,6 +25,8 @@
 #[allow(unused_imports)]
 use crate::api::private::converter::object_to_vim_take_luaref;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_free_string, api_metadata, dict_set_var,
 };
@@ -40,9 +42,13 @@ use crate::channel::{
     channel_incref, channel_job_start, channel_send, channel_terminal_alloc,
 };
 #[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
 use crate::charset::getdigits_int;
 #[allow(unused_imports)]
 use crate::cmdexpand::cmdline_pum_active;
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::dialog::do_dialog;
 #[allow(unused_imports)]
@@ -65,6 +71,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_blob_set_range, tv_dict_extend, tv_list_find_nr};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::userfunc::{
     emsg_funcname, func_call, function_exists, get_func_arity, get_scriptlocal_funcname,
@@ -110,6 +118,8 @@ use crate::lua::executor::{
 use crate::mbyte::mb_adjust_cursor;
 #[allow(unused_imports)]
 use crate::memline::{decl, incl, recover_names, swapfile_dict};
+#[allow(unused_imports)]
+use crate::memory::strequal;
 #[allow(unused_imports)]
 use crate::menu::{get_menu_cmd_modes, menu_get};
 #[allow(unused_imports)]
@@ -553,10 +563,11 @@ unsafe extern "system" {
     fn CloseHandle(hObject: *mut c_void) -> c_int;
 }
 
+use crate::strings::strtoul;
+
 unsafe extern "C" {
     static eval_has_list: [*const c_char; 0];
 
-    fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulong;
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
     fn c_mktime(tm: *mut Tm) -> time_t;
@@ -583,23 +594,6 @@ use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 type handle_T = c_int;
 
 #[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: s.cast_mut(),
-                size: strlen(s),
-            }
-        }
-    }
-}
-
-#[inline]
 unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
     unsafe {
         NvimString {
@@ -610,11 +604,6 @@ unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
 }
 
 #[inline]
-fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
 fn toupper_asc(c: c_char) -> u8 {
     (c as u8).to_ascii_uppercase()
 }
@@ -622,11 +611,6 @@ fn toupper_asc(c: c_char) -> u8 {
 #[inline]
 fn tolower_asc(c: c_char) -> u8 {
     (c as u8).to_ascii_lowercase()
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    unsafe { strcmp(a, b) == 0 }
 }
 
 #[inline]
@@ -694,30 +678,12 @@ unsafe fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
 }
 
 #[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
 unsafe fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
     unsafe {
         if n < 0 {
             n += tv_list_len(l);
         }
         if n < 0 || n >= tv_list_len(l) { -1 } else { n }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
     }
 }
 
@@ -799,11 +765,6 @@ fn clearpos(a: *mut pos_T) {
         (*a).col = 0;
         (*a).coladd = 0;
     }
-}
-
-#[inline]
-fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal

@@ -14,6 +14,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_dict, api_free_object, copy_dict};
 #[allow(unused_imports)]
 use crate::api::ui::remote_ui_disconnect;
@@ -111,23 +113,6 @@ const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { boolean: false },
 };
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: s.cast_mut(),
-                size: CStr::from_ptr(s).to_bytes().len(),
-            }
-        }
-    }
-}
 
 #[inline]
 unsafe fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {

@@ -18,6 +18,10 @@ use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name};
 #[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt};
+#[allow(unused_imports)]
 use crate::diff::diff_mark_adjust;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -194,11 +198,6 @@ const fn ascii_isupper(c: c_int) -> bool {
 }
 
 #[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
 const fn mark_global_index(name: c_char) -> isize {
     let u = name as u8;
     if u.is_ascii_uppercase() {
@@ -208,22 +207,6 @@ const fn mark_global_index(name: c_char) -> isize {
     } else {
         -1
     }
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
 }
 
 #[inline]

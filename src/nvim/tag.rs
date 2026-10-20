@@ -16,6 +16,8 @@ use crate::buffer::bt_help;
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findname_exp, buflist_findnr, buflist_getfile};
 #[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
 use crate::cmdexpand::{ExpandInit, ExpandOne};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -454,21 +456,6 @@ const fn toupper_asc(c: u8) -> c_int {
 #[inline]
 const fn ascii_islower(c: c_char) -> bool {
     (c as u8).is_ascii_lowercase()
-}
-
-#[inline]
-const fn ascii_isalpha(c: c_char) -> bool {
-    (c as u8).is_ascii_alphabetic()
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
 }
 
 #[inline]

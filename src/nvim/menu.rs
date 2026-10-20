@@ -12,6 +12,8 @@
 
 #[allow(unused_imports)]
 use crate::autocmd::apply_autocmds;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_add_bool;
@@ -218,16 +220,6 @@ unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         strcasecmp(s1, s2)
     }
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
 }
 
 #[inline]

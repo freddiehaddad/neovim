@@ -21,11 +21,15 @@ use crate::api::private::helpers::{
     find_buffer_by_handle,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{boolean_obj, cstr_as_obj, dict_obj, integer_obj, string_obj};
+#[allow(unused_imports)]
 use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
 use crate::buffer::{bt_nofile, set_bufref};
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, do_modelines};
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::callback_copy;
@@ -1362,11 +1366,6 @@ unsafe fn tr(s: &CStr) -> *mut c_char {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
 const fn tolower_asc(c: u8) -> u8 {
     if c.is_ascii_uppercase() { c + 0x20 } else { c }
 }
@@ -1459,48 +1458,11 @@ unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
 }
 
 #[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
 fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut(),
         size: s.to_bytes().len(),
     }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_as_string(s)) }
 }
 
 #[inline]

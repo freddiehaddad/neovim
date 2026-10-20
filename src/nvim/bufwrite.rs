@@ -16,6 +16,8 @@
 #[allow(unused_imports)]
 use crate::autocmd::apply_autocmds_exarg;
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
 use crate::buffer::{bt_nofilename, buf_set_file_id, set_bufref};
@@ -70,6 +72,8 @@ use crate::option_vars::*;
 use crate::path::{after_pathsep, path_equal, path_tail};
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
@@ -268,11 +272,6 @@ const fn s_isreg(m: u64) -> bool {
 }
 
 #[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
 unsafe fn close_fd(fd: c_int) -> c_int {
     #[cfg(all(not(test), windows))]
     unsafe {
@@ -329,11 +328,6 @@ unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
 #[inline]
 unsafe fn iconv_errno() -> c_int {
     unsafe { crate::os::fs::os_errno() }
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 /// Convert a Unicode character to bytes.

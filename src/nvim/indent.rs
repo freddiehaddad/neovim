@@ -11,7 +11,15 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::{cstr_as_obj, integer_obj};
+#[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::change::{changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str};
+#[allow(unused_imports)]
+use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::lt;
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_curbuf_later;
 use crate::errors::*;
@@ -68,7 +76,6 @@ use std::ptr;
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{exarg_T, regmatch_T};
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::win_T;
 use crate::charset::{char2cells, getdigits, getwhitecols_curline, skipwhite, vim_strsize};
 use crate::clipboard::typval_T;
@@ -77,9 +84,7 @@ use crate::cursor::{
 };
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::extmark::extmark_splice_cols;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
-use crate::msgpack_rpc::packer::Integer;
 use crate::option::opt_error;
 use crate::plines::{
     CSType, CharInfo, CharsizeArg, ClusterInfo, StrCharInfo, getvcol, getvcol_nolist,
@@ -164,34 +169,13 @@ static mut PREV_DY_UHEX: c_uint = 0;
 static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 #[inline]
-const fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
 const fn ascii_iswhite_cint(c: c_int) -> bool {
     c == b' ' as c_int || c == b'\t' as c_int
 }
 
 #[inline]
-const fn ascii_iswhite_or_nul(c: c_char) -> bool {
+fn ascii_iswhite_or_nul(c: c_char) -> bool {
     ascii_iswhite(c) || c == NUL
-}
-
-#[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
 }
 
 #[inline]
@@ -207,11 +191,6 @@ const fn replace_normal(s: c_int) -> bool {
 #[inline]
 const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
     (v.is_set__briopt_ & (1u64 << bit)) != 0
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
@@ -1566,33 +1545,6 @@ unsafe fn emsg_text_too_long() {
         if trylevel == 0 {
             got_int = true;
         }
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    let string = if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { CStr::from_ptr(s).to_bytes().len() },
-        }
-    };
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string },
     }
 }
 

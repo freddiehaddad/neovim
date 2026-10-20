@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::charset::vim_str2nr;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit};
+#[allow(unused_imports)]
 use crate::charset::{transchar, vim_isprintc};
 #[allow(unused_imports)]
 use crate::eval::vars::get_var_value;
@@ -1914,16 +1916,6 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
 fn ascii_isident(c: c_char) -> bool {
     let b = c as u8;
     b.is_ascii_alphanumeric() || b == b'_'
-}
-
-#[inline]
-fn ascii_isdigit(c: c_char) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
-fn ascii_isalpha(c: c_int) -> bool {
-    (b'a' as c_int..=b'z' as c_int).contains(&c) || (b'A' as c_int..=b'Z' as c_int).contains(&c)
 }
 
 #[inline]

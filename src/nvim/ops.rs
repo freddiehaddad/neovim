@@ -14,9 +14,15 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::col_print;
 #[allow(unused_imports)]
+use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
+#[allow(unused_imports)]
 use crate::cursor::gchar_cursor;
+#[allow(unused_imports)]
+use crate::cursor::{equalpos, lt, ltoreq};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::callback_call;
@@ -271,23 +277,6 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
-const fn ascii_isxdigit(c: c_int) -> bool {
-    (c >= b'0' as c_int && c <= b'9' as c_int)
-        || (c >= b'a' as c_int && c <= b'f' as c_int)
-        || (c >= b'A' as c_int && c <= b'F' as c_int)
-}
-
-#[inline]
 const fn ascii_isbdigit(c: c_int) -> bool {
     c == b'0' as c_int || c == b'1' as c_int
 }
@@ -308,11 +297,6 @@ const fn ascii_islower(c: c_int) -> bool {
 }
 
 #[inline]
-const fn ascii_isalpha(c: c_int) -> bool {
-    ascii_isupper(c) || ascii_islower(c)
-}
-
-#[inline]
 const fn char_ord(x: c_int) -> c_int {
     let b = x as u8;
     if b < b'a' {
@@ -328,27 +312,6 @@ const fn rot13(c: c_int, a: c_int) -> c_int {
 }
 
 #[inline]
-const fn lt(a: pos_T, b: pos_T) -> bool {
-    if a.lnum != b.lnum {
-        a.lnum < b.lnum
-    } else if a.col != b.col {
-        a.col < b.col
-    } else {
-        a.coladd < b.coladd
-    }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-const fn ltoreq(a: pos_T, b: pos_T) -> bool {
-    lt(a, b) || equalpos(a, b)
-}
-
-#[inline]
 unsafe fn modifiable(buf: *const buf_T) -> bool {
     unsafe { (*buf).b_p_ma != 0 }
 }
@@ -361,11 +324,6 @@ unsafe fn lineempty(lnum: linenr_T) -> bool {
 #[inline]
 unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
     unsafe { linetabsize_col(0, s) }
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 #[inline]

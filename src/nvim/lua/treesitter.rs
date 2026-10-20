@@ -30,6 +30,8 @@ use crate::lua::converter::{
 #[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 #[allow(unused_imports)]
+use crate::memory::strequal;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -768,17 +770,6 @@ unsafe fn luaL_argcheck(L: *mut lua_State, cond: bool, numarg: c_int, extramsg: 
             luaL_argerror(L, numarg, extramsg);
         }
     }
-}
-
-#[inline]
-unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
-    if a.is_null() && b.is_null() {
-        return true;
-    }
-    if a.is_null() || b.is_null() {
-        return false;
-    }
-    unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
 }
 
 #[inline]

@@ -14,6 +14,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::nil_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, arena_array, arena_dict,
 };
@@ -22,6 +24,8 @@ use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
 #[allow(unused_imports)]
 use crate::eval::userfunc::find_func;
 #[allow(unused_imports)]
@@ -256,14 +260,6 @@ unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
 }
 
 #[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
-}
-
-#[inline]
 unsafe fn error_set(err: *const Error) -> bool {
     unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
@@ -281,33 +277,6 @@ unsafe fn tv_list_ref(l: *mut list_T) {
         unsafe {
             (*l).lv_refcount += 1;
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_len(l: *const list_T) -> c_int {
-    if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_first(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_last(l: *const list_T) -> *mut listitem_T {
-    if l.is_null() {
-        std::ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_last }
     }
 }
 

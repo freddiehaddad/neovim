@@ -17,6 +17,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::arglist::check_arg_idx;
 #[allow(unused_imports)]
 use crate::buffer_updates::buf_free_callbacks;
@@ -24,6 +26,8 @@ use crate::buffer_updates::buf_free_callbacks;
 use crate::change::file_ff_differs;
 #[allow(unused_imports)]
 use crate::change::save_file_ff;
+#[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
 use crate::errors::*;
@@ -412,11 +416,6 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
 
 #[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    (c as u8).is_ascii_digit()
-}
-
-#[inline]
 const fn ascii_isspace(c: c_int) -> bool {
     matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
 }
@@ -449,7 +448,7 @@ unsafe fn curbuf_is_changed() -> bool {
 }
 
 #[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
+pub unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
     unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
@@ -461,21 +460,6 @@ unsafe fn tv_dict_is_watched(d: *const dict_T) -> bool {
                 (*d).watchers[0],
                 (&raw const (*d).watchers).cast_mut().cast::<c_void>(),
             )
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(str_: *const c_char) -> NvimString {
-    if str_.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: str_.cast_mut(),
-            size: unsafe { strlen(str_) },
-        }
     }
 }
 

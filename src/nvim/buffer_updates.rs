@@ -12,6 +12,10 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::arena_array;
+#[allow(unused_imports)]
+use crate::api::private::helpers::{array_obj, boolean_obj, buffer_obj, integer_obj};
+#[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
@@ -26,9 +30,9 @@ use std::ptr;
 use crate::api::buffer::buf_collect_lines;
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
-use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::converter::LuaRef;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::Integer;
 
 const ARENA_EMPTY: Arena = Arena {
     cur_blk: ptr::null_mut(),
@@ -53,45 +57,6 @@ const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
-
-#[inline]
-const fn boolean_obj(b: Boolean) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn buffer_obj(b: handle_T) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBuffer,
-        data: ObjectData {
-            integer: b as Integer,
-        },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> i64 {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
 
 #[inline]
 unsafe fn luaret_truthy(res: Object) -> bool {

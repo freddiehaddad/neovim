@@ -19,6 +19,8 @@ use crate::buffer::{buflist_findnr, buflist_findpat, buflist_name_nr, getaltfnam
 use crate::buffer_updates::buf_updates_send_changes;
 #[allow(unused_imports)]
 use crate::change::del_chars;
+#[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::{
@@ -238,11 +240,6 @@ static mut empty_reg: yankreg_T = EMPTY_YANKREG;
 static mut do_record_regname: c_int = 0;
 static mut textyankpost_recursive: bool = false;
 static mut put_autocmd_recursive: bool = false;
-
-#[inline]
-const fn ascii_iswhite(c: u8) -> bool {
-    c == b' ' || c == b'\t'
-}
 
 #[inline]
 pub const fn is_literal_register(regname: c_int) -> bool {

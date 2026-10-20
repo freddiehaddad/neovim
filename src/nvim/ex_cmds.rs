@@ -20,6 +20,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::{cstr_as_obj, cstr_as_string};
+#[allow(unused_imports)]
 use crate::buffer::{
     buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed, buflist_altfpos,
     buflist_findfmark, buflist_findnr, buflist_new, close_buffer, do_autochdir, do_modelines,
@@ -30,6 +32,10 @@ use crate::buffer::{
 use crate::buffer::{buflist_findname, otherfile};
 #[allow(unused_imports)]
 use crate::change::file_ff_differs;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::dialog::prompt_for_input;
 #[allow(unused_imports)]
@@ -115,7 +121,6 @@ use std::ffi::{CStr, c_char, c_double, c_int, c_ulong, c_void};
 use std::ptr;
 
 use crate::api::command::{exarg_T, regmatch_T};
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
 use crate::api::tabpage::{lpos_T, pos_T, win_T};
 use crate::arglist::{check_arg_idx, do_argfile};
 use crate::autocmd::{
@@ -456,21 +461,7 @@ static mut subflags: subflags_T = subflags_T {
 
 static mut pre_hl_id: c_int = 0;
 
-unsafe extern "C" {
-    fn isalpha(c: c_int) -> c_int;
-}
-
-#[inline]
-unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        vim_stricmp(s1, s2)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        strcasecmp(s1, s2)
-    }
-}
+use crate::strings::{isalpha, vim_stricmp as stricmp_c};
 
 #[inline]
 const fn ascii_islower(c: c_int) -> bool {
@@ -480,46 +471,6 @@ const fn ascii_islower(c: c_int) -> bool {
 #[inline]
 const fn ascii_isupper(c: c_int) -> bool {
     (c as u32) >= (b'A' as u32) && (c as u32) <= (b'Z' as u32)
-}
-
-#[inline]
-const fn ascii_isalpha(c: c_int) -> bool {
-    ascii_isupper(c) || ascii_islower(c)
-}
-
-#[inline]
-const fn ascii_isdigit(c: c_int) -> bool {
-    c >= (b'0' as c_int) && c <= (b'9' as c_int)
-}
-
-#[inline]
-const fn ascii_isalnum(c: c_int) -> bool {
-    ascii_isalpha(c) || ascii_isdigit(c)
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    c == (b' ' as c_int) || c == (b'\t' as c_int)
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        NvimString {
-            data: s.cast_mut(),
-            size: unsafe { strlen(s) },
-        }
-    }
 }
 
 #[inline]
@@ -545,16 +496,6 @@ unsafe fn bufIsChanged(buf: *const buf_T) -> bool {
 #[inline]
 unsafe fn curbufIsChanged() -> bool {
     unsafe { bufIsChanged(curbuf) }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData {
-            string: unsafe { cstr_as_string(s) },
-        },
-    }
 }
 
 #[inline]

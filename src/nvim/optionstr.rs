@@ -19,6 +19,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
 #[allow(unused_imports)]
+use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
 use crate::charset::{buf_init_isk_chartab, check_isopt, init_isf_chartab, init_isi_chartab};
 #[allow(unused_imports)]
 use crate::cursor::coladvance;
@@ -51,6 +53,8 @@ use crate::option_vars::*;
 use crate::regexp::{vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::spellfile::spell_check_msm;
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -820,16 +824,8 @@ static PVP_TABLE: [KeySetLink; 4] = [
     },
 ];
 
-unsafe extern "C" {
-    fn strcspn(s: *const c_char, reject: *const c_char) -> usize;
-}
-
 use crate::option::get_option;
-
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
+use crate::strings::strcspn;
 
 #[inline]
 unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
@@ -880,11 +876,6 @@ unsafe fn c_memcmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
         }
         0
     }
-}
-
-#[inline]
-fn ascii_isdigit(c: c_int) -> bool {
-    (b'0' as c_int..=b'9' as c_int).contains(&c)
 }
 
 #[inline]

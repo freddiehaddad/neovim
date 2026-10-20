@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::buffer::read_buffer_into;
 #[allow(unused_imports)]
+use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
 use crate::charset::backslash_halve;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -51,6 +53,8 @@ use crate::os::fs::{os_can_exe, os_isdir, os_path_exists, os_remove};
 use crate::path::invocation_path_tail;
 #[allow(unused_imports)]
 use crate::path::{add_pathsep, path_has_wildcard, path_tail};
+#[allow(unused_imports)]
+use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
@@ -157,11 +161,6 @@ static mut throttle_pulse_msg: [c_char; 4] = [b' ' as c_char, b' ' as c_char, b'
 static mut last_skipped: [c_char; MAX_CHUNK_SIZE] = [0; MAX_CHUNK_SIZE];
 static mut last_skipped_len: usize = 0;
 
-#[inline]
-unsafe fn c_strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
 use crate::globals::main_loop;
 
 #[cfg(windows)]
@@ -175,11 +174,6 @@ unsafe extern "system" {
 #[inline]
 unsafe fn main_loop_ptr() -> *mut Loop {
     (&raw mut main_loop).cast()
-}
-
-#[inline]
-fn ascii_iswhite(c: c_char) -> bool {
-    c == b' ' as c_char || c == TAB
 }
 
 #[inline]

@@ -11,7 +11,11 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
+#[allow(unused_imports)]
 use crate::buffer::buf_is_empty;
+#[allow(unused_imports)]
+use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::diff::diff_get_corresponding_line;
 #[allow(unused_imports)]
@@ -114,16 +118,6 @@ struct lineoff_T {
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {
     unsafe { gettext(s) }
-}
-
-#[inline]
-const fn equalpos(a: pos_T, b: pos_T) -> bool {
-    a.lnum == b.lnum && a.col == b.col && a.coladd == b.coladd
-}
-
-#[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
 }
 
 /// Get the number of screen lines skipped with `wp->w_skipcol`.

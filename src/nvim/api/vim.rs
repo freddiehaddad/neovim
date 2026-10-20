@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::add_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -20,7 +22,14 @@ use crate::api::private::helpers::{
     get_default_stl_hl, parse_hl_msg, set_mark, string_to_array, try_enter, try_leave,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{
+    array_obj, boolean_obj, buffer_obj, cstr_as_obj, dict_obj, integer_obj, nil_obj, string_obj,
+    tabpage_obj, window_obj,
+};
+#[allow(unused_imports)]
 use crate::autocmd::may_trigger_vim_suspend_resume;
+#[allow(unused_imports)]
+use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
 use crate::buffer::{buf_close_terminal, buflist_new, buflist_nr2name, do_buffer};
 #[allow(unused_imports)]
@@ -98,8 +107,8 @@ use crate::api::extmark::NS;
 use crate::api::options::CharBuf;
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
-    api_err_invalid, api_err_required,
+    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
+    api_err_required,
 };
 use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, pos_T, win_T};
 use crate::api::win_config::bufref_T;
@@ -499,11 +508,6 @@ unsafe fn validate_t(
 }
 
 #[inline]
-unsafe fn buf_get_changedtick(buf: *const buf_T) -> i64 {
-    unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
-}
-
-#[inline]
 const fn error_set(e: &Error) -> bool {
     !matches!(e.err_type, ErrorType::kErrorTypeNone)
 }
@@ -514,88 +518,11 @@ const fn is_internal_call(channel_id: u64) -> bool {
 }
 
 #[inline]
-const fn nil_obj() -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeNil,
-        data: ObjectData { integer: 0 },
-    }
-}
-
-#[inline]
-const fn boolean_obj(b: bool) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBoolean,
-        data: ObjectData { boolean: b },
-    }
-}
-
-#[inline]
-const fn integer_obj(i: Integer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeInteger,
-        data: ObjectData { integer: i },
-    }
-}
-
-#[inline]
-const fn string_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn buffer_obj(b: Buffer) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeBuffer,
-        data: ObjectData { integer: b as i64 },
-    }
-}
-
-#[inline]
-const fn window_obj(w: Window) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeWindow,
-        data: ObjectData { integer: w as i64 },
-    }
-}
-
-#[inline]
-const fn tabpage_obj(t: Tabpage) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeTabpage,
-        data: ObjectData { integer: t as i64 },
-    }
-}
-
-#[inline]
-const fn array_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn dict_obj(d: Dict) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeDict,
-        data: ObjectData { dict: d },
-    }
-}
-
-#[inline]
 const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut(),
         size: s.to_bytes().len(),
     }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_as_string(s)) }
 }
 
 #[inline]
@@ -611,14 +538,6 @@ unsafe fn put_c(dict: &mut Dict, key: *const c_char, val: Object) {
             value: val,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn add_c(arr: &mut Array, item: Object) {
-    unsafe {
-        *arr.items.add(arr.size) = item;
-        arr.size += 1;
     }
 }
 

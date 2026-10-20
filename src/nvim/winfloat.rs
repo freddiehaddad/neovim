@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_obj;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, find_buffer_by_handle, find_window_by_handle};
 #[allow(unused_imports)]
 use crate::api::vim::nvim_create_buf;
@@ -62,14 +64,13 @@ use std::ptr;
 
 use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::VirtText;
-use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::win_config::{
     AlignTextPos, BorderTextType, FloatAnchor, FloatRelative, UIExtension, WinStyle,
 };
 use crate::eval::deprecated::pos_T;
 use crate::kvec::KVec;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xrealloc, xstrdup};
 
 pub use crate::cursor::linenr_T;
@@ -170,26 +171,6 @@ const fn error_set(err: &Error) -> bool {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *const c_char) -> Object {
-    unsafe {
-        let len = if s.is_null() {
-            0
-        } else {
-            CStr::from_ptr(s).to_bytes().len()
-        };
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: NvimString {
-                    data: s.cast_mut(),
-                    size: len,
-                },
-            },
-        }
-    }
 }
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).

@@ -16,6 +16,8 @@
 
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
+#[allow(unused_imports)]
+use crate::charset::{ascii_isalnum, ascii_iswhite};
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::{
@@ -64,6 +66,8 @@ use crate::option_vars::*;
 use crate::regexp::vim_regexec;
 #[allow(unused_imports)]
 use crate::regexp::{skip_regexp, vim_regcomp, vim_regfree};
+#[allow(unused_imports)]
+use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::runtime::{get_sourced_lnum, script_autoload};
 #[allow(unused_imports)]
@@ -292,18 +296,8 @@ const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
     c"E1300: Cannot use a partial with dictionary for :defer";
 
 #[inline]
-const fn ascii_isalnum(c: c_int) -> bool {
-    (c as u8).is_ascii_alphanumeric()
-}
-
-#[inline]
 const fn ascii_islower(c: c_int) -> bool {
     (c as u8).is_ascii_lowercase()
-}
-
-#[inline]
-const fn ascii_iswhite(c: c_int) -> bool {
-    matches!(c as u8, b' ' | b'\t')
 }
 
 #[inline]
@@ -363,17 +357,6 @@ unsafe fn sourcing_name() -> *mut c_char {
             .cast::<estack_T>()
             .add((exestack.ga_len - 1) as usize))
         .es_name
-    }
-}
-
-#[inline]
-unsafe fn sourcing_lnum() -> linenr_T {
-    unsafe {
-        (*exestack
-            .ga_data
-            .cast::<estack_T>()
-            .add((exestack.ga_len - 1) as usize))
-        .es_lnum
     }
 }
 

@@ -16,6 +16,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{arena_array, arena_dict};
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
@@ -275,23 +277,6 @@ fn put_event_2(
                 argv,
             },
         );
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_string(s: *const c_char) -> NvimString {
-    if s.is_null() {
-        NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        }
-    } else {
-        unsafe {
-            NvimString {
-                data: s.cast_mut(),
-                size: CStr::from_ptr(s).to_bytes().len(),
-            }
-        }
     }
 }
 
