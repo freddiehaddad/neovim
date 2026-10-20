@@ -38,6 +38,9 @@ use crate::eval::userfunc::get_scriptlocal_funcname;
 use crate::eval::vars::opt_to_tv;
 #[allow(unused_imports)]
 use crate::ex_docmd::{free_findfunc_option, set_no_hlsearch};
+#[cfg(unix)]
+#[allow(unused_imports)]
+use crate::fileio::getuid;
 #[allow(unused_imports)]
 use crate::fileio::{fprintf, fputs};
 #[allow(unused_imports)]
@@ -721,8 +724,6 @@ unsafe extern "C" {
     ) -> *mut c_char;
     #[cfg(not(windows))]
     fn bind_textdomain_codeset(domainname: *const c_char, codeset: *const c_char) -> *mut c_char;
-    #[cfg(unix)]
-    fn getuid() -> u32;
 
 }
 

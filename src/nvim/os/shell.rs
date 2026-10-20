@@ -25,6 +25,8 @@ use crate::ex_cmds::{check_secure, make_filter_cmd};
 use crate::fileio::vim_tempname;
 #[allow(unused_imports)]
 use crate::fileio::{fclose, fopen, fread};
+#[allow(unused_imports)]
+use crate::fileio::{fseek, ftell};
 use crate::globals::*;
 use crate::mbyte::utf8len_tab_zero;
 #[allow(unused_imports)]
@@ -61,7 +63,7 @@ use crate::tag::tag_freematch;
 use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::event::r#loop::{Loop, loop_poll_events, loop_queues};
@@ -161,11 +163,6 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
 }
 
 use crate::globals::main_loop;
-
-unsafe extern "C" {
-    fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
-    fn ftell(stream: *mut FILE) -> c_long;
-}
 
 #[cfg(windows)]
 unsafe extern "system" {

@@ -345,19 +345,17 @@ static e_line_number_out_of_range_nr_past_the_end: &CStr =
 static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
+use crate::event::r#loop::uv_strerror as os_strerror;
+#[cfg(unix)]
+use crate::fileio::readlink;
+#[cfg(windows)]
+use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
+#[cfg(not(windows))]
+use crate::fileio::{close, lseek as vim_lseek};
 use crate::version::Versions;
 
 unsafe extern "C" {
-    fn close(fd: c_int) -> c_int;
     fn uv_uptime(uptime: *mut f64) -> c_int;
-    #[link_name = "uv_strerror"]
-    fn os_strerror(err: c_int) -> *const c_char;
-    #[cfg_attr(windows, link_name = "_lseeki64")]
-    #[cfg_attr(not(windows), link_name = "lseek")]
-    fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T;
-    #[cfg(unix)]
-    fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
-
 }
 
 #[inline]

@@ -15,6 +15,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_string};
 #[allow(unused_imports)]
+use crate::lua::converter::lua_isnumber;
+#[allow(unused_imports)]
 use crate::lua::converter::nlua_pop_keydict;
 #[allow(unused_imports)]
 use crate::lua::converter::{
@@ -127,11 +129,6 @@ struct HunkPriv {
 }
 
 type FieldHashfn = unsafe extern "C" fn(str_ptr: *const c_char, len: usize) -> *const c_void;
-
-#[cfg(not(test))]
-unsafe extern "C-unwind" {
-    fn lua_isnumber(lstate: *mut lua_State, idx: c_int) -> c_int;
-}
 
 #[cfg(not(test))]
 use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;

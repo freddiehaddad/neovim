@@ -12,6 +12,8 @@
 
 #[allow(unused_imports)]
 use crate::event::r#loop::uv_translate_sys_error;
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym};
 use crate::log::logmsg;
 #[allow(unused_imports)]
 use crate::os::env::os_get_pid;
@@ -199,13 +201,6 @@ unsafe extern "system" {
     ) -> BOOL;
     fn CloseHandle(hObject: HANDLE) -> BOOL;
     fn GetLastError() -> DWORD;
-}
-
-#[cfg(all(windows, not(test)))]
-unsafe extern "C" {
-    fn uv_dlopen(filename: *const c_char, lib: *mut UvLib) -> c_int;
-    fn uv_dlclose(lib: *mut UvLib);
-    fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
 }
 
 #[cfg(windows)]

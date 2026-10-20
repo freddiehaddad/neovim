@@ -36,18 +36,20 @@ unsafe impl Sync for TzCache {}
 
 static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 
+unsafe extern "C" {
+    #[cfg_attr(target_os = "windows", link_name = "_time64")]
+    #[cfg_attr(not(target_os = "windows"), link_name = "time")]
+    pub fn c_time(tloc: *mut time_t) -> time_t;
+    pub fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
+    pub fn uv_sleep(msec: c_uint);
+}
+
 #[cfg(not(test))]
 unsafe extern "C" {
 
     fn uv_hrtime() -> u64;
     fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
     fn uv_now(loop_ptr: *const c_void) -> u64;
-    fn uv_sleep(msec: c_uint);
-
-    #[cfg_attr(target_os = "windows", link_name = "_time64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "time")]
-    fn c_time(tloc: *mut time_t) -> time_t;
-    fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
 
     #[cfg(unix)]
     fn tzset();
@@ -59,13 +61,6 @@ unsafe extern "C" {
     #[cfg(target_os = "windows")]
     #[link_name = "_localtime64"]
     fn win_localtime64(clock: *const time_t) -> *mut [c_int; 9];
-}
-
-#[cfg(test)]
-unsafe extern "C" {
-    #[cfg_attr(target_os = "windows", link_name = "_time64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "time")]
-    fn c_time(tloc: *mut time_t) -> time_t;
 }
 
 /// High-resolution monotonic clock in nanoseconds (`os_hrtime`).

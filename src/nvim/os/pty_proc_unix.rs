@@ -248,21 +248,16 @@ mod unix_impl {
 
     static mut termios_default: termios = termios::ZERO;
 
-    unsafe extern "C" {
-        #[cfg(not(target_os = "macos"))]
-        static mut environ: *mut *mut c_char;
-        #[cfg(target_os = "macos")]
-        fn _NSGetEnviron() -> *mut *mut *mut c_char;
+    use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
+    use crate::fileio::{close, dup, fcntl, kill};
+    #[cfg(all(not(test), target_os = "macos"))]
+    use crate::os::env::_NSGetEnviron;
+    #[cfg(all(not(test), not(target_os = "macos")))]
+    use crate::os::env::environ;
+    use crate::os::signal::signal;
 
-        fn uv_signal_start(
-            handle: *mut uv_signal_t,
-            signal_cb: uv_signal_cb,
-            signum: c_int,
-        ) -> c_int;
-        fn uv_signal_stop(handle: *mut uv_signal_t) -> c_int;
+    unsafe extern "C" {
         fn uv_disable_stdio_inheritance();
-        fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
-        fn uv_chdir(dir: *const c_char) -> c_int;
 
         fn forkpty(
             amaster: *mut c_int,
@@ -273,15 +268,10 @@ mod unix_impl {
         fn ptsname(fd: c_int) -> *mut c_char;
         fn cfsetispeed(termios_p: *mut termios, speed: speed_t) -> c_int;
         fn cfsetospeed(termios_p: *mut termios, speed: speed_t) -> c_int;
-        fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
         fn ioctl(fd: c_int, request: c_ulong, ...) -> c_int;
-        fn close(fd: c_int) -> c_int;
-        fn dup(oldfd: c_int) -> c_int;
-        fn kill(pid: c_int, sig: c_int) -> c_int;
         fn killpg(pgrp: c_int, sig: c_int) -> c_int;
         fn waitpid(pid: c_int, wstatus: *mut c_int, options: c_int) -> c_int;
         fn setsid() -> c_int;
-        fn signal(signum: c_int, handler: usize) -> usize;
         fn execvp(file: *const c_char, argv: *const *mut c_char) -> c_int;
         fn _exit(status: c_int) -> !;
         #[cfg(target_os = "linux")]

@@ -81,6 +81,8 @@ use crate::option::set_option_direct;
 use crate::option::{buf_copy_options, get_fileformat, shortmess};
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::time::c_time as time;
+#[allow(unused_imports)]
 use crate::regexp::{
     re_multiline, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
     vim_regexec_multi, vim_regfree,
@@ -97,6 +99,8 @@ use crate::strings::{
 };
 #[allow(unused_imports)]
 use crate::strings::{concat_str, vim_strchr, vim_strsave_escaped, xstrnsave};
+#[allow(unused_imports)]
+use crate::strings::{strcoll, strtod};
 #[allow(unused_imports)]
 use crate::strings::{vim_snprintf, vim_snprintf_add, vim_snprintf_safelen};
 #[allow(unused_imports)]
@@ -192,7 +196,7 @@ use crate::os::fs::os_nodetype;
 use crate::os::fs::{os_file_is_writable, os_file_mkdir, os_isdir, os_path_exists, os_remove};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::shell::call_shell;
-use crate::os::time::{os_time, time_t};
+use crate::os::time::os_time;
 use crate::path::{fix_fname, invocation_path_tail, path_fix_case};
 use crate::plines::{linetabsize_col, plines_m_win_fill};
 use crate::profile::{profile_passed_limit, profile_setlimit, profile_zero, proftime_T};
@@ -453,10 +457,6 @@ static mut subflags: subflags_T = subflags_T {
 static mut pre_hl_id: c_int = 0;
 
 unsafe extern "C" {
-
-    fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
-    fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn time(tloc: *mut time_t) -> time_t;
     fn isalpha(c: c_int) -> c_int;
 }
 

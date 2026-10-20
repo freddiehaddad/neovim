@@ -39,6 +39,12 @@ use crate::eval::window::win_id2wp;
 use crate::ex_docmd::ex_cd;
 #[allow(unused_imports)]
 use crate::ex_docmd::{do_cmdline_cmd, is_loclist_cmd};
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::_fdopen;
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::fdopen;
 #[allow(unused_imports)]
 use crate::fileio::readfile;
 #[allow(unused_imports)]
@@ -69,6 +75,8 @@ use crate::option::{
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::env::os_get_pid;
+#[allow(unused_imports)]
+use crate::os::time::c_time as time;
 #[allow(unused_imports)]
 use crate::regexp::vim_regexec_multi;
 #[allow(unused_imports)]
@@ -602,17 +610,6 @@ static mut mef_start: c_int = -1;
 static mut mef_off: c_int = 0;
 static mut did_bufnr_emsg: bool = false;
 static mut set_qf_ll_recursive: c_int = 0;
-
-unsafe extern "C" {
-
-    fn time(tloc: *mut time_t) -> time_t;
-
-    #[cfg(windows)]
-    fn _fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-    #[cfg(not(windows))]
-    fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-
-}
 
 #[inline]
 unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {

@@ -38,6 +38,8 @@ use crate::strings::vim_snprintf;
 use crate::strings::vim_stricmp;
 #[allow(unused_imports)]
 use crate::strings::{gettext, qsort, strcmp, strncmp};
+#[allow(unused_imports)]
+use crate::strings::{strcoll, strtod};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -275,11 +277,6 @@ static E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR: &CStr =
     c"E1256: String or function required for argument %d";
 static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
     c"E1297: Non-NULL Dictionary required for argument %d";
-
-unsafe extern "C" {
-    fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> f64;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *mut c_char {

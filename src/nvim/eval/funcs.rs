@@ -81,6 +81,8 @@ use crate::eval::{
     common_job_callbacks, eval_option, find_job, save_tv_as_string, string2float, tv_to_argv,
 };
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_kill;
+#[allow(unused_imports)]
 use crate::event::r#loop::{uv_handle_size, uv_strerror};
 #[allow(unused_imports)]
 use crate::ex_cmds::check_secure;
@@ -135,6 +137,10 @@ use crate::os::env::os_get_pid;
 use crate::os::pty_proc::pty_proc_resize;
 #[allow(unused_imports)]
 use crate::os::stdpaths::get_appname;
+#[allow(unused_imports)]
+use crate::os::time::c_time;
+#[allow(unused_imports)]
+use crate::os::time::strftime;
 #[allow(unused_imports)]
 use crate::search::last_csearch;
 #[allow(unused_imports)]
@@ -551,15 +557,9 @@ unsafe extern "C" {
     static eval_has_list: [*const c_char; 0];
 
     fn strtoul(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_ulong;
-    fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
-    #[cfg_attr(target_os = "windows", link_name = "_time64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "time")]
-    fn c_time(tloc: *mut time_t) -> time_t;
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
     fn c_mktime(tm: *mut Tm) -> time_t;
-
-    fn uv_kill(pid: c_int, signum: c_int) -> c_int;
     fn uv_os_environ(envitems: *mut *mut uv_env_item_t, count: *mut c_int) -> c_int;
     fn uv_os_free_environ(envitems: *mut uv_env_item_t, count: c_int);
     fn uv_random(

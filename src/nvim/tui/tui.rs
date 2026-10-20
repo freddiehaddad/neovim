@@ -19,6 +19,10 @@
 use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
 #[allow(unused_imports)]
 use crate::event::r#loop::{
+    uv_chdir, uv_pipe_init, uv_pipe_open, uv_tty_init, uv_tty_set_mode, uv_write,
+};
+#[allow(unused_imports)]
+use crate::event::r#loop::{
     uv_close, uv_handle_get_type, uv_handle_size, uv_is_closing, uv_loop_close, uv_loop_init,
     uv_run, uv_strerror, uv_timer_init, uv_timer_start,
 };
@@ -34,6 +38,8 @@ use crate::lua::executor::nlua_exec;
 use crate::mbyte::utf_ptr2char;
 #[allow(unused_imports)]
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells};
+#[allow(unused_imports)]
+use crate::os::time::uv_sleep;
 #[allow(unused_imports)]
 use crate::ui_client::ui_client_set_size;
 #[allow(unused_imports)]
@@ -318,27 +324,12 @@ static mut urls: Set<cstr_t> = Set {
     keys: ptr::null_mut(),
 };
 
-unsafe extern "C" {
+#[cfg(unix)]
+use crate::fileio::kill;
 
-    fn uv_tty_init(loop_: *mut uv_loop_t, tty: *mut uv_tty_t, fd: c_int, readable: c_int) -> c_int;
-    fn uv_tty_set_mode(tty: *mut uv_tty_t, mode: c_int) -> c_int;
+unsafe extern "C" {
     fn uv_tty_reset_mode() -> c_int;
     fn uv_tty_get_winsize(tty: *mut uv_tty_t, width: *mut c_int, height: *mut c_int) -> c_int;
-    fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
-    fn uv_pipe_open(handle: *mut uv_pipe_t, file: c_int) -> c_int;
-    fn uv_write(
-        req: *mut uv_write_t,
-        handle: *mut uv_stream_t,
-        bufs: *const uv_buf_t,
-        nbufs: c_uint,
-        cb: uv_write_cb,
-    ) -> c_int;
-    fn uv_sleep(msec: c_uint);
-    fn uv_chdir(dir: *const c_char) -> c_int;
-
-    #[cfg(unix)]
-    fn kill(pid: c_int, sig: c_int) -> c_int;
-
 }
 
 #[cfg(windows)]

@@ -29,6 +29,8 @@ use crate::fileio::{
 };
 #[allow(unused_imports)]
 use crate::fileio::{fclose, feof, ferror, fgetc, fputc, fread, fwrite};
+#[allow(unused_imports)]
+use crate::fileio::{fseek, ftell};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
@@ -58,6 +60,8 @@ use crate::os::env::home_replace;
 use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
+#[allow(unused_imports)]
+use crate::os::time::c_time as time;
 use crate::os::time::{Timestamp, os_time};
 #[allow(unused_imports)]
 use crate::path::FreeWild;
@@ -83,6 +87,8 @@ use crate::strings::{atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strnc
 use crate::strings::{has_non_ascii, vim_strchr};
 #[allow(unused_imports)]
 use crate::strings::{memchr, memcmp, strerror, strrchr};
+#[allow(unused_imports)]
+use crate::strings::{memcpy, memmove, memset};
 #[allow(unused_imports)]
 use crate::ui::ui_flush;
 #[allow(unused_imports)]
@@ -378,13 +384,6 @@ struct spellinfo_T {
 }
 
 unsafe extern "C" {
-
-    fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
-    fn ftell(stream: *mut FILE) -> c_long;
-    fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
-    fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
-    fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void;
-    fn time(tloc: *mut time_t) -> time_t;
     fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
 }
 

@@ -288,13 +288,16 @@ struct IPersistFile {
 }
 
 #[cfg(not(test))]
-unsafe extern "C" {
+use crate::event::r#loop::{uv_chdir, uv_cwd, uv_fs_req_cleanup};
+#[cfg(all(not(test), windows))]
+use crate::fileio::{_close, _fdopen, _get_osfhandle, _read, _write};
+#[cfg(all(not(test), not(windows)))]
+use crate::fileio::{close, dup, fcntl, fdopen, getuid, read, write};
 
-    fn uv_chdir(dir: *const c_char) -> c_int;
-    fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
+#[cfg(not(test))]
+unsafe extern "C" {
     fn uv_exepath(buffer: *mut c_char, size: *mut usize) -> c_int;
 
-    fn uv_fs_req_cleanup(req: *mut uv_fs_t);
     fn uv_fs_get_ptr(req: *const uv_fs_t) -> *mut c_void;
     fn uv_fs_get_path(req: *const uv_fs_t) -> *const c_char;
     fn uv_fs_get_statbuf(req: *mut uv_fs_t) -> *mut uv_stat_t;
@@ -423,17 +426,7 @@ unsafe extern "C" {
     ) -> c_int;
 
     #[cfg(windows)]
-    fn _fdopen(fd: c_int, mode: *const c_char) -> *mut c_void;
-    #[cfg(windows)]
-    fn _close(fd: c_int) -> c_int;
-    #[cfg(windows)]
     fn _dup(fd: c_int) -> c_int;
-    #[cfg(windows)]
-    fn _read(fd: c_int, buf: *mut c_void, count: c_uint) -> c_int;
-    #[cfg(windows)]
-    fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
-    #[cfg(windows)]
-    fn _get_osfhandle(fd: c_int) -> isize;
     #[cfg(windows)]
     fn _errno() -> *mut c_int;
     #[cfg(windows)]
@@ -442,22 +435,7 @@ unsafe extern "C" {
     fn wcsncpy(dest: *mut u16, src: *const u16, n: usize) -> *mut u16;
 
     #[cfg(not(windows))]
-    fn fdopen(fd: c_int, mode: *const c_char) -> *mut c_void;
-    #[cfg(not(windows))]
-    fn close(fd: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn dup(oldfd: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
-    #[cfg(not(windows))]
     fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> isize;
-    #[cfg(not(windows))]
-    fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
-    #[cfg(not(windows))]
-    fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
-    #[cfg(not(windows))]
-    #[cfg(not(windows))]
-    fn getuid() -> u32;
 
     #[cfg(target_os = "linux")]
     fn __errno_location() -> *mut c_int;
@@ -642,11 +620,11 @@ pub unsafe extern "C" fn os_isrealdir(name: *const c_char) -> bool {
     unsafe {
         let mut request: uv_fs_t = [0; 80];
         if uv_fs_lstat(ptr::null_mut(), &raw mut request, name, ptr::null()) != 0 {
-            uv_fs_req_cleanup(&raw mut request);
+            uv_fs_req_cleanup((&raw mut request).cast());
             return false;
         }
         let mode = (*uv_fs_get_statbuf(&raw mut request)).st_mode;
-        uv_fs_req_cleanup(&raw mut request);
+        uv_fs_req_cleanup((&raw mut request).cast());
         if s_islnk(mode) {
             return false;
         }
@@ -769,7 +747,7 @@ unsafe fn is_executable(name: *const c_char, abspath: *mut *mut c_char) -> bool 
             {
                 let mut req: uv_fs_t = [0; 80];
                 let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, X_OK, ptr::null());
-                uv_fs_req_cleanup(&raw mut req);
+                uv_fs_req_cleanup((&raw mut req).cast());
                 r == 0
             }
             #[cfg(test)]
@@ -931,7 +909,7 @@ pub unsafe extern "C" fn os_open(path: *const c_char, flags: c_int, mode: c_int)
             mode,
             ptr::null(),
         );
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1052,7 +1030,7 @@ pub unsafe extern "C" fn os_close(fd: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_close(ptr::null_mut(), &raw mut req, fd, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1320,7 +1298,7 @@ pub unsafe extern "C" fn os_copy(
             flags,
             ptr::null(),
         );
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1337,7 +1315,7 @@ pub unsafe extern "C" fn os_fsync(fd: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         g_stats.fsync += 1;
         r
     }
@@ -1359,7 +1337,7 @@ unsafe fn os_stat(name: *const c_char, statbuf: *mut uv_stat_t) -> c_int {
         if result == 0 {
             *statbuf = *uv_fs_get_statbuf(&raw mut request);
         }
-        uv_fs_req_cleanup(&raw mut request);
+        uv_fs_req_cleanup((&raw mut request).cast());
         result
     }
     #[cfg(test)]
@@ -1390,7 +1368,7 @@ pub unsafe extern "C" fn os_setperm(name: *const c_char, perm: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_chmod(ptr::null_mut(), &raw mut req, name, perm, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
     }
     #[cfg(test)]
@@ -1407,7 +1385,7 @@ pub unsafe extern "C" fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_fchmod(ptr::null_mut(), &raw mut req, fd, perm, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
     }
     #[cfg(test)]
@@ -1542,7 +1520,7 @@ pub unsafe extern "C" fn os_chown(path: *const c_char, owner: uv_uid_t, group: u
             group,
             ptr::null(),
         );
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1559,7 +1537,7 @@ pub unsafe extern "C" fn os_fchown(fd: c_int, owner: uv_uid_t, group: uv_gid_t) 
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_fchown(ptr::null_mut(), &raw mut req, fd, owner, group, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1592,7 +1570,7 @@ pub unsafe extern "C" fn os_file_settime(path: *const c_char, atime: f64, mtime:
             mtime,
             ptr::null(),
         );
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1609,7 +1587,7 @@ pub unsafe extern "C" fn os_file_is_readable(name: *const c_char) -> bool {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, R_OK, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r == 0
     }
     #[cfg(test)]
@@ -1626,7 +1604,7 @@ pub unsafe extern "C" fn os_file_is_writable(name: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, W_OK, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 {
             if os_isdir(name) { 2 } else { 1 }
         } else {
@@ -1647,7 +1625,7 @@ pub unsafe extern "C" fn os_rename(path: *const c_char, new_path: *const c_char)
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_rename(ptr::null_mut(), &raw mut req, path, new_path, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         if r == 0 { OK } else { FAIL }
     }
     #[cfg(test)]
@@ -1664,7 +1642,7 @@ pub unsafe extern "C" fn os_mkdir(path: *const c_char, mode: i32) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_mkdir(ptr::null_mut(), &raw mut req, path, mode, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1777,7 +1755,7 @@ pub unsafe extern "C" fn os_mkdtemp(templ: *const c_char, path: *mut c_char) -> 
             );
             to_slash(path);
         }
-        uv_fs_req_cleanup(&raw mut request);
+        uv_fs_req_cleanup((&raw mut request).cast());
         result
     }
     #[cfg(test)]
@@ -1794,7 +1772,7 @@ pub unsafe extern "C" fn os_rmdir(path: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_rmdir(ptr::null_mut(), &raw mut req, path, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1852,7 +1830,7 @@ pub unsafe extern "C" fn os_scandir_next(dir: *mut Directory) -> *const c_char {
 pub unsafe extern "C" fn os_closedir(dir: *mut Directory) {
     #[cfg(not(test))]
     unsafe {
-        uv_fs_req_cleanup(dir.cast::<uv_fs_t>());
+        uv_fs_req_cleanup(dir.cast());
     }
 }
 
@@ -1863,7 +1841,7 @@ pub unsafe extern "C" fn os_remove(path: *const c_char) -> c_int {
     unsafe {
         let mut req: uv_fs_t = [0; 80];
         let r = uv_fs_unlink(ptr::null_mut(), &raw mut req, path, ptr::null());
-        uv_fs_req_cleanup(&raw mut req);
+        uv_fs_req_cleanup((&raw mut req).cast());
         r
     }
     #[cfg(test)]
@@ -1971,7 +1949,7 @@ pub unsafe extern "C" fn os_fileinfo_link(path: *const c_char, file_info: *mut F
             if ok {
                 (*file_info).stat = *uv_fs_get_statbuf(&raw mut request);
             }
-            uv_fs_req_cleanup(&raw mut request);
+            uv_fs_req_cleanup((&raw mut request).cast());
             ok
         }
         #[cfg(test)]
@@ -1998,7 +1976,7 @@ pub unsafe extern "C" fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut 
             if ok {
                 (*file_info).stat = *uv_fs_get_statbuf(&raw mut request);
             }
-            uv_fs_req_cleanup(&raw mut request);
+            uv_fs_req_cleanup((&raw mut request).cast());
             ok
         }
         #[cfg(test)]
@@ -2098,7 +2076,7 @@ pub unsafe extern "C" fn os_realpath(
             xstrlcpy(buf, uv_fs_get_ptr(&raw const request).cast(), len);
             to_slash(buf);
         }
-        uv_fs_req_cleanup(&raw mut request);
+        uv_fs_req_cleanup((&raw mut request).cast());
         if result == 0 { buf } else { ptr::null_mut() }
     }
     #[cfg(test)]

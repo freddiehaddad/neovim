@@ -45,6 +45,12 @@ use crate::file_search::{
 use crate::fileio::fclose;
 #[allow(unused_imports)]
 use crate::fileio::vim_fgets;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::{_fseeki64, _ftelli64};
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::{fseeko, ftello};
 #[allow(unused_imports)]
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
@@ -411,19 +417,6 @@ static mut DO_TAG_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MAX_NUM_MATCHES: c_int = 0;
 static mut DO_TAG_MATCHES: *mut *mut c_char = ptr::null_mut();
 static mut DO_TAG_FLAGS: c_int = 0;
-
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn fseeko(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int;
-    #[cfg(windows)]
-    fn _ftelli64(stream: *mut FILE) -> i64;
-    #[cfg(not(windows))]
-    fn ftello(stream: *mut FILE) -> off_T;
-
-}
 
 #[inline]
 unsafe fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int {

@@ -59,6 +59,8 @@ use crate::option::{
 };
 use crate::option_vars::*;
 #[allow(unused_imports)]
+use crate::os::time::c_time as time;
+#[allow(unused_imports)]
 use crate::quickfix::qf_view_result;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
@@ -465,11 +467,6 @@ static mut do_check_scrollbind_old_curwin: *mut win_T = ptr::null_mut();
 static mut do_check_scrollbind_old_vtopline: linenr_T = 0;
 static mut do_check_scrollbind_old_buf: *mut buf_T = ptr::null_mut();
 static mut do_check_scrollbind_old_leftcol: colnr_T = 0;
-
-unsafe extern "C" {
-
-    fn time(tloc: *mut i64) -> i64;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

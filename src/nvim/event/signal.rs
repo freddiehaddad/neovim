@@ -10,6 +10,8 @@
 
 #[allow(unused_imports)]
 use crate::event::r#loop::{uv_close, uv_handle_size, uv_loop_size, uv_signal_init};
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_signal_start, uv_signal_stop};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
@@ -37,11 +39,6 @@ struct SignalWatcherFields {
     cb: signal_cb,
     close_cb: signal_close_cb,
     events: *mut MultiQueue,
-}
-
-unsafe extern "C" {
-    fn uv_signal_start(handle: *mut uv_signal_t, signal_cb: uv_signal_cb, signum: c_int) -> c_int;
-    fn uv_signal_stop(handle: *mut uv_signal_t) -> c_int;
 }
 
 #[inline]

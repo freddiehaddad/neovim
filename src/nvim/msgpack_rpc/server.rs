@@ -16,6 +16,8 @@ use crate::eval::vars::get_vim_var_str;
 #[allow(unused_imports)]
 use crate::eval::vars::set_vim_var_string;
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_freeaddrinfo;
+#[allow(unused_imports)]
 use crate::event::r#loop::{uv_handle_get_type, uv_handle_size, uv_strerror};
 #[allow(unused_imports)]
 use crate::event::socket::{socket_watcher_close, socket_watcher_init, socket_watcher_start};
@@ -77,12 +79,6 @@ static mut watchers: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 static mut server_addr_count: u32 = 0;
-
-unsafe extern "C" {
-
-    fn uv_freeaddrinfo(ai: *mut c_void);
-
-}
 
 #[inline]
 unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {

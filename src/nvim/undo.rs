@@ -32,9 +32,20 @@ use crate::ex_docmd::expr_map_locked;
 #[allow(unused_imports)]
 use crate::ex_getln::{text_locked, text_locked_msg};
 #[allow(unused_imports)]
+use crate::fileio::fflush;
+#[cfg(unix)]
+#[allow(unused_imports)]
+use crate::fileio::getuid;
+#[allow(unused_imports)]
 use crate::fileio::read_eintr;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::{_fdopen, _fileno, _ftelli64};
 #[allow(unused_imports)]
 use crate::fileio::{fclose, feof, fgetc, fread, fwrite};
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::{fdopen, fileno, ftello};
 #[allow(unused_imports)]
 use crate::fileio::{get2c, get4c, get8ctime};
 #[allow(unused_imports)]
@@ -60,6 +71,10 @@ use crate::option::copy_option_part;
 #[allow(unused_imports)]
 use crate::option::shortmess;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::os::time::c_time;
+#[allow(unused_imports)]
+use crate::os::time::strftime;
 #[allow(unused_imports)]
 use crate::spell::spell_check_window;
 #[allow(unused_imports)]
@@ -264,31 +279,6 @@ static mut u_newcount: c_int = 0;
 static mut u_oldcount: c_int = 0;
 static mut undo_undoes: bool = false;
 static mut lastmark: c_int = 0;
-
-unsafe extern "C" {
-
-    #[cfg_attr(target_os = "windows", link_name = "_time64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "time")]
-    fn c_time(tloc: *mut time_t) -> time_t;
-    fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
-
-    #[cfg(windows)]
-    fn _fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-    #[cfg(not(windows))]
-    fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-    #[cfg(windows)]
-    fn _fileno(stream: *mut FILE) -> c_int;
-    #[cfg(not(windows))]
-    fn fileno(stream: *mut FILE) -> c_int;
-    #[cfg(windows)]
-    fn _ftelli64(stream: *mut FILE) -> i64;
-    #[cfg(not(windows))]
-    fn ftello(stream: *mut FILE) -> off_T;
-    #[cfg(unix)]
-    fn getuid() -> u32;
-
-    fn fflush(stream: *mut FILE) -> c_int;
-}
 
 #[inline]
 unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {

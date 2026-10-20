@@ -58,6 +58,9 @@ pub type uv_async_cb = Option<unsafe extern "C" fn(handle: *mut uv_async_t)>;
 pub type uv_timer_cb = Option<unsafe extern "C" fn(handle: *mut uv_timer_t)>;
 pub type uv_close_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t)>;
 pub type uv_walk_cb = Option<unsafe extern "C" fn(handle: *mut uv_handle_t, arg: *mut c_void)>;
+pub type uv_signal_cb = Option<unsafe extern "C" fn(handle: *mut uv_signal_t, signum: c_int)>;
+pub type uv_connect_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
+pub type uv_write_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
 
 #[repr(C)]
 pub struct LoopQueuesAndChildren {
@@ -112,6 +115,43 @@ unsafe extern "C" {
     pub fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
     pub fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
 
+    pub fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut c_void, ipc: c_int) -> c_int;
+    pub fn uv_pipe_open(handle: *mut c_void, file: c_int) -> c_int;
+    pub fn uv_pipe_connect(
+        req: *mut c_void,
+        handle: *mut c_void,
+        name: *const std::ffi::c_char,
+        cb: uv_connect_cb,
+    );
+    pub fn uv_tty_init(loop_: *mut uv_loop_t, tty: *mut c_void, fd: c_int, unused: c_int) -> c_int;
+    pub fn uv_tty_set_mode(tty: *mut c_void, mode: c_int) -> c_int;
+    pub fn uv_write(
+        req: *mut c_void,
+        handle: *mut c_void,
+        bufs: *const crate::event::wstream::uv_buf_t,
+        nbufs: std::ffi::c_uint,
+        cb: uv_write_cb,
+    ) -> c_int;
+    pub fn uv_fs_req_cleanup(req: *mut c_void);
+    pub fn uv_fs_get_result(req: *const c_void) -> isize;
+    pub fn uv_chdir(dir: *const std::ffi::c_char) -> c_int;
+    pub fn uv_cwd(buffer: *mut std::ffi::c_char, size: *mut usize) -> c_int;
+    pub fn uv_kill(pid: c_int, signum: c_int) -> c_int;
+    pub fn uv_signal_start(
+        handle: *mut uv_signal_t,
+        signal_cb: uv_signal_cb,
+        signum: c_int,
+    ) -> c_int;
+    pub fn uv_signal_stop(handle: *mut uv_signal_t) -> c_int;
+    pub fn uv_dlopen(filename: *const std::ffi::c_char, lib: *mut crate::os::dl::UvLib) -> c_int;
+    pub fn uv_dlclose(lib: *mut crate::os::dl::UvLib);
+    pub fn uv_dlsym(
+        lib: *mut crate::os::dl::UvLib,
+        name: *const std::ffi::c_char,
+        ptr: *mut *mut c_void,
+    ) -> c_int;
+    pub fn uv_dlerror(lib: *const crate::os::dl::UvLib) -> *const std::ffi::c_char;
+    pub fn uv_freeaddrinfo(ai: *mut c_void);
 }
 
 #[inline]

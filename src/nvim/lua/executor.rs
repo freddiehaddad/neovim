@@ -47,6 +47,11 @@ use crate::lua::converter::{
     lua_type, luaL_checkinteger, luaL_checklstring, luaL_error, luaL_where,
 };
 #[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_isnumber, lua_isstring, lua_pushcclosure, lua_tointeger, lua_touserdata, luaL_ref,
+    luaL_unref,
+};
+#[allow(unused_imports)]
 use crate::message::msg_multihl;
 use crate::message::semsg_multiline;
 #[allow(unused_imports)]
@@ -291,20 +296,13 @@ unsafe extern "C-unwind" {
     fn lua_insert(L: *mut lua_State, idx: c_int);
     fn lua_replace(L: *mut lua_State, idx: c_int);
     fn lua_iscfunction(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
     fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> lua_CFunction;
-    fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_pushcclosure(L: *mut lua_State, fn_: lua_CFunction, n: c_int);
     fn lua_pushlightuserdata(L: *mut lua_State, p: *mut c_void);
     fn lua_call(L: *mut lua_State, nargs: c_int, nresults: c_int);
     fn lua_getstack(L: *mut lua_State, level: c_int, ar: *mut lua_Debug) -> c_int;
     fn lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
 
     fn luaL_checktype(L: *mut lua_State, narg: c_int, t: c_int);
-    fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
-    fn luaL_unref(L: *mut lua_State, t: c_int, ref_: c_int);
     fn luaL_loadbuffer(
         L: *mut lua_State,
         buff: *const c_char,
@@ -323,10 +321,10 @@ unsafe extern "system" {
 }
 
 #[cfg(not(test))]
+use crate::version::main_exitfree;
+
+#[cfg(not(test))]
 unsafe extern "C" {
-
-    static main_exitfree: bool;
-
     fn nlua_get_builtin_modules(count: *mut usize) -> *const ModuleDef;
 
     fn luv_set_loop(L: *mut lua_State, loop_: *mut c_void);

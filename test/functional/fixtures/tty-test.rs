@@ -4,6 +4,8 @@
 //! input to `stdout`, reports window resize events (`SIGWINCH`), exits with code
 //! `42` on `SIGHUP`, and exits after receiving two `CTRL-C` (`0x03`) bytes.
 
+#![allow(non_camel_case_types, unused_imports)]
+
 use std::env;
 use std::io::{self, IsTerminal, Read, Write};
 use std::process;

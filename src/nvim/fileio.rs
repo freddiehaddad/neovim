@@ -68,7 +68,7 @@ use crate::ui::ui_flush;
 use crate::ui::ui_has;
 #[allow(unused_imports)]
 use crate::undo::bufIsChanged;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
 use crate::api::command::{cmdmod_T, exarg_T};
@@ -324,11 +324,15 @@ unsafe extern "C" {
     pub fn fgetc(stream: *mut FILE) -> c_int;
     pub fn fputc(c: c_int, stream: *mut FILE) -> c_int;
     pub fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
+    pub fn printf(format: *const c_char, ...) -> c_int;
+    pub fn fflush(stream: *mut FILE) -> c_int;
+    pub fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
+    pub fn ftell(stream: *mut FILE) -> c_long;
     pub fn ferror(stream: *mut FILE) -> c_int;
     pub fn feof(stream: *mut FILE) -> c_int;
 
     #[cfg(windows)]
-    fn libiconv(
+    pub fn libiconv(
         cd: iconv_t,
         inbuf: *mut *const c_char,
         inbytesleft: *mut usize,
@@ -336,20 +340,30 @@ unsafe extern "C" {
         outbytesleft: *mut usize,
     ) -> usize;
     #[cfg(windows)]
-    fn libiconv_close(cd: iconv_t) -> c_int;
+    pub fn libiconv_close(cd: iconv_t) -> c_int;
     #[cfg(windows)]
-    fn _close(fd: c_int) -> c_int;
+    pub fn _close(fd: c_int) -> c_int;
     #[cfg(windows)]
-    fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;
+    pub fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;
     #[cfg(windows)]
-    fn _read(fd: c_int, buf: *mut c_void, count: c_uint) -> c_int;
+    pub fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
     #[cfg(windows)]
-    fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
+    pub fn _ftelli64(stream: *mut FILE) -> i64;
+    #[cfg(windows)]
+    pub fn _fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
+    #[cfg(windows)]
+    pub fn _fileno(stream: *mut FILE) -> c_int;
+    #[cfg(windows)]
+    pub fn _get_osfhandle(fd: c_int) -> isize;
+    #[cfg(windows)]
+    pub fn _read(fd: c_int, buf: *mut c_void, count: c_uint) -> c_int;
+    #[cfg(windows)]
+    pub fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
     #[cfg(windows)]
     fn _umask(pmode: c_int) -> c_int;
 
     #[cfg(not(windows))]
-    fn iconv(
+    pub fn iconv(
         cd: iconv_t,
         inbuf: *mut *const c_char,
         inbytesleft: *mut usize,
@@ -357,21 +371,39 @@ unsafe extern "C" {
         outbytesleft: *mut usize,
     ) -> usize;
     #[cfg(not(windows))]
-    fn iconv_close(cd: iconv_t) -> c_int;
+    pub fn iconv_close(cd: iconv_t) -> c_int;
     #[cfg(not(windows))]
-    fn close(fd: c_int) -> c_int;
+    pub fn close(fd: c_int) -> c_int;
     #[cfg(not(windows))]
-    fn lseek(fd: c_int, offset: i64, whence: c_int) -> i64;
+    pub fn lseek(fd: c_int, offset: i64, whence: c_int) -> i64;
     #[cfg(not(windows))]
-    fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
+    pub fn fseeko(stream: *mut FILE, offset: i64, whence: c_int) -> c_int;
     #[cfg(not(windows))]
-    fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
+    pub fn ftello(stream: *mut FILE) -> i64;
     #[cfg(not(windows))]
-    fn dup(oldfd: c_int) -> c_int;
+    pub fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
     #[cfg(not(windows))]
-    fn umask(mask: c_uint) -> c_uint;
+    pub fn fileno(stream: *mut FILE) -> c_int;
     #[cfg(not(windows))]
-    fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
+    pub fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
+    #[cfg(not(windows))]
+    pub fn getuid() -> u32;
+    #[cfg(not(windows))]
+    pub fn getgid() -> u32;
+    #[cfg(not(windows))]
+    pub fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
+    #[cfg(not(windows))]
+    pub fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
+    #[cfg(not(windows))]
+    pub fn dup(oldfd: c_int) -> c_int;
+    #[cfg_attr(windows, link_name = "_dup2")]
+    pub fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
+    #[cfg(not(windows))]
+    pub fn kill(pid: c_int, sig: c_int) -> c_int;
+    #[cfg(not(windows))]
+    pub fn umask(mask: c_uint) -> c_uint;
+    #[cfg(not(windows))]
+    pub fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
     #[cfg(not(windows))]
     fn symlink(target: *const c_char, linkpath: *const c_char) -> c_int;
     #[cfg(not(windows))]

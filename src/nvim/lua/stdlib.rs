@@ -41,6 +41,8 @@ use crate::lua::converter::{
     luaL_error, luaL_where,
 };
 #[allow(unused_imports)]
+use crate::lua::converter::{lua_pushcclosure, luaL_checkudata, luaL_newmetatable, luaL_register};
+#[allow(unused_imports)]
 use crate::mbyte::{
     convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,
     mb_utflen, string_convert, utf_cp_bounds_len, utf_ptr2len_len,
@@ -142,15 +144,6 @@ static REGEX_META: [luaL_Reg; 5] = [
         func: None,
     },
 ];
-
-#[cfg(not(test))]
-unsafe extern "C-unwind" {
-    fn lua_pushcclosure(lstate: *mut lua_State, fn_: lua_CFunction, n: c_int);
-
-    fn luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-    fn luaL_newmetatable(lstate: *mut lua_State, tname: *const c_char) -> c_int;
-    fn luaL_checkudata(lstate: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-}
 
 #[cfg(not(test))]
 unsafe fn luaopen_mpack(lstate: *mut lua_State) -> c_int {

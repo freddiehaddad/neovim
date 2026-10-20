@@ -2,6 +2,9 @@
 
 #![cfg_attr(test, allow(dead_code, unused_imports))]
 
+#[cfg(unix)]
+#[allow(unused_imports)]
+use crate::fileio::getuid;
 #[cfg(windows)]
 #[allow(unused_imports)]
 use crate::mbyte::utf16_to_utf8;
@@ -83,7 +86,6 @@ unsafe extern "C" {
     fn endpwent();
     fn getpwnam(name: *const c_char) -> *mut Passwd;
     fn getpwuid(uid: u32) -> *mut Passwd;
-    fn getuid() -> u32;
 }
 
 #[cfg(target_os = "windows")]

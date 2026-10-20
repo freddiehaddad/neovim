@@ -88,7 +88,7 @@ unsafe extern "C" {
     #[cfg(unix)]
     fn pthread_sigmask(how: c_int, set: *const c_void, oldset: *mut c_void) -> c_int;
     #[cfg(unix)]
-    fn signal(signum: c_int, handler: usize) -> usize;
+    pub fn signal(signum: c_int, handler: usize) -> usize;
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

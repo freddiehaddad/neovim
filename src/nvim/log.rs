@@ -17,6 +17,8 @@ use crate::eval::vars::get_vim_var_str;
 #[allow(unused_imports)]
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 #[allow(unused_imports)]
+use crate::fileio::fflush;
+#[allow(unused_imports)]
 use crate::fileio::{fclose, fgets, fopen, fprintf, fputc};
 use crate::globals::*;
 use crate::message::msg_schedule_semsg;
@@ -30,6 +32,8 @@ use crate::os::fs::{os_exepath, os_isdir, os_mkdir_recurse};
 use crate::os::stdpaths::get_xdg_home;
 #[allow(unused_imports)]
 use crate::os::stdpaths::stdpaths_user_state_subpath;
+#[allow(unused_imports)]
+use crate::os::time::strftime;
 #[allow(unused_imports)]
 use crate::path::{concat_fnames_realloc, path_tail};
 #[allow(unused_imports)]
@@ -81,9 +85,6 @@ unsafe extern "C" {
     fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
     fn uv_print_all_handles(loop_: *mut c_void, stream: *mut FILE);
     fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
-    fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
-
-    fn fflush(stream: *mut FILE) -> c_int;
 
     #[cfg(unix)]
     fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;

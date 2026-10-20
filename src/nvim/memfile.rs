@@ -12,6 +12,12 @@
 )]
 
 use crate::errors::*;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::{_close, _lseeki64};
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::{close, lseek};
 #[allow(unused_imports)]
 use crate::fileio::{read_eintr, write_eintr};
 use crate::globals::*;
@@ -146,20 +152,6 @@ pub struct memfile_T {
     pub mf_infile_count: blocknr_T,
     pub mf_page_size: c_uint,
     pub mf_dirty: mfdirty_T,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;
-    #[cfg(windows)]
-    fn _close(fd: c_int) -> c_int;
-
-    #[cfg(not(windows))]
-    fn lseek(fd: c_int, offset: i64, whence: c_int) -> i64;
-    #[cfg(not(windows))]
-    fn close(fd: c_int) -> c_int;
 }
 
 #[inline]
@@ -974,6 +966,82 @@ mod tests {
             mf_free(mfp, hp2);
 
             mf_close(mfp, false);
+        }
+    }
+
+    #[test]
+    fn mf_hash_inserts_expands_removes_and_frees_50000_items() {
+        const TEST_COUNT: usize = 50_000;
+        const fn index_to_key(i: usize) -> blocknr_T {
+            (i as blocknr_T) ^ 15167
+        }
+
+        unsafe {
+            let mut ht: Map<i64, ptr_t> = empty_map();
+            let mut items: Vec<*mut bhdr_T> = Vec::with_capacity(TEST_COUNT);
+
+            for i in 0..TEST_COUNT {
+                assert_eq!(ht.set.h.size as usize, i);
+                let key = index_to_key(i);
+                assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
+
+                let item = xmalloc(size_of::<bhdr_T>()).cast::<bhdr_T>();
+                ptr::write(
+                    item,
+                    bhdr_T {
+                        bh_bnum: key,
+                        bh_data: ptr::null_mut(),
+                        bh_page_count: 1,
+                        bh_flags: 0,
+                    },
+                );
+                pmap_put_bhdr(&raw mut ht, key, item);
+                assert_eq!(pmap_get_bhdr(&raw mut ht, key), item);
+                let num_buckets = ht.set.h.n_buckets as usize;
+                assert!(num_buckets.is_power_of_two());
+                items.push(item);
+            }
+
+            for i in 0..TEST_COUNT {
+                let key = index_to_key(i);
+                let item = pmap_get_bhdr(&raw mut ht, key);
+                assert!(!item.is_null());
+                assert_eq!((*item).bh_bnum, key);
+            }
+
+            for i in 0..TEST_COUNT {
+                if i % 100 < 70 {
+                    let key = index_to_key(i);
+                    let item = pmap_get_bhdr(&raw mut ht, key);
+                    assert!(!item.is_null());
+                    assert_eq!((*item).bh_bnum, key);
+
+                    map_del_int64_t_ptr_t(&raw mut ht, key, ptr::null_mut());
+                    assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
+
+                    pmap_put_bhdr(&raw mut ht, key, item);
+                    assert_eq!(pmap_get_bhdr(&raw mut ht, key), item);
+
+                    map_del_int64_t_ptr_t(&raw mut ht, key, ptr::null_mut());
+                    assert!(pmap_get_bhdr(&raw mut ht, key).is_null());
+
+                    xfree(item.cast());
+                }
+            }
+
+            for i in 0..TEST_COUNT {
+                let key = index_to_key(i);
+                let item = pmap_get_bhdr(&raw mut ht, key);
+                if i % 100 < 70 {
+                    assert!(item.is_null());
+                } else {
+                    assert!(!item.is_null());
+                    assert_eq!((*item).bh_bnum, key);
+                    xfree(item.cast());
+                }
+            }
+
+            destroy_map(&raw mut ht);
         }
     }
 }

@@ -27,6 +27,8 @@ use crate::option::set_helplang_default;
 use crate::path::{path_tail, path_tail_with_sep};
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::setlocale;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -101,8 +103,6 @@ unsafe extern "C" {
 
     #[cfg(target_os = "linux")]
     static mut _nl_msg_cat_cntr: c_int;
-
-    fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
 
     #[cfg(windows)]
     fn libintl_bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;

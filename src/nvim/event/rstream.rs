@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::event::r#loop::{uv_err_name, uv_handle_get_loop, uv_handle_get_type, uv_strerror};
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_fs_get_result, uv_fs_req_cleanup};
+#[allow(unused_imports)]
 use crate::log::g_min_log_level;
 use crate::log::logmsg;
 use std::ffi::{c_char, c_int, c_uint, c_void};
@@ -81,8 +83,6 @@ unsafe extern "C" {
         offset: i64,
         cb: uv_fs_cb,
     ) -> c_int;
-    fn uv_fs_get_result(req: *const uv_fs_t) -> isize;
-    fn uv_fs_req_cleanup(req: *mut uv_fs_t);
 
 }
 

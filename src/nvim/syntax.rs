@@ -78,6 +78,8 @@ use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{gettext, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp, strpbrk};
 #[allow(unused_imports)]
+use crate::strings::{memcpy, memmove, memset};
+#[allow(unused_imports)]
 use crate::strings::{strcasecmp, strncasecmp};
 #[allow(unused_imports)]
 use crate::strings::{vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave};
@@ -403,13 +405,6 @@ static mut current_line_id: c_int = 0;
 static mut syn_time_on: bool = false;
 static mut last_matchgroup: c_int = 0;
 static mut expand_what: c_int = EXP_SUBCMD;
-
-unsafe extern "C" {
-
-    fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
-    fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
-    fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void;
-}
 
 #[inline]
 unsafe fn stricmp_c(s1: *const c_char, s2: *const c_char) -> c_int {

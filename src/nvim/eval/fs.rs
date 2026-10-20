@@ -46,10 +46,16 @@ use crate::ex_docmd::do_chdir;
 use crate::ex_docmd::vim_mkdir_emsg;
 #[allow(unused_imports)]
 use crate::fileio::file_pat_to_reg_pat;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::{_fileno, _fseeki64};
 #[allow(unused_imports)]
 use crate::fileio::{delete_recursive, readdir_core, vim_copyfile, vim_rename, vim_tempname};
 #[allow(unused_imports)]
 use crate::fileio::{fclose, fread};
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::{fileno, fseeko, readlink};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::mbyte::{utf_head_off, utfc_ptr2len};
@@ -296,20 +302,6 @@ unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
     } else {
         unsafe { (*b).bv_ga.ga_len }
     }
-}
-
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    fn _fileno(stream: *mut FILE) -> c_int;
-    #[cfg(not(windows))]
-    fn fileno(stream: *mut FILE) -> c_int;
-    #[cfg(windows)]
-    fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn fseeko(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn readlink(path: *const c_char, buf: *mut c_char, bufsiz: usize) -> isize;
 }
 
 #[inline]

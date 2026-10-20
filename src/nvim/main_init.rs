@@ -302,11 +302,15 @@ static mut ARGV0: *mut c_char = ptr::null_mut();
 static mut REALLY_EXITING: bool = false;
 
 #[cfg(not(test))]
-unsafe extern "C-unwind" {
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-}
+#[cfg(all(not(test), windows))]
+use crate::fileio::_close as close;
+#[cfg(all(not(test), not(windows)))]
+use crate::fileio::close;
+#[cfg(not(test))]
+use crate::fileio::{dup2, printf};
+use crate::lua::converter::{lua_getfield, lua_pushstring, lua_tolstring};
+#[cfg(not(test))]
+use crate::version::{main_exitfree, version_sys_vimrc_file};
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "system" {
@@ -315,17 +319,8 @@ unsafe extern "system" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    static version_sys_vimrc_file: *const c_char;
-    static main_exitfree: bool;
-
-    fn printf(format: *const c_char, ...) -> c_int;
     fn setbuf(stream: *mut FILE, buffer: *mut c_char);
 
-    #[cfg_attr(windows, link_name = "_dup2")]
-    fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
-    #[cfg_attr(windows, link_name = "_close")]
-    fn close(fd: c_int) -> c_int;
     #[cfg(windows)]
     fn _setmode(fd: c_int, mode: c_int) -> c_int;
     #[cfg(unix)]

@@ -30,11 +30,17 @@ use crate::event::r#loop::uv_strerror;
 use crate::ex_cmds::check_secure;
 #[allow(unused_imports)]
 use crate::fileio::msg_add_lines;
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::{_close, libiconv, libiconv_close};
 #[allow(unused_imports)]
 use crate::fileio::{
     add_quoted_fname, buf_store_file_info, fname_msg_id, modname, slow_io_ns, time_differs,
     write_eintr,
 };
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::{close, getgid, getuid, iconv, iconv_close};
 #[allow(unused_imports)]
 use crate::fileio::{filemess_bufwrite, get_fio_flags};
 #[allow(unused_imports)]
@@ -249,41 +255,6 @@ struct bw_info {
     bw_conv_error_lnum: linenr_T,
     bw_start_lnum: linenr_T,
     bw_iconv_fd: iconv_t,
-}
-
-#[cfg(not(test))]
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    fn libiconv(
-        cd: iconv_t,
-        inbuf: *mut *const c_char,
-        inbytesleft: *mut usize,
-        outbuf: *mut *mut c_char,
-        outbytesleft: *mut usize,
-    ) -> usize;
-    #[cfg(windows)]
-    fn libiconv_close(cd: iconv_t) -> c_int;
-    #[cfg(windows)]
-    fn _close(fd: c_int) -> c_int;
-
-    #[cfg(not(windows))]
-    fn iconv(
-        cd: iconv_t,
-        inbuf: *mut *const c_char,
-        inbytesleft: *mut usize,
-        outbuf: *mut *mut c_char,
-        outbytesleft: *mut usize,
-    ) -> usize;
-    #[cfg(not(windows))]
-    fn iconv_close(cd: iconv_t) -> c_int;
-    #[cfg(not(windows))]
-    fn close(fd: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn getuid() -> u32;
-    #[cfg(not(windows))]
-    fn getgid() -> u32;
-
 }
 
 #[inline]

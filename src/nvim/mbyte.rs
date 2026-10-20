@@ -26,6 +26,12 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::event::r#loop::uv_translate_sys_error;
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::{iconv, iconv_close};
+#[cfg(windows)]
+#[allow(unused_imports)]
+use crate::fileio::{libiconv, libiconv_close};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -41,6 +47,8 @@ use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
 #[allow(unused_imports)]
 use crate::strings::tolower;
+#[allow(unused_imports)]
+use crate::strings::{setlocale, toupper};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -933,39 +941,16 @@ unsafe extern "C" {
     ) -> isize;
     fn utf8proc_toupper(c: i32) -> i32;
     fn utf8proc_tolower(c: i32) -> i32;
-
-    fn toupper(c: c_int) -> c_int;
     fn towupper(wc: wint_t) -> wint_t;
     fn towlower(wc: wint_t) -> wint_t;
-    fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
     #[cfg(unix)]
     fn nl_langinfo(item: c_int) -> *mut c_char;
 
     #[cfg(windows)]
     fn libiconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t;
-    #[cfg(windows)]
-    fn libiconv(
-        cd: iconv_t,
-        inbuf: *mut *const c_char,
-        inbytesleft: *mut usize,
-        outbuf: *mut *mut c_char,
-        outbytesleft: *mut usize,
-    ) -> usize;
-    #[cfg(windows)]
-    fn libiconv_close(cd: iconv_t) -> c_int;
 
     #[cfg(not(windows))]
     fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t;
-    #[cfg(not(windows))]
-    fn iconv(
-        cd: iconv_t,
-        inbuf: *mut *const c_char,
-        inbytesleft: *mut usize,
-        outbuf: *mut *mut c_char,
-        outbytesleft: *mut usize,
-    ) -> usize;
-    #[cfg(not(windows))]
-    fn iconv_close(cd: iconv_t) -> c_int;
 
 }
 
@@ -1109,11 +1094,11 @@ unsafe fn call_iconv(
 ) -> usize {
     #[cfg(all(not(test), windows))]
     unsafe {
-        libiconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
+        libiconv(cd as isize, inbuf, inbytesleft, outbuf, outbytesleft)
     }
     #[cfg(all(not(test), not(windows)))]
     unsafe {
-        iconv(cd, inbuf, inbytesleft, outbuf, outbytesleft)
+        iconv(cd as isize, inbuf, inbytesleft, outbuf, outbytesleft)
     }
     #[cfg(test)]
     {
@@ -1126,11 +1111,11 @@ unsafe fn call_iconv(
 unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
     #[cfg(windows)]
     unsafe {
-        libiconv_close(cd)
+        libiconv_close(cd as isize)
     }
     #[cfg(not(windows))]
     unsafe {
-        iconv_close(cd)
+        iconv_close(cd as isize)
     }
 }
 

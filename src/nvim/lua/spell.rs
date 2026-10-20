@@ -12,6 +12,8 @@
 use crate::errors::*;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::lua::converter::luaL_register;
+#[allow(unused_imports)]
 use crate::lua::converter::{
     lua_createtable, lua_gettop, lua_pushinteger, lua_pushlstring, lua_pushstring, lua_rawseti,
     lua_tolstring, lua_type, luaL_argerror, luaL_error,
@@ -39,10 +41,6 @@ const HLF_SPC: hlf_T = 38;
 const HLF_SPR: hlf_T = 39;
 const HLF_SPL: hlf_T = 40;
 const HLF_COUNT: hlf_T = 76;
-
-unsafe extern "C-unwind" {
-    fn luaL_register(lstate: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-}
 
 /// Check spelling in `str` (`nlua_spell_check`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

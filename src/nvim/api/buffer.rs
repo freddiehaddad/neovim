@@ -31,6 +31,8 @@ use crate::ex_cmds::rename_buffer;
 use crate::extmark::extmark_splice;
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::lua::converter::{lua_createtable, lua_pushlstring, lua_rawseti};
+#[allow(unused_imports)]
 use crate::lua::executor::nlua_call_ref;
 #[allow(unused_imports)]
 use crate::mapping::{keymap_array, modify_keymap};
@@ -189,12 +191,6 @@ pub struct VisualState {
 }
 
 pub use crate::extmark::u_header_T;
-
-unsafe extern "C-unwind" {
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
-}
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

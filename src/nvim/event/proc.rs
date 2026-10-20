@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 #[allow(unused_imports)]
+use crate::event::r#loop::uv_pipe_init;
+#[allow(unused_imports)]
 use crate::event::r#loop::{uv_close, uv_handle_get_loop, uv_timer_start, uv_timer_stop};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -36,7 +38,7 @@ use crate::event::multiqueue::{
 use crate::event::rstream::{RStream, RStreamFields, rstream_fields, rstream_may_close};
 use crate::event::stream::{
     Stream, stream_closed_ptr, stream_fields, stream_init, stream_may_close, stream_size,
-    stream_uv_ptr, uv_handle_t, uv_loop_t, uv_pipe_t,
+    stream_uv_ptr, uv_handle_t,
 };
 use crate::memory::{ARENA_BLOCK_SIZE, xrealloc};
 use crate::os::proc::os_proc_tree_kill;
@@ -100,7 +102,6 @@ static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
 
 unsafe extern "C" {
-    fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
     fn uv_unref(handle: *mut uv_handle_t);
     fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;
 

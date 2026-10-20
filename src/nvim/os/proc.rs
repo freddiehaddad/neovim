@@ -4,6 +4,9 @@
 
 #[allow(unused_imports)]
 use crate::api::private::helpers::{arena_dict, arena_string};
+#[cfg(not(test))]
+#[allow(unused_imports)]
+use crate::event::r#loop::uv_kill;
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::memory::{Arena, xrealloc};
@@ -20,11 +23,6 @@ const UV_ESRCH: c_int = -3;
 
 const SIGTERM_NUM: c_int = 15;
 const SIGKILL_NUM: c_int = 9;
-
-#[cfg(not(test))]
-unsafe extern "C" {
-    fn uv_kill(pid: c_int, signum: c_int) -> c_int;
-}
 
 #[cfg(test)]
 unsafe fn uv_kill(pid: c_int, _signum: c_int) -> c_int {

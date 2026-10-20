@@ -33,6 +33,9 @@ use crate::eval::{callback_call, get_v_event, restore_v_event};
 use crate::event::r#loop::uv_strerror;
 #[allow(unused_imports)]
 use crate::event::proc::exit_on_closed_chan;
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::fcntl;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::executor::api_free_luaref;
@@ -183,38 +186,31 @@ pub struct TerminalOptions {
     pub force_crlf: bool,
 }
 
+#[cfg(all(not(test), not(windows)))]
+use crate::fileio::dup2;
+
 #[cfg(not(test))]
 unsafe extern "C" {
-
     fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
-
-    #[cfg(windows)]
-    fn __acrt_iob_func(ix: c_uint) -> *mut c_void;
-
-    #[cfg(target_os = "linux")]
-    static mut stderr: *mut c_void;
-    #[cfg(not(any(windows, target_os = "linux")))]
-    static mut __stderrp: *mut c_void;
-
-    #[cfg(not(windows))]
-    fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
-    #[cfg(not(windows))]
-    fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
 }
 
 #[inline]
 unsafe fn redirect_stderr_to_null() {
     #[cfg(all(not(test), windows))]
     unsafe {
-        let _ = freopen(c"NUL:".as_ptr(), c"w".as_ptr(), __acrt_iob_func(2));
+        let _ = freopen(
+            c"NUL:".as_ptr(),
+            c"w".as_ptr(),
+            crate::log::log_get_stderr().cast(),
+        );
     }
-    #[cfg(all(not(test), target_os = "linux"))]
+    #[cfg(all(not(test), not(windows)))]
     unsafe {
-        let _ = freopen(c"/dev/null".as_ptr(), c"w".as_ptr(), stderr);
-    }
-    #[cfg(all(not(test), not(any(windows, target_os = "linux"))))]
-    unsafe {
-        let _ = freopen(c"/dev/null".as_ptr(), c"w".as_ptr(), __stderrp);
+        let _ = freopen(
+            c"/dev/null".as_ptr(),
+            c"w".as_ptr(),
+            crate::log::log_get_stderr().cast(),
+        );
     }
 }
 

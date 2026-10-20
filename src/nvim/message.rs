@@ -18,6 +18,8 @@ use crate::ex_docmd::do_sleep;
 #[allow(unused_imports)]
 use crate::fileio::check_timestamps;
 #[allow(unused_imports)]
+use crate::fileio::printf;
+#[allow(unused_imports)]
 use crate::fileio::{fclose, fprintf, fputc, fputs};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -290,8 +292,6 @@ static mut pre_verbose_kind: *const c_char = ptr::null();
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 
 unsafe extern "C" {
-
-    fn printf(format: *const c_char, ...) -> c_int;
     fn strnlen(s: *const c_char, maxlen: usize) -> usize;
 
 }

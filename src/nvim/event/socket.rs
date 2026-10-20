@@ -144,6 +144,8 @@ unsafe fn c_strlen(s: *const c_char) -> usize {
     unsafe { CStr::from_ptr(s).to_bytes().len() }
 }
 
+use crate::event::r#loop::{uv_freeaddrinfo, uv_pipe_connect, uv_pipe_init};
+
 unsafe extern "C" {
     fn uv_getaddrinfo(
         loop_: *mut uv_loop_t,
@@ -153,7 +155,6 @@ unsafe extern "C" {
         service: *const c_char,
         hints: *const addrinfo,
     ) -> c_int;
-    fn uv_freeaddrinfo(ai: *mut addrinfo);
 
     fn uv_tcp_init(loop_: *mut uv_loop_t, handle: *mut uv_tcp_t) -> c_int;
     fn uv_tcp_nodelay(handle: *mut uv_tcp_t, enable: c_int) -> c_int;
@@ -167,19 +168,12 @@ unsafe extern "C" {
         cb: uv_connect_cb,
     ) -> c_int;
 
-    fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut uv_pipe_t, ipc: c_int) -> c_int;
     fn uv_pipe_bind2(
         handle: *mut uv_pipe_t,
         name: *const c_char,
         namelen: usize,
         flags: c_uint,
     ) -> c_int;
-    fn uv_pipe_connect(
-        req: *mut uv_connect_t,
-        handle: *mut uv_pipe_t,
-        name: *const c_char,
-        cb: uv_connect_cb,
-    );
 
     fn uv_listen(stream: *mut uv_stream_t, backlog: c_int, cb: uv_connection_cb) -> c_int;
     fn uv_accept(server: *mut uv_stream_t, client: *mut uv_stream_t) -> c_int;
@@ -461,7 +455,7 @@ pub unsafe extern "C" fn socket_watcher_start(
                 }
                 ai = (*ai).ai_next;
             }
-            uv_freeaddrinfo(*watcher_tcp_addrinfo_ptr(watcher));
+            uv_freeaddrinfo((*watcher_tcp_addrinfo_ptr(watcher)).cast());
         } else {
             result = uv_pipe_bind2(uv_ptr.cast(), addr, c_strlen(addr), UV_PIPE_NO_TRUNCATE);
 
@@ -732,7 +726,7 @@ pub unsafe extern "C" fn socket_connect(
         (*fields).internal_close_cb = None;
         (*fields).internal_data = ptr::null_mut();
         xfree(addr.cast());
-        uv_freeaddrinfo(*getaddrinfo_req_addrinfo_ptr(addr_req_ptr));
+        uv_freeaddrinfo((*getaddrinfo_req_addrinfo_ptr(addr_req_ptr)).cast());
         success
     }
 }

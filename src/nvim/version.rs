@@ -3774,17 +3774,17 @@ pub static mut Versions: [*mut c_char; 5] = [
 ];
 
 unsafe extern "C" {
-    static mut longVersion: *mut c_char;
-    static mut version_buildtype: *mut c_char;
-    static mut version_cflags: *mut c_char;
-    static mut version_sys_vimrc_file: *const c_char;
-    static nvim_version_major: c_int;
-    static nvim_version_minor: c_int;
-    static nvim_version_patch: c_int;
+    pub static mut longVersion: *mut c_char;
+    pub static mut version_buildtype: *mut c_char;
+    pub static mut version_cflags: *mut c_char;
+    pub static mut version_sys_vimrc_file: *const c_char;
+    pub static nvim_version_major: c_int;
+    pub static nvim_version_minor: c_int;
+    pub static nvim_version_patch: c_int;
 
-    static mut default_vim_dir: *mut c_char;
-    static mut default_vimruntime_dir: *mut c_char;
-
+    pub static mut default_vim_dir: *mut c_char;
+    pub static mut default_vimruntime_dir: *mut c_char;
+    pub static main_exitfree: bool;
 }
 
 #[inline]

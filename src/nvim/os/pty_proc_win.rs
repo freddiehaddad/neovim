@@ -167,16 +167,11 @@ mod win_impl {
         proc_handle: HANDLE,
     }
 
+    use crate::event::r#loop::uv_pipe_connect;
+
     unsafe extern "C" {
-        fn uv_pipe_connect(
-            req: *mut uv_connect_t,
-            handle: *mut uv_pipe_t,
-            name: *const c_char,
-            cb: uv_connect_cb,
-        );
         fn uv_thread_create(tid: *mut uv_thread_t, entry: uv_thread_cb, arg: *mut c_void) -> c_int;
         fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
-
     }
 
     unsafe extern "system" {

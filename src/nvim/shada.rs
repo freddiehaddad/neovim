@@ -38,6 +38,9 @@ use crate::ex_docmd::set_no_hlsearch;
 use crate::fileio::modname;
 #[allow(unused_imports)]
 use crate::fileio::vim_rename;
+#[cfg(unix)]
+#[allow(unused_imports)]
+use crate::fileio::{getgid, getuid};
 use crate::globals::*;
 use crate::message::{semsg, siemsg, smsg};
 #[allow(unused_imports)]
@@ -671,17 +674,8 @@ use crate::api::private::dispatch::{
     KeyDict__shada_search_pat_get_field as shada_search_pat_get_field_cb,
 };
 
-unsafe extern "C" {
-    static mut longVersion: *mut c_char;
-
-    #[link_name = "uv_strerror"]
-    fn os_strerror(err: c_int) -> *const c_char;
-
-    #[cfg(unix)]
-    fn getuid() -> u32;
-    #[cfg(unix)]
-    fn getgid() -> u32;
-}
+use crate::event::r#loop::uv_strerror as os_strerror;
+use crate::version::longVersion;
 
 #[inline]
 const fn static_cstr_as_string(s: &'static CStr) -> NvimString {

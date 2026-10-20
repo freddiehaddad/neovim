@@ -29,6 +29,8 @@ use crate::api::ui::{remote_ui_hl_attr_define, remote_ui_mode_info_set, remote_u
 #[allow(unused_imports)]
 use crate::buffer::resettitle;
 use crate::cursor_shape::shape_table;
+#[allow(unused_imports)]
+use crate::event::r#loop::uv_cwd;
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
@@ -179,12 +181,6 @@ static mut beep_count: c_int = 0;
 static mut beep_start_time: u64 = 0;
 static mut ui_flush_was_busy: bool = false;
 static mut ui_flush_cursor_was_obscured: bool = false;
-
-unsafe extern "C" {
-
-    fn uv_cwd(buffer: *mut c_char, size: *mut usize) -> c_int;
-
-}
 
 #[inline]
 const fn bool_obj(b: bool) -> Object {

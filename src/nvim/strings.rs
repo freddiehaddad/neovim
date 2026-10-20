@@ -112,6 +112,9 @@ unsafe extern "C" {
         size: usize,
         compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
     );
+    pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
+    pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
+    pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
 }
 
 #[inline]
@@ -382,6 +385,50 @@ pub unsafe fn tolower(c: c_int) -> c_int {
             c
         }
     }
+}
+
+#[inline]
+pub unsafe fn toupper(c: c_int) -> c_int {
+    #[cfg(not(test))]
+    unsafe {
+        unsafe extern "C" {
+            #[link_name = "toupper"]
+            fn c_toupper(c: c_int) -> c_int;
+        }
+        c_toupper(c)
+    }
+    #[cfg(test)]
+    {
+        if (b'a' as c_int..=b'z' as c_int).contains(&c) {
+            c - 0x20
+        } else {
+            c
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
+    if n > 0 {
+        unsafe { ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), n) };
+    }
+    dst
+}
+
+#[inline]
+pub unsafe fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
+    if n > 0 {
+        unsafe { ptr::copy(src.cast::<u8>(), dst.cast::<u8>(), n) };
+    }
+    dst
+}
+
+#[inline]
+pub unsafe fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void {
+    if n > 0 {
+        unsafe { ptr::write_bytes(s.cast::<u8>(), c as u8, n) };
+    }
+    s
 }
 
 #[inline]

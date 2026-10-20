@@ -9,6 +9,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::event::r#loop::{uv_fs_get_result, uv_fs_req_cleanup, uv_write};
+#[allow(unused_imports)]
 use crate::event::r#loop::{uv_handle_get_loop, uv_req_size};
 #[cfg(windows)]
 use std::ffi::c_ulong;
@@ -83,13 +85,6 @@ struct WRequestHeader {
 }
 
 unsafe extern "C" {
-    fn uv_write(
-        req: *mut uv_write_t,
-        handle: *mut uv_stream_t,
-        bufs: *const uv_buf_t,
-        nbufs: c_uint,
-        cb: uv_write_cb,
-    ) -> c_int;
     fn uv_fs_write(
         loop_: *mut uv_loop_t,
         req: *mut uv_fs_t,
@@ -99,8 +94,6 @@ unsafe extern "C" {
         offset: i64,
         cb: uv_fs_cb,
     ) -> c_int;
-    fn uv_fs_get_result(req: *const uv_fs_t) -> isize;
-    fn uv_fs_req_cleanup(req: *mut uv_fs_t);
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

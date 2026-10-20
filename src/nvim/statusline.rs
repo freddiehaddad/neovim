@@ -53,6 +53,8 @@ use crate::os::env::home_replace;
 #[allow(unused_imports)]
 use crate::path::{path_tail, shorten_dir};
 #[allow(unused_imports)]
+use crate::strings::toupper;
+#[allow(unused_imports)]
 use crate::strings::vim_strchr;
 #[allow(unused_imports)]
 use crate::strings::{atoi, gettext};
@@ -279,11 +281,6 @@ pub struct statuscol_T {
 }
 
 static mut did_show_ext_ruler: bool = false;
-
-unsafe extern "C" {
-
-    fn toupper(c: c_int) -> c_int;
-}
 
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {

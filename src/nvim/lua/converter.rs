@@ -227,6 +227,19 @@ unsafe extern "C-unwind" {
     pub fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_concat(L: *mut lua_State, n: c_int);
     pub fn lua_pushcclosure(L: *mut lua_State, fn_: crate::lua::base64::lua_CFunction, n: c_int);
+    pub fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
+    pub fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
+    pub fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
+    pub fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
+    pub fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
+    pub fn luaL_unref(L: *mut lua_State, t: c_int, ref_: c_int);
+    pub fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
+    pub fn luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
+    pub fn luaL_register(
+        L: *mut lua_State,
+        libname: *const c_char,
+        l: *const crate::lua::base64::luaL_Reg,
+    );
     pub fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
     pub fn luaL_checkinteger(L: *mut lua_State, numArg: c_int) -> lua_Integer;
     pub fn luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;

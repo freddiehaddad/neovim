@@ -145,10 +145,11 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
+use crate::fileio::{_close, _get_osfhandle};
+
+#[cfg(windows)]
 unsafe extern "C" {
     fn _open_osfhandle(osfhandle: isize, flags: c_int) -> c_int;
-    fn _get_osfhandle(fd: c_int) -> isize;
-    fn _close(fd: c_int) -> c_int;
 }
 
 #[cfg(all(windows, not(test)))]

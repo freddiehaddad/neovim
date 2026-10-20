@@ -13,6 +13,9 @@
 use crate::api::private::helpers::api_metadata;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
+#[cfg(not(windows))]
+#[allow(unused_imports)]
+use crate::fileio::dup;
 use crate::globals::*;
 use crate::log::logmsg;
 #[allow(unused_imports)]
@@ -103,8 +106,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     #[link_name = "close"]
     fn close_fd(fd: c_int) -> c_int;
-    #[cfg(not(windows))]
-    fn dup(oldfd: c_int) -> c_int;
 }
 
 pub use crate::fileio::FILE;

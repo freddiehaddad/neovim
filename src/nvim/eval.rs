@@ -22,6 +22,8 @@
 #[allow(unused_imports)]
 use crate::event::r#loop::uv_handle_size;
 #[allow(unused_imports)]
+use crate::strings::strtod;
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{atol, gettext, strchr, strcmp, strlen, strncmp, strpbrk, strstr};
@@ -433,11 +435,6 @@ pub struct caller_scope {
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: c_int,
     pub funccalp: *mut c_void,
-}
-
-unsafe extern "C" {
-    fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
-
 }
 
 #[inline]

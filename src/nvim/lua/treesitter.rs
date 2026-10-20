@@ -11,6 +11,8 @@
     clippy::missing_safety_doc
 )]
 
+#[allow(unused_imports)]
+use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::lua::converter::{
@@ -19,6 +21,11 @@ use crate::lua::converter::{
     lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable,
     lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_argerror, luaL_checkinteger,
     luaL_checklstring, luaL_error,
+};
+#[allow(unused_imports)]
+use crate::lua::converter::{
+    lua_isstring, lua_pushcclosure, lua_tointeger, lua_touserdata, luaL_checkudata,
+    luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
 #[allow(unused_imports)]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
@@ -533,19 +540,9 @@ static QUERY_META: [luaL_Reg; 6] = [
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
-    fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_pushcclosure(L: *mut lua_State, fn_: lua_CFunction, n: c_int);
     fn lua_getfenv(L: *mut lua_State, idx: c_int);
     fn lua_setfenv(L: *mut lua_State, idx: c_int) -> c_int;
-
-    fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
     fn luaL_checknumber(L: *mut lua_State, numArg: c_int) -> lua_Number;
-    fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
-    fn luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-    fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
-    fn luaL_unref(L: *mut lua_State, t: c_int, ref_: c_int);
 
     fn ts_parser_parse(
         self_: *mut TSParser,
@@ -562,11 +559,6 @@ unsafe extern "C-unwind" {
 
 #[cfg(not(test))]
 unsafe extern "C" {
-
-    fn uv_dlopen(filename: *const c_char, lib: *mut UvLib) -> c_int;
-    fn uv_dlclose(lib: *mut UvLib);
-    fn uv_dlsym(lib: *mut UvLib, name: *const c_char, ptr: *mut *mut c_void) -> c_int;
-    fn uv_dlerror(lib: *const UvLib) -> *const c_char;
 
     fn ts_parser_new() -> *mut TSParser;
     fn ts_parser_delete(self_: *mut TSParser);
