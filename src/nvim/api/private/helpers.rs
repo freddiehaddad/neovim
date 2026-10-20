@@ -167,6 +167,14 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 }
 
 #[inline]
+pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
+    NvimString {
+        data: s.as_ptr().cast_mut(),
+        size: s.to_bytes().len(),
+    }
+}
+
+#[inline]
 pub unsafe fn cstr_as_obj(s: *const c_char) -> Object {
     unsafe { string_obj(cstr_as_string(s)) }
 }

@@ -20,6 +20,8 @@ use crate::buffer::col_print;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 #[allow(unused_imports)]
+use crate::charset::{ascii_islower, ascii_isspace, ascii_isupper};
+#[allow(unused_imports)]
 use crate::cursor::gchar_cursor;
 #[allow(unused_imports)]
 use crate::cursor::{equalpos, lt, ltoreq};
@@ -279,21 +281,6 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 #[inline]
 const fn ascii_isbdigit(c: c_int) -> bool {
     c == b'0' as c_int || c == b'1' as c_int
-}
-
-#[inline]
-const fn ascii_isspace(c: c_int) -> bool {
-    (c >= 9 && c <= 13) || c == b' ' as c_int
-}
-
-#[inline]
-const fn ascii_isupper(c: c_int) -> bool {
-    c >= b'A' as c_int && c <= b'Z' as c_int
-}
-
-#[inline]
-const fn ascii_islower(c: c_int) -> bool {
-    c >= b'a' as c_int && c <= b'z' as c_int
 }
 
 #[inline]

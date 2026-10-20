@@ -182,11 +182,13 @@ unsafe extern "C" {
 }
 
 #[cfg(all(not(test), windows))]
+use crate::os::os_win_console::GetLastError;
+
+#[cfg(all(not(test), windows))]
 unsafe extern "system" {
     fn GetEnvironmentStringsW() -> *mut u16;
     fn FreeEnvironmentStringsW(lpszEnvironmentBlock: *mut u16) -> c_int;
     fn GetComputerNameW(lpBuffer: *mut u16, nSize: *mut u32) -> c_int;
-    fn GetLastError() -> u32;
 }
 
 #[inline]

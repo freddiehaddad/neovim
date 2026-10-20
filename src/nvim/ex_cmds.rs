@@ -35,6 +35,8 @@ use crate::change::file_ff_differs;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
+use crate::charset::{ascii_islower, ascii_isupper};
+#[allow(unused_imports)]
 use crate::cursor::equalpos;
 #[allow(unused_imports)]
 use crate::dialog::prompt_for_input;
@@ -462,16 +464,6 @@ static mut subflags: subflags_T = subflags_T {
 static mut pre_hl_id: c_int = 0;
 
 use crate::strings::{isalpha, vim_stricmp as stricmp_c};
-
-#[inline]
-const fn ascii_islower(c: c_int) -> bool {
-    (c as u32) >= (b'a' as u32) && (c as u32) <= (b'z' as u32)
-}
-
-#[inline]
-const fn ascii_isupper(c: c_int) -> bool {
-    (c as u32) >= (b'A' as u32) && (c as u32) <= (b'Z' as u32)
-}
 
 #[inline]
 const fn cbuf_as_string(s: *mut c_char, len: usize) -> NvimString {

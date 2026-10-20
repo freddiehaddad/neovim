@@ -70,18 +70,13 @@ impl ProcessEntry32 {
 }
 
 #[cfg(all(target_os = "windows", not(test)))]
+use crate::os::os_win_console::{CloseHandle, GetProcessId, OpenProcess, TerminateProcess};
+
+#[cfg(all(target_os = "windows", not(test)))]
 unsafe extern "system" {
-    fn GetProcessId(process: *mut c_void) -> u32;
     fn CreateToolhelp32Snapshot(dw_flags: u32, th32_process_id: u32) -> *mut c_void;
     fn Process32First(h_snapshot: *mut c_void, lppe: *mut ProcessEntry32) -> i32;
     fn Process32Next(h_snapshot: *mut c_void, lppe: *mut ProcessEntry32) -> i32;
-    fn OpenProcess(
-        dw_desired_access: u32,
-        b_inherit_handle: i32,
-        dw_process_id: u32,
-    ) -> *mut c_void;
-    fn CloseHandle(h_object: *mut c_void) -> i32;
-    fn TerminateProcess(h_process: *mut c_void, u_exit_code: u32) -> i32;
 }
 
 #[cfg(all(target_os = "windows", not(test)))]

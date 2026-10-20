@@ -73,6 +73,8 @@ use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
 #[allow(unused_imports)]
+use crate::strings::strcmp as c_strcmp;
+#[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::{gettext, strchr, strcmp, strncmp, strstr};
@@ -773,11 +775,6 @@ pub unsafe fn opt_error_int(
 #[inline]
 unsafe fn tr(s: *const c_char) -> *mut c_char {
     unsafe { gettext(s) }
-}
-
-#[inline]
-unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe { strcmp(s1, s2) }
 }
 
 #[inline]

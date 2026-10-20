@@ -16,6 +16,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_free_string, copy_object, cstr_as_string, cstr_to_string,
     find_buffer_by_handle,
@@ -1454,14 +1456,6 @@ unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
     #[cfg(not(windows))]
     unsafe {
         xstrdup(p)
-    }
-}
-
-#[inline]
-fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    NvimString {
-        data: s.as_ptr().cast_mut(),
-        size: s.to_bytes().len(),
     }
 }
 

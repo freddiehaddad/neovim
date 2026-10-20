@@ -31,6 +31,8 @@ use crate::buffer::{buf_clear, buflist_findnr, do_buffer};
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
+use crate::charset::{ascii_islower, ascii_isspace, ascii_isupper};
+#[allow(unused_imports)]
 use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
 use crate::drawscreen::redraw_custom_title_later;
@@ -483,21 +485,6 @@ unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, len: usize) -> c_int 
     unsafe {
         strncasecmp(s1, s2, len)
     }
-}
-
-#[inline]
-const fn ascii_islower(c: c_int) -> bool {
-    (c as u32) >= (b'a' as u32) && (c as u32) <= (b'z' as u32)
-}
-
-#[inline]
-const fn ascii_isupper(c: c_int) -> bool {
-    (c as u32) >= (b'A' as u32) && (c as u32) <= (b'Z' as u32)
-}
-
-#[inline]
-const fn ascii_isspace(c: c_int) -> bool {
-    (c >= 9 && c <= 13) || c == (b' ' as c_int)
 }
 
 #[inline]

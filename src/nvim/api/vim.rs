@@ -15,6 +15,8 @@ use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_metadata, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
     arena_take_arraybuilder, copy_array, copy_dict, copy_object, copy_string, cstr_as_string,
@@ -515,14 +517,6 @@ const fn error_set(e: &Error) -> bool {
 #[inline]
 const fn is_internal_call(channel_id: u64) -> bool {
     (channel_id & INTERNAL_CALL_MASK) != 0
-}
-
-#[inline]
-const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    NvimString {
-        data: s.as_ptr().cast_mut(),
-        size: s.to_bytes().len(),
-    }
 }
 
 #[inline]

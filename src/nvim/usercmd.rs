@@ -18,6 +18,8 @@ use crate::api::private::helpers::{
     string_obj,
 };
 #[allow(unused_imports)]
+use crate::charset::ascii_isupper;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::eval::last_set_msg;
@@ -318,11 +320,6 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
         shortname: None,
     },
 ];
-
-#[inline]
-const fn ascii_isupper(c: c_char) -> bool {
-    (c as u8).is_ascii_uppercase()
-}
 
 #[inline]
 unsafe fn user_cmd(i: c_int) -> *mut ucmd_T {

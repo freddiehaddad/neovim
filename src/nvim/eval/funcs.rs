@@ -70,6 +70,8 @@ use crate::eval::typval::{
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_copy, tv_list_flatten,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_len, tv_list_ref, tv_list_set_lock};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_blob_set_range, tv_dict_extend, tv_list_find_nr};
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_list_first, tv_list_len};
@@ -557,16 +559,17 @@ const REQUIRED_ENV_VARS: &[&CStr] = &[];
 #[cfg(windows)]
 const PROCESS_ALL_ACCESS: u32 = 0x001F0FFF;
 #[cfg(windows)]
+use crate::os::os_win_console::{CloseHandle, OpenProcess};
+#[cfg(windows)]
 unsafe extern "system" {
-    fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: c_int, dwProcessId: u32) -> *mut c_void;
     fn DebugBreakProcess(Process: *mut c_void) -> c_int;
-    fn CloseHandle(hObject: *mut c_void) -> c_int;
 }
 
 use crate::strings::strtoul;
 
 unsafe extern "C" {
-    static eval_has_list: [*const c_char; 0];
+    #[cfg(not(test))]
+    static nvim_build_has_flags: u32;
 
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
@@ -640,15 +643,6 @@ fn tv_initial_value() -> typval_T {
 }
 
 #[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
 unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
     unsafe {
         (*tv).v_type = VarType::VAR_LIST;
@@ -663,17 +657,6 @@ unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
         VAR_FIXED
     } else {
         unsafe { (*l).lv_lock }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
-    if l.is_null() {
-        debug_assert!(lock == VAR_FIXED);
-    } else {
-        unsafe {
-            (*l).lv_lock = lock;
-        }
     }
 }
 
@@ -704,15 +687,6 @@ unsafe fn tv_dict_len(d: *const dict_T) -> i64 {
         0
     } else {
         unsafe { (*d).dv_hashtab.ht_used as i64 }
-    }
-}
-
-#[inline]
-unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
-    if b.is_null() {
-        0
-    } else {
-        unsafe { (*b).bv_ga.ga_len }
     }
 }
 
@@ -4490,17 +4464,9 @@ pub unsafe extern "C" fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fp
             n = has_wsl();
         }
 
-        if !x {
-            let list_ptr = eval_has_list.as_ptr();
-            let mut i: usize = 0;
-            while !(*list_ptr.add(i)).is_null() {
-                if c_stricmp(name, *list_ptr.add(i)) == 0 {
-                    x = true;
-                    n = true;
-                    break;
-                }
-                i += 1;
-            }
+        if !x && eval_has_static_feature(name) {
+            x = true;
+            n = true;
         }
 
         if !x {
@@ -4518,6 +4484,145 @@ pub unsafe extern "C" fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fp
         }
 
         (*rettv).vval.v_number = varnumber_T::from(n);
+    }
+}
+
+static EVAL_HAS_LIST: &[&CStr] = &[
+    #[cfg(target_os = "android")]
+    c"android",
+    #[cfg(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    c"bsd",
+    #[cfg(target_os = "hurd")]
+    c"hurd",
+    #[cfg(target_os = "linux")]
+    c"linux",
+    #[cfg(target_os = "solaris")]
+    c"sun",
+    #[cfg(unix)]
+    c"unix",
+    #[cfg(windows)]
+    c"win32",
+    #[cfg(all(windows, target_pointer_width = "64"))]
+    c"win64",
+    #[cfg(not(any(windows, target_os = "macos")))]
+    c"fname_case",
+    c"autochdir",
+    c"arabic",
+    c"autocmd",
+    c"browsefilter",
+    c"byte_offset",
+    c"cindent",
+    c"cmdline_compl",
+    c"cmdline_hist",
+    c"cmdwin",
+    c"comments",
+    c"conceal",
+    c"cursorbind",
+    c"cursorshape",
+    c"dialog_con",
+    c"diff",
+    c"digraphs",
+    c"eval",
+    c"ex_extra",
+    c"extra_search",
+    c"file_in_path",
+    c"filterpipe",
+    c"find_in_path",
+    c"float",
+    c"folding",
+    #[cfg(unix)]
+    c"fork",
+    c"gettext",
+    c"iconv",
+    c"insert_expand",
+    c"jumplist",
+    c"keymap",
+    c"lambda",
+    c"langmap",
+    c"libcall",
+    c"linebreak",
+    c"lispindent",
+    c"listcmds",
+    c"localmap",
+    #[cfg(target_os = "macos")]
+    c"mac",
+    #[cfg(target_os = "macos")]
+    c"macunix",
+    #[cfg(target_os = "macos")]
+    c"osx",
+    #[cfg(target_os = "macos")]
+    c"osxdarwin",
+    c"menu",
+    c"mksession",
+    c"modify_fname",
+    c"mouse",
+    c"multi_byte",
+    c"multi_lang",
+    c"nanotime",
+    c"num64",
+    c"packages",
+    c"path_extra",
+    c"persistent_undo",
+    c"profile",
+    c"reltime",
+    c"quickfix",
+    c"rightleft",
+    c"scrollbind",
+    c"showcmd",
+    c"cmdline_info",
+    c"shada",
+    c"signs",
+    c"smartindent",
+    c"startuptime",
+    c"statusline",
+    c"spell",
+    c"syntax",
+    #[cfg(not(unix))]
+    c"system",
+    c"tablineat",
+    c"tag_binary",
+    c"termguicolors",
+    c"termresponse",
+    c"textobjects",
+    c"timers",
+    c"title",
+    c"user-commands",
+    c"user_commands",
+    c"vartabs",
+    c"vertsplit",
+    c"vimscript-1",
+    c"virtualedit",
+    c"visual",
+    c"visualextra",
+    c"vreplace",
+    c"wildignore",
+    c"wildmenu",
+    c"windows",
+    c"winaltkeys",
+    c"writebackup",
+    c"nvim",
+];
+
+unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
+    unsafe {
+        for &feat in EVAL_HAS_LIST {
+            if c_stricmp(name, feat.as_ptr()) == 0 {
+                return true;
+            }
+        }
+        #[cfg(not(test))]
+        let flags = nvim_build_has_flags;
+        #[cfg(test)]
+        let flags = 0u32;
+        ((flags & (1 << 0)) != 0 && c_stricmp(name, c"acl".as_ptr()) == 0)
+            || ((flags & (1 << 1)) != 0 && c_stricmp(name, c"terminfo".as_ptr()) == 0)
+            || ((flags & (1 << 2)) != 0 && c_stricmp(name, c"xattr".as_ptr()) == 0)
+            || ((flags & (1 << 3)) != 0 && c_stricmp(name, c"termux".as_ptr()) == 0)
     }
 }
 
@@ -16835,6 +16940,9 @@ mod tests {
                 -1
             );
             assert!(find_internal_func(c"not_a_builtin_fn".as_ptr()).is_null());
+            assert!(eval_has_static_feature(c"nvim".as_ptr()));
+            assert!(eval_has_static_feature(c"AUTOCMD".as_ptr()));
+            assert!(!eval_has_static_feature(c"not_a_feature".as_ptr()));
         }
     }
 }

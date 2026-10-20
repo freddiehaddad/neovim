@@ -20,6 +20,8 @@ use crate::eval::eval_for_line;
 #[allow(unused_imports)]
 use crate::eval::eval_to_string_skip;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_ref;
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_clear, tv_free, tv_list_unref};
 #[allow(unused_imports)]
 use crate::eval::userfunc::{do_return, get_return_cmd};
@@ -208,15 +210,6 @@ unsafe fn check_skip(cstack: *const cstack_T) -> bool {
             || did_throw
             || ((*cstack).cs_idx > 0
                 && ((*cstack).cs_flags[((*cstack).cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
-    }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    unsafe {
-        if !l.is_null() {
-            (*l).lv_refcount += 1;
-        }
     }
 }
 

@@ -64,143 +64,20 @@ const bool main_exitfree = true;
 const bool main_exitfree = false;
 #endif
 
-const char *const eval_has_list[] = {
-#ifdef __ANDROID__
-  "android",
+const uint32_t nvim_build_has_flags =
+#ifdef HAVE_ACL
+  (1U << 0) |
 #endif
-#if defined(BSD) && !defined(__APPLE__) && !defined(__GNU__)
-  "bsd",
+#ifdef HAVE_UNIBILIUM
+  (1U << 1) |
 #endif
-#ifdef __GNU__
-  "hurd",
-#endif
-#ifdef __linux__
-  "linux",
-#endif
-#ifdef SUN_SYSTEM
-  "sun",
+#ifdef HAVE_XATTR
+  (1U << 2) |
 #endif
 #ifdef __TERMUX__
-  "termux",
+  (1U << 3) |
 #endif
-#ifdef UNIX
-  "unix",
-#endif
-#ifdef MSWIN
-  "win32",
-#endif
-#ifdef _WIN64
-  "win64",
-#endif
-#ifndef CASE_INSENSITIVE_FILENAME
-  "fname_case",
-#endif
-#ifdef HAVE_ACL
-  "acl",
-#endif
-  "autochdir",
-  "arabic",
-  "autocmd",
-  "browsefilter",
-  "byte_offset",
-  "cindent",
-  "cmdline_compl",
-  "cmdline_hist",
-  "cmdwin",
-  "comments",
-  "conceal",
-  "cursorbind",
-  "cursorshape",
-  "dialog_con",
-  "diff",
-  "digraphs",
-  "eval",
-  "ex_extra",
-  "extra_search",
-  "file_in_path",
-  "filterpipe",
-  "find_in_path",
-  "float",
-  "folding",
-#ifdef UNIX
-  "fork",
-#endif
-  "gettext",
-  "iconv",
-  "insert_expand",
-  "jumplist",
-  "keymap",
-  "lambda",
-  "langmap",
-  "libcall",
-  "linebreak",
-  "lispindent",
-  "listcmds",
-  "localmap",
-#ifdef __APPLE__
-  "mac",
-  "macunix",
-  "osx",
-  "osxdarwin",
-#endif
-  "menu",
-  "mksession",
-  "modify_fname",
-  "mouse",
-  "multi_byte",
-  "multi_lang",
-  "nanotime",
-  "num64",
-  "packages",
-  "path_extra",
-  "persistent_undo",
-  "profile",
-  "reltime",
-  "quickfix",
-  "rightleft",
-  "scrollbind",
-  "showcmd",
-  "cmdline_info",
-  "shada",
-  "signs",
-  "smartindent",
-  "startuptime",
-  "statusline",
-  "spell",
-  "syntax",
-#ifndef UNIX
-  "system",
-#endif
-  "tablineat",
-  "tag_binary",
-  "termguicolors",
-#ifdef HAVE_UNIBILIUM
-  "terminfo",
-#endif
-  "termresponse",
-  "textobjects",
-  "timers",
-  "title",
-  "user-commands",
-  "user_commands",
-  "vartabs",
-  "vertsplit",
-  "vimscript-1",
-  "virtualedit",
-  "visual",
-  "visualextra",
-  "vreplace",
-  "wildignore",
-  "wildmenu",
-  "windows",
-  "winaltkeys",
-  "writebackup",
-#ifdef HAVE_XATTR
-  "xattr",
-#endif
-  "nvim",
-  NULL,
-};
+  0U;
 
 const void *nlua_get_builtin_modules(size_t *count)
 {

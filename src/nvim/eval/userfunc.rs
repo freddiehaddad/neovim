@@ -15,6 +15,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii_islower;
+#[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalnum, ascii_iswhite};
@@ -23,6 +25,8 @@ use crate::errors::*;
 use crate::eval::funcs::{
     call_internal_func, call_internal_method, check_internal_func, find_internal_func,
 };
+#[allow(unused_imports)]
+use crate::eval::typval::tv_list_set_lock;
 #[allow(unused_imports)]
 use crate::eval::typval::value_check_lock;
 #[allow(unused_imports)]
@@ -296,11 +300,6 @@ const E_CANNOT_USE_PARTIAL_WITH_DICTIONARY_FOR_DEFER: &CStr =
     c"E1300: Cannot use a partial with dictionary for :defer";
 
 #[inline]
-const fn ascii_islower(c: c_int) -> bool {
-    (c as u8).is_ascii_lowercase()
-}
-
-#[inline]
 const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
     matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0)
 }
@@ -374,15 +373,6 @@ unsafe fn set_sourcing_lnum(lnum: linenr_T) {
 #[inline]
 const fn tv_is_func(tv: typval_T) -> bool {
     matches!(tv.v_type, VarType::VAR_FUNC | VarType::VAR_PARTIAL)
-}
-
-#[inline]
-unsafe fn tv_list_set_lock(l: *mut list_T, lock: c_int) {
-    unsafe {
-        if !l.is_null() {
-            (*l).lv_lock = lock;
-        }
-    }
 }
 
 #[inline]

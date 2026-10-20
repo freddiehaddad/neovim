@@ -122,11 +122,15 @@ unsafe extern "system" {
     fn AllocConsole() -> BOOL;
     fn GetConsoleWindow() -> HWND;
     fn AttachConsole(dwProcessId: DWORD) -> BOOL;
-    fn GetLastError() -> DWORD;
+    pub fn GetLastError() -> DWORD;
     fn GetConsoleTitleA(lpConsoleTitle: *mut c_char, nSize: DWORD) -> DWORD;
     fn SetConsoleTitleA(lpConsoleTitle: *const c_char) -> BOOL;
-    fn GetConsoleMode(hConsoleHandle: HANDLE, lpMode: *mut DWORD) -> BOOL;
-    fn SetConsoleMode(hConsoleHandle: HANDLE, dwMode: DWORD) -> BOOL;
+    pub fn GetConsoleMode(hConsoleHandle: HANDLE, lpMode: *mut DWORD) -> BOOL;
+    pub fn SetConsoleMode(hConsoleHandle: HANDLE, dwMode: DWORD) -> BOOL;
+    pub fn CloseHandle(hObject: HANDLE) -> BOOL;
+    pub fn GetProcessId(Process: HANDLE) -> DWORD;
+    pub fn OpenProcess(dwDesiredAccess: DWORD, bInheritHandle: BOOL, dwProcessId: DWORD) -> HANDLE;
+    pub fn TerminateProcess(hProcess: HANDLE, uExitCode: u32) -> BOOL;
 }
 
 #[cfg(windows)]

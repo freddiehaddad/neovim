@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::change::{del_bytes, del_char, get_leader_len, ins_bytes, ins_str, open_line};
 #[allow(unused_imports)]
+use crate::charset::ascii_isspace;
+#[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
 use crate::charset::{char2cells, getwhitecols_curline, skipwhite};
@@ -197,11 +199,6 @@ pub struct InsState {
 }
 
 static mut did_add_space: bool = false;
-
-#[inline]
-const fn ascii_isspace(c: c_int) -> bool {
-    (c >= 9 && c <= 13) || c == b' ' as c_int
-}
 
 #[inline]
 unsafe fn whitechar(cc: c_int) -> bool {

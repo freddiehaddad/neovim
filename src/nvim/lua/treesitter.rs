@@ -815,6 +815,39 @@ unsafe extern "C-unwind" fn tslua_add_language_from_object(L: *mut lua_State) ->
     }
 }
 
+#[cfg(target_os = "emscripten")]
+unsafe extern "C" {
+    fn tree_sitter_lua() -> *const TSLanguage;
+    fn tree_sitter_c() -> *const TSLanguage;
+    fn tree_sitter_diff() -> *const TSLanguage;
+    fn tree_sitter_vim() -> *const TSLanguage;
+    fn tree_sitter_markdown() -> *const TSLanguage;
+    fn tree_sitter_markdown_inline() -> *const TSLanguage;
+    fn tree_sitter_query() -> *const TSLanguage;
+    fn tree_sitter_vimdoc() -> *const TSLanguage;
+}
+
+#[cfg(target_os = "emscripten")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
+    if lang.is_null() {
+        return ptr::null();
+    }
+    unsafe {
+        match CStr::from_ptr(lang).to_bytes() {
+            b"lua" => tree_sitter_lua(),
+            b"c" => tree_sitter_c(),
+            b"diff" => tree_sitter_diff(),
+            b"vim" => tree_sitter_vim(),
+            b"markdown" => tree_sitter_markdown(),
+            b"markdown_inline" => tree_sitter_markdown_inline(),
+            b"query" => tree_sitter_query(),
+            b"vimdoc" => tree_sitter_vimdoc(),
+            _ => ptr::null(),
+        }
+    }
+}
+
 #[cfg(not(test))]
 unsafe fn load_language_from_object(
     L: *mut lua_State,
@@ -823,6 +856,14 @@ unsafe fn load_language_from_object(
     symbol: *const c_char,
 ) -> *const TSLanguage {
     unsafe {
+        #[cfg(target_os = "emscripten")]
+        {
+            let static_lang = nvim_ts_get_parser(symbol);
+            if !static_lang.is_null() {
+                return static_lang;
+            }
+        }
+
         let iobuff = (&raw mut IObuff).cast::<c_char>();
         let mut lib = UvLib {
             _opaque: [ptr::null_mut(); 4],

@@ -92,6 +92,24 @@ pub fn ascii_isxdigit<C: AsciiInt>(c: C) -> bool {
         || (b'A' as c_int..=b'F' as c_int).contains(&ch)
 }
 
+#[inline]
+pub fn ascii_isspace<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    (9..=13).contains(&ch) || ch == b' ' as c_int
+}
+
+#[inline]
+pub fn ascii_isupper<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    (b'A' as c_int..=b'Z' as c_int).contains(&ch)
+}
+
+#[inline]
+pub fn ascii_islower<C: AsciiInt>(c: C) -> bool {
+    let ch = c.into_ascii_int();
+    (b'a' as c_int..=b'z' as c_int).contains(&ch)
+}
+
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const NL: c_char = b'\n' as c_char;

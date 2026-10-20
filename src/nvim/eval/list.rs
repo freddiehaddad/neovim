@@ -16,6 +16,8 @@ use crate::eval::typval::{
     tv_list_find, tv_list_insert_tv, tv_list_item_remove, tv_list_reverse, tv_list_unref,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_len, tv_list_set_lock};
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_dict_extend, tv_dict_remove,
     tv_equal, tv_get_string, tv_get_string_chk, tv_list_remove,
@@ -81,15 +83,6 @@ unsafe fn tv_list_locked(l: *const list_T) -> c_int {
 }
 
 #[inline]
-unsafe fn tv_list_set_lock(l: *mut list_T, lock: c_int) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_lock = lock;
-        }
-    }
-}
-
-#[inline]
 unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
     unsafe {
         (*tv).v_type = VarType::VAR_LIST;
@@ -97,15 +90,6 @@ unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
         if !l.is_null() {
             (*l).lv_refcount += 1;
         }
-    }
-}
-
-#[inline]
-unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
-    if b.is_null() {
-        0
-    } else {
-        unsafe { (*b).bv_ga.ga_len }
     }
 }
 

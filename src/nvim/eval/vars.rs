@@ -19,6 +19,8 @@ use crate::api::private::helpers::{cstr_as_string, cstr_to_string};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{nil_obj, string_obj};
 #[allow(unused_imports)]
+use crate::charset::ascii_isupper;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -44,6 +46,8 @@ use crate::eval::typval::{
 };
 #[allow(unused_imports)]
 use crate::eval::typval::{tv_list_first, tv_list_len};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_list_ref, tv_list_set_lock};
 #[allow(unused_imports)]
 use crate::eval::userfunc::get_current_funccal_dict;
 #[allow(unused_imports)]
@@ -88,6 +92,8 @@ use crate::option_vars::*;
 use crate::runtime::{new_script_item, script_autoload};
 #[allow(unused_imports)]
 use crate::strings::gettext;
+#[allow(unused_imports)]
+use crate::strings::strcmp as c_strcmp;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
@@ -610,23 +616,6 @@ static mut redir_varname: *mut c_char = ptr::null_mut();
 use crate::option::get_option;
 
 #[inline]
-unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe {
-        let mut p1 = s1.cast::<u8>();
-        let mut p2 = s2.cast::<u8>();
-        loop {
-            let b1 = *p1;
-            let b2 = *p2;
-            if b1 != b2 || b1 == 0 {
-                return c_int::from(b1) - c_int::from(b2);
-            }
-            p1 = p1.add(1);
-            p2 = p2.add(1);
-        }
-    }
-}
-
-#[inline]
 unsafe fn c_strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     unsafe {
         let mut p1 = s1.cast::<u8>();
@@ -673,11 +662,6 @@ unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
 }
 
 #[inline]
-fn ascii_isupper(c: c_char) -> bool {
-    (c as u8).is_ascii_uppercase()
-}
-
-#[inline]
 fn tv_is_func(tv: typval_T) -> bool {
     tv.v_type == VarType::VAR_FUNC || tv.v_type == VarType::VAR_PARTIAL
 }
@@ -687,15 +671,6 @@ unsafe fn tv_init(tv: *mut typval_T) {
     if !tv.is_null() {
         unsafe {
             ptr::write_bytes(tv, 0, 1);
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
         }
     }
 }
@@ -715,17 +690,6 @@ unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
         VAR_FIXED
     } else {
         unsafe { (*l).lv_lock }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
-    if l.is_null() {
-        debug_assert!(lock == VAR_FIXED);
-    } else {
-        unsafe {
-            (*l).lv_lock = lock;
-        }
     }
 }
 

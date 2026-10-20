@@ -27,6 +27,8 @@ use crate::buffer::ExpandBufnames;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
+use crate::charset::{ascii_isspace, ascii_isupper};
+#[allow(unused_imports)]
 use crate::cmdhist::get_history_arg;
 #[allow(unused_imports)]
 use crate::cursor::ltoreq;
@@ -114,6 +116,8 @@ use crate::runtime::{
 use crate::search::ignorecase;
 #[allow(unused_imports)]
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
+#[allow(unused_imports)]
+use crate::strings::strcmp as c_strcmp;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
@@ -1074,23 +1078,6 @@ static mut ARG1_LUA_LAST_XP_LINE: *mut c_char = ptr::null_mut();
 static mut ARG1_LUA_LAST_GEN: c_uint = 0;
 
 #[inline]
-unsafe fn c_strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe {
-        let mut p1 = s1.cast::<u8>();
-        let mut p2 = s2.cast::<u8>();
-        loop {
-            let b1 = *p1;
-            let b2 = *p2;
-            if b1 != b2 || b1 == 0 {
-                return c_int::from(b1) - c_int::from(b2);
-            }
-            p1 = p1.add(1);
-            p2 = p2.add(1);
-        }
-    }
-}
-
-#[inline]
 unsafe fn c_strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     unsafe {
         let mut p1 = s1.cast::<u8>();
@@ -1136,16 +1123,6 @@ unsafe fn c_strcpy(mut dst: *mut c_char, mut src: *const c_char) {
             src = src.add(1);
         }
     }
-}
-
-#[inline]
-fn ascii_isupper(c: c_char) -> bool {
-    (c as u8).is_ascii_uppercase()
-}
-
-#[inline]
-fn ascii_isspace(c: c_int) -> bool {
-    (9..=13).contains(&c) || c == b' ' as c_int
 }
 
 #[inline]

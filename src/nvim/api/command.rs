@@ -28,6 +28,8 @@ use crate::api::private::helpers::{
 #[allow(unused_imports)]
 use crate::autocmd::{apply_autocmds, has_event};
 #[allow(unused_imports)]
+use crate::charset::ascii_isupper;
+#[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
 use crate::charset::getdigits_long;
@@ -429,12 +431,6 @@ unsafe fn error_set(err: *const Error) -> bool {
 #[inline]
 const fn is_user_cmdidx(cmdidx: cmdidx_T) -> bool {
     cmdidx < 0
-}
-
-#[inline]
-const fn ascii_isupper(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_uppercase()
 }
 
 #[inline]

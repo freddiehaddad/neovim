@@ -1035,8 +1035,10 @@ unsafe extern "system" {
         lpDefaultChar: *const c_char,
         lpUsedDefaultChar: *mut c_int,
     ) -> c_int;
-    fn GetLastError() -> u32;
 }
+
+#[cfg(windows)]
+use crate::os::os_win_console::GetLastError;
 
 #[inline]
 unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t {

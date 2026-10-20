@@ -22,6 +22,8 @@ use crate::eval::typval::{
     tv_list_alloc_ret, tv_list_append_owned_tv, tv_list_append_string, tv_list_item_remove,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_len, tv_list_ref};
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_get_string,
     tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
@@ -259,29 +261,11 @@ fn s_issock(_m: u64) -> bool {
 }
 
 #[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
 unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
     unsafe {
         (*tv).v_type = VarType::VAR_LIST;
         (*tv).vval.v_list = l;
         tv_list_ref(l);
-    }
-}
-
-#[inline]
-unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
-    if b.is_null() {
-        0
-    } else {
-        unsafe { (*b).bv_ga.ga_len }
     }
 }
 

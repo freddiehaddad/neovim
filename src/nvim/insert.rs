@@ -31,6 +31,8 @@ use crate::buffer::{bt_quickfix, set_bufref};
 #[allow(unused_imports)]
 use crate::change::get_leader_len;
 #[allow(unused_imports)]
+use crate::charset::ascii_isspace;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 #[allow(unused_imports)]
 use crate::cursor::check_visual_pos;
@@ -411,11 +413,6 @@ unsafe fn ascii2cells(b: c_int) -> c_int {
     } else {
         unsafe { dy_escape_width }
     }
-}
-
-#[inline]
-const fn ascii_isspace(c: c_int) -> bool {
-    (c >= 9 && c <= 13) || c == b' ' as c_int
 }
 
 #[inline]

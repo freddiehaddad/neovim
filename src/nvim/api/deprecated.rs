@@ -19,6 +19,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_set_sctx, arena_array, copy_object, copy_string,
     dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, try_enter,
@@ -45,7 +47,7 @@ use crate::option::{
 };
 #[allow(unused_imports)]
 use crate::window::{win_setheight_win, win_setwidth_win};
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::autocmd::{OptionalKeys, TryState};
@@ -152,15 +154,6 @@ const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
-
-#[inline]
-const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
 
 #[inline]
 unsafe fn error_set(err: *const Error) -> bool {

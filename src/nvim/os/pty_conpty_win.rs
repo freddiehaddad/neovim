@@ -199,9 +199,10 @@ unsafe extern "system" {
         lpStartupInfo: *mut STARTUPINFOW,
         lpProcessInformation: *mut PROCESS_INFORMATION,
     ) -> BOOL;
-    fn CloseHandle(hObject: HANDLE) -> BOOL;
-    fn GetLastError() -> DWORD;
 }
+
+#[cfg(windows)]
+use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]
 #[unsafe(no_mangle)]

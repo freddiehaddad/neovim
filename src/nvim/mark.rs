@@ -20,6 +20,8 @@ use crate::buffer::{buflist_findnr, buflist_getfile, buflist_new, buflist_nr2nam
 #[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
+use crate::charset::{ascii_islower, ascii_isupper};
+#[allow(unused_imports)]
 use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
 use crate::diff::diff_mark_adjust;
@@ -186,16 +188,6 @@ const INIT_XFMARK: xfmark_T = xfmark_T {
 
 static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
 static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
-
-#[inline]
-const fn ascii_islower(c: c_int) -> bool {
-    c >= b'a' as c_int && c <= b'z' as c_int
-}
-
-#[inline]
-const fn ascii_isupper(c: c_int) -> bool {
-    c >= b'A' as c_int && c <= b'Z' as c_int
-}
 
 #[inline]
 const fn mark_global_index(name: c_char) -> isize {

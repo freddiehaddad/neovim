@@ -17,6 +17,8 @@ use crate::buffer::{buf_hide, buflist_add, buflist_findnr, curbuf_reusable, make
 #[allow(unused_imports)]
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
 #[allow(unused_imports)]
+use crate::charset::ascii_isspace;
+#[allow(unused_imports)]
 use crate::charset::{rem_backslash, skipwhite};
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -156,11 +158,6 @@ struct arg_all_state_T {
 }
 
 static mut arglist_locked: bool = false;
-
-#[inline]
-const fn ascii_isspace(c: c_char) -> bool {
-    matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-}
 
 #[inline]
 unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {

@@ -24,6 +24,8 @@ use crate::api::private::helpers::{
     cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj, string_obj,
 };
 #[allow(unused_imports)]
+use crate::charset::ascii_isspace;
+#[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
 use crate::cmdexpand::cmdline_fuzzy_complete;
@@ -351,11 +353,6 @@ const fn to_special(a: u8, b: u8) -> c_int {
     } else {
         termcap2key(a as c_int, b as c_int)
     }
-}
-
-#[inline]
-const fn ascii_isspace(c: c_int) -> bool {
-    (c >= 9 && c <= 13) || c == b' ' as c_int
 }
 
 #[inline]

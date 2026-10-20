@@ -19,6 +19,8 @@ use crate::api::private::helpers::copy_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_free_dict, api_free_string};
 #[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, bt_terminal};
@@ -682,14 +684,6 @@ use crate::api::private::dispatch::{
 
 use crate::event::r#loop::uv_strerror as os_strerror;
 use crate::version::longVersion;
-
-#[inline]
-const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    NvimString {
-        data: s.as_ptr().cast_mut(),
-        size: s.to_bytes().len(),
-    }
-}
 
 #[inline]
 unsafe fn file_eof(fp: *const FileDescriptor) -> bool {

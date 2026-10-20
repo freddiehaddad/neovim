@@ -20,6 +20,8 @@ use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, arena_array, arena_dict,
 };
 #[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_len, tv_list_ref};
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
     tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
@@ -269,24 +271,6 @@ unsafe fn cbuf_to_arena_str(arena: *mut Arena, s: *const c_char, len: usize) -> 
     let ptr = if s.is_null() { c"".as_ptr() } else { s };
     let data = unsafe { arena_memdupz(arena, ptr, len) };
     NvimString { data, size: len }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
-    if b.is_null() {
-        0
-    } else {
-        unsafe { (*b).bv_ga.ga_len }
-    }
 }
 
 #[cfg(not(test))]

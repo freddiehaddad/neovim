@@ -20,6 +20,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::get_optional_window;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_ref;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
     tv_dict_find, tv_get_number, tv_get_number_chk, tv_list_alloc, tv_list_alloc_ret,
@@ -144,15 +146,6 @@ pub struct SearchState {
     pub no_smartcase: bool,
     pub cmdlen: c_int,
     pub no_hlsearch: bool,
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    unsafe {
-        if !l.is_null() {
-            (*l).lv_refcount += 1;
-        }
-    }
 }
 
 #[inline]

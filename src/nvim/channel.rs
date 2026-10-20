@@ -25,6 +25,8 @@ use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_dict_find;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_ref;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_free,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_unref,
@@ -213,15 +215,6 @@ unsafe fn redirect_stderr_to_null() {
             c"w".as_ptr(),
             crate::log::log_get_stderr().cast(),
         );
-    }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
     }
 }
 

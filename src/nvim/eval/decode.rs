@@ -17,6 +17,8 @@ use crate::eval::typval::tv_list_append_number;
 #[allow(unused_imports)]
 use crate::eval::typval::tv_list_len;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_ref;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc,
     tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv,
@@ -246,15 +248,6 @@ unsafe fn mpack_unpack_float_fast(t: mpack_token_t) -> f64 {
             mpack_token_t,
             crate::mpack::mpack_core::mpack_token_t,
         >(t))
-    }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
     }
 }
 

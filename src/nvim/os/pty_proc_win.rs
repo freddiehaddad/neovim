@@ -171,11 +171,10 @@ mod win_impl {
         fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
     }
 
+    use crate::os::os_win_console::{CloseHandle, GetLastError, GetProcessId, TerminateProcess};
+
     unsafe extern "system" {
-        fn TerminateProcess(hProcess: HANDLE, uExitCode: u32) -> BOOL;
         fn WaitForSingleObject(hHandle: HANDLE, dwMilliseconds: DWORD) -> DWORD;
-        fn GetLastError() -> DWORD;
-        fn GetProcessId(Process: HANDLE) -> DWORD;
         fn RegisterWaitForSingleObject(
             phNewWaitObject: *mut HANDLE,
             hObject: HANDLE,
@@ -185,7 +184,6 @@ mod win_impl {
             dwFlags: c_ulong,
         ) -> BOOL;
         fn UnregisterWaitEx(WaitHandle: HANDLE, CompletionEvent: HANDLE) -> BOOL;
-        fn CloseHandle(hObject: HANDLE) -> BOOL;
         fn GetExitCodeProcess(hProcess: HANDLE, lpExitCode: *mut DWORD) -> BOOL;
     }
 

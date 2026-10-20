@@ -34,6 +34,8 @@ use crate::buffer::{
 use crate::charset::ascii_iswhite;
 use crate::errors::*;
 #[allow(unused_imports)]
+use crate::eval::typval::tv_list_ref;
+#[allow(unused_imports)]
 use crate::eval::typval::{
     callback_copy, tv_dict_get_bool, tv_dict_get_number, tv_dict_get_string, tv_get_string_chk,
 };
@@ -87,6 +89,8 @@ use crate::os::time::c_time as time;
 use crate::regexp::vim_regexec_multi;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
+#[allow(unused_imports)]
+use crate::strings::strcmp as c_strcmp;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
@@ -662,19 +666,6 @@ unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut n: usiz
 }
 
 #[inline]
-unsafe fn c_strcmp(a: *const c_char, b: *const c_char) -> c_int {
-    unsafe {
-        let sa = CStr::from_ptr(a).to_bytes();
-        let sb = CStr::from_ptr(b).to_bytes();
-        match sa.cmp(sb) {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        }
-    }
-}
-
-#[inline]
 unsafe fn c_strcpy(dst: *mut c_char, src: *const c_char) {
     unsafe {
         let len = c_strlen(src);
@@ -750,15 +741,6 @@ unsafe fn tab_firstwin(tp: *const tabpage_T) -> *mut win_T {
             firstwin
         } else {
             (*tp).tp_firstwin
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
         }
     }
 }

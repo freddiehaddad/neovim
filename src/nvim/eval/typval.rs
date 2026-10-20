@@ -388,6 +388,29 @@ unsafe fn tv_list_locked_inline(l: *const list_T) -> VarLockStatus {
 }
 
 #[inline]
+pub unsafe fn tv_list_ref(l: *mut list_T) {
+    if !l.is_null() {
+        unsafe {
+            (*l).lv_refcount += 1;
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn tv_list_set_lock(l: *mut list_T, lock: VarLockStatus) {
+    unsafe { tv_list_set_lock_inline(l, lock) }
+}
+
+#[inline]
+pub unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
+    if b.is_null() {
+        0
+    } else {
+        unsafe { (*b).bv_ga.ga_len }
+    }
+}
+
+#[inline]
 unsafe fn tv_list_set_lock_inline(l: *mut list_T, lock: VarLockStatus) {
     if l.is_null() {
         debug_assert_eq!(lock, VAR_FIXED);

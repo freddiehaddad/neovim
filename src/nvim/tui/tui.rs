@@ -16,6 +16,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::static_cstr_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object, arena_array};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, dict_obj, string_obj};
@@ -335,9 +337,7 @@ unsafe extern "C" {
 }
 
 #[cfg(windows)]
-unsafe extern "system" {
-    fn GetConsoleMode(hConsoleHandle: *mut c_void, lpMode: *mut u32) -> c_int;
-}
+use crate::os::os_win_console::GetConsoleMode;
 
 #[cfg(unix)]
 mod unix_termios {
@@ -404,14 +404,6 @@ unsafe fn tui_winch_handle(tui: *mut TUIData) -> *mut SignalWatcher {
 #[inline]
 unsafe fn tui_startup_delay_timer(tui: *mut TUIData) -> *mut uv_timer_t {
     unsafe { (*tui).startup_delay_timer.as_mut_ptr().cast::<uv_timer_t>() }
-}
-
-#[inline]
-fn static_cstr_as_string(s: &'static CStr) -> NvimString {
-    NvimString {
-        data: s.as_ptr().cast_mut(),
-        size: s.to_bytes().len(),
-    }
 }
 
 #[inline]

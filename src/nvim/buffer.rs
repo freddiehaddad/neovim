@@ -29,6 +29,8 @@ use crate::change::save_file_ff;
 #[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
+use crate::charset::ascii_isspace;
+#[allow(unused_imports)]
 use crate::charset::vim_strsize;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -414,11 +416,6 @@ static mut modelines_entered: c_int = 0;
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
-
-#[inline]
-const fn ascii_isspace(c: c_int) -> bool {
-    matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-}
 
 #[inline]
 unsafe fn to_slash(#[allow(unused_variables)] p: *mut c_char) {

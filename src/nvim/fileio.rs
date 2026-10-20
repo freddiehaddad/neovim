@@ -22,6 +22,8 @@ use crate::buffer::{buf_contents_changed, buflist_new, do_modelines, setfname, w
 use crate::change::{appended_lines_mark, save_file_ff};
 #[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
+#[allow(unused_imports)]
+use crate::charset::ascii_isspace;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::vars::eval_charconvert;
@@ -465,11 +467,6 @@ const fn s_issock(m: i32) -> bool {
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
-}
-
-#[inline]
-const fn ascii_isspace(c: c_char) -> bool {
-    matches!(c as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
 }
 
 #[inline]

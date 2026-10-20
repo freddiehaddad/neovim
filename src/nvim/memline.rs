@@ -67,6 +67,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::strings::gettext;
 #[allow(unused_imports)]
+use crate::strings::strcmp as c_strcmp;
+#[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
@@ -428,19 +430,6 @@ unsafe fn c_strnicmp(mut a: *const c_char, mut b: *const c_char, mut len: usize)
             len -= 1;
         }
         0
-    }
-}
-
-#[inline]
-unsafe fn c_strcmp(a: *const c_char, b: *const c_char) -> c_int {
-    unsafe {
-        let sa = CStr::from_ptr(a).to_bytes();
-        let sb = CStr::from_ptr(b).to_bytes();
-        match sa.cmp(sb) {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        }
     }
 }
 

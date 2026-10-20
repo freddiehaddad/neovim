@@ -83,10 +83,7 @@ unsafe extern "C" {
 }
 
 #[cfg(windows)]
-unsafe extern "system" {
-    fn GetConsoleMode(hConsoleHandle: *mut c_void, lpMode: *mut u32) -> c_int;
-    fn SetConsoleMode(hConsoleHandle: *mut c_void, dwMode: u32) -> c_int;
-}
+use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 
 #[inline]
 pub unsafe fn stream_uv_offset() -> usize {

@@ -24,6 +24,10 @@ use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 #[allow(unused_imports)]
+use crate::charset::{ascii_islower, ascii_isupper};
+#[allow(unused_imports)]
+use crate::eval::typval::{tv_blob_len, tv_list_ref, tv_list_set_lock};
+#[allow(unused_imports)]
 use crate::eval::typval::{tv_list_first, tv_list_last, tv_list_len};
 #[allow(unused_imports)]
 use crate::event::r#loop::uv_handle_size;
@@ -444,18 +448,6 @@ pub struct caller_scope {
 }
 
 #[inline]
-const fn ascii_isupper(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_uppercase()
-}
-
-#[inline]
-const fn ascii_islower(c: c_char) -> bool {
-    let b = c as u8;
-    b.is_ascii_lowercase()
-}
-
-#[inline]
 fn ascii_iswhite_or_nul(c: c_char) -> bool {
     ascii_iswhite(c) || c == NUL
 }
@@ -492,15 +484,6 @@ unsafe fn tv_partial(tv: *const typval_T) -> *mut partial_T {
 unsafe fn tv_set_partial(tv: *mut typval_T, pt: *mut partial_T) {
     unsafe {
         (*tv).vval.v_ptr = pt.cast();
-    }
-}
-
-#[inline]
-unsafe fn tv_blob_len(b: *const blob_T) -> c_int {
-    if b.is_null() {
-        0
-    } else {
-        unsafe { (*b).bv_ga.ga_len }
     }
 }
 
@@ -550,24 +533,6 @@ unsafe fn tv_list_set_ret(tv: *mut typval_T, l: *mut list_T) {
         (*tv).vval.v_list = l;
         if !l.is_null() {
             (*l).lv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_ref(l: *mut list_T) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_refcount += 1;
-        }
-    }
-}
-
-#[inline]
-unsafe fn tv_list_set_lock(l: *mut list_T, lock: c_int) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_lock = lock;
         }
     }
 }
