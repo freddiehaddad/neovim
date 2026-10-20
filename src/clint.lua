@@ -340,6 +340,7 @@ function FileInfo:relative_path()
     if git_root then
       local root_dir = vim.fs.joinpath(git_root, 'src', 'nvim')
       local relpath = vim.fs.relpath(root_dir, fullname)
+        or vim.fs.relpath(vim.fs.joinpath(git_root, 'test', 'unit', 'cdef', 'nvim'), fullname)
       if relpath then
         return relpath
       end
@@ -761,23 +762,23 @@ local function check_includes(filename, lines, error)
   end
 
   local check_includes_ignore = {
-    'src/nvim/api/private/validate.h',
-    'src/nvim/assert_defs.h',
-    'src/nvim/channel.h',
-    'src/nvim/charset.h',
-    'src/nvim/eval/typval.h',
-    'src/nvim/event/multiqueue.h',
-    'src/nvim/garray.h',
-    'src/nvim/globals.h',
-    'src/nvim/highlight.h',
-    'src/nvim/lua/executor.h',
-    'src/nvim/main.h',
-    'src/nvim/mark.h',
-    'src/nvim/msgpack_rpc/channel_defs.h',
-    'src/nvim/msgpack_rpc/unpacker.h',
-    'src/nvim/option.h',
-    'src/nvim/os/pty_conpty_win.h',
-    'src/nvim/os/pty_proc_win.h',
+    'nvim/api/private/validate.h',
+    'nvim/assert_defs.h',
+    'nvim/channel.h',
+    'nvim/charset.h',
+    'nvim/eval/typval.h',
+    'nvim/event/multiqueue.h',
+    'nvim/garray.h',
+    'nvim/globals.h',
+    'nvim/highlight.h',
+    'nvim/lua/executor.h',
+    'nvim/main.h',
+    'nvim/mark.h',
+    'nvim/msgpack_rpc/channel_defs.h',
+    'nvim/msgpack_rpc/unpacker.h',
+    'nvim/option.h',
+    'nvim/os/pty_conpty_win.h',
+    'nvim/os/pty_proc_win.h',
   }
 
   local skip_headers = {

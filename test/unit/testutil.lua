@@ -223,6 +223,7 @@ local function cimport(...)
     cdefs = cdefs_init
   end
   for _, path in ipairs({ ... }) do
+    path = path:gsub('^%.?/src/', './test/unit/cdef/')
     if not (path:sub(1, 1) == '/' or path:sub(1, 1) == '.' or path:sub(2, 2) == ':') then
       path = './' .. path
     end

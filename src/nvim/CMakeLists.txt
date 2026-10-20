@@ -191,13 +191,15 @@ set(NVIM_LUA_PRELOAD ${GENERATOR_DIR}/preload.lua)
 
 file(GLOB API_HEADERS CONFIGURE_DEPENDS api/*.rs)
 
+set(NVIM_CDEF_DIR ${PROJECT_SOURCE_DIR}/test/unit/cdef)
+
 target_include_directories(main_lib INTERFACE
-  "${PROJECT_SOURCE_DIR}/src")
+  "${NVIM_CDEF_DIR}")
 
 file(MAKE_DIRECTORY ${TOUCHES_DIR})
 
-file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
-file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../mpack/*.h ../klib/*.h)
+file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS ${NVIM_CDEF_DIR}/nvim/*.h)
+file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ${NVIM_CDEF_DIR}/mpack/*.h ${NVIM_CDEF_DIR}/klib/*.h)
 
 if(PREFER_LUA)
   target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
@@ -216,7 +218,7 @@ foreach(subdir
         viml/parser
        )
 
-  file(GLOB headers CONFIGURE_DEPENDS ${subdir}/*.h)
+  file(GLOB headers CONFIGURE_DEPENDS ${NVIM_CDEF_DIR}/nvim/${subdir}/*.h)
   list(APPEND NVIM_HEADERS ${headers})
 endforeach()
 
