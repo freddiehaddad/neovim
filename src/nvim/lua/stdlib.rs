@@ -51,16 +51,18 @@ use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
 #[cfg(not(test))]
 use crate::log::g_min_log_level;
 #[cfg(not(test))]
-use crate::lua::base64::{lua_CFunction, luaopen_base64};
+use crate::lua::base64::luaopen_base64;
 use crate::lua::base64::{lua_State, luaL_Reg};
 #[cfg(not(test))]
 use crate::lua::converter::{
-    lua_Integer, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_newuserdata,
-    lua_next, lua_objlen, lua_pcall, lua_pushcclosure, lua_pushinteger, lua_pushlstring,
-    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield,
-    lua_setmetatable, lua_settop, lua_toboolean, lua_tolstring, lua_type, luaL_argerror,
-    luaL_checkinteger, luaL_checklstring, luaL_checkudata, luaL_error, luaL_newmetatable,
-    luaL_register, luaL_where, nlua_pop_typval, nlua_push_typval,
+    LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TSTRING, lua_Integer, lua_concat, lua_createtable,
+    lua_error, lua_getfield, lua_getglobal, lua_gettop, lua_isnil, lua_isnoneornil, lua_istable,
+    lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pcall, lua_pop, lua_pushcfunction,
+    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
+    lua_rawseti, lua_setfield, lua_setmetatable, lua_toboolean, lua_tolstring, lua_tostring,
+    lua_type, luaL_argerror, luaL_checkinteger, luaL_checklstring, luaL_checkstring,
+    luaL_checkudata, luaL_error, luaL_newmetatable, luaL_register, luaL_where, nlua_pop_typval,
+    nlua_push_typval,
 };
 #[cfg(not(test))]
 use crate::lua::spell::luaopen_spell;
@@ -98,20 +100,6 @@ pub use crate::regexp::regprog_T;
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
-
-#[cfg(not(test))]
-const LUA_MULTRET: c_int = -1;
-#[cfg(not(test))]
-const LUA_REGISTRYINDEX: c_int = -10000;
-#[cfg(not(test))]
-const LUA_GLOBALSINDEX: c_int = -10002;
-
-#[cfg(not(test))]
-const LUA_TNIL: c_int = 0;
-#[cfg(not(test))]
-const LUA_TSTRING: c_int = 4;
-#[cfg(not(test))]
-const LUA_TTABLE: c_int = 5;
 
 #[cfg(not(test))]
 const RE_MAGIC: c_int = 1;
@@ -202,81 +190,6 @@ unsafe fn lua_cjson_new(lstate: *mut lua_State) -> c_int {
 
 #[cfg(not(test))]
 #[inline]
-unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
-    #[cfg(not(test))]
-    unsafe {
-        lua_settop(lstate, -n - 1);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_newtable(lstate: *mut lua_State) {
-    #[cfg(not(test))]
-    unsafe {
-        lua_createtable(lstate, 0, 0);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
-    #[cfg(not(test))]
-    unsafe {
-        lua_pushcclosure(lstate, f, 0);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
-    #[cfg(not(test))]
-    unsafe {
-        lua_getfield(lstate, LUA_GLOBALSINDEX, s);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isnoneornil(lstate: *mut lua_State, n: c_int) -> bool {
-    #[cfg(not(test))]
-    unsafe {
-        lua_type(lstate, n) <= 0
-    }
-    #[cfg(test)]
-    {
-        true
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isnil(lstate: *mut lua_State, n: c_int) -> bool {
-    #[cfg(not(test))]
-    unsafe {
-        lua_type(lstate, n) == LUA_TNIL
-    }
-    #[cfg(test)]
-    {
-        true
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_istable(lstate: *mut lua_State, n: c_int) -> bool {
-    #[cfg(not(test))]
-    unsafe {
-        lua_type(lstate, n) == LUA_TTABLE
-    }
-    #[cfg(test)]
-    {
-        false
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
 unsafe fn lua_isstring(lstate: *mut lua_State, n: c_int) -> bool {
     #[cfg(not(test))]
     unsafe {
@@ -286,32 +199,6 @@ unsafe fn lua_isstring(lstate: *mut lua_State, n: c_int) -> bool {
     #[cfg(test)]
     {
         false
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_tostring(lstate: *mut lua_State, idx: c_int) -> *const c_char {
-    #[cfg(not(test))]
-    unsafe {
-        lua_tolstring(lstate, idx, ptr::null_mut())
-    }
-    #[cfg(test)]
-    {
-        ptr::null()
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn luaL_checkstring(lstate: *mut lua_State, n: c_int) -> *const c_char {
-    #[cfg(not(test))]
-    unsafe {
-        luaL_checklstring(lstate, n, ptr::null_mut())
-    }
-    #[cfg(test)]
-    {
-        ptr::null()
     }
 }
 

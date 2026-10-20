@@ -23,19 +23,20 @@ use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::globals::*;
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
-use crate::lua::base64::{LUA_TSTRING, lua_CFunction, luaL_Reg};
+use crate::lua::base64::{LUA_TSTRING, luaL_Reg};
 #[cfg(not(test))]
 use crate::lua::converter::{
-    LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TNUMBER, LUA_TTABLE, LuaRef, lua_Integer,
-    lua_Number, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop, lua_isstring,
-    lua_newuserdata, lua_objlen, lua_pcall, lua_pushboolean, lua_pushcclosure, lua_pushinteger,
-    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti,
-    lua_rawseti, lua_setfield, lua_setmetatable, lua_settop, lua_toboolean, lua_tointeger,
-    lua_tolstring, lua_touserdata, lua_type, luaL_argerror, luaL_checkinteger, luaL_checklstring,
-    luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
+    LUA_MINSTACK, LUA_REGISTRYINDEX, LUA_TNUMBER, LUA_TTABLE, LuaRef, lua_Integer, lua_Number,
+    lua_concat, lua_createtable, lua_error, lua_getfenv, lua_getfield, lua_gettop, lua_isboolean,
+    lua_isfunction, lua_isnil, lua_isstring, lua_istable, lua_newtable, lua_newuserdata,
+    lua_objlen, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure, lua_pushcfunction,
+    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
+    lua_rawgeti, lua_rawseti, lua_setfenv, lua_setfield, lua_setmetatable, lua_toboolean,
+    lua_tointeger, lua_tolstring, lua_touserdata, lua_type, lua_upvalueindex, luaL_argcheck,
+    luaL_argerror, luaL_checkint, luaL_checkinteger, luaL_checklstring, luaL_checknumber,
+    luaL_checkstring, luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register,
+    luaL_unref,
 };
-#[cfg(not(test))]
-use crate::lua::executor::{LUA_GLOBALSINDEX, LUA_REGISTRYINDEX};
 #[cfg(not(test))]
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
@@ -116,9 +117,6 @@ const TSQueryErrorField: TSQueryError = 3;
 const TSQueryErrorCapture: TSQueryError = 4;
 #[cfg(not(test))]
 const TSQueryErrorStructure: TSQueryError = 5;
-
-#[cfg(not(test))]
-const LUA_MINSTACK: c_int = 20;
 
 #[cfg(not(test))]
 const TS_META_PARSER: *const c_char = c"treesitter_parser".as_ptr();
@@ -571,10 +569,6 @@ static QUERY_META: [luaL_Reg; 6] = [
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn lua_getfenv(L: *mut lua_State, idx: c_int);
-    fn lua_setfenv(L: *mut lua_State, idx: c_int) -> c_int;
-    fn luaL_checknumber(L: *mut lua_State, numArg: c_int) -> lua_Number;
-
     fn ts_parser_parse(
         self_: *mut TSParser,
         old_tree: *const TSTree,
@@ -722,82 +716,6 @@ unsafe extern "C" {
         new_realloc: Option<unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void>,
         new_free: Option<unsafe extern "C" fn(*mut c_void)>,
     );
-}
-
-#[cfg(not(test))]
-#[inline]
-const fn lua_upvalueindex(i: c_int) -> c_int {
-    LUA_GLOBALSINDEX - i
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_pop(L: *mut lua_State, n: c_int) {
-    unsafe {
-        lua_settop(L, -n - 1);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_newtable(L: *mut lua_State) {
-    unsafe {
-        lua_createtable(L, 0, 0);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_pushcfunction(L: *mut lua_State, f: lua_CFunction) {
-    unsafe {
-        lua_pushcclosure(L, f, 0);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isnil(L: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(L, n) == LUA_TNIL }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isboolean(L: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(L, n) == LUA_TBOOLEAN }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_istable(L: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(L, n) == LUA_TTABLE }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isfunction(L: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(L, n) == LUA_TFUNCTION }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn luaL_checkstring(L: *mut lua_State, n: c_int) -> *const c_char {
-    unsafe { luaL_checklstring(L, n, ptr::null_mut()) }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn luaL_checkint(L: *mut lua_State, n: c_int) -> c_int {
-    unsafe { luaL_checkinteger(L, n) as c_int }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn luaL_argcheck(L: *mut lua_State, cond: bool, numarg: c_int, extramsg: *const c_char) {
-    if !cond {
-        unsafe {
-            luaL_argerror(L, numarg, extramsg);
-        }
-    }
 }
 
 #[cfg(not(test))]

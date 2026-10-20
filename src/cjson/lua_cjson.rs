@@ -11,8 +11,19 @@ use crate::cjson::strbuf::{
     strbuf_extend_length, strbuf_free, strbuf_init, strbuf_length, strbuf_new, strbuf_reset,
     strbuf_set_length, strbuf_string, strbuf_t,
 };
-use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
-use crate::lua::converter::{lua_Integer, lua_Number};
+use crate::lua::base64::{lua_State, luaL_Reg};
+use crate::lua::converter::{
+    LUA_ERRRUN, LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TLIGHTUSERDATA, LUA_TNIL, LUA_TNUMBER,
+    LUA_TSTRING, LUA_TTABLE, LUA_TUSERDATA, lua_Integer, lua_Number, lua_call, lua_checkstack,
+    lua_getfield, lua_getmetatable, lua_gettable, lua_gettop, lua_insert, lua_isnil, lua_newtable,
+    lua_newuserdata, lua_next, lua_objlen, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
+    lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti,
+    lua_rawset, lua_rawseti, lua_setfield, lua_setmetatable, lua_toboolean, lua_tointeger,
+    lua_tolstring, lua_tonumber, lua_tostring, lua_touserdata, lua_type, lua_typename,
+    lua_upvalueindex, luaL_argerror, luaL_checklstring, luaL_checkstack, luaL_checkstring,
+    luaL_checktype, luaL_error, luaL_getmetafield,
+};
 use crate::lua::executor::{nlua_get_empty_dict_ref, nlua_get_nil_ref, nlua_pushref};
 
 const CJSON_MODNAME: &[u8] = b"cjson";
@@ -36,23 +47,6 @@ const DEFAULT_ENCODE_INDENT: *const c_char = ptr::null();
 const DEFAULT_ENCODE_SORT_KEYS: c_int = 0;
 
 const KEYBUF_DEFAULT_CAPACITY: usize = 32;
-
-const LUA_REGISTRYINDEX: c_int = -10000;
-const LUA_GLOBALSINDEX: c_int = -10002;
-
-const LUA_TNIL: c_int = 0;
-const LUA_TBOOLEAN: c_int = 1;
-const LUA_TLIGHTUSERDATA: c_int = 2;
-const LUA_TNUMBER: c_int = 3;
-const LUA_TSTRING: c_int = 4;
-const LUA_TTABLE: c_int = 5;
-const LUA_TUSERDATA: c_int = 7;
-
-const LUA_ERRRUN: c_int = 2;
-
-const fn lua_upvalueindex(i: c_int) -> c_int {
-    LUA_GLOBALSINDEX - i
-}
 
 static mut JSON_EMPTY_ARRAY: *const *const c_char = ptr::null();
 static mut JSON_ARRAY: *const *const c_char = ptr::null();
@@ -257,81 +251,6 @@ use std::process::abort;
 
 unsafe extern "C" {
     fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
-}
-
-unsafe extern "C-unwind" {
-    fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_newuserdata(L: *mut lua_State, sz: usize) -> *mut c_void;
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_pushcclosure(L: *mut lua_State, f: lua_CFunction, n: c_int);
-    fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_getmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_typename(L: *mut lua_State, tp: c_int) -> *const c_char;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_pushnil(L: *mut lua_State);
-    fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
-    fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_checkstack(L: *mut lua_State, extra: c_int) -> c_int;
-    fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_rawget(L: *mut lua_State, idx: c_int);
-    fn lua_rawset(L: *mut lua_State, idx: c_int);
-    fn lua_rawequal(L: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int;
-    fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_pushboolean(L: *mut lua_State, b: c_int);
-    fn lua_pushlightuserdata(L: *mut lua_State, p: *mut c_void);
-    fn lua_pushvalue(L: *mut lua_State, idx: c_int);
-    fn lua_insert(L: *mut lua_State, idx: c_int);
-    fn lua_gettable(L: *mut lua_State, idx: c_int);
-    fn lua_objlen(L: *mut lua_State, idx: c_int) -> usize;
-    fn lua_call(L: *mut lua_State, nargs: c_int, nresults: c_int);
-    fn lua_pcall(L: *mut lua_State, nargs: c_int, nresults: c_int, errfunc: c_int) -> c_int;
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_getmetafield(L: *mut lua_State, obj: c_int, e: *const c_char) -> c_int;
-    fn luaL_checktype(L: *mut lua_State, narg: c_int, t: c_int);
-    fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
-    fn luaL_checkstack(L: *mut lua_State, sz: c_int, msg: *const c_char);
-    fn luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-}
-
-#[inline]
-unsafe fn lua_pop(l: *mut lua_State, n: c_int) {
-    unsafe { lua_settop(l, -n - 1) };
-}
-
-#[inline]
-unsafe fn lua_newtable(l: *mut lua_State) {
-    unsafe { lua_createtable(l, 0, 0) };
-}
-
-#[inline]
-unsafe fn lua_pushcfunction(l: *mut lua_State, f: lua_CFunction) {
-    unsafe { lua_pushcclosure(l, f, 0) };
-}
-
-#[inline]
-unsafe fn lua_tostring(l: *mut lua_State, idx: c_int) -> *const c_char {
-    unsafe { lua_tolstring(l, idx, ptr::null_mut()) }
-}
-
-#[inline]
-unsafe fn lua_isnil(l: *mut lua_State, idx: c_int) -> bool {
-    unsafe { lua_type(l, idx) == LUA_TNIL }
-}
-
-#[inline]
-unsafe fn luaL_checkstring(l: *mut lua_State, n: c_int) -> *const c_char {
-    unsafe { luaL_checklstring(l, n, ptr::null_mut()) }
 }
 
 unsafe fn json_fetch_config(l: *mut lua_State) -> *mut json_config_t {

@@ -1,6 +1,6 @@
 //! LPeg pattern analysis and bytecode compiler (`src/lpeg/lpcode.c`).
 
-use std::ffi::{c_char, c_int, c_short, c_void};
+use std::ffi::{c_int, c_short, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
@@ -15,26 +15,14 @@ use crate::lpeg::{
     joinkindoff, lua_State, setchar, sib1, sib2, uint,
 };
 
+use crate::lua::converter::{lua_getallocf, luaL_error};
+
 pub const PEnullable: c_int = 0;
 pub const PEnofail: c_int = 1;
 
 const NOINST: c_int = -1;
 
 static FULLSET: Charset = Charset { cs: [0xFF; 32] };
-
-type lua_Alloc = Option<
-    unsafe extern "C-unwind" fn(
-        ud: *mut c_void,
-        ptr: *mut c_void,
-        osize: usize,
-        nsize: usize,
-    ) -> *mut c_void,
->;
-
-unsafe extern "C-unwind" {
-    fn lua_getallocf(L: *mut lua_State, ud: *mut *mut c_void) -> lua_Alloc;
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-}
 
 #[inline]
 pub unsafe fn nofail(t: *mut TTree) -> bool {

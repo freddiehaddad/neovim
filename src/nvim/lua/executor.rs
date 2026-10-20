@@ -75,16 +75,21 @@ use crate::lua::base64::lua_State;
 use crate::lua::base64::{LUA_TSTRING, lua_CFunction};
 #[cfg(not(test))]
 use crate::lua::converter::{
-    K_NLUA_PUSH_SPECIAL, LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TTABLE, lua_Integer,
-    lua_checkstack, lua_concat, lua_createtable, lua_error, lua_getfield, lua_getmetatable,
-    lua_gettop, lua_isnumber, lua_isstring, lua_newuserdata, lua_next, lua_pcall, lua_pushboolean,
-    lua_pushcclosure, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
-    lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfield, lua_setmetatable,
-    lua_settop, lua_toboolean, lua_tointeger, lua_tolstring, lua_touserdata, lua_type,
-    luaL_checkinteger, luaL_checklstring, luaL_error, luaL_ref, luaL_unref, luaL_where,
+    K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TTABLE,
+    lua_Integer, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable, lua_error,
+    lua_getfield, lua_getglobal, lua_getmetatable, lua_gettop, lua_insert, lua_isboolean,
+    lua_iscfunction, lua_isfunction, lua_isnil, lua_isnumber, lua_isstring, lua_istable,
+    lua_newtable, lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
+    lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove,
+    lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean,
+    lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata, lua_type,
+    lua_upvalueindex, luaL_checkinteger, luaL_checklstring, luaL_checktype, luaL_error,
+    luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref, luaL_unref, luaL_where,
     nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object, nlua_pop_typval,
     nlua_push_Array, nlua_push_Object, nlua_push_typval,
 };
+pub use crate::lua::converter::{LUA_GLOBALSINDEX, LUA_MULTRET, LUA_REGISTRYINDEX};
 use crate::lua::converter::{LuaRef, nlua_ref_state_t};
 #[cfg(not(test))]
 use crate::lua::stdlib::nlua_state_add_stdlib;
@@ -181,19 +186,8 @@ pub const kRetMultiStack: LuaRetMode = 4;
 #[cfg(not(test))]
 const MAX_FUNC_ARGS: c_int = 20;
 
-const LUA_MULTRET: c_int = -1;
-#[cfg(not(test))]
-pub(crate) const LUA_REGISTRYINDEX: c_int = -10000;
-#[cfg(not(test))]
-pub(crate) const LUA_GLOBALSINDEX: c_int = -10002;
-
 #[cfg(not(test))]
 const LUA_REFNIL: LuaRef = -1;
-
-#[cfg(not(test))]
-const LUA_ERRRUN: c_int = 2;
-#[cfg(not(test))]
-const LUA_ERRMEM: c_int = 4;
 
 #[cfg(not(test))]
 const LUVF_CALLBACK_NOEXIT: c_int = 0x01;
@@ -442,26 +436,8 @@ static mut EXPAND_RESULT_ARRAY: garray_T = garray_T {
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {
-    fn luaL_newstate() -> *mut lua_State;
-    fn luaL_openlibs(L: *mut lua_State);
-    fn lua_close(L: *mut lua_State);
-    fn lua_remove(L: *mut lua_State, idx: c_int);
-    fn lua_insert(L: *mut lua_State, idx: c_int);
-    fn lua_replace(L: *mut lua_State, idx: c_int);
-    fn lua_iscfunction(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> lua_CFunction;
-    fn lua_pushlightuserdata(L: *mut lua_State, p: *mut c_void);
-    fn lua_call(L: *mut lua_State, nargs: c_int, nresults: c_int);
     fn lua_getstack(L: *mut lua_State, level: c_int, ar: *mut lua_Debug) -> c_int;
     fn lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
-
-    fn luaL_checktype(L: *mut lua_State, narg: c_int, t: c_int);
-    fn luaL_loadbuffer(
-        L: *mut lua_State,
-        buff: *const c_char,
-        sz: usize,
-        name: *const c_char,
-    ) -> c_int;
 
     fn luaopen_luv(L: *mut lua_State) -> c_int;
 }
@@ -508,82 +484,6 @@ unsafe extern "C" {
 
     #[cfg(unix)]
     fn pthread_exit(retval: *mut c_void) -> !;
-}
-
-#[cfg(not(test))]
-#[inline]
-const fn lua_upvalueindex(i: c_int) -> c_int {
-    LUA_GLOBALSINDEX - i
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
-    unsafe {
-        lua_settop(lstate, -(n) - 1);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_newtable(lstate: *mut lua_State) {
-    unsafe {
-        lua_createtable(lstate, 0, 0);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
-    unsafe {
-        lua_pushcclosure(lstate, f, 0);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_setglobal(lstate: *mut lua_State, s: *const c_char) {
-    unsafe {
-        lua_setfield(lstate, LUA_GLOBALSINDEX, s);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
-    unsafe {
-        lua_getfield(lstate, LUA_GLOBALSINDEX, s);
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_tostring(lstate: *mut lua_State, i: c_int) -> *const c_char {
-    unsafe { lua_tolstring(lstate, i, ptr::null_mut()) }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isfunction(lstate: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(lstate, n) == LUA_TFUNCTION }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_istable(lstate: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(lstate, n) == LUA_TTABLE }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isnil(lstate: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(lstate, n) == LUA_TNIL }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn lua_isboolean(lstate: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(lstate, n) == LUA_TBOOLEAN }
 }
 
 #[inline]

@@ -4,8 +4,21 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-use crate::lua::base64::{lua_CFunction, lua_State, luaL_Buffer, luaL_Reg};
-use crate::lua::converter::{lua_Integer, lua_Number};
+use crate::api::buffer::LUA_NOREF;
+use crate::lua::base64::{lua_State, luaL_Buffer, luaL_Reg};
+use crate::lua::converter::{
+    LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LUA_TUSERDATA,
+    LUAL_BUFFERSIZE, lua_Integer, lua_Number, lua_call, lua_createtable, lua_getfield,
+    lua_getmetatable, lua_gettable, lua_gettop, lua_insert, lua_isboolean, lua_isfunction,
+    lua_isnil, lua_isnoneornil, lua_isnumber, lua_isstring, lua_istable, lua_isuserdata,
+    lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pop, lua_pushboolean,
+    lua_pushcfunction, lua_pushfstring, lua_pushinteger, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawgeti, lua_remove,
+    lua_replace, lua_setfield, lua_setmetatable, lua_settable, lua_toboolean, lua_tolstring,
+    lua_tonumber, lua_topointer, lua_type, luaL_argcheck, luaL_buffinit, luaL_checklstring,
+    luaL_checknumber, luaL_checkudata, luaL_error, luaL_getmetatable, luaL_newmetatable,
+    luaL_prepbuffer, luaL_pushresult, luaL_ref, luaL_register, luaL_unref,
+};
 use crate::memory::{crt_free as free, crt_malloc as malloc};
 use crate::mpack::conv::{
     mpack_pack_array, mpack_pack_bin, mpack_pack_boolean, mpack_pack_chunk, mpack_pack_ext,
@@ -29,22 +42,7 @@ use crate::mpack::rpc::{
 };
 use crate::strings::snprintf;
 
-#[cfg(windows)]
-const LUAL_BUFFERSIZE: usize = 512;
-#[cfg(not(windows))]
-const LUAL_BUFFERSIZE: usize = 8192;
-
-const LUA_REGISTRYINDEX: c_int = -10000;
-const LUA_NOREF: c_int = -2;
 const LUA_REFNIL: c_int = -1;
-
-const LUA_TNIL: c_int = 0;
-const LUA_TBOOLEAN: c_int = 1;
-const LUA_TNUMBER: c_int = 3;
-const LUA_TSTRING: c_int = 4;
-const LUA_TTABLE: c_int = 5;
-const LUA_TFUNCTION: c_int = 6;
-const LUA_TUSERDATA: c_int = 7;
 
 const UNPACKER_META_NAME: &CStr = c"mpack.Unpacker";
 const PACKER_META_NAME: &CStr = c"mpack.Packer";
@@ -91,110 +89,6 @@ struct Session {
     session: *mut mpack_rpc_session_t,
     unpacked: UnpackedState,
     unpacker: c_int,
-}
-
-unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_pushvalue(L: *mut lua_State, idx: c_int);
-    fn lua_remove(L: *mut lua_State, idx: c_int);
-    fn lua_insert(L: *mut lua_State, idx: c_int);
-    fn lua_replace(L: *mut lua_State, idx: c_int);
-    fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_isuserdata(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_rawequal(L: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int;
-    fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_objlen(L: *mut lua_State, idx: c_int) -> usize;
-    fn lua_topointer(L: *mut lua_State, idx: c_int) -> *const c_void;
-    fn lua_pushnil(L: *mut lua_State);
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_pushstring(L: *mut lua_State, s: *const c_char);
-    fn lua_pushfstring(L: *mut lua_State, fmt: *const c_char, ...) -> *const c_char;
-    fn lua_pushcclosure(L: *mut lua_State, f: lua_CFunction, n: c_int);
-    fn lua_pushboolean(L: *mut lua_State, b: c_int);
-    fn lua_gettable(L: *mut lua_State, idx: c_int);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_newuserdata(L: *mut lua_State, sz: usize) -> *mut c_void;
-    fn lua_getmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_settable(L: *mut lua_State, idx: c_int);
-    fn lua_setfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_setmetatable(L: *mut lua_State, objindex: c_int) -> c_int;
-    fn lua_call(L: *mut lua_State, nargs: c_int, nresults: c_int);
-    fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
-    fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-    fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
-    fn luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_checklstring(L: *mut lua_State, numArg: c_int, l: *mut usize) -> *const c_char;
-    fn luaL_checknumber(L: *mut lua_State, numArg: c_int) -> lua_Number;
-    fn luaL_argerror(L: *mut lua_State, numarg: c_int, extramsg: *const c_char) -> c_int;
-    fn luaL_ref(L: *mut lua_State, t: c_int) -> c_int;
-    fn luaL_unref(L: *mut lua_State, t: c_int, r#ref: c_int);
-    fn luaL_buffinit(L: *mut lua_State, B: *mut luaL_Buffer);
-    fn luaL_prepbuffer(B: *mut luaL_Buffer) -> *mut c_char;
-    fn luaL_pushresult(B: *mut luaL_Buffer);
-}
-
-#[inline]
-unsafe fn lua_pop(l: *mut lua_State, n: c_int) {
-    unsafe { lua_settop(l, -n - 1) };
-}
-
-#[inline]
-unsafe fn lua_newtable(l: *mut lua_State) {
-    unsafe { lua_createtable(l, 0, 0) };
-}
-
-#[inline]
-unsafe fn lua_pushcfunction(l: *mut lua_State, f: lua_CFunction) {
-    unsafe { lua_pushcclosure(l, f, 0) };
-}
-
-#[inline]
-unsafe fn lua_isfunction(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) == LUA_TFUNCTION }
-}
-
-#[inline]
-unsafe fn lua_istable(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) == LUA_TTABLE }
-}
-
-#[inline]
-unsafe fn lua_isnil(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) == LUA_TNIL }
-}
-
-#[inline]
-unsafe fn lua_isboolean(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) == LUA_TBOOLEAN }
-}
-
-#[inline]
-unsafe fn lua_isnoneornil(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) <= 0 }
-}
-
-#[inline]
-unsafe fn luaL_getmetatable(l: *mut lua_State, n: *const c_char) {
-    unsafe { lua_getfield(l, LUA_REGISTRYINDEX, n) };
-}
-
-#[inline]
-unsafe fn luaL_argcheck(l: *mut lua_State, cond: bool, numarg: c_int, extramsg: *const c_char) {
-    if !cond {
-        unsafe {
-            luaL_argerror(l, numarg, extramsg);
-        }
-    }
 }
 
 #[inline]

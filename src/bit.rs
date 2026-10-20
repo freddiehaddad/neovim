@@ -7,24 +7,13 @@ use std::ptr;
 
 pub use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
 pub use crate::lua::converter::lua_Number;
+#[cfg(not(test))]
+use crate::lua::converter::{
+    LUA_TNONE, lua_gettop, lua_isnumber, lua_pushlstring, lua_pushnumber, lua_tonumber, lua_type,
+    luaL_error, luaL_register, luaL_typerror,
+};
 pub type SBits = i32;
 pub type UBits = u32;
-
-#[cfg(not(test))]
-const LUA_TNONE: c_int = -1;
-
-#[cfg(not(test))]
-unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tonumber(L: *mut lua_State, idx: c_int) -> lua_Number;
-    fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn luaL_typerror(L: *mut lua_State, narg: c_int, tname: *const c_char) -> c_int;
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
-}
 
 #[inline]
 pub const fn f64_to_ubits(n: f64) -> UBits {

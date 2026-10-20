@@ -1,6 +1,6 @@
 //! Capture evaluation (`src/lpeg/lpcap.c`).
 
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int};
 use std::mem::zeroed;
 use std::ptr;
 
@@ -11,71 +11,16 @@ use crate::lpeg::{
     lua_State,
 };
 use crate::lua::base64::luaL_Buffer;
+use crate::lua::converter::{
+    LUA_MULTRET, LUAL_BUFFERSIZE, lua_call, lua_equal, lua_gettable, lua_gettop, lua_insert,
+    lua_isnil, lua_isstring, lua_newtable, lua_pop, lua_pushinteger, lua_pushlstring,
+    lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove, lua_replace, lua_settable, lua_tolstring,
+    lua_tostring, lua_touserdata, luaL_addlstring, luaL_addvalue, luaL_buffinit, luaL_checkstack,
+    luaL_error, luaL_prepbuffer, luaL_pushresult, luaL_typename,
+};
 
-#[cfg(windows)]
-const LUAL_BUFFERSIZE: usize = 512;
-#[cfg(not(windows))]
-const LUAL_BUFFERSIZE: usize = 8192;
-
-const LUA_MULTRET: c_int = -1;
-const LUA_TNIL: c_int = 0;
 const MAXRECLEVEL: c_int = 200;
 const MAXSTRCAPS: usize = 10;
-
-unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_pushvalue(L: *mut lua_State, idx: c_int);
-    fn lua_remove(L: *mut lua_State, idx: c_int);
-    fn lua_insert(L: *mut lua_State, idx: c_int);
-    fn lua_replace(L: *mut lua_State, idx: c_int);
-    fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_typename(L: *mut lua_State, tp: c_int) -> *const c_char;
-    fn lua_equal(L: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int;
-    fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
-    fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_pushinteger(L: *mut lua_State, n: lua_Integer);
-    fn lua_pushlstring(L: *mut lua_State, s: *const c_char, l: usize);
-    fn lua_gettable(L: *mut lua_State, idx: c_int);
-    fn lua_rawgeti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_createtable(L: *mut lua_State, narr: c_int, nrec: c_int);
-    fn lua_settable(L: *mut lua_State, idx: c_int);
-    fn lua_rawseti(L: *mut lua_State, idx: c_int, n: c_int);
-    fn lua_call(L: *mut lua_State, nargs: c_int, nresults: c_int);
-    fn luaL_checkstack(L: *mut lua_State, sz: c_int, msg: *const c_char);
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-    fn luaL_buffinit(L: *mut lua_State, B: *mut luaL_Buffer);
-    fn luaL_prepbuffer(B: *mut luaL_Buffer) -> *mut c_char;
-    fn luaL_addlstring(B: *mut luaL_Buffer, s: *const c_char, l: usize);
-    fn luaL_addvalue(B: *mut luaL_Buffer);
-    fn luaL_pushresult(B: *mut luaL_Buffer);
-}
-
-#[inline]
-unsafe fn lua_pop(l: *mut lua_State, n: c_int) {
-    unsafe { lua_settop(l, -n - 1) };
-}
-
-#[inline]
-unsafe fn lua_newtable(l: *mut lua_State) {
-    unsafe { lua_createtable(l, 0, 0) };
-}
-
-#[inline]
-unsafe fn lua_isnil(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) == LUA_TNIL }
-}
-
-#[inline]
-unsafe fn lua_tostring(l: *mut lua_State, i: c_int) -> *const c_char {
-    unsafe { lua_tolstring(l, i, ptr::null_mut()) }
-}
-
-#[inline]
-unsafe fn luaL_typename(l: *mut lua_State, i: c_int) -> *const c_char {
-    unsafe { lua_typename(l, lua_type(l, i)) }
-}
 
 #[inline]
 unsafe fn luaL_addchar(b: *mut luaL_Buffer, c: c_char) {

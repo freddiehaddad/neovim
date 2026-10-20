@@ -14,9 +14,13 @@ use crate::lpeg::{
     utf_to,
 };
 
+use crate::lua::converter::{
+    LUA_REGISTRYINDEX, lua_getfield, lua_gettop, lua_isboolean, lua_newuserdata, lua_pop,
+    lua_pushlightuserdata, lua_remove, lua_replace, lua_settop, lua_toboolean, lua_tointeger,
+    lua_touserdata, luaL_error,
+};
+
 const INITBACK: usize = MAXBACK as usize;
-const LUA_REGISTRYINDEX: c_int = -10000;
-const LUA_TBOOLEAN: c_int = 1;
 
 static GIVEUP: Instruction = Instruction {
     i: Inst {
@@ -25,31 +29,6 @@ static GIVEUP: Instruction = Instruction {
         aux2: InstAux2 { key: 0 },
     },
 };
-
-unsafe extern "C-unwind" {
-    fn lua_gettop(L: *mut lua_State) -> c_int;
-    fn lua_settop(L: *mut lua_State, idx: c_int);
-    fn lua_remove(L: *mut lua_State, idx: c_int);
-    fn lua_replace(L: *mut lua_State, idx: c_int);
-    fn lua_type(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_tointeger(L: *mut lua_State, idx: c_int) -> lua_Integer;
-    fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
-    fn lua_touserdata(L: *mut lua_State, idx: c_int) -> *mut c_void;
-    fn lua_pushlightuserdata(L: *mut lua_State, p: *mut c_void);
-    fn lua_getfield(L: *mut lua_State, idx: c_int, k: *const c_char);
-    fn lua_newuserdata(L: *mut lua_State, sz: usize) -> *mut c_void;
-    fn luaL_error(L: *mut lua_State, fmt: *const c_char, ...) -> c_int;
-}
-
-#[inline]
-unsafe fn lua_pop(l: *mut lua_State, n: c_int) {
-    unsafe { lua_settop(l, -n - 1) };
-}
-
-#[inline]
-unsafe fn lua_isboolean(l: *mut lua_State, n: c_int) -> bool {
-    unsafe { lua_type(l, n) == LUA_TBOOLEAN }
-}
 
 #[inline]
 unsafe fn getoffset(p: *const Instruction) -> isize {

@@ -3,30 +3,21 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
-use crate::lua::base64::lua_State;
-#[cfg(not(test))]
 use crate::lua::converter::{
-    lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring, lua_settop,
-    lua_toboolean, lua_tolstring,
+    LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
+    lua_settable, lua_settop, lua_toboolean, lua_tolstring,
 };
 #[cfg(not(test))]
-use crate::lua::executor::{LUA_GLOBALSINDEX, get_global_lstate, nlua_error, nlua_pcall};
+use crate::lua::executor::{get_global_lstate, nlua_error, nlua_pcall};
 #[cfg(not(test))]
 use crate::memory::{xcalloc, xfree, xmemdupz};
 #[cfg(not(test))]
 use crate::message::{semsg, smsg};
 #[cfg(not(test))]
-use std::ffi::c_int;
-#[cfg(not(test))]
 use std::ffi::c_void;
 use std::ffi::{CStr, c_char};
 
 pub use crate::api::command::exarg_T;
-
-#[cfg(not(test))]
-unsafe extern "C-unwind" {
-    fn lua_settable(L: *mut lua_State, idx: c_int);
-}
 
 #[inline]
 unsafe fn skipwhite(mut p: *const c_char) -> *const c_char {
