@@ -17,6 +17,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     arena_array, arena_dict, copy_string, find_buffer_by_handle, find_window_by_handle,
     object_to_hl_id,
@@ -396,11 +398,6 @@ unsafe fn string_to_cstr(str: NvimString) -> *mut c_char {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]

@@ -44,6 +44,8 @@ use crate::hashtab::{
 #[allow(unused_imports)]
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
+#[allow(unused_imports)]
+use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{
     mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr2char_adv,
     mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold, utf_head_off,
@@ -263,12 +265,6 @@ unsafe fn spell_toupper(c: c_int) -> c_int {
         } else {
             c
         }
-    }
-}
-#[inline]
-unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
-    unsafe {
-        *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
 }
 #[inline]

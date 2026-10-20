@@ -71,6 +71,8 @@ use crate::ex_getln::{
 };
 use crate::globals::*;
 #[allow(unused_imports)]
+use crate::highlight::{hl_attr, win_hl_attr};
+#[allow(unused_imports)]
 use crate::highlight_group::{get_highlight_name, set_context_in_highlight_cmd};
 #[allow(unused_imports)]
 use crate::input::beep_flush;
@@ -147,7 +149,7 @@ use std::ptr;
 
 use crate::api::command::regmatch_T;
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::pos_T;
 use crate::charset::{
     backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
     transchar_byte, vim_isfilec_or_wc, vim_strsize,
@@ -1159,23 +1161,6 @@ unsafe fn ga_push<T>(gap: *mut garray_T, item: T) {
 #[inline]
 fn is_user_cmdidx(idx: cmdidx_T) -> bool {
     (idx as c_int) < 0
-}
-
-#[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
-    unsafe {
-        let table = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *table.add(hlf as usize)
-    }
-}
-
-#[inline]
-unsafe fn hl_attr(n: hlf_T) -> c_int {
-    unsafe { *hl_attr_active.add(n as usize) }
 }
 
 #[inline]

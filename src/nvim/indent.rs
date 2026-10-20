@@ -15,6 +15,8 @@ use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 #[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
+use crate::buffer::modifiable;
+#[allow(unused_imports)]
 use crate::change::{changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str};
 #[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
@@ -176,11 +178,6 @@ const fn ascii_iswhite_cint(c: c_int) -> bool {
 #[inline]
 fn ascii_iswhite_or_nul(c: c_char) -> bool {
     ascii_iswhite(c) || c == NUL
-}
-
-#[inline]
-unsafe fn modifiable(buf: *const buf_T) -> bool {
-    unsafe { (*buf).b_p_ma != 0 && (*buf).b_ro_locked == 0 }
 }
 
 #[inline]

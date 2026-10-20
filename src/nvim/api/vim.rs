@@ -15,6 +15,8 @@ use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::put_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::static_cstr_as_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -522,17 +524,6 @@ const fn is_internal_call(channel_id: u64) -> bool {
 #[inline]
 unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
     unsafe { string_obj(arena_string(arena, cstr_as_string(s))) }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: *const c_char, val: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(key),
-            value: val,
-        };
-        dict.size += 1;
-    }
 }
 
 /// Gets a highlight group by name (`nvim_get_hl_id_by_name`).

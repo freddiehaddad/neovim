@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::buffer::buf_set_name;
 #[allow(unused_imports)]
+use crate::buffer::first_win_in_tab;
+#[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_add, buflist_findnr, curbuf_reusable, maketitle, otherfile};
 #[allow(unused_imports)]
 use crate::buffer::{buf_is_empty, bufref_valid, set_bufref};
@@ -158,17 +160,6 @@ struct arg_all_state_T {
 }
 
 static mut arglist_locked: bool = false;
-
-#[inline]
-unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
-    unsafe {
-        if tp == curtab {
-            firstwin
-        } else {
-            (*tp).tp_firstwin
-        }
-    }
-}
 
 #[inline]
 unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {

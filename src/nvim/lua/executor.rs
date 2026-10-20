@@ -18,6 +18,8 @@
 use crate::api::extmark::ns_initialized;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
+#[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
@@ -418,11 +420,6 @@ unsafe fn lua_isboolean(lstate: *mut lua_State, n: c_int) -> bool {
 #[inline]
 const fn is_user_cmdidx(idx: c_int) -> bool {
     idx == CMD_USER || idx == CMD_USER_BUF
-}
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { !err.is_null() && (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]

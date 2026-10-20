@@ -15,6 +15,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::arena_dict;
 #[allow(unused_imports)]
+use crate::api::private::helpers::put_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, nil_obj, string_obj,
 };
@@ -60,7 +62,7 @@ use std::ptr;
 
 use crate::api::extmark::NS;
 use crate::api::private::converter::sctx_T;
-use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair, Object, ObjectType};
+use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
@@ -397,18 +399,6 @@ unsafe fn hl_table() -> *mut HlGroup {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: *const c_char, value: Object) {
-    debug_assert!(dict.size < dict.capacity);
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(key),
-            value,
-        };
-    }
-    dict.size += 1;
 }
 
 #[inline]

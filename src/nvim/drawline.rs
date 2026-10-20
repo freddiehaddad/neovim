@@ -15,6 +15,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_quickfix;
 #[allow(unused_imports)]
+use crate::buffer::buf_meta_total;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::cursor::{equalpos, lt, ltoreq};
@@ -25,6 +27,8 @@ use crate::fold::get_foldtext;
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
+use crate::highlight::{hl_attr, win_hl_attr};
 #[allow(unused_imports)]
 use crate::insexpand::{ins_compl_col_range_attr, ins_compl_lnum_in_range, ins_compl_win_active};
 #[allow(unused_imports)]
@@ -275,28 +279,6 @@ const fn tristate_to_bool(val: TriState, default: bool) -> bool {
     } else {
         default
     }
-}
-
-#[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
-    unsafe {
-        let tbl = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *tbl.add(hlf as usize)
-    }
-}
-
-#[inline]
-unsafe fn hl_attr(n: c_int) -> c_int {
-    unsafe { *hl_attr_active.add(n as usize) }
-}
-
-#[inline]
-unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
 }
 
 #[inline]

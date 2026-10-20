@@ -177,7 +177,7 @@ const fn ascii_isodigit(c: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
+pub unsafe fn ascii2cells(b: c_int) -> c_int {
     if (b' ' as c_int..=b'~' as c_int).contains(&b) {
         1
     } else {

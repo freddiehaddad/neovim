@@ -50,11 +50,6 @@ typedef struct {
   bool had_stdin_file;                  // explicit - as a file to edit
 } mparm_T;
 
-#if defined(MSWIN) && !defined(ENABLE_ASAN_UBSAN)
-# define __asan_default_options vim__asan_default_options
-# define __ubsan_default_options vim__ubsan_default_options
-#endif
-
 #define DEFINE_FUNC_ATTRIBUTES
 #include "nvim/func_attr.h"
 #undef DEFINE_FUNC_ATTRIBUTES
@@ -74,7 +69,5 @@ DLLEXPORT void preserve_exit(const char *errmsg) FUNC_ATTR_NORETURN;
 DLLEXPORT const void *nlua_get_builtin_modules(size_t *count);
 DLLEXPORT const uint8_t *api_get_packed_metadata(size_t *len);
 DLLEXPORT int main(int argc, char **argv);
-DLLEXPORT const char *__ubsan_default_options(void);
-DLLEXPORT const char *__asan_default_options(void);
 
 #include "nvim/func_attr.h"

@@ -22,6 +22,8 @@ use crate::api::private::helpers::{
     array_obj, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, string_obj,
 };
 #[allow(unused_imports)]
+use crate::api::private::helpers::{error_set, put_c};
+#[allow(unused_imports)]
 use crate::autocmd::do_filetype_autocmd;
 #[allow(unused_imports)]
 use crate::buffer::{do_autochdir, free_buf_options, maketitle};
@@ -72,6 +74,8 @@ use crate::option_vars::*;
 use crate::runtime::sourcing_lnum;
 #[allow(unused_imports)]
 use crate::runtime::{runtimepath_default, source_runtime_vim_lua};
+#[allow(unused_imports)]
+use crate::strings::gettext as tr;
 #[allow(unused_imports)]
 use crate::strings::strcmp as c_strcmp;
 #[allow(unused_imports)]
@@ -773,11 +777,6 @@ pub unsafe fn opt_error_int(
 }
 
 #[inline]
-unsafe fn tr(s: *const c_char) -> *mut c_char {
-    unsafe { gettext(s) }
-}
-
-#[inline]
 unsafe fn c_strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     unsafe { strncmp(s1, s2, n) }
 }
@@ -849,29 +848,12 @@ const fn is_special(c: OptInt) -> bool {
 }
 
 #[inline]
-unsafe fn error_set(e: *const Error) -> bool {
-    unsafe { !e.is_null() && (*e).err_type != ErrorType::kErrorTypeNone }
-}
-
-#[inline]
 unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
     match t {
         ObjectType::kObjectTypeBoolean => c"boolean".as_ptr(),
         ObjectType::kObjectTypeInteger => c"number".as_ptr(),
         ObjectType::kObjectTypeString => c"string".as_ptr(),
         _ => std::process::abort(),
-    }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, k: *const c_char, v: Object) {
-    unsafe {
-        debug_assert!(dict.size < dict.capacity);
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(k),
-            value: v,
-        };
-        dict.size += 1;
     }
 }
 

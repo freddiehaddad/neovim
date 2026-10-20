@@ -18,6 +18,8 @@ use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
 use crate::buffer::col_print;
 #[allow(unused_imports)]
+use crate::buffer::modifiable;
+#[allow(unused_imports)]
 use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 #[allow(unused_imports)]
 use crate::charset::{ascii_islower, ascii_isspace, ascii_isupper};
@@ -296,11 +298,6 @@ const fn char_ord(x: c_int) -> c_int {
 #[inline]
 const fn rot13(c: c_int, a: c_int) -> c_int {
     (((c - a) + 13) % 26) + a
-}
-
-#[inline]
-unsafe fn modifiable(buf: *const buf_T) -> bool {
-    unsafe { (*buf).b_p_ma != 0 }
 }
 
 #[inline]

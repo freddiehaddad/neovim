@@ -88,6 +88,8 @@ use crate::os::fs::os_resolve_shortcut;
 #[allow(unused_imports)]
 use crate::path::path_to_slash;
 #[allow(unused_imports)]
+use crate::path::to_slash;
+#[allow(unused_imports)]
 use crate::plines::win_get_fill;
 #[allow(unused_imports)]
 use crate::quickfix::qf_stack_get_bufnr;
@@ -418,14 +420,6 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
     c"E937: Attempt to delete a buffer that is in use: %s";
 
 #[inline]
-unsafe fn to_slash(#[allow(unused_variables)] p: *mut c_char) {
-    #[cfg(all(windows, not(test)))]
-    unsafe {
-        let _ = path_to_slash(p);
-    }
-}
-
-#[inline]
 unsafe fn buf_is_changed(buf: *const buf_T) -> bool {
     unsafe {
         !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf.cast_mut(), true))
@@ -447,6 +441,27 @@ unsafe fn curbuf_is_changed() -> bool {
 #[inline]
 pub unsafe fn buf_get_changedtick(buf: *const buf_T) -> varnumber_T {
     unsafe { (*buf).changedtick_di.di_tv.vval.v_number }
+}
+
+#[inline]
+pub unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
+    unsafe { (*b).b_marktree[0].meta_root[m] }
+}
+
+#[inline]
+pub unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
+    unsafe {
+        if tp == curtab {
+            firstwin
+        } else {
+            (*tp).tp_firstwin
+        }
+    }
+}
+
+#[inline]
+pub unsafe fn modifiable(buf: *const buf_T) -> bool {
+    unsafe { (*buf).b_p_ma != 0 && (*buf).b_ro_locked == 0 }
 }
 
 #[inline]

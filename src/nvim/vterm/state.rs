@@ -10,13 +10,14 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii2cells;
+#[allow(unused_imports)]
 use crate::grid::schar_from_ascii;
 use crate::mbyte::utf8len_tab;
 #[allow(unused_imports)]
 use crate::mbyte::{
     utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_iscomposing, utf_ptr2CharInfo_impl,
 };
-use crate::option_vars::*;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
@@ -189,15 +190,6 @@ pub struct VTermSelectionCallbacks {
         ) -> c_int,
     >,
     pub query: Option<unsafe extern "C" fn(mask: VTermSelectionMask, user: *mut c_void) -> c_int>,
-}
-
-#[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
-        1
-    } else {
-        unsafe { dy_escape_width }
-    }
 }
 
 #[inline]

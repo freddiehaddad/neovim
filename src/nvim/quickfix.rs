@@ -22,6 +22,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::cbuf_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::copy_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{boolean_obj, cstr_as_obj, cstr_as_string};
@@ -679,14 +681,6 @@ unsafe fn c_strcat(dst: *mut c_char, src: *const c_char) {
         let dlen = c_strlen(dst);
         let slen = c_strlen(src);
         ptr::copy_nonoverlapping(src, dst.add(dlen), slen + 1);
-    }
-}
-
-#[inline]
-const fn cbuf_as_string(buf: *mut c_char, len: usize) -> NvimString {
-    NvimString {
-        data: buf,
-        size: len,
     }
 }
 

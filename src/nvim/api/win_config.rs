@@ -18,6 +18,10 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cbuf_to_string;
+#[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, arena_array, find_buffer_by_handle,
     find_window_by_handle, object_to_hl_id, try_enter, try_leave,
@@ -80,7 +84,7 @@ use crate::api::tabpage::{Buffer, WinConfig, Window, frame_T, lpos_T, tabpage_T,
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
-use crate::memory::{Arena, xmemdupz};
+use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
 
 pub type FloatAnchor = c_int;
@@ -242,11 +246,6 @@ const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
 }
 
 #[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
-}
-
-#[inline]
 unsafe fn cstrn_as_string(s: *const c_char, maxsize: usize) -> NvimString {
     if s.is_null() {
         return NvimString {
@@ -259,16 +258,6 @@ unsafe fn cstrn_as_string(s: *const c_char, maxsize: usize) -> NvimString {
     NvimString {
         data: s as *mut c_char,
         size: len,
-    }
-}
-
-#[inline]
-unsafe fn cbuf_to_string(buf: *const c_char, len: usize) -> NvimString {
-    unsafe {
-        NvimString {
-            data: xmemdupz(buf.cast(), len).cast(),
-            size: len,
-        }
     }
 }
 

@@ -20,7 +20,11 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
+#[allow(unused_imports)]
 use crate::api::private::helpers::{cstr_as_obj, cstr_as_string};
+#[allow(unused_imports)]
+use crate::buffer::modifiable;
 #[allow(unused_imports)]
 use crate::buffer::{
     buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed, buflist_altfpos,
@@ -466,19 +470,6 @@ static mut pre_hl_id: c_int = 0;
 use crate::strings::{isalpha, vim_stricmp as stricmp_c};
 
 #[inline]
-const fn cbuf_as_string(s: *mut c_char, len: usize) -> NvimString {
-    NvimString { data: s, size: len }
-}
-
-#[inline]
-unsafe fn cbuf_to_string(s: *const c_char, len: usize) -> NvimString {
-    NvimString {
-        data: unsafe { xmemdupz(s.cast::<c_void>(), len).cast::<c_char>() },
-        size: len,
-    }
-}
-
-#[inline]
 unsafe fn bufIsChanged(buf: *const buf_T) -> bool {
     unsafe {
         !bt_dontwrite(buf) && ((*buf).b_changed != 0 || file_ff_differs(buf.cast_mut(), true))
@@ -510,11 +501,6 @@ unsafe fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
         }
         false
     }
-}
-
-#[inline]
-unsafe fn modifiable(buf: *const buf_T) -> bool {
-    unsafe { (*buf).b_p_ma != 0 }
 }
 
 /// `":ascii"` and `"ga"` implementation.

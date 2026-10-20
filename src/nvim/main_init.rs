@@ -1239,6 +1239,16 @@ pub unsafe extern "C" fn preserve_exit(errmsg: *const c_char) -> ! {
     }
 }
 
+#[cfg_attr(all(not(test), not(windows)), unsafe(no_mangle))]
+pub extern "C" fn __ubsan_default_options() -> *const c_char {
+    c"print_stacktrace=1".as_ptr()
+}
+
+#[cfg_attr(all(not(test), not(windows)), unsafe(no_mangle))]
+pub extern "C" fn __asan_default_options() -> *const c_char {
+    c"handle_abort=1,handle_sigill=1".as_ptr()
+}
+
 unsafe fn get_number_arg(p: *const c_char, idx: *mut c_int, mut def: c_int) -> c_int {
     unsafe {
         let mut i = *idx as usize;

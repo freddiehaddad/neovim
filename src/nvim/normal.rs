@@ -19,11 +19,15 @@ use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_
 #[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
+use crate::buffer::modifiable;
+#[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_getfile, fileinfo};
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
+#[allow(unused_imports)]
+use crate::cursor::clearpos;
 #[allow(unused_imports)]
 use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
@@ -487,13 +491,6 @@ fn ascii_iswhite_or_nul(c: c_int) -> bool {
 }
 
 #[inline]
-fn clearpos(a: &mut pos_T) {
-    a.lnum = 0;
-    a.col = 0;
-    a.coladd = 0;
-}
-
-#[inline]
 unsafe fn lineempty(lnum: linenr_T) -> bool {
     unsafe { *ml_get(lnum) == NUL }
 }
@@ -516,11 +513,6 @@ unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
 #[inline]
 unsafe fn bt_quickfix(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && !(*buf).b_p_bt.is_null() && *(*buf).b_p_bt == b'q' as c_char }
-}
-
-#[inline]
-unsafe fn modifiable(buf: *const buf_T) -> bool {
-    unsafe { (*buf).b_p_ma != 0 }
 }
 
 #[inline]

@@ -14,6 +14,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{boolean_obj, cstr_as_obj, integer_obj};
@@ -128,6 +130,8 @@ use crate::option::ex_set;
 use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::os::lang::ex_language;
+#[allow(unused_imports)]
+use crate::path::{to_slash, to_slash_save};
 #[allow(unused_imports)]
 use crate::profile::ex_profile;
 #[allow(unused_imports)]
@@ -295,12 +299,12 @@ use crate::os::fs::{os_chdir, os_dirname, os_fopen, os_mkdir, os_path_exists};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::shell::shell_build_argv;
 use crate::os::time::os_hrtime;
+#[cfg(windows)]
+use crate::path::slash_adjust;
 use crate::path::{
     FullName_save, kPathCmpLiteral, path_equal, path_has_wildcard, path_tail,
     path_try_shorten_fname,
 };
-#[cfg(windows)]
-use crate::path::{path_to_slash, path_to_slash_save, slash_adjust};
 use crate::plines::plines_m_win_fill;
 use crate::popupmenu::pum_make_popup;
 use crate::profile::{
@@ -5042,35 +5046,6 @@ const fn error_init() -> Error {
     Error {
         err_type: ErrorType::kErrorTypeNone,
         msg: ptr::null_mut(),
-    }
-}
-
-#[inline]
-const fn error_set(e: *const Error) -> bool {
-    unsafe { (*e).err_type as c_int != ErrorType::kErrorTypeNone as c_int }
-}
-
-#[inline]
-unsafe fn to_slash(p: *mut c_char) {
-    #[cfg(windows)]
-    unsafe {
-        path_to_slash(p);
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = p;
-    }
-}
-
-#[inline]
-unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
-    #[cfg(windows)]
-    unsafe {
-        path_to_slash_save(p)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        xstrdup(p)
     }
 }
 

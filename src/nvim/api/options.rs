@@ -15,6 +15,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_object, api_set_sctx, copy_object, find_buffer_by_handle, find_tab_by_handle,
     find_window_by_handle, try_enter, try_leave,
@@ -163,11 +165,6 @@ const NIL: Object = Object {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]

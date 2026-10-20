@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
+use crate::api::private::helpers::put_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_free_array, arena_array, arena_dict, arena_string, cstr_as_string,
 };
@@ -37,6 +39,8 @@ use crate::eval::vars::{get_vim_var_nr, set_vim_var_nr};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
+use crate::highlight::{hl_attr, win_hl_attr};
 #[allow(unused_imports)]
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 #[allow(unused_imports)]
@@ -80,7 +84,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::options::CharBuf;
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{ScreenGrid, win_T};
 use crate::charset::{getdigits_int, skipdigits, trans_characters, transstr_buf};
 use crate::clipboard::{TypvalVval, VarType, typval_T};
@@ -294,23 +298,6 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-unsafe fn hl_attr(n: hlf_T) -> c_int {
-    unsafe { *hl_attr_active.add(n as usize) }
-}
-
-#[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
-    unsafe {
-        let table = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *table.add(hlf as usize)
-    }
-}
-
-#[inline]
 unsafe fn w_endcol(wp: *const win_T) -> c_int {
     unsafe { (*wp).w_wincol + (*wp).w_width }
 }
@@ -318,17 +305,6 @@ unsafe fn w_endcol(wp: *const win_T) -> c_int {
 #[inline]
 unsafe fn w_endrow(wp: *const win_T) -> c_int {
     unsafe { (*wp).w_winrow + (*wp).w_height }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: *const c_char, value: Object) {
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(key),
-            value,
-        };
-        dict.size += 1;
-    }
 }
 
 /// Redraw the status line of window `wp`.

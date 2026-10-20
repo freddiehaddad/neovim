@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
+use crate::cursor::clearpos;
+#[allow(unused_imports)]
 use crate::cursor::{equalpos, lt, ltoreq};
 #[allow(unused_imports)]
 use crate::drawscreen::{redraw_curbuf_later, showmode};
@@ -75,13 +77,6 @@ static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
 #[inline]
 unsafe fn lineempty(lnum: linenr_T) -> bool {
     unsafe { *ml_get(lnum) == NUL }
-}
-
-#[inline]
-fn clearpos(a: &mut pos_T) {
-    a.lnum = 0;
-    a.col = 0;
-    a.coladd = 0;
 }
 
 /// Find the start of the next sentence, searching in the direction specified

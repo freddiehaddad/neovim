@@ -63,6 +63,8 @@ use crate::insexpand::{ins_compl_check_keys, ins_compl_interrupted};
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_excmd;
 #[allow(unused_imports)]
+use crate::mbyte::mb_ptr_adv;
+#[allow(unused_imports)]
 use crate::message::msg_delay;
 #[allow(unused_imports)]
 use crate::message::{
@@ -77,6 +79,8 @@ use crate::option_vars::*;
 use crate::optionstr::free_string_option;
 #[allow(unused_imports)]
 use crate::path::FreeWild;
+#[allow(unused_imports)]
+use crate::path::to_slash_save;
 #[allow(unused_imports)]
 use crate::quickfix::set_errorlist;
 #[allow(unused_imports)]
@@ -452,25 +456,6 @@ const fn toupper_asc(c: u8) -> c_int {
         c as c_int
     } else {
         (c - (b'a' - b'A')) as c_int
-    }
-}
-
-#[inline]
-unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
-    unsafe {
-        *p = (*p).add(utfc_ptr2len(*p) as usize);
-    }
-}
-
-#[inline]
-unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
-    #[cfg(windows)]
-    {
-        unsafe { crate::path::path_to_slash_save(p) }
-    }
-    #[cfg(not(windows))]
-    {
-        unsafe { xstrdup(p) }
     }
 }
 

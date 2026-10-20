@@ -17,6 +17,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_set_sctx, arena_array, arena_dict, arena_string, arena_take_arraybuilder,
     find_buffer_by_handle, try_enter, try_leave,
@@ -199,11 +201,6 @@ static mut NEXT_AUTOCMD_ID: i64 = 1;
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]

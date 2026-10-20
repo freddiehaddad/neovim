@@ -12,6 +12,8 @@
 
 #[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
+#[allow(unused_imports)]
+use crate::charset::ascii2cells;
 use crate::errors::*;
 #[allow(unused_imports)]
 use crate::eval::callback_call;
@@ -26,6 +28,8 @@ use crate::fileio::{fclose, fprintf, fputc, fputs};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
+use crate::highlight::hl_attr;
 #[allow(unused_imports)]
 use crate::log::log_get_stderr;
 use crate::log::logmsg;
@@ -483,20 +487,6 @@ macro_rules! swmsg {
     }};
 }
 pub use swmsg;
-
-#[inline]
-unsafe fn hl_attr(n: c_int) -> c_int {
-    unsafe { *hl_attr_active.add(n as usize) }
-}
-
-#[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
-        1
-    } else {
-        unsafe { dy_escape_width }
-    }
-}
 
 #[inline]
 const fn k_second(c: c_int) -> u8 {

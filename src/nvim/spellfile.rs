@@ -40,6 +40,8 @@ use crate::hashtab::{
     hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
     hash_lookup, hashitem_T, hashitem_empty, hashtab_T,
 };
+#[allow(unused_imports)]
+use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr2char_adv, mb_toupper,
     string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
@@ -444,13 +446,6 @@ unsafe fn spell_toupper(c: c_int) -> c_int {
         } else {
             c
         }
-    }
-}
-
-#[inline]
-unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
-    unsafe {
-        *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
 }
 

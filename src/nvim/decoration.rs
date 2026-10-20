@@ -11,11 +11,15 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::put_c;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{arena_array, arena_string};
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
     array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj, string_obj,
 };
+#[allow(unused_imports)]
+use crate::buffer::buf_meta_total;
 #[allow(unused_imports)]
 use crate::change::changed_lines_invalidate_buf;
 #[allow(unused_imports)]
@@ -46,7 +50,7 @@ use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
     DecorState, colnr_T, ns_in_win, virt_text_to_array,
 };
-use crate::api::private::validate::{Dict, KeyValuePair, Object};
+use crate::api::private::validate::{Dict, Object};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::eval::deprecated::buf_T;
@@ -162,11 +166,6 @@ static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
 
 #[inline]
-unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
-}
-
-#[inline]
 const fn mt_invalid(key: MTKey) -> bool {
     (key.flags & MT_FLAG_INVALID) != 0
 }
@@ -211,18 +210,6 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
 #[inline]
 unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
     unsafe { string_obj(arena_string(arena, cstr_as_string(s))) }
-}
-
-#[inline]
-unsafe fn put_c(dict: &mut Dict, key: *const c_char, value: Object) {
-    debug_assert!(dict.size < dict.capacity);
-    unsafe {
-        *dict.items.add(dict.size) = KeyValuePair {
-            key: cstr_as_string(key),
-            value,
-        };
-    }
-    dict.size += 1;
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

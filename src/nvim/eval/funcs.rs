@@ -25,6 +25,8 @@
 #[allow(unused_imports)]
 use crate::api::private::converter::object_to_vim_take_luaref;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cbuf_to_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -153,6 +155,8 @@ use crate::os::stdpaths::get_appname;
 use crate::os::time::c_time;
 #[allow(unused_imports)]
 use crate::os::time::strftime;
+#[allow(unused_imports)]
+use crate::path::to_slash_save;
 #[allow(unused_imports)]
 use crate::search::last_csearch;
 #[allow(unused_imports)]
@@ -597,16 +601,6 @@ use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 type handle_T = c_int;
 
 #[inline]
-unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
-    unsafe {
-        NvimString {
-            data: xmemdupz(buf.cast(), size).cast(),
-            size,
-        }
-    }
-}
-
-#[inline]
 fn toupper_asc(c: c_char) -> u8 {
     (c as u8).to_ascii_uppercase()
 }
@@ -619,18 +613,6 @@ fn tolower_asc(c: c_char) -> u8 {
 #[inline]
 unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
     unsafe { strncmp(a, b, n) == 0 }
-}
-
-#[inline]
-unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
-    #[cfg(windows)]
-    unsafe {
-        path_to_slash_save(p)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        xstrdup(p)
-    }
 }
 
 #[inline]

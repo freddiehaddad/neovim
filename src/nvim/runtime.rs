@@ -93,6 +93,8 @@ use crate::option_vars::*;
 #[allow(unused_imports)]
 use crate::path::path_to_slash;
 #[allow(unused_imports)]
+use crate::path::to_slash;
+#[allow(unused_imports)]
 use crate::regexp::vim_regexec;
 #[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regfree};
@@ -393,18 +395,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn to_slash(p: *mut c_char) {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        path_to_slash(p);
-    }
-    #[cfg(any(test, not(windows)))]
-    {
-        let _ = p;
     }
 }
 

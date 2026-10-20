@@ -19,6 +19,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::static_cstr_as_string;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -154,11 +156,6 @@ const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
-}
 
 #[inline]
 unsafe fn api_err_range(err: *mut Error, name: *const c_char) {

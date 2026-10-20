@@ -17,6 +17,8 @@ use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
+use crate::cursor::clearpos;
+#[allow(unused_imports)]
 use crate::cursor::{equalpos, lt, ltoreq};
 #[allow(unused_imports)]
 use crate::drawscreen::showmode;
@@ -65,6 +67,8 @@ use crate::normal::may_start_select;
 #[allow(unused_imports)]
 use crate::option::shortmess;
 use crate::option_vars::*;
+#[allow(unused_imports)]
+use crate::path::to_slash;
 #[allow(unused_imports)]
 use crate::regexp::{skip_regexp_ex, vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree};
 #[allow(unused_imports)]
@@ -118,8 +122,6 @@ use crate::r#move::validate_cursor;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::time::{Timestamp, os_delay, os_time};
-#[cfg(windows)]
-use crate::path::path_to_slash;
 use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fname};
 use crate::plines::getvcol;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
@@ -345,13 +347,6 @@ const fn empty_pos(a: pos_T) -> bool {
 }
 
 #[inline]
-fn clearpos(a: &mut pos_T) {
-    a.lnum = 0;
-    a.col = 0;
-    a.coladd = 0;
-}
-
-#[inline]
 const fn getfile_success(x: c_int) -> bool {
     x <= 0
 }
@@ -361,20 +356,6 @@ unsafe fn reset_binding(wp: *mut win_T) {
     unsafe {
         (*wp).w_onebuf_opt.wo_scb = 0;
         (*wp).w_onebuf_opt.wo_crb = 0;
-    }
-}
-
-#[inline]
-unsafe fn to_slash(p: *mut c_char) {
-    #[cfg(windows)]
-    unsafe {
-        if !p.is_null() {
-            path_to_slash(p);
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = p;
     }
 }
 

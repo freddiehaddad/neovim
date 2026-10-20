@@ -19,6 +19,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
+use crate::api::private::helpers::cbuf_as_string;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, arena_array, try_enter, try_leave,
 };
@@ -32,6 +34,8 @@ use crate::buffer::{buf_clear, buflist_findnr, do_buffer};
 use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite};
 #[allow(unused_imports)]
 use crate::charset::{ascii_islower, ascii_isspace, ascii_isupper};
+#[allow(unused_imports)]
+use crate::cursor::clearpos;
 #[allow(unused_imports)]
 use crate::cursor::{equalpos, lt};
 #[allow(unused_imports)]
@@ -501,11 +505,6 @@ const fn error_set(err: &Error) -> bool {
 }
 
 #[inline]
-const fn cbuf_as_string(s: *mut c_char, len: usize) -> NvimString {
-    NvimString { data: s, size: len }
-}
-
-#[inline]
 unsafe fn array_add(a: &mut Array, item: Object) {
     unsafe {
         let mut kv: KVec<Object> = KVec {
@@ -518,13 +517,6 @@ unsafe fn array_add(a: &mut Array, item: Object) {
         a.capacity = kv.capacity;
         a.items = kv.items;
     }
-}
-
-#[inline]
-const fn clearpos(a: &mut pos_T) {
-    a.lnum = 0;
-    a.col = 0;
-    a.coladd = 0;
 }
 
 #[inline]

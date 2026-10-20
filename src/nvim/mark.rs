@@ -16,6 +16,8 @@ use crate::autocmd::{aucmd_defer, has_event};
 #[allow(unused_imports)]
 use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
+use crate::buffer::first_win_in_tab;
+#[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_getfile, buflist_new, buflist_nr2name};
 #[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
@@ -79,7 +81,7 @@ use std::ptr;
 
 use crate::api::command::exarg_T;
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{tabpage_T, win_T, winopt_T, xfmark_T};
+use crate::api::tabpage::{win_T, winopt_T, xfmark_T};
 use crate::charset::{skipwhite, vim_isprintc};
 use crate::clipboard::list_T;
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
@@ -245,17 +247,6 @@ unsafe fn reset_xfmark(
     unsafe {
         free_xfmark(*xfmarkp);
         set_xfmark(xfmarkp, mark, fnum, view, fname);
-    }
-}
-
-#[inline]
-unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
-    unsafe {
-        if tp == curtab {
-            firstwin
-        } else {
-            (*tp).tp_firstwin
-        }
     }
 }
 

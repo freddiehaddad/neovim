@@ -38,6 +38,8 @@ use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vge
 use crate::input_cmdatom::CmdSpec;
 #[allow(unused_imports)]
 use crate::lua::executor::nlua_call_typval;
+#[allow(unused_imports)]
+use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{
     mb_charlen, mb_cptr2char_adv, mb_isupper, mb_stricmp, utf_byte2len, utf_char2bytes,
     utf_char2len, utf_fold, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len,
@@ -415,12 +417,6 @@ unsafe fn spell_tofold(c: c_int) -> c_int {
         } else {
             c
         }
-    }
-}
-#[inline]
-unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
-    unsafe {
-        *p = (*p).add(utfc_ptr2len(*p) as usize);
     }
 }
 #[inline]

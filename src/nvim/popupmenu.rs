@@ -26,6 +26,8 @@ use crate::buffer::bt_nofile;
 #[allow(unused_imports)]
 use crate::buffer::buf_clear;
 #[allow(unused_imports)]
+use crate::buffer::first_win_in_tab;
+#[allow(unused_imports)]
 use crate::cmdexpand::{cmdline_compl_is_fuzzy, cmdline_compl_pattern};
 #[allow(unused_imports)]
 use crate::drawscreen::{conceal_cursor_line, redraw_later, setcursor_mayforce, update_screen};
@@ -43,6 +45,8 @@ use crate::globals::*;
 use crate::grid::schar_from_ascii;
 #[allow(unused_imports)]
 use crate::grid::schar_from_str;
+#[allow(unused_imports)]
+use crate::highlight::win_hl_attr;
 #[allow(unused_imports)]
 use crate::highlight_group::syn_check_group;
 #[allow(unused_imports)]
@@ -85,7 +89,7 @@ use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::command::exarg_T;
 use crate::api::deprecated::VirtText;
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
-use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
+use crate::api::tabpage::{WinConfig, lpos_T, win_T};
 use crate::api::win_config::{UIExtension, parse_winborder};
 use crate::charset::{transstr, vim_strsize};
 use crate::cursor::{colnr_T, linenr_T};
@@ -262,18 +266,6 @@ static mut PUM_EXTERNAL: bool = false;
 static mut PUM_INVALID: bool = false;
 
 #[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
-    unsafe {
-        let base = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *base.add(hlf as usize)
-    }
-}
-
-#[inline]
 unsafe fn cstr_to_string(s: *const c_char) -> NvimString {
     if s.is_null() {
         NvimString {
@@ -298,17 +290,6 @@ unsafe fn kv_add_obj(a: &mut Array, v: Object) {
         }
         *a.items.add(a.size) = v;
         a.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
-    unsafe {
-        if tp == curtab {
-            firstwin
-        } else {
-            (*tp).tp_firstwin
-        }
     }
 }
 

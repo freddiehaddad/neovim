@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::buffer::bt_cmdwin;
 #[allow(unused_imports)]
+use crate::buffer::first_win_in_tab;
+#[allow(unused_imports)]
 use crate::buffer::{bt_quickfix, bt_terminal};
 #[allow(unused_imports)]
 use crate::charset::getdigits_int;
@@ -104,17 +106,6 @@ pub struct viewstate_T {
     pub vs_topfill: c_int,
     pub vs_botline: linenr_T,
     pub vs_empty_rows: c_int,
-}
-
-#[inline]
-unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
-    unsafe {
-        if tp == curtab {
-            firstwin
-        } else {
-            (*tp).tp_firstwin
-        }
-    }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

@@ -167,6 +167,11 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 }
 
 #[inline]
+pub const fn cbuf_as_string(data: *mut c_char, size: usize) -> NvimString {
+    NvimString { data, size }
+}
+
+#[inline]
 pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut(),
@@ -269,7 +274,19 @@ unsafe fn pmap_get_int(map: *mut Map<c_int, *mut c_void>, key: c_int) -> *mut c_
 }
 
 #[inline]
-const fn error_set(e: *const Error) -> bool {
+pub unsafe fn put_c(dict: &mut Dict, key: *const c_char, val: Object) {
+    debug_assert!(!dict.items.is_null() && dict.size < dict.capacity);
+    unsafe {
+        *dict.items.add(dict.size) = KeyValuePair {
+            key: cstr_as_string(key),
+            value: val,
+        };
+    }
+    dict.size += 1;
+}
+
+#[inline]
+pub unsafe fn error_set(e: *const Error) -> bool {
     unsafe { !matches!((*e).err_type, ErrorType::kErrorTypeNone) }
 }
 

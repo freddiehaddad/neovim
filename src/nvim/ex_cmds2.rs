@@ -21,6 +21,8 @@ use crate::autocmd::{apply_autocmds, au_event_restore};
 #[allow(unused_imports)]
 use crate::buffer::buf_set_name;
 #[allow(unused_imports)]
+use crate::buffer::first_win_in_tab;
+#[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bufref_valid, set_bufref};
 #[allow(unused_imports)]
 use crate::buffer::{
@@ -90,7 +92,6 @@ use std::ptr;
 
 use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::win_config::{UIExtension, bufref_T};
 use crate::context::{ctx_restore, ctx_switch};
 use crate::dialog::{vim_dialog_yesnoallcancel, vim_dialog_yesnocancel};
@@ -153,17 +154,6 @@ const VV_SWAPCOMMAND: c_int = 49;
 const E_COMPILER_NOT_SUPPORTED_STR: &CStr = c"E666: Compiler not supported: %s";
 
 use crate::arglist::{aentry_T, alist_T};
-
-#[inline]
-unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
-    unsafe {
-        if tp == curtab {
-            firstwin
-        } else {
-            (*tp).tp_firstwin
-        }
-    }
-}
 
 #[inline]
 unsafe fn curwin_argcount() -> c_int {

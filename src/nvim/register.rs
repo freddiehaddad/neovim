@@ -12,6 +12,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
+#[allow(unused_imports)]
 use crate::buffer::buf_is_empty;
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname};
@@ -297,19 +299,6 @@ pub unsafe fn reg_empty(reg: *const yankreg_T) -> bool {
             || ((*reg).y_size == 1
                 && (*reg).y_type == MotionType::kMTCharWise
                 && (*(*reg).y_array).size == 0)
-    }
-}
-
-#[inline]
-const fn cbuf_as_string(data: *mut c_char, size: usize) -> NvimString {
-    NvimString { data, size }
-}
-
-#[inline]
-unsafe fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
-    NvimString {
-        data: unsafe { xmemdupz(buf.cast(), size).cast() },
-        size,
     }
 }
 

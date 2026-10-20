@@ -305,6 +305,23 @@ const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {
 }
 
 #[inline]
+pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
+    unsafe {
+        let tbl = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
+            (*wp).w_ns_hl_attr
+        } else {
+            hl_attr_active
+        };
+        *tbl.add(hlf as usize)
+    }
+}
+
+#[inline]
+pub unsafe fn hl_attr(n: c_int) -> c_int {
+    unsafe { *hl_attr_active.add(n as usize) }
+}
+
+#[inline]
 const fn hl_attr_key(a: c_int, b: c_int) -> u64 {
     ((a as u32 as u64) << 32) | (b as u32 as u64)
 }

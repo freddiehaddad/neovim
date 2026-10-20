@@ -14,6 +14,8 @@ use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::nil_obj;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -259,11 +261,6 @@ unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
     unsafe {
         lua_settop(lstate, -n - 1);
     }
-}
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]

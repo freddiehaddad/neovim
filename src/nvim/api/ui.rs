@@ -19,6 +19,8 @@ use crate::api::private::helpers::api_set_error;
 use crate::api::private::helpers::api_typename;
 #[allow(unused_imports)]
 use crate::api::private::helpers::dict_obj;
+#[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
 use crate::errors::*;
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -120,11 +122,6 @@ static mut connected_uis: Map<u64, *mut c_void> = Map {
     },
     values: ptr::null_mut(),
 };
-
-#[inline]
-const fn error_set(e: *const Error) -> bool {
-    unsafe { !matches!((*e).err_type, ErrorType::kErrorTypeNone) }
-}
 
 #[inline]
 const fn int_obj(i: Integer) -> Object {

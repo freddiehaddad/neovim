@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii2cells;
+#[allow(unused_imports)]
 use crate::decoration::{decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
 #[allow(unused_imports)]
@@ -156,15 +158,6 @@ unsafe fn strnlen_4(p: *const u8) -> usize {
             }
         }
         4
-    }
-}
-
-#[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
-        1
-    } else {
-        unsafe { dy_escape_width }
     }
 }
 

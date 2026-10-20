@@ -14,6 +14,8 @@ use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_set_sctx, arena_array, arena_dict, arena_string, try_enter, try_leave,
 };
@@ -85,11 +87,6 @@ type ExprASTConvStack = KVecWithInit<ExprASTConvStackItem, 16>;
 
 static mut EVAL_RECURSIVE: c_int = 0;
 static mut CALL_FUNC_RECURSIVE: c_int = 0;
-
-#[inline]
-fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
-}
 
 #[inline]
 unsafe fn cstr_to_string(s: &'static CStr) -> NvimString {

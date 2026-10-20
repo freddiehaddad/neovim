@@ -11,6 +11,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::buffer::buf_meta_total;
+#[allow(unused_imports)]
 use crate::buffer::maketitle;
 #[allow(unused_imports)]
 use crate::cmdexpand::cmdline_pum_display;
@@ -29,6 +31,8 @@ use crate::fold::{foldmethodIsSyntax, hasAnyFolding};
 use crate::globals::*;
 #[allow(unused_imports)]
 use crate::grid::schar_from_ascii;
+#[allow(unused_imports)]
+use crate::highlight::win_hl_attr;
 #[allow(unused_imports)]
 use crate::input::char_avail;
 #[allow(unused_imports)]
@@ -268,23 +272,6 @@ unsafe fn w_endcol(wp: *const win_T) -> c_int {
 #[inline]
 unsafe fn w_endrow(wp: *const win_T) -> c_int {
     unsafe { (*wp).w_winrow + (*wp).w_height }
-}
-
-#[inline]
-unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
-    unsafe {
-        let tbl = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
-        };
-        *tbl.add(hlf as usize)
-    }
-}
-
-#[inline]
-unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
 }
 
 #[inline]

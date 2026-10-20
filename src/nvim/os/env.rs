@@ -40,6 +40,8 @@ use crate::path::{
 #[allow(unused_imports)]
 use crate::path::{path_to_slash, path_to_slash_save, vim_ispathsep};
 #[allow(unused_imports)]
+use crate::path::{to_slash, to_slash_save};
+#[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_strchr;
@@ -202,30 +204,6 @@ unsafe fn striequal(a: *const c_char, b: *const c_char) -> bool {
         CStr::from_ptr(a)
             .to_bytes()
             .eq_ignore_ascii_case(CStr::from_ptr(b).to_bytes())
-    }
-}
-
-#[inline]
-unsafe fn to_slash(p: *mut c_char) {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        if !p.is_null() {
-            path_to_slash(p);
-        }
-    }
-    #[cfg(any(test, not(windows)))]
-    let _ = p;
-}
-
-#[inline]
-unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        path_to_slash_save(p)
-    }
-    #[cfg(any(test, not(windows)))]
-    unsafe {
-        xstrdup(p)
     }
 }
 

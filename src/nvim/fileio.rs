@@ -63,6 +63,8 @@ use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 #[allow(unused_imports)]
 use crate::shada::check_marks_read;
 #[allow(unused_imports)]
+use crate::strings::gettext as tr;
+#[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
 #[allow(unused_imports)]
 use crate::strings::vim_snprintf;
@@ -425,18 +427,6 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
 
-}
-
-#[inline]
-unsafe fn tr(s: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        gettext(s)
-    }
-    #[cfg(test)]
-    {
-        s.cast_mut()
-    }
 }
 
 #[inline]

@@ -81,6 +81,8 @@ use crate::os::env::expand_env_save;
 #[allow(unused_imports)]
 use crate::os::input::line_breakcheck;
 #[allow(unused_imports)]
+use crate::path::to_slash_save;
+#[allow(unused_imports)]
 use crate::regexp::{vim_regcomp, vim_regfree};
 #[allow(unused_imports)]
 use crate::runtime::estack_pop;
@@ -1444,18 +1446,6 @@ unsafe fn xstrnsave(string: *const c_char, len: usize) -> *mut c_char {
         ptr::copy_nonoverlapping(string, dst, src_len);
         ptr::write_bytes(dst.add(src_len), 0, len - src_len + 1);
         dst
-    }
-}
-
-#[inline]
-unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
-    #[cfg(windows)]
-    unsafe {
-        crate::path::path_to_slash_save(p)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        xstrdup(p)
     }
 }
 

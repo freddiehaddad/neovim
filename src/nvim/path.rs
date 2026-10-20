@@ -148,7 +148,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn to_slash(p: *mut c_char) {
+pub unsafe fn to_slash(p: *mut c_char) {
     #[cfg(windows)]
     unsafe {
         path_to_slash(p);
@@ -158,7 +158,7 @@ unsafe fn to_slash(p: *mut c_char) {
 }
 
 #[inline]
-unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
+pub unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
     #[cfg(windows)]
     unsafe {
         path_to_slash_save(p)

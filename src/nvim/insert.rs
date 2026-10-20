@@ -23,6 +23,8 @@ use crate::buffer::bt_cmdwin;
 #[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
+use crate::buffer::buf_meta_total;
+#[allow(unused_imports)]
 use crate::buffer::bufref_valid;
 #[allow(unused_imports)]
 use crate::buffer::{bt_prompt, buf_is_empty};
@@ -32,6 +34,8 @@ use crate::buffer::{bt_quickfix, set_bufref};
 use crate::change::get_leader_len;
 #[allow(unused_imports)]
 use crate::charset::ascii_isspace;
+#[allow(unused_imports)]
+use crate::charset::ascii2cells;
 #[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 #[allow(unused_imports)]
@@ -407,15 +411,6 @@ static mut pc_col: c_int = 0;
 static mut ins_esc_disabled_redraw: bool = false;
 
 #[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
-        1
-    } else {
-        unsafe { dy_escape_width }
-    }
-}
-
-#[inline]
 fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
     ascii_iswhite(c) || c == NL || c == CAR || c == NUL as c_int
 }
@@ -423,11 +418,6 @@ fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
 #[inline]
 const fn is_special_ins(c: c_int) -> bool {
     c < b' ' as c_int || c >= DEL || c == b'0' as c_int || c == b'^' as c_int
-}
-
-#[inline]
-unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
 }
 
 #[inline]

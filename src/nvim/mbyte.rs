@@ -18,6 +18,8 @@
 #[allow(unused_imports)]
 use crate::charset::ascii_iswhite;
 #[allow(unused_imports)]
+use crate::charset::ascii2cells;
+#[allow(unused_imports)]
 use crate::drawscreen::redraw_all_later;
 use crate::errors::*;
 #[allow(unused_imports)]
@@ -1041,6 +1043,13 @@ unsafe extern "system" {
 use crate::os::os_win_console::GetLastError;
 
 #[inline]
+pub unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
+    unsafe {
+        *p = (*p).add(utfc_ptr2len(*p) as usize);
+    }
+}
+
+#[inline]
 unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> iconv_t {
     #[cfg(windows)]
     unsafe {
@@ -1110,15 +1119,6 @@ unsafe fn iconv_errno() -> c_int {
 #[inline]
 const fn utf_is_trail_byte(byte: u8) -> bool {
     (byte & 0xC0) == 0x80
-}
-
-#[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
-        1
-    } else {
-        unsafe { dy_escape_width }
-    }
 }
 
 #[inline]

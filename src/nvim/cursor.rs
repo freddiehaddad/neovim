@@ -65,6 +65,13 @@ pub const fn lt(a: pos_T, b: pos_T) -> bool {
 }
 
 #[inline]
+pub const fn clearpos(a: &mut pos_T) {
+    a.lnum = 0;
+    a.col = 0;
+    a.coladd = 0;
+}
+
+#[inline]
 pub const fn ltoreq(a: pos_T, b: pos_T) -> bool {
     lt(a, b) || equalpos(a, b)
 }

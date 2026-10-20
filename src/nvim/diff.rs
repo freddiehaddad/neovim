@@ -22,6 +22,8 @@ use crate::autocmd::apply_autocmds;
 #[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
+use crate::buffer::modifiable;
+#[allow(unused_imports)]
 use crate::buffer::{bt_prompt, buf_is_empty, buf_valid, bufref_valid, set_bufref};
 #[allow(unused_imports)]
 use crate::buffer::{buflist_findnr, buflist_findpat};
@@ -287,10 +289,6 @@ static mut f_diff_hlid_prev_diff_flags: c_int = 0;
 static mut f_diff_hlid_change_start: c_int = 0;
 static mut f_diff_hlid_change_end: c_int = 0;
 static mut f_diff_hlid_hlID: hlf_T = 0;
-#[inline]
-unsafe fn modifiable(buf: *const buf_T) -> bool {
-    unsafe { (*buf).b_p_ma != 0 && (*buf).b_ro_locked == 0 }
-}
 #[inline]
 const fn static_cstr_as_obj(s: &'static std::ffi::CStr) -> Object {
     Object {

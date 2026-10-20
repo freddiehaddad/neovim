@@ -31,6 +31,8 @@ use crate::message::semsg;
 #[allow(unused_imports)]
 use crate::message::{emsg, internal_error};
 #[allow(unused_imports)]
+use crate::strings::gettext as tr;
+#[allow(unused_imports)]
 use crate::strings::strcasecmp;
 #[allow(unused_imports)]
 use crate::strings::strlen as c_strlen;
@@ -279,18 +281,6 @@ static E_STRING_OR_FUNCTION_REQUIRED_FOR_ARGUMENT_NR: &CStr =
     c"E1256: String or function required for argument %d";
 static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
     c"E1297: Non-NULL Dictionary required for argument %d";
-
-#[inline]
-unsafe fn tr(s: *const c_char) -> *mut c_char {
-    #[cfg(not(test))]
-    unsafe {
-        gettext(s)
-    }
-    #[cfg(test)]
-    {
-        s.cast_mut()
-    }
-}
 
 #[inline]
 unsafe fn nlua_clear_ref(r: &mut LuaRef) {

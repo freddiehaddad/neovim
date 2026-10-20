@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, arena_dict, copy_array, copy_object,
     string_to_array,
@@ -222,11 +224,6 @@ const fn cstr_literal(s: &'static CStr) -> NvimString {
         data: bytes.as_ptr() as *mut c_char,
         size: bytes.len(),
     }
-}
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]

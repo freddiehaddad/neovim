@@ -19,6 +19,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
 #[allow(unused_imports)]
+use crate::buffer::modifiable;
+#[allow(unused_imports)]
 use crate::charset::ascii_isdigit;
 #[allow(unused_imports)]
 use crate::charset::{buf_init_isk_chartab, check_isopt, init_isf_chartab, init_isi_chartab};
@@ -872,11 +874,6 @@ unsafe fn ptr2cells(p: *const c_char) -> c_int {
             char2cells(*p as u8 as c_int)
         }
     }
-}
-
-#[inline]
-unsafe fn modifiable(buf: *const buf_T) -> bool {
-    unsafe { (*buf).b_p_ma != 0 }
 }
 
 unsafe fn briopt_hash(str_arg: *const c_char, len: usize) -> isize {

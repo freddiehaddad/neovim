@@ -15,6 +15,8 @@ use crate::autocmd::{apply_autocmds, aucmd_defer_modified};
 #[allow(unused_imports)]
 use crate::buffer::buf_inc_changedtick;
 #[allow(unused_imports)]
+use crate::buffer::buf_meta_total;
+#[allow(unused_imports)]
 use crate::buffer::{bt_dontwrite, bt_prompt};
 #[allow(unused_imports)]
 use crate::charset::vim_strnsize;
@@ -191,11 +193,6 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 #[inline]
 const fn replace_normal(s: c_int) -> bool {
     (s & REPLACE_FLAG) != 0 && (s & VREPLACE_FLAG) == 0
-}
-
-#[inline]
-unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
 }
 
 #[inline]

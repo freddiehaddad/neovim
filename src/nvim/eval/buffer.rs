@@ -17,6 +17,8 @@ use crate::buffer::bt_prompt;
 #[allow(unused_imports)]
 use crate::buffer::buf_get_changedtick;
 #[allow(unused_imports)]
+use crate::buffer::first_win_in_tab;
+#[allow(unused_imports)]
 use crate::buffer::{
     bt_cmdwin, buf_ensure_loaded, buflist_add, buflist_findlnum, buflist_findname_exp,
     buflist_findnr, buflist_new,
@@ -114,17 +116,6 @@ struct cob_T {
     cob_aco: CtxSwitch,
     cob_using_aco: c_int,
     cob_save_VIsual_active: c_int,
-}
-
-#[inline]
-unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
-    unsafe {
-        if tp == curtab {
-            firstwin
-        } else {
-            (*tp).tp_firstwin
-        }
-    }
 }
 
 /// Find a buffer by number or exact name (`find_buffer`).

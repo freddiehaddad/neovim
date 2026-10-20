@@ -20,6 +20,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::copy_string;
 #[allow(unused_imports)]
+use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
+#[allow(unused_imports)]
 use crate::buffer::{bt_cmdwin, buf_spname};
 #[allow(unused_imports)]
 use crate::change::deleted_lines_mark;
@@ -437,21 +439,6 @@ unsafe fn api_clear_string(s: *mut NvimString) {
     unsafe {
         xfree((*s).data.cast());
         *s = empty_nvim_string();
-    }
-}
-
-#[inline]
-unsafe fn cbuf_as_string(data: *mut c_char, size: usize) -> NvimString {
-    NvimString { data, size }
-}
-
-#[inline]
-unsafe fn cbuf_to_string(data: *const c_char, size: usize) -> NvimString {
-    unsafe {
-        NvimString {
-            data: xmemdupz(data.cast(), size).cast(),
-            size,
-        }
     }
 }
 

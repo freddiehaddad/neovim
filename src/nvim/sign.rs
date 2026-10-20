@@ -13,6 +13,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::cstr_as_string;
 #[allow(unused_imports)]
+use crate::buffer::buf_meta_total;
+#[allow(unused_imports)]
 use crate::buffer::{buf_hide, buflist_findname_exp, buflist_findnr};
 #[allow(unused_imports)]
 use crate::charset::{ascii_isdigit, ascii_iswhite};
@@ -196,11 +198,6 @@ const CMDS: [*const c_char; 7] = [
     c"jump".as_ptr(),
     ptr::null(),
 ];
-
-#[inline]
-unsafe fn buf_meta_total(b: *const buf_T, m: usize) -> u32 {
-    unsafe { (*b).b_marktree[0].meta_root[m] }
-}
 
 #[inline]
 const fn mt_end(key: MTKey) -> bool {

@@ -36,6 +36,8 @@ use crate::path::path_next_component;
 #[allow(unused_imports)]
 use crate::path::path_to_slash;
 #[allow(unused_imports)]
+use crate::path::to_slash;
+#[allow(unused_imports)]
 use crate::path::{
     FullName_save, append_path, dir_of_file_exists, get_past_head, gettail_dir, path_skip_sep,
     path_tail, path_tail_with_sep, path_with_url, save_abs_path, vim_ispathsep,
@@ -488,18 +490,6 @@ const fn s_isblk(m: u64) -> bool {
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
-}
-
-#[inline]
-unsafe fn to_slash(p: *mut c_char) {
-    #[cfg(all(not(test), windows))]
-    unsafe {
-        if !p.is_null() {
-            path_to_slash(p);
-        }
-    }
-    #[cfg(any(test, not(windows)))]
-    let _ = p;
 }
 
 #[inline]

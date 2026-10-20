@@ -12,6 +12,8 @@
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::{
     api_clear_error, arena_array, dict_get_value, dict_set_var, find_buffer_by_handle,
     find_tab_by_handle, find_window_by_handle, try_enter, try_leave,
@@ -485,11 +487,6 @@ pub struct KeyDict_tabpage_config {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 /// Gets the windows in a tabpage (`nvim_tabpage_list_wins`).

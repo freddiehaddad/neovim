@@ -36,6 +36,8 @@ use crate::path::fix_fname;
 #[allow(unused_imports)]
 use crate::path::{path_to_slash, path_to_slash_save};
 #[allow(unused_imports)]
+use crate::path::{to_slash, to_slash_save};
+#[allow(unused_imports)]
 use crate::strings::vim_snprintf;
 #[allow(unused_imports)]
 use crate::strings::{strcmp, strlen, strstr};
@@ -81,30 +83,6 @@ static mut watchers: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 static mut server_addr_count: u32 = 0;
-
-#[inline]
-unsafe fn to_slash(path: *mut c_char) {
-    #[cfg(windows)]
-    unsafe {
-        path_to_slash(path);
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = path;
-    }
-}
-
-#[inline]
-unsafe fn to_slash_save(path: *const c_char) -> *mut c_char {
-    #[cfg(windows)]
-    unsafe {
-        path_to_slash_save(path)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        xstrdup(path)
-    }
-}
 
 #[inline]
 unsafe fn socket_watcher_uv_size() -> usize {

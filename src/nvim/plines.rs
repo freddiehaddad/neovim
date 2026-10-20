@@ -10,6 +10,8 @@
 )]
 
 #[allow(unused_imports)]
+use crate::charset::ascii2cells;
+#[allow(unused_imports)]
 use crate::charset::vim_isprintc;
 #[allow(unused_imports)]
 use crate::charset::vim_strsize;
@@ -142,15 +144,6 @@ const fn mt_decor(key: MTKey) -> DecorInline {
 #[inline]
 unsafe fn vim_isbreak(c: c_int) -> bool {
     unsafe { breakat_flags[(c as u8) as usize] != 0 }
-}
-
-#[inline]
-unsafe fn ascii2cells(b: c_int) -> c_int {
-    if (b' ' as c_int..=b'~' as c_int).contains(&b) {
-        1
-    } else {
-        unsafe { dy_escape_width }
-    }
 }
 
 #[inline]

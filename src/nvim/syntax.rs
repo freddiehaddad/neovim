@@ -49,6 +49,8 @@ use crate::highlight_group::{
 };
 use crate::indent_c::find_start_comment;
 use crate::r#match::regmmatch_T;
+#[allow(unused_imports)]
+use crate::mbyte::mb_ptr_adv;
 use crate::mbyte::{mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
@@ -515,13 +517,6 @@ unsafe fn invalid_state(ssp: *const garray_T) -> bool {
 #[inline]
 unsafe fn valid_state(ssp: *const garray_T) -> bool {
     unsafe { (*ssp).ga_itemsize != 0 }
-}
-
-#[inline]
-unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
-    unsafe {
-        *p = (*p).add(utfc_ptr2len(*p) as usize);
-    }
 }
 
 #[inline]

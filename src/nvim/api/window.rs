@@ -14,6 +14,8 @@ use crate::api::private::helpers::add_c;
 #[allow(unused_imports)]
 use crate::api::private::helpers::api_set_error;
 #[allow(unused_imports)]
+use crate::api::private::helpers::error_set;
+#[allow(unused_imports)]
 use crate::api::private::helpers::integer_obj;
 #[allow(unused_imports)]
 use crate::api::private::helpers::{
@@ -126,11 +128,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
     (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn error_set(err: *const Error) -> bool {
-    unsafe { (*err).err_type != ErrorType::kErrorTypeNone }
 }
 
 #[inline]
