@@ -25,6 +25,7 @@ use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
 use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
 use crate::memory::{xfree, xmalloc};
 use crate::r#move::adjust_skipcol;
+use crate::normal::lineempty;
 use crate::normal::{FM_FORWARD, unadjust_for_sel};
 use crate::option_vars::*;
 use crate::search::{findmatch, findmatchlimit, kCpoMatchbsl, linewhite};
@@ -43,11 +44,6 @@ pub use crate::search::Direction;
 const kCpoEndofsent: c_int = b'J' as c_int;
 
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);
-
-#[inline]
-unsafe fn lineempty(lnum: linenr_T) -> bool {
-    unsafe { *ml_get(lnum) == NUL }
-}
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).

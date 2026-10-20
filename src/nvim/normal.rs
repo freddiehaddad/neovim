@@ -333,7 +333,7 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-unsafe fn lineempty(lnum: linenr_T) -> bool {
+pub unsafe fn lineempty(lnum: linenr_T) -> bool {
     unsafe { *ml_get(lnum) == NUL }
 }
 
@@ -348,7 +348,7 @@ unsafe fn bt_prompt(buf: *const buf_T) -> bool {
 }
 
 #[inline]
-unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
+pub unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && ptr::eq(buf, cmdwin_buf) }
 }
 

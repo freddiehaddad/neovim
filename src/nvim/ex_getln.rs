@@ -123,6 +123,7 @@ use crate::r#move::{
     changed_cline_bef_curs, restore_viewstate, save_viewstate, update_topline, validate_cursor,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::normal::bt_cmdwin;
 #[cfg(unix)]
 use crate::option::csh_like_shell;
 use crate::option::{set_iminsert_global, set_imsearch_global, set_option_direct, string_to_key};
@@ -403,11 +404,6 @@ unsafe fn array_add(a: &mut Array, item: Object) {
         a.capacity = kv.capacity;
         a.items = kv.items;
     }
-}
-
-#[inline]
-unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && buf == cmdwin_buf.cast_const() }
 }
 
 unsafe fn trigger_cmd_autocmd(typechar: c_int, evt: event_T) {

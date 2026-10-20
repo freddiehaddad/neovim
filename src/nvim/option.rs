@@ -15,10 +15,10 @@ use crate::api::options::{
     kOptBufhidden, kOptBuftype, kOptFiletype, kOptModeline, kOptScopeTab, kOptSwapfile,
 };
 use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::cstr_to_obj;
 use crate::api::private::helpers::{
     api_free_string, api_set_error, arena_dict, boolean_obj, copy_object, cstr_as_obj,
-    cstr_as_string, cstr_to_string, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c,
-    string_obj,
+    cstr_as_string, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T, winopt_T};
@@ -672,11 +672,6 @@ const fn unset_obj() -> Object {
         obj_type: ObjectType::kObjectTypeUnset,
         data: ObjectData { integer: 0 },
     }
-}
-
-#[inline]
-unsafe fn cstr_to_obj(s: *const c_char) -> Object {
-    unsafe { string_obj(cstr_to_string(s)) }
 }
 
 #[inline]

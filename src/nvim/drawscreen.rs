@@ -203,12 +203,12 @@ static mut suspended_virt_text: DecorVirtText = DecorVirtText {
 };
 
 #[inline]
-unsafe fn w_endcol(wp: *const win_T) -> c_int {
+pub unsafe fn w_endcol(wp: *const win_T) -> c_int {
     unsafe { (*wp).w_wincol + (*wp).w_width }
 }
 
 #[inline]
-unsafe fn w_endrow(wp: *const win_T) -> c_int {
+pub unsafe fn w_endrow(wp: *const win_T) -> c_int {
     unsafe { (*wp).w_winrow + (*wp).w_height }
 }
 

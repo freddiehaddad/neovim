@@ -30,6 +30,7 @@ use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem, buf_T};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::executor::blob_T;
 use crate::eval::funcs::{kSpecialVarNull, tv_get_buf, tv_get_buf_from_arg};
+use crate::eval::tv_dict_set_ret;
 use crate::eval::typval::{
     DI_FLAGS_ALLOC, TV_CSTRING, TV_TRANSLATE, tv_check_str_or_nr, tv_clear, tv_copy, tv_dict_add,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_remove,
@@ -564,22 +565,11 @@ unsafe fn tv_init(tv: *mut typval_T) {
 }
 
 #[inline]
-unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
+pub unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
     if l.is_null() {
         VAR_FIXED
     } else {
         unsafe { (*l).lv_lock }
-    }
-}
-
-#[inline]
-unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_DICT;
-        (*tv).vval.v_dict = d;
-        if !d.is_null() {
-            (*d).dv_refcount += 1;
-        }
     }
 }
 

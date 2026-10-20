@@ -11,17 +11,20 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::autocmd::OptionalKeys;
 use crate::api::buffer::{NL, NUL, nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::options::{OptIndex, OptScope};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
+use crate::api::private::helpers::try_wrap;
+use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_free_object, api_set_error, api_set_sctx, api_typename,
-    arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
-    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
-    static_cstr_as_string, string_obj, try_enter, try_leave,
+    add_c, api_clear_error, api_free_object, api_set_error, api_typename, arena_array, array_obj,
+    copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var, error_set,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
+    static_cstr_as_string, string_obj,
 };
+use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
 };
@@ -132,30 +135,6 @@ const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };
-
-#[inline]
-unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
-    unsafe {
-        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
-}
-
-unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
-    unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
-    }
-}
-
-unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
-    unsafe {
-        let save_current_sctx = api_set_sctx(channel_id);
-        f();
-        current_sctx = save_current_sctx;
-    }
-}
 
 /// @deprecated Use nvim_exec2() instead.
 /// @see nvim_exec2

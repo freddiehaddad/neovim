@@ -78,6 +78,8 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
+use crate::os::fs::os_errno as get_errno;
+use crate::os::fs::os_set_errno as set_errno;
 use crate::os::fs::{
     Directory, os_closedir, os_copy, os_dirname, os_file_is_writable, os_file_owned, os_fileinfo,
     os_fileinfo_fd, os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm,
@@ -375,16 +377,6 @@ const fn s_issock(m: i32) -> bool {
 #[inline]
 const fn s_islnk(m: u64) -> bool {
     (m & S_IFMT) == S_IFLNK
-}
-
-#[inline]
-unsafe fn get_errno() -> c_int {
-    unsafe { crate::os::fs::os_errno() }
-}
-
-#[inline]
-unsafe fn set_errno(val: c_int) {
-    unsafe { crate::os::fs::os_set_errno(val) }
 }
 
 #[inline]

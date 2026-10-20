@@ -29,9 +29,8 @@ use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vge
 use crate::input_cmdatom::CmdSpec;
 use crate::lua::executor::nlua_call_typval;
 use crate::mbyte::{
-    mb_charlen, mb_cptr2char_adv, mb_isupper, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
-    utf_char2len, utf_fold, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
+    utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_replace};
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
@@ -42,12 +41,15 @@ use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
+use crate::spell::langp_entry;
+use crate::spell::spell_isupper;
+use crate::spell::spell_tofold;
 use crate::spell::{
     MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
     make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
     repl_from, repl_to, spell_casefold, spell_check, spell_iswordp, spell_iswordp_nmw,
-    spell_move_to, spell_soundfold, spell_valid_case, spelltab, valid_word_prefix,
+    spell_move_to, spell_soundfold, spell_valid_case, valid_word_prefix,
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
@@ -349,30 +351,7 @@ unsafe fn sug_clean_count(su: *const suginfo_T) -> c_int {
 unsafe fn sug_max_count(su: *const suginfo_T) -> c_int {
     unsafe { sug_clean_count(su) + 50 }
 }
-#[inline]
-unsafe fn spell_isupper(c: c_int) -> bool {
-    unsafe {
-        if c >= 128 {
-            mb_isupper(c)
-        } else if c >= 0 {
-            spelltab.st_isu[c as usize]
-        } else {
-            false
-        }
-    }
-}
-#[inline]
-unsafe fn spell_tofold(c: c_int) -> c_int {
-    unsafe {
-        if c >= 128 {
-            utf_fold(c)
-        } else if c >= 0 {
-            spelltab.st_fold[c as usize] as c_int
-        } else {
-            c
-        }
-    }
-}
+
 #[inline]
 unsafe fn mb_ptr_back(s: *const c_char, p: &mut *mut c_char) {
     unsafe {
@@ -401,10 +380,7 @@ unsafe fn was_banned(su: *mut suginfo_T, word: *const c_char) -> bool {
 unsafe fn sug_at(ga: *const garray_T, i: usize) -> *mut suggest_T {
     unsafe { ((*ga).ga_data.cast::<suggest_T>()).add(i) }
 }
-#[inline]
-unsafe fn langp_entry(ga: *const garray_T, i: usize) -> *mut langp_T {
-    unsafe { ((*ga).ga_data.cast::<langp_T>()).add(i) }
-}
+
 unsafe fn can_be_compound(
     sp: *const trystate_T,
     slang: *mut slang_T,

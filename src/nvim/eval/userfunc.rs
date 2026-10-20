@@ -30,6 +30,8 @@ use crate::eval::funcs::{
     MAX_FUNC_ARGS, TFN_INT, TFN_NO_DEREF, call_internal_func, call_internal_method,
     check_internal_func, find_internal_func,
 };
+#[cfg(not(test))]
+use crate::eval::typval::tv_dict_hi2di;
 use crate::eval::typval::{
     TV_CSTRING, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
     tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_append,
@@ -86,11 +88,12 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::profile::{
-    FixVarItem, estack_T, func_do_profile, func_line_end, func_line_start, funccall_T,
-    prof_def_func, profile_add, profile_end, profile_self, profile_start, profile_sub_wait,
-    profile_zero, proftime_T, script_prof_restore, script_prof_save,
+    FixVarItem, func_do_profile, func_line_end, func_line_start, funccall_T, prof_def_func,
+    profile_add, profile_end, profile_self, profile_start, profile_sub_wait, profile_zero,
+    proftime_T, script_prof_restore, script_prof_save,
 };
 use crate::regexp::{NUMBUFLEN, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
+use crate::runtime::set_sourcing_lnum;
 use crate::runtime::{
     autoload_name, estack_pop, estack_push_ufunc, exestack, get_sourced_lnum, script_autoload,
     script_items, sourcing_lnum, sourcing_name,
@@ -263,36 +266,14 @@ unsafe fn hi2uf(hi: *const hashitem_T) -> *mut ufunc_T {
     unsafe { hikey2uf((*hi).hi_key) }
 }
 
-#[cfg(not(test))]
-#[inline]
-unsafe fn tv_dict_hi2di(hi: *mut hashitem_T) -> *mut dictitem_T {
-    unsafe {
-        (*hi)
-            .hi_key
-            .byte_sub(std::mem::offset_of!(dictitem_T, di_key))
-            .cast::<dictitem_T>()
-    }
-}
-
 #[inline]
 unsafe fn funcarg(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { *((*fp).uf_args.ga_data.cast::<*mut c_char>()).add(j as usize) }
 }
 
 #[inline]
-unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
+pub unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
     unsafe { *((*fp).uf_lines.ga_data.cast::<*mut c_char>()).add(j as usize) }
-}
-
-#[inline]
-unsafe fn set_sourcing_lnum(lnum: linenr_T) {
-    unsafe {
-        (*exestack
-            .ga_data
-            .cast::<estack_T>()
-            .add((exestack.ga_len - 1) as usize))
-        .es_lnum = lnum;
-    }
 }
 
 #[inline]

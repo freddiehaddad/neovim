@@ -92,6 +92,7 @@ use crate::state::MODE_SHOWMATCH;
 use crate::strings::{atol, gettext, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
+use crate::window::reset_binding;
 use crate::window::{win_enter, win_split, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -252,14 +253,6 @@ const fn empty_pos(a: pos_T) -> bool {
 #[inline]
 const fn getfile_success(x: c_int) -> bool {
     x <= 0
-}
-
-#[inline]
-unsafe fn reset_binding(wp: *mut win_T) {
-    unsafe {
-        (*wp).w_onebuf_opt.wo_scb = 0;
-        (*wp).w_onebuf_opt.wo_crb = 0;
-    }
 }
 
 unsafe fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {

@@ -213,7 +213,7 @@ const fn empty_map<K, V>() -> Map<K, V> {
 }
 
 #[inline]
-unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T {
+pub unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T {
     unsafe {
         let k = mh_get_int64_t(&raw mut (*map).set, key);
         if k == MH_TOMBSTONE {

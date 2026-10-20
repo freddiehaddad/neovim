@@ -14,7 +14,7 @@ use crate::event::r#loop::{uv_handle_get_loop, uv_strerror};
 #[cfg(unix)]
 use crate::log::logmsg;
 #[cfg(unix)]
-use crate::os::fs::os_set_cloexec;
+use crate::os::fs::{os_errno as get_errno, os_set_cloexec};
 #[cfg(unix)]
 use crate::strings::strerror;
 #[cfg(unix)]
@@ -274,11 +274,6 @@ mod unix_impl {
         fn _exit(status: c_int) -> !;
         #[cfg(target_os = "linux")]
         fn poll(fds: *mut pollfd, nfds: c_ulong, timeout: c_int) -> c_int;
-    }
-
-    #[inline]
-    unsafe fn get_errno() -> c_int {
-        unsafe { crate::os::fs::os_errno() }
     }
 
     #[inline]

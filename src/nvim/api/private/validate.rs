@@ -265,6 +265,14 @@ pub unsafe extern "C" fn check_string_array(
     true
 }
 
+#[inline]
+#[allow(clippy::missing_safety_doc)]
+pub unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
+    unsafe {
+        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

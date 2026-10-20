@@ -41,7 +41,7 @@ const NIL: Object = Object {
 };
 
 #[inline]
-unsafe fn luaret_truthy(res: Object) -> bool {
+pub unsafe fn luaret_truthy(res: Object) -> bool {
     res.obj_type == ObjectType::kObjectTypeBoolean && unsafe { res.data.boolean }
 }
 

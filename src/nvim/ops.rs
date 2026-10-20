@@ -56,6 +56,7 @@ use crate::input_cmdatom::{
     InsSession, VisualIns, atom_capture_op, atom_ins_end, atom_ins_start, atom_suppress,
     atom_visual_redoable, cmdarg_T, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
 };
+use crate::insert::linetabsize_str;
 use crate::insert::{Ctrl_X, beginline, display_dollar, edit, kFoAuto};
 use crate::keycodes::{CAR, K_COMMAND};
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
@@ -74,6 +75,7 @@ use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz};
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, smsg};
 use crate::mouse::setmouse;
 use crate::r#move::validate_virtcol;
+use crate::normal::lineempty;
 use crate::normal::{
     CA_COMMAND_BUSY, CA_NO_ADJ_OP_END, REPLACE_CR_NCHAR, REPLACE_NL_NCHAR, clearop, clearopbeep,
     exec_stuffed, may_clear_cmdline, restore_visual_mode, unadjust_for_sel, unadjust_for_sel_inner,
@@ -83,8 +85,8 @@ use crate::option::{get_equalprg, get_fileformat, get_ve_flags};
 use crate::option_vars::*;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::plines::{
-    CSType, CharsizeArg, getvcol, getvcols, getvvcol, init_charsize_arg, linetabsize_col,
-    utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
+    CSType, CharsizeArg, getvcol, getvcols, getvvcol, init_charsize_arg, utf_ClusterInfo,
+    utf_ptr2StrCharInfo, win_charsize,
 };
 use crate::register::{
     YREG_YANK, block_def, do_autocmd_textyankpost, get_y_register, get_yank_register,
@@ -220,16 +222,6 @@ const fn char_ord(x: c_int) -> c_int {
 #[inline]
 const fn rot13(c: c_int, a: c_int) -> c_int {
     (((c - a) + 13) % 26) + a
-}
-
-#[inline]
-unsafe fn lineempty(lnum: linenr_T) -> bool {
-    unsafe { *ml_get(lnum) == NUL }
-}
-
-#[inline]
-unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
-    unsafe { linetabsize_col(0, s) }
 }
 
 #[inline]

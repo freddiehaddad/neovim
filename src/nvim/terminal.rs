@@ -14,7 +14,7 @@ use crate::api::options::Buffer;
 use crate::api::options::{CtxSwitch, kOptBuftype};
 #[cfg(not(test))]
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj,
+    api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj, str_obj,
 };
 #[cfg(not(test))]
 use crate::api::private::validate::{
@@ -585,15 +585,6 @@ unsafe fn sb_concat_len(sb: *mut StringBuilder, data: *const c_char, len: usize)
         }
         ptr::copy_nonoverlapping(data, (*sb).items.add((*sb).size), len);
         (*sb).size += len;
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-const fn str_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
     }
 }
 

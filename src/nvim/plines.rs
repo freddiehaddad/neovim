@@ -7,10 +7,10 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::deprecated::{DecorInline, DecorVirtText};
+use crate::api::deprecated::DecorVirtText;
 use crate::api::extmark::{kVPosInline, kVTIsLines, ns_in_win};
 use crate::api::tabpage::{pos_T, win_T};
-use crate::charset::{ascii2cells, vim_isprintc, vim_strsize};
+use crate::charset::{vim_isprintc, vim_strsize};
 use crate::cursor::{lt, ltoreq};
 use crate::decoration::{decor_conceal_line, decor_virt_lines, kMTFilterSelect};
 use crate::diff::{diff_check_fill, diffopt_filler};
@@ -19,13 +19,11 @@ use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
 use crate::globals::*;
 use crate::indent::{get_breakindent_win, tabstop_padding};
 use crate::marktree::{
-    MT_FLAG_DECOR_EXT, MTKey, MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines,
-    marktree_itr_current, marktree_itr_get_filter, marktree_itr_next_filter, mt_invalid, mt_right,
+    MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines, marktree_itr_current,
+    marktree_itr_get_filter, marktree_itr_next_filter, mt_decor, mt_invalid, mt_right,
 };
-use crate::mbyte::{
-    ptr2cells, utf_ClusterInfo_impl, utf_char2cells, utf_ptr2CharInfo_impl, utf_ptr2char,
-    utf8len_tab, utfc_ptr2len,
-};
+use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
+pub use crate::mbyte::{utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
@@ -92,91 +90,8 @@ pub struct ClusterInfo {
 }
 
 #[inline]
-const fn mt_decor(key: MTKey) -> DecorInline {
-    DecorInline {
-        ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
-        data: key.decor_data,
-    }
-}
-
-#[inline]
-unsafe fn vim_isbreak(c: c_int) -> bool {
+pub unsafe fn vim_isbreak(c: c_int) -> bool {
     unsafe { breakat_flags[(c as u8) as usize] != 0 }
-}
-
-#[inline]
-unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
-    unsafe {
-        if c.value < 0 {
-            4
-        } else if c.value < 0x80 {
-            ascii2cells(c.value)
-        } else {
-            utf_char2cells(c.value)
-        }
-    }
-}
-
-#[inline]
-pub unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
-    unsafe {
-        let p = p_in.cast::<u8>();
-        let first = *p;
-        if first < 0x80 {
-            CharInfo {
-                value: i32::from(first),
-                len: 1,
-            }
-        } else {
-            let mut len = c_int::from(utf8len_tab[first as usize]);
-            let code_point = utf_ptr2CharInfo_impl(p, len as usize);
-            if code_point < 0 {
-                len = 1;
-            }
-            CharInfo {
-                value: code_point,
-                len,
-            }
-        }
-    }
-}
-
-#[inline]
-pub(crate) unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
-    unsafe {
-        StrCharInfo {
-            ptr,
-            chr: utf_ptr2CharInfo(ptr),
-        }
-    }
-}
-
-#[inline]
-pub(crate) unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
-    unsafe {
-        if *cur.ptr == NUL {
-            return ClusterInfo {
-                next: cur,
-                cells: dy_escape_width,
-            };
-        }
-
-        let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
-        if *next < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo {
-                        value: i32::from(*next),
-                        len: 1,
-                    },
-                },
-                cells: basechar_cells_impl(cur.chr),
-            };
-        }
-        let mut scratch = c_int::MAX;
-        utf_ClusterInfo_impl(cur, &mut scratch)
-    }
 }
 
 #[inline]

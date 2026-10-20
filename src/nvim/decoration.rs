@@ -20,9 +20,9 @@ use crate::api::extmark::{
     kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap, kVPosInline, kVPosOverlay, kVPosWinCol,
     kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak, ns_in_win, virt_text_to_array,
 };
+use crate::api::private::helpers::cstr_to_arena_obj;
 use crate::api::private::helpers::{
-    arena_array, arena_string, array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj,
-    put_c, string_obj,
+    arena_array, array_obj, boolean_obj, cstr_as_obj, integer_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::tabpage::{lpos_T, win_T};
@@ -43,12 +43,12 @@ use crate::indent::tabstop_padding;
 use crate::kvec::KVec;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorHighlightInline, DecorInlineData,
-    MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_MASK,
-    MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, kMTMetaConcealLines,
-    kMTMetaCount, kMTMetaLines, kMTMetaSignText, marktree_get_altpos, marktree_itr_current,
-    marktree_itr_get, marktree_itr_get_filter, marktree_itr_get_overlap, marktree_itr_next,
-    marktree_itr_next_filter, marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_end,
-    mt_invalid,
+    MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
+    MTKey, MTPair, MarkTreeIter, kMTMetaConcealLines, kMTMetaCount, kMTMetaLines, kMTMetaSignText,
+    marktree_get_altpos, marktree_itr_current, marktree_itr_get, marktree_itr_get_filter,
+    marktree_itr_get_overlap, marktree_itr_next, marktree_itr_next_filter,
+    marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_decor, mt_decor_any, mt_decor_sign,
+    mt_end, mt_invalid,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{Arena, xcalloc, xfree, xmalloc};
@@ -119,26 +119,8 @@ static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
 
 #[inline]
-const fn mt_decor_any(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_DECOR_MASK) != 0
-}
-
-#[inline]
-const fn mt_decor_sign(key: MTKey) -> bool {
-    (key.flags & (MT_FLAG_DECOR_SIGNTEXT | MT_FLAG_DECOR_SIGNHL)) != 0
-}
-
-#[inline]
 const fn mt_conceal_lines(key: MTKey) -> bool {
     (key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0
-}
-
-#[inline]
-const fn mt_decor(key: MTKey) -> DecorInline {
-    DecorInline {
-        ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
-        data: key.decor_data,
-    }
 }
 
 #[inline]
@@ -148,11 +130,6 @@ const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
     } else {
         ptr::null_mut()
     }
-}
-
-#[inline]
-unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
-    unsafe { string_obj(arena_string(arena, cstr_as_string(s))) }
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

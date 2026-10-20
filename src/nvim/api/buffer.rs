@@ -11,14 +11,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::cstr_literal;
+use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
     cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, integer_obj,
-    normalize_index, set_mark, static_cstr_as_obj, string_obj, try_enter, try_leave,
+    normalize_index, set_mark, static_cstr_as_obj, string_obj,
 };
+use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_invalid,
     check_string_array,
@@ -163,27 +167,6 @@ const NIL: Object = Object {
 };
 
 #[inline]
-const fn cstr_literal(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
-
-#[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
-    unsafe {
-        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
@@ -191,15 +174,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
-    unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
     }
 }
 

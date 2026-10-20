@@ -9,6 +9,7 @@
     clippy::needless_range_loop
 )]
 
+use crate::api::command::is_user_cmdidx;
 use crate::api::command::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
@@ -4667,11 +4668,6 @@ const CMDIDXS2: [[u8; 26]; 26] = [
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ],
 ];
-
-#[inline]
-const fn is_user_cmdidx(idx: cmdidx_T) -> bool {
-    (idx as c_int) < 0
-}
 
 #[inline]
 const fn ascii_isdigit_c(c: c_char) -> bool {

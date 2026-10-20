@@ -221,7 +221,7 @@ pub struct MarkTree {
 }
 
 #[inline]
-const fn mt_lookup_id(ns: u32, id: u32, enda: bool) -> u64 {
+pub const fn mt_lookup_id(ns: u32, id: u32, enda: bool) -> u64 {
     ((ns as u64) << 33) | ((id as u64) << 1) | if enda { MARKTREE_END_FLAG } else { 0 }
 }
 
@@ -231,7 +231,7 @@ const fn mt_lookup_key_side(key: MTKey, end: bool) -> u64 {
 }
 
 #[inline]
-const fn mt_lookup_key(key: MTKey) -> u64 {
+pub const fn mt_lookup_key(key: MTKey) -> u64 {
     mt_lookup_id(key.ns, key.id, (key.flags & MT_FLAG_END) != 0)
 }
 
@@ -261,12 +261,40 @@ pub const fn mt_invalid(key: MTKey) -> bool {
 }
 
 #[inline]
-pub const fn mt_decor(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_DECOR_EXT) != 0
+pub const fn mt_no_undo(key: MTKey) -> bool {
+    (key.flags & MT_FLAG_NO_UNDO) != 0
 }
 
 #[inline]
-const fn mt_flags(right_gravity: bool, no_undo: bool, invalidate: bool, decor_ext: bool) -> u16 {
+pub const fn mt_invalidate(key: MTKey) -> bool {
+    (key.flags & MT_FLAG_INVALIDATE) != 0
+}
+
+#[inline]
+pub const fn mt_decor_any(key: MTKey) -> bool {
+    (key.flags & MT_FLAG_DECOR_MASK) != 0
+}
+
+#[inline]
+pub const fn mt_decor_sign(key: MTKey) -> bool {
+    (key.flags & (MT_FLAG_DECOR_SIGNTEXT | MT_FLAG_DECOR_SIGNHL)) != 0
+}
+
+#[inline]
+pub const fn mt_decor(key: MTKey) -> crate::api::deprecated::DecorInline {
+    crate::api::deprecated::DecorInline {
+        ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
+        data: key.decor_data,
+    }
+}
+
+#[inline]
+pub const fn mt_flags(
+    right_gravity: bool,
+    no_undo: bool,
+    invalidate: bool,
+    decor_ext: bool,
+) -> u16 {
     (if right_gravity {
         MT_FLAG_RIGHT_GRAVITY
     } else {
@@ -277,7 +305,7 @@ const fn mt_flags(right_gravity: bool, no_undo: bool, invalidate: bool, decor_ex
 }
 
 #[inline]
-const fn mtpair_from(start: MTKey, end: MTKey) -> MTPair {
+pub const fn mtpair_from(start: MTKey, end: MTKey) -> MTPair {
     MTPair {
         start,
         end_pos: end.pos,

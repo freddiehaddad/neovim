@@ -245,12 +245,51 @@ macro_rules! api_set_error {
 }
 pub use api_set_error;
 
+pub use array_obj as arr_obj;
 pub use boolean_obj as bool_obj;
+pub use cstr_as_obj as cstr_obj;
 pub use integer_obj as int_obj;
+pub use static_cstr_as_string as cstr_literal;
+pub use string_obj as str_obj;
+pub use window_obj as win_obj;
+
+#[inline]
+pub const fn has_key(mask: u64, idx: u64) -> bool {
+    (mask & (1u64 << idx)) != 0
+}
 
 #[inline]
 pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
     string_obj(static_cstr_as_string(s))
+}
+
+#[inline]
+pub unsafe fn cstr_to_obj(s: *const c_char) -> Object {
+    unsafe { string_obj(cstr_to_string(s)) }
+}
+
+#[inline]
+pub unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
+    unsafe { string_obj(arena_string(arena, cstr_as_string(s))) }
+}
+
+#[inline]
+pub unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
+    unsafe {
+        let mut tstate: TryState = zeroed();
+        try_enter(&raw mut tstate);
+        f();
+        try_leave(&raw const tstate, err);
+    }
+}
+
+#[inline]
+pub unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
+    unsafe {
+        let save_current_sctx = api_set_sctx(channel_id);
+        f();
+        current_sctx = save_current_sctx;
+    }
 }
 
 #[inline]
@@ -675,10 +714,16 @@ pub unsafe extern "C" fn cstrn_to_string(str_: *const c_char, maxsize: usize) ->
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
-pub unsafe extern "C" fn cstrn_as_string(str_: *mut c_char, maxsize: usize) -> NvimString {
+pub unsafe extern "C" fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
     unsafe {
+        if str_.is_null() {
+            return NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            };
+        }
         NvimString {
-            data: str_,
+            data: str_.cast_mut(),
             size: xstrnlen(str_, maxsize),
         }
     }

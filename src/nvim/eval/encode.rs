@@ -50,6 +50,8 @@ use crate::msgpack_rpc::packer::{
 use crate::regexp::NUMBUFLEN;
 #[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+#[cfg(not(test))]
+use crate::testing::ga_concat_literal;
 use std::ffi::{CStr, c_char, c_int, c_void};
 #[cfg(not(test))]
 use std::sync::atomic::AtomicBool;
@@ -152,14 +154,6 @@ pub(crate) struct MPConvStackVal {
     pub(crate) tv: *mut typval_T,
     pub(crate) saved_copy_id: c_int,
     pub(crate) data: MPConvStackData,
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
-    unsafe {
-        ga_concat_len(gap, s.as_ptr().cast::<c_char>(), s.len());
-    }
 }
 
 /// Msgpack callback for writing to a Blob (`encode_blob_write`).

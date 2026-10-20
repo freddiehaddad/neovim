@@ -87,7 +87,7 @@ enum AssertType {
 }
 
 #[inline]
-unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
+pub unsafe fn ga_concat_literal(gap: *mut garray_T, s: &[u8]) {
     unsafe {
         ga_concat_len(gap, s.as_ptr().cast::<c_char>(), s.len());
     }

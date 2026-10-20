@@ -5,9 +5,9 @@
 #[cfg(not(test))]
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::buffer::VAR_FIXED;
+use crate::clipboard::typval_T;
 #[cfg(not(test))]
-use crate::clipboard::{TypvalVval, VarType, listitem_T};
-use crate::clipboard::{list_T, typval_T};
+use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T};
 #[cfg(not(test))]
 use crate::errors::*;
 #[cfg(not(test))]
@@ -17,6 +17,8 @@ use crate::eval::deprecated::EvalFuncData;
 use crate::eval::executor::blob_T;
 #[cfg(not(test))]
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
+#[cfg(not(test))]
+use crate::eval::tv_blob_set_ret;
 #[cfg(not(test))]
 use crate::eval::typval::{
     TV_TRANSLATE, VAR_LOCKED, tv_blob_copy, tv_blob_get, tv_blob_remove,
@@ -28,6 +30,7 @@ use crate::eval::typval::{
     tv_list_set_ret, tv_list_unref, value_check_lock,
 };
 use crate::eval::typval::{tv_blob_len, tv_list_first, tv_list_len};
+use crate::eval::vars::tv_list_locked;
 #[cfg(not(test))]
 use crate::eval::vars::{
     VV_KEY, VV_VAL, get_vim_var_tv, prepare_vimvar, restore_vimvar, set_vim_var_nr,
@@ -53,6 +56,7 @@ use crate::memory::xmemdupz;
 use crate::message::{emsg, semsg};
 #[cfg(not(test))]
 use crate::strings::reverse_text;
+#[cfg(not(test))]
 use std::ffi::c_int;
 #[cfg(not(test))]
 use std::ffi::c_void;
@@ -68,32 +72,11 @@ enum FilterMap {
     ForEach,
 }
 
-#[inline]
-unsafe fn tv_list_locked(l: *const list_T) -> c_int {
-    if l.is_null() {
-        VAR_FIXED
-    } else {
-        unsafe { (*l).lv_lock }
-    }
-}
-
 #[cfg(not(test))]
 #[inline]
 unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
     unsafe {
         *(*b).bv_ga.ga_data.cast::<u8>().add(idx as usize) = c;
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_BLOB;
-        (*tv).vval.v_ptr = b.cast::<c_void>();
-        if !b.is_null() {
-            (*b).bv_refcount += 1;
-        }
     }
 }
 

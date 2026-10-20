@@ -45,14 +45,13 @@ use crate::cmdexpand::{
 use crate::eval::deprecated::buf_T;
 use crate::eval::funcs::DOCMD_KEYTYPED;
 use crate::eval::last_set_msg;
+use crate::eval::typval::nlua_clear_ref;
 use crate::ex_docmd::{EX_BUFNAME, do_cmdline, ends_excmd};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::keycodes::{K_SPECIAL, KS_SPECIAL, replace_termcodes};
 use crate::lua::converter::LuaRef;
-use crate::lua::executor::{
-    api_free_luaref, api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx,
-};
+use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::set_context_in_map_cmd;
 use crate::math::{FAIL, OK};
@@ -210,14 +209,6 @@ unsafe fn user_cmd(i: c_int) -> *mut ucmd_T {
 #[inline]
 unsafe fn user_cmd_ga(gap: *const garray_T, i: c_int) -> *mut ucmd_T {
     unsafe { (*gap).ga_data.cast::<ucmd_T>().add(i as usize) }
-}
-
-#[inline]
-unsafe fn nlua_clear_ref(r: &mut LuaRef) {
-    if *r != LUA_NOREF {
-        unsafe { api_free_luaref(*r) };
-        *r = LUA_NOREF;
-    }
 }
 
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).

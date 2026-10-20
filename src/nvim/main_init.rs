@@ -11,7 +11,7 @@
 
 #[cfg(not(test))]
 use crate::api::private::helpers::{
-    api_free_object, api_metadata_raw, bool_obj, cstr_as_string, int_obj,
+    api_free_object, api_metadata_raw, bool_obj, cstr_as_string, cstr_obj, int_obj,
 };
 #[cfg(not(test))]
 use crate::api::private::validate::{
@@ -54,6 +54,8 @@ use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
 use crate::eval::deprecated::CallbackReader;
+#[cfg(not(test))]
+use crate::eval::typval::tv_list_set_lock;
 #[cfg(not(test))]
 use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string};
 #[cfg(not(test))]
@@ -361,16 +363,6 @@ unsafe extern "C" {
 
 #[cfg(not(test))]
 #[inline]
-unsafe fn tv_list_set_lock(l: *mut crate::clipboard::list_T, lock: c_int) {
-    if !l.is_null() {
-        unsafe {
-            (*l).lv_lock = lock;
-        }
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
 unsafe fn time_msg_if_enabled(s: *const c_char) {
     #[cfg(not(test))]
     unsafe {
@@ -419,19 +411,6 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
         }
         let bytes = CStr::from_ptr(a).to_bytes();
         bytes.len() >= b.len() && bytes[..b.len()].eq_ignore_ascii_case(b)
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn cstr_obj(s: *const c_char) -> Object {
-    unsafe {
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: cstr_as_string(s),
-            },
-        }
     }
 }
 

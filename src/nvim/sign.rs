@@ -49,10 +49,10 @@ use crate::map::{
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::mark::setpcmark;
 use crate::marktree::{
-    DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_SIGNHL,
-    MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair, MarkTreeIter, kMTMetaSignHL, kMTMetaSignText,
-    marktree_itr_current, marktree_itr_get, marktree_itr_get_overlap, marktree_itr_next,
-    marktree_itr_step_overlap, marktree_lookup_ns, mt_end,
+    DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT,
+    MTKey, MTPair, MarkTreeIter, kMTMetaSignHL, kMTMetaSignText, marktree_itr_current,
+    marktree_itr_get, marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap,
+    marktree_lookup_ns, mt_decor, mt_decor_sign, mt_end,
 };
 use crate::mbyte::{utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memory::{xcalloc, xfree, xstrdup};
@@ -153,19 +153,6 @@ const CMDS: [*const c_char; 7] = [
     c"jump".as_ptr(),
     ptr::null(),
 ];
-
-#[inline]
-const fn mt_decor_sign(key: MTKey) -> bool {
-    (key.flags & (MT_FLAG_DECOR_SIGNTEXT | MT_FLAG_DECOR_SIGNHL)) != 0
-}
-
-#[inline]
-const fn mt_decor(key: MTKey) -> DecorInline {
-    DecorInline {
-        ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
-        data: key.decor_data,
-    }
-}
 
 #[inline]
 unsafe fn map_get_string_int(key: NvimString) -> c_int {

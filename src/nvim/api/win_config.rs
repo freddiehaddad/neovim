@@ -11,14 +11,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{VirtText, VirtTextChunk};
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::cstr_to_obj;
+use crate::api::private::helpers::cstrn_as_string;
+use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, cbuf_to_string, cstr_as_string, error_set, find_buffer_by_handle,
-    find_window_by_handle, integer_obj, object_to_hl_id, string_obj, try_enter, try_leave,
+    find_window_by_handle, integer_obj, object_to_hl_id, string_obj,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
@@ -195,35 +199,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 };
 
 #[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-unsafe fn cstrn_as_string(s: *const c_char, maxsize: usize) -> NvimString {
-    if s.is_null() {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-    }
-    let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), maxsize) };
-    let len = slice.iter().position(|&b| b == 0).unwrap_or(maxsize);
-    NvimString {
-        data: s as *mut c_char,
-        size: len,
-    }
-}
-
-#[inline]
-unsafe fn cstr_to_obj(s: *const c_char) -> Object {
-    unsafe {
-        let len = CStr::from_ptr(s).to_bytes().len();
-        string_obj(cbuf_to_string(s, len))
-    }
-}
-
-#[inline]
 unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
     if a.is_null() {
         return false;
@@ -240,15 +215,6 @@ unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
         CStr::from_ptr(a)
             .to_bytes()
             .eq_ignore_ascii_case(b.as_bytes())
-    }
-}
-
-unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
-    unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
     }
 }
 

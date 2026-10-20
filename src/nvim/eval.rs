@@ -20,23 +20,25 @@ use crate::charset::{
     ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits, skiptowhite,
     skipwhite, vim_str2nr,
 };
+use crate::eval::typval::dict_watchers_queue;
+use crate::eval::typval::tv_dict_watcher_node_data;
+use crate::eval::typval::tv_initial_value;
 use crate::eval::typval::{
-    DictWatcher, QUEUE, TV_CSTRING, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret,
-    tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get,
-    tv_blob_len, tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref,
-    tv_check_lock, tv_check_num, tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr,
-    tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents,
-    tv_dict_free_dict, tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc,
-    tv_dict_item_free, tv_dict_unref, tv_dict_watcher_notify, tv_dict_wrong_func_name,
-    tv_empty_string, tv_equal, tv_get_float, tv_get_number, tv_get_number_chk, tv_get_string,
-    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_in_free_unref_items,
-    tv_is_func, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_owned_tv,
-    tv_list_append_string, tv_list_assign_range, tv_list_check_range_index_one,
-    tv_list_check_range_index_two, tv_list_concat, tv_list_copy, tv_list_equal, tv_list_find,
-    tv_list_find_nr, tv_list_first, tv_list_free, tv_list_free_contents, tv_list_free_list,
-    tv_list_join, tv_list_last, tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret,
-    tv_list_slice_or_index, tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool,
-    value_check_lock,
+    TV_CSTRING, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index,
+    tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get, tv_blob_len, tv_blob_set_append,
+    tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref, tv_check_lock, tv_check_num,
+    tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy,
+    tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents, tv_dict_free_dict,
+    tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free,
+    tv_dict_unref, tv_dict_watcher_notify, tv_dict_wrong_func_name, tv_empty_string, tv_equal,
+    tv_get_float, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf,
+    tv_get_string_buf_chk, tv_get_string_chk, tv_in_free_unref_items, tv_is_func, tv_list_alloc,
+    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string,
+    tv_list_assign_range, tv_list_check_range_index_one, tv_list_check_range_index_two,
+    tv_list_concat, tv_list_copy, tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first,
+    tv_list_free, tv_list_free_contents, tv_list_free_list, tv_list_join, tv_list_last,
+    tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index,
+    tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool, value_check_lock,
 };
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_queues, uv_handle_size};
@@ -122,7 +124,6 @@ use crate::runtime::{get_scriptname, script_is_lua};
 #[cfg(not(test))]
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::mem::offset_of;
 use std::ptr;
 
 use crate::api::private::converter::{VAR_UNLOCKED, sctx_T, ufunc_T};
@@ -417,15 +418,6 @@ pub struct caller_scope {
 }
 
 #[inline]
-const fn tv_initial_value() -> typval_T {
-    typval_T {
-        v_type: VarType::VAR_UNKNOWN,
-        v_lock: VAR_UNLOCKED,
-        vval: TypvalVval { v_number: 0 },
-    }
-}
-
-#[inline]
 unsafe fn tv_init(rettv: *mut typval_T) {
     if !rettv.is_null() {
         unsafe {
@@ -447,7 +439,7 @@ unsafe fn tv_set_partial(tv: *mut typval_T, pt: *mut partial_T) {
 }
 
 #[inline]
-unsafe fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
+pub unsafe fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
     unsafe {
         (*tv).v_type = VarType::VAR_BLOB;
         (*tv).vval.v_blob = b;
@@ -458,7 +450,7 @@ unsafe fn tv_blob_set_ret(tv: *mut typval_T, b: *mut blob_T) {
 }
 
 #[inline]
-unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
+pub unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
     unsafe {
         (*tv).v_type = VarType::VAR_DICT;
         (*tv).vval.v_dict = d;
@@ -491,20 +483,6 @@ unsafe fn tv_list_item_tv(li: *mut listitem_T) -> *mut typval_T {
 #[inline]
 unsafe fn tv_list_item_next(_l: *const list_T, li: *const listitem_T) -> *mut listitem_T {
     unsafe { (*li).li_next }
-}
-
-#[inline]
-unsafe fn dict_watchers_queue(d: *const dict_T) -> *mut QUEUE {
-    unsafe { (&raw const (*d).watchers).cast_mut().cast::<QUEUE>() }
-}
-
-#[inline]
-unsafe fn tv_dict_watcher_node_data(q: *mut QUEUE) -> *mut DictWatcher {
-    unsafe {
-        q.cast::<u8>()
-            .sub(offset_of!(DictWatcher, node))
-            .cast::<DictWatcher>()
-    }
 }
 
 #[inline]

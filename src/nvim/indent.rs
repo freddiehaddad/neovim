@@ -13,6 +13,7 @@ use crate::api::command::{CMOD_LOCKMARKS, exarg_T, regmatch_T};
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::api::tabpage::win_T;
 use crate::buffer::{buf_get_changedtick, modifiable};
+use crate::change::replace_normal;
 use crate::change::{
     SIN_INSERT, SIN_NOMARK, TAB, changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str,
 };
@@ -79,7 +80,7 @@ use crate::api::options::IOSIZE;
 pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::math::{FAIL, OK};
-use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG};
+use crate::state::{MODE_INSERT, VREPLACE_FLAG};
 
 const TABSTOP_MAX: c_int = 9999;
 
@@ -118,11 +119,6 @@ static mut PREV_FLP: *mut c_char = ptr::null_mut();
 #[inline]
 const fn ascii_iswhite_cint(c: c_int) -> bool {
     c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-const fn replace_normal(s: c_int) -> bool {
-    (s & REPLACE_FLAG) != 0 && (s & VREPLACE_FLAG) == 0
 }
 
 #[inline]

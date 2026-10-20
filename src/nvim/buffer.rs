@@ -124,6 +124,7 @@ use crate::ui::{ui_call_set_icon, ui_call_set_title, ui_has};
 use crate::undo::{u_clearallandblockfree, u_sync, undo_fmt_time};
 use crate::usercmd::uc_clear;
 use crate::version::min_vim_version;
+use crate::window::reset_binding;
 use crate::window::{
     WSP_BELOW, WSP_ROOM, WSP_VERT, check_can_set_curbuf_forceit, check_colorcolumn, close_windows,
     free_wininfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window,
@@ -365,14 +366,6 @@ unsafe fn strcpy_raw(mut dst: *mut c_char, mut src: *const c_char) {
             dst = dst.add(1);
             src = src.add(1);
         }
-    }
-}
-
-#[inline]
-unsafe fn reset_binding(wp: *mut win_T) {
-    unsafe {
-        (*wp).w_onebuf_opt.wo_scb = 0;
-        (*wp).w_onebuf_opt.wo_crb = 0;
     }
 }
 

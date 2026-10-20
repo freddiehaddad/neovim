@@ -187,7 +187,7 @@ pub static mut repl_to: *mut c_char = ptr::null_mut();
 static mut parse_spelllang_recursive: bool = false;
 static mut spell_expand_need_cap: bool = false;
 #[inline]
-unsafe fn spell_isupper(c: c_int) -> bool {
+pub unsafe fn spell_isupper(c: c_int) -> bool {
     unsafe {
         if c >= 128 {
             mb_isupper(c)
@@ -199,7 +199,7 @@ unsafe fn spell_isupper(c: c_int) -> bool {
     }
 }
 #[inline]
-unsafe fn spell_tofold(c: c_int) -> c_int {
+pub unsafe fn spell_tofold(c: c_int) -> c_int {
     unsafe {
         if c >= 128 {
             utf_fold(c)
@@ -211,7 +211,7 @@ unsafe fn spell_tofold(c: c_int) -> c_int {
     }
 }
 #[inline]
-unsafe fn spell_toupper(c: c_int) -> c_int {
+pub unsafe fn spell_toupper(c: c_int) -> c_int {
     unsafe {
         if c >= 128 {
             mb_toupper(c)
@@ -236,7 +236,7 @@ unsafe fn mb_ptr_back(s: *const c_char, p: &mut *mut c_char) {
     }
 }
 #[inline]
-unsafe fn langp_entry(ga: *const garray_T, i: usize) -> *mut langp_T {
+pub unsafe fn langp_entry(ga: *const garray_T, i: usize) -> *mut langp_T {
     unsafe { ((*ga).ga_data.cast::<langp_T>()).add(i) }
 }
 /// Main spell-checking function.

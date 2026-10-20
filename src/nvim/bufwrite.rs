@@ -76,10 +76,10 @@ use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, short
 use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::os::fs::{
-    O_WRONLY, os_close, os_copy, os_copy_xattr, os_file_is_writable, os_fileinfo,
-    os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync,
-    os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists,
-    os_remove, os_set_acl, os_setperm, vim_acl_T,
+    O_WRONLY, os_close, os_copy, os_copy_xattr, os_errno as iconv_errno, os_file_is_writable,
+    os_fileinfo, os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl,
+    os_fsync, os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open,
+    os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 #[cfg(all(not(test), unix))]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, uv_gid_t, uv_uid_t};
@@ -309,12 +309,6 @@ unsafe fn call_iconv_close(cd: iconv_t) -> c_int {
     {
         0
     }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn iconv_errno() -> c_int {
-    unsafe { crate::os::fs::os_errno() }
 }
 
 /// Convert a Unicode character to bytes.

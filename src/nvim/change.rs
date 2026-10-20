@@ -137,7 +137,7 @@ unsafe fn tr(s: *const c_char) -> *const c_char {
 }
 
 #[inline]
-const fn replace_normal(s: c_int) -> bool {
+pub const fn replace_normal(s: c_int) -> bool {
     (s & REPLACE_FLAG) != 0 && (s & VREPLACE_FLAG) == 0
 }
 

@@ -9,7 +9,9 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMD_USER, CMD_USER_BUF, cmdmod_T, exarg_T, ucmd_T};
+#[cfg(not(test))]
+use crate::api::command::is_user_cmdidx;
+use crate::api::command::{cmdmod_T, exarg_T, ucmd_T};
 #[cfg(not(test))]
 use crate::api::extmark::ns_initialized;
 use crate::api::private::converter::sctx_T;
@@ -484,11 +486,6 @@ unsafe extern "C" {
 
     #[cfg(unix)]
     fn pthread_exit(retval: *mut c_void) -> !;
-}
-
-#[inline]
-const fn is_user_cmdidx(idx: c_int) -> bool {
-    idx == CMD_USER || idx == CMD_USER_BUF
 }
 
 #[cfg(not(test))]
@@ -3381,6 +3378,7 @@ pub unsafe extern "C" fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::command::{CMD_USER, CMD_USER_BUF, is_user_cmdidx};
 
     #[test]
     fn mode_ret_and_user_cmdidx_helpers_work() {

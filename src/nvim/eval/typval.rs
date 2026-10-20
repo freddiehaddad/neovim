@@ -207,7 +207,7 @@ static E_NON_NULL_DICT_REQUIRED_FOR_ARGUMENT_NR: &CStr =
     c"E1297: Non-NULL Dictionary required for argument %d";
 
 #[inline]
-unsafe fn nlua_clear_ref(r: &mut LuaRef) {
+pub unsafe fn nlua_clear_ref(r: &mut LuaRef) {
     #[cfg(not(test))]
     if *r != LUA_NOREF {
         unsafe { api_free_luaref(*r) };
@@ -245,7 +245,7 @@ pub const fn tv_is_func(tv: typval_T) -> bool {
 }
 
 #[inline]
-unsafe fn dict_watchers_queue(d: *const dict_T) -> *mut QUEUE {
+pub unsafe fn dict_watchers_queue(d: *const dict_T) -> *mut QUEUE {
     unsafe { (&raw const (*d).watchers).cast_mut().cast::<QUEUE>() }
 }
 
@@ -281,7 +281,7 @@ unsafe fn queue_remove(q: *mut QUEUE) {
 }
 
 #[inline]
-unsafe fn tv_dict_watcher_node_data(q: *mut QUEUE) -> *mut DictWatcher {
+pub unsafe fn tv_dict_watcher_node_data(q: *mut QUEUE) -> *mut DictWatcher {
     unsafe {
         q.cast::<u8>()
             .sub(offset_of!(DictWatcher, node))
@@ -466,7 +466,7 @@ const fn tv_is_func_inline(tv: typval_T) -> bool {
 }
 
 #[inline]
-const fn tv_initial_value() -> typval_T {
+pub const fn tv_initial_value() -> typval_T {
     typval_T {
         v_type: VarType::VAR_UNKNOWN,
         v_lock: VAR_UNLOCKED,

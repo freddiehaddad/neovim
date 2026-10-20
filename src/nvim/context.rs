@@ -10,6 +10,7 @@
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
 use crate::api::private::converter::object_to_vim;
+use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
     copy_array, copy_object, error_set, string_obj, string_to_array,
@@ -171,15 +172,6 @@ static mut CTX_SWITCH_DEPTH: c_int = 0;
 static mut CTX_SAVED_CURWIN: handle_T = 0;
 static mut CTX_DID_CHDIR: bool = false;
 static mut CTX_MARKS_NS_ID: u32 = 0;
-
-#[inline]
-const fn cstr_literal(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
 
 #[inline]
 unsafe fn strequal(a: *const c_char, b: &str) -> bool {

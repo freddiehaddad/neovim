@@ -25,14 +25,14 @@ use crate::map::{
     Map, map_del_uint32_t_uint32_t, map_put_ref_uint32_t_uint32_t, map_ref_uint32_t_uint32_t,
 };
 use crate::marktree::{
-    DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MARKTREE_END_FLAG, MT_FLAG_DECOR_EXT,
-    MT_FLAG_DECOR_HL, MT_FLAG_DECOR_MASK, MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_END,
-    MT_FLAG_EXTERNAL_MASK, MT_FLAG_INVALID, MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO,
-    MT_FLAG_RIGHT_GRAVITY, MTKey, MTPair, MTPos, MarkTreeIter, marktree_clear, marktree_del_itr,
-    marktree_get_alt, marktree_get_altpos, marktree_itr_current, marktree_itr_get,
-    marktree_itr_get_ext, marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap,
-    marktree_lookup, marktree_lookup_ns, marktree_move, marktree_move_region, marktree_put,
-    marktree_revise_meta, marktree_splice, mt_end, mt_invalid, mt_paired, mt_right,
+    DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
+    MT_FLAG_EXTERNAL_MASK, MT_FLAG_INVALID, MTKey, MTPair, MTPos, MarkTreeIter, marktree_clear,
+    marktree_del_itr, marktree_get_alt, marktree_get_altpos, marktree_itr_current,
+    marktree_itr_get, marktree_itr_get_ext, marktree_itr_get_overlap, marktree_itr_next,
+    marktree_itr_step_overlap, marktree_lookup, marktree_lookup_ns, marktree_move,
+    marktree_move_region, marktree_put, marktree_revise_meta, marktree_splice, mt_decor,
+    mt_decor_any, mt_end, mt_flags, mt_invalid, mt_invalidate, mt_lookup_id, mt_lookup_key,
+    mt_no_undo, mt_paired, mt_right, mtpair_from,
 };
 use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 use crate::memline::ml_find_line_or_offset;
@@ -110,59 +110,6 @@ use crate::api::buffer::kExtmarkUndo;
 use crate::api::vim::{kNone, kTrue};
 use crate::buffer::{MAXLNUM, kExtmarkNoUndo};
 pub use crate::undo::u_header_T;
-
-#[inline]
-const fn mt_lookup_id(ns: u32, id: u32, enda: bool) -> u64 {
-    ((ns as u64) << 33) | ((id as u64) << 1) | if enda { MARKTREE_END_FLAG } else { 0 }
-}
-
-#[inline]
-const fn mt_lookup_key(key: MTKey) -> u64 {
-    mt_lookup_id(key.ns, key.id, (key.flags & MT_FLAG_END) != 0)
-}
-
-#[inline]
-const fn mt_no_undo(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_NO_UNDO) != 0
-}
-
-#[inline]
-const fn mt_invalidate(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_INVALIDATE) != 0
-}
-
-#[inline]
-const fn mt_decor_any(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_DECOR_MASK) != 0
-}
-
-#[inline]
-const fn mt_flags(right_gravity: bool, no_undo: bool, invalidate: bool, decor_ext: bool) -> u16 {
-    (if right_gravity {
-        MT_FLAG_RIGHT_GRAVITY
-    } else {
-        0
-    }) | (if no_undo { MT_FLAG_NO_UNDO } else { 0 })
-        | (if invalidate { MT_FLAG_INVALIDATE } else { 0 })
-        | (if decor_ext { MT_FLAG_DECOR_EXT } else { 0 })
-}
-
-#[inline]
-const fn mtpair_from(start: MTKey, end: MTKey) -> MTPair {
-    MTPair {
-        start,
-        end_pos: end.pos,
-        end_right_gravity: mt_right(end),
-    }
-}
-
-#[inline]
-const fn mt_decor(key: MTKey) -> DecorInline {
-    DecorInline {
-        ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
-        data: key.decor_data,
-    }
-}
 
 #[inline]
 unsafe fn kv_push_val<T>(v: *mut KVec<T>, val: T) {

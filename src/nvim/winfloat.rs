@@ -8,8 +8,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{OPT_LOCAL, VirtText, kOptScopeBuf};
+use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_obj, error_init, find_buffer_by_handle,
     find_window_by_handle,
@@ -105,11 +105,6 @@ const WIN_CONFIG_INIT: WinConfig = WinConfig {
 #[inline]
 const fn error_set(err: &Error) -> bool {
     !matches!(err.err_type, ErrorType::kErrorTypeNone)
-}
-
-#[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
 }
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).

@@ -16,11 +16,15 @@ use crate::api::deprecated::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
     VirtLines, VirtText, VirtTextChunk, VirtTextPos, kHlModeUnknown, kVPosEndOfLine,
 };
+use crate::api::private::helpers::cstr_literal;
+use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::string_to_cstr;
 use crate::api::private::helpers::{
     add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
     copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
     integer_obj, object_to_hl_id, string_obj,
 };
+use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
 };
@@ -45,14 +49,13 @@ use crate::map::{
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
-    MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL,
-    MT_FLAG_DECOR_SIGNTEXT, MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE,
-    MT_FLAG_INVALIDATE, MT_FLAG_NO_UNDO, MTKey, MTPair, MarkTreeIter, mt_inspect, mt_invalid,
-    mt_paired, mt_right,
+    MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT,
+    MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair, MarkTreeIter, mt_decor,
+    mt_inspect, mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, xfree, xmemdupz};
+use crate::memory::{Arena, xfree};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::sign::init_sign_text;
@@ -334,37 +337,11 @@ pub struct KeyDict_ns_opts {
 }
 
 #[inline]
-const fn cstr_literal(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
-
-#[inline]
-unsafe fn string_to_cstr(str: NvimString) -> *mut c_char {
-    unsafe { xmemdupz(str.data.cast(), str.size).cast() }
-}
-
-#[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
 unsafe fn strequal(a: *const c_char, b: &str) -> bool {
     if a.is_null() {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
-    unsafe {
-        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
 }
 
 #[inline]
@@ -438,24 +415,6 @@ pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
             return true;
         }
         set_has_u32(&raw mut (*wp).w_ns_set, ns_id)
-    }
-}
-
-#[inline]
-const fn mt_no_undo(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_NO_UNDO) != 0
-}
-
-#[inline]
-const fn mt_invalidate(key: MTKey) -> bool {
-    (key.flags & MT_FLAG_INVALIDATE) != 0
-}
-
-#[inline]
-const fn mt_decor(key: MTKey) -> DecorInline {
-    DecorInline {
-        ext: (key.flags & MT_FLAG_DECOR_EXT) != 0,
-        data: key.decor_data,
     }
 }
 
@@ -2218,8 +2177,9 @@ pub unsafe extern "C" fn nvim__ns_get(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::marktree::MTPos;
-    use crate::marktree::{MT_FLAG_PAIRED, MT_FLAG_RIGHT_GRAVITY};
+    use crate::marktree::{
+        MT_FLAG_INVALIDATE, MT_FLAG_PAIRED, MT_FLAG_RIGHT_GRAVITY, MTKey, MTPos,
+    };
 
     #[test]
     fn mt_key_flag_predicates() {

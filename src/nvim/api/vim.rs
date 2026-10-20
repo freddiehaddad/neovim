@@ -21,13 +21,14 @@ use crate::api::deprecated::{
 use crate::api::extmark::NS;
 use crate::api::options::{CharBuf, kOptBufhidden, kOptBuftype};
 use crate::api::private::converter::vim_to_object;
+use crate::api::private::helpers::cstr_to_arena_obj;
 use crate::api::private::helpers::{
     add_c, api_metadata, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
-    arena_string, arena_take_arraybuilder, array_obj, boolean_obj, buffer_obj, copy_array,
-    copy_dict, copy_object, copy_string, cstr_as_obj, cstr_as_string, dict_get_value, dict_obj,
-    dict_set_var, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle,
-    get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark, static_cstr_as_string,
-    string_obj, string_to_array, tabpage_obj, try_enter, try_leave, window_obj,
+    arena_take_arraybuilder, array_obj, boolean_obj, buffer_obj, copy_array, copy_dict,
+    copy_object, copy_string, cstr_as_obj, cstr_as_string, dict_get_value, dict_obj, dict_set_var,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, get_default_stl_hl,
+    integer_obj, nil_obj, parse_hl_msg, put_c, set_mark, static_cstr_as_string, string_obj,
+    string_to_array, tabpage_obj, try_enter, try_leave, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -439,11 +440,6 @@ const fn error_set(e: &Error) -> bool {
 #[inline]
 const fn is_internal_call(channel_id: u64) -> bool {
     (channel_id & INTERNAL_CALL_MASK) != 0
-}
-
-#[inline]
-unsafe fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
-    unsafe { string_obj(arena_string(arena, cstr_as_string(s))) }
 }
 
 /// Gets a highlight group by name

@@ -76,7 +76,8 @@ use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg,
-    init_charsize_arg_skip_cur_text, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
+    init_charsize_arg_skip_cur_text, utf_ClusterInfo, utf_ptr2StrCharInfo, vim_isbreak,
+    win_charsize,
 };
 use crate::quickfix::qf_current_entry;
 use crate::regexp::{Ctrl_V, MAXCOL};
@@ -203,11 +204,6 @@ static mut stc_prev_virtnum: c_int = 0;
 static mut stc_prev_wp: *mut win_T = ptr::null_mut();
 static mut stc_prev_lnum: linenr_T = 0;
 static mut stc_prev_tick: disptick_T = 0;
-
-#[inline]
-unsafe fn vim_isbreak(c: c_int) -> bool {
-    unsafe { breakat_flags[(c as u8) as usize] != 0 }
-}
 
 #[inline]
 const fn tristate_to_bool(val: TriState, default: bool) -> bool {

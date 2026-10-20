@@ -8,7 +8,7 @@ use crate::clipboard::{list_T, listitem_T, typval_T};
 use crate::debugger::{ex_breakadd, exarg_Full};
 use crate::eval::decode::{dict_T, dictitem_T};
 #[cfg(not(test))]
-use crate::eval::userfunc::{func_tbl_get, get_current_funccal};
+use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal};
 #[cfg(not(test))]
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 #[cfg(not(test))]
@@ -34,7 +34,7 @@ use crate::os::env::expand_env_save_opt;
 use crate::os::fs::os_fopen;
 use crate::os::time::os_hrtime;
 #[cfg(not(test))]
-use crate::runtime::{get_scriptname, script_items, sourcing_lnum};
+use crate::runtime::{get_scriptname, script_id_valid, script_item, script_items, sourcing_lnum};
 #[cfg(not(test))]
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -185,29 +185,6 @@ unsafe fn skiptowhite(mut p: *const c_char) -> *mut c_char {
         }
         p.cast_mut()
     }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn script_item(id: c_int) -> *mut scriptitem_T {
-    unsafe {
-        *script_items
-            .ga_data
-            .cast::<*mut scriptitem_T>()
-            .add((id - 1) as usize)
-    }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn script_id_valid(id: c_int) -> bool {
-    id > 0 && id <= unsafe { script_items.ga_len }
-}
-
-#[cfg(not(test))]
-#[inline]
-unsafe fn funcline(fp: *const ufunc_T, j: c_int) -> *mut c_char {
-    unsafe { *(*fp).uf_lines.ga_data.cast::<*mut c_char>().add(j as usize) }
 }
 
 #[cfg(not(test))]

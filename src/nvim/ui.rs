@@ -10,6 +10,9 @@
 )]
 
 use crate::api::extmark::describe_ns;
+use crate::api::private::helpers::arr_obj;
+use crate::api::private::helpers::str_obj;
+use crate::api::private::helpers::win_obj;
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, arena_array, arena_dict, bool_obj, cstr_as_string, float_obj,
     int_obj,
@@ -1170,32 +1173,6 @@ const NOARGS_ARRAY: Array = Array {
     size: 0,
     capacity: 0,
 };
-
-#[inline]
-const fn str_obj(s: NvimString) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeString,
-        data: ObjectData { string: s },
-    }
-}
-
-#[inline]
-const fn arr_obj(a: Array) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeArray,
-        data: ObjectData { array: a },
-    }
-}
-
-#[inline]
-const fn win_obj(w: handle_T) -> Object {
-    Object {
-        obj_type: ObjectType::kObjectTypeWindow,
-        data: ObjectData {
-            integer: w as Integer,
-        },
-    }
-}
 
 #[inline]
 const fn buf_obj(b: handle_T) -> Object {

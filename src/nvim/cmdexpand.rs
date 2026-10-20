@@ -9,6 +9,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::command::is_user_cmdidx;
 use crate::api::command::{
     EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE, regmatch_T,
 };
@@ -102,12 +103,14 @@ use crate::path::{
 use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_undisplay, pum_visible, pumitem_T,
 };
-use crate::profile::{get_profile_name, scriptitem_T, set_context_in_profile_cmd};
+use crate::profile::{get_profile_name, set_context_in_profile_cmd};
 use crate::regexp::{
     RE_MAGIC, RE_STRING, skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree,
 };
+use crate::runtime::script_id_valid;
+use crate::runtime::script_item;
 use crate::runtime::{
-    DIP_OPT, DIP_START, ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, script_items,
+    DIP_OPT, DIP_START, ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd,
     set_context_in_runtime_cmd,
 };
 use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
@@ -1054,21 +1057,6 @@ unsafe fn ga_push<T>(gap: *mut garray_T, item: T) {
         let slot = ga_append_via_ptr(gap, std::mem::size_of::<T>()).cast::<T>();
         ptr::write(slot, item);
     }
-}
-
-#[inline]
-fn is_user_cmdidx(idx: cmdidx_T) -> bool {
-    (idx as c_int) < 0
-}
-
-#[inline]
-unsafe fn script_id_valid(id: c_int) -> bool {
-    unsafe { id > 0 && id <= script_items.ga_len }
-}
-
-#[inline]
-unsafe fn script_item(id: c_int) -> *mut scriptitem_T {
-    unsafe { *(script_items.ga_data as *mut *mut scriptitem_T).add((id - 1) as usize) }
 }
 
 #[inline]

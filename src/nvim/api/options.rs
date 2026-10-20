@@ -11,12 +11,14 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::TryState;
+use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::try_wrap;
+use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
-    add_c, api_free_object, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
-    arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
+    add_c, api_free_object, api_set_error, api_typename, arena_array, arena_dict, arena_string,
+    array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
     find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, put_c, static_cstr_as_obj,
-    string_obj, try_enter, try_leave,
+    string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
@@ -140,33 +142,11 @@ const NIL: Object = Object {
 };
 
 #[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
 unsafe fn strequal(a: *const c_char, b: &str) -> bool {
     if a.is_null() {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
-    unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
-    }
-}
-
-unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
-    unsafe {
-        let save_current_sctx = api_set_sctx(channel_id);
-        f();
-        current_sctx = save_current_sctx;
-    }
 }
 
 unsafe fn validate_option_value_args(

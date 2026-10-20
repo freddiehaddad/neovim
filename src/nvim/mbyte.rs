@@ -42,6 +42,7 @@ use crate::r#move::changed_window_setting_all;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
 use crate::os::env::{expand_T, os_getenv_noalloc};
+use crate::os::fs::os_errno as iconv_errno;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::strings::{setlocale, tolower, toupper};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
@@ -1050,17 +1051,12 @@ unsafe fn call_iconv_close(cd: *mut c_void) -> c_int {
 }
 
 #[inline]
-unsafe fn iconv_errno() -> c_int {
-    unsafe { crate::os::fs::os_errno() }
-}
-
-#[inline]
 const fn utf_is_trail_byte(byte: u8) -> bool {
     (byte & 0xC0) == 0x80
 }
 
 #[inline]
-unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
+pub unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
     if c.value < 0 {
         4
     } else if c.value < 0x80 {
@@ -1071,7 +1067,7 @@ unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
 }
 
 #[inline]
-unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
+pub unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
     unsafe {
         let p = p_in.cast::<u8>();
         let first = *p;
@@ -1105,7 +1101,7 @@ pub unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
 }
 
 #[inline]
-unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
+pub unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
     unsafe {
         let p = p_in.cast::<u8>();
         assert!(size >= 0);
@@ -1136,7 +1132,7 @@ unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
 }
 
 #[inline]
-unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
+pub unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
     unsafe {
         StrCharInfo {
             ptr,
@@ -1146,7 +1142,7 @@ unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInf
 }
 
 #[inline]
-unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
+pub unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
     unsafe {
         if *cur.ptr == NUL {
             return ClusterInfo {
@@ -1173,7 +1169,7 @@ unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
 }
 
 #[inline]
-unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: *mut c_int) -> ClusterInfo {
+pub unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: *mut c_int) -> ClusterInfo {
     unsafe {
         *size -= cur.chr.len;
         let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();

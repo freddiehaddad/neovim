@@ -10,13 +10,15 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::autocmd::OptionalKeys;
 use crate::api::options::CtxSwitch;
+use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value, dict_set_var,
     error_set, find_buffer_by_handle, find_window_by_handle, integer_obj, normalize_index,
-    try_enter, try_leave,
 };
+use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_conflict,
     api_err_exp, api_err_invalid, api_err_required,
@@ -104,32 +106,11 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
 }
 
 #[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
 unsafe fn strequal(a: *const c_char, b: &str) -> bool {
     if a.is_null() {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
-}
-
-#[inline]
-unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
-    unsafe {
-        api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);
-    }
-}
-
-unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
-    unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
-    }
 }
 
 /// Gets the current buffer in a window

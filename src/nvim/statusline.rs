@@ -25,6 +25,8 @@ use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
 use crate::digraph::get_keymap_str;
 use crate::drawline::{HLF_CLF, HLF_FC, fill_foldcolumn, use_cursor_line_highlight};
+use crate::drawscreen::w_endcol;
+use crate::drawscreen::w_endrow;
 use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::buf_T;
@@ -232,16 +234,6 @@ static mut did_show_ext_ruler: bool = false;
 #[inline]
 unsafe fn tr(s: *const c_char) -> *const c_char {
     unsafe { gettext(s) }
-}
-
-#[inline]
-unsafe fn w_endcol(wp: *const win_T) -> c_int {
-    unsafe { (*wp).w_wincol + (*wp).w_width }
-}
-
-#[inline]
-unsafe fn w_endrow(wp: *const win_T) -> c_int {
-    unsafe { (*wp).w_winrow + (*wp).w_height }
 }
 
 /// Redraw the status line of window `wp`.

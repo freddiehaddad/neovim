@@ -413,17 +413,17 @@ const fn toupper_asc(c: c_char) -> u8 {
 }
 
 #[inline]
-unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
+pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
     unsafe { (*wp).w_s.cast::<synblock_T>() }
 }
 
 #[inline]
-unsafe fn ga_empty(gap: *const garray_T) -> bool {
+pub unsafe fn ga_empty(gap: *const garray_T) -> bool {
     unsafe { (*gap).ga_len <= 0 }
 }
 
 #[inline]
-unsafe fn hi_empty(hi: *const hashitem_T) -> bool {
+pub unsafe fn hi_empty(hi: *const hashitem_T) -> bool {
     unsafe { hashitem_empty(&*hi) }
 }
 

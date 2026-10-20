@@ -110,6 +110,8 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::free_string_option;
 use crate::os::env::{expand_env, os_get_pid};
+use crate::os::fs::os_errno as get_errno;
+use crate::os::fs::os_set_errno as set_errno;
 use crate::os::fs::{
     os_dirname, os_fileinfo_link, os_fopen, os_isdir, os_open_stdin_fd, os_path_exists, os_remove,
 };
@@ -132,6 +134,7 @@ use crate::strings::{
 };
 use crate::ui::ui_flush;
 use crate::undo::u_clearallandblockfree;
+use crate::window::reset_binding;
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HELP, WSP_NEWLOC, WSP_QUICKFIX, WSP_TOP, WSP_VERT,
     check_can_set_curbuf_forceit, check_lnums, goto_tabpage_win, tabline_height, win_close,
@@ -518,16 +521,6 @@ unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {
 }
 
 #[inline]
-unsafe fn get_errno() -> c_int {
-    unsafe { crate::os::fs::os_errno() }
-}
-
-#[inline]
-unsafe fn set_errno(val: c_int) {
-    unsafe { crate::os::fs::os_set_errno(val) }
-}
-
-#[inline]
 unsafe fn strnicmp_asc(mut s1: *const c_char, mut s2: *const c_char, mut n: usize) -> c_int {
     unsafe {
         while n > 0 {
@@ -597,14 +590,6 @@ unsafe fn get_loc_list(wp: *const win_T) -> *mut qf_info_T {
         } else {
             (*wp).w_llist.cast::<qf_info_T>()
         }
-    }
-}
-
-#[inline]
-unsafe fn reset_binding(wp: *mut win_T) {
-    unsafe {
-        (*wp).w_onebuf_opt.wo_scb = 0;
-        (*wp).w_onebuf_opt.wo_crb = 0;
     }
 }
 

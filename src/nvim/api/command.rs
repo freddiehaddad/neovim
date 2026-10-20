@@ -12,16 +12,22 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{OptionalKeys, TryState};
+use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{KeyDict_empty, StringBuilder};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::dispatch::{
     KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
 };
+use crate::api::private::helpers::cstr_literal;
+use crate::api::private::helpers::cstrn_as_string;
+use crate::api::private::helpers::has_key;
+use crate::api::private::helpers::string_to_cstr;
+use crate::api::private::helpers::try_wrap;
+use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
-    add_c, api_dict_to_keydict, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
-    arena_string, boolean_obj, cstr_as_string, dict_obj, error_set, find_buffer_by_handle,
-    integer_obj, string_obj, try_enter, try_leave,
+    add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_dict, arena_string,
+    boolean_obj, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, integer_obj,
+    string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -42,7 +48,7 @@ use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::mb_islower;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdupz};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree};
 use crate::msgpack_rpc::packer::Integer;
 use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
@@ -318,31 +324,6 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-unsafe fn cstrn_as_string(s: *const c_char, maxsize: usize) -> NvimString {
-    if s.is_null() {
-        return NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-    }
-    let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), maxsize) };
-    let len = slice.iter().position(|&b| b == 0).unwrap_or(maxsize);
-    NvimString {
-        data: s as *mut c_char,
-        size: len,
-    }
-}
-
-#[inline]
-const fn cstr_literal(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
-
-#[inline]
 unsafe fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
     unsafe {
         NvimString {
@@ -367,19 +348,27 @@ unsafe fn cstr_to_arena_str(arena: *mut Arena, str_ptr: *const c_char) -> NvimSt
     }
 }
 
-#[inline]
-unsafe fn string_to_cstr(str_val: NvimString) -> *mut c_char {
-    unsafe { xmemdupz(str_val.data.cast(), str_val.size).cast() }
+pub trait CmdIdxVal {
+    fn check_user_cmd(self) -> bool;
+}
+
+impl CmdIdxVal for c_int {
+    #[inline]
+    fn check_user_cmd(self) -> bool {
+        self < 0
+    }
+}
+
+impl CmdIdxVal for crate::cmdexpand::cmdidx_T {
+    #[inline]
+    fn check_user_cmd(self) -> bool {
+        (self as c_int) < 0
+    }
 }
 
 #[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-const fn is_user_cmdidx(cmdidx: cmdidx_T) -> bool {
-    cmdidx < 0
+pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
+    cmdidx.check_user_cmd()
 }
 
 #[inline]
@@ -418,23 +407,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-unsafe fn try_wrap<F: FnOnce()>(err: *mut Error, f: F) {
-    unsafe {
-        let mut tstate: TryState = std::mem::zeroed();
-        try_enter(&mut tstate);
-        f();
-        try_leave(&tstate, err);
-    }
-}
-
-unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
-    unsafe {
-        let save_current_sctx = api_set_sctx(channel_id);
-        f();
-        current_sctx = save_current_sctx;
     }
 }
 

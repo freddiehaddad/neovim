@@ -14,6 +14,8 @@ use crate::api::buffer::{KeyDict_keymap, LUA_NOREF, NUL};
 use crate::api::command::exarg_T;
 use crate::api::options::optset_T;
 use crate::api::private::converter::{VAR_UNLOCKED, object_to_vim_take_luaref, sctx_T};
+use crate::api::private::helpers::cstr_literal;
+use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
     arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, find_buffer_by_handle,
@@ -31,6 +33,7 @@ use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuz
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::typval::nlua_clear_ref;
 use crate::eval::typval::{
     tv_check_for_dict_arg, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
     tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
@@ -245,20 +248,6 @@ const fn k_third(c: c_int) -> u8 {
 }
 
 #[inline]
-const fn has_key(mask: u64, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
-
-#[inline]
-const fn cstr_literal(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
@@ -266,14 +255,6 @@ unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
             value,
         };
         dict.size += 1;
-    }
-}
-
-#[inline]
-unsafe fn nlua_clear_ref(r: &mut LuaRef) {
-    if *r != LUA_NOREF {
-        unsafe { api_free_luaref(*r) };
-        *r = LUA_NOREF;
     }
 }
 

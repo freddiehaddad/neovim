@@ -46,6 +46,7 @@ use crate::highlight_group::syn_check_group;
 use crate::input::{
     beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
 };
+use crate::input_cmdatom::sb_concat;
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, StringBuilder, Timestamp, atom_cmd_spec, atom_composite_active,
     atom_composite_queued, atom_did_global_op, atom_key_class, atom_lhs_replay_queue,
@@ -78,9 +79,10 @@ use crate::os::input::line_breakcheck;
 use crate::os::time::os_realtime;
 use crate::plines::getvcols;
 use crate::popupmenu::pum_visible;
+use crate::register::op_reg_index;
 use crate::register::{
-    DELETION_REGISTER, PLUS_REGISTER, STAR_REGISTER, get_reg_contents, get_unname_register,
-    get_y_previous, get_y_register, reg_max_ts, write_reg_contents_ex,
+    get_reg_contents, get_unname_register, get_y_previous, get_y_register, reg_max_ts,
+    write_reg_contents_ex,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
@@ -243,37 +245,10 @@ static mut ns_last: u32 = 0;
 static mut ns_session: u32 = 0;
 
 #[inline]
-const fn op_reg_index(regname: c_int) -> c_int {
-    if regname >= b'0' as c_int && regname <= b'9' as c_int {
-        regname - (b'0' as c_int)
-    } else if regname >= b'a' as c_int && regname <= b'z' as c_int {
-        regname - (b'a' as c_int) + 10
-    } else if regname >= b'A' as c_int && regname <= b'Z' as c_int {
-        regname - (b'A' as c_int) + 10
-    } else if regname == b'-' as c_int {
-        DELETION_REGISTER
-    } else if regname == b'*' as c_int {
-        STAR_REGISTER
-    } else if regname == b'+' as c_int {
-        PLUS_REGISTER
-    } else {
-        -1
-    }
-}
-
-#[inline]
 const fn static_cstr_as_string(s: &'static [u8]) -> NvimString {
     NvimString {
         data: s.as_ptr().cast_mut().cast(),
         size: s.len() - 1,
-    }
-}
-
-#[inline]
-unsafe fn sb_concat(sb: &mut StringBuilder, s: *const c_char) {
-    unsafe {
-        let len = strlen(s);
-        sb.concat_len(s, len);
     }
 }
 

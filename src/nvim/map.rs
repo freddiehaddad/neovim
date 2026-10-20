@@ -1,5 +1,7 @@
 //! Hash maps and sets (`src/nvim/map.c`, `src/nvim/map_key_impl.c.h`, `src/nvim/map_value_impl.c.h`).
 
+#![allow(clippy::missing_safety_doc)]
+
 use crate::api::vim::MAXPATHL;
 use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::memory::{xcalloc, xfree, xrealloc};
@@ -223,17 +225,17 @@ pub unsafe extern "C" fn mh_clear(h: *mut MapHash) {
 }
 
 #[inline]
-unsafe fn mh_is_empty(h: &MapHash, i: u32) -> bool {
+pub unsafe fn mh_is_empty(h: &MapHash, i: u32) -> bool {
     unsafe { *h.hash.add(i as usize) == 0 }
 }
 
 #[inline]
-unsafe fn mh_is_del(h: &MapHash, i: u32) -> bool {
+pub unsafe fn mh_is_del(h: &MapHash, i: u32) -> bool {
     unsafe { *h.hash.add(i as usize) == MH_TOMBSTONE }
 }
 
 #[inline]
-unsafe fn mh_is_either(h: &MapHash, i: u32) -> bool {
+pub unsafe fn mh_is_either(h: &MapHash, i: u32) -> bool {
     let v = unsafe { *h.hash.add(i as usize) };
     v.wrapping_add(1) <= 1
 }

@@ -11,7 +11,6 @@
 use crate::api::deprecated::VirtText;
 use crate::api::tabpage::{GridView, ScreenGrid, WinConfig, win_T};
 use crate::arabic::arabic_shape;
-use crate::charset::ascii2cells;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::decoration::{decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
@@ -19,15 +18,14 @@ use crate::highlight::{hl_apply_winblend, hl_combine_attr};
 use crate::map::mh_clear;
 use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString, Set_glyph, mh_put_glyph};
 use crate::mbyte::{
-    mb_string2cells, ptr2cells, utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_char2len,
-    utf_cp_bounds, utf_ptr2CharInfo_impl, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab,
-    utfc_ptr2len, utfc_ptrlen2schar,
+    mb_string2cells, ptr2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
+    utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    utfc_ptrlen2schar,
 };
 use crate::memory::{xcalloc, xfree, xmalloc};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
-use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::ui::{
     ui_call_grid_resize, ui_call_grid_scroll, ui_check_cursor_grid, ui_grid_cursor_goto, ui_has,
     ui_line,
@@ -137,90 +135,6 @@ unsafe fn strnlen_4(p: *const u8) -> usize {
             }
         }
         4
-    }
-}
-
-#[inline]
-unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
-    unsafe {
-        if c.value < 0 {
-            4
-        } else if c.value < 0x80 {
-            ascii2cells(c.value)
-        } else {
-            utf_char2cells(c.value)
-        }
-    }
-}
-
-#[inline]
-unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
-    unsafe {
-        let p = p_in.cast::<u8>();
-        debug_assert!(size >= 0);
-        if size == 0 {
-            return CharInfo { value: -1, len: 1 };
-        }
-        let first = *p;
-        if first < 0x80 {
-            CharInfo {
-                value: i32::from(first),
-                len: 1,
-            }
-        } else {
-            let mut len = c_int::from(utf8len_tab[first as usize]);
-            if len > size {
-                return CharInfo { value: -1, len: 1 };
-            }
-            let code_point = utf_ptr2CharInfo_impl(p, len as usize);
-            if code_point < 0 {
-                len = 1;
-            }
-            CharInfo {
-                value: code_point,
-                len,
-            }
-        }
-    }
-}
-
-#[inline]
-unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
-    unsafe {
-        StrCharInfo {
-            ptr,
-            chr: utf_ptr2CharInfo_len(ptr, size),
-        }
-    }
-}
-
-#[inline]
-unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: *mut c_int) -> ClusterInfo {
-    unsafe {
-        *size -= cur.chr.len;
-        let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
-        if *size == 0 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo { value: -1, len: 1 },
-                },
-                cells: basechar_cells_impl(cur.chr),
-            };
-        }
-        if *next < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo {
-                        value: i32::from(*next),
-                        len: 1,
-                    },
-                },
-                cells: basechar_cells_impl(cur.chr),
-            };
-        }
-        utf_ClusterInfo_impl(cur, size)
     }
 }
 

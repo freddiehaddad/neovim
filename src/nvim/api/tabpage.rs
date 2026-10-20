@@ -18,7 +18,8 @@ use crate::api::private::converter::sctx_T;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, try_enter, try_leave,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, try_enter,
+    try_leave,
 };
 use crate::api::private::helpers::{nil_obj, window_obj};
 #[cfg(not(test))]
@@ -482,12 +483,6 @@ pub struct tabpage_T {
 pub struct KeyDict_tabpage_config {
     pub is_set__tabpage_config_: OptionalKeys,
     pub after: Integer,
-}
-
-#[cfg(not(test))]
-#[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
 }
 
 /// Gets the windows in a tabpage

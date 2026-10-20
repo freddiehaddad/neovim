@@ -11,10 +11,12 @@
 )]
 
 use crate::api::buffer::VisualState;
+use crate::api::private::helpers::cstr_as_obj;
+use crate::api::private::helpers::cstr_to_obj;
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, array_obj, boolean_obj, cstr_to_string, dict_obj, integer_obj,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
 use crate::api::tabpage::{pos_T, win_T};
 use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
 use crate::buffer::{buf_get_changedtick, bufref_valid, set_bufref};
@@ -360,37 +362,10 @@ static mut typed: TypedState = TypedState {
 };
 
 #[inline]
-unsafe fn sb_concat(sb: &mut StringBuilder, s: *const c_char) {
+pub unsafe fn sb_concat(sb: &mut StringBuilder, s: *const c_char) {
     unsafe {
         let len = strlen(s);
         sb.concat_len(s, len);
-    }
-}
-
-#[inline]
-unsafe fn cstr_as_obj(s: *mut c_char) -> Object {
-    unsafe {
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: NvimString {
-                    data: s,
-                    size: strlen(s),
-                },
-            },
-        }
-    }
-}
-
-#[inline]
-unsafe fn cstr_to_obj(s: *const c_char) -> Object {
-    unsafe {
-        Object {
-            obj_type: ObjectType::kObjectTypeString,
-            data: ObjectData {
-                string: cstr_to_string(s),
-            },
-        }
     }
 }
 

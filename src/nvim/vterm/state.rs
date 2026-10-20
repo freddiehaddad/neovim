@@ -7,13 +7,8 @@
     clippy::missing_safety_doc
 )]
 
-use crate::charset::ascii2cells;
 use crate::grid::{schar_T, schar_from_ascii, schar_from_buf};
-use crate::mbyte::{
-    utf_ClusterInfo_impl, utf_char2bytes, utf_char2cells, utf_iscomposing, utf_ptr2CharInfo_impl,
-    utf8len_tab,
-};
-use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
+use crate::mbyte::{utf_ClusterInfo_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
 use crate::regexp::GRAPHEME_STATE_INIT;
 use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
 use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY, C1_CSI, VTermStateFull};
@@ -171,90 +166,6 @@ pub struct VTermSelectionCallbacks {
         ) -> c_int,
     >,
     pub query: Option<unsafe extern "C" fn(mask: VTermSelectionMask, user: *mut c_void) -> c_int>,
-}
-
-#[inline]
-unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
-    unsafe {
-        if c.value < 0 {
-            4
-        } else if c.value < 0x80 {
-            ascii2cells(c.value)
-        } else {
-            utf_char2cells(c.value)
-        }
-    }
-}
-
-#[inline]
-unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
-    unsafe {
-        let p = p_in.cast::<u8>();
-        debug_assert!(size >= 0);
-        if size == 0 {
-            return CharInfo { value: -1, len: 1 };
-        }
-        let first = *p;
-        if first < 0x80 {
-            CharInfo {
-                value: i32::from(first),
-                len: 1,
-            }
-        } else {
-            let mut len = c_int::from(utf8len_tab[first as usize]);
-            if len > size {
-                return CharInfo { value: -1, len: 1 };
-            }
-            let code_point = utf_ptr2CharInfo_impl(p, len as usize);
-            if code_point < 0 {
-                len = 1;
-            }
-            CharInfo {
-                value: code_point,
-                len,
-            }
-        }
-    }
-}
-
-#[inline]
-unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
-    unsafe {
-        StrCharInfo {
-            ptr,
-            chr: utf_ptr2CharInfo_len(ptr, size),
-        }
-    }
-}
-
-#[inline]
-unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: *mut c_int) -> ClusterInfo {
-    unsafe {
-        *size -= cur.chr.len;
-        let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
-        if *size == 0 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo { value: -1, len: 1 },
-                },
-                cells: basechar_cells_impl(cur.chr),
-            };
-        }
-        if *next < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo {
-                        value: i32::from(*next),
-                        len: 1,
-                    },
-                },
-                cells: basechar_cells_impl(cur.chr),
-            };
-        }
-        utf_ClusterInfo_impl(cur, size)
-    }
 }
 
 #[inline]

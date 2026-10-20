@@ -279,7 +279,7 @@ unsafe fn one_window_macro() -> bool {
 }
 
 #[inline]
-unsafe fn reset_binding(wp: *mut win_T) {
+pub unsafe fn reset_binding(wp: *mut win_T) {
     unsafe {
         (*wp).w_onebuf_opt.wo_scb = 0;
         (*wp).w_onebuf_opt.wo_crb = 0;

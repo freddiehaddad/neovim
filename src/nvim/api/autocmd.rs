@@ -12,6 +12,7 @@
 )]
 
 use crate::api::private::converter::sctx_T;
+use crate::api::private::helpers::has_key;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     add_c, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict, arena_string,
@@ -200,11 +201,6 @@ pub struct KeyDict_exec_autocmds {
 
 #[cfg(not(test))]
 static mut NEXT_AUTOCMD_ID: i64 = 1;
-
-#[inline]
-const fn has_key(mask: OptionalKeys, idx: u64) -> bool {
-    (mask & (1u64 << idx)) != 0
-}
 
 #[cfg(not(test))]
 #[inline]

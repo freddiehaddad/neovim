@@ -145,9 +145,8 @@ use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::os::time::os_time;
 use crate::plines::{
-    CSType, CharSize, CharsizeArg, charsize_fast, charsize_nowrap, charsize_regular, getvcol,
-    getvcol_nolist, init_charsize_arg, linetabsize_col, utf_ClusterInfo, utf_ptr2StrCharInfo,
-    win_chartabsize,
+    CSType, CharsizeArg, charsize_nowrap, getvcol, getvcol_nolist, init_charsize_arg,
+    linetabsize_col, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize, win_chartabsize,
 };
 use crate::popupmenu::{pum_check_clear, pum_visible};
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
@@ -288,26 +287,8 @@ const fn is_special_ins(c: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
+pub unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
     unsafe { linetabsize_col(0, s) }
-}
-
-#[inline]
-unsafe fn win_charsize(
-    cstype: CSType,
-    vcol: c_int,
-    ptr: *const c_char,
-    chr: i32,
-    csarg: *mut CharsizeArg,
-    mb_width: c_int,
-) -> CharSize {
-    unsafe {
-        if cstype == kCharsizeFast {
-            charsize_fast(csarg, ptr, vcol, chr, mb_width)
-        } else {
-            charsize_regular(csarg, ptr, vcol, chr, mb_width)
-        }
-    }
 }
 
 #[inline]

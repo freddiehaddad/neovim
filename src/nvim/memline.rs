@@ -40,10 +40,10 @@ use crate::globals::*;
 use crate::input::flush_buffers;
 use crate::lua::executor::nlua_call_typval;
 use crate::main_init::getout;
-use crate::map::{Map, mh_get_int64_t, ptr_t};
-use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
+use crate::map_glyph_cache::NvimString;
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::memfile::pmap_get_bhdr;
 use crate::memfile::{
     BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO, bhdr_T, blocknr_T, memfile_T, mf_close, mf_close_file,
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
@@ -356,18 +356,6 @@ unsafe fn c_strnicmp(mut a: *const c_char, mut b: *const c_char, mut len: usize)
             len -= 1;
         }
         0
-    }
-}
-
-#[inline]
-unsafe fn pmap_get_bhdr(map: *mut Map<i64, ptr_t>, key: i64) -> *mut bhdr_T {
-    unsafe {
-        let k = mh_get_int64_t(&raw mut (*map).set, key);
-        if k == MH_TOMBSTONE {
-            ptr::null_mut()
-        } else {
-            (*(*map).values.add(k as usize)).cast::<bhdr_T>()
-        }
     }
 }
 

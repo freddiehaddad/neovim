@@ -11,14 +11,13 @@
 
 use crate::api::command::exarg_T;
 use crate::api::private::helpers::cstr_as_obj;
-use crate::api::tabpage::win_T;
 use crate::arglist::get_arglist_exp;
 use crate::buffer::buflist_findname_exp;
 use crate::charset::{ascii_isdigit, getdigits_int, skipdigits, skipwhite};
 use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, synblock_T};
+use crate::eval::deprecated::buf_T;
 use crate::fileio::{
     EOF, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell, fwrite, get2c, get3c,
     get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets, vim_tempname,
@@ -27,12 +26,12 @@ use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add, hash_add_item, hash_clear, hash_clear_all, hash_find, hash_hash, hash_init,
-    hash_lookup, hashitem_T, hashitem_empty, hashtab_T,
+    hash_lookup, hashitem_T, hashtab_T,
 };
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr2char_adv,
-    mb_toupper, string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char,
-    utf_ptr2len, utf_valid_string, utfc_ptr2len, vimconv_T,
+    string_convert, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
+    utf_valid_string, utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
@@ -53,6 +52,7 @@ use crate::path::{
 };
 use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING, vim_regcomp, vim_regexec_prog, vim_regfree};
 use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
+use crate::spell::spell_toupper;
 use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
     WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, byte_in_str, captype,
@@ -66,6 +66,9 @@ use crate::strings::{
     atoi, gettext, has_non_ascii, memchr, memcmp, memcpy, memmove, memset, qsort, strcat, strcmp,
     strcpy, strerror, strlen, strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
 };
+use crate::syntax::ga_empty;
+use crate::syntax::hi_empty;
+use crate::syntax::win_s;
 use crate::ui::ui_flush;
 use crate::undo::bufIsChanged;
 use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
@@ -338,21 +341,6 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
-    unsafe { (*wp).w_s.cast::<synblock_T>() }
-}
-
-#[inline]
-unsafe fn ga_empty(gap: *const garray_T) -> bool {
-    unsafe { (*gap).ga_len <= 0 }
-}
-
-#[inline]
-unsafe fn hi_empty(hi: *const hashitem_T) -> bool {
-    unsafe { hashitem_empty(&*hi) }
-}
-
-#[inline]
 const fn tolower_asc(c: c_char) -> u8 {
     let b = c as u8;
     if b >= b'A' && b <= b'Z' {
@@ -380,19 +368,6 @@ unsafe fn hi2ci(hi: *mut hashitem_T) -> *mut compitem_T {
 #[inline]
 unsafe fn hi2wn(hi: *mut hashitem_T) -> *mut wordnode_T {
     unsafe { (*hi).hi_key.cast::<wordnode_T>() }
-}
-
-#[inline]
-unsafe fn spell_toupper(c: c_int) -> c_int {
-    unsafe {
-        if c >= 128 {
-            mb_toupper(c)
-        } else if c >= 0 {
-            spelltab.st_upper[c as usize] as c_int
-        } else {
-            c
-        }
-    }
 }
 
 #[inline]

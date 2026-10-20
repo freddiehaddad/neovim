@@ -27,6 +27,7 @@ use crate::autocmd::{
 use crate::buffer::{
     VAR_FIXED, buf_close_terminal, buflist_findnr, buflist_findpat, kUIMessages, setfname,
 };
+use crate::buffer_updates::luaret_truthy;
 use crate::channel::{
     channel_close, channel_connect, channel_create_event, channel_decref, channel_from_stdio,
     channel_incref, channel_job_start, channel_send, channel_terminal_alloc, kChannelPartRpc,
@@ -54,8 +55,10 @@ use crate::eval::encode::{
     encode_tv2json, encode_vim_list_to_buf, encode_vim_to_msgpack,
 };
 use crate::eval::executor::blob_T;
+use crate::eval::tv_dict_set_ret;
 #[cfg(unix)]
 use crate::eval::typval::tv_dict_extend;
+use crate::eval::typval::tv_initial_value;
 use crate::eval::typval::{
     TV_TRANSLATE, callback_free, check_repeat_count, tv_blob_alloc_ret, tv_blob_get, tv_blob_len,
     tv_blob_set_range, tv_check_for_buffer_arg, tv_check_for_dict_arg, tv_check_for_list_arg,
@@ -83,6 +86,7 @@ use crate::eval::userfunc::{
     restore_funccal, save_funccal, save_function_name, set_current_funccal, trans_function_name,
     translated_function_exists,
 };
+use crate::eval::vars::tv_list_locked;
 use crate::eval::vars::{
     VV_KEY, VV_REG, VV_SEND_SERVER, VV_SHELL_ERROR, VV_VAL, cat_prefix_varname, find_var,
     get_user_var_name, get_vim_var_nr, get_vim_var_str, get_vim_var_tv, lval_T, prepare_vimvar,
@@ -469,41 +473,12 @@ unsafe fn strnequal(a: *const c_char, b: *const c_char, n: usize) -> bool {
 }
 
 #[inline]
-fn tv_initial_value() -> typval_T {
-    typval_T {
-        v_type: VarType::VAR_UNKNOWN,
-        v_lock: VAR_UNLOCKED,
-        vval: TypvalVval { v_number: 0 },
-    }
-}
-
-#[inline]
-unsafe fn tv_list_locked(l: *const list_T) -> VarLockStatus {
-    if l.is_null() {
-        VAR_FIXED
-    } else {
-        unsafe { (*l).lv_lock }
-    }
-}
-
-#[inline]
 unsafe fn tv_list_uidx(l: *const list_T, mut n: c_int) -> c_int {
     unsafe {
         if n < 0 {
             n += tv_list_len(l);
         }
         if n < 0 || n >= tv_list_len(l) { -1 } else { n }
-    }
-}
-
-#[inline]
-unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
-    unsafe {
-        (*tv).v_type = VarType::VAR_DICT;
-        (*tv).vval.v_dict = d;
-        if !d.is_null() {
-            (*d).dv_refcount += 1;
-        }
     }
 }
 
@@ -541,11 +516,6 @@ unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
         let ph = proc_header(proc_);
         (*ph).status >= 0 || (*ph).stopped_time != 0
     }
-}
-
-#[inline]
-fn luaret_truthy(o: Object) -> bool {
-    unsafe { o.obj_type == ObjectType::kObjectTypeBoolean && o.data.boolean }
 }
 
 #[inline]

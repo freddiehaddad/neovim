@@ -12,6 +12,7 @@
 use crate::api::command::exarg_T;
 use crate::api::options::{IOSIZE, optset_T};
 use crate::api::private::converter::{sctx_T, ufunc_T};
+use crate::api::private::helpers::cstr_literal;
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
     boolean_obj, cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, integer_obj, string_obj,
@@ -87,6 +88,7 @@ use crate::os::env::{
     expand_env, expand_env_save, home_replace, home_replace_save, os_setenv, vim_env_iter,
     vim_env_iter_rev, vim_get_prefix_from_exepath, vim_getenv,
 };
+use crate::os::fs::errno_ptr;
 use crate::os::fs::{os_file_is_readable, os_isdir, os_open, os_set_cloexec};
 use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
@@ -282,15 +284,6 @@ use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
-const fn cstr_literal(s: &'static CStr) -> NvimString {
-    let bytes = s.to_bytes();
-    NvimString {
-        data: bytes.as_ptr() as *mut c_char,
-        size: bytes.len(),
-    }
-}
-
-#[inline]
 unsafe fn put_c(dict: &mut Dict, key: &'static CStr, value: Object) {
     unsafe {
         *dict.items.add(dict.size) = KeyValuePair {
@@ -314,7 +307,7 @@ unsafe fn set_script_item(id: scid_T, si: *mut scriptitem_T) {
 }
 
 #[inline]
-unsafe fn script_id_valid(id: scid_T) -> bool {
+pub unsafe fn script_id_valid(id: scid_T) -> bool {
     unsafe { id > 0 && id <= script_items.ga_len }
 }
 
@@ -329,7 +322,7 @@ pub unsafe fn sourcing_lnum() -> linenr_T {
 }
 
 #[inline]
-unsafe fn set_sourcing_lnum(lnum: linenr_T) {
+pub unsafe fn set_sourcing_lnum(lnum: linenr_T) {
     unsafe {
         (*(exestack.ga_data as *mut estack_T).add((exestack.ga_len - 1) as usize)).es_lnum = lnum;
     }
@@ -3778,11 +3771,6 @@ pub unsafe extern "C" fn getsourceline(
 
         line
     }
-}
-
-#[inline]
-unsafe fn errno_ptr() -> *mut c_int {
-    unsafe { crate::os::fs::errno_ptr() }
 }
 
 unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
