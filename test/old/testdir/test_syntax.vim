@@ -128,7 +128,8 @@ func Test_syntime()
   let a = execute('syntime clear')
   call assert_equal("\nNo Syntax items defined for this buffer", a)
 
-  view ../memfile_test.c
+  new
+  call setline(1, ['#include <assert.h>', '#define TEST_COUNT 50000', 'const char *s = "hello";'])
   setfiletype cpp
   redraw
   let a = execute('syntime report')
@@ -150,7 +151,7 @@ func Test_syntime()
   let a = execute('syntime report')
   call assert_equal("\nNo Syntax items defined for this buffer", a)
 
-  bd
+  bwipe!
 endfunc
 
 func Test_syntime_completion()
@@ -167,7 +168,8 @@ func Test_syntax_list()
   let a = execute('syntax list')
   call assert_equal("\nNo Syntax items defined for this buffer", a)
 
-  view ../memfile_test.c
+  new
+  call setline(1, ['#include <assert.h>', '#define TEST_COUNT 50000'])
   setfiletype c
 
   let a = execute('syntax list')
@@ -185,6 +187,7 @@ func Test_syntax_list()
   syntax clear
   let a = execute('syntax list')
   call assert_equal("\nNo Syntax items defined for this buffer", a)
+  bwipe!
 
   syntax keyword Type int containedin=g1 skipwhite skipempty skipnl nextgroup=Abc
   let exp = "Type           xxx containedin=g1  nextgroup=Abc  skipnl skipwhite skipempty int"
