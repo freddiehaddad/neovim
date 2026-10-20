@@ -5,12 +5,9 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut,
-    unused_labels,
-    unused_variables,
     clippy::collapsible_if,
     clippy::missing_safety_doc,
+    clippy::needless_late_init,
     clippy::too_many_lines
 )]
 
@@ -4398,7 +4395,7 @@ pub unsafe extern "C" fn handle_nvim_create_autocmd(
             c"API: vim -> nvim_create_autocmd".as_ptr(),
         );
         let mut ret = OBJECT_NIL;
-        let mut arg_1: Object = zeroed();
+        let arg_1: Object;
         let mut arg_2: KeyDict_create_autocmd = zeroed();
         if args.size < 1 || args.size > 2 {
             api_set_error!(
@@ -4428,7 +4425,7 @@ pub unsafe extern "C" fn handle_nvim_create_autocmd(
 pub unsafe extern "C" fn handle_nvim_del_autocmd(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4437,7 +4434,7 @@ pub unsafe extern "C" fn handle_nvim_del_autocmd(
             c"handle_nvim_del_autocmd".as_ptr(),
             c"API: vim -> nvim_del_autocmd".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -4477,7 +4474,7 @@ pub unsafe extern "C" fn handle_nvim_clear_autocmds(
             c"handle_nvim_clear_autocmds".as_ptr(),
             c"API: vim -> nvim_clear_autocmds".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: KeyDict_clear_autocmds = zeroed();
         if args.size > 1 {
             api_set_error!(
@@ -4505,7 +4502,7 @@ pub unsafe extern "C" fn handle_nvim_clear_autocmds(
 pub unsafe extern "C" fn handle_nvim_create_augroup(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4553,7 +4550,7 @@ pub unsafe extern "C" fn handle_nvim_create_augroup(
 pub unsafe extern "C" fn handle_nvim_del_augroup_by_id(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4562,7 +4559,7 @@ pub unsafe extern "C" fn handle_nvim_del_augroup_by_id(
             c"handle_nvim_del_augroup_by_id".as_ptr(),
             c"API: vim -> nvim_del_augroup_by_id".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -4594,7 +4591,7 @@ pub unsafe extern "C" fn handle_nvim_del_augroup_by_id(
 pub unsafe extern "C" fn handle_nvim_del_augroup_by_name(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4603,7 +4600,7 @@ pub unsafe extern "C" fn handle_nvim_del_augroup_by_name(
             c"handle_nvim_del_augroup_by_name".as_ptr(),
             c"API: vim -> nvim_del_augroup_by_name".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -4644,8 +4641,8 @@ pub unsafe extern "C" fn handle_nvim_exec_autocmds(
             c"handle_nvim_exec_autocmds".as_ptr(),
             c"API: vim -> nvim_exec_autocmds".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
-        let mut arg_1: Object = zeroed();
+        let ret = OBJECT_NIL;
+        let arg_1: Object;
         let mut arg_2: KeyDict_exec_autocmds = zeroed();
         if args.size < 1 || args.size > 2 {
             api_set_error!(
@@ -4674,7 +4671,7 @@ pub unsafe extern "C" fn handle_nvim_exec_autocmds(
 pub unsafe extern "C" fn handle_nvim_buf_line_count(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4717,7 +4714,7 @@ pub unsafe extern "C" fn handle_nvim_buf_line_count(
 pub unsafe extern "C" fn handle_nvim_buf_attach(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4774,7 +4771,7 @@ pub unsafe extern "C" fn handle_nvim_buf_attach(
 pub unsafe extern "C" fn handle_nvim_buf_detach(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -4906,7 +4903,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_lines(
             c"handle_nvim_buf_set_lines".as_ptr(),
             c"API: vim -> nvim_buf_set_lines".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -4991,7 +4988,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_text(
             c"handle_nvim_buf_set_text".as_ptr(),
             c"API: vim -> nvim_buf_set_text".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -5170,7 +5167,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_text(
 pub unsafe extern "C" fn handle_nvim_buf_get_offset(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5274,7 +5271,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_var(
 pub unsafe extern "C" fn handle_nvim_buf_get_changedtick(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5370,7 +5367,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_keymap(
 pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5379,7 +5376,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
             c"handle_nvim_buf_set_keymap".as_ptr(),
             c"API: vim -> nvim_buf_set_keymap".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: NvimString = zeroed();
@@ -5456,7 +5453,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
 pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5465,7 +5462,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
             c"handle_nvim_buf_del_keymap".as_ptr(),
             c"API: vim -> nvim_buf_del_keymap".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: NvimString = zeroed();
@@ -5524,7 +5521,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
 pub unsafe extern "C" fn handle_nvim_buf_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5533,10 +5530,10 @@ pub unsafe extern "C" fn handle_nvim_buf_set_var(
             c"handle_nvim_buf_set_var".as_ptr(),
             c"API: vim -> nvim_buf_set_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -5576,7 +5573,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_var(
 pub unsafe extern "C" fn handle_nvim_buf_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5585,7 +5582,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_var(
             c"handle_nvim_buf_del_var".as_ptr(),
             c"API: vim -> nvim_buf_del_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -5626,7 +5623,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_var(
 pub unsafe extern "C" fn handle_nvim_buf_get_name(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5668,7 +5665,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_name(
 pub unsafe extern "C" fn handle_nvim_buf_set_name(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5677,7 +5674,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_name(
             c"handle_nvim_buf_set_name".as_ptr(),
             c"API: vim -> nvim_buf_set_name".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -5718,7 +5715,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_name(
 pub unsafe extern "C" fn handle_nvim_buf_is_loaded(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5757,7 +5754,7 @@ pub unsafe extern "C" fn handle_nvim_buf_is_loaded(
 pub unsafe extern "C" fn handle_nvim_buf_delete(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5766,7 +5763,7 @@ pub unsafe extern "C" fn handle_nvim_buf_delete(
             c"handle_nvim_buf_delete".as_ptr(),
             c"API: vim -> nvim_buf_delete".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: KeyDict_buf_delete = zeroed();
         if args.size < 1 || args.size > 2 {
@@ -5808,7 +5805,7 @@ pub unsafe extern "C" fn handle_nvim_buf_delete(
 pub unsafe extern "C" fn handle_nvim_buf_is_valid(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5847,7 +5844,7 @@ pub unsafe extern "C" fn handle_nvim_buf_is_valid(
 pub unsafe extern "C" fn handle_nvim_buf_del_mark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -5898,7 +5895,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_mark(
 pub unsafe extern "C" fn handle_nvim_buf_set_mark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6180,7 +6177,7 @@ pub unsafe extern "C" fn handle_nvim_cmd(
 pub unsafe extern "C" fn handle_nvim_create_user_command(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6189,9 +6186,9 @@ pub unsafe extern "C" fn handle_nvim_create_user_command(
             c"handle_nvim_create_user_command".as_ptr(),
             c"API: vim -> nvim_create_user_command".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         let mut arg_3: KeyDict_user_command = zeroed();
         if args.size < 2 || args.size > 3 {
             api_set_error!(
@@ -6229,7 +6226,7 @@ pub unsafe extern "C" fn handle_nvim_create_user_command(
 pub unsafe extern "C" fn handle_nvim_del_user_command(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6238,7 +6235,7 @@ pub unsafe extern "C" fn handle_nvim_del_user_command(
             c"handle_nvim_del_user_command".as_ptr(),
             c"API: vim -> nvim_del_user_command".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -6270,7 +6267,7 @@ pub unsafe extern "C" fn handle_nvim_del_user_command(
 pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6279,10 +6276,10 @@ pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
             c"handle_nvim_buf_create_user_command".as_ptr(),
             c"API: vim -> nvim_buf_create_user_command".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         let mut arg_4: KeyDict_user_command = zeroed();
         if args.size < 3 || args.size > 4 {
             api_set_error!(
@@ -6317,7 +6314,7 @@ pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
 pub unsafe extern "C" fn handle_nvim_buf_del_user_command(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6326,7 +6323,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_user_command(
             c"handle_nvim_buf_del_user_command".as_ptr(),
             c"API: vim -> nvim_buf_del_user_command".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -6456,7 +6453,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_commands(
 pub unsafe extern "C" fn handle_nvim_exec(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6506,7 +6503,7 @@ pub unsafe extern "C" fn handle_nvim_exec(
 pub unsafe extern "C" fn handle_nvim_command_output(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6598,7 +6595,7 @@ pub unsafe extern "C" fn handle_nvim_execute_lua(
 pub unsafe extern "C" fn handle_nvim_buf_get_number(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6641,7 +6638,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_number(
 pub unsafe extern "C" fn handle_nvim_buf_clear_highlight(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6650,7 +6647,7 @@ pub unsafe extern "C" fn handle_nvim_buf_clear_highlight(
             c"handle_nvim_buf_clear_highlight".as_ptr(),
             c"API: vim -> nvim_buf_clear_highlight".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -6713,7 +6710,7 @@ pub unsafe extern "C" fn handle_nvim_buf_clear_highlight(
 pub unsafe extern "C" fn handle_nvim_buf_add_highlight(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6806,7 +6803,7 @@ pub unsafe extern "C" fn handle_nvim_buf_add_highlight(
 pub unsafe extern "C" fn handle_nvim_buf_set_virtual_text(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -6996,7 +6993,7 @@ pub unsafe extern "C" fn handle_buffer_insert(
             c"handle_buffer_insert".as_ptr(),
             c"API: vim -> buffer_insert".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Array = zeroed();
@@ -7107,7 +7104,7 @@ pub unsafe extern "C" fn handle_buffer_set_line(
             c"handle_buffer_set_line".as_ptr(),
             c"API: vim -> buffer_set_line".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: NvimString = zeroed();
@@ -7166,7 +7163,7 @@ pub unsafe extern "C" fn handle_buffer_del_line(
             c"handle_buffer_del_line".as_ptr(),
             c"API: vim -> buffer_del_line".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         if args.size != 2 {
@@ -7299,7 +7296,7 @@ pub unsafe extern "C" fn handle_buffer_set_line_slice(
             c"handle_buffer_set_line_slice".as_ptr(),
             c"API: vim -> buffer_set_line_slice".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -7388,7 +7385,7 @@ pub unsafe extern "C" fn handle_buffer_set_var(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7492,7 +7489,7 @@ pub unsafe extern "C" fn handle_window_set_var(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7596,7 +7593,7 @@ pub unsafe extern "C" fn handle_tabpage_set_var(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -7699,7 +7696,7 @@ pub unsafe extern "C" fn handle_vim_set_var(
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -7814,7 +7811,7 @@ pub unsafe extern "C" fn handle_nvim_get_option_info(
 pub unsafe extern "C" fn handle_nvim_set_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -7823,9 +7820,9 @@ pub unsafe extern "C" fn handle_nvim_set_option(
             c"handle_nvim_set_option".as_ptr(),
             c"API: vim -> nvim_set_option".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -7856,7 +7853,7 @@ pub unsafe extern "C" fn handle_nvim_set_option(
 pub unsafe extern "C" fn handle_nvim_get_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -7897,7 +7894,7 @@ pub unsafe extern "C" fn handle_nvim_get_option(
 pub unsafe extern "C" fn handle_nvim_buf_get_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -7950,7 +7947,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_option(
 pub unsafe extern "C" fn handle_nvim_buf_set_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -7959,10 +7956,10 @@ pub unsafe extern "C" fn handle_nvim_buf_set_option(
             c"handle_nvim_buf_set_option".as_ptr(),
             c"API: vim -> nvim_buf_set_option".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -8004,7 +8001,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_option(
 pub unsafe extern "C" fn handle_nvim_win_get_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8057,7 +8054,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_option(
 pub unsafe extern "C" fn handle_nvim_win_set_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8066,10 +8063,10 @@ pub unsafe extern "C" fn handle_nvim_win_set_option(
             c"handle_nvim_win_set_option".as_ptr(),
             c"API: vim -> nvim_win_set_option".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -8152,7 +8149,7 @@ pub unsafe extern "C" fn handle_nvim_call_atomic(
 pub unsafe extern "C" fn handle_nvim_subscribe(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8161,7 +8158,7 @@ pub unsafe extern "C" fn handle_nvim_subscribe(
             c"handle_nvim_subscribe".as_ptr(),
             c"API: vim -> nvim_subscribe".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -8189,7 +8186,7 @@ pub unsafe extern "C" fn handle_nvim_subscribe(
 pub unsafe extern "C" fn handle_nvim_unsubscribe(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8198,7 +8195,7 @@ pub unsafe extern "C" fn handle_nvim_unsubscribe(
             c"handle_nvim_unsubscribe".as_ptr(),
             c"API: vim -> nvim_unsubscribe".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -8226,7 +8223,7 @@ pub unsafe extern "C" fn handle_nvim_unsubscribe(
 pub unsafe extern "C" fn handle_nvim_out_write(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8235,7 +8232,7 @@ pub unsafe extern "C" fn handle_nvim_out_write(
             c"handle_nvim_out_write".as_ptr(),
             c"API: vim -> nvim_out_write".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -8263,7 +8260,7 @@ pub unsafe extern "C" fn handle_nvim_out_write(
 pub unsafe extern "C" fn handle_nvim_err_write(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8272,7 +8269,7 @@ pub unsafe extern "C" fn handle_nvim_err_write(
             c"handle_nvim_err_write".as_ptr(),
             c"API: vim -> nvim_err_write".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -8300,7 +8297,7 @@ pub unsafe extern "C" fn handle_nvim_err_write(
 pub unsafe extern "C" fn handle_nvim_err_writeln(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8309,7 +8306,7 @@ pub unsafe extern "C" fn handle_nvim_err_writeln(
             c"handle_nvim_err_writeln".as_ptr(),
             c"API: vim -> nvim_err_writeln".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -8396,7 +8393,7 @@ pub unsafe extern "C" fn handle_nvim_notify(
 pub unsafe extern "C" fn handle_nvim_win_set_height(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8405,7 +8402,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_height(
             c"handle_nvim_win_set_height".as_ptr(),
             c"API: vim -> nvim_win_set_height".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Integer = zeroed();
         if args.size != 2 {
@@ -8448,7 +8445,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_height(
 pub unsafe extern "C" fn handle_nvim_win_set_width(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8457,7 +8454,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_width(
             c"handle_nvim_win_set_width".as_ptr(),
             c"API: vim -> nvim_win_set_width".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Integer = zeroed();
         if args.size != 2 {
@@ -8499,7 +8496,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_width(
 pub unsafe extern "C" fn handle_nvim_error_event(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8508,7 +8505,7 @@ pub unsafe extern "C" fn handle_nvim_error_event(
             c"handle_nvim_error_event".as_ptr(),
             c"API: vim -> nvim_error_event".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -8545,7 +8542,7 @@ pub unsafe extern "C" fn handle_nvim_error_event(
 pub unsafe extern "C" fn handle_nvim_ui_term_event(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8554,9 +8551,9 @@ pub unsafe extern "C" fn handle_nvim_ui_term_event(
             c"handle_nvim_ui_term_event".as_ptr(),
             c"API: vim -> nvim_ui_term_event".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -8587,7 +8584,7 @@ pub unsafe extern "C" fn handle_nvim_ui_term_event(
 pub unsafe extern "C" fn handle_nvim_create_namespace(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8736,8 +8733,8 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
         let mut ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
-        let mut arg_3: Object = zeroed();
-        let mut arg_4: Object = zeroed();
+        let arg_3: Object;
+        let arg_4: Object;
         let mut arg_5: KeyDict_get_extmarks = zeroed();
         if args.size < 4 || args.size > 5 {
             api_set_error!(
@@ -8787,7 +8784,7 @@ pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
 pub unsafe extern "C" fn handle_nvim_buf_set_extmark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8866,7 +8863,7 @@ pub unsafe extern "C" fn handle_nvim_buf_set_extmark(
 pub unsafe extern "C" fn handle_nvim_buf_del_extmark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8929,7 +8926,7 @@ pub unsafe extern "C" fn handle_nvim_buf_del_extmark(
 pub unsafe extern "C" fn handle_nvim_buf_clear_namespace(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -8938,7 +8935,7 @@ pub unsafe extern "C" fn handle_nvim_buf_clear_namespace(
             c"handle_nvim_buf_clear_namespace".as_ptr(),
             c"API: vim -> nvim_buf_clear_namespace".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -9001,7 +8998,7 @@ pub unsafe extern "C" fn handle_nvim_buf_clear_namespace(
 pub unsafe extern "C" fn handle_nvim__buf_debug_extmarks(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9064,7 +9061,7 @@ pub unsafe extern "C" fn handle_nvim__buf_debug_extmarks(
 pub unsafe extern "C" fn handle_nvim__ns_set(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9073,7 +9070,7 @@ pub unsafe extern "C" fn handle_nvim__ns_set(
             c"handle_nvim__ns_set".as_ptr(),
             c"API: vim -> nvim__ns_set".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: KeyDict_ns_opts = zeroed();
         if args.size < 1 || args.size > 2 {
@@ -9163,7 +9160,7 @@ pub unsafe extern "C" fn handle_nvim__ns_get(
 pub unsafe extern "C" fn handle_nvim_get_option_value(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9222,7 +9219,7 @@ pub unsafe extern "C" fn handle_nvim_set_option_value(
         );
         let mut ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         let mut arg_3: KeyDict_option = zeroed();
         if args.size < 2 || args.size > 3 {
             api_set_error!(
@@ -9437,7 +9434,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_get_var(
 pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9446,10 +9443,10 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
             c"handle_nvim_tabpage_set_var".as_ptr(),
             c"API: vim -> nvim_tabpage_set_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -9491,7 +9488,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
 pub unsafe extern "C" fn handle_nvim_tabpage_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9500,7 +9497,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_del_var(
             c"handle_nvim_tabpage_del_var".as_ptr(),
             c"API: vim -> nvim_tabpage_del_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -9543,7 +9540,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_del_var(
 pub unsafe extern "C" fn handle_nvim_tabpage_get_win(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9586,7 +9583,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_get_win(
 pub unsafe extern "C" fn handle_nvim_tabpage_set_win(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9595,7 +9592,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_win(
             c"handle_nvim_tabpage_set_win".as_ptr(),
             c"API: vim -> nvim_tabpage_set_win".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         let mut arg_2: Window = zeroed();
         if args.size != 2 {
@@ -9639,7 +9636,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_set_win(
 pub unsafe extern "C" fn handle_nvim_tabpage_get_number(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9682,7 +9679,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_get_number(
 pub unsafe extern "C" fn handle_nvim_tabpage_is_valid(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9722,7 +9719,7 @@ pub unsafe extern "C" fn handle_nvim_tabpage_is_valid(
 pub unsafe extern "C" fn handle_nvim_open_tabpage(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9781,7 +9778,7 @@ pub unsafe extern "C" fn handle_nvim_open_tabpage(
 pub unsafe extern "C" fn handle_nvim_ui_attach(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9790,7 +9787,7 @@ pub unsafe extern "C" fn handle_nvim_ui_attach(
             c"handle_nvim_ui_attach".as_ptr(),
             c"API: vim -> nvim_ui_attach".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Dict = zeroed();
@@ -9839,7 +9836,7 @@ pub unsafe extern "C" fn handle_nvim_ui_attach(
 pub unsafe extern "C" fn handle_ui_attach(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9848,7 +9845,7 @@ pub unsafe extern "C" fn handle_ui_attach(
             c"handle_ui_attach".as_ptr(),
             c"API: vim -> ui_attach".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Boolean = zeroed();
@@ -9897,7 +9894,7 @@ pub unsafe extern "C" fn handle_ui_attach(
 pub unsafe extern "C" fn handle_nvim_ui_set_focus(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9906,7 +9903,7 @@ pub unsafe extern "C" fn handle_nvim_ui_set_focus(
             c"handle_nvim_ui_set_focus".as_ptr(),
             c"API: vim -> nvim_ui_set_focus".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Boolean = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -9937,7 +9934,7 @@ pub unsafe extern "C" fn handle_nvim_ui_set_focus(
 pub unsafe extern "C" fn handle_nvim_ui_detach(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9946,7 +9943,7 @@ pub unsafe extern "C" fn handle_nvim_ui_detach(
             c"handle_nvim_ui_detach".as_ptr(),
             c"API: vim -> nvim_ui_detach".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         if args.size != 0 {
             api_set_error!(
                 error,
@@ -9968,7 +9965,7 @@ pub unsafe extern "C" fn handle_nvim_ui_detach(
 pub unsafe extern "C" fn handle_nvim_ui_try_resize(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -9977,7 +9974,7 @@ pub unsafe extern "C" fn handle_nvim_ui_try_resize(
             c"handle_nvim_ui_try_resize".as_ptr(),
             c"API: vim -> nvim_ui_try_resize".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: Integer = zeroed();
         if args.size != 2 {
@@ -10019,7 +10016,7 @@ pub unsafe extern "C" fn handle_nvim_ui_try_resize(
 pub unsafe extern "C" fn handle_nvim_ui_set_option(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10028,9 +10025,9 @@ pub unsafe extern "C" fn handle_nvim_ui_set_option(
             c"handle_nvim_ui_set_option".as_ptr(),
             c"API: vim -> nvim_ui_set_option".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -10061,7 +10058,7 @@ pub unsafe extern "C" fn handle_nvim_ui_set_option(
 pub unsafe extern "C" fn handle_nvim_ui_try_resize_grid(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10070,7 +10067,7 @@ pub unsafe extern "C" fn handle_nvim_ui_try_resize_grid(
             c"handle_nvim_ui_try_resize_grid".as_ptr(),
             c"API: vim -> nvim_ui_try_resize_grid".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -10122,7 +10119,7 @@ pub unsafe extern "C" fn handle_nvim_ui_try_resize_grid(
 pub unsafe extern "C" fn handle_nvim_ui_pum_set_height(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10131,7 +10128,7 @@ pub unsafe extern "C" fn handle_nvim_ui_pum_set_height(
             c"handle_nvim_ui_pum_set_height".as_ptr(),
             c"API: vim -> nvim_ui_pum_set_height".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -10163,7 +10160,7 @@ pub unsafe extern "C" fn handle_nvim_ui_pum_set_height(
 pub unsafe extern "C" fn handle_nvim_ui_pum_set_bounds(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10172,7 +10169,7 @@ pub unsafe extern "C" fn handle_nvim_ui_pum_set_bounds(
             c"handle_nvim_ui_pum_set_bounds".as_ptr(),
             c"API: vim -> nvim_ui_pum_set_bounds".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Float = zeroed();
         let mut arg_2: Float = zeroed();
         let mut arg_3: Float = zeroed();
@@ -10234,7 +10231,7 @@ pub unsafe extern "C" fn handle_nvim_ui_pum_set_bounds(
 pub unsafe extern "C" fn handle_nvim_ui_send(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10243,7 +10240,7 @@ pub unsafe extern "C" fn handle_nvim_ui_send(
             c"handle_nvim_ui_send".as_ptr(),
             c"API: vim -> nvim_ui_send".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -10274,7 +10271,7 @@ pub unsafe extern "C" fn handle_nvim_ui_send(
 pub unsafe extern "C" fn handle_nvim_get_hl_id_by_name(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10363,7 +10360,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl(
 pub unsafe extern "C" fn handle_nvim_set_hl(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10372,7 +10369,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl(
             c"handle_nvim_set_hl".as_ptr(),
             c"API: vim -> nvim_set_hl".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: KeyDict_highlight = zeroed();
@@ -10423,7 +10420,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl(
 pub unsafe extern "C" fn handle_nvim_get_hl_ns(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10468,7 +10465,7 @@ pub unsafe extern "C" fn handle_nvim_get_hl_ns(
 pub unsafe extern "C" fn handle_nvim_set_hl_ns(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10477,7 +10474,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl_ns(
             c"handle_nvim_set_hl_ns".as_ptr(),
             c"API: vim -> nvim_set_hl_ns".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -10508,7 +10505,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl_ns(
 pub unsafe extern "C" fn handle_nvim_set_hl_ns_fast(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10517,7 +10514,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl_ns_fast(
             c"handle_nvim_set_hl_ns_fast".as_ptr(),
             c"API: vim -> nvim_set_hl_ns_fast".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -10549,7 +10546,7 @@ pub unsafe extern "C" fn handle_nvim_set_hl_ns_fast(
 pub unsafe extern "C" fn handle_nvim_feedkeys(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10558,7 +10555,7 @@ pub unsafe extern "C" fn handle_nvim_feedkeys(
             c"handle_nvim_feedkeys".as_ptr(),
             c"API: vim -> nvim_feedkeys".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: Boolean = zeroed();
@@ -10604,7 +10601,7 @@ pub unsafe extern "C" fn handle_nvim_feedkeys(
 pub unsafe extern "C" fn handle_nvim_input(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10642,7 +10639,7 @@ pub unsafe extern "C" fn handle_nvim_input(
 pub unsafe extern "C" fn handle_nvim_input_mouse(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10651,7 +10648,7 @@ pub unsafe extern "C" fn handle_nvim_input_mouse(
             c"handle_nvim_input_mouse".as_ptr(),
             c"API: vim -> nvim_input_mouse".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: NvimString = zeroed();
@@ -10727,7 +10724,7 @@ pub unsafe extern "C" fn handle_nvim_input_mouse(
 pub unsafe extern "C" fn handle_nvim_replace_termcodes(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -10897,7 +10894,7 @@ pub unsafe extern "C" fn handle_nvim__exec_lua_fast(
 pub unsafe extern "C" fn handle_nvim_strwidth(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11051,7 +11048,7 @@ pub unsafe extern "C" fn handle_nvim_get_runtime_file(
 pub unsafe extern "C" fn handle_nvim__get_lib_dir(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11137,7 +11134,7 @@ pub unsafe extern "C" fn handle_nvim__get_runtime(
 pub unsafe extern "C" fn handle_nvim_set_current_dir(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11146,7 +11143,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_dir(
             c"handle_nvim_set_current_dir".as_ptr(),
             c"API: vim -> nvim_set_current_dir".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -11219,7 +11216,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_line(
             c"handle_nvim_set_current_line".as_ptr(),
             c"API: vim -> nvim_set_current_line".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -11264,7 +11261,7 @@ pub unsafe extern "C" fn handle_nvim_del_current_line(
             c"handle_nvim_del_current_line".as_ptr(),
             c"API: vim -> nvim_del_current_line".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         if args.size != 0 {
             api_set_error!(
                 error,
@@ -11331,7 +11328,7 @@ pub unsafe extern "C" fn handle_nvim_get_var(
 pub unsafe extern "C" fn handle_nvim_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11340,9 +11337,9 @@ pub unsafe extern "C" fn handle_nvim_set_var(
             c"handle_nvim_set_var".as_ptr(),
             c"API: vim -> nvim_set_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -11373,7 +11370,7 @@ pub unsafe extern "C" fn handle_nvim_set_var(
 pub unsafe extern "C" fn handle_nvim_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11382,7 +11379,7 @@ pub unsafe extern "C" fn handle_nvim_del_var(
             c"handle_nvim_del_var".as_ptr(),
             c"API: vim -> nvim_del_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -11454,7 +11451,7 @@ pub unsafe extern "C" fn handle_nvim_get_vvar(
 pub unsafe extern "C" fn handle_nvim_set_vvar(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11463,9 +11460,9 @@ pub unsafe extern "C" fn handle_nvim_set_vvar(
             c"handle_nvim_set_vvar".as_ptr(),
             c"API: vim -> nvim_set_vvar".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
-        let mut arg_2: Object = zeroed();
+        let arg_2: Object;
         if args.size != 2 {
             api_set_error!(
                 error,
@@ -11496,7 +11493,7 @@ pub unsafe extern "C" fn handle_nvim_set_vvar(
 pub unsafe extern "C" fn handle_nvim_echo(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11583,7 +11580,7 @@ pub unsafe extern "C" fn handle_nvim_list_bufs(
 pub unsafe extern "C" fn handle_nvim_get_current_buf(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11612,7 +11609,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_buf(
 pub unsafe extern "C" fn handle_nvim_set_current_buf(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11621,7 +11618,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_buf(
             c"handle_nvim_set_current_buf".as_ptr(),
             c"API: vim -> nvim_set_current_buf".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Buffer = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -11687,7 +11684,7 @@ pub unsafe extern "C" fn handle_nvim_list_wins(
 pub unsafe extern "C" fn handle_nvim_get_current_win(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11716,7 +11713,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_win(
 pub unsafe extern "C" fn handle_nvim_set_current_win(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11725,7 +11722,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_win(
             c"handle_nvim_set_current_win".as_ptr(),
             c"API: vim -> nvim_set_current_win".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -11762,7 +11759,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_win(
 pub unsafe extern "C" fn handle_nvim_create_buf(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11812,7 +11809,7 @@ pub unsafe extern "C" fn handle_nvim_create_buf(
 pub unsafe extern "C" fn handle_nvim_open_term(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11864,7 +11861,7 @@ pub unsafe extern "C" fn handle_nvim_open_term(
 pub unsafe extern "C" fn handle_nvim_chan_send(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11873,7 +11870,7 @@ pub unsafe extern "C" fn handle_nvim_chan_send(
             c"handle_nvim_chan_send".as_ptr(),
             c"API: vim -> nvim_chan_send".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -11942,7 +11939,7 @@ pub unsafe extern "C" fn handle_nvim_list_tabpages(
 pub unsafe extern "C" fn handle_nvim_get_current_tabpage(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11971,7 +11968,7 @@ pub unsafe extern "C" fn handle_nvim_get_current_tabpage(
 pub unsafe extern "C" fn handle_nvim_set_current_tabpage(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -11980,7 +11977,7 @@ pub unsafe extern "C" fn handle_nvim_set_current_tabpage(
             c"handle_nvim_set_current_tabpage".as_ptr(),
             c"API: vim -> nvim_set_current_tabpage".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Tabpage = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -12089,7 +12086,7 @@ pub unsafe extern "C" fn handle_nvim_put(
             c"handle_nvim_put".as_ptr(),
             c"API: vim -> nvim_put".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Array = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: Boolean = zeroed();
@@ -12151,7 +12148,7 @@ pub unsafe extern "C" fn handle_nvim_put(
 pub unsafe extern "C" fn handle_nvim_get_color_by_name(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -12257,7 +12254,7 @@ pub unsafe extern "C" fn handle_nvim_get_context(
 pub unsafe extern "C" fn handle_nvim_load_context(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -12365,7 +12362,7 @@ pub unsafe extern "C" fn handle_nvim_get_keymap(
 pub unsafe extern "C" fn handle_nvim_set_keymap(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -12374,7 +12371,7 @@ pub unsafe extern "C" fn handle_nvim_set_keymap(
             c"handle_nvim_set_keymap".as_ptr(),
             c"API: vim -> nvim_set_keymap".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: NvimString = zeroed();
@@ -12436,7 +12433,7 @@ pub unsafe extern "C" fn handle_nvim_set_keymap(
 pub unsafe extern "C" fn handle_nvim_del_keymap(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -12445,7 +12442,7 @@ pub unsafe extern "C" fn handle_nvim_del_keymap(
             c"handle_nvim_del_keymap".as_ptr(),
             c"API: vim -> nvim_del_keymap".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: KeyDict_keymap_del = zeroed();
@@ -12529,7 +12526,7 @@ pub unsafe extern "C" fn handle_nvim_set_client_info(
             c"handle_nvim_set_client_info".as_ptr(),
             c"API: vim -> nvim_set_client_info".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: Dict = zeroed();
         let mut arg_3: NvimString = zeroed();
@@ -12598,7 +12595,7 @@ pub unsafe extern "C" fn handle_nvim_set_client_info(
 pub unsafe extern "C" fn handle_nvim_chan_set(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -12607,7 +12604,7 @@ pub unsafe extern "C" fn handle_nvim_chan_set(
             c"handle_nvim_chan_set".as_ptr(),
             c"API: vim -> nvim_chan_set".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: KeyDict_chan_set = zeroed();
         if args.size != 2 {
@@ -12649,7 +12646,7 @@ pub unsafe extern "C" fn handle_nvim_chan_set(
 pub unsafe extern "C" fn handle_nvim__cmdwin_set(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -12658,7 +12655,7 @@ pub unsafe extern "C" fn handle_nvim__cmdwin_set(
             c"handle_nvim__cmdwin_set".as_ptr(),
             c"API: vim -> nvim__cmdwin_set".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: Buffer = zeroed();
         if args.size != 2 {
@@ -12780,7 +12777,7 @@ pub unsafe extern "C" fn handle_nvim__id(
             c"API: vim -> nvim__id".as_ptr(),
         );
         let mut ret = OBJECT_NIL;
-        let mut arg_1: Object = zeroed();
+        let arg_1: Object;
         if args.size != 1 {
             api_set_error!(
                 error,
@@ -12877,7 +12874,7 @@ pub unsafe extern "C" fn handle_nvim__id_dict(
 pub unsafe extern "C" fn handle_nvim__id_float(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13056,7 +13053,7 @@ pub unsafe extern "C" fn handle_nvim_get_proc(
 pub unsafe extern "C" fn handle_nvim_select_popupmenu_item(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13065,7 +13062,7 @@ pub unsafe extern "C" fn handle_nvim_select_popupmenu_item(
             c"handle_nvim_select_popupmenu_item".as_ptr(),
             c"API: vim -> nvim_select_popupmenu_item".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Integer = zeroed();
         let mut arg_2: Boolean = zeroed();
         let mut arg_3: Boolean = zeroed();
@@ -13185,7 +13182,7 @@ pub unsafe extern "C" fn handle_nvim__inspect_cell(
 pub unsafe extern "C" fn handle_nvim__screenshot(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13194,7 +13191,7 @@ pub unsafe extern "C" fn handle_nvim__screenshot(
             c"handle_nvim__screenshot".as_ptr(),
             c"API: vim -> nvim__screenshot".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -13222,7 +13219,7 @@ pub unsafe extern "C" fn handle_nvim__screenshot(
 pub unsafe extern "C" fn handle_nvim__invalidate_glyph_cache(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13231,7 +13228,7 @@ pub unsafe extern "C" fn handle_nvim__invalidate_glyph_cache(
             c"handle_nvim__invalidate_glyph_cache".as_ptr(),
             c"API: vim -> nvim__invalidate_glyph_cache".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         if args.size != 0 {
             api_set_error!(
                 error,
@@ -13291,7 +13288,7 @@ pub unsafe extern "C" fn handle_nvim__unpack(
 pub unsafe extern "C" fn handle_nvim_del_mark(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13482,7 +13479,7 @@ pub unsafe extern "C" fn handle_nvim__complete_set(
 pub unsafe extern "C" fn handle_nvim__redraw(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13491,7 +13488,7 @@ pub unsafe extern "C" fn handle_nvim__redraw(
             c"handle_nvim__redraw".as_ptr(),
             c"API: vim -> nvim__redraw".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: KeyDict_redraw = zeroed();
         if args.size > 1 {
             api_set_error!(
@@ -13526,7 +13523,7 @@ pub unsafe extern "C" fn handle_nvim__redraw(
 pub unsafe extern "C" fn handle_nvim__set_restart_on_crash(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13535,7 +13532,7 @@ pub unsafe extern "C" fn handle_nvim__set_restart_on_crash(
             c"handle_nvim__set_restart_on_crash".as_ptr(),
             c"API: vim -> nvim__set_restart_on_crash".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         let mut arg_2: Array = zeroed();
         if args.size != 2 {
@@ -13574,7 +13571,7 @@ pub unsafe extern "C" fn handle_nvim__set_restart_on_crash(
 pub unsafe extern "C" fn handle_nvim_exec2(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13628,7 +13625,7 @@ pub unsafe extern "C" fn handle_nvim_exec2(
 pub unsafe extern "C" fn handle_nvim_command(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13637,7 +13634,7 @@ pub unsafe extern "C" fn handle_nvim_command(
             c"handle_nvim_command".as_ptr(),
             c"API: vim -> nvim_command".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: NvimString = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -13769,7 +13766,7 @@ pub unsafe extern "C" fn handle_nvim_call_dict_function(
             c"API: vim -> nvim_call_dict_function".as_ptr(),
         );
         let mut ret = OBJECT_NIL;
-        let mut arg_1: Object = zeroed();
+        let arg_1: Object;
         let mut arg_2: NvimString = zeroed();
         let mut arg_3: Array = zeroed();
         if args.size != 3 {
@@ -13875,7 +13872,7 @@ pub unsafe extern "C" fn handle_nvim_parse_expression(
 pub unsafe extern "C" fn handle_nvim_open_win(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13941,7 +13938,7 @@ pub unsafe extern "C" fn handle_nvim_open_win(
 pub unsafe extern "C" fn handle_nvim_win_set_config(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -13950,7 +13947,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_config(
             c"handle_nvim_win_set_config".as_ptr(),
             c"API: vim -> nvim_win_set_config".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: KeyDict_win_config = zeroed();
         if args.size != 2 {
@@ -14035,7 +14032,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_config(
 pub unsafe extern "C" fn handle_nvim_win_get_buf(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14077,7 +14074,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_buf(
 pub unsafe extern "C" fn handle_nvim_win_set_buf(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14086,7 +14083,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_buf(
             c"handle_nvim_win_set_buf".as_ptr(),
             c"API: vim -> nvim_win_set_buf".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Buffer = zeroed();
         if args.size != 2 {
@@ -14175,7 +14172,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_cursor(
 pub unsafe extern "C" fn handle_nvim_win_set_cursor(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14184,7 +14181,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_cursor(
             c"handle_nvim_win_set_cursor".as_ptr(),
             c"API: vim -> nvim_win_set_cursor".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Array = zeroed();
         if args.size != 2 {
@@ -14221,7 +14218,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_cursor(
 pub unsafe extern "C" fn handle_nvim_win_get_height(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14264,7 +14261,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_height(
 pub unsafe extern "C" fn handle_nvim_win_get_width(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14357,7 +14354,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_var(
 pub unsafe extern "C" fn handle_nvim_win_set_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14366,10 +14363,10 @@ pub unsafe extern "C" fn handle_nvim_win_set_var(
             c"handle_nvim_win_set_var".as_ptr(),
             c"API: vim -> nvim_win_set_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
-        let mut arg_3: Object = zeroed();
+        let arg_3: Object;
         if args.size != 3 {
             api_set_error!(
                 error,
@@ -14409,7 +14406,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_var(
 pub unsafe extern "C" fn handle_nvim_win_del_var(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14418,7 +14415,7 @@ pub unsafe extern "C" fn handle_nvim_win_del_var(
             c"handle_nvim_win_del_var".as_ptr(),
             c"API: vim -> nvim_win_del_var".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: NvimString = zeroed();
         if args.size != 2 {
@@ -14502,7 +14499,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_position(
 pub unsafe extern "C" fn handle_nvim_win_get_tabpage(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14545,7 +14542,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_tabpage(
 pub unsafe extern "C" fn handle_nvim_win_get_number(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14588,7 +14585,7 @@ pub unsafe extern "C" fn handle_nvim_win_get_number(
 pub unsafe extern "C" fn handle_nvim_win_is_valid(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14627,7 +14624,7 @@ pub unsafe extern "C" fn handle_nvim_win_is_valid(
 pub unsafe extern "C" fn handle_nvim_win_hide(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14636,7 +14633,7 @@ pub unsafe extern "C" fn handle_nvim_win_hide(
             c"handle_nvim_win_hide".as_ptr(),
             c"API: vim -> nvim_win_hide".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         if args.size != 1 {
             api_set_error!(
@@ -14672,7 +14669,7 @@ pub unsafe extern "C" fn handle_nvim_win_hide(
 pub unsafe extern "C" fn handle_nvim_win_close(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14681,7 +14678,7 @@ pub unsafe extern "C" fn handle_nvim_win_close(
             c"handle_nvim_win_close".as_ptr(),
             c"API: vim -> nvim_win_close".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Boolean = zeroed();
         if args.size != 2 {
@@ -14726,7 +14723,7 @@ pub unsafe extern "C" fn handle_nvim_win_close(
 pub unsafe extern "C" fn handle_nvim_win_set_hl_ns(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14735,7 +14732,7 @@ pub unsafe extern "C" fn handle_nvim_win_set_hl_ns(
             c"handle_nvim_win_set_hl_ns".as_ptr(),
             c"API: vim -> nvim_win_set_hl_ns".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Integer = zeroed();
         if args.size != 2 {
@@ -14826,7 +14823,7 @@ pub unsafe extern "C" fn handle_nvim_win_text_height(
 pub unsafe extern "C" fn handle_nvim_win_resize(
     channel_id: u64,
     args: Array,
-    arena: *mut Arena,
+    _arena: *mut Arena,
     error: *mut Error,
 ) -> Object {
     unsafe {
@@ -14835,7 +14832,7 @@ pub unsafe extern "C" fn handle_nvim_win_resize(
             c"handle_nvim_win_resize".as_ptr(),
             c"API: vim -> nvim_win_resize".as_ptr(),
         );
-        let mut ret = OBJECT_NIL;
+        let ret = OBJECT_NIL;
         let mut arg_1: Window = zeroed();
         let mut arg_2: Integer = zeroed();
         let mut arg_3: Integer = zeroed();
@@ -17031,7 +17028,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_autocmds(&raw mut arg1, &raw mut arena, &raw mut err);
+                let ret = nvim_get_autocmds(&raw mut arg1, &raw mut arena, &raw mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -17053,7 +17050,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_create_autocmd = zeroed();
-        let mut arg1: Object = zeroed();
+        let arg1: Object;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -17084,7 +17081,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State)
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_create_autocmd(
+                let ret = nvim_create_autocmd(
                     LUA_INTERNAL_CALL,
                     arg1,
                     &raw mut arg2,
@@ -17112,7 +17109,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_autocmd(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -17205,7 +17202,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_create_augroup = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -17243,8 +17240,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State)
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret =
-                    nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &raw mut err);
+                let ret = nvim_create_augroup(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &raw mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -17265,7 +17261,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_id(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -17304,7 +17300,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_augroup_by_name(lstate: *mut lua_S
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -17344,7 +17340,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_exec_autocmds = zeroed();
-        let mut arg1: Object = zeroed();
+        let arg1: Object;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -17403,7 +17399,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -17427,7 +17423,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_line_count(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_buf_line_count(arg1, &raw mut err);
+            let ret = nvim_buf_line_count(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -17444,8 +17440,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_buf_attach = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: Boolean;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -17489,7 +17485,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> 
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret =
+                    let ret =
                         nvim_buf_attach(LUA_INTERNAL_CALL, arg1, arg2, &raw mut arg3, &raw mut err);
                     nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
@@ -17512,10 +17508,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg4: Boolean = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Boolean;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -17558,7 +17554,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_lines(lstate: *mut lua_State) 
                         let save_active_lstate = active_lstate;
                         active_lstate = lstate;
                         let pretop = lua_gettop(lstate);
-                        let mut ret = nvim_buf_get_lines(
+                        let ret = nvim_buf_get_lines(
                             LUA_INTERNAL_CALL,
                             arg1,
                             arg2,
@@ -17590,11 +17586,11 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_lines(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg5: Array = zeroed();
-        let mut arg4: Boolean = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg5: Array;
+        let arg4: Boolean;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -17678,12 +17674,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_text(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg6: Array = zeroed();
-        let mut arg5: Integer = zeroed();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg6: Array;
+        let arg5: Integer;
+        let arg4: Integer;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -17776,11 +17772,11 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg6: KeyDict_empty = zeroed();
-        let mut arg5: Integer = zeroed();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg5: Integer;
+        let arg4: Integer;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -17843,7 +17839,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -
                                 let save_active_lstate = active_lstate;
                                 active_lstate = lstate;
                                 let pretop = lua_gettop(lstate);
-                                let mut ret = nvim_buf_get_text(
+                                let ret = nvim_buf_get_text(
                                     LUA_INTERNAL_CALL,
                                     arg1,
                                     arg2,
@@ -17883,8 +17879,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -17914,7 +17910,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_offset(lstate: *mut lua_State)
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_buf_get_offset(arg1, arg2, &raw mut err);
+                let ret = nvim_buf_get_offset(arg1, arg2, &raw mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -17931,8 +17927,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -17979,7 +17975,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -18003,7 +17999,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_changedtick(lstate: *mut lua_S
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_buf_get_changedtick(arg1, &raw mut err);
+            let ret = nvim_buf_get_changedtick(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -18019,8 +18015,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -18050,7 +18046,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_keymap(lstate: *mut lua_State)
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_buf_get_keymap(arg1, arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_buf_get_keymap(arg1, arg2, &raw mut arena, &raw mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -18068,10 +18064,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State)
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg5: KeyDict_keymap = zeroed();
-        let mut arg4: NvimString = zeroed();
-        let mut arg3: NvimString = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: NvimString;
+        let arg3: NvimString;
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -18159,9 +18155,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State)
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg4: KeyDict_keymap_del = zeroed();
-        let mut arg3: NvimString = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: NvimString;
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -18240,9 +18236,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_var(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Object = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: Object;
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -18296,8 +18292,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_var(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -18343,7 +18339,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -18367,7 +18363,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_name(lstate: *mut lua_State) -
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_buf_get_name(arg1, &raw mut err);
+            let ret = nvim_buf_get_name(arg1, &raw mut err);
             nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -18383,8 +18379,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_name(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -18430,7 +18426,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -18454,7 +18450,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_loaded(lstate: *mut lua_State) 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_buf_is_loaded(arg1);
+            let ret = nvim_buf_is_loaded(arg1);
             nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -18471,7 +18467,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_buf_delete = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -18537,7 +18533,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -18561,7 +18557,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_is_valid(lstate: *mut lua_State) -
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_buf_is_valid(arg1);
+            let ret = nvim_buf_is_valid(arg1);
             nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -18577,8 +18573,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -18608,7 +18604,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_mark(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_buf_del_mark(arg1, arg2, &raw mut err);
+                let ret = nvim_buf_del_mark(arg1, arg2, &raw mut err);
                 nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -18626,10 +18622,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg5: KeyDict_empty = zeroed();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Integer;
+        let arg3: Integer;
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -18685,7 +18681,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -
                             }
                             let save_active_lstate = active_lstate;
                             active_lstate = lstate;
-                            let mut ret = nvim_buf_set_mark(
+                            let ret = nvim_buf_set_mark(
                                 arg1,
                                 arg2,
                                 arg3,
@@ -18716,8 +18712,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -18747,7 +18743,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_mark(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_buf_get_mark(arg1, arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_buf_get_mark(arg1, arg2, &raw mut arena, &raw mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -18764,8 +18760,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: LuaRef = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: LuaRef;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -18795,7 +18791,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_call(lstate: *mut lua_State) -> c_
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_buf_call(arg1, arg2, lstate, &raw mut err);
+                let ret = nvim_buf_call(arg1, arg2, lstate, &raw mut err);
                 let _ = ret;
                 active_lstate = save_active_lstate;
             }
@@ -18813,7 +18809,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_stats(lstate: *mut lua_State) -> 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -18837,7 +18833,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_stats(lstate: *mut lua_State) -> 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__buf_stats(arg1, &raw mut arena, &raw mut err);
+            let ret = nvim__buf_stats(arg1, &raw mut arena, &raw mut err);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -18854,7 +18850,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> c
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_empty = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -18956,7 +18952,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> c_int {
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret = nvim_cmd(
+                    let ret = nvim_cmd(
                         LUA_INTERNAL_CALL,
                         &raw mut arg1,
                         &raw mut arg2,
@@ -18989,8 +18985,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_S
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_user_command = zeroed();
-        let mut arg2: Object = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Object;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -19062,7 +19058,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_user_command(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -19102,9 +19098,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut l
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg4: KeyDict_user_command = zeroed();
-        let mut arg3: Object = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: Object;
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -19184,8 +19180,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_user_command(lstate: *mut lua_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -19264,7 +19260,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_commands(&raw mut arg1, &raw mut arena, &raw mut err);
+                let ret = nvim_get_commands(&raw mut arg1, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -19286,7 +19282,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_get_commands = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -19324,8 +19320,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_Stat
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret =
-                    nvim_buf_get_commands(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_buf_get_commands(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -19346,8 +19341,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Boolean;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -19373,7 +19368,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec(lstate: *mut lua_State) -> c_int 
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_exec(LUA_INTERNAL_CALL, arg1, arg2, &raw mut err);
+                let ret = nvim_exec(LUA_INTERNAL_CALL, arg1, arg2, &raw mut err);
                 nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
                 api_free_string(ret);
@@ -19391,7 +19386,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -19415,7 +19410,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command_output(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_command_output(LUA_INTERNAL_CALL, arg1, &raw mut err);
+            let ret = nvim_command_output(LUA_INTERNAL_CALL, arg1, &raw mut err);
             nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
             api_free_string(ret);
@@ -19432,7 +19427,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -19456,7 +19451,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_number(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_buf_get_number(arg1, &raw mut err);
+            let ret = nvim_buf_get_number(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -19472,10 +19467,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_highlight(lstate: *mut lua_S
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Integer;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -19535,12 +19530,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg6: Integer = zeroed();
-        let mut arg5: Integer = zeroed();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: NvimString = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg6: Integer;
+        let arg5: Integer;
+        let arg4: Integer;
+        let arg3: NvimString;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -19594,7 +19589,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_add_highlight(lstate: *mut lua_Sta
                                 }
                                 let save_active_lstate = active_lstate;
                                 active_lstate = lstate;
-                                let mut ret = nvim_buf_add_highlight(
+                                let ret = nvim_buf_add_highlight(
                                     arg1,
                                     arg2,
                                     arg3,
@@ -19628,10 +19623,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg5: KeyDict_empty = zeroed();
-        let mut arg4: Array = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Array;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -19687,7 +19682,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_
                             }
                             let save_active_lstate = active_lstate;
                             active_lstate = lstate;
-                            let mut ret = nvim_buf_set_virtual_text(
+                            let ret = nvim_buf_set_virtual_text(
                                 arg1,
                                 arg2,
                                 arg3,
@@ -19718,8 +19713,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg2: Boolean;
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -19749,7 +19744,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_id(lstate: *mut lua_State) -
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_hl_by_id(arg1, arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_get_hl_by_id(arg1, arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -19766,8 +19761,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Boolean;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -19797,7 +19792,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_by_name(lstate: *mut lua_State)
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_hl_by_name(arg1, arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_get_hl_by_name(arg1, arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -19814,7 +19809,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -19838,7 +19833,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info(lstate: *mut lua_State
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_option_info(arg1, &raw mut arena, &raw mut err);
+            let ret = nvim_get_option_info(arg1, &raw mut arena, &raw mut err);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -19854,8 +19849,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option(lstate: *mut lua_State) -> 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Object = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Object;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -19902,7 +19897,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -19943,8 +19938,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -19992,9 +19987,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_option(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Object = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: Object;
+        let arg2: NvimString;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20048,8 +20043,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: NvimString;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -20097,9 +20092,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_option(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Object = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg3: Object;
+        let arg2: NvimString;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20153,7 +20148,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_out_write(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -20192,7 +20187,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_write(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -20231,7 +20226,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_err_writeln(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -20270,9 +20265,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> c_in
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Dict = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg3: Dict;
+        let arg2: Integer;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20326,8 +20321,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_height(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: Integer;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -20373,8 +20368,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_width(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: Integer;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -20420,7 +20415,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -20444,7 +20439,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_namespace(lstate: *mut lua_Stat
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_create_namespace(arg1);
+            let ret = nvim_create_namespace(arg1);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -20459,7 +20454,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State)
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -20478,7 +20473,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_namespaces(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_namespaces(&raw mut arena);
+            let ret = nvim_get_namespaces(&raw mut arena);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -20495,9 +20490,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg4: KeyDict_get_extmark = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20547,7 +20542,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua
                         }
                         let save_active_lstate = active_lstate;
                         active_lstate = lstate;
-                        let mut ret = nvim_buf_get_extmark_by_id(
+                        let ret = nvim_buf_get_extmark_by_id(
                             arg1,
                             arg2,
                             arg3,
@@ -20578,10 +20573,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg5: KeyDict_get_extmarks = zeroed();
-        let mut arg4: Object = zeroed();
-        let mut arg3: Object = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Object;
+        let arg3: Object;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20637,7 +20632,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_Stat
                             }
                             let save_active_lstate = active_lstate;
                             active_lstate = lstate;
-                            let mut ret = nvim_buf_get_extmarks(
+                            let ret = nvim_buf_get_extmarks(
                                 arg1,
                                 arg2,
                                 arg3,
@@ -20672,10 +20667,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg5: KeyDict_set_extmark = zeroed();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Integer;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20731,7 +20726,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State
                             }
                             let save_active_lstate = active_lstate;
                             active_lstate = lstate;
-                            let mut ret = nvim_buf_set_extmark(
+                            let ret = nvim_buf_set_extmark(
                                 arg1,
                                 arg2,
                                 arg3,
@@ -20762,9 +20757,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20800,7 +20795,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_del_extmark(lstate: *mut lua_State
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret = nvim_buf_del_extmark(arg1, arg2, arg3, &raw mut err);
+                    let ret = nvim_buf_del_extmark(arg1, arg2, arg3, &raw mut err);
                     nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
                 }
@@ -20818,10 +20813,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_buf_clear_namespace(lstate: *mut lua_S
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg4: Integer;
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20882,7 +20877,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut l
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_set_decoration_provider = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -20940,9 +20935,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Boolean = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg3: Boolean;
+        let arg2: Boolean;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -20978,7 +20973,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__buf_debug_extmarks(lstate: *mut lua_S
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret = nvim__buf_debug_extmarks(arg1, arg2, arg3, &raw mut err);
+                    let ret = nvim__buf_debug_extmarks(arg1, arg2, arg3, &raw mut err);
                     nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
                     api_free_string(ret);
@@ -20998,7 +20993,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_set(lstate: *mut lua_State) -> c_i
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_ns_opts = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -21056,7 +21051,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__ns_get(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21100,8 +21095,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim__option_to_object(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Object = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Object;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -21150,7 +21145,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_Stat
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_option = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -21211,8 +21206,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_Stat
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_option = zeroed();
-        let mut arg2: Object = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Object;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -21285,7 +21280,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -21304,7 +21299,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_all_options_info(lstate: *mut lua_
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_all_options_info(&raw mut arena, &raw mut err);
+            let ret = nvim_get_all_options_info(&raw mut arena, &raw mut err);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -21321,7 +21316,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_option = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -21359,8 +21354,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_Stat
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret =
-                    nvim_get_option_info2(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_get_option_info2(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -21381,7 +21375,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Tabpage = zeroed();
+        let arg1: Tabpage;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21405,7 +21399,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_list_wins(lstate: *mut lua_Sta
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_tabpage_list_wins(arg1, &raw mut arena, &raw mut err);
+            let ret = nvim_tabpage_list_wins(arg1, &raw mut arena, &raw mut err);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -21421,8 +21415,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Tabpage = zeroed();
+        let arg2: NvimString;
+        let arg1: Tabpage;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -21469,9 +21463,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_var(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Object = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Tabpage = zeroed();
+        let arg3: Object;
+        let arg2: NvimString;
+        let arg1: Tabpage;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -21525,8 +21519,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_del_var(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Tabpage = zeroed();
+        let arg2: NvimString;
+        let arg1: Tabpage;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -21572,7 +21566,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Tabpage = zeroed();
+        let arg1: Tabpage;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21596,7 +21590,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_win(lstate: *mut lua_State
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_tabpage_get_win(arg1, &raw mut err);
+            let ret = nvim_tabpage_get_win(arg1, &raw mut err);
             nlua_push_Window(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -21612,8 +21606,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_set_win(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Window = zeroed();
-        let mut arg1: Tabpage = zeroed();
+        let arg2: Window;
+        let arg1: Tabpage;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -21659,7 +21653,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Tabpage = zeroed();
+        let arg1: Tabpage;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21683,7 +21677,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_get_number(lstate: *mut lua_St
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_tabpage_get_number(arg1, &raw mut err);
+            let ret = nvim_tabpage_get_number(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -21699,7 +21693,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Tabpage = zeroed();
+        let arg1: Tabpage;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21723,7 +21717,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_tabpage_is_valid(lstate: *mut lua_Stat
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_tabpage_is_valid(arg1);
+            let ret = nvim_tabpage_is_valid(arg1);
             nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -21740,8 +21734,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_tabpage_config = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: Boolean;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -21791,7 +21785,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret = nvim_open_tabpage(arg1, arg2, &raw mut arg3, &raw mut err);
+                    let ret = nvim_open_tabpage(arg1, arg2, &raw mut arg3, &raw mut err);
                     nlua_push_Tabpage(lstate, ret, kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
                 }
@@ -21813,7 +21807,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_ui_send(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21852,7 +21846,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -21876,7 +21870,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_id_by_name(lstate: *mut lua_Sta
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_hl_id_by_name(arg1, &raw mut err);
+            let ret = nvim_get_hl_id_by_name(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -21893,7 +21887,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_get_highlight = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -21931,7 +21925,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> c_in
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_hl(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_get_hl(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -21953,8 +21947,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> c_in
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_highlight = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg2: NvimString;
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -22050,7 +22044,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> c
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_hl_ns(&raw mut arg1, &raw mut err);
+                let ret = nvim_get_hl_ns(&raw mut arg1, &raw mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -22071,7 +22065,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22110,7 +22104,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_hl_ns_fast(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22142,9 +22136,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_feedkeys(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Boolean = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg3: Boolean;
+        let arg2: NvimString;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -22197,7 +22191,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22214,7 +22208,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input(lstate: *mut lua_State) -> c_int
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_input(LUA_INTERNAL_CALL, arg1);
+            let ret = nvim_input(LUA_INTERNAL_CALL, arg1);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -22230,12 +22224,12 @@ unsafe extern "C-unwind" fn nlua_api_nvim_input_mouse(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg6: Integer = zeroed();
-        let mut arg5: Integer = zeroed();
-        let mut arg4: Integer = zeroed();
-        let mut arg3: NvimString = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg6: Integer;
+        let arg5: Integer;
+        let arg4: Integer;
+        let arg3: NvimString;
+        let arg2: NvimString;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -22302,10 +22296,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg4: Boolean = zeroed();
-        let mut arg3: Boolean = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg4: Boolean;
+        let arg3: Boolean;
+        let arg2: Boolean;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -22340,7 +22334,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_replace_termcodes(lstate: *mut lua_Sta
                         }
                         let save_active_lstate = active_lstate;
                         active_lstate = lstate;
-                        let mut ret = nvim_replace_termcodes(arg1, arg2, arg3, arg4);
+                        let ret = nvim_replace_termcodes(arg1, arg2, arg3, arg4);
                         nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                         active_lstate = save_active_lstate;
                         api_free_string(ret);
@@ -22360,7 +22354,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22384,7 +22378,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_strwidth(lstate: *mut lua_State) -> c_
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_strwidth(arg1, &raw mut err);
+            let ret = nvim_strwidth(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -22399,7 +22393,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_St
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -22418,7 +22412,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_runtime_paths(lstate: *mut lua_St
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_list_runtime_paths(&raw mut arena, &raw mut err);
+            let ret = nvim_list_runtime_paths(&raw mut arena, &raw mut err);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -22433,7 +22427,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__runtime_inspect(lstate: *mut lua_Stat
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -22452,7 +22446,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__runtime_inspect(lstate: *mut lua_Stat
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__runtime_inspect(&raw mut arena);
+            let ret = nvim__runtime_inspect(&raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -22468,8 +22462,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Boolean;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -22492,7 +22486,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_runtime_file(lstate: *mut lua_Stat
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_runtime_file(arg1, arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_get_runtime_file(arg1, arg2, &raw mut arena, &raw mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -22508,7 +22502,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_lib_dir(lstate: *mut lua_State) -
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -22527,7 +22521,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_lib_dir(lstate: *mut lua_State) -
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__get_lib_dir();
+            let ret = nvim__get_lib_dir();
             nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
             api_free_string(ret);
@@ -22545,8 +22539,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_runtime = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Array = zeroed();
+        let arg2: Boolean;
+        let arg1: Array;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -22583,7 +22577,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__get_runtime(lstate: *mut lua_State) -
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret =
+                    let ret =
                         nvim__get_runtime(arg1, arg2, &raw mut arg3, &raw mut arena, &raw mut err);
                     nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
@@ -22606,7 +22600,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_dir(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22644,7 +22638,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_Stat
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -22663,7 +22657,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_line(lstate: *mut lua_Stat
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_current_line(&raw mut arena, &raw mut err);
+            let ret = nvim_get_current_line(&raw mut arena, &raw mut err);
             nlua_push_String(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -22679,7 +22673,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_line(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22725,7 +22719,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_current_line(lstate: *mut lua_Stat
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -22767,7 +22761,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22807,8 +22801,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_var(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Object = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Object;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -22855,7 +22849,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_var(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22894,7 +22888,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -22934,8 +22928,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_vvar(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Object = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Object;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -22983,8 +22977,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> c_int 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_echo_opts = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Array = zeroed();
+        let arg2: Boolean;
+        let arg1: Array;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -23049,7 +23043,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23068,7 +23062,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_bufs(lstate: *mut lua_State) -> c
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_list_bufs(&raw mut arena);
+            let ret = nvim_list_bufs(&raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23083,7 +23077,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23102,7 +23096,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_buf(lstate: *mut lua_State
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_current_buf();
+            let ret = nvim_get_current_buf();
             nlua_push_Buffer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23118,7 +23112,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_buf(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -23164,7 +23158,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23183,7 +23177,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_wins(lstate: *mut lua_State) -> c
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_list_wins(&raw mut arena);
+            let ret = nvim_list_wins(&raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23198,7 +23192,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23217,7 +23211,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_win(lstate: *mut lua_State
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_current_win();
+            let ret = nvim_get_current_win();
             nlua_push_Window(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23233,7 +23227,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_win(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -23280,8 +23274,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Boolean = zeroed();
+        let arg2: Boolean;
+        let arg1: Boolean;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -23311,7 +23305,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_create_buf(lstate: *mut lua_State) -> 
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_create_buf(arg1, arg2, &raw mut err);
+                let ret = nvim_create_buf(arg1, arg2, &raw mut err);
                 nlua_push_Buffer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -23329,7 +23323,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_open_term = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -23375,7 +23369,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> c
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_open_term(arg1, &raw mut arg2, &raw mut err);
+                let ret = nvim_open_term(arg1, &raw mut arg2, &raw mut err);
                 nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -23396,8 +23390,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_send(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg2: NvimString;
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -23442,7 +23436,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) 
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23461,7 +23455,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_tabpages(lstate: *mut lua_State) 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_list_tabpages(&raw mut arena);
+            let ret = nvim_list_tabpages(&raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23476,7 +23470,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_S
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23495,7 +23489,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_current_tabpage(lstate: *mut lua_S
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_current_tabpage();
+            let ret = nvim_get_current_tabpage();
             nlua_push_Tabpage(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23511,7 +23505,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_current_tabpage(lstate: *mut lua_S
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Tabpage = zeroed();
+        let arg1: Tabpage;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -23558,9 +23552,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg3: Integer;
+        let arg2: Boolean;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -23604,7 +23598,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_paste(lstate: *mut lua_State) -> c_int
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret = nvim_paste(
+                    let ret = nvim_paste(
                         LUA_INTERNAL_CALL,
                         arg1,
                         arg2,
@@ -23629,10 +23623,10 @@ unsafe extern "C-unwind" fn nlua_api_nvim_put(lstate: *mut lua_State) -> c_int {
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg4: Boolean = zeroed();
-        let mut arg3: Boolean = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Array = zeroed();
+        let arg4: Boolean;
+        let arg3: Boolean;
+        let arg2: NvimString;
+        let arg1: Array;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -23700,7 +23694,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -23724,7 +23718,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_by_name(lstate: *mut lua_Sta
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_color_by_name(arg1);
+            let ret = nvim_get_color_by_name(arg1);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23739,7 +23733,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) 
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23758,7 +23752,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_color_map(lstate: *mut lua_State) 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_color_map(&raw mut arena);
+            let ret = nvim_get_color_map(&raw mut arena);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23807,7 +23801,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) ->
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_context(&raw mut arg1, &raw mut arena, &raw mut err);
+                let ret = nvim_get_context(&raw mut arg1, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -23828,7 +23822,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Dict = zeroed();
+        let arg1: Dict;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -23867,7 +23861,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -23879,7 +23873,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mode(lstate: *mut lua_State) -> c_
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_mode(&raw mut arena);
+            let ret = nvim_get_mode(&raw mut arena);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23895,7 +23889,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -23919,7 +23913,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_keymap(lstate: *mut lua_State) -> 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_keymap(arg1, &raw mut arena);
+            let ret = nvim_get_keymap(arg1, &raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -23936,9 +23930,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg4: KeyDict_keymap = zeroed();
-        let mut arg3: NvimString = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg3: NvimString;
+        let arg2: NvimString;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -24018,8 +24012,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_keymap_del = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: NvimString;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -24085,7 +24079,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> c_
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_chan_set = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -24134,8 +24128,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim__cmdwin_set(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Buffer = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Buffer;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -24181,7 +24175,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24205,7 +24199,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_chan_info(lstate: *mut lua_State) 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_chan_info(LUA_INTERNAL_CALL, arg1, &raw mut arena, &raw mut err);
+            let ret = nvim_get_chan_info(LUA_INTERNAL_CALL, arg1, &raw mut arena, &raw mut err);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24220,7 +24214,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> 
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -24239,7 +24233,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_chans(lstate: *mut lua_State) -> 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_list_chans(&raw mut arena);
+            let ret = nvim_list_chans(&raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24255,7 +24249,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id(lstate: *mut lua_State) -> c_int {
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Object = zeroed();
+        let arg1: Object;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24292,7 +24286,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Array = zeroed();
+        let arg1: Array;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24316,7 +24310,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_array(lstate: *mut lua_State) -> c
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__id_array(arg1, &raw mut arena);
+            let ret = nvim__id_array(arg1, &raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24332,7 +24326,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Dict = zeroed();
+        let arg1: Dict;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24356,7 +24350,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_dict(lstate: *mut lua_State) -> c_
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__id_dict(arg1, &raw mut arena);
+            let ret = nvim__id_dict(arg1, &raw mut arena);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24372,7 +24366,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Float = zeroed();
+        let arg1: Float;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24396,7 +24390,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__id_float(lstate: *mut lua_State) -> c
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__id_float(arg1);
+            let ret = nvim__id_float(arg1);
             nlua_push_Float(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24411,7 +24405,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__stats(lstate: *mut lua_State) -> c_in
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -24430,7 +24424,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__stats(lstate: *mut lua_State) -> c_in
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim__stats(&raw mut arena);
+            let ret = nvim__stats(&raw mut arena);
             nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24445,7 +24439,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -24464,7 +24458,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_list_uis(lstate: *mut lua_State) -> c_
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_list_uis(&raw mut arena);
+            let ret = nvim_list_uis(&raw mut arena);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24480,7 +24474,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24504,7 +24498,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc_children(lstate: *mut lua_Sta
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_get_proc_children(arg1, &raw mut arena, &raw mut err);
+            let ret = nvim_get_proc_children(arg1, &raw mut arena, &raw mut err);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24520,7 +24514,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24561,9 +24555,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg4: KeyDict_empty = zeroed();
-        let mut arg3: Boolean = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg3: Boolean;
+        let arg2: Boolean;
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -24635,9 +24629,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -24673,8 +24667,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__inspect_cell(lstate: *mut lua_State) 
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret =
-                        nvim__inspect_cell(arg1, arg2, arg3, &raw mut arena, &raw mut err);
+                    let ret = nvim__inspect_cell(arg1, arg2, arg3, &raw mut arena, &raw mut err);
                     nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
                 }
@@ -24692,7 +24685,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__screenshot(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24723,7 +24716,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__invalidate_glyph_cache(lstate: *mut l
             msg: ptr::null_mut(),
         };
         let mut arena: Arena = zeroed();
-        let mut err_param: *mut c_char = ptr::null_mut();
+        let err_param: *mut c_char = ptr::null_mut();
         'exit_0: {
             if lua_gettop(lstate) != 0 {
                 api_set_error_str(
@@ -24757,7 +24750,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__unpack(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24790,7 +24783,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -24814,7 +24807,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_del_mark(lstate: *mut lua_State) -> c_
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_del_mark(arg1, &raw mut err);
+            let ret = nvim_del_mark(arg1, &raw mut err);
             nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -24831,7 +24824,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_empty = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -24869,7 +24862,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> c_
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_get_mark(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_get_mark(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -24891,7 +24884,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_eval_statusline = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -24922,8 +24915,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret =
-                    nvim_eval_statusline(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_eval_statusline(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -24945,7 +24937,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_complete_set = zeroed();
-        let mut arg1: Integer = zeroed();
+        let arg1: Integer;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -24983,7 +24975,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim__complete_set(lstate: *mut lua_State) 
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim__complete_set(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim__complete_set(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -25057,8 +25049,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim__set_restart_on_crash(lstate: *mut lua
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Array = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Array;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25105,7 +25097,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_exec_opts = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -25143,7 +25135,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> c_int
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_exec2(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &raw mut err);
+                let ret = nvim_exec2(LUA_INTERNAL_CALL, arg1, &raw mut arg2, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
                 api_free_dict(ret);
@@ -25165,7 +25157,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_command(lstate: *mut lua_State) -> c_i
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25204,7 +25196,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> c_int 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: NvimString = zeroed();
+        let arg1: NvimString;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25240,8 +25232,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Array = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg2: Array;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25289,9 +25281,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_St
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Array = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Object = zeroed();
+        let arg3: Array;
+        let arg2: NvimString;
+        let arg1: Object;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -25353,9 +25345,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Boolean = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: NvimString = zeroed();
+        let arg3: Boolean;
+        let arg2: NvimString;
+        let arg1: NvimString;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -25384,8 +25376,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_parse_expression(lstate: *mut lua_Stat
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret =
-                        nvim_parse_expression(arg1, arg2, arg3, &raw mut arena, &raw mut err);
+                    let ret = nvim_parse_expression(arg1, arg2, arg3, &raw mut arena, &raw mut err);
                     nlua_push_Dict(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
                 }
@@ -25404,8 +25395,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg3: KeyDict_win_config = zeroed();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Buffer = zeroed();
+        let arg2: Boolean;
+        let arg1: Buffer;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -25455,7 +25446,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> c_
                     }
                     let save_active_lstate = active_lstate;
                     active_lstate = lstate;
-                    let mut ret = nvim_open_win(arg1, arg2, &raw mut arg3, &raw mut err);
+                    let ret = nvim_open_win(arg1, arg2, &raw mut arg3, &raw mut err);
                     nlua_push_Window(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
                     active_lstate = save_active_lstate;
                 }
@@ -25478,7 +25469,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State)
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_win_config = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25534,7 +25525,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25578,7 +25569,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25602,7 +25593,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_buf(lstate: *mut lua_State) ->
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_buf(arg1, &raw mut err);
+            let ret = nvim_win_get_buf(arg1, &raw mut err);
             nlua_push_Buffer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -25618,8 +25609,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_buf(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Buffer = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: Buffer;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25673,7 +25664,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25697,7 +25688,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_cursor(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_cursor(arg1, &raw mut arena, &raw mut err);
+            let ret = nvim_win_get_cursor(arg1, &raw mut arena, &raw mut err);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -25713,8 +25704,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_cursor(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Array = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: Array;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25760,7 +25751,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25784,7 +25775,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_height(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_height(arg1, &raw mut err);
+            let ret = nvim_win_get_height(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -25800,7 +25791,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -25824,7 +25815,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_width(lstate: *mut lua_State) 
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_width(arg1, &raw mut err);
+            let ret = nvim_win_get_width(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -25840,8 +25831,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: NvimString;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25888,9 +25879,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_var(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg3: Object = zeroed();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg3: Object;
+        let arg2: NvimString;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 'exit_2: {
@@ -25944,8 +25935,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_del_var(lstate: *mut lua_State) ->
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: NvimString = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: NvimString;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -25991,7 +25982,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -26015,7 +26006,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_position(lstate: *mut lua_Stat
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_position(arg1, &raw mut arena, &raw mut err);
+            let ret = nvim_win_get_position(arg1, &raw mut arena, &raw mut err);
             nlua_push_Array(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -26031,7 +26022,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -26055,7 +26046,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_tabpage(lstate: *mut lua_State
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_tabpage(arg1, &raw mut err);
+            let ret = nvim_win_get_tabpage(arg1, &raw mut err);
             nlua_push_Tabpage(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -26071,7 +26062,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -26095,7 +26086,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_get_number(lstate: *mut lua_State)
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_get_number(arg1, &raw mut err);
+            let ret = nvim_win_get_number(arg1, &raw mut err);
             nlua_push_Integer(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -26111,7 +26102,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -26135,7 +26126,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_is_valid(lstate: *mut lua_State) -
             }
             let save_active_lstate = active_lstate;
             active_lstate = lstate;
-            let mut ret = nvim_win_is_valid(arg1);
+            let ret = nvim_win_is_valid(arg1);
             nlua_push_Boolean(lstate, ret, kNluaPushSpecial | kNluaPushFreeRefs);
             active_lstate = save_active_lstate;
         }
@@ -26151,7 +26142,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_hide(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             if lua_gettop(lstate) != 1 {
                 api_set_error_str(
@@ -26198,8 +26189,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_close(lstate: *mut lua_State) -> c
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Boolean = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: Boolean;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -26253,8 +26244,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: LuaRef = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: LuaRef;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -26284,7 +26275,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_call(lstate: *mut lua_State) -> c_
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret = nvim_win_call(arg1, arg2, lstate, &raw mut err);
+                let ret = nvim_win_call(arg1, arg2, lstate, &raw mut err);
                 let _ = ret;
                 active_lstate = save_active_lstate;
             }
@@ -26302,8 +26293,8 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_set_hl_ns(lstate: *mut lua_State) 
         };
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg2: Integer;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) != 2 {
@@ -26350,7 +26341,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg2: KeyDict_win_text_height = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 if lua_gettop(lstate) < 1 || lua_gettop(lstate) > 2 {
@@ -26388,8 +26379,7 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State
                 }
                 let save_active_lstate = active_lstate;
                 active_lstate = lstate;
-                let mut ret =
-                    nvim_win_text_height(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
+                let ret = nvim_win_text_height(arg1, &raw mut arg2, &raw mut arena, &raw mut err);
                 nlua_push_Dict(lstate, ret, kNluaPushFreeRefs);
                 active_lstate = save_active_lstate;
             }
@@ -26411,9 +26401,9 @@ unsafe extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> 
         let mut arena: Arena = zeroed();
         let mut err_param: *mut c_char = ptr::null_mut();
         let mut arg4: KeyDict_win_resize = zeroed();
-        let mut arg3: Integer = zeroed();
-        let mut arg2: Integer = zeroed();
-        let mut arg1: Window = zeroed();
+        let arg3: Integer;
+        let arg2: Integer;
+        let arg1: Window;
         'exit_0: {
             'exit_1: {
                 'exit_2: {

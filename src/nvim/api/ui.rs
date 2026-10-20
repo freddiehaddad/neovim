@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
     clippy::too_many_arguments
@@ -921,21 +920,22 @@ pub unsafe extern "C" fn remote_ui_grid_resize(
 ) {
     unsafe {
         let mut args_items: [Object; 3] = zeroed();
-        let mut args = Array {
-            items: args_items.as_mut_ptr(),
-            size: 0,
-            capacity: 3,
-        };
+        let mut size = 0;
         if (*ui).ui_ext[kUILinegrid] {
-            args_items[args.size] = int_obj(grid);
-            args.size += 1;
+            args_items[size] = int_obj(grid);
+            size += 1;
         } else {
             (*ui).client_col = -1;
         }
-        args_items[args.size] = int_obj(width);
-        args.size += 1;
-        args_items[args.size] = int_obj(height);
-        args.size += 1;
+        args_items[size] = int_obj(width);
+        size += 1;
+        args_items[size] = int_obj(height);
+        size += 1;
+        let args = Array {
+            items: args_items.as_mut_ptr(),
+            size,
+            capacity: 3,
+        };
         let name = if (*ui).ui_ext[kUILinegrid] {
             c"grid_resize".as_ptr()
         } else {
@@ -980,23 +980,40 @@ pub unsafe extern "C" fn remote_ui_grid_scroll(
                 int_obj(left),
                 int_obj(right - 1),
             ];
-            let mut args = Array {
-                items: args_items.as_mut_ptr(),
-                size: 4,
-                capacity: 4,
-            };
-            push_call(ui, c"set_scroll_region".as_ptr(), args);
+            push_call(
+                ui,
+                c"set_scroll_region".as_ptr(),
+                Array {
+                    items: args_items.as_mut_ptr(),
+                    size: 4,
+                    capacity: 4,
+                },
+            );
 
             args_items[0] = int_obj(rows);
-            args.size = 1;
-            push_call(ui, c"scroll".as_ptr(), args);
+            push_call(
+                ui,
+                c"scroll".as_ptr(),
+                Array {
+                    items: args_items.as_mut_ptr(),
+                    size: 1,
+                    capacity: 4,
+                },
+            );
 
             args_items[0] = int_obj(0);
             args_items[1] = int_obj(Integer::from((*ui).height - 1));
             args_items[2] = int_obj(0);
             args_items[3] = int_obj(Integer::from((*ui).width - 1));
-            args.size = 4;
-            push_call(ui, c"set_scroll_region".as_ptr(), args);
+            push_call(
+                ui,
+                c"set_scroll_region".as_ptr(),
+                Array {
+                    items: args_items.as_mut_ptr(),
+                    size: 4,
+                    capacity: 4,
+                },
+            );
         }
     }
 }
@@ -1030,25 +1047,49 @@ pub unsafe extern "C" fn remote_ui_default_colors_set(
             int_obj(cterm_fg),
             int_obj(cterm_bg),
         ];
-        let mut args = Array {
-            items: args_items.as_mut_ptr(),
-            size: 5,
-            capacity: 5,
-        };
-        push_call(ui, c"default_colors_set".as_ptr(), args);
+        push_call(
+            ui,
+            c"default_colors_set".as_ptr(),
+            Array {
+                items: args_items.as_mut_ptr(),
+                size: 5,
+                capacity: 5,
+            },
+        );
 
         if !(*ui).ui_ext[kUILinegrid] {
             args_items[0] = int_obj(if (*ui).rgb { rgb_fg } else { cterm_fg - 1 });
-            args.size = 1;
-            push_call(ui, c"update_fg".as_ptr(), args);
+            push_call(
+                ui,
+                c"update_fg".as_ptr(),
+                Array {
+                    items: args_items.as_mut_ptr(),
+                    size: 1,
+                    capacity: 5,
+                },
+            );
 
             args_items[0] = int_obj(if (*ui).rgb { rgb_bg } else { cterm_bg - 1 });
-            args.size = 1;
-            push_call(ui, c"update_bg".as_ptr(), args);
+            push_call(
+                ui,
+                c"update_bg".as_ptr(),
+                Array {
+                    items: args_items.as_mut_ptr(),
+                    size: 1,
+                    capacity: 5,
+                },
+            );
 
             args_items[0] = int_obj(if (*ui).rgb { rgb_sp } else { -1 });
-            args.size = 1;
-            push_call(ui, c"update_sp".as_ptr(), args);
+            push_call(
+                ui,
+                c"update_sp".as_ptr(),
+                Array {
+                    items: args_items.as_mut_ptr(),
+                    size: 1,
+                    capacity: 5,
+                },
+            );
         }
     }
 }
@@ -1478,15 +1519,26 @@ pub unsafe extern "C" fn remote_ui_event(ui: *mut RemoteUI, mut name: *mut c_cha
                     }
                     new_items.size = items.size;
                     let mut new_args_items: [Object; 1] = [arr_obj(new_items)];
-                    let new_args = Array {
-                        items: new_args_items.as_mut_ptr(),
-                        size: 1,
-                        capacity: 1,
-                    };
-                    push_call(ui, c"wildmenu_show".as_ptr(), new_args);
+                    push_call(
+                        ui,
+                        c"wildmenu_show".as_ptr(),
+                        Array {
+                            items: new_args_items.as_mut_ptr(),
+                            size: 1,
+                            capacity: 1,
+                        },
+                    );
                     if (*args.items.add(1)).data.integer != -1 {
                         new_args_items[0] = *args.items.add(1);
-                        push_call(ui, c"wildmenu_select".as_ptr(), new_args);
+                        push_call(
+                            ui,
+                            c"wildmenu_select".as_ptr(),
+                            Array {
+                                items: new_args_items.as_mut_ptr(),
+                                size: 1,
+                                capacity: 1,
+                            },
+                        );
                     }
                     arena_mem_free(arena_finish(&raw mut arena));
                     return;

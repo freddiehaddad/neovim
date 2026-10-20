@@ -3342,8 +3342,10 @@ pub unsafe extern "C" fn shada_write_file(file: *const c_char, mut nomerge: bool
                         fname,
                     );
                 } else {
-                    #[allow(unused_mut)]
+                    #[cfg(unix)]
                     let mut chown_ok = true;
+                    #[cfg(not(unix))]
+                    let chown_ok = true;
                     #[cfg(unix)]
                     {
                         if getuid() == ROOT_UID

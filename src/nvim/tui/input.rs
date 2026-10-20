@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_unsafe,
     clippy::missing_safety_doc
 )]
 
@@ -779,27 +778,27 @@ unsafe fn handle_bracketed_paste(
 }
 
 unsafe fn send_termresponse(response: &[u8]) {
+    let mut items = [
+        string_obj(NvimString {
+            data: c"termresponse".as_ptr().cast_mut(),
+            size: 12,
+        }),
+        string_obj(NvimString {
+            data: response.as_ptr().cast::<c_char>().cast_mut(),
+            size: response.len(),
+        }),
+    ];
+    let args = Array {
+        items: items.as_mut_ptr(),
+        size: 2,
+        capacity: 2,
+    };
+    #[cfg(not(test))]
     unsafe {
-        let mut items = [
-            string_obj(NvimString {
-                data: c"termresponse".as_ptr().cast_mut(),
-                size: 12,
-            }),
-            string_obj(NvimString {
-                data: response.as_ptr().cast::<c_char>().cast_mut(),
-                size: response.len(),
-            }),
-        ];
-        let args = Array {
-            items: items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        #[cfg(not(test))]
         rpc_send_event(ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
-        #[cfg(test)]
-        let _ = args;
     }
+    #[cfg(test)]
+    let _ = args;
 }
 
 unsafe fn handle_term_response(input: *mut TermInput, key: *const TermKeyKey) {

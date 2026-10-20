@@ -862,8 +862,10 @@ unsafe fn set_init_default_backupskip() {
 
         ga_init(&raw mut ga, 1, 100);
         for &name in &names {
-            #[allow(unused_mut)]
+            #[cfg(unix)]
             let mut mustfree = true;
+            #[cfg(not(unix))]
+            let mustfree = true;
             let p: *mut c_char;
             let mut plen: usize;
             #[cfg(unix)]

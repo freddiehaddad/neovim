@@ -5,8 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::collapsible_if,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
@@ -3497,7 +3495,10 @@ pub unsafe extern "C" fn makeswapname(
     dir_name: *mut c_char,
 ) -> *mut c_char {
     unsafe {
+        #[cfg(unix)]
         let mut fname_res = fname;
+        #[cfg(not(unix))]
+        let fname_res = fname;
         #[cfg(unix)]
         let mut fname_buf = [0 as c_char; MAXPATHL];
         #[cfg(unix)]

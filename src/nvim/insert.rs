@@ -5,8 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
     clippy::deref_addrof,

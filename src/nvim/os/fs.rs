@@ -1,12 +1,11 @@
 //! Filesystem access and libuv file operations (`src/nvim/os/fs.c`).
 
+#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::missing_safety_doc,
     clippy::upper_case_acronyms
 )]
@@ -900,29 +899,32 @@ pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> 
         let flen = c_strlen(flags);
         assert!((1..=2).contains(&flen));
 
-        let mut iflags: c_int;
         let f0 = *flags as u8;
         let f1 = *flags.add(1) as u8;
-        if f1 == 0 || f1 == b'b' {
-            iflags = match f0 {
+        let iflags = if f1 == 0 || f1 == b'b' {
+            let base = match f0 {
                 b'r' => O_RDONLY,
                 b'w' => O_WRONLY | O_CREAT | O_TRUNC,
                 b'a' => O_WRONLY | O_CREAT | O_APPEND,
                 _ => std::process::abort(),
             };
             #[cfg(windows)]
-            if f1 == b'b' {
-                iflags |= O_BINARY;
+            {
+                if f1 == b'b' { base | O_BINARY } else { base }
+            }
+            #[cfg(not(windows))]
+            {
+                base
             }
         } else {
             assert_eq!(f1, b'+');
-            iflags = match f0 {
+            match f0 {
                 b'r' => O_RDWR,
                 b'w' => O_RDWR | O_CREAT | O_TRUNC,
                 b'a' => O_RDWR | O_CREAT | O_APPEND,
                 _ => std::process::abort(),
-            };
-        }
+            }
+        };
 
         let fd = os_open(path, iflags, 0o666);
         if fd < 0 {
@@ -1371,6 +1373,8 @@ pub unsafe extern "C" fn os_fsetperm(fd: c_int, perm: c_int) -> c_int {
 /// Copy extended attributes `from_file` to `to_file`.
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
+    #[cfg(not(all(not(test), target_os = "linux")))]
+    let _ = (from_file, to_file);
     #[cfg(all(not(test), target_os = "linux"))]
     unsafe {
         if from_file.is_null() {
@@ -1844,7 +1848,10 @@ pub unsafe extern "C" fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) 
             if path_with_url(path) != 0 {
                 return true;
             }
+            #[cfg(windows)]
             let mut p: *const c_char = path_skip_sep(path, false);
+            #[cfg(not(windows))]
+            let p: *const c_char = path_skip_sep(path, false);
             let leading_slashes = (p as usize) - (path as usize);
 
             #[cfg(windows)]

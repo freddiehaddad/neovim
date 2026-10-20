@@ -1,7 +1,6 @@
 //! String option validation, handling, and completion (`src/nvim/optionstr.c`).
 
 #![allow(
-    static_mut_refs,
     dead_code,
     non_camel_case_types,
     non_snake_case,
@@ -1215,7 +1214,7 @@ pub unsafe extern "C" fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c
 
         if opt_strings_flags(
             val,
-            opt_scl_values.as_ptr(),
+            (&raw const opt_scl_values).cast(),
             ptr::null_mut(),
             false,
             ptr::null(),
@@ -1739,7 +1738,7 @@ pub unsafe extern "C" fn validate_backupcopy(args: *mut optset_T) -> *const c_ch
         let mut flags: c_uint = 0;
         let errmsg = opt_strings_flags(
             (*args).os_newval.data.string.data,
-            opt_bkc_values.as_ptr(),
+            (&raw const opt_bkc_values).cast(),
             &raw mut flags,
             true,
             (*args).os_errbuf,
@@ -1777,8 +1776,13 @@ pub unsafe extern "C" fn did_set_backupcopy(args: *mut optset_T) -> *const c_cha
         if (opt_flags & OPT_LOCAL) != 0 && *bkc == NUL {
             *flags = 0;
         } else {
-            let errmsg =
-                opt_strings_flags(bkc, opt_bkc_values.as_ptr(), flags, true, (*args).os_errbuf);
+            let errmsg = opt_strings_flags(
+                bkc,
+                (&raw const opt_bkc_values).cast(),
+                flags,
+                true,
+                (*args).os_errbuf,
+            );
             if !errmsg.is_null() {
                 return errmsg;
             }
@@ -2279,7 +2283,13 @@ pub unsafe extern "C" fn did_set_completeopt(args: *mut optset_T) -> *const c_ch
             (*buf).b_cot_flags = 0;
         }
 
-        opt_strings_flags(cot, opt_cot_values.as_ptr(), flags, true, (*args).os_errbuf)
+        opt_strings_flags(
+            cot,
+            (&raw const opt_cot_values).cast(),
+            flags,
+            true,
+            (*args).os_errbuf,
+        )
     }
 }
 
@@ -2290,7 +2300,7 @@ pub unsafe extern "C" fn did_set_completeslash(args: *mut optset_T) -> *const c_
         let buf = (*args).os_buf;
         let errmsg = opt_strings_flags(
             p_csl,
-            opt_csl_values.as_ptr(),
+            (&raw const opt_csl_values).cast(),
             ptr::null_mut(),
             false,
             (*args).os_errbuf,
@@ -2300,7 +2310,7 @@ pub unsafe extern "C" fn did_set_completeslash(args: *mut optset_T) -> *const c_
         }
         opt_strings_flags(
             (*buf).b_p_csl,
-            opt_csl_values.as_ptr(),
+            (&raw const opt_csl_values).cast(),
             ptr::null_mut(),
             false,
             (*args).os_errbuf,
@@ -2412,8 +2422,8 @@ pub unsafe extern "C" fn expand_set_diffopt(
             if completing_value_for_subopt(args, c"algorithm".as_ptr()) {
                 return expand_set_opt_string(
                     args,
-                    opt_dip_algorithm_values.as_ptr(),
-                    opt_dip_algorithm_values.len() - 1,
+                    (&raw const opt_dip_algorithm_values).cast(),
+                    (&raw const opt_dip_algorithm_values as *const [*const c_char]).len() - 1,
                     numMatches,
                     matches,
                 );
@@ -2421,8 +2431,8 @@ pub unsafe extern "C" fn expand_set_diffopt(
             if completing_value_for_subopt(args, c"inline".as_ptr()) {
                 return expand_set_opt_string(
                     args,
-                    opt_dip_inline_values.as_ptr(),
-                    opt_dip_inline_values.len() - 1,
+                    (&raw const opt_dip_inline_values).cast(),
+                    (&raw const opt_dip_inline_values as *const [*const c_char]).len() - 1,
                     numMatches,
                     matches,
                 );
@@ -2595,7 +2605,7 @@ pub unsafe extern "C" fn did_set_fileformat(args: *mut optset_T) -> *const c_cha
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn get_fileformat_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
-        if idx < 0 || (idx as usize) >= opt_ff_values.len() {
+        if idx < 0 || (idx as usize) >= (&raw const opt_ff_values as *const [*const c_char]).len() {
             return ptr::null_mut();
         }
         opt_ff_values[idx as usize].cast_mut()
@@ -3029,7 +3039,7 @@ pub unsafe extern "C" fn validate_sessionoptions(args: *mut optset_T) -> *const 
         let mut flags: c_uint = 0;
         let errmsg = opt_strings_flags(
             (*args).os_newval.data.string.data,
-            opt_ssop_values.as_ptr(),
+            (&raw const opt_ssop_values).cast(),
             &raw mut flags,
             true,
             (*args).os_errbuf,
@@ -3345,7 +3355,7 @@ pub unsafe extern "C" fn did_set_spelloptions(args: *mut optset_T) -> *const c_c
         if (opt_flags & OPT_LOCAL) == 0 {
             let errmsg = opt_strings_flags(
                 val,
-                opt_spo_values.as_ptr(),
+                (&raw const opt_spo_values).cast(),
                 &raw mut spo_flags,
                 true,
                 (*args).os_errbuf,
@@ -3358,7 +3368,7 @@ pub unsafe extern "C" fn did_set_spelloptions(args: *mut optset_T) -> *const c_c
             let ws = (*win).w_s.cast::<synblock_T>();
             let errmsg = opt_strings_flags(
                 val,
-                opt_spo_values.as_ptr(),
+                (&raw const opt_spo_values).cast(),
                 &raw mut (*ws).b_p_spo_flags,
                 true,
                 (*args).os_errbuf,
@@ -3516,8 +3526,13 @@ pub unsafe extern "C" fn did_set_tagcase(args: *mut optset_T) -> *const c_char {
         if (opt_flags & OPT_LOCAL) != 0 && *p == NUL {
             *flags = 0;
         } else {
-            let errmsg =
-                opt_strings_flags(p, opt_tc_values.as_ptr(), flags, false, (*args).os_errbuf);
+            let errmsg = opt_strings_flags(
+                p,
+                (&raw const opt_tc_values).cast(),
+                flags,
+                false,
+                (*args).os_errbuf,
+            );
             if !errmsg.is_null() {
                 return errmsg;
             }
@@ -3635,8 +3650,13 @@ pub unsafe extern "C" fn did_set_virtualedit(args: *mut optset_T) -> *const c_ch
         if ((*args).os_flags & OPT_LOCAL) != 0 && *ve == NUL {
             *flags = 0;
         } else {
-            let errmsg =
-                opt_strings_flags(ve, opt_ve_values.as_ptr(), flags, true, (*args).os_errbuf);
+            let errmsg = opt_strings_flags(
+                ve,
+                (&raw const opt_ve_values).cast(),
+                flags,
+                true,
+                (*args).os_errbuf,
+            );
             if !errmsg.is_null() {
                 return errmsg;
             } else if c_strcmp(ve, (*args).os_oldval.data.string.data) != 0 {
@@ -4084,7 +4104,7 @@ pub unsafe extern "C" fn check_ff_value(p: *mut c_char) -> c_int {
     unsafe {
         if opt_strings_flags(
             p,
-            opt_ff_values.as_ptr(),
+            (&raw const opt_ff_values).cast(),
             ptr::null_mut(),
             false,
             ptr::null(),
@@ -4730,8 +4750,8 @@ pub unsafe extern "C" fn expand_set_popupoption(
             if completing_value_for_subopt(args, c"border".as_ptr()) {
                 return expand_set_opt_string(
                     args,
-                    opt_pvp_border_values.as_ptr(),
-                    opt_pvp_border_values.len() - 1,
+                    (&raw const opt_pvp_border_values).cast(),
+                    (&raw const opt_pvp_border_values as *const [*const c_char]).len() - 1,
                     numMatches,
                     matches,
                 );
@@ -4741,8 +4761,8 @@ pub unsafe extern "C" fn expand_set_popupoption(
 
         expand_set_opt_string(
             args,
-            opt_pvp_values.as_ptr(),
-            opt_pvp_values.len() - 1,
+            (&raw const opt_pvp_values).cast(),
+            (&raw const opt_pvp_values as *const [*const c_char]).len() - 1,
             numMatches,
             matches,
         )

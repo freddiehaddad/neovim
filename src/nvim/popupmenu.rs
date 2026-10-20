@@ -1,7 +1,6 @@
 //! Popup menu (PUM) (`src/nvim/popupmenu.c`).
 
 #![allow(
-    static_mut_refs,
     dead_code,
     non_camel_case_types,
     non_snake_case,

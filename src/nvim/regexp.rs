@@ -5,8 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
     clippy::if_same_then_else,
@@ -1811,7 +1809,7 @@ pub(super) unsafe fn reg_match_visual() -> bool {
             return false;
         }
 
-        let (top, mut bot, mode, curswant) = if Visual.active {
+        let (top, bot, mode, curswant) = if Visual.active {
             let (t, b) = if lt(Visual.start, (*wp).w_cursor) {
                 (Visual.start, (*wp).w_cursor)
             } else {
@@ -3100,7 +3098,7 @@ pub unsafe extern "C" fn vim_regcomp_had_eol() -> c_int {
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
     unsafe {
-        let mut prog: *mut regprog_T = ptr::null_mut();
+        let mut prog: *mut regprog_T;
         let mut expr = expr_arg;
 
         regexp_engine = p_re as c_int;

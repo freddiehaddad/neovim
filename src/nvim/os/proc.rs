@@ -1,6 +1,7 @@
 //! OS process inspection and process-tree termination (`src/nvim/os/proc.c`).
 
-#![allow(dead_code, unused_mut)]
+#![cfg_attr(test, allow(unused_mut))]
+#![allow(dead_code)]
 
 #[cfg(all(not(test), windows))]
 use crate::api::private::helpers::{arena_dict, arena_string};

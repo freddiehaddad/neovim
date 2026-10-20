@@ -5,8 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::useless_conversion
@@ -625,7 +623,7 @@ unsafe fn readfile_progress(
 /// Read lines from file "fname" into the buffer after line "from".
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn readfile(
-    mut fname: *mut c_char,
+    fname: *mut c_char,
     mut sfname: *mut c_char,
     from: linenr_T,
     lines_to_skip: linenr_T,
@@ -634,6 +632,8 @@ pub unsafe extern "C" fn readfile(
     flags: c_int,
     silent: bool,
 ) -> c_int {
+    #[cfg(unix)]
+    let mut fname = fname;
     unsafe {
         let mut retval = FAIL;
         let mut fd: c_int = if stdin_fd >= 0 { stdin_fd } else { 0 };

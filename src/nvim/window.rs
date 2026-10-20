@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
     clippy::if_same_then_else,
@@ -1013,11 +1012,10 @@ pub unsafe extern "C" fn win_set_buf(win: *mut win_T, buf: *mut buf_T, err: *mut
         RedrawingDisabled += 1;
 
         let mut switchwin: CtxSwitch = zeroed();
-        let mut win_ok: bool;
 
         let mut tstate: TryState = zeroed();
         try_enter(&raw mut tstate);
-        win_ok = ctx_switch(
+        let win_ok = ctx_switch(
             &raw mut switchwin,
             win,
             tab,

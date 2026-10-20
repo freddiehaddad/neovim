@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_unsafe,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::module_inception,
@@ -906,8 +905,10 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
         (*tui).ti_arena = ARENA_EMPTY;
         assert!((*tui).term.is_null());
 
-        #[allow(unused_mut)]
+        #[cfg(windows)]
         let mut term = os_getenv(c"TERM".as_ptr());
+        #[cfg(not(windows))]
+        let term = os_getenv(c"TERM".as_ptr());
         #[cfg(windows)]
         {
             let mut guessed_term: *const c_char = ptr::null();

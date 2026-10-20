@@ -646,8 +646,10 @@ pub unsafe extern "C" fn u_get_undo_file_name(
     reading: bool,
 ) -> *mut c_char {
     unsafe {
-        #[allow(unused_mut)]
+        #[cfg(unix)]
         let mut ffname = buf_ffname;
+        #[cfg(not(unix))]
+        let ffname = buf_ffname;
         if ffname.is_null() {
             return ptr::null_mut();
         }
@@ -1401,12 +1403,10 @@ unsafe fn uhp_table_find(uhp_table: *mut *mut u_header_T, num_head: c_int, seq: 
 
 /// Loads the undo tree from an undo file.
 #[cfg_attr(not(test), unsafe(no_mangle))]
-pub unsafe extern "C" fn u_read_undo(
-    name: *mut c_char,
-    hash: *const u8,
-    #[allow(unused_variables)] orig_name: *const c_char,
-) {
+pub unsafe extern "C" fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char) {
     unsafe {
+        #[cfg(not(unix))]
+        let _ = orig_name;
         let mut uhp_table: *mut *mut u_header_T = ptr::null_mut();
         let mut line_ptr: *mut c_char = ptr::null_mut();
         let mut num_read_uhps: c_int = 0;

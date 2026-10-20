@@ -2183,8 +2183,6 @@ pub unsafe extern "C" fn nvim_get_proc_children(
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mut Error) -> Object {
     unsafe {
-        #[allow(unused_assignments)]
-        let mut rvobj = nil_obj();
         if !validate_int(
             pid > 0 && pid <= Integer::from(c_int::MAX),
             c"pid".as_ptr(),
@@ -2197,13 +2195,15 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mu
         #[cfg(windows)]
         {
             let _ = err;
-            rvobj = dict_obj(os_proc_info(pid as c_int, arena));
+            let rvobj = dict_obj(os_proc_info(pid as c_int, arena));
             if rvobj.data.dict.size == 0 {
                 return nil_obj();
             }
+            rvobj
         }
         #[cfg(not(windows))]
         {
+            let mut rvobj = nil_obj();
             let mut a_items = [integer_obj(pid)];
             let a = Array {
                 items: a_items.as_mut_ptr(),
@@ -2230,8 +2230,8 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: *mu
                     pid,
                 );
             }
+            rvobj
         }
-        rvobj
     }
 }
 

@@ -1,9 +1,9 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
 
+#![cfg_attr(test, allow(unused_mut))]
 #![allow(
     dead_code,
     non_snake_case,
-    unused_mut,
     clippy::missing_safety_doc,
     clippy::needless_return
 )]

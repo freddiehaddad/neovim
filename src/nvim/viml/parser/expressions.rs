@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -2151,7 +2150,6 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             break 'parse_loop;
                         } else {
                             debug_assert!(!(*top_node_p).is_null());
-                            is_invalid = true;
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
@@ -2161,13 +2159,14 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             let cur_node =
                                 new_node_with_cur_pos(kExprNodeOpMissing, cur_token, prev_token);
                             (*cur_node).len = 0;
-                            is_invalid |= !viml_pexpr_handle_bop(
+                            let _ = viml_pexpr_handle_bop(
                                 pstate,
                                 &mut ast_stack,
                                 cur_node,
                                 &mut want_node,
                                 &mut ast.err,
                             );
+                            is_invalid = true;
                             continue 'process_token;
                         }
                     }};
@@ -2292,7 +2291,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             cur_token.len,
                             hl_group!(is_invalid, c"NvimOr", c"NvimInvalidOr"),
                         );
-                        is_invalid |= !viml_pexpr_handle_bop(
+                        let _ = viml_pexpr_handle_bop(
                             pstate,
                             &mut ast_stack,
                             cur_node,
@@ -2309,7 +2308,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             cur_token.len,
                             hl_group!(is_invalid, c"NvimAnd", c"NvimInvalidAnd"),
                         );
-                        is_invalid |= !viml_pexpr_handle_bop(
+                        let _ = viml_pexpr_handle_bop(
                             pstate,
                             &mut ast_stack,
                             cur_node,
@@ -2362,7 +2361,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                                 n
                             }
                         };
-                        is_invalid |= !viml_pexpr_handle_bop(
+                        let _ = viml_pexpr_handle_bop(
                             pstate,
                             &mut ast_stack,
                             cur_node,
@@ -2747,7 +2746,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                     }
                     kExprLexBracket => {
                         if cur_token.data.brc.closing {
-                            let mut new_top_node_p: *mut *mut ExprASTNode = std::ptr::null_mut();
+                            let mut new_top_node_p: *mut *mut ExprASTNode;
                             ast_stack.size -= 1;
                             if ast_stack.size == 0 {
                                 let cur_node = new_node_with_cur_pos(
@@ -2920,7 +2919,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                     }
                     kExprLexFigureBrace => {
                         if cur_token.data.brc.closing {
-                            let mut new_top_node_p: *mut *mut ExprASTNode = std::ptr::null_mut();
+                            let mut new_top_node_p: *mut *mut ExprASTNode;
                             ast_stack.size -= 1;
                             if ast_stack.size == 0 {
                                 let cur_node = new_node_with_cur_pos(
@@ -3244,8 +3243,19 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             ast_stack.push(&mut (*cur_node).children);
                             lambda_node = std::ptr::null_mut();
                         } else {
-                            add_value_if_missing!(c"E15: Unexpected arrow: %.*s".as_ptr());
                             is_invalid = true;
+                            if want_node == ExprASTWantedNode::Value {
+                                east_set_error(
+                                    pstate,
+                                    &mut ast.err,
+                                    c"E15: Unexpected arrow: %.*s".as_ptr(),
+                                    cur_token.start,
+                                );
+                                *top_node_p =
+                                    new_node_with_cur_pos(kExprNodeMissing, cur_token, prev_token);
+                                (**top_node_p).len = 0;
+                                want_node = ExprASTWantedNode::Operator;
+                            }
                             east_set_error(
                                 pstate,
                                 &mut ast.err,
@@ -3254,7 +3264,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             );
                             let cur_node =
                                 new_node_with_cur_pos(kExprNodeArrow, cur_token, prev_token);
-                            is_invalid |= !viml_pexpr_handle_bop(
+                            let _ = viml_pexpr_handle_bop(
                                 pstate,
                                 &mut ast_stack,
                                 cur_node,
@@ -3472,7 +3482,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             );
                             n
                         };
-                        is_invalid |= !viml_pexpr_handle_bop(
+                        let _ = viml_pexpr_handle_bop(
                             pstate,
                             &mut ast_stack,
                             cur_node,
@@ -3735,7 +3745,7 @@ pub unsafe extern "C" fn viml_pexpr_parse(pstate: *mut ParserState, flags: c_int
                             ),
                         };
                         viml_parser_highlight(pstate, cur_token.start, cur_token.len, hl_grp);
-                        is_invalid |= !viml_pexpr_handle_bop(
+                        let _ = viml_pexpr_handle_bop(
                             pstate,
                             &mut ast_stack,
                             cur_node,

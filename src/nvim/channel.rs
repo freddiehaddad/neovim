@@ -1,14 +1,11 @@
 //! Async I/O and process/socket/stdio/terminal channel management (`src/nvim/channel.c`).
 
+#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut,
-    unused_unsafe,
-    unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -348,10 +345,14 @@ pub unsafe extern "C" fn channel_close(
     mut error: *mut *const c_char,
 ) -> bool {
     unsafe {
+        #[cfg(not(test))]
         let mut dummy: *const c_char = ptr::null();
+        #[cfg(not(test))]
         if error.is_null() {
             error = &raw mut dummy;
         }
+        #[cfg(test)]
+        let _ = &mut error;
 
         let chan = find_channel(id);
         if chan.is_null() {
@@ -749,21 +750,22 @@ pub unsafe extern "C" fn channel_job_start(
         };
         let cmd = xstrdup(exe_str);
 
-        let mut has_out: bool;
-        let mut has_err: bool;
-        if (*ph).r#type == kProcTypePty {
-            has_out = true;
-            has_err = false;
+        let (has_out, has_err) = if (*ph).r#type == kProcTypePty {
+            (true, false)
         } else {
-            has_out = rpc || callback_reader_set(&(*ct).on_data);
-            has_err = callback_reader_set(&(*ct).on_stderr);
+            let out = rpc || callback_reader_set(&(*ct).on_data);
+            #[cfg(windows)]
+            let mut err = callback_reader_set(&(*ct).on_stderr);
+            #[cfg(not(windows))]
+            let err = callback_reader_set(&(*ct).on_stderr);
             (*pt).fwd_err = (*ct).on_stderr.fwd_err;
             #[cfg(windows)]
-            if !has_err && (*pt).fwd_err && (*pt).detach {
-                has_err = true;
+            if !err && (*pt).fwd_err && (*pt).detach {
+                err = true;
                 (*pt).fwd_err = false;
             }
-        }
+            (out, err)
+        };
 
         let has_in = stdin_mode == kChannelStdinPipe;
 
@@ -1315,6 +1317,8 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
             let _ = callback_call(cb, 3, argv.as_mut_ptr(), &raw mut rettv);
             tv_clear(&raw mut rettv);
         }
+        #[cfg(test)]
+        let _ = (cb, &argv);
 
         if !reader.is_null() {
             #[cfg(not(test))]
@@ -1384,19 +1388,23 @@ unsafe extern "C" fn term_write(buf: *const c_char, size: usize, data: *mut c_vo
 }
 
 unsafe extern "C" fn term_resize(width: u16, height: u16, data: *mut c_void) {
+    let chan = data.cast::<Channel>();
+    #[cfg(not(test))]
     unsafe {
-        let chan = data.cast::<Channel>();
-        #[cfg(not(test))]
         pty_proc_resize(channel_stream_ptr(chan).cast(), width, height);
     }
+    #[cfg(test)]
+    let _ = (chan, width, height);
 }
 
 unsafe extern "C" fn term_resume(data: *mut c_void) {
+    let chan = data.cast::<Channel>();
+    #[cfg(not(test))]
     unsafe {
-        let chan = data.cast::<Channel>();
-        #[cfg(not(test))]
         pty_proc_resume(channel_stream_ptr(chan).cast());
     }
+    #[cfg(test)]
+    let _ = chan;
 }
 
 unsafe extern "C" fn term_delayed_free(argv: *mut *mut c_void) {

@@ -1,13 +1,11 @@
 //! Lua interpreter initialization, execution, and Vimscript/RPC bridges (`src/nvim/lua/executor.c`).
 
+#![cfg_attr(test, allow(unused_mut))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unpredictable_function_pointer_comparisons,
-    unused_assignments,
-    unused_mut,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -1768,7 +1766,6 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
     unsafe {
         let nargs = lua_gettop(lstate);
         lua_getglobal(lstate, c"tostring".as_ptr());
-        let mut errmsg: *const c_char = ptr::null();
         let mut errmsg_len: usize = 0;
         let mut msg_ga: garray_T = zeroed();
         ga_init(&raw mut msg_ga, 1, 80);
@@ -1777,7 +1774,7 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
             lua_pushvalue(lstate, -1);
             lua_pushvalue(lstate, curargidx);
             if lua_pcall(lstate, 1, 1, 0) != 0 || lua_type(lstate, -1) != LUA_TSTRING {
-                errmsg = nlua_get_error(lstate, &raw mut errmsg_len);
+                let errmsg = nlua_get_error(lstate, &raw mut errmsg_len);
                 ga_clear(&raw mut msg_ga);
                 let buff = xmalloc(IOSIZE).cast::<c_char>();
                 let fmt = gettext(c"E5114: Converting print argument #%i: %.*s".as_ptr());
@@ -1846,7 +1843,13 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
 
         if time_fd.is_null() {
             lua_getglobal(lstate, c"require".as_ptr());
-            if lua_iscfunction(lstate, -1) != 0 && lua_tocfunction(lstate, -1) == Some(nlua_require)
+            if lua_iscfunction(lstate, -1) != 0
+                && lua_tocfunction(lstate, -1).is_some_and(|f| {
+                    std::ptr::fn_addr_eq(
+                        f,
+                        nlua_require as unsafe extern "C-unwind" fn(*mut lua_State) -> c_int,
+                    )
+                })
             {
                 lua_pushvalue(lstate, 1);
                 lua_setglobal(lstate, c"require".as_ptr());

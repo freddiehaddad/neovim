@@ -1,14 +1,11 @@
 //! Expression evaluation (`src/nvim/eval.c`).
 
+#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut,
-    unused_unsafe,
-    unused_variables,
     clippy::if_same_then_else,
     clippy::missing_safety_doc,
     clippy::needless_range_loop,
@@ -566,13 +563,11 @@ pub(crate) unsafe fn timer_tail(timer: *mut timer_T) -> *mut TimerTail {
 
 #[inline]
 unsafe fn timer_size() -> usize {
-    unsafe {
-        #[cfg(not(test))]
-        let uv_sz = uv_handle_size(UV_TIMER);
-        #[cfg(test)]
-        let uv_sz = 160;
-        uv_sz + size_of::<TimeWatcherFields>() + size_of::<TimerTail>()
-    }
+    #[cfg(not(test))]
+    let uv_sz = unsafe { uv_handle_size(UV_TIMER) };
+    #[cfg(test)]
+    let uv_sz = 160;
+    uv_sz + size_of::<TimeWatcherFields>() + size_of::<TimerTail>()
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -1658,7 +1653,6 @@ unsafe fn get_lval_subscript(
         let mut var1 = tv_initial_value();
         let mut var2 = tv_initial_value();
         let mut empty1 = false;
-        let mut rc = FAIL;
 
         while *p == b'[' as c_char
             || (*p == b'.' as c_char && *p.add(1) != b'=' as c_char && *p.add(1) != b'.' as c_char)
@@ -1844,10 +1838,9 @@ unsafe fn get_lval_subscript(
             var2.v_type = VarType::VAR_UNKNOWN;
         }
 
-        rc = OK;
         tv_clear(&raw mut var1);
         tv_clear(&raw mut var2);
-        if rc == OK { p } else { ptr::null_mut() }
+        p
     }
 }
 
@@ -2213,7 +2206,6 @@ pub unsafe extern "C" fn eval_for_line(
                 } else if tv.v_type == VarType::VAR_STRING {
                     (*fi).fi_byte_idx = 0;
                     (*fi).fi_string = tv.vval.v_string;
-                    tv.vval.v_string = ptr::null_mut();
                     if (*fi).fi_string.is_null() {
                         (*fi).fi_string = xstrdup(c"".as_ptr());
                     }
@@ -4603,7 +4595,7 @@ pub unsafe extern "C" fn eval_interp_string(
     evaluate: bool,
 ) -> c_int {
     unsafe {
-        let mut ret = OK;
+        let mut ret: c_int;
 
         let mut ga = garray_T {
             ga_len: 0,
@@ -8105,7 +8097,7 @@ pub unsafe extern "C" fn typval_compare(
     ic: bool,
 ) -> c_int {
     unsafe {
-        let mut n1: varnumber_T = 0;
+        let n1: varnumber_T;
         let type_is = expr_type == EXPR_IS || expr_type == EXPR_ISNOT;
 
         if type_is && (*typ1).v_type != (*typ2).v_type {

@@ -5,8 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -4594,17 +4592,21 @@ pub unsafe extern "C" fn tv_check_lock(
 }
 
 /// Return true if variable "name" has a locked (immutable) value.
-#[allow(unused_unsafe)]
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn value_check_lock(
     lock: VarLockStatus,
     mut name: *const c_char,
     mut name_len: usize,
 ) -> bool {
+    #[cfg(test)]
+    {
+        let _ = (&mut name, &mut name_len);
+        lock != VAR_UNLOCKED
+    }
+    #[cfg(not(test))]
     unsafe {
         match lock {
             VAR_UNLOCKED => return false,
-            #[cfg(not(test))]
             VAR_LOCKED => {
                 let error_message = if name.is_null() {
                     e_value_is_locked.as_ptr()

@@ -5,10 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
-    unused_mut,
-    unused_unsafe,
-    unused_variables,
     clippy::collapsible_if,
     clippy::enum_variant_names,
     clippy::if_same_then_else,
@@ -3407,11 +3403,7 @@ unsafe fn getpos_both(
 ) {
     unsafe {
         let mut fp: *mut pos_T = ptr::null_mut();
-        let mut pos = pos_T {
-            lnum: 0,
-            col: 0,
-            coladd: 0,
-        };
+        let mut pos: pos_T;
         let mut wp = curwin;
         let mut fnum: c_int = -1;
 
@@ -5116,10 +5108,14 @@ pub unsafe extern "C" fn create_environment(
             let mut envcount: c_int = 0;
             if uv_os_environ(&raw mut envitems, &raw mut envcount) == 0 {
                 for i in 0..(envcount as usize) {
-                    #[allow(unused_mut)]
+                    #[cfg(windows)]
                     let mut name: *const c_char = (*envitems.add(i)).name;
-                    #[allow(unused_mut)]
+                    #[cfg(not(windows))]
+                    let name: *const c_char = (*envitems.add(i)).name;
+                    #[cfg(windows)]
                     let mut namelen = strlen(name);
+                    #[cfg(not(windows))]
+                    let namelen = strlen(name);
                     #[cfg(windows)]
                     {
                         if namelen < MAXPATHL / MB_MAXBYTES {
@@ -5965,7 +5961,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
         let mut len: i64 = 0;
         let mut expr: *mut c_char = ptr::null_mut();
         let mut regmatch: regmatch_T = std::mem::zeroed();
-        let mut start: i64 = 0;
+        let mut start: i64;
         let mut nth: i64 = 1;
         let mut startcol: colnr_T = 0;
         let mut match_found = false;

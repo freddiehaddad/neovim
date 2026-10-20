@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::needless_range_loop
@@ -2575,7 +2574,10 @@ unsafe fn add_dir(
                 dest = dest.add(1);
             }
             let appname = get_appname(false);
+            #[cfg(windows)]
             let mut appname_len = CStr::from_ptr(appname).to_bytes().len();
+            #[cfg(not(windows))]
+            let appname_len = CStr::from_ptr(appname).to_bytes().len();
             debug_assert!(appname_len < IOSIZE - 6);
             let iobuff = (&raw mut IObuff).cast::<c_char>();
             xmemcpyz(
@@ -2655,12 +2657,11 @@ pub unsafe extern "C" fn runtimepath_default(clean_arg: bool) -> *mut c_char {
 
         if !data_home.is_null() {
             data_len = CStr::from_ptr(data_home).to_bytes().len();
-            #[allow(unused_mut)]
-            let mut nvim_data_size = appname_len;
-            #[cfg(windows)]
-            {
-                nvim_data_size += 5;
-            }
+            let nvim_data_size = if cfg!(windows) {
+                appname_len + 5
+            } else {
+                appname_len
+            };
             if data_len != 0 {
                 rtp_size += (data_len
                     + memcnt(data_home.cast::<c_void>(), b',' as c_char, data_len)
@@ -3831,7 +3832,10 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> *mut c_char {
         (*sp).sourcing_lnum += 1;
         loop {
             ga_grow(&mut ga, 120);
+            #[cfg(windows)]
             let mut len: c_int;
+            #[cfg(not(windows))]
+            let len: c_int;
             let buf: *mut c_char;
             if (*sp).source_from_buf_or_str {
                 if (*sp).buf_lnum >= (*sp).buflines.ga_len {

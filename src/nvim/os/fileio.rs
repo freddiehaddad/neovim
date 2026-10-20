@@ -1,6 +1,6 @@
 //! Buffered file descriptor reading and writing (`src/nvim/os/fileio.c`).
 
-#![cfg_attr(any(test, target_os = "windows"), allow(dead_code, unused_mut))]
+#![cfg_attr(any(test, target_os = "windows"), allow(dead_code))]
 
 #[cfg(unix)]
 use std::ffi::c_void;
@@ -378,7 +378,10 @@ pub unsafe extern "C" fn file_read(
         }
     }
 
+    #[cfg(unix)]
     let mut buf = unsafe { ret_buf.add(from_buffer) };
+    #[cfg(not(unix))]
+    let buf = unsafe { ret_buf.add(from_buffer) };
     let mut read_remaining = size - from_buffer;
     if read_remaining == 0 {
         fp.bytes_read += from_buffer as u64;

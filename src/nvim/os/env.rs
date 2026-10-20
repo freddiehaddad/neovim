@@ -1,12 +1,11 @@
 //! Environment variable inspection and path expansion (`src/nvim/os/env.c`).
 
+#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::missing_safety_doc
 )]
 
@@ -780,7 +779,10 @@ pub unsafe extern "C" fn expand_env_esc(
                 if *src != b'~' as c_char {
                     tail = src.add(1);
                     var = dst;
+                    #[cfg(not(windows))]
                     let mut c = dstlen - 1;
+                    #[cfg(windows)]
+                    let c = dstlen - 1;
 
                     #[cfg(not(windows))]
                     if *tail == b'{' as c_char {
@@ -1204,7 +1206,10 @@ pub unsafe extern "C" fn home_replace(
             c_strlen(HOMEDIR)
         };
 
+        #[cfg(windows)]
         let mut homedir_env = os_getenv(c"HOME".as_ptr());
+        #[cfg(not(windows))]
+        let homedir_env = os_getenv(c"HOME".as_ptr());
         #[cfg(windows)]
         if homedir_env.is_null() {
             homedir_env = os_getenv(c"USERPROFILE".as_ptr());

@@ -1,7 +1,6 @@
 //! Window configuration API functions (`src/nvim/api/win_config.c`).
 
 #![allow(
-    static_mut_refs,
     dead_code,
     non_camel_case_types,
     non_snake_case,

@@ -988,7 +988,6 @@ unsafe fn nfa_regatom() -> c_int {
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
                     old_regparse = regparse.cast();
                     c = getchr();
-                    goto_multibyte = true;
                 } else {
                     let idx = p.offset_from(classchars.as_ptr()) as usize;
                     EMIT(NFA_CLASSCODES[idx]);
@@ -3313,7 +3312,6 @@ unsafe fn recursive_regmatch(
             || (*state).c == NFA_START_INVISIBLE_BEFORE_NEG
             || (*state).c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST
         {
-            endposp = &raw mut endpos;
             if REG_MULTI() {
                 if pim.is_null() {
                     endpos.se_u.pos.col = rex.input.offset_from(rex.line) as colnr_T;
@@ -3326,6 +3324,7 @@ unsafe fn recursive_regmatch(
             } else {
                 endpos.se_u.ptr = (*pim).end.ptr;
             }
+            endposp = &raw mut endpos;
 
             if (*state).val <= 0 {
                 if REG_MULTI() {
@@ -3617,7 +3616,7 @@ unsafe fn nfa_regmatch(
         }
 
         loop {
-            let mut curc: c_int;
+            let curc: c_int;
             let mut clen: c_int;
             if *rex.input != NUL && *rex.input < 0x80 && *rex.input.add(1) < 0x80 {
                 curc = *rex.input as c_int;

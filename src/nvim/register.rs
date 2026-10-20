@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -1685,7 +1684,7 @@ pub unsafe extern "C" fn do_put(
         let mut totlen: usize = 0;
         let mut lnum: linenr_T;
         let mut y_type: MotionType;
-        let mut y_size: usize = 0;
+        let mut y_size: usize;
         let mut y_width: c_int = 0;
         let mut vcol: colnr_T = 0;
         let mut y_array: *mut NvimString = ptr::null_mut();
@@ -2066,7 +2065,6 @@ pub unsafe extern "C" fn do_put(
 
                     bd.startspaces = 0;
                     bd.endspaces = 0;
-                    vcol = 0;
                     let mut delcount: c_int = 0;
 
                     if (*curwin).w_cursor.lnum > (*curbuf).b_ml.ml_line_count {
@@ -2276,9 +2274,6 @@ pub unsafe extern "C" fn do_put(
                     }
 
                     if count == 0 || yanklen == 0 {
-                        if Visual.active {
-                            lnum = end_lnum;
-                        }
                     } else if count > c_int::MAX / yanklen {
                         emsg(gettext(e_resulting_text_too_long.as_ptr()));
                     } else {
@@ -2337,10 +2332,6 @@ pub unsafe extern "C" fn do_put(
                             if !(Visual.active && lnum <= end_lnum) {
                                 break;
                             }
-                        }
-
-                        if Visual.active {
-                            lnum -= 1;
                         }
                     }
 

@@ -3009,7 +3009,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             if *opnd != *rex.input && !rex.reg_ic {
                                 status = RA_NOMATCH;
                             } else if *opnd != NUL {
-                                let mut len = if *opnd.add(1) == NUL && !rex.reg_ic {
+                                let len = if *opnd.add(1) == NUL && !rex.reg_ic {
                                     1
                                 } else {
                                     let mut l = libc::strlen(opnd.cast()) as c_int;

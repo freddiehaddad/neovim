@@ -1,12 +1,11 @@
 //! Path manipulation, comparison, canonicalization, and wildcard expansion (`src/nvim/path.c`).
 
+#![cfg_attr(test, allow(unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
@@ -396,7 +395,10 @@ pub unsafe extern "C" fn is_path_head(path: *const c_char) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_past_head(path: *const c_char) -> *mut c_char {
     unsafe {
+        #[cfg(windows)]
         let mut retval = path;
+        #[cfg(not(windows))]
+        let retval = path;
         #[cfg(windows)]
         if is_path_head(path) {
             retval = path.add(2);
@@ -1639,7 +1641,10 @@ pub unsafe extern "C" fn simplify_filename(filename: *mut c_char) -> usize {
             relative = false;
             p = path_skip_sep(p, true);
         }
+        #[cfg(unix)]
         let mut start = p;
+        #[cfg(not(unix))]
+        let start = p;
         let mut p_end = p.add(CStr::from_ptr(p).to_bytes().len());
 
         #[cfg(unix)]

@@ -1,11 +1,11 @@
 //! Functions for dealing with the buffer structure (`src/nvim/buffer.c`).
 
+#![cfg_attr(test, allow(unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
     clippy::collapsible_if,
     clippy::if_same_then_else,
     clippy::missing_safety_doc,
@@ -536,7 +536,10 @@ pub unsafe extern "C" fn open_buffer(
         let mut retval = OK;
         let mut old_curbuf: bufref_T = std::mem::zeroed();
         let old_tw = (*curbuf).b_p_tw;
+        #[cfg(unix)]
         let mut read_fifo = false;
+        #[cfg(not(unix))]
+        let read_fifo = false;
         let silent = shortmess(kShmFileinfo);
 
         if readonlymode
@@ -4075,11 +4078,13 @@ pub unsafe extern "C" fn append_arg_number(
 /// Make `*ffname` a full file name, set `*sfname` to `*ffname` if not NULL.
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn fname_expand(
-    #[allow(unused_variables)] buf: *mut buf_T,
+    buf: *mut buf_T,
     ffname: *mut *mut c_char,
     sfname: *mut *mut c_char,
 ) {
     unsafe {
+        #[cfg(not(windows))]
+        let _ = buf;
         if (*ffname).is_null() {
             return;
         }

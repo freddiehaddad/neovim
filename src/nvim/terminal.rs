@@ -1,12 +1,11 @@
 //! VT220/xterm-like terminal emulator (`src/nvim/terminal.c`).
 
+#![cfg_attr(test, allow(unused_mut, unused_variables))]
 #![allow(
     dead_code,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
-    unused_variables,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::while_immutable_condition

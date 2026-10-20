@@ -137,7 +137,7 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             b'/' => {
                 #[cfg(not(test))]
                 {
-                    n = unsafe { num_divide(n, rhs) };
+                    n = num_divide(n, rhs);
                 }
                 #[cfg(test)]
                 {
@@ -147,7 +147,7 @@ unsafe fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             b'%' => {
                 #[cfg(not(test))]
                 {
-                    n = unsafe { num_modulus(n, rhs) };
+                    n = num_modulus(n, rhs);
                 }
                 #[cfg(test)]
                 {
