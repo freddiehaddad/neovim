@@ -7,7 +7,7 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::deprecated::{DecorInline, DecorVirtText, VirtTextPos};
+use crate::api::deprecated::{DecorInline, DecorVirtText};
 use crate::api::extmark::ns_in_win;
 use crate::api::tabpage::{pos_T, win_T};
 use crate::charset::{ascii2cells, vim_isprintc, vim_strsize};
@@ -34,23 +34,21 @@ use crate::state::virtual_active;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
+use crate::api::extmark::{kVPosInline, kVTIsLines};
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::decoration::kMTFilterSelect;
+use crate::drawscreen::GETVCOL_END_EXCL_LBR;
+use crate::insert::kCharsizeFast;
 pub type CSType = bool;
 
 const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MODE_NORMAL: c_int = 0x01;
-const GETVCOL_END_EXCL_LBR: c_int = 1;
 const kInvalidByteCells: c_int = 4;
 
 const kCharsizeRegular: CSType = false;
-const kCharsizeFast: CSType = true;
-
-const kMTFilterSelect: u32 = u32::MAX;
-const kVTIsLines: u8 = 1;
-const kVPosInline: VirtTextPos = 2;
 
 static INLINE_FILTER: [u32; kMTMetaCount] = [kMTFilterSelect, 0, 0, 0, 0];
 

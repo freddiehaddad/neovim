@@ -67,21 +67,11 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const DECOR_ID_INVALID: u32 = u32::MAX;
-const MAX_SCHAR_SIZE: usize = 32;
 const SIGN_WIDTH: usize = 2;
 const SIGN_DEF_PRIO: c_int = 10;
-const MSG_BUF_LEN: usize = 480;
 
 const HLF_D: c_int = 5;
-const UPD_NOT_VALID: c_int = 40;
-const BL_WHITE: c_int = 1;
 const ECMD_HIDE: c_int = 0x01;
-const kListLenMayKnow: isize = -3;
-
-const kSHIsSign: u16 = 1;
 
 const SIGNCMD_DEFINE: c_int = 0;
 const SIGNCMD_UNDEFINE: c_int = 1;
@@ -91,13 +81,7 @@ const SIGNCMD_UNPLACE: c_int = 4;
 const SIGNCMD_JUMP: c_int = 5;
 const SIGNCMD_LAST: c_int = 6;
 
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_FILES: c_int = 2;
-const EXPAND_BUFFERS: c_int = 9;
-const EXPAND_HIGHLIGHT: c_int = 13;
-const EXPAND_SIGN: c_int = 34;
-
-const EXP_SUBCMD: c_int = 0;
+pub(crate) const EXP_SUBCMD: c_int = 0;
 const EXP_DEFINE: c_int = 1;
 const EXP_PLACE: c_int = 2;
 const EXP_LIST: c_int = 3;
@@ -131,6 +115,17 @@ pub struct sign_T {
     pub sn_priority: c_int,
 }
 
+use crate::api::deprecated::DECOR_ID_INVALID;
+use crate::api::extmark::kSHIsSign;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::cmdexpand::{
+    EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN,
+};
+use crate::drawscreen::UPD_NOT_VALID;
+use crate::eval::kListLenMayKnow;
+use crate::eval::userfunc::MSG_BUF_LEN;
+use crate::ex_cmds::BL_WHITE;
+use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
 
 static mut sign_map: Map<cstr_t, ptr_t> = Map {

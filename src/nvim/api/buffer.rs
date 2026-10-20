@@ -64,8 +64,6 @@ pub use crate::mark::MarkAdjustMode;
 pub use crate::mark::MarkGet;
 pub use crate::search::Direction;
 
-const OK: c_int = 1;
-const FAIL: c_int = 0;
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
 const Ctrl_V: c_int = 0x16;
@@ -73,32 +71,23 @@ const Ctrl_V: c_int = 0x16;
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
 
-const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
-const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
-const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
+pub(crate) const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
+pub(crate) const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
+pub(crate) const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 
 const LUA_NOREF: LuaRef = -2;
 
-const kExtmarkNOOP: ExtmarkOp = 0;
+pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 
-const kMarkAdjustApi: MarkAdjustMode = 1;
-const kMarkAllNoResolve: MarkGet = 2;
+pub(crate) const kMarkAdjustApi: MarkAdjustMode = 1;
+pub(crate) const kMarkAllNoResolve: MarkGet = 2;
 
-const MAPTYPE_MAP: c_int = 0;
-const MAPTYPE_UNMAP: c_int = 1;
-const MAPTYPE_UNMAP_LHS: c_int = 3;
-
-const DOBUF_UNLOAD: c_int = 2;
-const DOBUF_WIPE: c_int = 4;
-const DOBUF_FIRST: c_int = 1;
 const FORWARD: Direction = 1;
 
 const ML_LINE_DIRTY: c_int = 0x02;
 const VALID_BOTLINE_AP: c_int = 0x40;
 const MODE_INSERT: c_int = 0x10;
-
-const kRetMultiStack: LuaRetMode = 4;
 
 const KEYSET_OPTIDX_buf_attach__on_bytes: u64 = 2;
 const KEYSET_OPTIDX_buf_attach__on_lines: u64 = 3;
@@ -168,7 +157,11 @@ pub struct VisualState {
     pub resel: VisualExtent,
 }
 
+use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE};
 pub use crate::extmark::u_header_T;
+use crate::lua::executor::kRetMultiStack;
+use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS};
+use crate::math::{FAIL, OK};
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,

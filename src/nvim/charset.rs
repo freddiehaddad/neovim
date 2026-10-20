@@ -28,6 +28,7 @@ use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
 pub use crate::eval::buffer::varnumber_T;
+use crate::math::{FAIL, OK};
 pub type uvarnumber_T = u64;
 
 pub trait AsciiInt {
@@ -127,26 +128,24 @@ const NL: c_char = b'\n' as c_char;
 const CAR: c_int = 0x0d;
 const Ctrl_V: c_char = 22;
 
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const EOL_MAC: c_int = 2;
+pub(crate) const EOL_MAC: c_int = 2;
 const kOptDyFlagUhex: c_uint = 0x04;
 
 const K_SPECIAL: c_int = 0x80;
 const KS_SPECIAL: c_int = 254;
 const KS_ZERO: c_int = 255;
 
-const STR2NR_BIN: c_int = 1 << 0;
-const STR2NR_OCT: c_int = 1 << 1;
-const STR2NR_HEX: c_int = 1 << 2;
-const STR2NR_OOCT: c_int = 1 << 3;
-const STR2NR_QUOTE: c_int = 1 << 4;
-const STR2NR_FORCE: c_int = 1 << 7;
+pub(crate) const STR2NR_BIN: c_int = 1 << 0;
+pub(crate) const STR2NR_OCT: c_int = 1 << 1;
+pub(crate) const STR2NR_HEX: c_int = 1 << 2;
+pub(crate) const STR2NR_OOCT: c_int = 1 << 3;
+pub(crate) const STR2NR_QUOTE: c_int = 1 << 4;
+pub(crate) const STR2NR_FORCE: c_int = 1 << 7;
 
 const VARNUMBER_MAX: uvarnumber_T = i64::MAX as u64;
-const VARNUMBER_MIN: varnumber_T = i64::MIN;
+pub(crate) const VARNUMBER_MIN: varnumber_T = i64::MIN;
 const UVARNUMBER_MAX: uvarnumber_T = u64::MAX;
 
 static mut isf_chartab: [u64; 4] = [0; 4];

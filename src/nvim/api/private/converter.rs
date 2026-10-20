@@ -43,8 +43,8 @@ use std::ffi::CStr;
 use std::ffi::{c_char, c_int, c_void};
 
 const VAR_UNLOCKED: c_int = 0;
-const K_SPECIAL_VAR_NULL: i64 = 0;
-const K_BOOL_VAR_FALSE: i64 = 0;
+pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
+pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 const K_BOOL_VAR_TRUE: i64 = 1;
 #[cfg(not(test))]
 const LUA_NOREF: c_int = -2;

@@ -17,10 +17,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{WinConfig, lpos_T, tabpage_T, win_T};
 use crate::api::vim::nvim_create_buf;
-use crate::api::win_config::{
-    AlignTextPos, BorderTextType, FloatAnchor, FloatRelative, UIExtension, WinStyle,
-    parse_bordertext, parse_winborder,
-};
+use crate::api::win_config::{UIExtension, WinStyle, parse_bordertext, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::decoration::clear_virttext;
 use crate::drawscreen::{redraw_later, set_must_redraw};
@@ -57,37 +54,14 @@ pub use crate::optionstr::OptIndex;
 pub use crate::window::WinKind;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const STATUS_HEIGHT: c_int = 1;
-const MAX_SCHAR_SIZE: usize = 32;
-const MAXPATHL: usize = 4096;
-
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
 
 const OPT_LOCAL: c_int = 0x02;
 const kOptScopeBuf: OptScope = 2;
 const kOptBufhidden: OptIndex = 27;
-const kOptPreviewpopup: OptIndex = 222;
 
 const kUIMultigrid: UIExtension = 6;
-const kZIndexFloatDefault: c_int = 50;
-const kZIndexMessages: c_int = 200;
 
-const kFloatAnchorEast: FloatAnchor = 1;
-const kFloatAnchorSouth: FloatAnchor = 2;
-
-const kFloatRelativeEditor: FloatRelative = 0;
-const kFloatRelativeWindow: FloatRelative = 1;
-const kFloatRelativeCursor: FloatRelative = 2;
-const kFloatRelativeMouse: FloatRelative = 3;
-const kFloatRelativeLaststatus: FloatRelative = 5;
-
-const kWinStyleUnused: WinStyle = 0;
 const kWinStyleMinimal: WinStyle = 1;
-
-const kAlignCenter: AlignTextPos = 1;
-const kBorderTextTitle: BorderTextType = 0;
 
 const kWinPreview: WinKind = 2;
 
@@ -95,7 +69,19 @@ const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;
 const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::MAXPATHL;
+use crate::api::win_config::{
+    kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeCursor,
+    kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse, kFloatRelativeWindow,
+    kWinStyleUnused, kZIndexFloatDefault,
+};
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+use crate::math::FAIL;
+use crate::message::kZIndexMessages;
 pub use crate::optionstr::OptKeyDict_pvp;
+use crate::optionstr::kOptPreviewpopup;
+use crate::window::STATUS_HEIGHT;
 
 const WIN_CONFIG_INIT: WinConfig = WinConfig {
     window: 0,

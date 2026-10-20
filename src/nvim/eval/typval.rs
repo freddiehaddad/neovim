@@ -64,19 +64,22 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
 
+use crate::api::autocmd::{
+    kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
+};
+use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::{DICT_MAXNEST, kListLenMayKnow};
+use crate::math::{FAIL, OK};
+use crate::regexp::NUMBUFLEN;
+use crate::viml::parser::parser::CONV_NONE;
 pub type float_T = f64;
 pub type VarLockStatus = c_int;
 pub type BoolVarValue = c_int;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const NOTDONE: c_int = 2;
 
-const DO_NOT_FREE_CNT: c_int = c_int::MAX / 2;
-const DICT_MAXNEST: c_int = 100;
-const NUMBUFLEN: usize = 65;
 const MB_MAXBYTES: usize = 30;
 const LUA_NOREF: LuaRef = -2;
 const ITEM_COMPARE_FAIL: c_int = 999;
@@ -91,23 +94,12 @@ const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const kSpecialVarNull: c_int = 0;
 
-const kListLenMayKnow: isize = -3;
+pub(crate) const DI_FLAGS_ALLOC: u8 = 16;
 
-const DI_FLAGS_RO: u8 = 1;
-const DI_FLAGS_FIX: u8 = 4;
-const DI_FLAGS_ALLOC: u8 = 16;
-
-const CONV_NONE: c_int = 0;
 const STR2NR_ALL: c_int = 0x7f;
 
 pub const TV_TRANSLATE: usize = usize::MAX;
 pub const TV_CSTRING: usize = usize::MAX - 1;
-
-const kCallbackNone: c_int = 0;
-const kCallbackFuncref: c_int = 1;
-const kCallbackPartial: c_int = 2;
-const kCallbackLua: c_int = 3;
-const kCallbackExpr: c_int = 4;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DictListType {

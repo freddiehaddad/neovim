@@ -53,9 +53,6 @@ pub const SHAPE_CURSOR: c_int = 2;
 const SHAPE_BOTH: c_char = (SHAPE_CURSOR + SHAPE_MOUSE) as c_char;
 
 #[cfg(not(test))]
-const LOGLVL_WRN: c_int = 3;
-
-#[cfg(not(test))]
 const MODE_CMDLINE: c_int = 0x08;
 #[cfg(not(test))]
 const MODE_INSERT: c_int = 0x10;
@@ -96,6 +93,8 @@ unsafe impl Sync for cursorentry_T {}
 
 pub use crate::api::buffer::VisualState;
 pub use crate::eval::deprecated::pos_T;
+#[cfg(not(test))]
+use crate::log::LOGLVL_WRN;
 
 const fn entry(
     full_name: &'static CStr,

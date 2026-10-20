@@ -75,10 +75,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ffi::{c_uint, c_void};
 
 #[cfg(not(test))]
-const FAIL: c_int = 0;
-#[cfg(not(test))]
-const OK: c_int = 1;
-#[cfg(not(test))]
 const MAX_FUNC_ARGS: usize = 20;
 #[cfg(not(test))]
 const API_INTEGER_MAX: u64 = i64::MAX as u64;
@@ -91,6 +87,8 @@ pub struct KeyDict_exec_opts {
 pub use crate::eval::vars::evalarg_T;
 
 pub use crate::eval::userfunc::funcexe_T;
+#[cfg(not(test))]
+use crate::math::{FAIL, OK};
 
 #[cfg(not(test))]
 #[repr(C)]

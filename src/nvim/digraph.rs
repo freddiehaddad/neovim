@@ -42,8 +42,12 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type result_T = c_int;
+use crate::buffer::KEYMAP_INIT;
 pub use crate::cmdexpand::LineGetter;
 pub use crate::eval::buffer::varnumber_T;
+use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP};
+use crate::math::{FAIL, OK};
+use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -61,25 +65,19 @@ pub struct kmap_T {
 }
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const ESC: c_int = 0x1b;
 const Ctrl_H: c_int = 8;
 const MB_MAXCHAR: usize = 6;
-const NUMBUFLEN: usize = 65;
 
 const HLF_8: c_int = 1;
-const HLF_CM: c_int = 11;
+pub(crate) const HLF_CM: c_int = 11;
 
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;
 
-const KEYMAP_INIT: i16 = 1;
 const KEYMAP_LOADED: i16 = 2;
 const B_IMODE_LMAP: c_int = 1;
 
-const MAPTYPE_MAP: c_int = 0;
-const MAPTYPE_UNMAP: c_int = 1;
 const MODE_LANGMAP: c_int = 0x20;
 
 const KMAP_MAXLEN: usize = 20;

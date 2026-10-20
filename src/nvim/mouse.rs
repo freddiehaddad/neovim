@@ -74,7 +74,12 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
+use crate::drawscreen::{FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID};
 pub use crate::eval::deprecated::EvalFuncData;
+use crate::eval::funcs::kMTCharWise;
+use crate::math::FAIL;
+use crate::ops::OP_NOP;
+use crate::register::{PUT_CURSEND, PUT_FIXINDENT};
 pub use crate::search::Direction;
 
 pub const IN_UNKNOWN: c_int = 0;
@@ -108,7 +113,6 @@ pub const MSCR_LEFT: c_int = -1;
 pub const MSCR_RIGHT: c_int = -2;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 
@@ -133,13 +137,6 @@ const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
 const REPLACE_FLAG: c_int = 0x100;
 
-const OP_NOP: c_int = 0;
-const PUT_FIXINDENT: c_int = 1;
-const PUT_CURSEND: c_int = 2;
-
-const UPD_VALID: c_int = 10;
-const UPD_INVERTED: c_int = 20;
-
 const VALID_WROW: c_int = 0x01;
 const VALID_CROW: c_int = 0x10;
 const VALID_BOTLINE: c_int = 0x20;
@@ -148,16 +145,12 @@ const VALID_TOPLINE: c_int = 0x80;
 
 const DEFAULT_GRID_HANDLE: c_int = 1;
 
-const FR_LEAF: c_char = 0;
-const FR_ROW: c_char = 1;
-
 const VV_LNUM: c_int = 9;
 const VV_VIRTNUM: c_int = 103;
 
-const kMouseVisual: c_int = b'v' as c_int;
+pub(crate) const kMouseVisual: c_int = b'v' as c_int;
 const kWinInfo: c_int = 1;
 const kNone: TriState = -1;
-const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
 const VAR_FIXED: c_int = 2;
 const ZERO_POS: pos_T = pos_T {
@@ -166,10 +159,10 @@ const ZERO_POS: pos_T = pos_T {
     coladd: 0,
 };
 
-const kStlClickDisabled: c_int = 0;
-const kStlClickTabSwitch: c_int = 1;
-const kStlClickTabClose: c_int = 2;
-const kStlClickFuncRun: c_int = 3;
+pub(crate) const kStlClickDisabled: c_int = 0;
+pub(crate) const kStlClickTabSwitch: c_int = 1;
+pub(crate) const kStlClickTabClose: c_int = 2;
+pub(crate) const kStlClickFuncRun: c_int = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

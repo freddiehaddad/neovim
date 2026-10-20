@@ -84,7 +84,6 @@ pub use crate::extmark::TriState;
 
 pub const MAXMAPLEN: usize = 50;
 pub const MAX_MAPHASH: usize = 256;
-const NUMBUFLEN: usize = 65;
 const MB_MAXBYTES: usize = 30;
 
 const NUL: c_char = 0;
@@ -101,10 +100,6 @@ pub const MAPTYPE_UNMAP: c_int = 1;
 pub const MAPTYPE_NOREMAP: c_int = 2;
 pub const MAPTYPE_UNMAP_LHS: c_int = 3;
 
-const REMAP_YES: c_int = 0;
-const REMAP_NONE: c_int = -1;
-const REMAP_SCRIPT: c_int = -2;
-
 const MODE_NORMAL: c_int = 0x01;
 const MODE_VISUAL: c_int = 0x02;
 const MODE_OP_PENDING: c_int = 0x04;
@@ -118,17 +113,11 @@ const LUA_NOREF: LuaRef = -2;
 const HLF_8: c_int = 1;
 const kCpoBslash: c_int = b'B' as c_int;
 
-const KE_LUA: u8 = 103;
 const ABBR_OFF: c_int = 0x100;
-const K_ZERO: c_int = -((KS_ZERO as c_int) + ((KE_FILLER as c_int) << 8));
-
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_MAPPINGS: c_int = 16;
 
 const kRetObject: c_int = 0;
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
-const kListLenUnknown: isize = -1;
 const FC_LUAREF: c_int = 0x800;
 const VAR_UNLOCKED: c_int = 0;
 
@@ -170,6 +159,13 @@ pub struct typebuf_T {
 }
 
 pub use crate::api::command::regmatch_T;
+use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING};
+use crate::eval::kListLenUnknown;
+use crate::input::REMAP_SCRIPT;
+use crate::keycodes::K_ZERO;
+use crate::keycodes::KE_LUA;
+use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

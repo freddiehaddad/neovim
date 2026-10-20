@@ -30,14 +30,11 @@ const ARENA_EMPTY: Arena = Arena {
     size: 0,
 };
 
+use crate::api::buffer::LUA_INTERNAL_CALL;
 pub use crate::api::buffer::bcount_t;
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
 pub use crate::lua::executor::LuaRetMode;
-
-const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
-const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
-const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 
 const LUA_NOREF: LuaRef = -2;
 const kRetNilBool: LuaRetMode = 1;

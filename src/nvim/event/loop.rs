@@ -7,11 +7,13 @@
     clippy::missing_safety_doc
 )]
 
+use crate::eval::funcs::UV_TIMER;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,
     multiqueue_new, multiqueue_new_child, multiqueue_process_events, multiqueue_purge_events,
     multiqueue_put_event, multiqueue_size,
 };
+use crate::log::LOGLVL_ERR;
 use crate::log::{log_uv_handles, logmsg};
 use crate::memory::{xfree, xmalloc};
 use crate::os::time::os_hrtime;
@@ -19,12 +21,11 @@ use std::ffi::{c_int, c_void};
 use std::ptr;
 
 const UV_ASYNC: c_int = 1;
-const UV_TIMER: c_int = 13;
-const UV_SIGNAL: c_int = 16;
+pub(crate) const UV_SIGNAL: c_int = 16;
 
-const UV_RUN_DEFAULT: c_int = 0;
+pub(crate) const UV_RUN_DEFAULT: c_int = 0;
 const UV_RUN_ONCE: c_int = 1;
-const UV_RUN_NOWAIT: c_int = 2;
+pub(crate) const UV_RUN_NOWAIT: c_int = 2;
 
 #[cfg(windows)]
 const UV_EBUSY: c_int = -4082;
@@ -39,7 +40,6 @@ const UV_MUTEX_SIZE: usize = 64;
 const UV_MUTEX_SIZE: usize = 8;
 
 const NS_PER_SEC: u64 = 1_000_000_000;
-const LOGLVL_ERR: c_int = 4;
 
 pub type Loop = c_void;
 pub type uv_loop_t = c_void;

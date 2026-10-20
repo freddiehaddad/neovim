@@ -59,13 +59,13 @@ use std::ptr;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 
-const MAX_SCHAR_SIZE: usize = 32;
+pub(crate) const MAX_SCHAR_SIZE: usize = 32;
 const UI_BUF_SIZE: usize = 4096;
 const EVENT_BUF_SIZE: usize = 256;
-const HLATTRS_DICT_SIZE: usize = 24;
+pub(crate) const HLATTRS_DICT_SIZE: usize = 24;
 const DEFAULT_GRID_HANDLE: Integer = 1;
-const NO_SCREEN: c_int = 2;
-const CHAN_STDIO: u64 = 1;
+pub(crate) const NO_SCREEN: c_int = 2;
+pub(crate) const CHAN_STDIO: u64 = 1;
 
 #[cfg(windows)]
 const kChannelStreamStdio: c_int = 2;
@@ -77,9 +77,9 @@ const kUIWildmenu: usize = 3;
 const kUIMessages: usize = 4;
 const kUILinegrid: usize = 5;
 const kUIMultigrid: usize = 6;
-const kUIHlState: usize = 7;
-const kUITermColors: usize = 8;
-const kUIExtCount: usize = 10;
+pub(crate) const kUIHlState: usize = 7;
+pub(crate) const kUITermColors: usize = 8;
+pub(crate) const kUIExtCount: usize = 10;
 
 const kLineFlagWrap: c_int = 1;
 

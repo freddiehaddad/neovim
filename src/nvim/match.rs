@@ -41,27 +41,24 @@ use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID};
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::kListLenMayKnow;
 pub use crate::eval::window::dictitem_T;
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
+use crate::regexp::{NUMBUFLEN, RE_MAGIC};
 pub use crate::regexp::{regmmatch_T, regprog_T};
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MB_MAXCHAR: usize = 6;
-const NUMBUFLEN: usize = 65;
 
 const SEARCH_HL_PRIORITY: c_int = 0;
-const UPD_VALID: c_int = 10;
-const UPD_SOME_VALID: c_int = 35;
-const RE_MAGIC: c_int = 1;
 
-const HLF_L: usize = 8;
-const HLF_LC: usize = 9;
-const kCpoSearch: c_int = b'c' as c_int;
-const kListLenMayKnow: isize = -3;
+pub(crate) const HLF_L: usize = 8;
+pub(crate) const HLF_LC: usize = 9;
+pub(crate) const kCpoSearch: c_int = b'c' as c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

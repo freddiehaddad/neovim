@@ -126,16 +126,33 @@ use std::ffi::{CStr, c_char, c_int, c_longlong, c_uint, c_void};
 use std::ptr;
 
 pub use crate::api::autocmd::event_T;
+use crate::api::autocmd::kCallbackNone;
 pub use crate::api::buffer::bcount_t;
+use crate::api::options::IOSIZE;
+use crate::api::options::kOptSwapfile;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BCO_ENTER, BCO_NOHELP, HLF_N};
+use crate::autocmd::{
+    EVENT_BUFREADPOST, EVENT_FILETYPE, EVENT_QUICKFIXCMDPOST, EVENT_QUICKFIXCMDPRE,
+};
+use crate::buffer::NOTDONE;
+use crate::diff::kOptFoldmethod;
+use crate::drawline::HLF_QFL;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+use crate::eval::funcs::kOptCpoptions;
+use crate::eval::kListLenMayKnow;
 pub use crate::eval::vars::scid_T;
+use crate::ex_cmds::kShmOverall;
+use crate::ex_cmds::{BL_FIX, BL_WHITE, ECMD_ONE, VGR_FUZZY, VGR_GLOBAL, VGR_NOJUMP};
+use crate::ex_cmds2::{CMD_cdo, CMD_cfdo, CMD_ldo, CMD_lfdo};
 pub use crate::extmark::ExtmarkOp;
+use crate::fileio::EINTR;
 pub use crate::fileio::FILE;
+use crate::mark::{BUF_HAS_LL_ENTRY, BUF_HAS_QF_ENTRY};
 pub use crate::os::time::time_t;
+use crate::regexp::{RE_MAGIC, RE_STRING};
 pub use crate::search::Direction;
-
-pub const VGR_GLOBAL: c_int = 1;
-pub const VGR_NOJUMP: c_int = 2;
-pub const VGR_FUZZY: c_int = 4;
+use crate::viml::parser::parser::CONV_NONE;
 
 const NUL: c_char = 0;
 const TAB: c_char = 0x09;
@@ -143,7 +160,6 @@ const NL: c_char = 0x0a;
 #[cfg(windows)]
 const CAR: c_char = 0x0d;
 
-const NOTDONE: c_int = 2;
 const INVALID_QFIDX: c_int = -1;
 const INVALID_QFBUFNR: c_int = 0;
 const FMT_PATTERNS: usize = 14;
@@ -175,23 +191,13 @@ const QF_GETLIST_QFBUFNR: c_int = 0x400;
 const QF_GETLIST_QFTF: c_int = 0x800;
 const QF_GETLIST_ALL: c_int = 0xFFF;
 
-const IOSIZE: usize = 1025;
-const CMDBUFFSIZE: usize = 1024;
-const MAXPATHL: usize = 4096;
+pub(crate) const CMDBUFFSIZE: usize = 1024;
 const MAXLNUM: linenr_T = 0x7fffffff;
-
-const EINTR: c_int = 4;
-const CONV_NONE: c_int = 0;
-const RE_MAGIC: c_int = 1;
-const RE_STRING: c_int = 2;
 
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 const FORWARD_FILE: Direction = 3;
 const BACKWARD_FILE: Direction = -3;
-
-const BUF_HAS_QF_ENTRY: c_int = 1;
-const BUF_HAS_LL_ENTRY: c_int = 2;
 
 const WSP_VERT: c_int = 0x02;
 const WSP_TOP: c_int = 0x08;
@@ -206,54 +212,34 @@ const ECMD_HIDE: c_int = 0x01;
 const ECMD_SET_HELP: c_int = 0x02;
 const ECMD_OLDBUF: c_int = 0x04;
 const ECMD_NOWINENTER: c_int = 0x40;
-const ECMD_ONE: linenr_T = 1;
 
-const BL_WHITE: c_int = 1;
-const BL_FIX: c_int = 4;
 const SEARCH_KEEP: c_int = 0x400;
 
 const HLF_D: c_int = 5;
-const HLF_N: c_int = 12;
-const HLF_QFL: c_int = 58;
 
 const OPT_LOCAL: c_int = 0x02;
 const OPT_NOWIN: c_int = 0x10;
 
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
-
 const ML_EMPTY: c_int = 0x01;
 const VAR_FIXED: c_int = 2;
-const kListLenMayKnow: isize = -3;
-const kCallbackNone: c_int = 0;
 const kExtmarkNoUndo: ExtmarkOp = 2;
 
 const kOptSwbFlagUsetab: c_uint = 0x02;
 const kOptSwbFlagUselast: c_uint = 0x20;
 const kOptFdoFlagQuickfix: c_uint = 0x20;
-const kShmOverall: c_int = b'O' as c_int;
 
 const CMOD_HIDE: c_int = 0x0020;
 const BF_NEW: c_int = 0x10;
 const BF_DUMMY: c_int = 0x80;
-const BCO_ENTER: c_int = 1;
-const BCO_NOHELP: c_int = 4;
 const READ_NEW: c_int = 0x01;
 const READ_DUMMY: c_int = 0x10;
 
 const kOptBufhidden: OptIndex = 27;
 const kOptBuftype: OptIndex = 29;
-const kOptCpoptions: OptIndex = 61;
-const kOptErrorfile: OptIndex = 86;
+pub(crate) const kOptErrorfile: OptIndex = 86;
 const kOptFiletype: OptIndex = 97;
-const kOptFoldmethod: OptIndex = 109;
-const kOptSwapfile: OptIndex = 301;
 
-const EVENT_BUFREADPOST: event_T = 12;
 const EVENT_BUFWINENTER: event_T = 15;
-const EVENT_FILETYPE: event_T = 59;
-const EVENT_QUICKFIXCMDPOST: event_T = 90;
-const EVENT_QUICKFIXCMDPRE: event_T = 91;
 
 const CMD_cNext: cmdidx_T = 46;
 const CMD_cNfile: cmdidx_T = 47;
@@ -267,10 +253,8 @@ const CMD_cbefore: cmdidx_T = 58;
 const CMD_cbelow: cmdidx_T = 59;
 const CMD_cc: cmdidx_T = 61;
 const CMD_cd: cmdidx_T = 63;
-const CMD_cdo: cmdidx_T = 64;
 const CMD_cexpr: cmdidx_T = 66;
 const CMD_cfile: cmdidx_T = 67;
-const CMD_cfdo: cmdidx_T = 68;
 const CMD_cfirst: cmdidx_T = 69;
 const CMD_cgetfile: cmdidx_T = 70;
 const CMD_cgetbuffer: cmdidx_T = 71;
@@ -293,10 +277,8 @@ const CMD_lafter: cmdidx_T = 222;
 const CMD_lbuffer: cmdidx_T = 224;
 const CMD_lbelow: cmdidx_T = 226;
 const CMD_lcd: cmdidx_T = 228;
-const CMD_ldo: cmdidx_T = 231;
 const CMD_lexpr: cmdidx_T = 235;
 const CMD_lfile: cmdidx_T = 236;
-const CMD_lfdo: cmdidx_T = 237;
 const CMD_lfirst: cmdidx_T = 238;
 const CMD_lgetfile: cmdidx_T = 239;
 const CMD_lgetbuffer: cmdidx_T = 240;

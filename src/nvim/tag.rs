@@ -96,40 +96,13 @@ pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const NOTDONE: c_int = 2;
 
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: c_int = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const CMDBUFFSIZE: usize = 1024;
-const IOSIZE: usize = 1025;
 const LSIZE: c_int = 512;
 const TAGSTACKSIZE: c_int = 20;
-const NSUBEXP: usize = 10;
 
-const DT_TAG: c_int = 1;
-const DT_POP: c_int = 2;
-const DT_NEXT: c_int = 3;
-const DT_PREV: c_int = 4;
-const DT_FIRST: c_int = 5;
-const DT_LAST: c_int = 6;
-const DT_SELECT: c_int = 7;
-const DT_HELP: c_int = 8;
-const DT_JUMP: c_int = 9;
-const DT_LTAG: c_int = 11;
 const DT_FREE: c_int = 99;
-
-const TAG_HELP: c_int = 1;
-const TAG_NAMES: c_int = 2;
-const TAG_REGEXP: c_int = 4;
-const TAG_NOIC: c_int = 8;
-const TAG_VERBOSE: c_int = 32;
-const TAG_INS_COMP: c_int = 64;
-const TAG_KEEP_LANG: c_int = 128;
-const TAG_NO_TAGFUNC: c_int = 256;
-const TAG_MANY: c_int = 300;
 
 const MT_ST_CUR: usize = 0;
 const MT_GL_CUR: usize = 1;
@@ -145,32 +118,19 @@ const TAG_SEP: c_char = 0x02;
 const ML_EXTRA: usize = 3;
 
 const GETF_SETMARK: c_int = 0x01;
-const GETFILE_SAME_FILE: c_int = 0;
-const GETFILE_OPEN_OTHER: c_int = -1;
-const GETFILE_UNUSED: c_int = 8;
 
 const WSP_VERT: c_int = 0x02;
-const UPD_VALID: c_int = 10;
 const SEARCH_KEEP: c_int = 0x400;
-const RE_MAGIC: c_int = 1;
-const CONV_NONE: c_int = 0;
-const FINDFILE_FILE: c_int = 0;
 const DIP_ALL: c_int = 0x01;
 
-const EXPAND_FILES: c_int = 2;
 const WILD_LIST_NOTFOUND: c_int = 0x01;
 const WILD_SILENT: c_int = 0x40;
-const WILD_EXPAND_FREE: c_int = 2;
 
 const HLF_D: c_int = 5;
 const HLF_W: c_int = 26;
 
-const SEEK_SET: c_int = 0;
-const SEEK_END: c_int = 2;
-
 const VV_SWAPCOMMAND: c_int = 49;
 
-const kCallbackNone: c_int = 0;
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const kSpecialVarNull: SpecialVarValue = 0;
@@ -219,7 +179,26 @@ pub use crate::api::command::regmatch_T;
 
 pub use crate::r#match::SearchState;
 
+use crate::api::autocmd::kCallbackNone;
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::buffer::{GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, NOTDONE};
+use crate::cmdexpand::{EXPAND_FILES, TAG_MANY, WILD_EXPAND_FREE};
+use crate::drawscreen::UPD_VALID;
+use crate::eval::fs::{SEEK_END, SEEK_SET};
+use crate::ex_docmd::{
+    DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG,
+};
+use crate::file_search::FINDFILE_FILE;
+use crate::help::{
+    DT_HELP, TAG_HELP, TAG_KEEP_LANG, TAG_NAMES, TAG_NO_TAGFUNC, TAG_REGEXP, TAG_VERBOSE,
+};
+use crate::insexpand::{TAG_INS_COMP, TAG_NOIC};
+use crate::math::{FAIL, OK};
 pub use crate::os::env::expand_T;
+use crate::quickfix::CMDBUFFSIZE;
+use crate::regexp::{NSUBEXP, RE_MAGIC};
+use crate::viml::parser::parser::CONV_NONE;
 
 #[derive(Clone, Copy)]
 struct tagptrs_T {

@@ -7,6 +7,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::channel::STDERR_FILENO;
 use crate::eval::typval::tv_dict_to_env;
 use crate::event::r#loop::{uv_close, uv_gid_t, uv_handle_size, uv_pipe_open, uv_uid_t};
 use crate::event::proc::{
@@ -25,7 +26,7 @@ use crate::path::path_to_backslash;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-const UV_PROCESS: c_int = 10;
+pub(crate) const UV_PROCESS: c_int = 10;
 
 const UV_IGNORE: c_int = 0x00;
 #[cfg(windows)]
@@ -44,7 +45,6 @@ const UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS: c_uint = 1 << 2;
 const UV_PROCESS_DETACHED: c_uint = 1 << 3;
 const UV_PROCESS_WINDOWS_HIDE: c_uint = 1 << 4;
 
-const STDERR_FILENO: c_int = 2;
 const UI_CLIENT_STDIN_FD: c_int = 3;
 
 pub type uv_process_t = c_void;

@@ -61,8 +61,10 @@ use std::ptr;
 
 pub type NS = handle_T;
 pub type HLGroupID = Integer;
+use crate::api::deprecated::{DECOR_ID_INVALID, kHlModeUnknown, kVPosEndOfLine};
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::drawscreen::UPD_NOT_VALID;
 pub type DecorPriority = u16;
 pub type ExtmarkType = c_int;
 pub type ExtmarkInfoArray = KVec<MTPair>;
@@ -70,9 +72,7 @@ pub type ExtmarkInfoArray = KVec<MTPair>;
 const NUL: c_char = 0;
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
-const DECOR_ID_INVALID: u32 = u32::MAX;
 const LUA_NOREF: LuaRef = -2;
-const UPD_NOT_VALID: c_int = 40;
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
 const kExtmarkNone: ExtmarkType = 0x1;
@@ -81,41 +81,39 @@ const kExtmarkVirtText: ExtmarkType = 0x8;
 const kExtmarkVirtLines: ExtmarkType = 0x10;
 const kExtmarkHighlight: ExtmarkType = 0x20;
 
-const kVPosEndOfLine: VirtTextPos = 0;
-const kVPosEndOfLineRightAlign: VirtTextPos = 1;
-const kVPosInline: VirtTextPos = 2;
-const kVPosOverlay: VirtTextPos = 3;
-const kVPosRightAlign: VirtTextPos = 4;
+pub(crate) const kVPosEndOfLineRightAlign: VirtTextPos = 1;
+pub(crate) const kVPosInline: VirtTextPos = 2;
+pub(crate) const kVPosOverlay: VirtTextPos = 3;
+pub(crate) const kVPosRightAlign: VirtTextPos = 4;
 const kVPosWinCol: VirtTextPos = 5;
 
-const kVLLeftcol: c_int = 1;
+pub(crate) const kVLLeftcol: c_int = 1;
 
-const kVLOverflowTrunc: VirtLineOverflow = 0;
-const kVLOverflowScroll: VirtLineOverflow = 1;
-const kVLOverflowWrap: VirtLineOverflow = 2;
-const kVLOverflowAuto: VirtLineOverflow = 3;
+pub(crate) const kVLOverflowTrunc: VirtLineOverflow = 0;
+pub(crate) const kVLOverflowScroll: VirtLineOverflow = 1;
+pub(crate) const kVLOverflowWrap: VirtLineOverflow = 2;
+pub(crate) const kVLOverflowAuto: VirtLineOverflow = 3;
 
-const kHlModeUnknown: u8 = 0;
 const kHlModeReplace: u8 = 1;
 const kHlModeCombine: u8 = 2;
 const kHlModeBlend: u8 = 3;
 
-const kSHIsSign: u16 = 1;
-const kSHHlEol: u16 = 2;
-const kSHUIWatched: u16 = 4;
-const kSHUIWatchedOverlay: u16 = 8;
-const kSHSpellOn: u16 = 16;
-const kSHSpellOff: u16 = 32;
-const kSHConceal: u16 = 64;
-const kSHConcealLines: u16 = 128;
-const kSHConcealOff: u16 = 256;
+pub(crate) const kSHIsSign: u16 = 1;
+pub(crate) const kSHHlEol: u16 = 2;
+pub(crate) const kSHUIWatched: u16 = 4;
+pub(crate) const kSHUIWatchedOverlay: u16 = 8;
+pub(crate) const kSHSpellOn: u16 = 16;
+pub(crate) const kSHSpellOff: u16 = 32;
+pub(crate) const kSHConceal: u16 = 64;
+pub(crate) const kSHConcealLines: u16 = 128;
+pub(crate) const kSHConcealOff: u16 = 256;
 
-const kVTIsLines: u8 = 1;
-const kVTHide: u8 = 2;
-const kVTLinesAbove: u8 = 4;
-const kVTRepeatLinebreak: u8 = 8;
+pub(crate) const kVTIsLines: u8 = 1;
+pub(crate) const kVTHide: u8 = 2;
+pub(crate) const kVTLinesAbove: u8 = 4;
+pub(crate) const kVTRepeatLinebreak: u8 = 8;
 
-const kDecorProviderActive: c_int = 1;
+pub(crate) const kDecorProviderActive: c_int = 1;
 
 const KEYSET_OPTIDX_get_extmark__hl_name: u64 = 2;
 

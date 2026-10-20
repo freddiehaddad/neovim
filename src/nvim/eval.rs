@@ -214,9 +214,7 @@ use crate::memory::{
 };
 #[cfg(not(test))]
 use crate::msgpack_rpc::channel::channel_tail;
-use crate::msgpack_rpc::channel::{
-    Channel, ChannelStreamType, channel_prefix, channel_stream_ptr, find_channel,
-};
+use crate::msgpack_rpc::channel::{Channel, channel_prefix, channel_stream_ptr, find_channel};
 use crate::ops::set_ref_in_opfunc;
 #[cfg(not(test))]
 use crate::optionstr::free_string_option;
@@ -236,7 +234,30 @@ use crate::tag::set_ref_in_tagfunc;
 
 pub use crate::eval::vars::evalarg_T;
 
+use crate::api::autocmd::{
+    kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
+};
+#[cfg(not(test))]
+use crate::api::deprecated::kOptInvalid;
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::autocmd::PROF_YES;
+use crate::buffer::NOTDONE;
+use crate::channel::kChannelStreamProc;
+use crate::charset::VARNUMBER_MIN;
+#[cfg(not(test))]
+use crate::eval::funcs::E_STRING_LIST_OR_BLOB_REQUIRED;
+#[cfg(not(test))]
+use crate::eval::funcs::{UV_TIMER, kOptCpoptions};
+use crate::eval::typval::TV_CSTRING;
 pub use crate::eval::typval::float_T;
+#[cfg(not(test))]
+use crate::option::{kOptFoldexpr, kOptFoldtext};
+use crate::regexp::NUMBUFLEN;
+#[cfg(not(test))]
+use crate::regexp::{RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC};
+use crate::register::kGRegExprSrc;
+use crate::viml::parser::parser::CONV_NONE;
 pub type timer_T = c_void;
 pub type var_flavour_T = c_int;
 pub type exprtype_T = c_int;
@@ -266,16 +287,16 @@ const GLV_FAIL: glv_status_T = 0;
 const GLV_OK: glv_status_T = 1;
 const GLV_STOP: glv_status_T = 2;
 
-const TFN_QUIET: c_int = 2;
-const TFN_NO_AUTOLOAD: c_int = 4;
-const TFN_READ_ONLY: c_int = 16;
+pub(crate) const TFN_QUIET: c_int = 2;
+pub(crate) const TFN_NO_AUTOLOAD: c_int = 4;
+pub(crate) const TFN_READ_ONLY: c_int = 16;
 
-const GLV_QUIET: c_int = TFN_QUIET;
-const GLV_NO_AUTOLOAD: c_int = TFN_NO_AUTOLOAD;
-const GLV_READ_ONLY: c_int = TFN_READ_ONLY;
+pub(crate) const GLV_QUIET: c_int = TFN_QUIET;
+pub(crate) const GLV_NO_AUTOLOAD: c_int = TFN_NO_AUTOLOAD;
+pub(crate) const GLV_READ_ONLY: c_int = TFN_READ_ONLY;
 
-const FNE_INCL_BR: c_int = 1;
-const FNE_CHECK_START: c_int = 2;
+pub(crate) const FNE_INCL_BR: c_int = 1;
+pub(crate) const FNE_CHECK_START: c_int = 2;
 
 const NUL: c_char = 0;
 const BS: c_char = 0x08;
@@ -285,13 +306,9 @@ const FF: c_char = 0x0c;
 const CAR: c_char = 0x0d;
 const ESC: c_char = 0x1b;
 
-const NOTDONE: c_int = 2;
-const DICT_MAXNEST: c_int = 100;
-const NUMBUFLEN: usize = 65;
-const IOSIZE: usize = 1025;
+pub(crate) const DICT_MAXNEST: c_int = 100;
 
 const VARNUMBER_MAX: varnumber_T = i64::MAX;
-const VARNUMBER_MIN: varnumber_T = i64::MIN;
 
 const VAR_UNLOCKED: c_int = 0;
 const VAR_FIXED: c_int = 2;
@@ -300,21 +317,12 @@ const VAR_DEF_SCOPE: c_int = 2;
 const kBoolVarFalse: varnumber_T = 0;
 const kBoolVarTrue: varnumber_T = 1;
 
-const kListLenUnknown: isize = -1;
-const kListLenShouldKnow: isize = -2;
-const kListLenMayKnow: isize = -3;
-
-const kCallbackNone: c_int = 0;
-const kCallbackFuncref: c_int = 1;
-const kCallbackPartial: c_int = 2;
-const kCallbackLua: c_int = 3;
-const kCallbackExpr: c_int = 4;
-
-const kChannelStreamProc: ChannelStreamType = 0;
+pub(crate) const kListLenUnknown: isize = -1;
+pub(crate) const kListLenShouldKnow: isize = -2;
+pub(crate) const kListLenMayKnow: isize = -3;
 
 #[cfg(not(test))]
 const kRetObject: c_int = 0;
-const kGRegExprSrc: c_int = 2;
 const kMarkAll: c_int = 1;
 #[cfg(not(test))]
 const kUIMessages: c_int = 4;
@@ -330,33 +338,11 @@ const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
 
 #[cfg(not(test))]
-const kOptInvalid: OptIndex = -1;
-#[cfg(not(test))]
-const kOptCpoptions: OptIndex = 61;
-#[cfg(not(test))]
-const kOptFoldexpr: OptIndex = 104;
-#[cfg(not(test))]
-const kOptFoldtext: OptIndex = 113;
-#[cfg(not(test))]
 const kWinOptFoldexpr: usize = 15;
 
-const CONV_NONE: c_int = 0;
 const STR2NR_ALL: c_int = 0x7f;
-#[cfg(not(test))]
-const PROF_YES: c_int = 1;
-#[cfg(not(test))]
-const RE_MAGIC: c_int = 1;
-#[cfg(not(test))]
-const RE_STRING: c_int = 2;
-#[cfg(not(test))]
-const REGSUB_COPY: c_int = 1;
-#[cfg(not(test))]
-const REGSUB_MAGIC: c_int = 2;
 
-const TV_CSTRING: usize = usize::MAX - 1;
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
-#[cfg(not(test))]
-const UV_TIMER: c_int = 13;
 
 #[cfg(target_env = "msvc")]
 const MAX_EVAL7_RECURSE: c_int = 300;
@@ -378,8 +364,6 @@ const E_CANNOT_INDEX_A_FUNCREF: &CStr = c"E695: Cannot index a Funcref";
 #[cfg(not(test))]
 const E_VARIABLE_NESTED_TOO_DEEP_FOR_MAKING_COPY: &CStr =
     c"E698: Variable nested too deep for making a copy";
-#[cfg(not(test))]
-const E_STRING_LIST_OR_BLOB_REQUIRED: &CStr = c"E1098: String, List or Blob required";
 #[cfg(not(test))]
 const E_EXPRESSION_TOO_RECURSIVE_STR: &CStr = c"E1169: Expression too recursive: %s";
 #[cfg(not(test))]

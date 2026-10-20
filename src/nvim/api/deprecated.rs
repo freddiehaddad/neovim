@@ -57,7 +57,7 @@ pub type StringBuilder = KVec<c_char>;
 
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
-const DECOR_ID_INVALID: u32 = u32::MAX;
+pub(crate) const DECOR_ID_INVALID: u32 = u32::MAX;
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
 const NL: c_char = b'\n' as c_char;
 const NUL: c_char = 0;
@@ -65,15 +65,15 @@ const NUL: c_char = 0;
 const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
 
-const kOptScopeGlobal: OptScope = 0;
-const kOptScopeWin: OptScope = 1;
+pub(crate) const kOptScopeGlobal: OptScope = 0;
+pub(crate) const kOptScopeWin: OptScope = 1;
 const kOptScopeBuf: OptScope = 2;
 
-const kOptInvalid: OptIndex = -1;
+pub(crate) const kOptInvalid: OptIndex = -1;
 
 const kRetObject: LuaRetMode = 0;
-const kHlModeUnknown: u8 = 0;
-const kVPosEndOfLine: VirtTextPos = 0;
+pub(crate) const kHlModeUnknown: u8 = 0;
+pub(crate) const kVPosEndOfLine: VirtTextPos = 0;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

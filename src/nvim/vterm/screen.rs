@@ -25,34 +25,22 @@ use crate::vterm::vterm::{
 };
 
 pub use crate::grid::schar_T;
+use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY};
+use crate::vterm::pen::{
+    VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
+    VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
+    VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
+    VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI,
+};
 pub type VTermDamageSize = c_int;
-
-const BUFIDX_PRIMARY: usize = 0;
-const BUFIDX_ALTSCREEN: usize = 1;
 
 const VTERM_DAMAGE_CELL: VTermDamageSize = 0;
 const VTERM_DAMAGE_ROW: VTermDamageSize = 1;
 const VTERM_DAMAGE_SCREEN: VTermDamageSize = 2;
-const VTERM_DAMAGE_SCROLL: VTermDamageSize = 3;
+pub(crate) const VTERM_DAMAGE_SCROLL: VTermDamageSize = 3;
 
-const VTERM_PROP_ALTSCREEN: VTermProp = 3;
-const VTERM_PROP_REVERSE: VTermProp = 6;
-
-const VTERM_ATTR_BOLD: VTermAttr = 1;
-const VTERM_ATTR_UNDERLINE: VTermAttr = 2;
-const VTERM_ATTR_ITALIC: VTermAttr = 3;
-const VTERM_ATTR_BLINK: VTermAttr = 4;
-const VTERM_ATTR_REVERSE: VTermAttr = 5;
-const VTERM_ATTR_CONCEAL: VTermAttr = 6;
-const VTERM_ATTR_STRIKE: VTermAttr = 7;
-const VTERM_ATTR_FONT: VTermAttr = 8;
-const VTERM_ATTR_FOREGROUND: VTermAttr = 9;
-const VTERM_ATTR_BACKGROUND: VTermAttr = 10;
-const VTERM_ATTR_SMALL: VTermAttr = 11;
-const VTERM_ATTR_BASELINE: VTermAttr = 12;
-const VTERM_ATTR_URI: VTermAttr = 13;
-const VTERM_ATTR_DIM: VTermAttr = 14;
-const VTERM_ATTR_OVERLINE: VTermAttr = 15;
+pub(crate) const VTERM_PROP_ALTSCREEN: VTermProp = 3;
+pub(crate) const VTERM_PROP_REVERSE: VTermProp = 6;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]

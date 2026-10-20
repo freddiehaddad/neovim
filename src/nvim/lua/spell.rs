@@ -21,15 +21,12 @@ use crate::strings::gettext;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 pub use crate::ex_getln::hlf_T;
+use crate::lua::base64::LUA_TSTRING;
 
 const NUL: c_char = 0;
-const LUA_TSTRING: c_int = 4;
 
-const HLF_SPB: hlf_T = 37;
-const HLF_SPC: hlf_T = 38;
-const HLF_SPR: hlf_T = 39;
-const HLF_SPL: hlf_T = 40;
 const HLF_COUNT: hlf_T = 76;
 
 /// Check spelling in `str` (`nlua_spell_check`).

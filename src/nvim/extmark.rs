@@ -57,12 +57,9 @@ const kExtmarkNoUndo: ExtmarkOp = 2;
 
 const kExtmarkNone: ExtmarkType = 0x1;
 
-const kExtmarkSplice: UndoObjectType = 0;
-const kExtmarkMove: UndoObjectType = 1;
+pub(crate) const kExtmarkSplice: UndoObjectType = 0;
+pub(crate) const kExtmarkMove: UndoObjectType = 1;
 const kExtmarkSavePos: UndoObjectType = 3;
-
-const kSHUIWatched: u16 = 4;
-const kSHUIWatchedOverlay: u16 = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -118,6 +115,7 @@ pub struct ExtmarkUndoObject {
     pub data: ExtmarkUndoData,
 }
 
+use crate::api::extmark::{kSHUIWatched, kSHUIWatchedOverlay};
 pub use crate::undo::u_header_T;
 
 #[inline]

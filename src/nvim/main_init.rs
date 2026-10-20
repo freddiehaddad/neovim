@@ -230,18 +230,7 @@ pub const MAX_ARG_CMDS: usize = 10;
 #[cfg(not(test))]
 const NUL: c_char = 0;
 #[cfg(not(test))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
-const MAXPATHL: usize = 4096;
-#[cfg(not(test))]
 const MAXLNUM: linenr_T = 0x7fffffff;
-
-#[cfg(not(test))]
-const STDIN_FILENO: c_int = 0;
-#[cfg(not(test))]
-const STDOUT_FILENO: c_int = 1;
-#[cfg(not(test))]
-const STDERR_FILENO: c_int = 2;
 
 #[cfg(not(test))]
 const NO_BUFFERS: c_int = 1;
@@ -265,21 +254,12 @@ const EDIT_TAG: c_int = 3;
 const EDIT_QF: c_int = 4;
 
 #[cfg(not(test))]
-const SEA_NONE: c_int = 0;
-#[cfg(not(test))]
-const SEA_DIALOG: c_int = 1;
-#[cfg(not(test))]
-const SEA_QUIT: c_int = 2;
-
-#[cfg(not(test))]
 const SID_CMDARG: c_int = -2;
 #[cfg(not(test))]
 const SID_CARG: c_int = -3;
 #[cfg(not(test))]
 const SID_ENV: c_int = -4;
 
-#[cfg(not(test))]
-const kListLenMayKnow: isize = -3;
 #[cfg(not(test))]
 const VAR_FIXED: c_int = 2;
 
@@ -296,29 +276,14 @@ const kRetObject: c_int = 0;
 const kPathCmpExpand: c_int = 2;
 
 #[cfg(not(test))]
-const kOptArabic: OptIndex = 3;
-#[cfg(not(test))]
-const kOptErrorfile: OptIndex = 86;
-#[cfg(not(test))]
-const kOptKeymap: OptIndex = 159;
-#[cfg(not(test))]
-const kOptRightleft: OptIndex = 241;
-#[cfg(not(test))]
 const kOptShadafile: OptIndex = 259;
 #[cfg(not(test))]
-const kOptShortmess: OptIndex = 271;
-#[cfg(not(test))]
 const kOptVerbosefile: OptIndex = 344;
-#[cfg(not(test))]
-const kOptWindow: OptIndex = 362;
 
 #[cfg(not(test))]
 const kOptCbFlagUnnamed: c_uint = 0x01;
 #[cfg(not(test))]
 const kOptCbFlagUnnamedplus: c_uint = 0x02;
-
-#[cfg(not(test))]
-const LUA_GLOBALSINDEX: c_int = -10002;
 
 #[cfg(all(not(test), windows))]
 const PATHSEP: u8 = b'\\';
@@ -396,6 +361,18 @@ static mut ARGV0: *mut c_char = ptr::null_mut();
 static mut REALLY_EXITING: bool = false;
 
 #[cfg(not(test))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::buffer::{SEA_DIALOG, SEA_NONE, SEA_QUIT};
+#[cfg(not(test))]
+use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
+#[cfg(not(test))]
+use crate::eval::kListLenMayKnow;
+#[cfg(not(test))]
+use crate::ex_cmds::kOptShortmess;
+#[cfg(not(test))]
 #[cfg(all(not(test), windows))]
 use crate::fileio::_close as close;
 #[cfg(all(not(test), not(windows)))]
@@ -405,6 +382,12 @@ use crate::fileio::close;
 use crate::fileio::dup2;
 #[cfg(not(test))]
 use crate::fileio::printf;
+#[cfg(not(test))]
+use crate::lua::executor::LUA_GLOBALSINDEX;
+#[cfg(not(test))]
+use crate::option::{kOptArabic, kOptKeymap, kOptRightleft, kOptWindow};
+#[cfg(not(test))]
+use crate::quickfix::kOptErrorfile;
 #[cfg(not(test))]
 use crate::version::main_exitfree;
 

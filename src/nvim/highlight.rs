@@ -54,12 +54,11 @@ pub type HlKind = c_int;
 const LUA_NOREF: LuaRef = -2;
 const kRetObject: c_int = 0;
 const MAX_TYPENR: u32 = 65535;
-const HLATTRS_DICT_SIZE: usize = 24;
 
-const HLF_NONE: usize = 0;
+pub(crate) const HLF_NONE: usize = 0;
 const HLF_PNI: c_int = 41;
 const HLF_PST: c_int = 50;
-const HLF_INACTIVE: usize = 60;
+pub(crate) const HLF_INACTIVE: usize = 60;
 const HLF_NFLOAT: usize = 62;
 const HLF_BORDER: usize = 64;
 const HLF_COUNT: usize = 76;
@@ -95,12 +94,12 @@ const HL_BLINK: i32 = 0x8000;
 const HL_CONCEALED: i32 = 0x10000;
 const HL_OVERLINE: i32 = 0x20000;
 
-const KEYSET_OPTIDX_highlight__bg: c_int = 1;
-const KEYSET_OPTIDX_highlight__fg: c_int = 2;
-const KEYSET_OPTIDX_highlight__sp: c_int = 3;
+pub(crate) const KEYSET_OPTIDX_highlight__bg: c_int = 1;
+pub(crate) const KEYSET_OPTIDX_highlight__fg: c_int = 2;
+pub(crate) const KEYSET_OPTIDX_highlight__sp: c_int = 3;
 const KEYSET_OPTIDX_highlight__dim: c_int = 4;
 const KEYSET_OPTIDX_highlight__bold: c_int = 6;
-const KEYSET_OPTIDX_highlight__font: c_int = 7;
+pub(crate) const KEYSET_OPTIDX_highlight__font: c_int = 7;
 const KEYSET_OPTIDX_highlight__link: c_int = 8;
 const KEYSET_OPTIDX_highlight__blend: c_int = 9;
 const KEYSET_OPTIDX_highlight__blink: c_int = 11;
@@ -279,6 +278,7 @@ unsafe fn is_none_str(s: *const c_char) -> bool {
 use crate::api::private::dispatch::{
     KeyDict_highlight_cterm_get_field, KeyDict_highlight_get_field,
 };
+use crate::api::ui::HLATTRS_DICT_SIZE;
 
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {

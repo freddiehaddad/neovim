@@ -54,6 +54,8 @@ use crate::undo::u_save;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
+use crate::api::autocmd::kCallbackNone;
+use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID};
 pub use crate::eval::buffer::varnumber_T;
 pub use crate::extmark::ExtmarkOp;
 pub use crate::extmark::TriState;
@@ -80,11 +82,7 @@ const DONE_FOLD: c_int = 2;
 const MODE_INSERT: c_int = 0x10;
 const FORWARD: c_int = 1;
 
-const UPD_INVERTED: c_int = 20;
-const UPD_NOT_VALID: c_int = 40;
-
 const kExtmarkUndo: ExtmarkOp = 1;
-const kCallbackNone: c_int = 0;
 const kWinOptFoldtext: usize = 22;
 
 const VV_LNUM: c_int = 9;

@@ -35,9 +35,9 @@ use crate::cmdexpand::{
     ExpandCleanup, ExpandInit, ExpandOne, WILD_ALL, WILD_APPLY, WILD_BUFLASTUSED, WILD_CANCEL,
     WILD_EXPAND_KEEP, WILD_FREE, WILD_FUNC_TRIGGER, WILD_LONGEST, WILD_MAY_EXPAND_PATTERN,
     WILD_NEXT, WILD_NO_BEEP, WILD_NOINSERT, WILD_NOSELECT, WILD_PAGEDOWN, WILD_PAGEUP, WILD_PREV,
-    WILD_PUM_WANT, XP_BS_NONE, clear_cmdline_orig, cmd_addr_T, cmdline_pum_active,
-    cmdline_pum_cleanup, cmdline_pum_remove, nextwild, set_expand_context, showmatches,
-    wildmenu_cleanup, wildmenu_process_key, wildmenu_translate_key,
+    WILD_PUM_WANT, XP_BS_NONE, clear_cmdline_orig, cmdline_pum_active, cmdline_pum_cleanup,
+    cmdline_pum_remove, nextwild, set_expand_context, showmatches, wildmenu_cleanup,
+    wildmenu_process_key, wildmenu_translate_key,
 };
 use crate::cmdhist::{
     HIST_INVALID, HIST_SEARCH, add_to_history, get_hisidx, get_hislen, get_histentry,
@@ -125,7 +125,7 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::option::csh_like_shell;
 use crate::option::{set_iminsert_global, set_imsearch_global, set_option_direct, string_to_key};
 use crate::option_vars::*;
-use crate::optionstr::{OptIndex, TryState, optset_T};
+use crate::optionstr::{TryState, optset_T};
 use crate::os::env::{expand_T, home_replace_save};
 use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
@@ -179,12 +179,18 @@ pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
 pub type hlf_T = c_int;
 pub type disptick_T = u64;
+use crate::api::autocmd::kCallbackNone;
+use crate::api::command::ADDR_LINES;
+use crate::api::vim::REMAP_NONE;
 pub use crate::cmdexpand::LineGetter;
+use crate::eval::funcs::RE_SEARCH;
 pub use crate::eval::typval::BoolVarValue;
+use crate::ex_cmds::{Ctrl_E, Ctrl_Y, kOptInccommand};
+use crate::regexp::{MAGIC_ALL, MAGIC_ON, NUMBUFLEN};
+use crate::viml::parser::expressions::kExprFlagsDisallowEOC;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
-const kCallbackNone: c_int = 0;
 
 const NUL: c_char = 0;
 
@@ -192,7 +198,6 @@ const Ctrl_A: c_int = 1;
 const Ctrl_B: c_int = 2;
 const Ctrl_C: c_int = 3;
 const Ctrl_D: c_int = 4;
-const Ctrl_E: c_int = 5;
 const Ctrl_F: c_int = 6;
 const Ctrl_G: c_int = 7;
 const Ctrl_H: c_int = 8;
@@ -207,28 +212,25 @@ const Ctrl_T: c_int = 20;
 const Ctrl_U: c_int = 21;
 const Ctrl_V: c_int = 22;
 const Ctrl_W: c_int = 23;
-const Ctrl_Y: c_int = 25;
 const Ctrl_Z: c_int = 26;
 const Ctrl_BSL: c_int = 28;
 const Ctrl_RSB: c_int = 29;
 const Ctrl_HAT: c_int = 30;
 const Ctrl__: c_int = 31;
 
-const KS_SELECT: c_int = 245;
-const K_SELECT: c_int = termcap2key(KS_SELECT, KE_FILLER as c_int);
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
+pub(crate) const KS_SELECT: c_int = 245;
+pub(crate) const K_SELECT: c_int = termcap2key(KS_SELECT, KE_FILLER as c_int);
+pub(crate) const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
+pub(crate) const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
 const K_WILD: c_int = termcap2key(KS_EXTRA as c_int, KE_WILD as c_int);
 
 const ABBR_OFF: c_int = 0x100;
-const REMAP_NONE: c_int = -1;
 
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const NUMBUFLEN: usize = 65;
 
 const SEARCH_OPT: c_int = 0x10;
 const SEARCH_NOOF: c_int = 0x80;
@@ -236,12 +238,7 @@ const SEARCH_START: c_int = 0x100;
 const SEARCH_KEEP: c_int = 0x400;
 const SEARCH_PEEK: c_int = 0x800;
 const SEARCH_COL: c_int = 0x1000;
-const RE_SEARCH: c_int = 0;
 
-const MAGIC_ON: magic_T = 3;
-const MAGIC_ALL: magic_T = 4;
-
-const ADDR_LINES: cmd_addr_T = 0;
 const EX_RANGE: u32 = 0x001;
 const EX_PREVIEW: u32 = 0x8000000;
 const DOCMD_NOWAIT: c_int = 0x02;
@@ -252,8 +249,6 @@ const SID_NONE: c_int = -6;
 const B_IMODE_USE_INSERT: OptInt = -1;
 const B_IMODE_NONE: OptInt = 0;
 const B_IMODE_LMAP: OptInt = 1;
-
-const kOptInccommand: OptIndex = 145;
 
 const kOptWimFlagFull: u8 = 0x01;
 const kOptWimFlagLongest: u8 = 0x02;
@@ -273,8 +268,6 @@ const kUIMessages: UIExtension = 4;
 const HLF_E: hlf_T = 6;
 
 const kCtxKeepDirs: c_int = 2;
-
-const kExprFlagsDisallowEOC: c_int = 1 << 1;
 
 const kCmdRedrawNone: c_int = 0;
 const kCmdRedrawPos: c_int = 1;

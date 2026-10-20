@@ -69,23 +69,17 @@ use std::mem::size_of;
 use std::ptr;
 
 const NUL: c_char = 0;
-const MAXPATHL: usize = 4096;
 const MAX_UI_COUNT: usize = 16;
 const DEFAULT_GRID_HANDLE: handle_T = 1;
 const SHAPE_IDX_N: c_int = 0;
 const SHAPE_IDX_R: c_int = 3;
-const CB_MAX_ERROR: u8 = 3;
-const LOGLVL_ERR: c_int = 4;
 
 const kUICmdline: usize = 0;
 const kUIMessages: usize = 4;
 const kUILinegrid: usize = 5;
 const kUIGlobalCount: usize = kUILinegrid;
 const kUIMultigrid: usize = 6;
-const kUIHlState: usize = 7;
-const kUITermColors: usize = 8;
 const kUIFloatDebug: usize = 9;
-const kUIExtCount: usize = 10;
 
 const kLineFlagWrap: c_int = 1;
 const kLineFlagInvalid: c_int = 2;
@@ -106,7 +100,6 @@ const MODE_SETWSIZE: c_int = 0x4000;
 const MODE_EXTERNCMD: c_int = 0x5000;
 
 const kMouseNormal: c_int = b'n' as c_int;
-const kMouseVisual: c_int = b'v' as c_int;
 const kMouseReturn: c_int = b'r' as c_int;
 const kMouseInsert: c_int = b'i' as c_int;
 const kMouseCommand: c_int = b'c' as c_int;
@@ -115,6 +108,13 @@ const MOUSE_A: &CStr = c"nvich";
 
 const kRetNilBool: c_int = 1;
 
+use crate::api::ui::{kUIExtCount, kUIHlState, kUITermColors};
+use crate::api::vim::MAXPATHL;
+use crate::decoration_provider::CB_MAX_ERROR;
+#[cfg(debug_assertions)]
+use crate::log::LOGLVL_DBG;
+use crate::log::LOGLVL_ERR;
+use crate::mouse::kMouseVisual;
 pub use crate::msgpack_rpc::channel::RemoteUI;
 
 #[repr(C)]
@@ -1129,8 +1129,6 @@ pub unsafe extern "C" fn ui_remove_cb(ns_id: u32, checkerr: bool) {
     }
 }
 
-#[cfg(debug_assertions)]
-const LOGLVL_DBG: c_int = 1;
 #[cfg(debug_assertions)]
 static mut UILOG_SEEN: usize = 0;
 #[cfg(debug_assertions)]

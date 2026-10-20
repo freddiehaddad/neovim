@@ -64,19 +64,7 @@ pub use crate::highlight::OptionalKeys;
 #[cfg(not(test))]
 const AUCMD_MAX_PATTERNS: usize = 256;
 #[cfg(not(test))]
-const NUM_EVENTS: usize = 150;
-#[cfg(not(test))]
-const BUFLOCAL_PAT_LEN: usize = 25;
-#[cfg(not(test))]
-const AUGROUP_DEFAULT: c_int = -1;
-#[cfg(not(test))]
-const AUGROUP_ERROR: c_int = -2;
-#[cfg(not(test))]
-const AUGROUP_ALL: c_int = -3;
-#[cfg(not(test))]
 const LUA_NOREF: LuaRef = -2;
-#[cfg(not(test))]
-const FAIL: c_int = 0;
 
 pub const kCallbackNone: c_int = 0;
 pub const kCallbackFuncref: c_int = 1;
@@ -158,6 +146,10 @@ pub struct AutoCmdVec {
 }
 
 pub use crate::api::private::helpers::TryState;
+#[cfg(not(test))]
+use crate::autocmd::{AUGROUP_ALL, AUGROUP_DEFAULT, AUGROUP_ERROR, BUFLOCAL_PAT_LEN, NUM_EVENTS};
+#[cfg(not(test))]
+use crate::math::FAIL;
 
 #[repr(C)]
 pub struct KeyDict_get_autocmds {

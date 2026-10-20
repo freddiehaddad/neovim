@@ -30,12 +30,7 @@ use crate::ui_client::{
 };
 use std::ffi::{c_char, c_int, c_void};
 
-const MPACK_EOF: c_int = 1;
-const MPACK_ERROR: c_int = 2;
-const MPACK_NOMEM: c_int = 3;
-
 const MAX_EXT_LEN: usize = 9;
-const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
 const EXT_OBJECT_TYPE_MAX: c_int =
     (ObjectType::kObjectTypeTabpage as c_int) - EXT_OBJECT_TYPE_SHIFT;
 #[cfg(not(test))]
@@ -101,6 +96,7 @@ pub struct AdditionalDataHeader {
     pub nbytes: u32,
 }
 
+use crate::eval::funcs::{MPACK_EOF, MPACK_ERROR, MPACK_NOMEM};
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
@@ -108,6 +104,7 @@ use crate::mpack::mpack_core::mpack_rtoken;
 #[cfg(not(test))]
 use crate::mpack::mpack_core::{mpack_read, mpack_tokbuf_init};
 use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
+use crate::msgpack_rpc::packer::EXT_OBJECT_TYPE_SHIFT;
 
 #[cfg(not(test))]
 #[inline]

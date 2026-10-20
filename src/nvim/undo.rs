@@ -93,40 +93,38 @@ use std::ptr;
 #[cfg(unix)]
 use crate::os::fs::{os_fchown, os_fileinfo, uv_gid_t, uv_uid_t};
 
+use crate::api::buffer::kExtmarkNOOP;
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::buffer::{NMARKS, NO_LOCAL_UNDOLEVEL};
+use crate::drawscreen::UPD_NOT_VALID;
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::kListLenMayKnow;
+use crate::ex_cmds::kCpoUndo;
+use crate::ex_cmds::{BL_FIX, BL_SOL};
+use crate::ex_docmd::UNDO_HASH_SIZE;
+use crate::extmark::{kExtmarkMove, kExtmarkSplice};
+use crate::fileio::EOF;
 pub use crate::fileio::FILE;
+use crate::fileio::O_RDONLY;
 pub use crate::fileio::off_T;
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
+use crate::os::fs::O_WRONLY;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const EOF: c_int = -1;
 
 const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
-const NMARKS: usize = 26;
-const UNDO_HASH_SIZE: usize = 32;
-const NO_LOCAL_UNDOLEVEL: OptInt = -123456;
 
 const UH_CHANGED: c_int = 0x01;
 const UH_EMPTYBUF: c_int = 0x02;
 const UH_RELOAD: c_int = 0x04;
 
 const ML_EMPTY: c_int = 0x01;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-const UPD_NOT_VALID: c_int = 40;
 const HLF_T: c_int = 23;
 
-const kExtmarkNOOP: ExtmarkOp = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
-const kExtmarkSplice: UndoObjectType = 0;
-const kExtmarkMove: UndoObjectType = 1;
-const kListLenMayKnow: isize = -3;
 
-const kCpoUndo: c_int = b'u' as c_int;
 const kShmUndo: c_int = b'u' as c_int;
 const kOptFdoFlagUndo: c_uint = 0x200;
 
@@ -139,9 +137,6 @@ const UF_ENTRY_END_MAGIC: c_int = 0x3581;
 const UF_VERSION: c_int = 3;
 const UF_LAST_SAVE_NR: c_int = 1;
 const UHP_SAVE_NR: c_int = 1;
-
-const O_RDONLY: c_int = 0;
-const O_WRONLY: c_int = 1;
 
 #[cfg(windows)]
 const O_CREAT: c_int = 0x0100;

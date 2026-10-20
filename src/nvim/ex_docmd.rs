@@ -269,7 +269,38 @@ pub use crate::fileio::FILE;
 pub use crate::mark::MarkGet;
 pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
+use crate::api::autocmd::kCallbackNone;
+use crate::api::command::{
+    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS,
+};
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN};
+use crate::autocmd::{
+    EVENT_CMDUNDEFINED, EVENT_EXITPRE, EVENT_QUITPRE, EVENT_TABNEWENTERED, PROF_YES,
+};
+use crate::buffer::{
+    DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
+};
 pub use crate::cmdexpand::LineGetter;
+use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, WILD_EXPAND_FREE};
+use crate::dialog::VIM_YES;
+use crate::drawscreen::{UPD_CLEAR, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
+use crate::eval::fs::{VALID_HEAD, VALID_PATH};
+use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
+use crate::eval::userfunc::MSG_BUF_LEN;
+use crate::eval::vars::ENV_STARTREASON;
+use crate::eval::vars::{
+    BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_ARGV, VV_EXITREASON, VV_HLSEARCH, VV_OLDFILES,
+};
+use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, DIALOG_MSG_SIZE, ECMD_LAST, ECMD_ONE, RE_SUBST};
+use crate::file_search::{FNAME_HYP, FNAME_MESS};
+use crate::log::LOGLVL_INF;
+use crate::ops::{OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK};
+use crate::regexp::{NUMBUFLEN, RE_MAGIC};
+use crate::register::{PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -284,11 +315,7 @@ pub struct CommandDefinition {
 unsafe impl Sync for CommandDefinition {}
 
 const NUL: c_char = 0;
-const IOSIZE: usize = 1025;
-const MAXPATHL: usize = 4096;
-const NUMBUFLEN: usize = 65;
-const DIALOG_MSG_SIZE: usize = 1000;
-const UNDO_HASH_SIZE: usize = 32;
+pub(crate) const UNDO_HASH_SIZE: usize = 32;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
@@ -298,9 +325,6 @@ const DOCMD_REPEAT: c_int = 0x04;
 const DOCMD_KEYTYPED: c_int = 0x08;
 const DOCMD_EXCRESET: c_int = 0x10;
 const DOCMD_KEEPLINE: c_int = 0x20;
-
-const VALID_PATH: c_int = 1;
-const VALID_HEAD: c_int = 2;
 
 const EX_RANGE: u32 = 0x001;
 const EX_BANG: u32 = 0x002;
@@ -326,24 +350,9 @@ const EX_MODIFY: u32 = 0x100000;
 const EX_FLAGS: u32 = 0x200000;
 const EX_LOCK_OK: u32 = 0x1000000;
 
-const ADDR_LINES: cmd_addr_T = 0;
-const ADDR_WINDOWS: cmd_addr_T = 1;
-const ADDR_ARGUMENTS: cmd_addr_T = 2;
-const ADDR_LOADED_BUFFERS: cmd_addr_T = 3;
-const ADDR_BUFFERS: cmd_addr_T = 4;
-const ADDR_TABS: cmd_addr_T = 5;
 const ADDR_TABS_RELATIVE: cmd_addr_T = 6;
 const ADDR_QUICKFIX_VALID: cmd_addr_T = 7;
-const ADDR_QUICKFIX: cmd_addr_T = 8;
 const ADDR_UNSIGNED: cmd_addr_T = 9;
-const ADDR_OTHER: cmd_addr_T = 10;
-const ADDR_NONE: cmd_addr_T = 11;
-
-const BAD_KEEP: c_int = -1;
-const BAD_DROP: c_int = -2;
-
-const FORCE_BIN: c_int = 1;
-const FORCE_NOBIN: c_int = 2;
 
 const EXFLAG_LIST: c_int = 0x01;
 const EXFLAG_NR: c_int = 0x02;
@@ -371,7 +380,6 @@ const WSP_BOT: c_int = 0x10;
 const WSP_BELOW: c_int = 0x40;
 const WSP_ABOVE: c_int = 0x80;
 
-const PROF_YES: c_int = 1;
 const kUICmdline: c_int = 0;
 
 const HLF_E: c_int = 6;
@@ -403,20 +411,16 @@ const Ctrl_RSB: c_char = 29;
 const Ctrl_HAT: c_char = 30;
 const Ctrl__: c_char = 31;
 
-const RE_MAGIC: c_int = 1;
 const kOptEventignore: c_int = 88;
 const kOptFiletype: c_int = 97;
 const kOptFindfunc: c_int = 99;
 const OPT_LOCAL: c_int = 0x02;
-const SID_NONE: c_int = 0;
+const SID_NONE: c_int = -6;
 
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_FILES: c_int = 2;
 const WILD_LIST_NOTFOUND: c_int = 0x01;
 const WILD_ADD_SLASH: c_int = 0x10;
 const WILD_ICASE: c_int = 0x100;
 const WILD_NOERROR: c_int = 0x800;
-const WILD_EXPAND_FREE: c_int = 2;
 
 const kMarkBufLocal: MarkGet = 0;
 const kMarkAll: MarkGet = 1;
@@ -429,120 +433,64 @@ const kCpoAltread: c_int = b'a' as c_int;
 const kCpoNosymlinks: c_int = b'~' as c_int;
 const kCpoExecbuf: c_int = b'e' as c_int;
 
-const DOBUF_CURRENT: c_int = 0;
-const DOBUF_FIRST: c_int = 1;
-const DOBUF_LAST: c_int = 2;
-const DOBUF_MOD: c_int = 3;
-const DOBUF_UNLOAD: c_int = 2;
-const DOBUF_DEL: c_int = 3;
-const DOBUF_WIPE: c_int = 4;
-
-const VIM_QUESTION: c_int = 4;
-const VIM_YES: c_int = 2;
-
-const VV_HLSEARCH: VimVarIndex = 57;
-const VV_OLDFILES: VimVarIndex = 58;
 const VV_PROGPATH: VimVarIndex = 60;
-const VV_ARGV: VimVarIndex = 89;
-const VV_EXITREASON: VimVarIndex = 105;
 
 const EVENT_CHANINFO: event_T = 23;
-const EVENT_CMDUNDEFINED: event_T = 30;
-const EVENT_EXITPRE: event_T = 48;
-const EVENT_QUITPRE: event_T = 92;
-const EVENT_TABNEWENTERED: event_T = 119;
 
-const CCGD_AW: c_int = 1;
-const CCGD_MULTWIN: c_int = 2;
-const CCGD_FORCEIT: c_int = 4;
-const CCGD_EXCMD: c_int = 16;
-
-const FLUSH_TYPEAHEAD: c_int = 1;
-const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
+pub(crate) const FLUSH_TYPEAHEAD: c_int = 1;
 #[cfg(windows)]
 const kRetObject: c_int = 0;
 const kChannelStdinPipe: c_int = 0;
-const kCallbackNone: c_int = 0;
 const kWinPreview: c_int = 2;
 
 const ML_EMPTY: c_int = 0x01;
-const BL_WHITE: c_int = 1;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-
-const UPD_VALID: c_int = 10;
-const UPD_INVERTED: c_int = 20;
-const UPD_SOME_VALID: c_int = 35;
-const UPD_NOT_VALID: c_int = 40;
-const UPD_CLEAR: c_int = 50;
 
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 
-const FNAME_MESS: c_int = 1;
-const FNAME_HYP: c_int = 4;
-
-const ECMD_LAST: linenr_T = -1;
-const ECMD_ONE: linenr_T = 1;
 const ECMD_HIDE: c_int = 0x01;
 const ECMD_OLDBUF: c_int = 0x04;
 const ECMD_FORCEIT: c_int = 0x08;
 const ECMD_ADDBUF: c_int = 0x10;
 const ECMD_ALTBUF: c_int = 0x20;
 
-const REMAP_YES: c_int = 0;
-const REMAP_NONE: c_int = -1;
-
 const kCdScopeBuffer: CdScope = 0;
 const kCdScopeWindow: CdScope = 1;
 const kCdScopeTabpage: CdScope = 2;
 const kCdScopeGlobal: CdScope = 3;
 
-const kCdCauseManual: CdCause = 0;
+pub(crate) const kCdCauseManual: CdCause = 0;
 
 const kMTLineWise: c_int = 1;
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kTrue: TriState = 1;
 
-const OP_DELETE: c_int = 1;
-const OP_YANK: c_int = 2;
-const OP_LSHIFT: c_int = 4;
-const OP_RSHIFT: c_int = 5;
-
-const PUT_FIXINDENT: c_int = 1;
-const PUT_CURSLINE: c_int = 4;
-const PUT_LINE: c_int = 8;
-
 const BF_DUMMY: c_int = 0x80;
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
 const KE_FILLER: c_char = b'X' as c_char;
 
-const LOGLVL_INF: c_int = 2;
-
-const FIND_ANY: c_int = 1;
-const FIND_DEFINE: c_int = 2;
-const CHECK_PATH: c_int = 3;
-const ACTION_SHOW: c_int = 1;
-const ACTION_GOTO: c_int = 2;
-const ACTION_SPLIT: c_int = 3;
-const ACTION_SHOW_ALL: c_int = 4;
+pub(crate) const FIND_ANY: c_int = 1;
+pub(crate) const FIND_DEFINE: c_int = 2;
+pub(crate) const CHECK_PATH: c_int = 3;
+pub(crate) const ACTION_SHOW: c_int = 1;
+pub(crate) const ACTION_GOTO: c_int = 2;
+pub(crate) const ACTION_SPLIT: c_int = 3;
+pub(crate) const ACTION_SHOW_ALL: c_int = 4;
 const SEARCH_MSG: c_int = 0x0c;
 const SEARCH_HIS: c_int = 0x20;
 const SEARCH_KEEP: c_int = 0x400;
-const RE_SEARCH: c_int = 0;
-const RE_SUBST: c_int = 1;
 
-const DT_TAG: c_int = 1;
-const DT_POP: c_int = 2;
-const DT_NEXT: c_int = 3;
-const DT_PREV: c_int = 4;
-const DT_FIRST: c_int = 5;
-const DT_LAST: c_int = 6;
-const DT_SELECT: c_int = 7;
-const DT_JUMP: c_int = 9;
-const DT_LTAG: c_int = 11;
+pub(crate) const DT_TAG: c_int = 1;
+pub(crate) const DT_POP: c_int = 2;
+pub(crate) const DT_NEXT: c_int = 3;
+pub(crate) const DT_PREV: c_int = 4;
+pub(crate) const DT_FIRST: c_int = 5;
+pub(crate) const DT_LAST: c_int = 6;
+pub(crate) const DT_SELECT: c_int = 7;
+pub(crate) const DT_JUMP: c_int = 9;
+pub(crate) const DT_LTAG: c_int = 11;
 
 const FILETYPE_FILE: &CStr = c"filetype.lua filetype.vim";
 const FTPLUGIN_FILE: &CStr = c"ftplugin.vim";
@@ -12919,7 +12867,6 @@ unsafe extern "C" fn ex_filetype(eap: *mut exarg_T) {
     }
 }
 
-const MSG_BUF_LEN: usize = 480;
 static mut EX_ERROR_BUF: [c_char; MSG_BUF_LEN] = [0; MSG_BUF_LEN];
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

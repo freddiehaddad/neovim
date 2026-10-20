@@ -8,8 +8,6 @@ use std::ffi::{c_char, c_int};
 
 use crate::memory::{alloc_block, free_block};
 
-pub const ARENA_BLOCK_SIZE: usize = 4096;
-
 pub const K_FILE_READ_ONLY: c_int = 1;
 pub const K_FILE_CREATE: c_int = 2;
 pub const K_FILE_WRITE_ONLY: c_int = 4;
@@ -95,6 +93,7 @@ pub struct FileDescriptor {
 #[cfg(unix)]
 use crate::os::fs::iovec as IoVec;
 
+pub use crate::memory::ARENA_BLOCK_SIZE;
 #[cfg(all(not(test), unix))]
 use crate::os::fs::os_readv;
 #[cfg(not(test))]

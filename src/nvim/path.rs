@@ -9,10 +9,13 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
 #[cfg(not(test))]
 use crate::cmdexpand::globpath;
+#[cfg(not(test))]
+use crate::diff::kShellOptSilent;
 #[cfg(not(test))]
 use crate::eval::eval_to_string;
 use crate::eval::fs::FileInfo;
@@ -30,6 +33,7 @@ use crate::globals::*;
 #[cfg(not(test))]
 use crate::lua::stdlib::regmatch_T;
 use crate::map_glyph_cache::NvimString;
+use crate::math::{FAIL, OK};
 #[cfg(all(not(test), unix))]
 use crate::mbyte::mb_isalpha;
 #[cfg(not(test))]
@@ -60,6 +64,8 @@ use crate::os::shell::get_cmd_output;
 #[cfg(all(not(test), unix))]
 use crate::os::shell::os_expand_wildcards;
 #[cfg(not(test))]
+use crate::regexp::{RE_MAGIC, RE_NOBREAK, RE_STRING};
+#[cfg(not(test))]
 use crate::regexp::{vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::vim_strchr;
 #[cfg(not(test))]
@@ -72,10 +78,7 @@ use std::ptr;
 pub type PathCmpFlags = c_int;
 
 const NUL: c_char = 0;
-const OK: c_int = 1;
-const FAIL: c_int = 0;
 
-const MAXPATHL: usize = 4096;
 #[cfg(not(test))]
 const MAXSUFLEN: usize = 30;
 
@@ -134,16 +137,6 @@ pub const kPathCmpFull: PathCmpFlags = 1 << 2;
 const WILD_ADD_SLASH: c_int = 0x10;
 #[cfg(not(test))]
 const WILD_ICASE: c_int = 0x100;
-
-#[cfg(not(test))]
-const RE_MAGIC: c_int = 1;
-#[cfg(not(test))]
-const RE_STRING: c_int = 2;
-#[cfg(not(test))]
-const RE_NOBREAK: c_int = 16;
-
-#[cfg(not(test))]
-const kShellOptSilent: c_int = 0x08;
 
 #[cfg(not(test))]
 static mut SCANDIR_COUNT: c_int = 0;

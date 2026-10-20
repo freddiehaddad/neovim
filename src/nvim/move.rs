@@ -51,13 +51,15 @@ use crate::winfloat::win_check_anchored_floats;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+use crate::drawline::kCpoNumcol;
+use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
 pub use crate::eval::deprecated::EvalFuncData;
+use crate::ex_cmds::{BL_FIX, BL_SOL};
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::search::Direction;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 const MAXCOL: colnr_T = 0x7fffffff;
@@ -72,16 +74,7 @@ const VALID_BOTLINE: c_int = 0x20;
 const VALID_BOTLINE_AP: c_int = 0x40;
 const VALID_TOPLINE: c_int = 0x80;
 
-const UPD_VALID: c_int = 10;
-const UPD_INVERTED: c_int = 20;
-const UPD_SOME_VALID: c_int = 35;
-const UPD_NOT_VALID: c_int = 40;
-
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-
 const kOptCuloptFlagScreenline: u8 = 0x02;
-const kCpoNumcol: c_int = b'n' as c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]

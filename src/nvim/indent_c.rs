@@ -8,6 +8,8 @@
 )]
 use crate::api::autocmd::kCallbackNone;
 use crate::api::tabpage::lpos_T;
+use crate::change::COM_MAX_LEN;
+use crate::change::{COM_END, COM_LEFT, COM_RIGHT, COM_START};
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skiptowhite, skipwhite,
     vim_isIDc, vim_iswordc, vim_iswordp, vim_strsize,
@@ -22,6 +24,7 @@ use crate::indent::{
 };
 use crate::keycodes::get_special_key_code;
 use crate::math::trim_to_int;
+use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_pos};
 use crate::memory::{xfree, xmalloc, xstrdup};
@@ -33,8 +36,6 @@ use crate::strings::{atoi, strcpy, strlen, strncmp, strpbrk, tolower, vim_strchr
 use std::ffi::{c_char, c_int};
 use std::ptr;
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MODE_INSERT: c_int = 0x10;
@@ -44,12 +45,7 @@ const FM_SKIPCOMM: c_int = 0x08;
 const KEY_OPEN_FORW: c_int = 0x101;
 const KEY_OPEN_BACK: c_int = 0x102;
 const KEY_COMPLETE: c_int = 0x103;
-const COM_MAX_LEN: usize = 50;
-const COM_START: c_char = b's' as c_char;
 const COM_MIDDLE: c_char = b'm' as c_char;
-const COM_END: c_char = b'e' as c_char;
-const COM_LEFT: c_char = b'l' as c_char;
-const COM_RIGHT: c_char = b'r' as c_char;
 const FIND_NAMESPACE_LIM: linenr_T = 20;
 const BRACE_IN_COL0: c_int = 1;
 const BRACE_AT_START: c_int = 2;

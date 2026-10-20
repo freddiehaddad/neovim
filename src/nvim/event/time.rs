@@ -13,11 +13,10 @@ use crate::event::r#loop::{
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_put_event,
 };
-use std::ffi::{c_int, c_void};
+use std::ffi::c_void;
 use std::ptr;
 
-const UV_TIMER: c_int = 13;
-
+use crate::eval::funcs::UV_TIMER;
 pub use crate::event::r#loop::{
     Loop, uv_close_cb, uv_handle_t, uv_loop_t, uv_timer_cb, uv_timer_t,
 };

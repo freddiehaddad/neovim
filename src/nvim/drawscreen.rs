@@ -99,16 +99,23 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::ui::NO_SCREEN;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{HLF_N, HLF_SC};
+use crate::api::win_config::FR_COL;
+use crate::buffer::{STL_IN_ICON, STL_IN_TITLE};
+use crate::decoration::SCL_NUM;
+use crate::digraph::HLF_CM;
+use crate::drawline::kCpoNumcol;
 pub use crate::ex_getln::disptick_T;
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
+use crate::window::MIN_COLUMNS;
 
 const NUL: c_char = 0;
 const Ctrl_V: c_int = 22;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
 
 pub const UPD_VALID: c_int = 10;
 pub const UPD_INVERTED: c_int = 20;
@@ -119,25 +126,18 @@ pub const UPD_NOT_VALID: c_int = 40;
 pub const UPD_CLEAR: c_int = 50;
 
 const DEFAULT_GRID_HANDLE: handle_T = 1;
-const NO_SCREEN: c_int = 2;
-const MIN_COLUMNS: c_int = 12;
 const COL_RULER: c_int = 18;
 const SHOWCMD_COLS: c_int = 10;
 const SIGN_WIDTH: c_int = 2;
-const SCL_NUM: c_int = -2;
 
-const STL_IN_ICON: c_int = 1;
-const STL_IN_TITLE: c_int = 2;
-
-const FR_LEAF: c_char = 0;
-const FR_ROW: c_char = 1;
-const FR_COL: c_char = 2;
+pub(crate) const FR_LEAF: c_char = 0;
+pub(crate) const FR_ROW: c_char = 1;
 
 const VALID_WCOL: c_int = 0x02;
 const VALID_BOTLINE: c_int = 0x20;
 const VALID_TOPLINE: c_int = 0x80;
 
-const GETVCOL_END_EXCL_LBR: c_int = 1;
+pub(crate) const GETVCOL_END_EXCL_LBR: c_int = 1;
 const kVPosWinCol: c_int = 5;
 
 const kUICmdline: UIExtension = 0;
@@ -146,17 +146,13 @@ const kUIMultigrid: UIExtension = 6;
 
 const HLF_EOB: hlf_T = 2;
 const HLF_AT: hlf_T = 4;
-const HLF_CM: c_int = 11;
-const HLF_N: c_int = 12;
 const HLF_C: c_int = 21;
 const HLF_FC: c_int = 29;
-const HLF_SC: c_int = 35;
 const HLF_MSG: usize = 63;
 const HLF_COUNT: c_int = 76;
 
-const kShmCompletionmenu: c_int = b'c' as c_int;
+pub(crate) const kShmCompletionmenu: c_int = b'c' as c_int;
 const kShmRecording: c_int = b'q' as c_int;
-const kCpoNumcol: c_int = b'n' as c_int;
 const kOptVeFlagBlock: c_uint = 0x05;
 const kOptDyFlagLastline: c_uint = 0x01;
 const kOptDyFlagTruncate: c_uint = 0x02;

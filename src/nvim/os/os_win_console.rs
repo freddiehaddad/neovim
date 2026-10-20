@@ -60,14 +60,6 @@ const FILE_SHARE_WRITE: DWORD = 0x0000_0002;
 #[cfg(windows)]
 const OPEN_EXISTING: DWORD = 3;
 #[cfg(windows)]
-const O_RDONLY: c_int = 0;
-#[cfg(windows)]
-const STDIN_FILENO: c_int = 0;
-#[cfg(windows)]
-const STDOUT_FILENO: c_int = 1;
-#[cfg(windows)]
-const STDERR_FILENO: c_int = 2;
-#[cfg(windows)]
 const SW_HIDE: c_int = 0;
 #[cfg(windows)]
 const ATTACH_PARENT_PROCESS: DWORD = 0xFFFF_FFFF;
@@ -87,12 +79,6 @@ const LR_LOADMAP3DCOLORS: UINT = 0x0000_1000;
 const ENABLE_VIRTUAL_TERMINAL_PROCESSING: DWORD = 0x0004;
 #[cfg(all(not(test), windows))]
 const UV_TTY_SUPPORTED: c_int = 0;
-#[cfg(all(not(test), windows))]
-const MAXPATHL: usize = 4096;
-#[cfg(all(not(test), windows))]
-const LOGLVL_INF: c_int = 2;
-#[cfg(all(not(test), windows))]
-const LOGLVL_WRN: c_int = 3;
 
 #[cfg(windows)]
 static mut ORIG_TITLE: [c_char; 256] = [0; 256];
@@ -149,10 +135,18 @@ unsafe extern "system" {
     ) -> HANDLE;
 }
 
+#[cfg(all(not(test), windows))]
+use crate::api::vim::MAXPATHL;
+#[cfg(windows)]
+use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 #[cfg(windows)]
 use crate::fileio::_close;
 #[cfg(all(not(test), windows))]
 use crate::fileio::_get_osfhandle;
+#[cfg(windows)]
+use crate::fileio::O_RDONLY;
+#[cfg(all(not(test), windows))]
+use crate::log::{LOGLVL_INF, LOGLVL_WRN};
 
 #[cfg(windows)]
 unsafe extern "C" {

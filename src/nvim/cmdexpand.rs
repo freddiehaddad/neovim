@@ -708,6 +708,11 @@ pub enum cmdidx_T {
 }
 
 pub use crate::api::command::{ExMagic as ExArgMagic, exarg_T};
+use crate::api::vim::MAXPATHL;
+#[cfg(unix)]
+use crate::ex_getln::VSE_SHELL;
+use crate::ex_getln::{VSE_BUFFER, VSE_NONE};
+use crate::regexp::{RE_MAGIC, RE_STRING};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -773,7 +778,6 @@ const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 
 const MB_MAXBYTES: usize = 30;
-const MAXPATHL: usize = 4096;
 
 #[cfg(windows)]
 const ENV_SEPCHAR: c_int = b';' as c_int;
@@ -934,11 +938,6 @@ const kUIMessages: UIExtension = 4;
 const WM_SHOWN: c_int = 1;
 const WM_SCROLLED: c_int = 2;
 
-const VSE_NONE: c_int = 0;
-#[cfg(unix)]
-const VSE_SHELL: c_int = 1;
-const VSE_BUFFER: c_int = 2;
-
 const HLF_D: hlf_T = 5;
 const HLF_T: hlf_T = 23;
 const HLF_WM: hlf_T = 27;
@@ -946,9 +945,7 @@ const HLF_WM: hlf_T = 27;
 const DIP_START: c_int = 0x08;
 const DIP_OPT: c_int = 0x10;
 
-const RE_MAGIC: c_int = 1;
-const RE_STRING: c_int = 2;
-const RE_LAST: c_int = 2;
+pub(crate) const RE_LAST: c_int = 2;
 
 const SEARCH_NFMSG: c_int = 0x08;
 const SEARCH_OPT: c_int = 0x10;
@@ -956,7 +953,7 @@ const SEARCH_NOOF: c_int = 0x80;
 const SEARCH_START: c_int = 0x100;
 const SEARCH_PEEK: c_int = 0x800;
 
-const TAG_MANY: c_int = 300;
+pub(crate) const TAG_MANY: c_int = 300;
 const kRetObject: LuaRetMode = 0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

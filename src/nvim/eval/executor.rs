@@ -16,11 +16,10 @@ use crate::garray::{ga_grow, garray_T};
 use crate::math::{FAIL, OK};
 #[cfg(not(test))]
 use crate::message::semsg;
+use crate::regexp::NUMBUFLEN;
 #[cfg(not(test))]
 use crate::strings::concat_str;
 use std::ffi::{c_char, c_int, c_void};
-
-const NUMBUFLEN: usize = 65;
 
 #[repr(C)]
 #[allow(non_camel_case_types)]

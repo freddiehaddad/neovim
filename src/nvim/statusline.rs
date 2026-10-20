@@ -38,7 +38,6 @@ use crate::grid::{
 };
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
-use crate::keycodes::scid_T;
 use crate::map::{map_put_ref_int_StcClick, map_put_ref_int_StcClicks};
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
@@ -74,31 +73,22 @@ pub use crate::api::win_config::UIExtension;
 const NUL: c_char = 0;
 const NL: c_int = 0x0a;
 const CAR: c_int = 0x0d;
-const MAXPATHL: usize = 4096;
 const TMPLEN: usize = 70;
 const MAX_STL_EVAL_DEPTH: c_int = 100;
 const SIGN_WIDTH: usize = 2;
 const MAX_STCWIDTH: c_int = 20 + 9 * (SIGN_WIDTH as c_int) + 9;
-const SCL_NUM: c_int = -2;
-const SID_ERROR: scid_T = -5;
-const EOL_MAC: c_int = 2;
 const ML_EMPTY: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
 const OPT_LOCAL: c_int = 0x02;
-const FR_COL: c_char = 2;
 
 const VV_LNUM: c_int = 9;
 const VV_RELNUM: c_int = 102;
 const VV_VIRTNUM: c_int = 103;
 
-const kOptInvalid: OptIndex = -1;
 const kOptRulerformat: OptIndex = 244;
-const kOptStatuscolumn: OptIndex = 297;
-const kOptStatusline: OptIndex = 298;
 const kOptTabline: OptIndex = 306;
-const kOptWinbar: OptIndex = 359;
 
-const kUITabline: UIExtension = 2;
+pub(crate) const kUITabline: UIExtension = 2;
 const kUIWildmenu: UIExtension = 3;
 const kUIMessages: UIExtension = 4;
 
@@ -148,21 +138,10 @@ const STL_SHOWCMD: c_char = b'S' as c_char;
 const STL_FOLDCOL: c_char = b'C' as c_char;
 const STL_SIGNCOL: c_char = b's' as c_char;
 const STL_VIM_EXPR: c_char = b'{' as c_char;
-const STL_SEPARATE: c_char = b'=' as c_char;
-const STL_TRUNCMARK: c_char = b'<' as c_char;
-const STL_USER_HL: c_char = b'*' as c_char;
-const STL_HIGHLIGHT: c_char = b'#' as c_char;
 const STL_HIGHLIGHT_COMB: c_char = b'$' as c_char;
 const STL_TABPAGENR: c_char = b'T' as c_char;
 const STL_TABCLOSENR: c_char = b'X' as c_char;
 const STL_CLICK_FUNC: c_char = b'@' as c_char;
-
-const STL_ALL: &CStr = c"fFtcvVlLnknoObBrRhHyYwWmMqpPaNSCs{=<*#$TX@";
-
-const kStlClickDisabled: c_int = 0;
-const kStlClickTabSwitch: c_int = 1;
-const kStlClickTabClose: c_int = 2;
-const kStlClickFuncRun: c_int = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -233,7 +212,16 @@ pub struct foldinfo_T {
     pub fi_lines: linenr_T,
 }
 
+use crate::api::deprecated::kOptInvalid;
+use crate::api::vim::MAXPATHL;
+use crate::api::win_config::FR_COL;
+use crate::charset::EOL_MAC;
+use crate::decoration::SCL_NUM;
 pub use crate::decoration::SignTextAttrs;
+use crate::mouse::{kStlClickDisabled, kStlClickFuncRun, kStlClickTabClose, kStlClickTabSwitch};
+use crate::option::{kOptStatuscolumn, kOptStatusline, kOptWinbar};
+use crate::optionstr::{STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL};
+use crate::runtime::SID_ERROR;
 
 #[repr(C)]
 pub struct statuscol_T {

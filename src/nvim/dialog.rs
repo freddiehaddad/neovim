@@ -3,6 +3,10 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
+use crate::api::vim::REMAP_YES;
+#[cfg(not(test))]
+use crate::cmdexpand::EXPAND_NOTHING;
+#[cfg(not(test))]
 use crate::eval::deprecated::Callback;
 #[cfg(not(test))]
 use crate::ex_getln::getcmdline_prompt;
@@ -14,6 +18,8 @@ use crate::input::ins_typebuf;
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
 #[cfg(not(test))]
 use crate::memory::{xfree, xmalloc, xstrdup};
+#[cfg(not(test))]
+use crate::message::HLF_M;
 #[cfg(not(test))]
 use crate::message::{display_confirm_msg, msg_end_prompt, msg_putchar, set_keep_msg};
 #[cfg(not(test))]
@@ -39,24 +45,18 @@ const CAR: c_int = 0x0d;
 const ESC: c_int = 0x1b;
 
 #[cfg(not(test))]
-const HLF_M: c_int = 10;
-#[cfg(not(test))]
 const HLF_R: c_int = 18;
 
 #[cfg(not(test))]
 const K_UI_MESSAGES: c_int = 4;
 #[cfg(not(test))]
 const K_MOUSE_COMMAND: c_int = b'c' as c_int;
-#[cfg(not(test))]
-const EXPAND_NOTHING: c_int = 0;
-#[cfg(not(test))]
-const REMAP_YES: c_int = 0;
 
-const VIM_YES: c_int = 2;
-const VIM_NO: c_int = 3;
+pub(crate) const VIM_YES: c_int = 2;
+pub(crate) const VIM_NO: c_int = 3;
 const VIM_CANCEL: c_int = 4;
-const VIM_ALL: c_int = 5;
-const VIM_DISCARDALL: c_int = 6;
+pub(crate) const VIM_ALL: c_int = 5;
+pub(crate) const VIM_DISCARDALL: c_int = 6;
 
 #[cfg(not(test))]
 const HAS_HOTKEY_LEN: usize = 30;

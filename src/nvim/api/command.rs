@@ -59,23 +59,15 @@ pub type cmdidx_T = c_int;
 pub use crate::api::autocmd::event_T;
 pub use crate::cmdexpand::cmd_addr_T;
 
-const OK: c_int = 1;
-const FAIL: c_int = 0;
 const NUL: c_char = 0;
 const LUA_NOREF: LuaRef = -2;
-const RE_MAGIC: c_int = 1;
-const UC_BUFFER: c_int = 1;
+pub(crate) const UC_BUFFER: c_int = 1;
 
 const CMD_iput: cmdidx_T = 200;
 const CMD_put: cmdidx_T = 350;
 const CMD_SIZE: cmdidx_T = 564;
 const CMD_USER: cmdidx_T = -1;
 const CMD_USER_BUF: cmdidx_T = -2;
-
-const EVENT_CMDUNDEFINED: event_T = 30;
-
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_USER_LUA: c_int = 32;
 
 const EX_RANGE: u32 = 0x001;
 const EX_BANG: u32 = 0x002;
@@ -95,15 +87,15 @@ const EX_KEEPSCRIPT: u32 = 0x4000000;
 const EX_PREVIEW: u32 = 0x8000000;
 const EX_ARGSPACE: u32 = 0x40000000;
 
-const ADDR_LINES: cmd_addr_T = 0;
-const ADDR_WINDOWS: cmd_addr_T = 1;
-const ADDR_ARGUMENTS: cmd_addr_T = 2;
-const ADDR_LOADED_BUFFERS: cmd_addr_T = 3;
-const ADDR_BUFFERS: cmd_addr_T = 4;
-const ADDR_TABS: cmd_addr_T = 5;
-const ADDR_QUICKFIX: cmd_addr_T = 8;
-const ADDR_OTHER: cmd_addr_T = 10;
-const ADDR_NONE: cmd_addr_T = 11;
+pub(crate) const ADDR_LINES: cmd_addr_T = 0;
+pub(crate) const ADDR_WINDOWS: cmd_addr_T = 1;
+pub(crate) const ADDR_ARGUMENTS: cmd_addr_T = 2;
+pub(crate) const ADDR_LOADED_BUFFERS: cmd_addr_T = 3;
+pub(crate) const ADDR_BUFFERS: cmd_addr_T = 4;
+pub(crate) const ADDR_TABS: cmd_addr_T = 5;
+pub(crate) const ADDR_QUICKFIX: cmd_addr_T = 8;
+pub(crate) const ADDR_OTHER: cmd_addr_T = 10;
+pub(crate) const ADDR_NONE: cmd_addr_T = 11;
 
 const CMOD_SANDBOX: c_int = 0x0001;
 const CMOD_SILENT: c_int = 0x0002;
@@ -205,6 +197,10 @@ pub struct exarg_T {
     pub magic: ExMagic,
 }
 
+use crate::autocmd::EVENT_CMDUNDEFINED;
+use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA};
+use crate::math::{FAIL, OK};
+use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regmatch_T;
 
 #[repr(C)]

@@ -8,6 +8,8 @@
 )]
 
 #[cfg(not(test))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
 use crate::context::handle_get_buffer;
 #[cfg(not(test))]
 use crate::cursor::linenr_T;
@@ -18,12 +20,16 @@ use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
+use crate::lua::base64::LUA_TSTRING;
+#[cfg(not(test))]
 use crate::lua::base64::lua_CFunction;
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::base64::luaL_Reg;
 #[cfg(not(test))]
 use crate::lua::converter::LuaRef;
+#[cfg(not(test))]
+use crate::lua::converter::{LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TNUMBER, LUA_TTABLE};
 #[cfg(not(test))]
 use crate::lua::converter::{
     lua_Integer, lua_Number, lua_concat, lua_createtable, lua_error, lua_getfield, lua_gettop,
@@ -34,6 +40,8 @@ use crate::lua::converter::{
     luaL_checklstring, luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register,
     luaL_unref,
 };
+#[cfg(not(test))]
+use crate::lua::executor::{LUA_GLOBALSINDEX, LUA_REGISTRYINDEX};
 #[cfg(not(test))]
 use crate::map::{Map, Set, cstr_t, mh_get_cstr_t, ptr_t};
 #[cfg(not(test))]
@@ -77,8 +85,6 @@ pub type TSDecodeFunction =
 #[cfg(not(test))]
 const NUL: c_char = 0;
 #[cfg(not(test))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
 const BUFSIZE: usize = 256;
 
 #[cfg(not(test))]
@@ -120,24 +126,7 @@ const TSQueryErrorCapture: TSQueryError = 4;
 const TSQueryErrorStructure: TSQueryError = 5;
 
 #[cfg(not(test))]
-const LUA_REGISTRYINDEX: c_int = -10000;
-#[cfg(not(test))]
-const LUA_GLOBALSINDEX: c_int = -10002;
-#[cfg(not(test))]
 const LUA_MINSTACK: c_int = 20;
-
-#[cfg(not(test))]
-const LUA_TNIL: c_int = 0;
-#[cfg(not(test))]
-const LUA_TBOOLEAN: c_int = 1;
-#[cfg(not(test))]
-const LUA_TNUMBER: c_int = 3;
-#[cfg(not(test))]
-const LUA_TSTRING: c_int = 4;
-#[cfg(not(test))]
-const LUA_TTABLE: c_int = 5;
-#[cfg(not(test))]
-const LUA_TFUNCTION: c_int = 6;
 
 #[cfg(not(test))]
 const TS_META_PARSER: *const c_char = c"treesitter_parser".as_ptr();

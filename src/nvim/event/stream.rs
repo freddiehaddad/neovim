@@ -25,7 +25,6 @@ pub const UV_TCP: c_int = 12;
 pub const UV_TTY: c_int = 14;
 pub const UV_FILE: c_int = 17;
 
-const UV_RUN_NOWAIT: c_int = 2;
 #[cfg(windows)]
 const UV_TTY_MODE_NORMAL: c_int = 0;
 #[cfg(windows)]
@@ -33,9 +32,6 @@ const UV_TTY_MODE_RAW: c_int = 1;
 
 #[cfg(windows)]
 const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
-
-const LOGLVL_DBG: c_int = 1;
-const LOGLVL_WRN: c_int = 3;
 
 pub use crate::event::r#loop::{Loop, uv_close_cb, uv_handle_t, uv_loop_t};
 pub type Stream = c_void;
@@ -73,6 +69,8 @@ unsafe extern "C" {
 
 }
 
+use crate::event::r#loop::UV_RUN_NOWAIT;
+use crate::log::{LOGLVL_DBG, LOGLVL_WRN};
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};
 

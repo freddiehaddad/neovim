@@ -149,53 +149,51 @@ use crate::charset::rem_backslash;
 #[cfg(unix)]
 use crate::os::fs::os_nodetype;
 
+use crate::api::buffer::kExtmarkNOOP;
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BCO_ENTER, HLF_N};
 pub use crate::api::win_config::UIExtension;
+use crate::arglist::{CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN};
+use crate::buffer::kShmFileinfo;
+use crate::buffer::{KEYMAP_INIT, SEA_DIALOG, SEA_QUIT};
+use crate::change::ML_DEL_MESSAGE;
+use crate::charset::{EOL_MAC, STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT};
 pub use crate::cmdexpand::LineGetter;
+use crate::cmdexpand::RE_LAST;
+use crate::dialog::VIM_YES;
+use crate::diff::{kShellOptDoOut, kShellOptFilter};
+use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
 pub use crate::eval::typval::float_T;
+use crate::eval::userfunc::MSG_BUF_LEN;
 pub use crate::extmark::ExtmarkOp;
 pub use crate::option::OptInt;
+#[cfg(unix)]
+use crate::os::fs::NODE_OTHER;
 pub use crate::regexp::magic_T;
+use crate::regexp::{RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC};
 
 const NUL: c_char = 0;
 
 const Ctrl_C: c_int = 3;
-const Ctrl_E: c_int = 5;
-const Ctrl_Y: c_int = 25;
+pub(crate) const Ctrl_E: c_int = 5;
+pub(crate) const Ctrl_Y: c_int = 25;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
-const MSG_BUF_LEN: usize = 480;
-const DIALOG_MSG_SIZE: usize = 1000;
+pub(crate) const DIALOG_MSG_SIZE: usize = 1000;
 
-const EOL_MAC: c_int = 2;
+pub(crate) const BL_WHITE: c_int = 1;
+pub(crate) const BL_SOL: c_int = 2;
+pub(crate) const BL_FIX: c_int = 4;
 
-const BL_WHITE: c_int = 1;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-
-const STR2NR_BIN: c_int = 1 << 0;
-const STR2NR_OCT: c_int = 1 << 1;
-const STR2NR_HEX: c_int = 1 << 2;
-const STR2NR_FORCE: c_int = 1 << 7;
-
-const RE_SEARCH: c_int = 0;
-const RE_SUBST: c_int = 1;
-const RE_BOTH: c_int = 2;
-const RE_LAST: c_int = 2;
-const RE_MAGIC: c_int = 1;
+pub(crate) const RE_SUBST: c_int = 1;
+pub(crate) const RE_BOTH: c_int = 2;
 const SEARCH_HIS: c_int = 0x20;
 
-const REGSUB_COPY: c_int = 1;
-const REGSUB_MAGIC: c_int = 2;
-const REGSUB_BACKSLASH: c_int = 4;
-
-const kExtmarkNOOP: ExtmarkOp = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 
 const ML_EMPTY: c_int = 0x01;
-const ML_DEL_MESSAGE: c_int = 1;
 
 const CMOD_CONFIRM: c_int = 0x0080;
 const CMOD_KEEPALT: c_int = 0x0100;
@@ -207,29 +205,19 @@ const EXFLAG_LIST: c_int = 0x01;
 const EXFLAG_NR: c_int = 0x02;
 const EXFLAG_PRINT: c_int = 0x04;
 
-const kShellOptFilter: c_int = 1;
-const kShellOptDoOut: c_int = 4;
-const kShellOptRead: c_int = 16;
-const kShellOptWrite: c_int = 32;
+pub(crate) const kShellOptRead: c_int = 16;
+pub(crate) const kShellOptWrite: c_int = 32;
 
 const kUIMessages: UIExtension = 4;
 
-const HLF_N: c_int = 12;
 const HLF_R: c_int = 18;
 
-const kShmFileinfo: c_int = b'F' as c_int;
-const kShmOverall: c_int = b'O' as c_int;
+pub(crate) const kShmOverall: c_int = b'O' as c_int;
 
 const kCpoAltwrite: c_int = b'A' as c_int;
 const kCpoOvernew: c_int = b'O' as c_int;
 const kCpoRemmark: c_int = b'R' as c_int;
-const kCpoUndo: c_int = b'u' as c_int;
-
-#[cfg(unix)]
-const NODE_OTHER: c_int = 2;
-
-const VIM_QUESTION: c_int = 4;
-const VIM_YES: c_int = 2;
+pub(crate) const kCpoUndo: c_int = b'u' as c_int;
 
 const BF_CHECK_RO: c_int = 0x02;
 const BF_NEVERLOADED: c_int = 0x04;
@@ -237,27 +225,18 @@ const BF_NOTEDITED: c_int = 0x08;
 const BF_NEW: c_int = 0x10;
 const BF_READERR: c_int = 0x40;
 
-const CCGD_AW: c_int = 1;
-const CCGD_MULTWIN: c_int = 2;
-const CCGD_FORCEIT: c_int = 4;
-const CCGD_EXCMD: c_int = 16;
-
-const BCO_ENTER: c_int = 1;
-const SEA_DIALOG: c_int = 1;
-const SEA_QUIT: c_int = 2;
 const OPT_WINONLY: c_int = 0x08;
 const DOCMD_VERBOSE: c_int = 0x01;
 const DOCMD_NOWAIT: c_int = 0x02;
-const KEYMAP_INIT: i16 = 1;
 const kCdCauseBuffer: c_int = 2;
 const VV_SWAPCOMMAND: c_int = 49;
 const B_IMODE_LMAP: OptInt = 1;
 const kWinPreview: c_int = 2;
 const SID_NONE: c_int = -6;
 
-const kOptFoldcolumn: OptIndex = 102;
-const kOptInccommand: OptIndex = 145;
-const kOptShortmess: OptIndex = 271;
+pub(crate) const kOptFoldcolumn: OptIndex = 102;
+pub(crate) const kOptInccommand: OptIndex = 145;
+pub(crate) const kOptShortmess: OptIndex = 271;
 
 pub const ECMD_HIDE: c_int = 0x01;
 pub const ECMD_SET_HELP: c_int = 0x02;

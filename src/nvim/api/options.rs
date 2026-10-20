@@ -56,35 +56,28 @@ pub use crate::option::set_op_T;
 pub use crate::option::set_prefix_T;
 pub use crate::optionstr::OptIndex;
 
-const OK: c_int = 1;
-const FAIL: c_int = 0;
-const IOSIZE: usize = 1024 + 1;
+pub(crate) const IOSIZE: usize = 1024 + 1;
 const SID_NONE: scid_T = -6;
-const BLN_DUMMY: c_int = 4;
 const BF_DUMMY: c_int = 0x80;
-const EVENT_FILETYPE: event_T = 59;
 
 const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
 
-const PREFIX_NONE: set_prefix_T = 1;
+pub(crate) const PREFIX_NONE: set_prefix_T = 1;
 
-const kOptScopeGlobal: OptScope = 0;
-const kOptScopeWin: OptScope = 1;
 const kOptScopeBuf: OptScope = 2;
-const kOptScopeTab: OptScope = 3;
+pub(crate) const kOptScopeTab: OptScope = 3;
 
-const OP_NONE: set_op_T = 0;
-const OP_ADDING: set_op_T = 1;
-const OP_PREPENDING: set_op_T = 2;
-const OP_REMOVING: set_op_T = 3;
+pub(crate) const OP_NONE: set_op_T = 0;
+pub(crate) const OP_ADDING: set_op_T = 1;
+pub(crate) const OP_PREPENDING: set_op_T = 2;
+pub(crate) const OP_REMOVING: set_op_T = 3;
 
-const kOptInvalid: OptIndex = -1;
 const kOptBufhidden: OptIndex = 27;
 const kOptBuftype: OptIndex = 29;
 const kOptFiletype: OptIndex = 97;
-const kOptModeline: OptIndex = 192;
-const kOptSwapfile: OptIndex = 301;
+pub(crate) const kOptModeline: OptIndex = 192;
+pub(crate) const kOptSwapfile: OptIndex = 301;
 
 const KEYSET_OPTIDX_option__buf: u64 = 1;
 const KEYSET_OPTIDX_option__tab: u64 = 2;
@@ -94,7 +87,11 @@ const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
+use crate::api::deprecated::{kOptInvalid, kOptScopeGlobal, kOptScopeWin};
+use crate::autocmd::EVENT_FILETYPE;
+use crate::buffer::BLN_DUMMY;
 pub use crate::eval::deprecated::{buf_T, memline_T};
+use crate::math::{FAIL, OK};
 pub use crate::memfile::memfile_T;
 pub use crate::optionstr::{CharBuf, OptSetPrep, optset_T, vimoption_T};
 

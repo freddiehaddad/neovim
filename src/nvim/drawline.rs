@@ -11,18 +11,24 @@
 )]
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::deprecated::{
-    DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
-};
+use crate::api::deprecated::kVPosEndOfLine;
+use crate::api::deprecated::{DecorVirtText, VirtLine, VirtLines, VirtText, VirtTextPos};
 use crate::api::extmark::{DecorRange, NS};
+use crate::api::extmark::{
+    kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLineRightAlign, kVPosInline,
+    kVPosRightAlign, kVTRepeatLinebreak,
+};
 use crate::api::options::CharBuf;
 use crate::api::tabpage::{GridView, pos_T, win_T};
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC};
 use crate::buffer::{bt_quickfix, buf_meta_total};
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, rl_mirror_ascii, skiptowhite, skipwhite, transchar_buf,
     transchar_hex, transstr_buf, vim_isprintc,
 };
 use crate::cursor::{colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq};
+use crate::decoration::SCL_NUM;
 use crate::decoration::{
     SignTextAttrs, clear_virttext, decor_has_more_decorations, decor_init_draw_col,
     decor_recheck_draw_col, decor_redraw_col, decor_redraw_eol, decor_redraw_line,
@@ -30,6 +36,7 @@ use crate::decoration::{
     decor_virt_pos_kind, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
+use crate::diff::{HLF_ADD, HLF_CHD, HLF_TXA, HLF_TXD};
 use crate::diff::{
     diff_change_parse, diff_check_fill, diff_check_with_linestatus, diff_find_change, diffline_T,
 };
@@ -88,12 +95,10 @@ const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const Ctrl_V: c_int = 22;
 const MAXCOL: colnr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
 const MB_FILLER_CHAR: u8 = b'<';
 const TERM_ATTRS_MAX: usize = 1024;
 const SIGN_SHOW_MAX: usize = 9;
 const SIGN_WIDTH: c_int = 2;
-const SCL_NUM: c_int = -2;
 const MAX_STCWIDTH: c_int = 20 + 9 * SIGN_WIDTH + 9;
 const SPWORDLEN: usize = 150;
 const FORWARD: c_int = 1;
@@ -106,17 +111,17 @@ const VALID_VIRTCOL: c_int = 0x04;
 const VALID_CHEIGHT: c_int = 0x08;
 const VALID_CROW: c_int = 0x10;
 
-const SLF_RIGHTLEFT: c_int = 1;
-const SLF_WRAP: c_int = 2;
-const SLF_INC_VCOL: c_int = 4;
+pub(crate) const SLF_RIGHTLEFT: c_int = 1;
+pub(crate) const SLF_WRAP: c_int = 2;
+pub(crate) const SLF_INC_VCOL: c_int = 4;
 
-const kOptFlagInsecure: u32 = 1 << 18;
+pub(crate) const kOptFlagInsecure: u32 = 1 << 18;
 const kOptCuloptFlagLine: u8 = 0x01;
 const kOptCuloptFlagScreenline: u8 = 0x02;
 const kOptCuloptFlagNumber: u8 = 0x04;
 const kOptSpoFlagNoplainbuffer: u32 = 0x02;
 const kOptDyFlagUhex: c_uint = 0x04;
-const kCpoNumcol: c_int = b'n' as c_int;
+pub(crate) const kCpoNumcol: c_int = b'n' as c_int;
 
 const kFalse: TriState = 0;
 const kTrue: TriState = 1;
@@ -124,17 +129,7 @@ const kTrue: TriState = 1;
 const kDecorKindVirtText: u8 = 2;
 const kDecorKindUIWatched: u8 = 4;
 
-const kVPosEndOfLine: VirtTextPos = 0;
-const kVPosEndOfLineRightAlign: VirtTextPos = 1;
-const kVPosInline: VirtTextPos = 2;
-const kVPosRightAlign: VirtTextPos = 4;
 const kVPosWinCol: VirtTextPos = 5;
-
-const kVTRepeatLinebreak: u8 = 8;
-
-const kVLLeftcol: c_int = 1;
-const kVLOverflowScroll: VirtLineOverflow = 1;
-const kVLOverflowAuto: VirtLineOverflow = 3;
 
 const kHlModeReplace: HlMode = 1;
 const kHlModeCombine: HlMode = 2;
@@ -151,27 +146,17 @@ const HL_CONCEAL: c_int = 0x20000;
 const HLF_8: c_int = 1;
 const HLF_AT: c_int = 4;
 const HLF_I: c_int = 7;
-const HLF_N: c_int = 12;
-const HLF_LNA: c_int = 13;
-const HLF_LNB: c_int = 14;
-const HLF_CLN: c_int = 15;
-const HLF_CLS: c_int = 16;
 const HLF_CLF: c_int = 17;
 const HLF_V: c_int = 24;
 const HLF_FL: c_int = 28;
 const HLF_FC: c_int = 29;
-const HLF_ADD: hlf_T = 30;
-const HLF_CHD: hlf_T = 31;
 const HLF_DED: c_int = 32;
-const HLF_TXD: hlf_T = 33;
-const HLF_TXA: hlf_T = 34;
-const HLF_SC: c_int = 35;
 const HLF_CONCEAL: c_int = 36;
 const HLF_CUC: c_int = 55;
 const HLF_CUL: c_int = 56;
 const HLF_MC: c_int = 57;
-const HLF_QFL: c_int = 58;
-const HLF_0: c_int = 59;
+pub(crate) const HLF_QFL: c_int = 58;
+pub(crate) const HLF_0: c_int = 59;
 const HLF_COUNT: hlf_T = 76;
 
 /// Structure with variables passed between `win_line()` and other functions.

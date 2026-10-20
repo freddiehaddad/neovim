@@ -11,19 +11,17 @@ use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 
 use crate::vterm::mouse::VTerm;
+use crate::vterm::mouse::{CSI_LEADER_MAX, INTERMED_MAX};
 
 pub type VTermTerminator = c_int;
 
-const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
+pub(crate) const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
 const VTERM_TERMINATOR_ST: VTermTerminator = 1;
-
-const INTERMED_MAX: usize = 16;
-const CSI_LEADER_MAX: usize = 16;
 
 const CSI_ARG_FLAG_MORE: c_long = (1u32 << 31) as c_long;
 const CSI_ARG_MISSING: c_long = ((1u32 << 31) - 1) as c_long;
 
-const NORMAL: c_int = 0;
+pub(crate) const NORMAL: c_int = 0;
 const CSI_LEADER: c_int = 1;
 const CSI_ARGS: c_int = 2;
 const CSI_INTERMED: c_int = 3;

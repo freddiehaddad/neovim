@@ -54,30 +54,26 @@ use crate::winfloat::win_config_float;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
+use crate::api::buffer::VIML_INTERNAL_CALL;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{
+    BCO_ENTER, BCO_NOHELP, kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxSFuncs,
+};
 pub use crate::cursor::colnr_T;
+use crate::math::OK;
+use crate::shada::{kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo};
 pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
 pub type CtxSwitchFlags = c_int;
 pub type CdCause = c_int;
 
-const OK: c_int = 1;
 const MAXLNUM: i32 = 0x7fffffff;
-const MAXPATHL: usize = 4096;
 const K_SPECIAL: u8 = 0x80;
 const NUM_SAVED_REGISTERS: c_int = 37;
-const VIML_INTERNAL_CALL: u64 = 1u64 << 63;
 
-const BCO_ENTER: c_int = 1;
-const BCO_NOHELP: c_int = 4;
-
-const kCdCauseWindow: CdCause = 1;
+pub(crate) const kCdCauseWindow: CdCause = 1;
 
 const kCtxRegs: CtxStateFlags = 1;
-const kCtxJumps: CtxStateFlags = 2;
-const kCtxBufs: CtxStateFlags = 4;
-const kCtxGVars: CtxStateFlags = 8;
-const kCtxSFuncs: CtxStateFlags = 16;
-const kCtxFuncs: CtxStateFlags = 32;
 const kCtxCursor: CtxStateFlags = 64;
 const kCtxMarks: CtxStateFlags = 128;
 const kCtxVisual: CtxStateFlags = 256;
@@ -94,12 +90,6 @@ const kCtxSwitchNone: c_int = 0;
 const kCtxSwitchWin: c_int = 1;
 const kCtxSwitchBuf: c_int = 2;
 const kCtxSwitchDirs: c_int = 3;
-
-const kShaDaWantInfo: c_int = 1;
-const kShaDaForceit: c_int = 4;
-const kShaDaNanos: c_int = 32;
-const kShaDaNoHistory: c_int = 64;
-const kShaDaNoOpt: c_int = 128;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

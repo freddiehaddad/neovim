@@ -22,9 +22,12 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
 use crate::api::tabpage::win_T;
+use crate::api::ui::NO_SCREEN;
+use crate::api::vim::MAXPATHL;
 use crate::buffer::{bt_nofile, buflist_findnr, bufref_valid, do_modelines, set_bufref};
 use crate::charset::{ascii_iswhite, getdigits_int, skipdigits, skipwhite, varnumber_T};
 use crate::clipboard::typval_T;
+use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
 use crate::eval::deprecated::{Callback, buf_T};
@@ -54,6 +57,7 @@ use crate::map::{
     map_put_ref_int_String, map_ref_String_int, map_ref_int_String,
 };
 use crate::map_glyph_cache::{MapHash, NvimString};
+use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
 use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup};
 use crate::message::{
@@ -70,6 +74,7 @@ use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
+use crate::regexp::{RE_MAGIC, RE_NOBREAK};
 use crate::regexp::{vim_regcomp, vim_regfree};
 use crate::runtime::{estack_pop, estack_push, exestack};
 use crate::search::{restore_search_patterns, save_search_patterns};
@@ -83,32 +88,25 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
-const OK: c_int = 1;
-const FAIL: c_int = 0;
-const MAXPATHL: usize = 4096;
-const BUFLOCAL_PAT_LEN: usize = 25;
+pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
 
 pub const AUGROUP_DEFAULT: c_int = -1;
 pub const AUGROUP_ERROR: c_int = -2;
 pub const AUGROUP_ALL: c_int = -3;
 pub const AUGROUP_DELETED: c_int = -4;
 
-const SID_NONE: c_int = -4;
+const SID_NONE: c_int = -6;
 const OPT_LOCAL: c_int = 0x02;
 const OPT_NOWIN: c_int = 0x10;
 const kOptEventignore: OptIndex = 88;
-const kOptModified: OptIndex = 196;
-
-const RE_MAGIC: c_int = 1;
-const RE_NOBREAK: c_int = 16;
+pub(crate) const kOptModified: OptIndex = 196;
 
 const DOCMD_VERBOSE: c_int = 0x01;
 const DOCMD_NOWAIT: c_int = 0x02;
 const DOCMD_REPEAT: c_int = 0x04;
 
 const ETYPE_AUCMD: c_int = 3;
-const PROF_YES: c_int = 1;
-const NO_SCREEN: c_int = 2;
+pub(crate) const PROF_YES: c_int = 1;
 
 const HLF_8: c_int = 1;
 const HLF_E: c_int = 6;
@@ -117,10 +115,6 @@ const HLF_T: c_int = 23;
 const VV_TERMRESPONSE: c_int = 11;
 const VV_CMDBANG: c_int = 33;
 const VV_OPTION_TYPE: c_int = 67;
-
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_FILES: c_int = 2;
-const EXPAND_EVENTS: c_int = 10;
 
 const kRetNilBool: LuaRetMode = 1;
 

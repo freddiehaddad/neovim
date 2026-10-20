@@ -15,8 +15,8 @@ use std::ffi::{c_int, c_void};
 use std::ptr;
 
 const UV_HANDLE: c_int = 5;
-const UV_SIGNAL: c_int = 16;
 
+use crate::event::r#loop::UV_SIGNAL;
 pub use crate::event::r#loop::{
     Loop, uv_close_cb, uv_handle_t, uv_loop_t, uv_signal_cb, uv_signal_t,
 };

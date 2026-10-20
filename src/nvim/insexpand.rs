@@ -72,7 +72,7 @@ use crate::insert::{
 use crate::keycodes::{
     CAR, K_BS, K_COMMAND, K_DOWN, K_IGNORE, K_KENTER, K_KPAGEDOWN, K_KPAGEUP, K_MOUSEDOWN,
     K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP, K_PAGEDOWN, K_PAGEUP, K_S_DOWN, K_S_TAB,
-    K_S_UP, K_UP, KE_EVENT, KE_FILLER, KE_LUA, KS_EXTRA, NL, TAB, termcap2key,
+    K_S_UP, K_UP, NL, TAB,
 };
 use crate::kvec::KVec;
 use crate::lua::executor::nlua_expand_pat;
@@ -155,31 +155,22 @@ pub const CPT_INFO: usize = 3;
 pub const CPT_COUNT: usize = 4;
 
 const NUL: c_char = 0;
-const NOTDONE: c_int = 2;
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 const kDirectionNotSet: Direction = 0;
 
-const FIND_ANY: c_int = 1;
-const FIND_DEFINE: c_int = 2;
-const ACTION_EXPAND: c_int = 5;
+pub(crate) const ACTION_EXPAND: c_int = 5;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const IOSIZE: usize = 1025;
 const LSIZE: usize = 512;
 const MB_MAXCHAR: usize = 6;
 const MIN_SPACE: c_int = 75;
 const LOOKBACK_LINE_COUNT: linenr_T = 1000;
 const PATHSEP: c_char = b'/' as c_char;
 
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-const K_SELECT: c_int = termcap2key(0xf5, KE_FILLER as c_int);
-
 const Ctrl_C: c_int = 3;
 const Ctrl_D: c_int = 4;
-const Ctrl_E: c_int = 5;
 const Ctrl_F: c_int = 6;
 const Ctrl_I: c_int = 9;
 const Ctrl_K: c_int = 11;
@@ -194,20 +185,16 @@ const Ctrl_T: c_int = 20;
 const Ctrl_U: c_int = 21;
 const Ctrl_V: c_int = 22;
 const Ctrl_X: c_int = 24;
-const Ctrl_Y: c_int = 25;
 const Ctrl_Z: c_int = 26;
 const Ctrl_RSB: c_int = 29;
 
-const kInsNone: c_int = 0;
-const kCallbackNone: c_int = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 const kWinInfo: WinKind = 1;
 const kUIMessages: UIExtension = 4;
-const kListLenMayKnow: isize = -3;
 
 const VAR_UNKNOWN: VarType = VarType::VAR_UNKNOWN;
 const VAR_NUMBER: VarType = VarType::VAR_NUMBER;
-const VAR_STRING: VarType = VarType::VAR_STRING;
+pub(crate) const VAR_STRING: VarType = VarType::VAR_STRING;
 const VAR_LIST: VarType = VarType::VAR_LIST;
 const VAR_DICT: VarType = VarType::VAR_DICT;
 const VAR_FIXED: VarLockStatus = 2;
@@ -217,14 +204,13 @@ const HLF_R: hlf_T = 18;
 const HLF_W: hlf_T = 26;
 const HLF_COUNT: hlf_T = 76;
 
-const BS_START: c_int = b's' as c_int;
 const KEY_COMPLETE: c_int = 0x103;
 const OPENLINE_KEEPTRAIL: c_int = 0x04;
 const OPENLINE_FORCE_INDENT: c_int = 0x40;
 
 const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
-const kOptComplete: OptIndex = 51;
+pub(crate) const kOptComplete: OptIndex = 51;
 
 const kOptBoFlagComplete: c_uint = 0x08;
 
@@ -239,26 +225,13 @@ const kOptCotFlagNosort: c_uint = 0x80;
 const kOptCotFlagPreinsert: c_uint = 0x200;
 const kOptCotFlagPreselect: c_uint = 0x400;
 
-const kShmCompletionmenu: c_int = b'c' as c_int;
-const kShmCompletionscan: c_int = b'C' as c_int;
+pub(crate) const kShmCompletionscan: c_int = b'C' as c_int;
 
-const EXPAND_UNSUCCESSFUL: c_int = -2;
-const EXPAND_OK: c_int = -1;
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_FILES: c_int = 2;
-const EXPAND_LUA: c_int = 63;
-
-const RE_MAGIC: c_int = 1;
-const RE_LAST: c_int = 2;
 const SEARCH_NFMSG: c_int = 0x08;
 const SEARCH_KEEP: c_int = 0x400;
 
-const TAG_NAMES: c_int = 2;
-const TAG_REGEXP: c_int = 4;
-const TAG_NOIC: c_int = 8;
-const TAG_VERBOSE: c_int = 32;
-const TAG_INS_COMP: c_int = 64;
-const TAG_MANY: c_int = 300;
+pub(crate) const TAG_NOIC: c_int = 8;
+pub(crate) const TAG_INS_COMP: c_int = 64;
 
 const SMT_ALL: c_int = 0;
 
@@ -522,6 +495,21 @@ struct cpt_source_T {
     cs_flag: c_char,
 }
 
+use crate::api::autocmd::kCallbackNone;
+use crate::api::options::IOSIZE;
+use crate::buffer::NOTDONE;
+use crate::cmdexpand::{
+    EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL, RE_LAST, TAG_MANY,
+};
+use crate::drawscreen::kShmCompletionmenu;
+use crate::eval::kListLenMayKnow;
+use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
+use crate::ex_docmd::{FIND_ANY, FIND_DEFINE};
+use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
+use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
+use crate::input::kInsNone;
+use crate::insert::BS_START;
+use crate::regexp::RE_MAGIC;
 use crate::state::save_v_event_T;
 
 static mut compl_first_match: *mut compl_T = ptr::null_mut();

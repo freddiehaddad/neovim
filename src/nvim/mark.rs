@@ -62,7 +62,15 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
+use crate::api::buffer::{kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::autocmd::AUGROUP_ALL;
+use crate::buffer::NMARKS;
+use crate::eval::kListLenMayKnow;
+use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::ExtmarkOp;
+use crate::math::{FAIL, OK};
 pub use crate::path::PathCmpFlags;
 
 #[repr(C)]
@@ -78,17 +86,12 @@ pub struct WinInfo {
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
 
-const EXTRA_MARKS: usize = 10;
-const NMARKS: usize = 26;
+pub(crate) const EXTRA_MARKS: usize = 10;
 const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NMARK_LOCAL_MAX: c_int = 126;
 const JUMPLISTSIZE: c_int = 100;
@@ -106,28 +109,21 @@ const kMarkSetView: MarkMove = 8;
 const kMarkJumpList: MarkMove = 16;
 
 const kMarkBufLocal: MarkGet = 0;
-const kMarkAllNoResolve: MarkGet = 2;
 
 const kMarkAdjustNormal: MarkAdjustMode = 0;
-const kMarkAdjustApi: MarkAdjustMode = 1;
 const kMarkAdjustTerm: MarkAdjustMode = 2;
 
-const kExtmarkNOOP: ExtmarkOp = 0;
 const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 const kOptJopFlagStack: c_uint = 0x01;
-const kListLenMayKnow: isize = -3;
 
 const GETF_SETMARK: c_int = 0x01;
-const BL_WHITE: c_int = 1;
-const BL_FIX: c_int = 4;
 const CMOD_KEEPJUMPS: c_int = 0x0400;
 const CMOD_LOCKMARKS: c_int = 0x0800;
-const BUF_HAS_QF_ENTRY: c_int = 1;
-const BUF_HAS_LL_ENTRY: c_int = 2;
+pub(crate) const BUF_HAS_QF_ENTRY: c_int = 1;
+pub(crate) const BUF_HAS_LL_ENTRY: c_int = 2;
 
 const HLF_D: c_int = 5;
 const EVENT_MARKSET: c_int = 83;
-const AUGROUP_ALL: c_int = -3;
 
 const INIT_FMARKV: fmarkv_T = fmarkv_T {
     topline_offset: MAXLNUM,

@@ -9,7 +9,7 @@
 )]
 pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{cmd_addr_T, cmdidx_T, exarg_T};
+use crate::api::command::{cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::api::tabpage::{tabpage_T, win_T};
@@ -85,14 +85,10 @@ use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
-#[cfg(unix)]
-const MAXPATHL: usize = 4096;
 const MB_MAXBYTES: usize = 30;
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
@@ -124,39 +120,32 @@ const ALL_INLINE: c_int =
     DIFF_INLINE_NONE | DIFF_INLINE_SIMPLE | DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
 const ALL_INLINE_DIFF: c_int = DIFF_INLINE_CHAR | DIFF_INLINE_WORD;
 const XDF_NEED_MINIMAL: c_int = 1 << 0;
-const XDF_IGNORE_WHITESPACE: c_ulong = 1 << 1;
-const XDF_IGNORE_WHITESPACE_CHANGE: c_ulong = 1 << 2;
-const XDF_IGNORE_WHITESPACE_AT_EOL: c_ulong = 1 << 3;
-const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
+pub(crate) const XDF_IGNORE_WHITESPACE: c_ulong = 1 << 1;
+pub(crate) const XDF_IGNORE_WHITESPACE_CHANGE: c_ulong = 1 << 2;
+pub(crate) const XDF_IGNORE_WHITESPACE_AT_EOL: c_ulong = 1 << 3;
+pub(crate) const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
 const XDF_PATIENCE_DIFF: c_int = 1 << 14;
 const XDF_HISTOGRAM_DIFF: c_int = 1 << 15;
 const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
-const UPD_VALID: c_int = 10;
-const UPD_SOME_VALID: c_int = 35;
-const UPD_NOT_VALID: c_int = 40;
 const ML_EMPTY: c_int = 0x01;
 const CMOD_LOCKMARKS: c_int = 0x0800;
 const WSP_VERT: c_int = 0x02;
 const OPT_LOCAL: c_int = 0x02;
-const kOptScopeWin: OptScope = 1;
-const ADDR_LINES: cmd_addr_T = 0;
-const kOptDiff: OptIndex = 70;
-const kOptDiffopt: OptIndex = 73;
-const kOptFoldmethod: OptIndex = 109;
+pub(crate) const kOptDiff: OptIndex = 70;
+pub(crate) const kOptDiffopt: OptIndex = 73;
+pub(crate) const kOptFoldmethod: OptIndex = 109;
 const CMD_diffget: cmdidx_T = 121;
 const CMD_diffput: cmdidx_T = 124;
 const CMD_split: cmdidx_T = 426;
-const EVENT_DIFFUPDATED: event_T = 44;
-const kShellOptFilter: c_int = 1;
-const kShellOptDoOut: c_int = 4;
-const kShellOptSilent: c_int = 8;
+pub(crate) const kShellOptFilter: c_int = 1;
+pub(crate) const kShellOptDoOut: c_int = 4;
+pub(crate) const kShellOptSilent: c_int = 8;
 const kOptBoFlagOperator: c_uint = 0x4000;
-const kExtmarkNOOP: ExtmarkOp = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
-const HLF_ADD: hlf_T = 30;
-const HLF_CHD: hlf_T = 31;
-const HLF_TXD: hlf_T = 33;
-const HLF_TXA: hlf_T = 34;
+pub(crate) const HLF_ADD: hlf_T = 30;
+pub(crate) const HLF_CHD: hlf_T = 31;
+pub(crate) const HLF_TXD: hlf_T = 33;
+pub(crate) const HLF_TXA: hlf_T = 34;
 const KEYSET_OPTIDX_dip__inline_: u64 = 5;
 const KEYSET_OPTIDX_dip__context: u64 = 7;
 const KEYSET_OPTIDX_dip__linematch: u64 = 11;
@@ -229,6 +218,14 @@ struct linemap_entry_T {
     num_bytes: colnr_T,
     lineoff: c_int,
 }
+use crate::api::buffer::kExtmarkNOOP;
+use crate::api::command::ADDR_LINES;
+use crate::api::deprecated::kOptScopeWin;
+#[cfg(unix)]
+use crate::api::vim::MAXPATHL;
+use crate::autocmd::EVENT_DIFFUPDATED;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
+use crate::math::{FAIL, OK};
 pub use crate::optionstr::OptKeyDict_dip;
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;

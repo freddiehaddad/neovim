@@ -10,6 +10,7 @@
 )]
 
 use crate::api::autocmd::event_T;
+use crate::api::autocmd::kCallbackNone;
 use crate::api::options::CtxSwitch;
 use crate::api::tabpage::{pos_T, win_T};
 use crate::autocmd::{
@@ -21,6 +22,8 @@ use crate::buffer::{
     bt_cmdwin, bt_prompt, bt_quickfix, buf_get_changedtick, buf_is_empty, buf_meta_total,
     bufref_valid, set_bufref,
 };
+use crate::change::COM_MAX_LEN;
+use crate::change::kCpoListwm;
 use crate::change::{
     OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes, del_bytes, del_char,
     get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str, inserted_bytes, open_line,
@@ -38,6 +41,7 @@ use crate::cursor::{
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
+use crate::drawscreen::UPD_VALID;
 use crate::drawscreen::{
     redraw_later, redraw_statuslines, redrawWinline, redrawing, setcursor, show_cursor_info_later,
     showmode, skip_showmode, status_redraw_curbuf, unshowmode, update_screen,
@@ -46,8 +50,10 @@ use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
 use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T};
 use crate::eval::vars::{get_vim_var_str, set_vim_var_string};
+use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE, Ctrl_E, Ctrl_Y};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
 use crate::ex_getln::cmdwin_do_action;
+use crate::ex_getln::{K_EVENT, K_LUA, K_SELECT};
 use crate::extmark::TriState;
 use crate::fileio::check_timestamps;
 use crate::fold::{
@@ -59,11 +65,14 @@ use crate::grid::{
     schar_T, schar_from_ascii,
 };
 use crate::highlight_group::highlight_changed;
+use crate::indent::{INDENT_DEC, INDENT_SET};
 use crate::indent::{
     change_indent, fix_indent, get_indent, get_sts_value, get_sw_value, inindent, ins_try_si,
     may_do_si, tabstop_at, tabstop_count, tabstop_first, tabstop_padding, tabstop_start,
 };
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
+use crate::input::kInsNone;
+use crate::input::{K_COMPLETE_DELAY, K_PASTE_START};
 use crate::input::{
     char_avail, getcmdkeycmd, langmap_adjust, map_execute_lua, merge_modifiers, paste_repeat,
     plain_vgetc, prep_redo, redo_append_char, redo_append_lit, redo_append_str, redo_keys,
@@ -95,14 +104,14 @@ use crate::keycodes::{
     K_MOUSERIGHT, K_MOUSEUP, K_NOP, K_PAGEDOWN, K_PAGEUP, K_RIGHT, K_RIGHTDRAG, K_RIGHTMOUSE,
     K_RIGHTRELEASE, K_S_DOWN, K_S_END, K_S_HOME, K_S_LEFT, K_S_RIGHT, K_S_TAB, K_S_UP, K_SPECIAL,
     K_UP, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_XF1, K_ZERO,
-    KE_COMPLETE_DELAY, KE_EVENT, KE_FILLER, KE_LUA, KS_EXTRA, KS_MODIFIER, NL, TAB, add_char2buf,
-    get_special_key_name, termcap2key,
+    KS_MODIFIER, NL, TAB, add_char2buf, get_special_key_name,
 };
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{free_fmark, mark_view_make};
 use crate::marktree::kMTMetaInline;
+use crate::math::{FAIL, OK};
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_char2bytes, utf_char2len,
     utf_composinglike, utf_head_off, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len,
@@ -159,23 +168,14 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
-const OK: c_int = 1;
-const FAIL: c_int = 0;
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 
 const MAXCOL: colnr_T = 0x7fffffff;
 const MB_MAXBYTES: usize = 30;
 const MB_MAXCHAR: usize = 6;
-const COM_MAX_LEN: usize = 50;
 const COM_MIDDLE: c_int = b'm' as c_int;
 const INPUT_BUFLEN: usize = 100;
-
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-const K_PASTE_START: c_int = termcap2key(b'P' as c_int, b'S' as c_int);
-const K_SELECT: c_int = termcap2key(0xf5, KE_FILLER as c_int);
-const K_COMPLETE_DELAY: c_int = termcap2key(KS_EXTRA as c_int, KE_COMPLETE_DELAY as c_int);
 
 const MOD_MASK_SHIFT: c_int = 0x02;
 const MOD_MASK_CTRL: c_int = 0x04;
@@ -184,7 +184,6 @@ const MOD_MASK_CMD: c_int = 0x80;
 const Ctrl_A: c_int = 1;
 const Ctrl_C: c_int = 3;
 const Ctrl_D: c_int = 4;
-const Ctrl_E: c_int = 5;
 const Ctrl_F: c_int = 6;
 const Ctrl_G: c_int = 7;
 const Ctrl_H: c_int = 8;
@@ -202,21 +201,19 @@ const Ctrl_U: c_int = 21;
 const Ctrl_V: c_int = 22;
 const Ctrl_W: c_int = 23;
 const Ctrl_X: c_int = 24;
-const Ctrl_Y: c_int = 25;
 const Ctrl_Z: c_int = 26;
 const Ctrl_BSL: c_int = 28;
 const Ctrl_RSB: c_int = 29;
 const Ctrl_HAT: c_int = 30;
 const Ctrl__: c_int = 31;
 
-const kCharsizeFast: CSType = true;
+pub(crate) const kCharsizeFast: CSType = true;
 
 #[inline]
 const fn IS_SPECIAL(c: c_int) -> bool {
     c < 0
 }
 
-const kInsNone: c_int = 0;
 const kInsArrow: c_int = 1;
 const kInsJump: c_int = 2;
 
@@ -224,11 +221,9 @@ const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kTrue: TriState = 1;
 
-const kCallbackNone: c_int = 0;
 const kUIMessages: c_int = 4;
 
 const HLF_8: usize = 1;
-const UPD_VALID: c_int = 10;
 
 const VALID_WROW: c_int = 0x01;
 const VALID_WCOL: c_int = 0x02;
@@ -253,37 +248,30 @@ const kOptBoFlagCopy: c_uint = 0x10;
 const kOptBoFlagCtrlg: c_uint = 0x20;
 const kOptBoFlagRegister: c_uint = 0x8000;
 
-const kFoAuto: c_int = b'a' as c_int;
-const kFoInsBlank: c_int = b'b' as c_int;
+pub(crate) const kFoAuto: c_int = b'a' as c_int;
+pub(crate) const kFoInsBlank: c_int = b'b' as c_int;
 const kFoInsLong: c_int = b'l' as c_int;
 const kFoRetComs: c_int = b'r' as c_int;
-const kFoWhitePar: c_int = b'w' as c_int;
+pub(crate) const kFoWhitePar: c_int = b'w' as c_int;
 
 const kCpoBackspace: c_int = b'v' as c_int;
 const kCpoIndent: c_int = b'I' as c_int;
-const kCpoListwm: c_int = b'L' as c_int;
 const kCpoReplcnt: c_int = b'X' as c_int;
 
 const CMOD_KEEPJUMPS: c_int = 0x0400;
 
 const BS_INDENT: c_int = b'i' as c_int;
-const BS_EOL: c_int = b'l' as c_int;
-const BS_START: c_int = b's' as c_int;
-const BS_NOSTOP: c_int = b'p' as c_int;
+pub(crate) const BS_EOL: c_int = b'l' as c_int;
+pub(crate) const BS_START: c_int = b's' as c_int;
+pub(crate) const BS_NOSTOP: c_int = b'p' as c_int;
 
 const ABBR_OFF: c_int = 0x100;
 
-const INDENT_SET: c_int = 1;
 const INDENT_INC: c_int = 2;
-const INDENT_DEC: c_int = 3;
 
-const BL_WHITE: c_int = 1;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-
-const INSCHAR_FORMAT: c_int = 1;
+pub(crate) const INSCHAR_FORMAT: c_int = 1;
 const INSCHAR_CTRLV: c_int = 4;
-const INSCHAR_NO_FEX: c_int = 8;
+pub(crate) const INSCHAR_NO_FEX: c_int = 8;
 
 const BACKSPACE_CHAR: c_int = 1;
 const BACKSPACE_WORD: c_int = 2;

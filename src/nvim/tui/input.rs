@@ -60,6 +60,9 @@ use crate::tui::tui::{
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
+use crate::channel::STDIN_FILENO;
+#[cfg(not(test))]
+use crate::eval::funcs::UV_TIMER;
 pub use crate::option::OptInt;
 pub use crate::tui::tui::TUIData;
 pub use crate::tui::tui::TermMode;
@@ -67,9 +70,6 @@ pub use crate::tui::tui::TermModeState;
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
 
-#[cfg(not(test))]
-const UV_TIMER: c_int = 13;
-const STDIN_FILENO: c_int = 0;
 const INPUT_BUFFER_SIZE: usize = 256;
 const KEY_BUFFER_SIZE: usize = 0x1000;
 

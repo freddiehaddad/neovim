@@ -107,7 +107,17 @@ pub use crate::optionstr::OptIndex;
 type ex_unletlock_callback =
     unsafe extern "C" fn(*mut lval_T, *mut c_char, *mut exarg_T, c_int) -> c_int;
 
+use crate::api::deprecated::kOptInvalid;
+use crate::api::options::IOSIZE;
 pub use crate::api::private::converter::partial_T;
+use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA};
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
+use crate::drawscreen::UPD_SOME_VALID;
+use crate::eval::GLV_QUIET;
+use crate::eval::typval::{DI_FLAGS_ALLOC, TV_CSTRING, TV_TRANSLATE};
+use crate::eval::{DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, kListLenUnknown};
+use crate::regexp::NUMBUFLEN;
+use crate::register::kGRegExprSrc;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -138,25 +148,16 @@ pub struct lval_T {
 }
 
 const NUL: c_char = 0;
-const IOSIZE: usize = 1025;
-const NUMBUFLEN: usize = 65;
 const MB_MAXCHAR: usize = 6;
 const MAXCOL: varnumber_T = 0x7fffffff;
-const NOTDONE: c_int = 2;
 
-const DICT_MAXNEST: c_int = 100;
-const DO_NOT_FREE_CNT: c_int = c_int::MAX / 2;
 const VIMVAR_KEY_LEN: usize = 16;
 
 const VV_COMPAT: c_char = 1;
 const VV_RO: c_char = 2;
 const VV_RO_SBX: c_char = 4;
 
-const DI_FLAGS_RO: u8 = 1;
 const DI_FLAGS_RO_SBX: u8 = 2;
-const DI_FLAGS_FIX: u8 = 4;
-const DI_FLAGS_LOCK: u8 = 8;
-const DI_FLAGS_ALLOC: u8 = 16;
 
 const VAR_UNLOCKED: VarLockStatus = 0;
 const VAR_FIXED: VarLockStatus = 2;
@@ -176,45 +177,31 @@ const VAR_TYPE_BLOB: varnumber_T = 10;
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 const kSpecialVarNull: SpecialVarValue = 0;
-const kListLenUnknown: isize = -1;
 
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kTrue: TriState = 1;
 
 const CHAN_STDERR: varnumber_T = 2;
-const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
+pub(crate) const ENV_STARTREASON: &CStr = c"__NVIM_STARTREASON";
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
 
-const SID_LUA: scid_T = -8;
-const SID_STR: scid_T = -10;
+pub(crate) const SID_STR: scid_T = -10;
 
-const FNE_INCL_BR: c_int = 1;
-const FNE_CHECK_START: c_int = 2;
-const GLV_QUIET: c_int = 2;
-
-const FORCE_BIN: c_int = 1;
-const FORCE_NOBIN: c_int = 2;
-const BAD_KEEP: c_int = -1;
-const BAD_DROP: c_int = -2;
-
-const TV_TRANSLATE: usize = usize::MAX;
-const TV_CSTRING: usize = usize::MAX - 1;
-
-const UPD_SOME_VALID: c_int = 35;
+pub(crate) const FORCE_BIN: c_int = 1;
+pub(crate) const FORCE_NOBIN: c_int = 2;
+pub(crate) const BAD_KEEP: c_int = -1;
+pub(crate) const BAD_DROP: c_int = -2;
 
 const kCtxNoDisplay: c_int = 4;
 const kCtxNoEvents: c_int = 8;
 
-const kGRegExprSrc: c_int = 2;
-
 const OPT_LOCAL: c_int = 0x02;
-const kOptInvalid: OptIndex = -1;
 const kOptCharconvert: OptIndex = 36;
 const kOptDiffexpr: OptIndex = 72;
 const kOptPatchexpr: OptIndex = 217;
 const kOptSpellsuggest: OptIndex = 292;
-const kOptFlagFunc: u32 = 1 << 24;
+pub(crate) const kOptFlagFunc: u32 = 1 << 24;
 
 pub const NUM_MSGPACK_TYPES: usize = 8;
 

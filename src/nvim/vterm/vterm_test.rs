@@ -12,55 +12,37 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::ptr;
 
+use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::grid::{schar_T, schar_get};
 use crate::mbyte::utf_ptr2StrCharInfo;
 use crate::vterm::keyboard::{VTermColor, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
 use crate::vterm::parser::VTermStringFragment;
+use crate::vterm::pen::{
+    VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
+    VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
+    VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
+    VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTERM_VALUETYPE_BOOL, VTERM_VALUETYPE_COLOR,
+    VTERM_VALUETYPE_INT,
+};
 use crate::vterm::pen::{VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType};
 use crate::vterm::screen::{ScreenCell, VTermGlyphInfo, VTermScreen, VTermScreenCell, getcell};
+use crate::vterm::screen::{VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE};
 use crate::vterm::state::VTermSelectionMask;
+use crate::vterm::state::{
+    VTERM_PROP_CURSORBLINK, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORVISIBLE,
+    VTERM_PROP_FOCUSREPORT, VTERM_PROP_ICONNAME, VTERM_PROP_MOUSE, VTERM_PROP_SYNCOUTPUT,
+    VTERM_PROP_THEMEUPDATES, VTERM_PROP_TITLE,
+};
 
 pub type VTermAttrMask = c_int;
-
-const MAX_SCHAR_SIZE: usize = 32;
 
 const CSI_ARG_FLAG_MORE: c_long = (1u64 << 31) as c_long;
 const CSI_ARG_MASK: c_long = !((1u64 << 31) as c_long);
 const CSI_ARG_MISSING: c_long = ((1u64 << 31) - 1) as c_long;
 
-const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
-const VTERM_PROP_CURSORBLINK: VTermProp = 2;
-const VTERM_PROP_ALTSCREEN: VTermProp = 3;
-const VTERM_PROP_TITLE: VTermProp = 4;
-const VTERM_PROP_ICONNAME: VTermProp = 5;
-const VTERM_PROP_REVERSE: VTermProp = 6;
-const VTERM_PROP_CURSORSHAPE: VTermProp = 7;
-const VTERM_PROP_MOUSE: VTermProp = 8;
-const VTERM_PROP_FOCUSREPORT: VTermProp = 9;
-const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
-const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
-
-const VTERM_VALUETYPE_BOOL: VTermValueType = 1;
-const VTERM_VALUETYPE_INT: VTermValueType = 2;
 const VTERM_VALUETYPE_STRING: VTermValueType = 3;
-const VTERM_VALUETYPE_COLOR: VTermValueType = 4;
 
-const VTERM_ATTR_BOLD: VTermAttr = 1;
-const VTERM_ATTR_UNDERLINE: VTermAttr = 2;
-const VTERM_ATTR_ITALIC: VTermAttr = 3;
-const VTERM_ATTR_BLINK: VTermAttr = 4;
-const VTERM_ATTR_REVERSE: VTermAttr = 5;
-const VTERM_ATTR_CONCEAL: VTermAttr = 6;
-const VTERM_ATTR_STRIKE: VTermAttr = 7;
-const VTERM_ATTR_FONT: VTermAttr = 8;
-const VTERM_ATTR_FOREGROUND: VTermAttr = 9;
-const VTERM_ATTR_BACKGROUND: VTermAttr = 10;
-const VTERM_ATTR_SMALL: VTermAttr = 11;
-const VTERM_ATTR_BASELINE: VTermAttr = 12;
-const VTERM_ATTR_URI: VTermAttr = 13;
-const VTERM_ATTR_DIM: VTermAttr = 14;
-const VTERM_ATTR_OVERLINE: VTermAttr = 15;
 const VTERM_N_ATTRS: VTermAttr = 16;
 
 const VTERM_ATTR_BOLD_MASK: VTermAttrMask = 1 << 0;

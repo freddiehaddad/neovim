@@ -388,7 +388,7 @@ const MOUSE_X1: c_int = 0x300;
 const MOUSE_X2: c_int = 0x400;
 
 #[cfg(not(test))]
-const STR2NR_ALL: c_int = 0x0f;
+const STR2NR_ALL: c_int = 0x7f;
 #[cfg(not(test))]
 const K_CPO_BSLASH: c_int = b'B' as c_int;
 #[cfg(not(test))]

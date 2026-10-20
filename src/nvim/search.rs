@@ -87,10 +87,22 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub type Direction = c_int;
+use crate::api::options::IOSIZE;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::HLF_N;
 pub use crate::api::win_config::UIExtension;
+use crate::cmdexpand::RE_LAST;
+use crate::eval::funcs::RE_SEARCH;
+use crate::ex_cmds::{RE_BOTH, RE_SUBST};
+use crate::ex_docmd::{ACTION_SHOW, ACTION_SHOW_ALL, ACTION_SPLIT, CHECK_PATH, FIND_DEFINE};
 pub use crate::fileio::FILE;
+use crate::insexpand::ACTION_EXPAND;
+use crate::insexpand::kShmCompletionscan;
+use crate::r#match::kCpoSearch;
+use crate::normal::{kCpoMatch, kShmSearchcount};
 pub use crate::option::OptInt;
 pub use crate::regexp::magic_T;
+use crate::regexp::{MAGIC_ALL, MAGIC_ON, RE_MAGIC};
 pub type AdditionalData = c_void;
 
 const NUL: c_char = 0;
@@ -98,17 +110,7 @@ const TAB: c_char = b'\t' as c_char;
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 const MAXCOL: colnr_T = 0x7fffffff;
-const MAX_SCHAR_SIZE: usize = 32;
-const IOSIZE: usize = 1025;
 const LSIZE: usize = 512;
-
-const FIND_DEFINE: c_int = 2;
-const CHECK_PATH: c_int = 3;
-
-const ACTION_SHOW: c_int = 1;
-const ACTION_SPLIT: c_int = 3;
-const ACTION_SHOW_ALL: c_int = 4;
-const ACTION_EXPAND: c_int = 5;
 
 const SEARCH_REV: c_int = 0x01;
 const SEARCH_ECHO: c_int = 0x02;
@@ -128,16 +130,6 @@ const FM_FORWARD: c_int = 0x02;
 const FM_BLOCKSTOP: c_int = 0x04;
 const FM_SKIPCOMM: c_int = 0x08;
 
-const RE_SEARCH: c_int = 0;
-const RE_SUBST: c_int = 1;
-const RE_BOTH: c_int = 2;
-const RE_LAST: c_int = 2;
-
-const RE_MAGIC: c_int = 1;
-
-const MAGIC_ON: magic_T = 3;
-const MAGIC_ALL: magic_T = 4;
-
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;
 const SEARCH_STAT_BUF_LEN: usize = 16;
 
@@ -149,16 +141,12 @@ const kMTLineWise: MotionType = 1;
 
 const CMOD_KEEPPATTERNS: c_int = 0x1000;
 
-const kCpoSearch: c_int = b'c' as c_int;
 const kCpoLineoff: c_int = b'o' as c_int;
 const kCpoScolon: c_int = b';' as c_int;
-const kCpoMatch: c_int = b'%' as c_int;
-const kCpoMatchbsl: c_int = b'M' as c_int;
+pub(crate) const kCpoMatchbsl: c_int = b'M' as c_int;
 const kCpoShowmatch: c_int = b'm' as c_int;
 
-const kShmSearch: c_int = b's' as c_int;
-const kShmSearchcount: c_int = b'S' as c_int;
-const kShmCompletionscan: c_int = b'C' as c_int;
+pub(crate) const kShmSearch: c_int = b's' as c_int;
 
 const kOptBoFlagShowmatch: c_uint = 0x2000;
 const kOptFdoFlagSearch: c_uint = 0x40;
@@ -166,7 +154,6 @@ const kOptFdoFlagSearch: c_uint = 0x40;
 const kUIMessages: UIExtension = 4;
 
 const HLF_D: c_int = 5;
-const HLF_N: c_int = 12;
 const HLF_R: c_int = 18;
 
 const VV_SEARCHFORWARD: c_int = 56;

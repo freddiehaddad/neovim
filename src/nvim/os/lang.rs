@@ -50,10 +50,6 @@ use std::ptr;
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
-#[cfg(not(test))]
-const MAXPATHL: usize = 4096;
-#[cfg(all(not(test), unix))]
-const kShellOptSilent: c_int = 8;
 
 #[cfg(not(test))]
 const VV_LANG: c_int = 13;
@@ -130,6 +126,10 @@ unsafe extern "C" {
     fn textdomain(domainname: *const c_char) -> *mut c_char;
 }
 
+#[cfg(not(test))]
+use crate::api::vim::MAXPATHL;
+#[cfg(all(not(test), unix))]
+use crate::diff::kShellOptSilent;
 #[cfg(not(windows))]
 #[cfg(not(test))]
 use crate::strings::strtok_r;

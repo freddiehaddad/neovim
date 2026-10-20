@@ -27,7 +27,7 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
-const ADDRESS_MAX_SIZE: usize = 256;
+pub(crate) const ADDRESS_MAX_SIZE: usize = 256;
 
 const UV_REQ: c_int = 1;
 const UV_GETADDRINFO: c_int = 8;
@@ -65,9 +65,6 @@ const UV_ENOENT: c_int = -4058;
 #[cfg(not(windows))]
 const UV_ENOENT: c_int = -2;
 
-const LOGLVL_WRN: c_int = 3;
-const LOGLVL_ERR: c_int = 4;
-
 pub use crate::event::r#loop::Loop;
 pub type SocketWatcher = c_void;
 pub use crate::event::r#loop::uv_loop_t;
@@ -75,6 +72,7 @@ pub use crate::event::r#loop::{uv_close_cb, uv_connect_cb, uv_connect_t, uv_hand
 pub use crate::event::rstream::RStream;
 pub use crate::event::stream::uv_pipe_t;
 pub use crate::event::stream::uv_stream_t;
+use crate::log::{LOGLVL_ERR, LOGLVL_WRN};
 pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 

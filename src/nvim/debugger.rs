@@ -51,20 +51,12 @@ const MODE_NORMAL: c_int = 0x01;
 #[cfg(not(test))]
 const ESTACK_NONE: c_int = 0;
 #[cfg(not(test))]
-const EXPAND_NOTHING: c_int = 0;
-#[cfg(not(test))]
 const DOCMD_VERBOSE: c_int = 0x01;
 #[cfg(not(test))]
 const DOCMD_EXCRESET: c_int = 0x10;
-#[cfg(not(test))]
-const UPD_NOT_VALID: c_int = 40;
 
 #[cfg(not(test))]
 const K_SPECIAL: u8 = 0x80;
-#[cfg(not(test))]
-const KS_EXTRA: u8 = 253;
-#[cfg(not(test))]
-const KE_SNR: u8 = 82;
 
 #[cfg(not(test))]
 const DBG_FUNC: c_int = 1;
@@ -81,13 +73,7 @@ const CMD_PROFILE: c_int = 338;
 const CMD_PROFDEL: c_int = 339;
 
 #[cfg(not(test))]
-const RE_MAGIC: c_int = 1;
-#[cfg(not(test))]
-const RE_STRING: c_int = 2;
-#[cfg(not(test))]
 const EXPR_IS: c_int = 9;
-#[cfg(not(test))]
-const MAXPATHL: usize = 4096;
 
 #[cfg(not(test))]
 const CMD_CONT: c_int = 1;
@@ -166,7 +152,17 @@ pub use crate::api::tabpage::win_T;
 pub use crate::eval::deprecated::buf_T;
 pub use crate::input::tasave_T;
 
+#[cfg(not(test))]
+use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::cmdexpand::EXPAND_NOTHING;
 pub use crate::cmdexpand::LineGetter;
+#[cfg(not(test))]
+use crate::drawscreen::UPD_NOT_VALID;
+#[cfg(not(test))]
+use crate::keycodes::{KE_SNR, KS_EXTRA};
+#[cfg(not(test))]
+use crate::regexp::{RE_MAGIC, RE_STRING};
 
 #[cfg(not(test))]
 #[inline]

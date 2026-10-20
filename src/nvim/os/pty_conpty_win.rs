@@ -62,10 +62,6 @@ const CREATE_UNICODE_ENVIRONMENT: DWORD = 0x0000_0400;
 const PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE: usize = 0x0002_0016;
 #[cfg(windows)]
 const S_OK: HRESULT = 0;
-#[cfg(all(not(test), windows))]
-const LOGLVL_INF: c_int = 2;
-#[cfg(all(not(test), windows))]
-const LOGLVL_ERR: c_int = 4;
 
 #[cfg(windows)]
 #[repr(C)]
@@ -201,6 +197,8 @@ unsafe extern "system" {
     ) -> BOOL;
 }
 
+#[cfg(all(not(test), windows))]
+use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 

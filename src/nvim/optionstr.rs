@@ -202,7 +202,20 @@ pub struct vimoption_T {
     pub script_ctx: sctx_T,
 }
 
+use crate::api::options::IOSIZE;
 pub use crate::api::private::helpers::TryState;
+use crate::buffer::{STL_IN_ICON, STL_IN_TITLE};
+use crate::charset::EOL_MAC;
+use crate::decoration::SCL_NUM;
+use crate::diff::kOptDiffopt;
+use crate::drawscreen::{UPD_INVERTED, UPD_NOT_VALID, UPD_VALID};
+use crate::indent::kOptBreakindentopt;
+use crate::option::kOptFlagOneComma;
+use crate::option::{
+    kOptBackupcopy, kOptComments, kOptCompleteopt, kOptEventignorewin, kOptFileformat,
+    kOptFileformats, kOptFlagComma, kOptFlagNDname, kOptFlagNFname, kOptListchars, kOptStatusline,
+    kOptTagcase, kOptVarsofttabstop, kOptVirtualedit,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -281,51 +294,32 @@ union OptKeyDict {
 }
 
 const NUL: c_char = 0;
-const IOSIZE: usize = 1025;
 const LSIZE: usize = 512;
 const MAXLNUM: i32 = 0x7fffffff;
 
 const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
 
-const kOptFlagComma: u32 = 1 << 10;
-const kOptFlagOneComma: u32 = (1 << 11) | kOptFlagComma;
-const kOptFlagNFname: u32 = 1 << 17;
-const kOptFlagNDname: u32 = 1 << 21;
-
 const kOptAmbiwidth: OptIndex = 2;
-const kOptBackupcopy: OptIndex = 16;
 const kOptBackupext: OptIndex = 18;
 const kOptBelloff: OptIndex = 20;
-const kOptBreakindentopt: OptIndex = 25;
 const kOptCasemap: OptIndex = 31;
 const kOptClipboard: OptIndex = 43;
-const kOptComments: OptIndex = 48;
-const kOptCompleteopt: OptIndex = 54;
-const kOptDiffopt: OptIndex = 73;
 const kOptDisplay: OptIndex = 76;
 const kOptEncoding: OptIndex = 80;
-const kOptEventignorewin: OptIndex = 89;
 const kOptFileencoding: OptIndex = 92;
-const kOptFileformat: OptIndex = 94;
-const kOptFileformats: OptIndex = 95;
 const kOptFoldopen: OptIndex = 112;
 const kOptJumpoptions: OptIndex = 158;
-const kOptListchars: OptIndex = 176;
 const kOptMessagesopt: OptIndex = 190;
 const kOptMousescroll: OptIndex = 203;
 const kOptPatchmode: OptIndex = 218;
-const kOptPreviewpopup: OptIndex = 222;
+pub(crate) const kOptPreviewpopup: OptIndex = 222;
 const kOptRedrawdebug: OptIndex = 234;
 const kOptSessionoptions: OptIndex = 257;
-const kOptStatusline: OptIndex = 298;
 const kOptSwitchbuf: OptIndex = 302;
 const kOptTabclose: OptIndex = 305;
-const kOptTagcase: OptIndex = 310;
 const kOptTermpastefilter: OptIndex = 319;
-const kOptVarsofttabstop: OptIndex = 341;
 const kOptViewoptions: OptIndex = 346;
-const kOptVirtualedit: OptIndex = 347;
 const kOptWildoptions: OptIndex = 357;
 
 const kOptBkcFlagYes: c_uint = 0x01;
@@ -343,26 +337,17 @@ const MOUSESCROLL_VERT_DFLT: i64 = 3;
 const MOUSESCROLL_HOR_DFLT: i64 = 6;
 
 const SCL_NO: c_int = -1;
-const SCL_NUM: c_int = -2;
 
-const STL_SEPARATE: c_char = b'=' as c_char;
-const STL_TRUNCMARK: c_char = b'<' as c_char;
-const STL_USER_HL: c_char = b'*' as c_char;
-const STL_HIGHLIGHT: c_char = b'#' as c_char;
-const STL_IN_ICON: c_int = 1;
-const STL_IN_TITLE: c_int = 2;
-
-const UPD_VALID: c_int = 10;
-const UPD_INVERTED: c_int = 20;
-const UPD_NOT_VALID: c_int = 40;
+pub(crate) const STL_SEPARATE: c_char = b'=' as c_char;
+pub(crate) const STL_TRUNCMARK: c_char = b'<' as c_char;
+pub(crate) const STL_USER_HL: c_char = b'*' as c_char;
+pub(crate) const STL_HIGHLIGHT: c_char = b'#' as c_char;
 
 const SID_NONE: scid_T = -6;
 
 const CPT_ABBR: c_uint = 0;
 const CPT_KIND: c_uint = 1;
 const CPT_MENU: c_uint = 2;
-
-const EOL_MAC: c_int = 2;
 
 const B_IMODE_USE_INSERT: i64 = -1;
 const B_IMODE_NONE: i64 = 0;
@@ -379,7 +364,7 @@ const FO_ALL: &CStr = c"tcro/q2vlb1mMBn,aw]jp";
 const MOUSE_ALL: &CStr = c"anvichr";
 const WW_ALL: &CStr = c"bshl<>[]~";
 const WW_ALL_COMMA: &CStr = c"bshl<>[]~,";
-const STL_ALL: &CStr = c"fFtcvVlLnkoObBrRhHyYwWmMqpPaNSCs{=<*#$TX@";
+pub(crate) const STL_ALL: &CStr = c"fFtcvVlLnkoObBrRhHyYwWmMqpPaNSCs{=<*#$TX@";
 
 const E_ILLEGAL_CHARACTER_AFTER_CHR: &CStr = c"E535: Illegal character after <%c>";
 const E_COMMA_REQUIRED: &CStr = c"E536: Comma required";

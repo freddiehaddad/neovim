@@ -117,38 +117,30 @@ pub use crate::eval::buffer::varnumber_T;
 pub use crate::option::OptInt;
 pub use crate::terminal::Terminal;
 
-const CHAN_STDIO: u64 = 1;
 const CHAN_STDERR: u64 = 2;
 
-const STDIN_FILENO: c_int = 0;
-const STDOUT_FILENO: c_int = 1;
-const STDERR_FILENO: c_int = 2;
+pub(crate) const STDIN_FILENO: c_int = 0;
+pub(crate) const STDOUT_FILENO: c_int = 1;
+pub(crate) const STDERR_FILENO: c_int = 2;
 
 const LUA_NOREF: LuaRef = -2;
 const VAR_UNLOCKED: c_int = 0;
-const kCallbackNone: c_int = 0;
-#[cfg(not(test))]
-const kListLenMayKnow: isize = -3;
 
-const kProcTypeUv: c_int = 0;
-const kProcTypePty: c_int = 1;
+pub(crate) const kProcTypeUv: c_int = 0;
+pub(crate) const kProcTypePty: c_int = 1;
 
-const kChannelStreamProc: ChannelStreamType = 0;
-const kChannelStreamSocket: ChannelStreamType = 1;
+pub(crate) const kChannelStreamProc: ChannelStreamType = 0;
+pub(crate) const kChannelStreamSocket: ChannelStreamType = 1;
 const kChannelStreamStdio: ChannelStreamType = 2;
 const kChannelStreamStderr: ChannelStreamType = 3;
-const kChannelStreamInternal: ChannelStreamType = 4;
 
-const kChannelPartStdin: ChannelPart = 0;
-const kChannelPartStdout: ChannelPart = 1;
-const kChannelPartStderr: ChannelPart = 2;
-const kChannelPartRpc: ChannelPart = 3;
+pub(crate) const kChannelPartStdin: ChannelPart = 0;
+pub(crate) const kChannelPartStdout: ChannelPart = 1;
+pub(crate) const kChannelPartStderr: ChannelPart = 2;
+pub(crate) const kChannelPartRpc: ChannelPart = 3;
 const kChannelPartAll: ChannelPart = 4;
 
 const kChannelStdinPipe: ChannelStdinMode = 0;
-
-const EVENT_CHANCLOSE: event_T = 22;
-const EVENT_CHANOPEN: event_T = 24;
 
 #[cfg(all(not(test), target_os = "linux"))]
 const F_DUPFD_CLOEXEC: c_int = 1030;
@@ -187,6 +179,12 @@ pub struct TerminalOptions {
     pub force_crlf: bool,
 }
 
+use crate::api::autocmd::kCallbackNone;
+use crate::api::ui::CHAN_STDIO;
+use crate::api::vim::kChannelStreamInternal;
+use crate::autocmd::{EVENT_CHANCLOSE, EVENT_CHANOPEN};
+#[cfg(not(test))]
+use crate::eval::kListLenMayKnow;
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::dup2;
 

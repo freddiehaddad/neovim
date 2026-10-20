@@ -56,6 +56,7 @@ mod nfa;
 use self::bt::*;
 use self::nfa::*;
 
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub type magic_T = c_int;
 pub type reg_getline_flags_T = c_uint;
@@ -90,8 +91,6 @@ pub(super) const CAR: c_int = 0x0d;
 pub(super) const Ctrl_V: c_int = 0x16;
 pub(super) const ESC: c_int = 0x1b;
 
-pub(super) const FAIL: c_int = 0;
-pub(super) const OK: c_int = 1;
 pub(super) const MAXCOL: colnr_T = 0x7fffffff;
 pub(super) const NUMBUFLEN: usize = 65;
 pub(super) const MB_MAXBYTES: c_int = 30;

@@ -28,12 +28,12 @@ use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
 use crate::strings::{atoi, gettext, memchr, strchr, strstr, vim_strchr};
 use crate::ui::ui_has;
+use crate::window::LOWEST_WIN_ID;
 use crate::window::one_window;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const NUL: c_char = 0;
-const LOWEST_WIN_ID: c_int = 1000;
 const kUIMessages: UIExtension = 4;
 const kUIMultigrid: UIExtension = 6;
 const kShmIntro: c_int = b'I' as c_int;

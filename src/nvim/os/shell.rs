@@ -60,8 +60,16 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
+use crate::api::vim::MAXPATHL;
+use crate::autocmd::PROF_YES;
+use crate::channel::kProcTypeUv;
+use crate::channel::{STDERR_FILENO, STDOUT_FILENO};
 pub use crate::cursor::linenr_T;
+use crate::diff::kShellOptDoOut;
+use crate::diff::kShellOptSilent;
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::fs::{SEEK_END, SEEK_SET};
+use crate::ex_cmds::{kShellOptRead, kShellOptWrite};
 pub use crate::fileio::FILE;
 pub use crate::option::OptInt;
 pub use crate::profile::proftime_T;
@@ -71,7 +79,6 @@ const TAB: c_char = b'\t' as c_char;
 const NL: c_char = b'\n' as c_char;
 const CAR: c_char = b'\r' as c_char;
 
-const MAXPATHL: usize = 4096;
 const OUT_DATA_THRESHOLD: usize = 1024 * 10;
 const MAX_CHUNK_SIZE: usize = OUT_DATA_THRESHOLD / 2;
 const NS_PER_SEC: u64 = 1_000_000_000;
@@ -79,10 +86,6 @@ const NS_PER_SEC: u64 = 1_000_000_000;
 const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 
 const kShellOptExpand: c_int = 2;
-const kShellOptDoOut: c_int = 4;
-const kShellOptSilent: c_int = 8;
-const kShellOptRead: c_int = 16;
-const kShellOptWrite: c_int = 32;
 const kShellOptHideMess: c_int = 64;
 
 const EW_DIR: c_int = 0x01;
@@ -100,19 +103,11 @@ const STYLE_PRINT: c_int = 3;
 const STYLE_BT: c_int = 4;
 const STYLE_GLOBSTAR: c_int = 5;
 
-const SEEK_SET: c_int = 0;
-const SEEK_END: c_int = 2;
-
-const STDOUT_FILENO: c_int = 1;
-const STDERR_FILENO: c_int = 2;
-
 const MODE_EXTERNCMD: c_int = 0x5000;
-const PROF_YES: c_int = 1;
 const VV_SHELL_ERROR: c_int = 6;
 const kUIMessages: c_int = 4;
 const HLF_SE: c_int = 72;
 const HLF_SO: c_int = 73;
-const kProcTypeUv: c_int = 0;
 
 #[cfg(windows)]
 const CP_UTF8: u32 = 65001;

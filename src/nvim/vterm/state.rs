@@ -16,14 +16,18 @@ use crate::mbyte::{
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
 use crate::vterm::encoding::{VTermEncoding, VTermEncodingType, vterm_lookup_encoding};
 use crate::vterm::keyboard::VTermStateFull;
+use crate::vterm::keyboard::{BUFIDX_ALTSCREEN, BUFIDX_PRIMARY};
+use crate::vterm::mouse::{MOUSE_RXVT, MOUSE_SGR, MOUSE_UTF8, MOUSE_X10};
 use crate::vterm::mouse::{VTerm, VTermPos};
 use crate::vterm::parser::{
     VTermParserCallbacks, VTermStringFragment, VTermTerminator, vterm_parser_set_callbacks,
 };
+use crate::vterm::pen::{CSI_ARG_FLAG_MORE_U32, CSI_ARG_MASK_U32};
 use crate::vterm::pen::{
     VTermProp, VTermRect, VTermStateCallbacks, VTermValue, vterm_state_getpen, vterm_state_newpen,
     vterm_state_resetpen, vterm_state_savepen, vterm_state_setpen,
 };
+use crate::vterm::screen::{VTERM_PROP_ALTSCREEN, VTERM_PROP_REVERSE};
 use crate::vterm::screen::{VTermGlyphInfo, VTermLineInfo, VTermStateFields};
 use crate::vterm::vterm::{
     vterm_allocator_free, vterm_allocator_malloc, vterm_push_output_bytes,
@@ -33,9 +37,6 @@ use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 pub type VTermSelectionMask = c_int;
-
-const BUFIDX_PRIMARY: usize = 0;
-const BUFIDX_ALTSCREEN: usize = 1;
 
 const C1_DCS: u8 = 0x90;
 const C1_CSI: u8 = 0x9b;
@@ -53,26 +54,19 @@ const MOUSE_WANT_CLICK: c_int = 0x01;
 const MOUSE_WANT_DRAG: c_int = 0x02;
 const MOUSE_WANT_MOVE: c_int = 0x04;
 
-const MOUSE_X10: c_int = 0;
-const MOUSE_UTF8: c_int = 1;
-const MOUSE_SGR: c_int = 2;
-const MOUSE_RXVT: c_int = 3;
+pub(crate) const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
+pub(crate) const VTERM_PROP_CURSORBLINK: VTermProp = 2;
+pub(crate) const VTERM_PROP_TITLE: VTermProp = 4;
+pub(crate) const VTERM_PROP_ICONNAME: VTermProp = 5;
+pub(crate) const VTERM_PROP_CURSORSHAPE: VTermProp = 7;
+pub(crate) const VTERM_PROP_MOUSE: VTermProp = 8;
+pub(crate) const VTERM_PROP_FOCUSREPORT: VTermProp = 9;
+pub(crate) const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
+pub(crate) const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
 
-const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
-const VTERM_PROP_CURSORBLINK: VTermProp = 2;
-const VTERM_PROP_ALTSCREEN: VTermProp = 3;
-const VTERM_PROP_TITLE: VTermProp = 4;
-const VTERM_PROP_ICONNAME: VTermProp = 5;
-const VTERM_PROP_REVERSE: VTermProp = 6;
-const VTERM_PROP_CURSORSHAPE: VTermProp = 7;
-const VTERM_PROP_MOUSE: VTermProp = 8;
-const VTERM_PROP_FOCUSREPORT: VTermProp = 9;
-const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
-const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
-
-const VTERM_PROP_CURSORSHAPE_BLOCK: c_int = 1;
-const VTERM_PROP_CURSORSHAPE_UNDERLINE: c_int = 2;
-const VTERM_PROP_CURSORSHAPE_BAR_LEFT: c_int = 3;
+pub(crate) const VTERM_PROP_CURSORSHAPE_BLOCK: c_int = 1;
+pub(crate) const VTERM_PROP_CURSORSHAPE_UNDERLINE: c_int = 2;
+pub(crate) const VTERM_PROP_CURSORSHAPE_BAR_LEFT: c_int = 3;
 
 const VTERM_PROP_MOUSE_NONE: c_int = 0;
 const VTERM_PROP_MOUSE_CLICK: c_int = 1;
@@ -120,11 +114,9 @@ const MODE_REPORT_FOCUS: u32 = 1 << 14;
 const MODE_THEME_UPDATES: u32 = 1 << 15;
 const MODE_SYNCHRONIZED_OUTPUT: u32 = 1 << 16;
 
-const VT_MODE_UTF8: u32 = 1 << 0;
-const VT_MODE_CTRL8BIT: u32 = 1 << 1;
+pub(crate) const VT_MODE_UTF8: u32 = 1 << 0;
+pub(crate) const VT_MODE_CTRL8BIT: u32 = 1 << 1;
 
-const CSI_ARG_FLAG_MORE_U32: u32 = 1u32 << 31;
-const CSI_ARG_MASK_U32: u32 = !(1u32 << 31);
 const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
 
 const GRAPHEME_STATE_INIT: i32 = 0;

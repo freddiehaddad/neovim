@@ -14,13 +14,16 @@ use crate::api::private::helpers::{
     api_set_error, arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
+use crate::api::ui::HLATTRS_DICT_SIZE;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::charset::{
     ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
 };
+use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration_provider::decor_provider_invalidate_hl;
 use crate::drawscreen::redraw_all_later;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID};
 use crate::errors::*;
 use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
@@ -33,10 +36,15 @@ use crate::highlight::{
     HLATTRS_INIT, KeyDict_highlight, OptionalKeys, RgbValue, hl_add_font_idx, hl_get_font,
     hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
 };
+use crate::highlight::{
+    HLF_INACTIVE, HLF_NONE, KEYSET_OPTIDX_highlight__bg, KEYSET_OPTIDX_highlight__fg,
+    KEYSET_OPTIDX_highlight__font, KEYSET_OPTIDX_highlight__sp,
+};
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::map::{HlAttrs, Map, Set, cstr_t, map_put_ref_cstr_t_int, map_ref_cstr_t_int};
 use crate::map_glyph_cache::{MapHash, NvimString};
+use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, xfree, xmalloc, xmemrchr, xstrdup, xstrlcat,
@@ -62,11 +70,9 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const NUL: c_char = 0;
-const OK: c_int = 1;
 
 const MAX_HL_ID: c_int = 20000;
 const MAX_SYN_NAME: usize = 200;
-const HLATTRS_DICT_SIZE: usize = 24;
 
 const SG_CTERM: c_int = 2;
 const SG_GUI: c_int = 4;
@@ -100,37 +106,25 @@ const HL_BLINK: c_int = 0x8000;
 const HL_CONCEALED: c_int = 0x10000;
 const HL_OVERLINE: c_int = 0x20000;
 
-const HLF_NONE: usize = 0;
 const HLF_D: c_int = 5;
 const HLF_S: usize = 19;
 const HLF_SNC: usize = 20;
 const HLF_W: c_int = 26;
-const HLF_INACTIVE: usize = 60;
 const HLF_MSG: usize = 63;
 const HLF_COUNT: usize = 76;
 
 const DIP_START: c_int = 0x08;
 const DIP_OPT: c_int = 0x10;
 
-const UPD_SOME_VALID: c_int = 35;
-const UPD_NOT_VALID: c_int = 40;
-
 const kUIMessages: UIExtension = 4;
 const kUILinegrid: UIExtension = 5;
 
 const kOptBackground: OptIndex = 13;
 
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_HIGHLIGHT: c_int = 13;
-
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kTrue: TriState = 1;
 
-const KEYSET_OPTIDX_highlight__bg: c_int = 1;
-const KEYSET_OPTIDX_highlight__fg: c_int = 2;
-const KEYSET_OPTIDX_highlight__sp: c_int = 3;
-const KEYSET_OPTIDX_highlight__font: c_int = 7;
 const KEYSET_OPTIDX_highlight__update: c_int = 14;
 
 const KEYSET_OPTIDX_get_highlight__id: c_int = 1;

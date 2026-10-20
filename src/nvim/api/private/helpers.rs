@@ -52,17 +52,14 @@ const CAR: c_char = b'\r' as c_char;
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
 
-const DI_FLAGS_RO: u8 = 1;
-const DI_FLAGS_FIX: u8 = 4;
-const DI_FLAGS_LOCK: u8 = 8;
+pub(crate) const DI_FLAGS_RO: u8 = 1;
+pub(crate) const DI_FLAGS_FIX: u8 = 4;
+pub(crate) const DI_FLAGS_LOCK: u8 = 8;
 
 const HLF_E: c_int = 6;
 
 const SID_API_CLIENT: scid_T = -9;
-const SID_LUA: scid_T = -8;
-const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
-const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
-const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
+pub(crate) const SID_LUA: scid_T = -8;
 
 const OBJECT_NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
@@ -3677,6 +3674,8 @@ static PACKED_API_METADATA_SUFFIX: &[u8] = &[
     109, 95, 116, 97, 98, 112, 97, 103, 101, 95,
 ];
 
+use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::buffer::VIML_INTERNAL_CALL;
 use crate::version::nvim_version_build;
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();

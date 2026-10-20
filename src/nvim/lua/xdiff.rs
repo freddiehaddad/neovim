@@ -48,15 +48,7 @@ const COMPARED_BUFFER1: c_int = 1 << 1;
 #[cfg(not(test))]
 const XDF_NEED_MINIMAL: c_ulong = 1 << 0;
 #[cfg(not(test))]
-const XDF_IGNORE_WHITESPACE: c_ulong = 1 << 1;
-#[cfg(not(test))]
-const XDF_IGNORE_WHITESPACE_CHANGE: c_ulong = 1 << 2;
-#[cfg(not(test))]
-const XDF_IGNORE_WHITESPACE_AT_EOL: c_ulong = 1 << 3;
-#[cfg(not(test))]
 const XDF_IGNORE_CR_AT_EOL: c_ulong = 1 << 4;
-#[cfg(not(test))]
-const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
 #[cfg(not(test))]
 const XDF_PATIENCE_DIFF: c_ulong = 1 << 14;
 #[cfg(not(test))]
@@ -64,12 +56,6 @@ const XDF_HISTOGRAM_DIFF: c_ulong = 1 << 15;
 #[cfg(not(test))]
 const XDF_INDENT_HEURISTIC: c_ulong = 1 << 23;
 
-#[cfg(not(test))]
-const LUA_TSTRING: c_int = 4;
-#[cfg(not(test))]
-const LUA_TTABLE: c_int = 5;
-#[cfg(not(test))]
-const LUA_TFUNCTION: c_int = 6;
 #[cfg(not(test))]
 const LUA_NOREF: c_int = -2;
 
@@ -158,6 +144,15 @@ struct HunkPriv {
 
 #[cfg(not(test))]
 use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
+#[cfg(not(test))]
+use crate::diff::{
+    XDF_IGNORE_BLANK_LINES, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
+    XDF_IGNORE_WHITESPACE_CHANGE,
+};
+#[cfg(not(test))]
+use crate::lua::base64::LUA_TSTRING;
+#[cfg(not(test))]
+use crate::lua::converter::{LUA_TFUNCTION, LUA_TTABLE};
 
 #[cfg(not(test))]
 unsafe fn lua_pushhunk(

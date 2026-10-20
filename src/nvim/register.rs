@@ -8,14 +8,17 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::buffer::kExtmarkNOOP;
 use crate::api::command::exarg_T;
 use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
+use crate::api::vim::{REMAP_NONE, REMAP_YES};
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
     EVENT_TEXTYANKPOST, apply_autocmds, has_event,
 };
 use crate::buffer::{buf_is_empty, buflist_findnr, buflist_findpat, buflist_name_nr, getaltfname};
 use crate::buffer_updates::buf_updates_send_changes;
+use crate::change::SIN_NOMARK;
 use crate::change::{changed_bytes, changed_lines, del_chars};
 use crate::charset::{ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
 use crate::clipboard::{
@@ -29,12 +32,14 @@ use crate::drawscreen::{showmode, update_screen};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::pos_T;
+use crate::eval::funcs::RE_SEARCH;
 use crate::eval::typval::{
     BoolVarValue, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
     tv_list_append_string,
 };
 use crate::eval::{eval_to_string, get_v_event, restore_v_event};
+use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
 use crate::ex_getln::{cmdline_paste_str, getcmdline};
 use crate::extmark::{ExtmarkOp, bcount_t, extmark_splice, extmark_splice_cols};
@@ -50,11 +55,11 @@ use crate::input::{
 };
 use crate::insert::{beginline, get_last_insert, get_last_insert_save, oneright, stuff_inserted};
 use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
-use crate::keycodes::{
-    K_SPECIAL, KE_COMMAND, KS_EXTRA, termcap2key, vim_strsave_escape_ks, vim_unescape_ks,
-};
+use crate::keycodes::K_COMMAND;
+use crate::keycodes::{K_SPECIAL, KE_COMMAND, KS_EXTRA, vim_strsave_escape_ks, vim_unescape_ks};
 use crate::map_glyph_cache::NvimString;
 use crate::mark::mark_adjust;
+use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_head_off, utfc_ptr2len,
 };
@@ -68,6 +73,7 @@ use crate::message::{
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
 };
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
+use crate::normal::{FIND_IDENT, FIND_STRING};
 use crate::normal::{exec_stuffed, find_ident_under_cursor};
 use crate::ops::{adjust_cursor_eol, block_prep, charwise_block_prep, get_op_char};
 use crate::option::get_ve_flags;
@@ -78,6 +84,7 @@ use crate::plines::{
     CSType, CharsizeArg, getvcol, init_charsize_arg, utf_ClusterInfo, utf_ptr2StrCharInfo,
     win_charsize,
 };
+use crate::regexp::NUMBUFLEN;
 use crate::search::{Direction, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, save_v_event_T};
 use crate::strings::{
@@ -105,13 +112,10 @@ const Ctrl_U: u8 = 21;
 const Ctrl_V: c_int = 22;
 const Ctrl_W: c_int = 23;
 
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
-const NUMBUFLEN: usize = 65;
 
 pub const PUT_FIXINDENT: c_int = 1;
 pub const PUT_CURSEND: c_int = 2;
@@ -135,23 +139,11 @@ pub const YREG_PASTE: c_int = 0;
 pub const YREG_YANK: c_int = 1;
 pub const YREG_PUT: c_int = 2;
 
-const REMAP_YES: c_int = 0;
-const REMAP_NONE: c_int = -1;
-
-const K_COMMAND: c_int = termcap2key(KS_EXTRA as c_int, KE_COMMAND as c_int);
-
-const FIND_IDENT: c_int = 1;
-const FIND_STRING: c_int = 2;
-
 const VAR_FIXED: c_int = 2;
 const kBoolVarFalse: BoolVarValue = 0;
 const kBoolVarTrue: BoolVarValue = 1;
 
 const CMOD_LOCKMARKS: c_int = 0x0800;
-const SIN_NOMARK: c_int = 8;
-const BL_WHITE: c_int = 1;
-const BL_FIX: c_int = 4;
-const RE_SEARCH: c_int = 0;
 
 const HLF_8: c_int = 1;
 
@@ -159,7 +151,6 @@ const kUIMessages: UIExtension = 4;
 const kCpoRegappend: c_int = b'>' as c_int;
 const kOptVeFlagAll: c_uint = 0x04;
 const kOptVeFlagOnemore: c_uint = 0x08;
-const kExtmarkNOOP: ExtmarkOp = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 
 const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =

@@ -51,17 +51,19 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
+use crate::buffer::{BLN_CURBUF, BLN_LISTED};
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
 pub use crate::eval::buffer::varnumber_T;
+use crate::ex_cmds::{ECMD_LAST, ECMD_ONE};
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::os::env::expand_T;
 pub use crate::path::PathCmpFlags;
+use crate::regexp::RE_MAGIC;
 pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 
 const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
@@ -74,32 +76,25 @@ const EW_ADDSLASH: c_int = 0x08;
 const EW_NOERROR: c_int = 0x200;
 const EW_NOTWILD: c_int = 0x400;
 
-const BLN_CURBUF: c_int = 1;
-const BLN_LISTED: c_int = 2;
-
-const RE_MAGIC: c_int = 1;
-
 const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 const kPathCmpExpand: PathCmpFlags = 1 << 1;
 const kPathCmpFull: PathCmpFlags = 1 << 2;
 
 const CMD_args: cmdidx_T = 7;
-const CMD_argdo: cmdidx_T = 10;
+pub(crate) const CMD_argdo: cmdidx_T = 10;
 const CMD_argglobal: cmdidx_T = 13;
 const CMD_arglocal: cmdidx_T = 14;
 const CMD_drop: cmdidx_T = 132;
 const CMD_snext: cmdidx_T = 420;
 
-const ECMD_LAST: linenr_T = -1;
-const ECMD_ONE: linenr_T = 1;
 const ECMD_HIDE: c_int = 0x01;
 const ECMD_OLDBUF: c_int = 0x04;
 const ECMD_FORCEIT: c_int = 0x08;
 
-const CCGD_AW: c_int = 1;
-const CCGD_MULTWIN: c_int = 2;
-const CCGD_FORCEIT: c_int = 4;
-const CCGD_EXCMD: c_int = 16;
+pub(crate) const CCGD_AW: c_int = 1;
+pub(crate) const CCGD_MULTWIN: c_int = 2;
+pub(crate) const CCGD_FORCEIT: c_int = 4;
+pub(crate) const CCGD_EXCMD: c_int = 16;
 
 const WSP_ROOM: c_int = 0x01;
 const WSP_BELOW: c_int = 0x40;

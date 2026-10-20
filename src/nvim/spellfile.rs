@@ -71,10 +71,19 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type SpellAddType = c_int;
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::eval::fs::SEEK_SET;
+use crate::fileio::EOF;
 pub use crate::fileio::FILE;
+use crate::math::{FAIL, OK};
+use crate::option::kOptSpellfile;
 pub use crate::optionstr::OptIndex;
 pub use crate::os::time::time_t;
 pub use crate::regexp::regprog_T;
+use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING};
+use crate::spell::{MAXWLEN, SP_FORMERROR};
+use crate::viml::parser::parser::CONV_NONE;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
 pub const SPELL_ADD_BAD: SpellAddType = 1;
@@ -82,20 +91,12 @@ pub const SPELL_ADD_RARE: SpellAddType = 2;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const EOF: c_int = -1;
-const SEEK_SET: c_int = 0;
-const CONV_NONE: c_int = 0;
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
 
 const CMD_spellrare: c_int = 431;
 const CMD_spellundo: c_int = 432;
 const CMD_spellwrong: c_int = 433;
 
-const MAXWLEN: usize = 254;
-const MAXREGIONS: usize = 8;
+pub(crate) const MAXREGIONS: usize = 8;
 
 const SPL_FNAME_TMPL: *const c_char = c"%s.%s.spl".as_ptr();
 const SPL_FNAME_ADD: *const c_char = c".add.".as_ptr();
@@ -130,7 +131,6 @@ const COMP_CHECKCASE: c_int = 4;
 const COMP_CHECKTRIPLE: c_int = 8;
 
 const SP_TRUNCERROR: c_int = -1;
-const SP_FORMERROR: c_int = -2;
 const SP_OTHERERROR: c_int = -3;
 
 const BY_NOFLAGS: c_int = 0;
@@ -195,11 +195,6 @@ const CONDIT_CFIX: c_int = 2;
 const CONDIT_SUF: c_int = 4;
 const CONDIT_AFF: c_int = 8;
 
-const RE_MAGIC: c_int = 1;
-const RE_STRING: c_int = 2;
-const RE_STRICT: c_int = 4;
-
-const kOptSpellfile: OptIndex = 289;
 const OPT_LOCAL: c_int = 0x02;
 
 const e_spell_trunc: *const c_char = c"E758: Truncated spell file".as_ptr();

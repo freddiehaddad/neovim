@@ -12,38 +12,22 @@ use std::ptr;
 
 use crate::memory::{xfree, xmalloc};
 use crate::vterm::mouse::VTerm;
+use crate::vterm::parser::NORMAL;
 use crate::vterm::parser::VTermParserCallbacks;
+use crate::vterm::pen::{
+    VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
+    VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
+    VTERM_ATTR_OVERLINE, VTERM_ATTR_REVERSE, VTERM_ATTR_SMALL, VTERM_ATTR_STRIKE,
+    VTERM_ATTR_UNDERLINE, VTERM_ATTR_URI, VTERM_VALUETYPE_BOOL, VTERM_VALUETYPE_COLOR,
+    VTERM_VALUETYPE_INT,
+};
 use crate::vterm::pen::{VTermAttr, VTermRect, VTermValueType};
 use crate::vterm::screen::vterm_screen_free;
 use crate::vterm::state::vterm_state_free;
+use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 
 pub type VTermOutputCallback =
     Option<unsafe extern "C" fn(s: *const c_char, len: usize, user: *mut c_void)>;
-
-const NORMAL: c_int = 0;
-
-const VT_MODE_UTF8: u32 = 1 << 0;
-const VT_MODE_CTRL8BIT: u32 = 1 << 1;
-
-const VTERM_VALUETYPE_BOOL: VTermValueType = 1;
-const VTERM_VALUETYPE_INT: VTermValueType = 2;
-const VTERM_VALUETYPE_COLOR: VTermValueType = 4;
-
-const VTERM_ATTR_BOLD: VTermAttr = 1;
-const VTERM_ATTR_UNDERLINE: VTermAttr = 2;
-const VTERM_ATTR_ITALIC: VTermAttr = 3;
-const VTERM_ATTR_BLINK: VTermAttr = 4;
-const VTERM_ATTR_REVERSE: VTermAttr = 5;
-const VTERM_ATTR_CONCEAL: VTermAttr = 6;
-const VTERM_ATTR_STRIKE: VTermAttr = 7;
-const VTERM_ATTR_FONT: VTermAttr = 8;
-const VTERM_ATTR_FOREGROUND: VTermAttr = 9;
-const VTERM_ATTR_BACKGROUND: VTermAttr = 10;
-const VTERM_ATTR_SMALL: VTermAttr = 11;
-const VTERM_ATTR_BASELINE: VTermAttr = 12;
-const VTERM_ATTR_URI: VTermAttr = 13;
-const VTERM_ATTR_DIM: VTermAttr = 14;
-const VTERM_ATTR_OVERLINE: VTermAttr = 15;
 
 #[repr(C)]
 pub struct VTermAllocatorFunctions {

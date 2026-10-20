@@ -51,7 +51,6 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
 const FORWARD: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 
@@ -59,20 +58,9 @@ const MODE_NORMAL: c_int = 0x01;
 const MODE_INSERT: c_int = 0x10;
 const VREPLACE_FLAG: c_int = 0x200;
 
-const UPD_VALID: c_int = 10;
-const UPD_INVERTED: c_int = 20;
-
 const CMOD_LOCKMARKS: c_int = 0x0800;
 
-const INDENT_SET: c_int = 1;
-const SIN_CHANGED: c_int = 1;
-
-const BL_WHITE: c_int = 1;
-const BL_FIX: c_int = 4;
-
-const INSCHAR_FORMAT: c_int = 1;
 const INSCHAR_DO_COM: c_int = 2;
-const INSCHAR_NO_FEX: c_int = 8;
 const INSCHAR_COM_LIST: c_int = 16;
 
 const OPENLINE_DELSPACES: c_int = 0x01;
@@ -82,28 +70,20 @@ const OPENLINE_MARKFIX: c_int = 0x08;
 const OPENLINE_COM_LIST: c_int = 0x10;
 const OPENLINE_FORMAT: c_int = 0x20;
 
-const COM_START: c_char = b's' as c_char;
 const COM_MIDDLE: c_char = b'm' as c_char;
-const COM_END: c_char = b'e' as c_char;
-const COM_FIRST: c_char = b'f' as c_char;
 
-const kFoAuto: c_int = b'a' as c_int;
-const kFoInsBlank: c_int = b'b' as c_int;
 const kFoInsVi: c_int = b'v' as c_int;
 const kFoMbyteBreak: c_int = b'm' as c_int;
 const kFoOneLetter: c_int = b'1' as c_int;
 const kFoPeriodAbbr: c_int = b'p' as c_int;
-const kFoQComs: c_int = b'q' as c_int;
 const kFoQNumber: c_int = b'n' as c_int;
 const kFoQSecond: c_int = b'2' as c_int;
 const kFoRigorousTw: c_int = b']' as c_int;
-const kFoWhitePar: c_int = b'w' as c_int;
 const kFoWrap: c_int = b't' as c_int;
 const kFoWrapComs: c_int = b'c' as c_int;
 
 const OPT_LOCAL: c_int = 0x02;
 const kOptFormatexpr: c_int = 115;
-const kBufOptFormatexpr: usize = 37;
 
 const VV_COUNT: c_int = 0;
 const VV_LNUM: c_int = 9;
@@ -111,7 +91,16 @@ const VV_CHAR: c_int = 50;
 
 pub type MotionType = c_int;
 pub type InsArrow = c_int;
+use crate::change::{COM_END, COM_FIRST, COM_START};
+use crate::drawscreen::{UPD_INVERTED, UPD_VALID};
+use crate::ex_cmds::{BL_FIX, BL_WHITE};
 pub use crate::extmark::TriState;
+use crate::indent::kFoQComs;
+use crate::indent::{INDENT_SET, SIN_CHANGED};
+use crate::insert::{INSCHAR_FORMAT, INSCHAR_NO_FEX};
+use crate::insert::{kFoAuto, kFoInsBlank, kFoWhitePar};
+use crate::math::FAIL;
+use crate::option::kBufOptFormatexpr;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

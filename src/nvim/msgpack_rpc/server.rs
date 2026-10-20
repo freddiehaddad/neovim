@@ -27,16 +27,8 @@ use std::ptr;
 use crate::os::stdpaths::{XDGVarType, stdpaths_get_xdg_var};
 
 const MAX_CONNECTIONS: c_int = 32;
-const ADDRESS_MAX_SIZE: usize = 256;
-const IOSIZE: usize = 1025;
-
-const UV_NAMED_PIPE: c_int = 7;
-const UV_TCP: c_int = 12;
 
 const VV_SEND_SERVER: c_int = 28;
-
-const LOGLVL_WRN: c_int = 3;
-const LOGLVL_ERR: c_int = 4;
 
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
@@ -45,10 +37,14 @@ const kTrue: TriState = 1;
 const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
+use crate::api::options::IOSIZE;
 pub use crate::event::r#loop::Loop;
 pub use crate::event::r#loop::uv_handle_t;
+use crate::event::socket::ADDRESS_MAX_SIZE;
 pub use crate::event::socket::SocketWatcher;
 pub use crate::event::socket::{socket_cb, socket_close_cb};
+use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
+use crate::log::{LOGLVL_ERR, LOGLVL_WRN};
 
 static mut watchers: garray_T = garray_T {
     ga_len: 0,

@@ -36,20 +36,16 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 
 const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
-const K_SPECIAL_VAR_NULL: i64 = 0;
-#[cfg(not(test))]
-const K_BOOL_VAR_FALSE: i64 = 0;
-#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
 #[cfg(not(test))]
-const K_LIST_LEN_MAY_KNOW: isize = -3;
+pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 
 #[cfg(not(test))]
-const K_MP_INTEGER: usize = 2;
+pub(crate) const K_MP_INTEGER: usize = 2;
 #[cfg(not(test))]
-const K_MP_MAP: usize = 6;
+pub(crate) const K_MP_MAP: usize = 6;
 #[cfg(not(test))]
-const K_MP_EXT: usize = 7;
+pub(crate) const K_MP_EXT: usize = 7;
 
 #[cfg(not(test))]
 const SURROGATE_HI_START: u64 = 0xD800;
@@ -70,6 +66,8 @@ pub use crate::mpack::object::{
     MPACK_MAX_OBJECT_DEPTH, mpack_data_t, mpack_node_t, mpack_parser_t, mpack_walk_cb,
 };
 
+#[cfg(not(test))]
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL};
 #[cfg(not(test))]
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,

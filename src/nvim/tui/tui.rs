@@ -119,21 +119,15 @@ const EXIT_TIMEOUT_MS: i64 = 1000;
 const OUTBUF_SIZE: usize = 0xffff;
 const TOO_MANY_EVENTS: usize = 1_000_000;
 const TERMINFO_SEQ_LIMIT: usize = 128;
-const MAX_SCHAR_SIZE: usize = 32;
-const STDOUT_FILENO: c_int = 1;
-const DFLT_COLS: c_int = 80;
-const DFLT_ROWS: c_int = 24;
 const NUL: c_char = 0;
 const DEL: c_char = 0x7f;
 
-const UV_RUN_DEFAULT: c_int = 0;
 #[cfg(unix)]
 const UV_TTY_MODE_NORMAL: c_int = 0;
 #[cfg(unix)]
 const UV_TTY_MODE_IO: c_int = 2;
 #[cfg(not(windows))]
 const UV_EINTR: c_int = -4;
-const SIGWINCH: c_int = 28;
 #[cfg(target_os = "linux")]
 const SIGSTOP: c_int = 19;
 #[cfg(all(unix, not(target_os = "linux")))]
@@ -141,10 +135,6 @@ const SIGSTOP: c_int = 17;
 
 #[cfg(windows)]
 const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
-
-const LOGLVL_DBG: c_int = 1;
-const LOGLVL_WRN: c_int = 3;
-const LOGLVL_ERR: c_int = 4;
 
 const LINUXSET0C: &[u8] = b"\x1b[?0c";
 const LINUXSET1C: &[u8] = b"\x1b[?1c";
@@ -327,8 +317,14 @@ unsafe extern "C" {
 #[cfg(windows)]
 use crate::os::os_win_console::GetConsoleMode;
 
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::channel::STDOUT_FILENO;
+use crate::event::r#loop::UV_RUN_DEFAULT;
+use crate::globals::{DFLT_COLS, DFLT_ROWS};
+use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN};
 #[cfg(unix)]
 use crate::os::pty_proc_unix as unix_termios;
+use crate::os::signal::SIGWINCH;
 
 #[inline]
 unsafe fn tui_input(tui: *mut TUIData) -> *mut TermInput {

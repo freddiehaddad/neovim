@@ -25,19 +25,18 @@ use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
+use crate::api::options::IOSIZE;
+use crate::event::proc::{SIGHUP, SIGTERM};
+use crate::log::LOGLVL_ERR;
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
 
-const IOSIZE: usize = 1025;
 const VV_DYING: c_int = 29;
 const EVENT_SIGNAL: c_int = 104;
-const LOGLVL_ERR: c_int = 4;
 
-const SIGHUP: c_int = 1;
 const SIGINT: c_int = 2;
 const SIGQUIT: c_int = 3;
-const SIGTERM: c_int = 15;
-const SIGWINCH: c_int = 28;
+pub(crate) const SIGWINCH: c_int = 28;
 
 #[cfg(unix)]
 const SIGPIPE: c_int = 13;

@@ -51,10 +51,11 @@ use std::ptr;
 
 pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;
+use crate::eval::fs::{SEEK_END, SEEK_SET};
 pub use crate::fileio::off_T;
-
-const OK: c_int = 1;
-const FAIL: c_int = 0;
+use crate::math::{FAIL, OK};
+#[cfg(not(test))]
+use crate::memline::MFS_FLUSH;
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;
 #[cfg(not(test))]
@@ -62,21 +63,16 @@ const MIN_SWAP_PAGE_SIZE: u64 = 1048;
 #[cfg(not(test))]
 const MAX_SWAP_PAGE_SIZE: u64 = 50000;
 
-const BH_DIRTY: c_uint = 1;
+pub(crate) const BH_DIRTY: c_uint = 1;
 const BH_LOCKED: c_uint = 2;
 
 const MF_DIRTY_NO: mfdirty_T = 0;
 const MF_DIRTY_YES: mfdirty_T = 1;
 const MF_DIRTY_YES_NOSYNC: mfdirty_T = 2;
 
-const MFS_ALL: c_int = 1;
-const MFS_STOP: c_int = 2;
-#[cfg(not(test))]
-const MFS_FLUSH: c_int = 4;
-const MFS_ZERO: c_int = 8;
-
-const SEEK_SET: c_int = 0;
-const SEEK_END: c_int = 2;
+pub(crate) const MFS_ALL: c_int = 1;
+pub(crate) const MFS_STOP: c_int = 2;
+pub(crate) const MFS_ZERO: c_int = 8;
 
 #[cfg(windows)]
 const O_RDWR: c_int = 0x0002;

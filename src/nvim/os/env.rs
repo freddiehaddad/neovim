@@ -61,12 +61,7 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 const NUL: c_char = 0;
-#[cfg(not(test))]
-const OK: c_int = 1;
-const MAXPATHL: usize = 4096;
-#[cfg(all(not(test), unix))]
-const IOSIZE: usize = 1025;
-const EXPAND_BUF_LEN: usize = 256;
+pub(crate) const EXPAND_BUF_LEN: usize = 256;
 #[cfg(not(test))]
 const INIT_SIZE: usize = 64;
 #[cfg(not(test))]
@@ -189,6 +184,11 @@ unsafe extern "C" {
     fn gethostname(name: *mut c_char, len: usize) -> c_int;
 }
 
+#[cfg(all(not(test), unix))]
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::math::OK;
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::GetLastError;
 

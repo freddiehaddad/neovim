@@ -39,7 +39,7 @@ const Ctrl_H: u8 = 8;
 const Ctrl_K: u8 = 11;
 const Ctrl_Z: u8 = 26;
 
-const STR2NR_ALL: c_int = 0x0f;
+const STR2NR_ALL: c_int = 0x7f;
 
 pub type ExprCaseCompareStrategy = c_int;
 pub const kCCStrategyUseOption: ExprCaseCompareStrategy = 0;

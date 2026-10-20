@@ -15,6 +15,10 @@ use crate::eval::deprecated::EvalFuncData;
 #[cfg(not(test))]
 use crate::eval::executor::blob_T;
 #[cfg(not(test))]
+use crate::eval::fs::K_LIST_LEN_UNKNOWN;
+#[cfg(not(test))]
+use crate::eval::typval::TV_TRANSLATE;
+#[cfg(not(test))]
 use crate::eval::typval::{
     tv_blob_copy, tv_blob_get, tv_blob_remove, tv_check_for_string_or_list_or_blob_arg, tv_clear,
     tv_copy, tv_dict_add_tv, tv_dict_alloc_ret, tv_dict_copy, tv_dict_extend, tv_dict_item_remove,
@@ -60,11 +64,6 @@ const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
 const VAR_LOCKED: c_int = 1;
 const VAR_FIXED: c_int = 2;
-
-#[cfg(not(test))]
-const K_LIST_LEN_UNKNOWN: isize = -1;
-#[cfg(not(test))]
-const TV_TRANSLATE: usize = usize::MAX;
 
 #[cfg(not(test))]
 const VV_VAL: c_int = 35;

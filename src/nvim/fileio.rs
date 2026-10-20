@@ -146,28 +146,16 @@ const NL: c_char = b'\n' as c_char;
 const CAR: c_char = b'\r' as c_char;
 const CTRL_Z: c_char = 0x1a;
 
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const NOTDONE: c_int = 2;
-const EOF: c_int = -1;
+pub(crate) const EOF: c_int = -1;
 
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: isize = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
-const UNDO_HASH_SIZE: usize = 32;
 
-const EOL_UNKNOWN: c_int = -1;
-const EOL_UNIX: c_int = 0;
-const EOL_DOS: c_int = 1;
-const EOL_MAC: c_int = 2;
+pub(crate) const EOL_UNKNOWN: c_int = -1;
+pub(crate) const EOL_UNIX: c_int = 0;
+pub(crate) const EOL_DOS: c_int = 1;
 
 const BAD_REPLACE: c_int = b'?' as c_int;
-const BAD_KEEP: c_int = -1;
-const BAD_DROP: c_int = -2;
-
-const FORCE_BIN: c_int = 1;
-const FORCE_NOBIN: c_int = 2;
 
 const OPT_LOCAL: c_int = 0x02;
 const kOptFileencoding: c_int = 92;
@@ -188,32 +176,20 @@ const ML_EMPTY: c_int = 0x01;
 const MF_DIRTY_YES: c_int = 1;
 const MF_DIRTY_YES_NOSYNC: c_int = 2;
 
-const SEA_QUIT: c_int = 2;
-const BL_WHITE: c_int = 1;
-const BL_FIX: c_int = 4;
-const BLN_DUMMY: c_int = 4;
-const UPD_NOT_VALID: c_int = 40;
 const CMOD_LOCKMARKS: c_int = 0x0800;
 
 const HLF_E: c_int = 6;
 const HLF_W: c_int = 26;
-const VIM_WARNING: c_int = 2;
 const kUIMessages: c_int = 4;
-const kCallbackNone: c_int = 0;
 const kPathCmpLiteral: c_int = 1 << 0;
-const RE_MAGIC: c_int = 1;
 
 const kCpoFnamer: c_int = b'f' as c_int;
-const kShmOverall: c_int = b'O' as c_int;
-const kShmOver: c_int = b'o' as c_int;
-const kShmRo: c_int = b'r' as c_int;
+pub(crate) const kShmOver: c_int = b'o' as c_int;
 const kShmLines: c_int = b'l' as c_int;
-const kShmFileinfo: c_int = b'F' as c_int;
 
-const O_RDONLY: c_int = 0;
-const SEEK_SET: c_int = 0;
-const EINTR: c_int = 4;
-const ICONV_EINVAL: c_int = 22;
+pub(crate) const O_RDONLY: c_int = 0;
+pub(crate) const EINTR: c_int = 4;
+pub(crate) const ICONV_EINVAL: c_int = 22;
 const UV_FS_COPYFILE_EXCL: c_int = 0x0001;
 
 const S_IFMT: u64 = 0o170000;
@@ -276,7 +252,22 @@ static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 #[cfg(all(not(test), unix))]
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
+use crate::api::autocmd::kCallbackNone;
 pub use crate::api::command::regmatch_T;
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::buffer::{BLN_DUMMY, NOTDONE, SEA_QUIT};
+use crate::buffer::{kShmFileinfo, kShmRo};
+use crate::charset::EOL_MAC;
+use crate::drawscreen::UPD_NOT_VALID;
+use crate::eval::fs::SEEK_SET;
+use crate::eval::funcs::VIM_WARNING;
+use crate::eval::vars::{BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN};
+use crate::ex_cmds::kShmOverall;
+use crate::ex_cmds::{BL_FIX, BL_WHITE};
+use crate::ex_docmd::UNDO_HASH_SIZE;
+use crate::math::{FAIL, OK};
+use crate::regexp::RE_MAGIC;
 
 unsafe extern "C" {
 

@@ -8,7 +8,12 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::command::{
+    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, UC_BUFFER,
+};
 use crate::api::command::{cmd_addr_T, cmdidx_T, cmdmod_T, exarg_T, ucmd_T};
+use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{
     arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, luaref_obj,
     nil_obj, string_obj,
@@ -17,6 +22,19 @@ use crate::api::private::validate::{Dict, KeyValuePair, Object};
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
+};
+use crate::cmdexpand::{
+    EXPAND_ARGLIST, EXPAND_AUGROUP, EXPAND_BREAKPOINT, EXPAND_BUFFERS, EXPAND_CHECKHEALTH,
+    EXPAND_COLORS, EXPAND_COMMANDS, EXPAND_COMPILER, EXPAND_DIFF_BUFFERS, EXPAND_DIRECTORIES,
+    EXPAND_DIRS_IN_CDPATH, EXPAND_ENV_VARS, EXPAND_EVENTS, EXPAND_EXPRESSION, EXPAND_FILES,
+    EXPAND_FILES_IN_PATH, EXPAND_FILETYPE, EXPAND_FILETYPECMD, EXPAND_FUNCTIONS, EXPAND_HELP,
+    EXPAND_HIGHLIGHT, EXPAND_HISTORY, EXPAND_KEYMAP, EXPAND_LOCALES, EXPAND_LUA, EXPAND_MAPCLEAR,
+    EXPAND_MAPPINGS, EXPAND_MENUS, EXPAND_MESSAGES, EXPAND_NOTHING, EXPAND_OWNSYNTAX,
+    EXPAND_PACKADD, EXPAND_RETAB, EXPAND_RUNTIME, EXPAND_SCRIPTNAMES, EXPAND_SETTINGS,
+    EXPAND_SHELLCMD, EXPAND_SHELLCMDLINE, EXPAND_SIGN, EXPAND_SYNTIME, EXPAND_TAGS,
+    EXPAND_TAGS_LISTFILES, EXPAND_UNSUCCESSFUL, EXPAND_USER, EXPAND_USER_ADDR_TYPE,
+    EXPAND_USER_CMD_FLAGS, EXPAND_USER_COMMANDS, EXPAND_USER_COMPLETE, EXPAND_USER_DEFINED,
+    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS,
 };
 use crate::eval::deprecated::buf_T;
 use crate::eval::last_set_msg;
@@ -30,6 +48,7 @@ use crate::lua::executor::{
 };
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::set_context_in_map_cmd;
+use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
 use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
 use crate::menu::set_context_in_menu_cmd;
@@ -49,12 +68,8 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const IOSIZE: usize = 1025;
 
 const LUA_NOREF: LuaRef = -2;
-const UC_BUFFER: c_int = 1;
 
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
@@ -66,60 +81,6 @@ const HLF_D: c_int = 5;
 const CMD_SIZE: cmdidx_T = 564;
 const CMD_USER: cmdidx_T = -1;
 const CMD_USER_BUF: cmdidx_T = -2;
-
-const EXPAND_UNSUCCESSFUL: c_int = -2;
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_COMMANDS: c_int = 1;
-const EXPAND_FILES: c_int = 2;
-const EXPAND_DIRECTORIES: c_int = 3;
-const EXPAND_SETTINGS: c_int = 4;
-const EXPAND_TAGS: c_int = 6;
-const EXPAND_HELP: c_int = 8;
-const EXPAND_BUFFERS: c_int = 9;
-const EXPAND_EVENTS: c_int = 10;
-const EXPAND_MENUS: c_int = 11;
-const EXPAND_HIGHLIGHT: c_int = 13;
-const EXPAND_AUGROUP: c_int = 14;
-const EXPAND_USER_VARS: c_int = 15;
-const EXPAND_MAPPINGS: c_int = 16;
-const EXPAND_TAGS_LISTFILES: c_int = 17;
-const EXPAND_FUNCTIONS: c_int = 18;
-const EXPAND_EXPRESSION: c_int = 20;
-const EXPAND_USER_COMMANDS: c_int = 22;
-const EXPAND_USER_CMD_FLAGS: c_int = 23;
-const EXPAND_USER_NARGS: c_int = 24;
-const EXPAND_USER_COMPLETE: c_int = 25;
-const EXPAND_ENV_VARS: c_int = 26;
-const EXPAND_COLORS: c_int = 28;
-const EXPAND_COMPILER: c_int = 29;
-const EXPAND_USER_DEFINED: c_int = 30;
-const EXPAND_USER_LIST: c_int = 31;
-const EXPAND_USER_LUA: c_int = 32;
-const EXPAND_SHELLCMD: c_int = 33;
-const EXPAND_SIGN: c_int = 34;
-const EXPAND_FILETYPE: c_int = 36;
-const EXPAND_FILES_IN_PATH: c_int = 37;
-const EXPAND_OWNSYNTAX: c_int = 38;
-const EXPAND_LOCALES: c_int = 39;
-const EXPAND_HISTORY: c_int = 40;
-const EXPAND_USER: c_int = 41;
-const EXPAND_SYNTIME: c_int = 42;
-const EXPAND_USER_ADDR_TYPE: c_int = 43;
-const EXPAND_PACKADD: c_int = 44;
-const EXPAND_MESSAGES: c_int = 45;
-const EXPAND_MAPCLEAR: c_int = 46;
-const EXPAND_ARGLIST: c_int = 47;
-const EXPAND_DIFF_BUFFERS: c_int = 48;
-const EXPAND_BREAKPOINT: c_int = 49;
-const EXPAND_SCRIPTNAMES: c_int = 50;
-const EXPAND_RUNTIME: c_int = 51;
-const EXPAND_KEYMAP: c_int = 55;
-const EXPAND_DIRS_IN_CDPATH: c_int = 56;
-const EXPAND_SHELLCMDLINE: c_int = 57;
-const EXPAND_FILETYPECMD: c_int = 59;
-const EXPAND_RETAB: c_int = 61;
-const EXPAND_CHECKHEALTH: c_int = 62;
-const EXPAND_LUA: c_int = 63;
 
 const EX_RANGE: u32 = 0x001;
 const EX_BANG: u32 = 0x002;
@@ -135,16 +96,6 @@ const EX_ZEROR: u32 = 0x1000;
 const EX_BUFNAME: u32 = 0x8000;
 const EX_KEEPSCRIPT: u32 = 0x4000000;
 const EX_ARGSPACE: u32 = 0x40000000;
-
-const ADDR_LINES: cmd_addr_T = 0;
-const ADDR_WINDOWS: cmd_addr_T = 1;
-const ADDR_ARGUMENTS: cmd_addr_T = 2;
-const ADDR_LOADED_BUFFERS: cmd_addr_T = 3;
-const ADDR_BUFFERS: cmd_addr_T = 4;
-const ADDR_TABS: cmd_addr_T = 5;
-const ADDR_QUICKFIX: cmd_addr_T = 8;
-const ADDR_OTHER: cmd_addr_T = 10;
-const ADDR_NONE: cmd_addr_T = 11;
 
 const CMOD_SANDBOX: c_int = 0x0001;
 const CMOD_SILENT: c_int = 0x0002;

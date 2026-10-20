@@ -45,10 +45,6 @@ pub use crate::fileio::FILE;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
 #[cfg(not(test))]
-const PROF_NONE: c_int = 0;
-#[cfg(not(test))]
-const PROF_YES: c_int = 1;
-#[cfg(not(test))]
 const PROF_PAUSED: c_int = 2;
 
 #[cfg(not(test))]
@@ -58,20 +54,11 @@ const K_SPECIAL: u8 = 0x80;
 #[cfg(not(test))]
 const NL: c_char = b'\n' as c_char;
 #[cfg(not(test))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
 const IOFBF: c_int = 0;
-
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_FILES: c_int = 2;
-const EXPAND_USER_FUNC: c_int = 19;
-const EXPAND_PROFILE: c_int = 35;
 
 const PEXP_SUBCMD: i32 = 0;
 
 const MAX_FUNC_ARGS: usize = 20;
-const VAR_SHORT_LEN: usize = 20;
-const FIXVAR_CNT: usize = 12;
 
 static PROF_WAIT_TIME: AtomicU64 = AtomicU64::new(0);
 static WAIT_TIME: AtomicU64 = AtomicU64::new(0);
@@ -128,6 +115,14 @@ pub struct scriptitem_T {
     pub sn_prl_execed: c_int,
 }
 
+#[cfg(not(test))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::autocmd::PROF_YES;
+use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
+use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
+#[cfg(not(test))]
+use crate::globals::PROF_NONE;
 pub use crate::os::env::expand_T;
 
 #[repr(C)]

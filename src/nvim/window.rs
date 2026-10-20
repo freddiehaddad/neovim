@@ -20,7 +20,7 @@ use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
 use crate::api::tabpage::{
     GridView, ScreenGrid, WinConfig, frame_T, lpos_T, pos_T, tabpage_T, win_T,
 };
-use crate::api::win_config::{FloatAnchor, FloatRelative, UIExtension, WinStyle};
+use crate::api::win_config::{UIExtension, WinStyle};
 use crate::arglist::{alist_T, alist_unlink};
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
@@ -135,9 +135,26 @@ use std::ptr;
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
 pub type WinKind = c_int;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BCO_ENTER, BCO_NOHELP};
+use crate::api::win_config::{
+    FR_COL, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeLaststatus, kFloatRelativeTabline,
+    kFloatRelativeWindow, kWinStyleUnused, kZIndexFloatDefault,
+};
+use crate::buffer::NOTDONE;
 pub use crate::context::CdCause;
+use crate::context::kCdCauseWindow;
+use crate::drawscreen::{FR_LEAF, FR_ROW, UPD_NOT_VALID, UPD_VALID};
 pub use crate::eval::vars::scid_T;
+use crate::ex_cmds::{BL_FIX, BL_SOL};
 pub use crate::ex_docmd::CdScope;
+use crate::ex_docmd::{ACTION_SPLIT, FIND_ANY, FIND_DEFINE};
+use crate::message::kZIndexMessages;
+use crate::option::kOptWindow;
+use crate::regexp::NUMBUFLEN;
+use crate::runtime::SID_WINLAYOUT;
+use crate::statusline::kUITabline;
 
 pub const WSP_ROOM: c_int = 0x01;
 pub const WSP_VERT: c_int = 0x02;
@@ -159,17 +176,9 @@ pub const LOWEST_WIN_ID: c_int = 1000;
 const NUL: c_char = 0;
 const TAB: c_int = b'\t' as c_int;
 const CAR: c_int = b'\r' as c_int;
-const NOTDONE: c_int = 2;
 const FORWARD: c_int = 1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const NUMBUFLEN: usize = 65;
-const MAX_SCHAR_SIZE: usize = 32;
-
-const FR_LEAF: c_char = 0;
-const FR_ROW: c_char = 1;
-const FR_COL: c_char = 2;
 
 const SNAP_HELP_IDX: usize = 0;
 const SNAP_QUICKFIX_IDX: usize = 2;
@@ -208,19 +217,8 @@ const Ctrl_RSB: c_int = 29;
 const Ctrl_HAT: c_int = 30;
 const Ctrl__: c_int = 31;
 
-const FIND_ANY: c_int = 1;
-const FIND_DEFINE: c_int = 2;
-const ACTION_SPLIT: c_int = 3;
-
 const ECMD_HIDE: c_int = 0x01;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-const BCO_ENTER: c_int = 1;
-const BCO_NOHELP: c_int = 4;
 const CMOD_CONFIRM: c_int = 0x0080;
-
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
 
 const VALID_WCOL: c_int = 0x02;
 const VALID_CROW: c_int = 0x10;
@@ -232,25 +230,11 @@ const kOptTclFlagLeft: c_uint = 0x01;
 const kOptTclFlagUselast: c_uint = 0x02;
 
 const kOptCmdheight: OptIndex = 44;
-const kOptWindow: OptIndex = 362;
 const kWinOptScroll: usize = 33;
-const SID_WINLAYOUT: scid_T = -7;
 
-const kUITabline: UIExtension = 2;
 const kUIMessages: UIExtension = 4;
 const kUIMultigrid: UIExtension = 6;
 
-const kZIndexFloatDefault: c_int = 50;
-const kZIndexMessages: c_int = 200;
-
-const kFloatAnchorEast: FloatAnchor = 1;
-const kFloatAnchorSouth: FloatAnchor = 2;
-
-const kFloatRelativeWindow: FloatRelative = 1;
-const kFloatRelativeTabline: FloatRelative = 4;
-const kFloatRelativeLaststatus: FloatRelative = 5;
-
-const kWinStyleUnused: WinStyle = 0;
 const kWinStyleMinimal: WinStyle = 1;
 const kWinNormal: WinKind = 0;
 
@@ -258,7 +242,6 @@ const kCtxKeepCwd: CtxSwitchFlags = 1;
 const kCtxNoDisplay: CtxSwitchFlags = 4;
 const kCtxNoEvents: CtxSwitchFlags = 8;
 
-const kCdCauseWindow: CdCause = 1;
 const kCdScopeBuffer: CdScope = 0;
 const kCdScopeWindow: CdScope = 1;
 const kCdScopeTabpage: CdScope = 2;

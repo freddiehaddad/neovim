@@ -36,41 +36,40 @@ use crate::window::{win_close, win_enter, win_setheight, win_split};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
+use crate::api::options::IOSIZE;
+use crate::cmdexpand::TAG_MANY;
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::diff::kOptFoldmethod;
 pub use crate::eval::vars::scid_T;
+use crate::ex_cmds::ECMD_LASTL;
+use crate::math::{FAIL, OK};
 pub use crate::option::OptInt;
 pub use crate::optionstr::OptIndex;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: c_int = 0x7fffffff;
-const IOSIZE: usize = 1025;
 
 const WSP_TOP: c_int = 0x08;
 const WSP_BOT: c_int = 0x10;
 const WSP_HELP: c_int = 0x20;
 
-const ECMD_LASTL: linenr_T = 0;
 const ECMD_HIDE: c_int = 0x01;
 const ECMD_SET_HELP: c_int = 0x02;
 
 const CMOD_KEEPALT: c_int = 0x0100;
 
-const DT_HELP: c_int = 8;
-const TAG_HELP: c_int = 1;
-const TAG_NAMES: c_int = 2;
-const TAG_REGEXP: c_int = 4;
-const TAG_VERBOSE: c_int = 32;
-const TAG_KEEP_LANG: c_int = 128;
-const TAG_NO_TAGFUNC: c_int = 256;
-const TAG_MANY: c_int = 300;
+pub(crate) const DT_HELP: c_int = 8;
+pub(crate) const TAG_HELP: c_int = 1;
+pub(crate) const TAG_NAMES: c_int = 2;
+pub(crate) const TAG_REGEXP: c_int = 4;
+pub(crate) const TAG_VERBOSE: c_int = 32;
+pub(crate) const TAG_KEEP_LANG: c_int = 128;
+pub(crate) const TAG_NO_TAGFUNC: c_int = 256;
 
 const OPT_LOCAL: c_int = 0x02;
 const kOptBuftype: OptIndex = 29;
-const kOptFoldmethod: OptIndex = 109;
-const kOptIskeyword: OptIndex = 155;
+pub(crate) const kOptIskeyword: OptIndex = 155;
 
 const kBoolVarFalse: i64 = 0;
 const kBoolVarTrue: i64 = 1;

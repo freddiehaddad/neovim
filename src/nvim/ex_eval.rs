@@ -38,14 +38,9 @@ use std::ptr;
 pub use crate::option::OptInt;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const IOSIZE: usize = 1025;
 const CSTACK_LEN: usize = 50;
 
 const ESTACK_NONE: c_int = 0;
-const RE_MAGIC: c_int = 1;
-const RE_STRING: c_int = 2;
 
 const VV_EXCEPTION: c_int = 30;
 const VV_THROWPOINT: c_int = 31;
@@ -169,7 +164,10 @@ pub struct exception_state_T {
     pub estate_did_emsg: c_int,
 }
 
+use crate::api::options::IOSIZE;
 pub use crate::eval::vars::evalarg_T;
+use crate::math::{FAIL, OK};
+use crate::regexp::{RE_MAGIC, RE_STRING};
 
 static mut cause_abort: bool = false;
 

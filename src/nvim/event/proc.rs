@@ -36,13 +36,11 @@ use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
 
-const kProcTypeUv: c_int = 0;
-const kProcTypePty: c_int = 1;
-
-const SIGHUP: c_int = 1;
+pub(crate) const SIGHUP: c_int = 1;
 const SIGKILL: c_int = 9;
-const SIGTERM: c_int = 15;
+pub(crate) const SIGTERM: c_int = 15;
 
+use crate::channel::{kProcTypePty, kProcTypeUv};
 pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_timer_t};
 pub type Proc = c_void;
 pub type LibuvProc = c_void;

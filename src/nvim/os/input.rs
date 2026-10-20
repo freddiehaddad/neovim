@@ -44,8 +44,6 @@ const EVENT_CURSORHOLDI: c_int = 39;
 
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
-const KS_EXTRA: u8 = 253;
-const KS_MODIFIER: u8 = 252;
 const KE_FILLER: u8 = b'X';
 
 const KE_LEFTMOUSE: c_int = 44;
@@ -55,8 +53,6 @@ const KE_MOUSERIGHT: c_int = 78;
 const KE_X1MOUSE: c_int = 89;
 const KE_X2RELEASE: c_int = 94;
 const KE_MOUSEMOVE: c_int = 100;
-const KE_EVENT: u8 = 102;
-const KE_COMPLETE_DELAY: u8 = 110;
 
 const MOD_MASK_CTRL: u8 = 0x04;
 const MOD_MASK_2CLICK: u8 = 0x20;
@@ -67,8 +63,6 @@ const FSK_KEYCODE: c_int = 0x01;
 const Ctrl_C: u8 = 3;
 
 const VV_USERACTIVE: c_int = 106;
-const PROF_YES: c_int = 1;
-const UV_TTY: c_int = 14;
 const BREAKCHECK_SKIP: c_int = 1000;
 
 pub use crate::mapping::typebuf_T;
@@ -154,7 +148,10 @@ unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> 
     }
 }
 
+use crate::autocmd::PROF_YES;
 use crate::event::r#loop::main_loop_events;
+use crate::event::stream::UV_TTY;
+use crate::keycodes::{KE_COMPLETE_DELAY, KE_EVENT, KS_EXTRA, KS_MODIFIER};
 
 unsafe extern "C" fn cursorhold_event(_argv: *mut *mut c_void) {
     unsafe {

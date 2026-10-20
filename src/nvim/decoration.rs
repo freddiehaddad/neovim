@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::deprecated::{DECOR_ID_INVALID, kVPosEndOfLine};
 use crate::api::deprecated::{
     DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText, VirtTextPos,
 };
@@ -15,12 +16,19 @@ use crate::api::extmark::{
     DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
     DecorState, colnr_T, ns_in_win, virt_text_to_array,
 };
+use crate::api::extmark::{
+    kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn,
+    kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll,
+    kVLOverflowTrunc, kVLOverflowWrap, kVPosInline, kVPosOverlay, kVTHide, kVTIsLines,
+    kVTLinesAbove, kVTRepeatLinebreak,
+};
 use crate::api::private::helpers::{
     arena_array, arena_string, array_obj, boolean_obj, cstr_as_obj, cstr_as_string, integer_obj,
     put_c, string_obj,
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::tabpage::{lpos_T, win_T};
+use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::buffer::buf_meta_total;
 use crate::change::changed_lines_invalidate_buf;
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
@@ -58,11 +66,9 @@ pub type DecorRangeKind = u8;
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const MAXCOL: c_int = 0x7fffffff;
-const DECOR_ID_INVALID: u32 = u32::MAX;
-const MAX_SCHAR_SIZE: usize = 32;
 const SIGN_WIDTH: usize = 2;
 const SIGN_SHOW_MAX: c_int = 9;
-const SCL_NUM: c_int = -2;
+pub(crate) const SCL_NUM: c_int = -2;
 
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
@@ -79,34 +85,9 @@ const kDecorKindVirtText: DecorRangeKind = 2;
 const kDecorKindVirtLines: DecorRangeKind = 3;
 const kDecorKindUIWatched: DecorRangeKind = 4;
 
-const kVPosEndOfLine: VirtTextPos = 0;
-const kVPosInline: VirtTextPos = 2;
-const kVPosOverlay: VirtTextPos = 3;
 const kVPosWinCol: VirtTextPos = 5;
 
-const kVLLeftcol: c_int = 1;
-
-const kVLOverflowTrunc: VirtLineOverflow = 0;
-const kVLOverflowScroll: VirtLineOverflow = 1;
-const kVLOverflowWrap: VirtLineOverflow = 2;
-const kVLOverflowAuto: VirtLineOverflow = 3;
-
-const kSHIsSign: u16 = 1;
-const kSHHlEol: u16 = 2;
-const kSHUIWatched: u16 = 4;
-const kSHUIWatchedOverlay: u16 = 8;
-const kSHSpellOn: u16 = 16;
-const kSHSpellOff: u16 = 32;
-const kSHConceal: u16 = 64;
-const kSHConcealLines: u16 = 128;
-const kSHConcealOff: u16 = 256;
-
-const kVTIsLines: u8 = 1;
-const kVTHide: u8 = 2;
-const kVTLinesAbove: u8 = 4;
-const kVTRepeatLinebreak: u8 = 8;
-
-const kMTFilterSelect: u32 = u32::MAX;
+pub(crate) const kMTFilterSelect: u32 = u32::MAX;
 
 static CONCEAL_FILTER: [u32; kMTMetaCount] = [0, 0, 0, 0, kMTFilterSelect];
 static SIGN_FILTER: [u32; kMTMetaCount] = [0, 0, kMTFilterSelect, kMTFilterSelect, 0];

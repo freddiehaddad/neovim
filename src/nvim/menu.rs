@@ -57,11 +57,8 @@ const Ctrl_O: c_char = 15;
 const Ctrl_V: c_char = 22;
 const Ctrl_BSL: c_char = 28;
 
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MB_MAXCHAR: usize = 6;
-const NUMBUFLEN: usize = 65;
 const MENUDEPTH: usize = 10;
 const TBUFFER_LEN: usize = 256;
 
@@ -73,7 +70,6 @@ const MENU_INDEX_OP_PENDING: c_int = 3;
 const MENU_INDEX_INSERT: c_int = 4;
 const MENU_INDEX_CMDLINE: c_int = 5;
 const MENU_INDEX_TERMINAL: c_int = 6;
-const MENU_INDEX_TIP: c_int = 7;
 pub const MENU_MODES: usize = 8;
 
 const MENU_NORMAL_MODE: c_int = 1 << MENU_INDEX_NORMAL;
@@ -84,13 +80,8 @@ const MENU_INSERT_MODE: c_int = 1 << MENU_INDEX_INSERT;
 const MENU_CMDLINE_MODE: c_int = 1 << MENU_INDEX_CMDLINE;
 const MENU_TERMINAL_MODE: c_int = 1 << MENU_INDEX_TERMINAL;
 const MENU_TIP_MODE: c_int = 1 << MENU_INDEX_TIP;
-const MENU_ALL_MODES: c_int = (1 << MENU_INDEX_TIP) - 1;
 
 const MNU_HIDDEN_CHAR: c_char = b']' as c_char;
-
-const REMAP_YES: c_int = 0;
-const REMAP_NONE: c_int = -1;
-const REMAP_SCRIPT: c_int = -2;
 
 const kTrue: c_int = 1;
 const kFalse: c_int = 0;
@@ -98,15 +89,9 @@ const kNone: c_int = -1;
 
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;
-const kListLenMayKnow: isize = -3;
 
 const HLF_8: c_int = 1;
 const HLF_D: c_int = 5;
-
-const EXPAND_UNSUCCESSFUL: c_int = -2;
-const EXPAND_NOTHING: c_int = 0;
-const EXPAND_MENUS: c_int = 11;
-const EXPAND_MENUNAMES: c_int = 21;
 
 const MODE_NORMAL: c_int = 0x01;
 const MODE_VISUAL: c_int = 0x02;
@@ -151,8 +136,16 @@ struct menutrans_T {
     to: *mut c_char,
 }
 
+use crate::api::vim::{REMAP_NONE, REMAP_YES};
+use crate::cmdexpand::{EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL};
+use crate::eval::funcs::MENU_ALL_MODES;
+use crate::eval::funcs::MENU_INDEX_TIP;
+use crate::eval::kListLenMayKnow;
+use crate::input::REMAP_SCRIPT;
 pub use crate::input::{RedoState, StuffBuf, UngotKey, tasave_T};
 pub use crate::mapping::typebuf_T;
+use crate::math::{FAIL, OK};
+use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

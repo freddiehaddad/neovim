@@ -152,8 +152,8 @@ use crate::message::{
 };
 use crate::r#move::{update_curswant, win_col_off};
 use crate::msgpack_rpc::channel::{
-    Channel, ChannelPart, ChannelStreamType, channel_prefix, channel_stream_ptr, channel_tail,
-    find_channel, get_client_info, rpc_send_call, rpc_send_event,
+    Channel, ChannelPart, channel_prefix, channel_stream_ptr, channel_tail, find_channel,
+    get_client_info, rpc_send_call, rpc_send_event,
 };
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, packer_string_buffer, packer_take_string};
 use crate::msgpack_rpc::server::{
@@ -236,17 +236,11 @@ const BASE_NONE: u8 = 0;
 const BASE_LAST: u8 = u8::MAX;
 
 const MAX_FUNC_ARGS: usize = 20;
-const NUMBUFLEN: usize = 65;
-const IOSIZE: usize = 1025;
-const MAXPATHL: usize = 4096;
 #[cfg(windows)]
 const MB_MAXBYTES: usize = 30;
 const MB_MAXCHAR: usize = 6;
-const MAX_SCHAR_SIZE: usize = 32;
-const NSUBEXP: usize = 10;
 const MAXCOL: colnr_T = 0x7fffffff;
 const VARNUMBER_MAX: varnumber_T = varnumber_T::MAX;
-const VARNUMBER_MIN: varnumber_T = varnumber_T::MIN;
 
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
@@ -269,70 +263,43 @@ const VAR_TYPE_BOOL: c_int = 6;
 const VAR_TYPE_SPECIAL: c_int = 7;
 const VAR_TYPE_BLOB: c_int = 10;
 
-const kListLenUnknown: isize = -1;
-const kListLenShouldKnow: isize = -2;
-const kListLenMayKnow: isize = -3;
-
-const VIML_INTERNAL_CALL: u64 = 1u64 << 63;
 const kRetObject: c_int = 0;
 const kRetNilBool: c_int = 1;
 
-const TFN_INT: c_int = 1;
-const TFN_QUIET: c_int = 2;
-const TFN_NO_AUTOLOAD: c_int = 4;
-const TFN_NO_DEREF: c_int = 8;
-const TFN_READ_ONLY: c_int = 16;
-const GLV_NO_AUTOLOAD: c_int = TFN_NO_AUTOLOAD;
-const GLV_READ_ONLY: c_int = TFN_READ_ONLY;
-const FNE_CHECK_START: c_int = 2;
-const DI_FLAGS_LOCK: u8 = 8;
+pub(crate) const TFN_INT: c_int = 1;
+pub(crate) const TFN_NO_DEREF: c_int = 8;
 
-const kChannelPartStdin: ChannelPart = 0;
-const kChannelPartStdout: ChannelPart = 1;
-const kChannelPartStderr: ChannelPart = 2;
-const kChannelPartRpc: ChannelPart = 3;
 const kChannelPartAll: ChannelPart = 4;
 
 const kChannelStdinPipe: ChannelStdinMode = 0;
 const kChannelStdinNull: ChannelStdinMode = 1;
 
-const kChannelStreamProc: ChannelStreamType = 0;
-const kProcTypePty: c_int = 1;
-const kCallbackNone: c_int = 0;
-
 const VIM_GENERIC: c_int = 0;
 const VIM_ERROR: c_int = 1;
-const VIM_WARNING: c_int = 2;
+pub(crate) const VIM_WARNING: c_int = 2;
 const VIM_INFO: c_int = 3;
-const VIM_QUESTION: c_int = 4;
+pub(crate) const VIM_QUESTION: c_int = 4;
 
 const DOCMD_VERBOSE: c_int = 0x01;
 const DOCMD_NOWAIT: c_int = 0x02;
 const DOCMD_REPEAT: c_int = 0x04;
 const DOCMD_KEYTYPED: c_int = 0x08;
 
-const MENU_INDEX_TIP: c_int = 7;
-const MENU_ALL_MODES: c_int = (1 << MENU_INDEX_TIP) - 1;
+pub(crate) const MENU_INDEX_TIP: c_int = 7;
+pub(crate) const MENU_ALL_MODES: c_int = (1 << MENU_INDEX_TIP) - 1;
 const EX_NOSPC: u32 = 0x010;
-const TV_TRANSLATE: usize = usize::MAX;
-const VSE_NONE: c_int = 0;
 const AUTOLOAD_CHAR: c_int = b'#' as c_int;
 const VALID_VIRTCOL: c_int = 0x04;
 const Ctrl_V: c_char = 22;
 
-const kGRegExprSrc: c_int = 2;
-const kGRegList: c_int = 4;
-
-const UV_TIMER: c_int = 13;
+pub(crate) const UV_TIMER: c_int = 13;
 const kUIMessages: c_int = 4;
 
-const RE_SEARCH: c_int = 0;
-const RE_MAGIC: c_int = 1;
-const RE_STRING: c_int = 2;
+pub(crate) const RE_SEARCH: c_int = 0;
 
-const MPACK_EOF: c_int = 1;
-const MPACK_ERROR: c_int = 2;
-const MPACK_NOMEM: c_int = 3;
+pub(crate) const MPACK_EOF: c_int = 1;
+pub(crate) const MPACK_ERROR: c_int = 2;
+pub(crate) const MPACK_NOMEM: c_int = 3;
 
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
@@ -351,21 +318,19 @@ const SP_SUBPAT: c_int = 0x20;
 const SP_END: c_int = 0x40;
 const SP_COLUMN: c_int = 0x80;
 
-const kOptCpoptions: OptIndex = 61;
+pub(crate) const kOptCpoptions: OptIndex = 61;
 
-const kMTUnknown: MotionType = -1;
-const kMTCharWise: MotionType = 0;
+pub(crate) const kMTUnknown: MotionType = -1;
+pub(crate) const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
-const kMTBlockWise: MotionType = 2;
+pub(crate) const kMTBlockWise: MotionType = 2;
 
 const SMT_ALL: c_int = 0;
-const HLF_SPB: hlf_T = 37;
-const HLF_SPC: hlf_T = 38;
-const HLF_SPR: hlf_T = 39;
-const HLF_SPL: hlf_T = 40;
+pub(crate) const HLF_SPB: hlf_T = 37;
+pub(crate) const HLF_SPC: hlf_T = 38;
+pub(crate) const HLF_SPR: hlf_T = 39;
+pub(crate) const HLF_SPL: hlf_T = 40;
 const HLF_COUNT: hlf_T = 76;
-
-const CONV_NONE: c_int = 0;
 
 const HL_INVERSE: c_int = 0x01;
 const HL_BOLD: c_int = 0x02;
@@ -389,7 +354,7 @@ const ENV_SEPCHAR: c_char = b';' as c_char;
 const ENV_SEPCHAR: c_char = b':' as c_char;
 
 const E_INVALID_SUBMATCH_NUMBER_NR: &CStr = c"E935: Invalid submatch number: %d";
-const E_STRING_LIST_OR_BLOB_REQUIRED: &CStr = c"E1098: String, List or Blob required";
+pub(crate) const E_STRING_LIST_OR_BLOB_REQUIRED: &CStr = c"E1098: String, List or Blob required";
 const E_MISSING_FUNCTION_ARGUMENT: &CStr = c"E1132: Missing function argument";
 const E_INVACT2: &CStr = c"E962: Invalid action: '%s'";
 
@@ -10455,8 +10420,19 @@ pub unsafe extern "C" fn f_xor(argvars: *mut typval_T, rettv: *mut typval_T, _fp
     }
 }
 
+use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::VIML_INTERNAL_CALL;
+use crate::api::options::IOSIZE;
+use crate::api::private::helpers::DI_FLAGS_LOCK;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::arglist::{f_argc, f_argidx, f_arglistid, f_argv};
+use crate::channel::{
+    kChannelPartRpc, kChannelPartStderr, kChannelPartStdin, kChannelPartStdout, kChannelStreamProc,
+    kProcTypePty,
+};
+use crate::charset::VARNUMBER_MIN;
 #[cfg(not(test))]
 use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype};
 #[cfg(not(test))]
@@ -10487,6 +10463,7 @@ use crate::eval::list::{
     f_add, f_count, f_extend, f_extendnew, f_filter, f_foreach, f_insert, f_map, f_mapnew,
     f_remove, f_reverse,
 };
+use crate::eval::typval::TV_TRANSLATE;
 #[cfg(not(test))]
 use crate::eval::typval::{
     f_blob2list, f_has_key, f_items, f_join, f_keys, f_list2blob, f_list2str, f_sort, f_uniq,
@@ -10505,10 +10482,16 @@ use crate::eval::window::{
     f_win_screenpos, f_win_splitmove, f_winbufnr, f_wincol, f_winheight, f_winlayout, f_winline,
     f_winnr, f_winrestcmd, f_winrestview, f_winsaveview, f_winwidth,
 };
+use crate::eval::{
+    FNE_CHECK_START, TFN_NO_AUTOLOAD, TFN_QUIET, kListLenMayKnow, kListLenShouldKnow,
+    kListLenUnknown,
+};
+use crate::eval::{GLV_NO_AUTOLOAD, GLV_READ_ONLY};
 #[cfg(not(test))]
 use crate::eval::{f_slice, f_system, f_systemlist};
 #[cfg(not(test))]
 use crate::ex_docmd::f_fullcommand;
+use crate::ex_getln::VSE_NONE;
 #[cfg(not(test))]
 use crate::ex_getln::{
     f_getcmdcomplpat, f_getcmdcompltype, f_getcmdline, f_getcmdpos, f_getcmdprompt,
@@ -10545,6 +10528,8 @@ use crate::mouse::f_getmousepos;
 use crate::r#move::{f_screenpos, f_virtcol2col};
 #[cfg(not(test))]
 use crate::quickfix::{f_getloclist, f_getqflist, f_setloclist, f_setqflist};
+use crate::regexp::{NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING};
+use crate::register::{kGRegExprSrc, kGRegList};
 #[cfg(not(test))]
 use crate::runtime::{f_getscriptinfo, f_getstacktrace};
 #[cfg(not(test))]
@@ -10570,6 +10555,7 @@ use crate::testing::{
 };
 #[cfg(not(test))]
 use crate::undo::{f_undofile, f_undotree};
+use crate::viml::parser::parser::CONV_NONE;
 
 unsafe extern "C" fn float_op_acos(x: float_T) -> float_T {
     x.acos()

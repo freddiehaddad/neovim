@@ -71,8 +71,13 @@ use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 pub use crate::api::autocmd::event_T;
+use crate::api::autocmd::kCallbackNone;
+use crate::api::buffer::kExtmarkNOOP;
 pub use crate::api::win_config::UIExtension;
+use crate::autocmd::EVENT_FILECHANGEDRO;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
 pub use crate::extmark::ExtmarkOp;
+use crate::math::{FAIL, OK};
 pub use crate::mbyte::GraphemeState;
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;
@@ -85,8 +90,6 @@ pub const OPENLINE_FORCE_INDENT: c_int = 0x40;
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 const MAXLNUM: linenr_T = 0x7fffffff;
@@ -95,47 +98,41 @@ const MAXCOL: colnr_T = 0x7fffffff;
 const GRAPHEME_STATE_INIT: GraphemeState = 0;
 const MB_MAXCHAR: usize = 6;
 const JUMPLISTSIZE: c_int = 100;
-const COM_MAX_LEN: usize = 50;
+pub(crate) const COM_MAX_LEN: usize = 50;
 
 const COM_NEST: c_char = b'n' as c_char;
 const COM_BLANK: c_char = b'b' as c_char;
-const COM_START: c_char = b's' as c_char;
+pub(crate) const COM_START: c_char = b's' as c_char;
 const COM_MIDDLE: c_char = b'm' as c_char;
-const COM_END: c_char = b'e' as c_char;
+pub(crate) const COM_END: c_char = b'e' as c_char;
 const COM_AUTO_END: c_char = b'x' as c_char;
-const COM_FIRST: c_char = b'f' as c_char;
-const COM_LEFT: c_char = b'l' as c_char;
-const COM_RIGHT: c_char = b'r' as c_char;
+pub(crate) const COM_FIRST: c_char = b'f' as c_char;
+pub(crate) const COM_LEFT: c_char = b'l' as c_char;
+pub(crate) const COM_RIGHT: c_char = b'r' as c_char;
 const COM_NOBACK: c_char = b'O' as c_char;
 
 const KEY_OPEN_FORW: c_int = 0x101;
 const KEY_OPEN_BACK: c_int = 0x102;
 
-const SIN_INSERT: c_int = 2;
-const SIN_NOMARK: c_int = 8;
+pub(crate) const SIN_INSERT: c_int = 2;
+pub(crate) const SIN_NOMARK: c_int = 8;
 
 const ML_EMPTY: c_int = 0x01;
-const ML_DEL_MESSAGE: c_int = 1;
+pub(crate) const ML_DEL_MESSAGE: c_int = 1;
 
 const BF_NEVERLOADED: c_int = 0x04;
 const BF_NEW: c_int = 0x10;
 
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
-
 const CMOD_KEEPJUMPS: c_int = 0x0400;
 const CMOD_LOCKMARKS: c_int = 0x0800;
 
-const kExtmarkNOOP: ExtmarkOp = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 
 const kOptVeFlagOnemore: c_uint = 0x08;
-const kCpoDollar: c_int = b'$' as c_int;
-const kCpoListwm: c_int = b'L' as c_int;
+pub(crate) const kCpoDollar: c_int = b'$' as c_int;
+pub(crate) const kCpoListwm: c_int = b'L' as c_int;
 const kFoNoOpenComs: c_int = b'/' as c_int;
-const kCallbackNone: c_int = 0;
 
-const EVENT_FILECHANGEDRO: event_T = 52;
 const VV_WARNINGMSG: c_int = 4;
 const HLF_W: c_int = 26;
 const kUIMessages: UIExtension = 4;

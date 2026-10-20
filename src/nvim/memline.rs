@@ -83,12 +83,7 @@ use crate::path::path_to_slash;
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
-const OK: c_int = 1;
-const FAIL: c_int = 0;
-const NOTDONE: c_int = 2;
 
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
@@ -127,8 +122,6 @@ const ML_LOCKED_DIRTY: c_int = 0x04;
 const ML_LOCKED_POS: c_int = 0x08;
 const ML_ALLOCATED: c_int = 0x10;
 
-const ML_DEL_MESSAGE: c_int = 1;
-
 const ML_APPEND_NEW: c_int = 1;
 const ML_APPEND_MARK: c_int = 2;
 
@@ -145,16 +138,10 @@ const MLCS_MAXL: c_int = 800;
 const MLCS_MINL: c_int = 400;
 
 const MIN_SWAP_PAGE_SIZE: c_uint = 1048;
-const BH_DIRTY: c_uint = 1;
 const MF_DIRTY_YES: c_int = 1;
 const MF_DIRTY_YES_NOSYNC: c_int = 2;
-const MFS_ALL: c_int = 1;
-const MFS_STOP: c_int = 2;
-const MFS_FLUSH: c_int = 4;
-const MFS_ZERO: c_int = 8;
+pub(crate) const MFS_FLUSH: c_int = 4;
 
-const SEEK_END: c_int = 2;
-const O_RDONLY: c_int = 0;
 const O_RDWR: c_int = 2;
 
 const CMOD_NOSWAPFILE: c_int = 0x2000;
@@ -162,20 +149,11 @@ const BF_RECOVERED: c_int = 0x01;
 const BF_DUMMY: c_int = 0x80;
 
 const HLF_E: c_int = 6;
-const UPD_NOT_VALID: c_int = 40;
 const READ_NEW: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
-const EOL_DOS: c_int = 1;
 const kOptFileencoding: c_int = 92;
 const kShmAttention: c_int = b'A' as c_int;
 const kUIMessages: c_int = 4;
-const FLUSH_TYPEAHEAD: c_int = 1;
-const VIM_WARNING: c_int = 2;
-
-const SEA_NONE: c_int = 0;
-const SEA_QUIT: c_int = 2;
-const SEA_RECOVER: c_int = 3;
-const SEA_READONLY: c_int = 4;
 
 const VV_SWAPNAME: c_int = 47;
 const VV_SWAPCHOICE: c_int = 48;
@@ -186,12 +164,10 @@ const EW_SILENT: c_int = 0x20;
 
 const kPathCmpLiteral: c_int = 1 << 0;
 const kPathCmpFull: c_int = 1 << 2;
-const kPathDeviceUNC: c_int = 5;
+pub(crate) const kPathDeviceUNC: c_int = 5;
 
 #[cfg(unix)]
 const ENOENT: c_int = 2;
-#[cfg(unix)]
-const EINVAL: c_int = 22;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -313,13 +289,27 @@ static e_line_number_out_of_range_nr_past_the_end: &CStr =
 static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::buffer::{NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER};
+use crate::change::ML_DEL_MESSAGE;
+use crate::drawscreen::UPD_NOT_VALID;
+use crate::eval::buffer::SEA_READONLY;
+use crate::eval::fs::SEEK_END;
+use crate::eval::funcs::VIM_WARNING;
 use crate::event::r#loop::uv_strerror as os_strerror;
+use crate::ex_docmd::FLUSH_TYPEAHEAD;
 #[cfg(unix)]
 use crate::fileio::readlink;
 #[cfg(windows)]
 use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
+use crate::fileio::{EOL_DOS, O_RDONLY};
 #[cfg(not(windows))]
 use crate::fileio::{close, lseek as vim_lseek};
+use crate::math::{FAIL, OK};
+use crate::memfile::{BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO};
+#[cfg(unix)]
+use crate::os::wasm_stubs::EINVAL;
 use crate::version::Versions;
 
 unsafe extern "C" {

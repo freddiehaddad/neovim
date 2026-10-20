@@ -47,18 +47,16 @@ use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
 pub use crate::lua::executor::LuaRetMode;
+use crate::lua::executor::kRetMultiStack;
 
 const MAXCOL: i64 = 0x7fffffff;
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
 
 const kCtxKeepCwd: c_int = 1;
 const kCtxNoDisplay: c_int = 4;
 const kCtxNoEvents: c_int = 8;
 const kCtxValidate: c_int = 16;
-
-const kRetMultiStack: LuaRetMode = 4;
 
 const KEYSET_OPTIDX_win_text_height__end_row: u64 = 1;
 const KEYSET_OPTIDX_win_text_height__end_vcol: u64 = 2;

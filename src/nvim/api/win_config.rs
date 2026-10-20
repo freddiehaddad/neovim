@@ -68,12 +68,10 @@ pub use crate::api::command::cmdidx_T;
 pub type UIExtension = c_int;
 
 const NUL: c_char = 0;
-const MAX_SCHAR_SIZE: usize = 32;
-const EVENT_WINNEW: event_T = 146;
 const kUIMultigrid: UIExtension = 6;
-const kZIndexFloatDefault: c_int = 50;
+pub(crate) const kZIndexFloatDefault: c_int = 50;
 
-const FR_COL: c_char = 2;
+pub(crate) const FR_COL: c_char = 2;
 
 const WSP_VERT: c_int = 0x02;
 const WSP_HOR: c_int = 0x04;
@@ -83,35 +81,33 @@ const WSP_BELOW: c_int = 0x40;
 const WSP_ABOVE: c_int = 0x80;
 const WSP_NOENTER: c_int = 0x200;
 
-const UPD_NOT_VALID: c_int = 40;
-
 const kCtxNoDisplay: c_int = 4;
 const kCtxNoEvents: c_int = 8;
 
-const kFloatAnchorEast: FloatAnchor = 1;
-const kFloatAnchorSouth: FloatAnchor = 2;
+pub(crate) const kFloatAnchorEast: FloatAnchor = 1;
+pub(crate) const kFloatAnchorSouth: FloatAnchor = 2;
 
-const kFloatRelativeEditor: FloatRelative = 0;
-const kFloatRelativeWindow: FloatRelative = 1;
-const kFloatRelativeCursor: FloatRelative = 2;
-const kFloatRelativeMouse: FloatRelative = 3;
-const kFloatRelativeTabline: FloatRelative = 4;
-const kFloatRelativeLaststatus: FloatRelative = 5;
+pub(crate) const kFloatRelativeEditor: FloatRelative = 0;
+pub(crate) const kFloatRelativeWindow: FloatRelative = 1;
+pub(crate) const kFloatRelativeCursor: FloatRelative = 2;
+pub(crate) const kFloatRelativeMouse: FloatRelative = 3;
+pub(crate) const kFloatRelativeTabline: FloatRelative = 4;
+pub(crate) const kFloatRelativeLaststatus: FloatRelative = 5;
 
 const kWinSplitLeft: WinSplit = 0;
 const kWinSplitRight: WinSplit = 1;
 const kWinSplitAbove: WinSplit = 2;
 const kWinSplitBelow: WinSplit = 3;
 
-const kWinStyleUnused: WinStyle = 0;
+pub(crate) const kWinStyleUnused: WinStyle = 0;
 const kWinStyleMinimal: WinStyle = 1;
 
-const kAlignLeft: AlignTextPos = 0;
-const kAlignCenter: AlignTextPos = 1;
-const kAlignRight: AlignTextPos = 2;
+pub(crate) const kAlignLeft: AlignTextPos = 0;
+pub(crate) const kAlignCenter: AlignTextPos = 1;
+pub(crate) const kAlignRight: AlignTextPos = 2;
 
-const kBorderTextTitle: BorderTextType = 0;
-const kBorderTextFooter: BorderTextType = 1;
+pub(crate) const kBorderTextTitle: BorderTextType = 0;
+pub(crate) const kBorderTextFooter: BorderTextType = 1;
 
 const KEYSET_OPTIDX_win_config__col: u64 = 1;
 const KEYSET_OPTIDX_win_config__row: u64 = 2;
@@ -139,6 +135,9 @@ const KEYSET_OPTIDX_win_config__footer_pos: u64 = 23;
 const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
 
 pub use crate::api::options::bufref_T;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::autocmd::EVENT_WINNEW;
+use crate::drawscreen::UPD_NOT_VALID;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

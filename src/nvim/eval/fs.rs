@@ -88,31 +88,25 @@ pub type CheckItem =
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
-const NUMBUFLEN: usize = 65;
-const MAXPATHL: usize = 4096;
-const IOSIZE: usize = 1025;
 const MAXLNUM: i64 = 0x7fffffff;
 
 const VAR_UNLOCKED: c_int = 0;
-const K_LIST_LEN_UNKNOWN: isize = -1;
+pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 
-const VALID_PATH: c_int = 1;
-const VALID_HEAD: c_int = 2;
+pub(crate) const VALID_PATH: c_int = 1;
+pub(crate) const VALID_HEAD: c_int = 2;
 
 const VV_VAL: c_int = 35;
 const SID_API_CLIENT: c_int = -9;
 
-const EXPAND_FILES: c_int = 2;
-const WILD_ALL: c_int = 6;
-const WILD_ALL_KEEP: c_int = 8;
 const WILD_USE_NL: c_int = 0x04;
 const WILD_KEEP_ALL: c_int = 0x20;
 const WILD_SILENT: c_int = 0x40;
 const WILD_ICASE: c_int = 0x100;
 const WILD_ALLLINKS: c_int = 0x200;
 
-const SEEK_SET: c_int = 0;
-const SEEK_END: c_int = 2;
+pub(crate) const SEEK_SET: c_int = 0;
+pub(crate) const SEEK_END: c_int = 2;
 
 const kCdScopeInvalid: c_int = -1;
 const kCdScopeBuffer: c_int = 0;
@@ -133,7 +127,11 @@ const S_IFSOCK_VAL: u64 = 0xC000;
 
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
 
+use crate::api::options::IOSIZE;
+use crate::api::vim::MAXPATHL;
+use crate::cmdexpand::{EXPAND_FILES, WILD_ALL, WILD_ALL_KEEP};
 pub use crate::fileio::FILE;
+use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]

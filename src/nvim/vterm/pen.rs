@@ -24,36 +24,36 @@ const VTERM_COLOR_DEFAULT_FG: u8 = 0x02;
 const VTERM_COLOR_DEFAULT_BG: u8 = 0x04;
 const VTERM_COLOR_DEFAULT_MASK: u8 = 0x06;
 
-const VTERM_VALUETYPE_BOOL: VTermValueType = 1;
-const VTERM_VALUETYPE_INT: VTermValueType = 2;
-const VTERM_VALUETYPE_COLOR: VTermValueType = 4;
+pub(crate) const VTERM_VALUETYPE_BOOL: VTermValueType = 1;
+pub(crate) const VTERM_VALUETYPE_INT: VTermValueType = 2;
+pub(crate) const VTERM_VALUETYPE_COLOR: VTermValueType = 4;
 
-const VTERM_ATTR_BOLD: VTermAttr = 1;
-const VTERM_ATTR_UNDERLINE: VTermAttr = 2;
-const VTERM_ATTR_ITALIC: VTermAttr = 3;
-const VTERM_ATTR_BLINK: VTermAttr = 4;
-const VTERM_ATTR_REVERSE: VTermAttr = 5;
-const VTERM_ATTR_CONCEAL: VTermAttr = 6;
-const VTERM_ATTR_STRIKE: VTermAttr = 7;
-const VTERM_ATTR_FONT: VTermAttr = 8;
-const VTERM_ATTR_FOREGROUND: VTermAttr = 9;
-const VTERM_ATTR_BACKGROUND: VTermAttr = 10;
-const VTERM_ATTR_SMALL: VTermAttr = 11;
-const VTERM_ATTR_BASELINE: VTermAttr = 12;
-const VTERM_ATTR_URI: VTermAttr = 13;
-const VTERM_ATTR_DIM: VTermAttr = 14;
-const VTERM_ATTR_OVERLINE: VTermAttr = 15;
+pub(crate) const VTERM_ATTR_BOLD: VTermAttr = 1;
+pub(crate) const VTERM_ATTR_UNDERLINE: VTermAttr = 2;
+pub(crate) const VTERM_ATTR_ITALIC: VTermAttr = 3;
+pub(crate) const VTERM_ATTR_BLINK: VTermAttr = 4;
+pub(crate) const VTERM_ATTR_REVERSE: VTermAttr = 5;
+pub(crate) const VTERM_ATTR_CONCEAL: VTermAttr = 6;
+pub(crate) const VTERM_ATTR_STRIKE: VTermAttr = 7;
+pub(crate) const VTERM_ATTR_FONT: VTermAttr = 8;
+pub(crate) const VTERM_ATTR_FOREGROUND: VTermAttr = 9;
+pub(crate) const VTERM_ATTR_BACKGROUND: VTermAttr = 10;
+pub(crate) const VTERM_ATTR_SMALL: VTermAttr = 11;
+pub(crate) const VTERM_ATTR_BASELINE: VTermAttr = 12;
+pub(crate) const VTERM_ATTR_URI: VTermAttr = 13;
+pub(crate) const VTERM_ATTR_DIM: VTermAttr = 14;
+pub(crate) const VTERM_ATTR_OVERLINE: VTermAttr = 15;
 
-const VTERM_UNDERLINE_SINGLE: u32 = 1;
-const VTERM_UNDERLINE_DOUBLE: u32 = 2;
-const VTERM_UNDERLINE_CURLY: u32 = 3;
+pub(crate) const VTERM_UNDERLINE_SINGLE: u32 = 1;
+pub(crate) const VTERM_UNDERLINE_DOUBLE: u32 = 2;
+pub(crate) const VTERM_UNDERLINE_CURLY: u32 = 3;
 
 const VTERM_BASELINE_NORMAL: u32 = 0;
 const VTERM_BASELINE_RAISE: u32 = 1;
 const VTERM_BASELINE_LOWER: u32 = 2;
 
-const CSI_ARG_FLAG_MORE_U32: u32 = 1u32 << 31;
-const CSI_ARG_MASK_U32: u32 = !(1u32 << 31);
+pub(crate) const CSI_ARG_FLAG_MORE_U32: u32 = 1u32 << 31;
+pub(crate) const CSI_ARG_MASK_U32: u32 = !(1u32 << 31);
 const CSI_ARG_MISSING_I64: i64 = (1i64 << 31) - 1;
 
 #[repr(C)]

@@ -1,9 +1,10 @@
 //! XDG standard directory paths (`src/nvim/os/stdpaths.c`).
 
-#![cfg_attr(any(test, target_os = "windows"), allow(dead_code))]
-
+#[cfg(not(test))]
+use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::fileio::vim_gettempdir;
+use crate::garray::K_PATH_CMP_LITERAL;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(all(not(test), unix))]
@@ -19,10 +20,7 @@ use crate::os::fs::os_realpath;
 use crate::path::{concat_fnames_realloc, path_equal, path_is_absolute};
 #[cfg(not(test))]
 use std::ffi::CString;
-use std::ffi::{CStr, c_char, c_int, c_void};
-
-const MAXPATHL: usize = 4096;
-const K_PATH_CMP_LITERAL: c_int = 1 << 0;
+use std::ffi::{CStr, c_char, c_void};
 
 #[cfg(target_os = "windows")]
 const ENV_SEP_BYTE: u8 = b';';
@@ -58,7 +56,7 @@ const XDG_ENV_VARS: [&CStr; 7] = [
     c"XDG_DATA_DIRS",
 ];
 
-#[cfg(target_os = "windows")]
+#[cfg(all(not(test), target_os = "windows"))]
 const XDG_DEFAULTS_ENV_VARS: [Option<&CStr>; 7] = [
     Some(c"LOCALAPPDATA"),
     Some(c"LOCALAPPDATA"),

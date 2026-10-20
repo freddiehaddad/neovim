@@ -64,8 +64,6 @@ use crate::memory::{verbose_try_malloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrl
 #[cfg(not(test))]
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 #[cfg(not(test))]
-use crate::msgpack_rpc::channel::event_T;
-#[cfg(not(test))]
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 #[cfg(not(test))]
 use crate::option_vars::*;
@@ -100,8 +98,41 @@ use std::ffi::c_uint;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+#[cfg(not(test))]
+use crate::api::autocmd::kCallbackNone;
+#[cfg(not(test))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::autocmd::{
+    EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
+    EVENT_FILEAPPENDPOST, EVENT_FILEAPPENDPRE, EVENT_FILEWRITECMD, EVENT_FILEWRITEPOST,
+    EVENT_FILEWRITEPRE, EVENT_FILTERWRITEPOST, EVENT_FILTERWRITEPRE,
+};
+#[cfg(not(test))]
+use crate::buffer::NOTDONE;
+#[cfg(not(test))]
+use crate::charset::EOL_MAC;
 pub use crate::eval::buffer::varnumber_T;
+#[cfg(not(test))]
+use crate::eval::vars::FORCE_BIN;
+#[cfg(not(test))]
+use crate::ex_docmd::UNDO_HASH_SIZE;
 pub use crate::fileio::iconv_t;
+#[cfg(not(test))]
+use crate::fileio::kShmOver;
+#[cfg(not(test))]
+use crate::fileio::{EOL_DOS, EOL_UNIX};
+#[cfg(not(test))]
+use crate::fileio::{ICONV_EINVAL, WRITEBUFSIZE};
+use crate::math::FAIL;
+#[cfg(not(test))]
+use crate::math::OK;
+#[cfg(all(not(test), windows))]
+use crate::os::fs::NODE_OTHER;
+#[cfg(not(test))]
+use crate::os::fs::O_WRONLY;
 pub use crate::path::PathCmpFlags;
 
 #[cfg(not(test))]
@@ -114,33 +145,10 @@ const NL_CHAR: c_char = b'\n' as c_char;
 const CAR_CHAR: c_char = b'\r' as c_char;
 
 #[cfg(not(test))]
-const OK: c_int = 1;
-const FAIL: c_int = 0;
-#[cfg(not(test))]
-const NOTDONE: c_int = 2;
-
-#[cfg(not(test))]
-const MAXPATHL: usize = 4096;
-#[cfg(not(test))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
-const WRITEBUFSIZE: usize = 8192;
-#[cfg(not(test))]
 const SMALLBUFSIZE: usize = 256;
 #[cfg(not(test))]
 const ICONV_MULT: usize = 8;
-#[cfg(not(test))]
-const UNDO_HASH_SIZE: usize = 32;
 
-#[cfg(not(test))]
-const EOL_UNIX: c_int = 0;
-#[cfg(not(test))]
-const EOL_DOS: c_int = 1;
-#[cfg(not(test))]
-const EOL_MAC: c_int = 2;
-
-#[cfg(not(test))]
-const FORCE_BIN: c_int = 1;
 #[cfg(not(test))]
 const ML_EMPTY: c_int = 0x01;
 
@@ -163,9 +171,7 @@ const FIO_ENDIAN_L: c_int = 0x80;
 const FIO_NOCONVERT: c_int = 0x2000;
 
 #[cfg(not(test))]
-const NODE_WRITABLE: c_int = 1;
-#[cfg(all(not(test), windows))]
-const NODE_OTHER: c_int = 2;
+pub(crate) const NODE_WRITABLE: c_int = 1;
 
 #[cfg(all(not(test), unix))]
 const S_IFMT: u64 = 0o170000;
@@ -176,8 +182,6 @@ const S_IFREG: u64 = 0o100000;
 
 #[cfg(not(test))]
 const HLF_E: c_int = 6;
-#[cfg(not(test))]
-const kCallbackNone: c_int = 0;
 #[cfg(not(test))]
 const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 
@@ -205,39 +209,12 @@ const kCpoKeepro: c_int = b'Z' as c_int;
 const kCpoPlus: c_int = b'+' as c_int;
 
 #[cfg(not(test))]
-const kShmOver: c_int = b'o' as c_int;
-#[cfg(not(test))]
 const kShmWri: c_int = b'w' as c_int;
 #[cfg(not(test))]
 const kShmWrite: c_int = b'W' as c_int;
 
 #[cfg(not(test))]
-const EVENT_BUFWRITECMD: event_T = 19;
-#[cfg(not(test))]
-const EVENT_BUFWRITEPOST: event_T = 20;
-#[cfg(not(test))]
-const EVENT_BUFWRITEPRE: event_T = 21;
-#[cfg(not(test))]
-const EVENT_FILEAPPENDCMD: event_T = 49;
-#[cfg(not(test))]
-const EVENT_FILEAPPENDPOST: event_T = 50;
-#[cfg(not(test))]
-const EVENT_FILEAPPENDPRE: event_T = 51;
-#[cfg(not(test))]
-const EVENT_FILEWRITECMD: event_T = 60;
-#[cfg(not(test))]
-const EVENT_FILEWRITEPOST: event_T = 61;
-#[cfg(not(test))]
-const EVENT_FILEWRITEPRE: event_T = 62;
-#[cfg(not(test))]
-const EVENT_FILTERWRITEPOST: event_T = 65;
-#[cfg(not(test))]
-const EVENT_FILTERWRITEPRE: event_T = 66;
-
-#[cfg(not(test))]
 const UV_FS_COPYFILE_FICLONE: c_int = 0x0002;
-#[cfg(not(test))]
-const ICONV_EINVAL: c_int = 22;
 
 #[cfg(all(not(test), windows))]
 const UV_ENOTSUP: c_int = -4049;
@@ -245,9 +222,6 @@ const UV_ENOTSUP: c_int = -4049;
 const UV_ENOTSUP: c_int = -95;
 #[cfg(not(any(windows, target_os = "linux")))]
 const UV_ENOTSUP: c_int = -45;
-
-#[cfg(not(test))]
-const O_WRONLY: c_int = 1;
 
 #[cfg(all(not(test), windows))]
 const O_APPEND: c_int = 0x0008;

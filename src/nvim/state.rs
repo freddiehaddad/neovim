@@ -22,7 +22,7 @@ use crate::input::{
     check_end_reg_executing, may_sync_undo, safe_vgetc, stuff_empty, using_script, vpeekc,
 };
 use crate::insexpand::{ctrl_x_mode_not_defined_yet, ins_compl_active};
-use crate::keycodes::{KE_EVENT, KS_EXTRA, get_special_key_name, termcap2key};
+use crate::keycodes::get_special_key_name;
 use crate::log::{g_min_log_level, logmsg};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
@@ -56,7 +56,6 @@ pub const MODE_SETWSIZE: c_int = 0x4000;
 pub const MODE_EXTERNCMD: c_int = 0x5000;
 pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
 const Ctrl_V: c_int = 22;
 
 const kOptVeFlagAll: c_uint = 0x04;
@@ -65,8 +64,6 @@ const kOptVeFlagInsert: c_uint = 0x06;
 
 const EVENT_MODECHANGED: c_int = 85;
 const EVENT_SAFESTATE: c_int = 96;
-
-const LOGLVL_DBG: c_int = 1;
 
 pub type state_check_callback = Option<unsafe extern "C" fn(state: *mut VimState) -> c_int>;
 pub type state_execute_callback =
@@ -78,6 +75,8 @@ pub struct VimState {
     pub execute: state_execute_callback,
 }
 
+use crate::ex_getln::K_EVENT;
+use crate::log::LOGLVL_DBG;
 pub use crate::mapping::typebuf_T;
 
 #[repr(C)]

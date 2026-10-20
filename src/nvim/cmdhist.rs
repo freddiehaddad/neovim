@@ -45,18 +45,7 @@ pub const HIST_DEBUG: c_int = 4;
 pub const HIST_COUNT: usize = 5;
 
 #[cfg(not(test))]
-const NUMBUFLEN: usize = 65;
-#[cfg(not(test))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
-const NSUBEXP: usize = 10;
-
-#[cfg(not(test))]
 const CMOD_KEEPPATTERNS: c_int = 0x1000;
-#[cfg(not(test))]
-const RE_MAGIC: c_int = 1;
-#[cfg(not(test))]
-const RE_STRING: c_int = 2;
 
 static mut HISTORY: [*mut histentry_T; HIST_COUNT] = [std::ptr::null_mut(); HIST_COUNT];
 static mut HISIDX: [c_int; HIST_COUNT] = [-1; HIST_COUNT];
@@ -83,6 +72,10 @@ pub struct histentry_T {
 
 pub use crate::api::command::cmdmod_T;
 pub use crate::api::command::regmatch_T;
+#[cfg(not(test))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::regexp::{NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING};
 
 #[cfg(not(test))]
 #[inline]

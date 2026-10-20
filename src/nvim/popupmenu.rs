@@ -73,8 +73,15 @@ use crate::winfloat::{
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::options::kOptSwapfile;
+use crate::api::win_config::kZIndexFloatDefault;
+use crate::diff::kOptDiff;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID};
+use crate::ex_cmds::ECMD_ONE;
 pub use crate::ex_getln::hlf_T;
+use crate::math::OK;
 pub use crate::option::OptInt;
+use crate::option::kOptBuflisted;
 pub use crate::optionstr::OptIndex;
 
 #[repr(C)]
@@ -101,15 +108,11 @@ pub struct PumWant {
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const Ctrl_C: c_int = 3;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const PUM_DEF_HEIGHT: c_int = 10;
 const DEFAULT_GRID_HANDLE: c_int = 1;
-const ECMD_ONE: linenr_T = 1;
 
 const MODE_CMDLINE: c_int = 0x08;
-const UPD_SOME_VALID: c_int = 35;
-const UPD_NOT_VALID: c_int = 40;
 
 const CPT_ABBR: c_int = 0;
 const CPT_KIND: c_int = 1;
@@ -132,7 +135,6 @@ const kUIPopupmenu: UIExtension = 1;
 const kUIWildmenu: UIExtension = 3;
 const kUIMultigrid: UIExtension = 6;
 
-const kZIndexFloatDefault: c_int = 50;
 const kZIndexPopupMenu: c_int = 100;
 const kZIndexCmdlinePopupMenu: c_int = 250;
 
@@ -144,10 +146,7 @@ const kOptCotFlagPreview: c_uint = 0x800;
 
 const OPT_LOCAL: c_int = 0x02;
 const kOptBufhidden: OptIndex = 27;
-const kOptBuflisted: OptIndex = 28;
 const kOptBuftype: OptIndex = 29;
-const kOptDiff: OptIndex = 70;
-const kOptSwapfile: OptIndex = 301;
 
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;

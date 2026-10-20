@@ -177,14 +177,12 @@ const kBffInitChangedtick: c_int = 2;
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
-const NOTDONE: c_int = 2;
+pub(crate) const NOTDONE: c_int = 2;
 const FORWARD: c_int = 1;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const IOSIZE: usize = 1025;
-const MAXPATHL: usize = 4096;
-const NMARKS: usize = 26;
+pub(crate) const NMARKS: usize = 26;
 const JUMPLISTSIZE: usize = 100;
-const DO_NOT_FREE_CNT: c_int = c_int::MAX / 2;
+pub(crate) const DO_NOT_FREE_CNT: c_int = c_int::MAX / 2;
 
 const BF_CHECK_RO: c_int = 0x02;
 const BF_NEVERLOADED: c_int = 0x04;
@@ -219,24 +217,23 @@ const EVENT_BUFWINLEAVE: c_int = 16;
 const EVENT_BUFWIPEOUT: c_int = 17;
 const EVENT_STDINREADPOST: c_int = 109;
 
-const kShmRo: c_int = b'r' as c_int;
+pub(crate) const kShmRo: c_int = b'r' as c_int;
 const kShmMod: c_int = b'm' as c_int;
-const kShmFileinfo: c_int = b'F' as c_int;
+pub(crate) const kShmFileinfo: c_int = b'F' as c_int;
 const kCpoIntmod: c_int = b'i' as c_int;
 
 const kMarkAdjustNormal: c_int = 0;
 const kExtmarkNoUndo: c_int = 2;
 
-const SEA_NONE: c_int = 0;
-const SEA_DIALOG: c_int = 1;
-const SEA_QUIT: c_int = 2;
-const SEA_RECOVER: c_int = 3;
+pub(crate) const SEA_NONE: c_int = 0;
+pub(crate) const SEA_DIALOG: c_int = 1;
+pub(crate) const SEA_QUIT: c_int = 2;
+pub(crate) const SEA_RECOVER: c_int = 3;
 
 const CMOD_HIDE: c_int = 0x0020;
 const CMOD_CONFIRM: c_int = 0x0080;
 const CMOD_KEEPALT: c_int = 0x0100;
 
-const ECMD_ONE: linenr_T = 1;
 const ECMD_FORCEIT: c_int = 0x08;
 
 const kOptJopFlagView: c_uint = 0x02;
@@ -251,31 +248,24 @@ const kCtxNoDisplay: c_int = 4;
 const kCdCauseBuffer: c_int = 2;
 const kCdCauseAuto: c_int = 3;
 
-const BCO_ENTER: c_int = 1;
-const BCO_ALWAYS: c_int = 2;
-const BCO_NOHELP: c_int = 4;
+pub(crate) const BCO_ALWAYS: c_int = 2;
 
-const KEYMAP_INIT: i16 = 1;
-const UPD_NOT_VALID: c_int = 40;
+pub(crate) const KEYMAP_INIT: i16 = 1;
 
-const DI_FLAGS_RO: u8 = 1;
-const DI_FLAGS_FIX: u8 = 4;
 const VAR_FIXED: c_int = 2;
 const VAR_SCOPE: c_int = 1;
-const kCallbackNone: c_int = 0;
 
-const NO_LOCAL_UNDOLEVEL: OptInt = -123456;
+pub(crate) const NO_LOCAL_UNDOLEVEL: OptInt = -123456;
 
 const WSP_ROOM: c_int = 0x01;
 const WSP_VERT: c_int = 0x02;
 const WSP_BELOW: c_int = 0x40;
 
-const RE_MAGIC: c_int = 1;
 const kWinStyleMinimal: c_int = 1;
 const kUIMessages: UIExtension = 4;
 
-const STL_IN_ICON: c_int = 1;
-const STL_IN_TITLE: c_int = 2;
+pub(crate) const STL_IN_ICON: c_int = 1;
+pub(crate) const STL_IN_TITLE: c_int = 2;
 const kOptIconstring: OptIndex = 139;
 const kOptTitlestring: OptIndex = 331;
 
@@ -302,7 +292,15 @@ const INIT_FMARK: fmark_T = fmark_T {
     additional_data: ptr::null_mut(),
 };
 
+use crate::api::autocmd::kCallbackNone;
+use crate::api::options::IOSIZE;
 pub use crate::api::options::bufref_T;
+use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{BCO_ENTER, BCO_NOHELP};
+use crate::drawscreen::UPD_NOT_VALID;
+use crate::ex_cmds::ECMD_ONE;
+use crate::regexp::RE_MAGIC;
 
 #[repr(C)]
 struct memfile_head_T {

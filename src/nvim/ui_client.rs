@@ -51,8 +51,6 @@ use std::ffi::{c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-const LOGLVL_INF: c_int = 2;
-const LOGLVL_ERR: c_int = 4;
 const UI_CLIENT_STDIN_FD: Integer = 3;
 const kChannelStdinPipe: c_int = 0;
 const kLineFlagWrap: c_int = 1;
@@ -90,6 +88,7 @@ unsafe extern "C" {
 }
 
 pub use crate::fileio::FILE;
+use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
 unsafe fn cstr_obj(s: *const c_char) -> Object {

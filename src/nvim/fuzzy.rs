@@ -20,10 +20,14 @@ use crate::cursor_shape::pos_T;
 #[cfg(not(test))]
 use crate::eval::callback_call;
 #[cfg(not(test))]
+use crate::eval::decode::K_LIST_LEN_MAY_KNOW;
+#[cfg(not(test))]
 use crate::eval::decode::dict_T;
 #[cfg(not(test))]
 use crate::eval::deprecated::Callback;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
+#[cfg(not(test))]
+use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 #[cfg(not(test))]
 use crate::eval::typval::{
     callback_free, tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
@@ -89,10 +93,6 @@ const SCORE_MATCH_DOT: f64 = 0.6;
 const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
 const K_CALLBACK_NONE: c_int = 0;
-#[cfg(not(test))]
-const K_LIST_LEN_UNKNOWN: isize = -1;
-#[cfg(not(test))]
-const K_LIST_LEN_MAY_KNOW: isize = -3;
 #[cfg(not(test))]
 const FORWARD: c_int = 1;
 

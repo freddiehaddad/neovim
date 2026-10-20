@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::extmark::kDecorProviderActive;
 use crate::api::extmark::{DecorProvider, NS, describe_ns, linenr_T};
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, api_object_to_bool, buffer_obj, error_init,
@@ -20,6 +21,7 @@ use crate::eval::deprecated::buf_T;
 use crate::globals::*;
 use crate::highlight::hl_check_ns;
 use crate::kvec::KVec;
+use crate::log::LOGLVL_ERR;
 use crate::log::logmsg;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, nlua_call_ref};
@@ -31,13 +33,11 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 const LUA_NOREF: LuaRef = -2;
-const CB_MAX_ERROR: u8 = 3;
-const LOGLVL_ERR: c_int = 4;
+pub(crate) const CB_MAX_ERROR: u8 = 3;
 
 const kRetNilBool: c_int = 1;
 const kRetMulti: c_int = 3;
 
-const kDecorProviderActive: c_int = 1;
 const kDecorProviderWinDisabled: c_int = 2;
 const kDecorProviderRedrawDisabled: c_int = 3;
 const kDecorProviderDisabled: c_int = 4;

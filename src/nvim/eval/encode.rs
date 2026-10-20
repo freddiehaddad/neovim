@@ -3,11 +3,16 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
+#[cfg(not(test))]
+use crate::api::private::converter::K_SPECIAL_VAR_NULL;
 use crate::api::private::converter::partial_T;
+use crate::buffer::NOTDONE;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::eval::decode::dict_T;
 #[cfg(not(test))]
 use crate::eval::decode::dictitem_T;
+#[cfg(not(test))]
+use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP};
 use crate::eval::executor::blob_T;
 use crate::eval::typval::tv_list_first;
 #[cfg(not(test))]
@@ -15,6 +20,8 @@ use crate::eval::typval::{
     tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_allocated_string, tv_list_idx_of_item,
     tv_list_last, tv_list_len,
 };
+#[cfg(not(test))]
+use crate::eval::vars::NUM_MSGPACK_TYPES;
 #[cfg(not(test))]
 use crate::eval::vars::eval_msgpack_type_lists;
 #[cfg(not(test))]
@@ -42,6 +49,8 @@ use crate::msgpack_rpc::packer::{
     mpack_map, mpack_nil, mpack_str, mpack_uint64,
 };
 #[cfg(not(test))]
+use crate::regexp::NUMBUFLEN;
+#[cfg(not(test))]
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, c_char, c_int, c_void};
 #[cfg(not(test))]
@@ -49,31 +58,20 @@ use std::sync::atomic::AtomicBool;
 #[cfg(not(test))]
 use std::sync::atomic::Ordering;
 
-const NOTDONE: c_int = 2;
 const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
-#[cfg(not(test))]
-const K_SPECIAL_VAR_NULL: i64 = 0;
 
 #[cfg(not(test))]
-const K_MP_NIL: usize = 0;
+pub(crate) const K_MP_NIL: usize = 0;
 #[cfg(not(test))]
-const K_MP_BOOLEAN: usize = 1;
+pub(crate) const K_MP_BOOLEAN: usize = 1;
 #[cfg(not(test))]
-const K_MP_INTEGER: usize = 2;
+pub(crate) const K_MP_FLOAT: usize = 3;
 #[cfg(not(test))]
-const K_MP_FLOAT: usize = 3;
+pub(crate) const K_MP_STRING: usize = 4;
 #[cfg(not(test))]
-const K_MP_STRING: usize = 4;
-#[cfg(not(test))]
-const K_MP_ARRAY: usize = 5;
-#[cfg(not(test))]
-const K_MP_MAP: usize = 6;
-#[cfg(not(test))]
-const K_MP_EXT: usize = 7;
-#[cfg(not(test))]
-const NUM_MSGPACK_TYPES: usize = 8;
+pub(crate) const K_MP_ARRAY: usize = 5;
 
 #[cfg(not(test))]
 const SURROGATE_HI_START: c_int = 0xD800;
@@ -85,9 +83,6 @@ const SURROGATE_LO_START: c_int = 0xDC00;
 const SURROGATE_LO_END: c_int = 0xDFFF;
 #[cfg(not(test))]
 const SURROGATE_FIRST_CHAR: c_int = 0x10000;
-
-#[cfg(not(test))]
-const NUMBUFLEN: usize = 65;
 
 #[cfg(not(test))]
 const BS: c_int = 0x08;

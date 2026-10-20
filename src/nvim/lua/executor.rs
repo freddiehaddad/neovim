@@ -181,40 +181,25 @@ pub const kRetMultiStack: LuaRetMode = 4;
 #[cfg(not(test))]
 const NUL: c_char = 0;
 #[cfg(not(test))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
 const MAX_FUNC_ARGS: c_int = 20;
 #[cfg(not(test))]
 const MB_MAXBYTES: usize = 30;
 
 const LUA_MULTRET: c_int = -1;
 #[cfg(not(test))]
-const LUA_REGISTRYINDEX: c_int = -10000;
+pub(crate) const LUA_REGISTRYINDEX: c_int = -10000;
 #[cfg(not(test))]
-const LUA_GLOBALSINDEX: c_int = -10002;
+pub(crate) const LUA_GLOBALSINDEX: c_int = -10002;
 
 const LUA_NOREF: LuaRef = -2;
 #[cfg(not(test))]
 const LUA_REFNIL: LuaRef = -1;
 
 #[cfg(not(test))]
-const LUA_TNIL: c_int = 0;
-#[cfg(not(test))]
-const LUA_TBOOLEAN: c_int = 1;
-#[cfg(not(test))]
-const LUA_TSTRING: c_int = 4;
-#[cfg(not(test))]
-const LUA_TTABLE: c_int = 5;
-#[cfg(not(test))]
-const LUA_TFUNCTION: c_int = 6;
-
-#[cfg(not(test))]
 const LUA_ERRRUN: c_int = 2;
 #[cfg(not(test))]
 const LUA_ERRMEM: c_int = 4;
 
-#[cfg(not(test))]
-const LUA_INTERNAL_CALL: u64 = (1u64 << 63) + 1;
 #[cfg(not(test))]
 const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 
@@ -228,8 +213,6 @@ const kThread: isize = 1;
 #[cfg(not(test))]
 const kThreadCallback: isize = 2;
 
-#[cfg(not(test))]
-const kCallbackNone: c_int = 0;
 #[cfg(not(test))]
 const VAR_FIXED: c_int = 2;
 
@@ -558,6 +541,16 @@ unsafe extern "system" {
     fn ExitThread(dwExitCode: u32) -> !;
 }
 
+#[cfg(not(test))]
+use crate::api::autocmd::kCallbackNone;
+#[cfg(not(test))]
+use crate::api::buffer::LUA_INTERNAL_CALL;
+#[cfg(not(test))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::lua::base64::LUA_TSTRING;
+#[cfg(not(test))]
+use crate::lua::converter::{LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TNIL, LUA_TTABLE};
 #[cfg(not(test))]
 use crate::version::main_exitfree;
 

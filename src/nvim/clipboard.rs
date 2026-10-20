@@ -18,16 +18,13 @@ use crate::message::{emsg, msg, redirecting};
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
+use crate::register::{PLUS_REGISTER, STAR_REGISTER};
+#[cfg(not(test))]
 use crate::register::{free_register, get_y_previous, get_y_register, update_yankreg_width};
 #[cfg(not(test))]
 use std::ffi::c_uint;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-
-#[cfg(not(test))]
-const STAR_REGISTER: c_int = 37;
-#[cfg(not(test))]
-const PLUS_REGISTER: c_int = 38;
 
 #[cfg(not(test))]
 const K_OPT_CB_FLAG_UNNAMED: c_uint = 0x01;

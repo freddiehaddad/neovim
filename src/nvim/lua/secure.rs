@@ -21,10 +21,9 @@ use std::ffi::c_int;
 use std::ffi::c_void;
 use std::ffi::{CStr, c_char};
 
-#[cfg(not(test))]
-const LUA_GLOBALSINDEX: c_int = -10002;
-
 pub use crate::api::command::exarg_T;
+#[cfg(not(test))]
+use crate::lua::executor::LUA_GLOBALSINDEX;
 
 #[cfg(not(test))]
 unsafe extern "C-unwind" {

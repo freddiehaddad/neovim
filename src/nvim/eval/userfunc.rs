@@ -103,7 +103,17 @@ pub type FnameTransError = c_int;
 pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
 pub type ArgvFunc =
     Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
+use crate::api::options::IOSIZE;
+use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
+use crate::autocmd::PROF_YES;
+use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE};
+use crate::cmdexpand::EXPAND_USER_FUNC;
 pub use crate::cmdexpand::LineGetter;
+use crate::eval::GLV_READ_ONLY;
+use crate::eval::funcs::{TFN_INT, TFN_NO_DEREF};
+use crate::eval::typval::TV_CSTRING;
+use crate::eval::{EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, TFN_NO_AUTOLOAD, TFN_QUIET};
+use crate::regexp::{NUMBUFLEN, RE_MAGIC};
 
 pub const FC_ABORT: c_int = 0x01;
 pub const FC_RANGE: c_int = 0x02;
@@ -126,50 +136,28 @@ pub const FCERR_DELETED: c_int = 7;
 pub const FCERR_NOTMETHOD: c_int = 8;
 
 const NUL: c_char = 0;
-const NOTDONE: c_int = 2;
-const IOSIZE: usize = 1025;
-const NUMBUFLEN: usize = 65;
 const FLEN_FIXED: usize = 40;
 const MAX_FUNC_NESTING: c_int = 50;
 const MAX_FUNC_ARGS: usize = 20;
-const VAR_SHORT_LEN: usize = 20;
-const FIXVAR_CNT: usize = 12;
-const DO_NOT_FREE_CNT: c_int = c_int::MAX / 2;
+pub(crate) const VAR_SHORT_LEN: usize = 20;
+pub(crate) const FIXVAR_CNT: usize = 12;
 
-const MSG_BUF_LEN: usize = 480;
+pub(crate) const MSG_BUF_LEN: usize = 480;
 const MSG_BUF_CLEN: c_int = (MSG_BUF_LEN / 6) as c_int;
-
-const DI_FLAGS_RO: u8 = 1;
-const DI_FLAGS_FIX: u8 = 4;
 
 const VAR_UNLOCKED: c_int = 0;
 const VAR_FIXED: c_int = 2;
 const VAR_SCOPE: c_int = 1;
 const VAR_DEF_SCOPE: c_int = 2;
 
-const EVAL_EVALUATE: c_int = 1;
-const TFN_INT: c_int = 1;
-const TFN_QUIET: c_int = 2;
-const TFN_NO_AUTOLOAD: c_int = 4;
-const TFN_NO_DEREF: c_int = 8;
-const TFN_READ_ONLY: c_int = 16;
-const GLV_READ_ONLY: c_int = TFN_READ_ONLY;
-
-const FNE_INCL_BR: c_int = 1;
-const FNE_CHECK_START: c_int = 2;
-
 const DOCMD_VERBOSE: c_int = 0x01;
 const DOCMD_NOWAIT: c_int = 0x02;
 const DOCMD_REPEAT: c_int = 0x04;
 
-const PROF_YES: c_int = 1;
-const RE_MAGIC: c_int = 1;
 const LUA_NOREF: c_int = -2;
 const AUTOLOAD_CHAR: c_char = b'#' as c_char;
-const TV_CSTRING: usize = usize::MAX - 1;
 
 const EVENT_FUNCUNDEFINED: c_int = 69;
-const EXPAND_USER_FUNC: c_int = 19;
 const kUICmdline: c_int = 0;
 
 #[repr(C)]

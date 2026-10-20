@@ -44,23 +44,21 @@ use crate::window::tabpage_index;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
+use crate::api::vim::MAXPATHL;
+use crate::api::win_config::FR_COL;
+use crate::drawscreen::FR_LEAF;
+use crate::ex_getln::VSE_NONE;
 pub use crate::fileio::FILE;
+use crate::math::{FAIL, OK};
+use crate::runtime::DOSO_NONE;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: c_int = 0x7fffffff;
-const MAXPATHL: usize = 4096;
 
-const FR_LEAF: c_char = 0;
-const FR_COL: c_char = 2;
-
-const VSE_NONE: c_int = 0;
 const OPT_GLOBAL: c_int = 0x01;
 const OPT_LOCAL: c_int = 0x02;
 const OPT_SKIPRTP: c_int = 0x80;
 const VAR_FLAVOUR_SESSION: c_int = 2;
-const DOSO_NONE: c_int = 0;
 const kCdCauseOther: c_int = -1;
 const VV_THIS_SESSION: c_int = 7;
 

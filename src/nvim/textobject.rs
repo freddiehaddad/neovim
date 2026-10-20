@@ -34,21 +34,20 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::drawscreen::UPD_INVERTED;
+use crate::eval::funcs::kMTCharWise;
+use crate::math::{FAIL, OK};
 pub use crate::search::Direction;
+use crate::search::kCpoMatchbsl;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const FORWARD: Direction = 1;
 const BACKWARD: Direction = -1;
 const MAXCOL: colnr_T = 0x7fffffff;
-const UPD_INVERTED: c_int = 20;
 const FM_FORWARD: c_int = 0x02;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
-const kCpoMatchbsl: c_int = b'M' as c_int;
 
-const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
 
 static CLS_BIGWORD: AtomicBool = AtomicBool::new(false);

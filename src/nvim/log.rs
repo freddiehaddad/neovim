@@ -47,12 +47,6 @@ use std::io::Write;
 use std::ptr;
 
 const NUL: c_char = 0;
-#[cfg(not(test))]
-const MAXPATHL: usize = 4096;
-#[cfg(all(not(test), unix))]
-const IOSIZE: usize = 1025;
-#[cfg(not(test))]
-const EOF: c_int = -1;
 
 pub const LOGLVL_DBG: c_int = 1;
 pub const LOGLVL_INF: c_int = 2;
@@ -229,6 +223,12 @@ macro_rules! logmsg {
         }
     }};
 }
+#[cfg(all(not(test), unix))]
+use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::fileio::EOF;
 pub use logmsg;
 
 unsafe fn log_try_create(fname: *const c_char) -> bool {

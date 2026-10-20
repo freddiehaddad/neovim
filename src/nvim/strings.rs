@@ -61,24 +61,6 @@ use std::ptr;
 const NUL: c_char = 0;
 const CTRL_V: c_char = 0x16;
 const MB_MAXBYTES: usize = 30;
-#[cfg(not(test))]
-const NUMBUFLEN: usize = 65;
-
-#[cfg(not(test))]
-const kListLenUnknown: isize = -1;
-
-#[cfg(not(test))]
-const STR2NR_BIN: c_int = 1 << 0;
-#[cfg(not(test))]
-const STR2NR_OCT: c_int = 1 << 1;
-#[cfg(not(test))]
-const STR2NR_HEX: c_int = 1 << 2;
-#[cfg(not(test))]
-const STR2NR_OOCT: c_int = 1 << 3;
-#[cfg(not(test))]
-const STR2NR_QUOTE: c_int = 1 << 4;
-#[cfg(not(test))]
-const STR2NR_FORCE: c_int = 1 << 7;
 
 pub const TYPE_UNKNOWN: c_int = -1;
 pub const TYPE_INT: c_int = 0;
@@ -2905,6 +2887,12 @@ macro_rules! vim_snprintf_safelen {
         )
     };
 }
+#[cfg(not(test))]
+use crate::charset::{STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE};
+#[cfg(not(test))]
+use crate::eval::kListLenUnknown;
+#[cfg(not(test))]
+use crate::regexp::NUMBUFLEN;
 pub use vim_snprintf_safelen;
 
 #[cfg_attr(not(test), unsafe(no_mangle))]

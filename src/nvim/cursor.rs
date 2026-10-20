@@ -10,11 +10,13 @@
 
 use crate::api::tabpage::win_T;
 use crate::change::inserted_bytes;
+use crate::drawscreen::UPD_NOT_VALID;
 use crate::drawscreen::redraw_later;
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
+use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utf_ptr2char};
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
@@ -64,12 +66,9 @@ pub const fn ltoreq(a: pos_T, b: pos_T) -> bool {
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 
 const VALID_VIRTCOL: c_int = 0x04;
-const UPD_NOT_VALID: c_int = 40;
 
 const MODE_INSERT: c_int = 0x10;
 const MODE_TERMINAL: c_int = 0x80;

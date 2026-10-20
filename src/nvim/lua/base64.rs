@@ -13,7 +13,7 @@ pub type lua_State = c_void;
 #[allow(non_camel_case_types)]
 pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State) -> c_int>;
 
-const LUA_TSTRING: c_int = 4;
+pub(crate) const LUA_TSTRING: c_int = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

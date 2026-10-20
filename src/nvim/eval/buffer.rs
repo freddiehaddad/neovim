@@ -51,24 +51,23 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type varnumber_T = i64;
+use crate::api::autocmd::kCallbackNone;
+use crate::buffer::SEA_NONE;
+use crate::change::ML_DEL_MESSAGE;
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::eval::kListLenMayKnow;
 pub use crate::extmark::ExtmarkOp;
 pub use crate::mark::MarkAdjustMode;
+use crate::math::{FAIL, OK};
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXLNUM: linenr_T = 0x7fffffff;
 
-const kListLenMayKnow: isize = -3;
-const kCallbackNone: c_int = 0;
 const kMarkAdjustNormal: MarkAdjustMode = 0;
 const kExtmarkUndo: ExtmarkOp = 1;
 const kExtmarkNoUndo: ExtmarkOp = 2;
-const ML_DEL_MESSAGE: c_int = 1;
-const SEA_NONE: c_int = 0;
-const SEA_READONLY: c_int = 4;
+pub(crate) const SEA_READONLY: c_int = 4;
 
 #[repr(C)]
 struct WinInfoHead {

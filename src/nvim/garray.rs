@@ -16,7 +16,7 @@ pub struct garray_T {
     pub ga_data: *mut c_void,
 }
 
-const K_PATH_CMP_LITERAL: c_int = 1 << 0;
+pub(crate) const K_PATH_CMP_LITERAL: c_int = 1 << 0;
 
 /// Clear an allocated growing array (`ga_clear`).
 ///

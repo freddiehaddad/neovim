@@ -16873,6 +16873,7 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
     }
 }
 
+use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::api::buffer::nvim_buf_call;
 use crate::api::extmark::nvim_set_decoration_provider;
 use crate::api::options::nvim__option_to_object;
@@ -16896,9 +16897,6 @@ use crate::lua::converter::{
 use crate::lua::executor::{active_lstate, api_free_luaref, nlua_is_deferred_safe};
 use crate::memory::{arena_finish, arena_mem_free};
 
-const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
-const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
-const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 const kNluaPushSpecial: c_int = 0x01;
 const kNluaPushFreeRefs: c_int = 0x02;
 

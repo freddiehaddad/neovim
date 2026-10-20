@@ -73,16 +73,10 @@ pub type ChannelStreamType = c_int;
 pub type ChannelPart = c_int;
 pub use crate::api::autocmd::event_T;
 
-#[cfg(not(test))]
-const UV_PROCESS: c_int = 10;
-
 #[cfg(windows)]
 const UV_EPIPE: c_int = -4047;
 #[cfg(not(windows))]
 const UV_EPIPE: c_int = -32;
-
-const LOGLVL_INF: c_int = 2;
-const LOGLVL_ERR: c_int = 4;
 
 #[cfg(not(test))]
 const EVENT_CHANINFO: event_T = 23;
@@ -95,15 +89,7 @@ const kClientTypeHost: ClientType = 3;
 const kClientTypePlugin: ClientType = 4;
 const kClientTypeMsgpackRpc: ClientType = 5;
 
-const kChannelStreamProc: ChannelStreamType = 0;
-const kChannelStreamSocket: ChannelStreamType = 1;
 const kChannelStreamStdio: ChannelStreamType = 2;
-const kChannelStreamInternal: ChannelStreamType = 4;
-
-#[cfg(not(test))]
-const kChannelPartRpc: ChannelPart = 3;
-
-const kUIExtCount: usize = 10;
 
 const NIL: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
@@ -236,6 +222,14 @@ pub type RequestHandlerFn = unsafe extern "C" fn(
 use crate::api::private::dispatch::{
     handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
 };
+use crate::api::ui::kUIExtCount;
+use crate::api::vim::kChannelStreamInternal;
+#[cfg(not(test))]
+use crate::channel::kChannelPartRpc;
+use crate::channel::{kChannelStreamProc, kChannelStreamSocket};
+#[cfg(not(test))]
+use crate::event::libuv_proc::UV_PROCESS;
+use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
 pub unsafe fn channel_stream_union_size() -> usize {

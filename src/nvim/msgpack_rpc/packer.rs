@@ -8,7 +8,7 @@ use crate::memory::{xfree, xmalloc, xrealloc};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 pub const MPACK_ITEM_SIZE: usize = 9;
-const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
+pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
 const LUA_NOREF: c_int = -2;
 
 #[allow(non_camel_case_types)]

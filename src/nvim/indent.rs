@@ -69,51 +69,42 @@ pub use crate::optionstr::OptIndex;
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
+use crate::api::options::IOSIZE;
+use crate::change::{SIN_INSERT, SIN_NOMARK};
+use crate::drawscreen::UPD_INVERTED;
 pub use crate::eval::deprecated::EvalFuncData;
+use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
+use crate::math::{FAIL, OK};
 pub use crate::optionstr::{CharBuf, OptKeyDict_briopt};
+use crate::regexp::{RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING};
 
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const TABSTOP_MAX: c_int = 9999;
-const IOSIZE: usize = 1025;
 
-const SIN_CHANGED: c_int = 1;
-const SIN_INSERT: c_int = 2;
+pub(crate) const SIN_CHANGED: c_int = 1;
 const SIN_UNDO: c_int = 4;
-const SIN_NOMARK: c_int = 8;
 
-const INDENT_SET: c_int = 1;
-const INDENT_DEC: c_int = 3;
-
-const BL_WHITE: c_int = 1;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
+pub(crate) const INDENT_SET: c_int = 1;
+pub(crate) const INDENT_DEC: c_int = 3;
 
 const MODE_INSERT: c_int = 0x10;
 const REPLACE_FLAG: c_int = 0x100;
 const VREPLACE_FLAG: c_int = 0x200;
 
-const UPD_INVERTED: c_int = 20;
 const CMOD_LOCKMARKS: c_int = 0x0800;
 
-const RE_MAGIC: c_int = 1;
-const RE_STRING: c_int = 2;
-const RE_STRICT: c_int = 4;
-const RE_AUTO: c_int = 8;
-
 const kExtmarkUndo: ExtmarkOp = 1;
-const kFoQComs: c_int = b'q' as c_int;
+pub(crate) const kFoQComs: c_int = b'q' as c_int;
 const kOptDyFlagUhex: c_uint = 0x04;
 
 const OPT_LOCAL: c_int = 0x02;
-const kOptBreakindentopt: OptIndex = 25;
-const kOptIndentexpr: OptIndex = 149;
-const kOptTabstop: OptIndex = 308;
-const kOptVartabstop: OptIndex = 342;
-const kBufOptIndentexpr: usize = 48;
+pub(crate) const kOptBreakindentopt: OptIndex = 25;
+pub(crate) const kOptIndentexpr: OptIndex = 149;
+pub(crate) const kOptTabstop: OptIndex = 308;
+pub(crate) const kOptVartabstop: OptIndex = 342;
+pub(crate) const kBufOptIndentexpr: usize = 48;
 
 const VV_LNUM: c_int = 9;
 

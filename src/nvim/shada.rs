@@ -102,9 +102,7 @@ pub use crate::search::AdditionalData;
 pub type ShaDaReadFileFlags = c_int;
 pub use crate::eval::var_flavour_T;
 
-const VAR_FLAVOUR_DEFAULT: var_flavour_T = 1;
 const VAR_FLAVOUR_SESSION: var_flavour_T = 2;
-const VAR_FLAVOUR_SHADA: var_flavour_T = 4;
 
 pub const kShaDaWantInfo: c_int = 1;
 pub const kShaDaWantMarks: c_int = 2;
@@ -117,17 +115,11 @@ pub const kShaDaNoOpt: c_int = 128;
 
 const NUL: c_char = 0;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const MAXPATHL: usize = 4096;
-const EXTRA_MARKS: usize = 10;
-const NMARKS: usize = 26;
 const NLOCALMARKS: usize = NMARKS + 3;
 const JUMPLISTSIZE: usize = 100;
 const NS_PER_SEC: u64 = 1_000_000_000;
 const VAR_TYPE_BLOB: Integer = 10;
-const BLN_LISTED: c_int = 2;
 const kMarkBufLocal: c_int = 0;
-const kListLenUnknown: isize = -1;
-const MPACK_EOF: c_int = 1;
 const SHADA_MPACK_FREE_SPACE: usize = 4 * MPACK_ITEM_SIZE;
 
 const S_IFMT: u64 = 0o170000;
@@ -635,7 +627,12 @@ use crate::api::private::dispatch::{
     KeyDict__shada_search_pat_get_field as shada_search_pat_get_field_cb,
 };
 
+use crate::api::vim::MAXPATHL;
+use crate::buffer::{BLN_LISTED, NMARKS};
+use crate::eval::funcs::MPACK_EOF;
+use crate::eval::{VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SHADA, kListLenUnknown};
 use crate::event::r#loop::uv_strerror as os_strerror;
+use crate::mark::EXTRA_MARKS;
 use crate::version::longVersion;
 
 #[inline]

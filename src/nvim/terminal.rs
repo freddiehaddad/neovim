@@ -100,8 +100,8 @@ use crate::keycodes::{
     K_F63, K_HOME, K_INS, K_K0, K_K1, K_K2, K_K3, K_K4, K_K5, K_K6, K_K7, K_K8, K_K9, K_KDEL,
     K_KDIVIDE, K_KDOWN, K_KEND, K_KENTER, K_KHOME, K_KINS, K_KLEFT, K_KMINUS, K_KMULTIPLY,
     K_KORIGIN, K_KPAGEDOWN, K_KPAGEUP, K_KPLUS, K_KPOINT, K_KRIGHT, K_KUP, K_LEFT, K_PAGEDOWN,
-    K_PAGEUP, K_RIGHT, K_TAB, K_UP, KE_EVENT, KE_LUA, KS_EXTRA, MOD_MASK_ALT, MOD_MASK_CTRL,
-    MOD_MASK_SHIFT, TAB, termcap2key, unsimplify_key,
+    K_PAGEUP, K_RIGHT, K_TAB, K_UP, MOD_MASK_ALT, MOD_MASK_CTRL, MOD_MASK_SHIFT, TAB,
+    unsimplify_key,
 };
 #[cfg(not(test))]
 use crate::keycodes::{
@@ -134,8 +134,6 @@ use crate::memory::{strequal, xcalloc, xmalloc, xmemdup, xmemdupz, xstrdup};
 use crate::mouse::{do_mousescroll, mouse_find_win_inner};
 #[cfg(not(test))]
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
-#[cfg(not(test))]
-use crate::msgpack_rpc::channel::event_T;
 use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
 use crate::ops::clear_oparg;
@@ -173,16 +171,12 @@ use crate::vterm::parser::VTermTerminator;
 #[cfg(not(test))]
 use crate::vterm::parser::vterm_input_write;
 #[cfg(not(test))]
-use crate::vterm::pen::{
-    VTermAttr, VTermProp, VTermRect, VTermValue, VTermValueType, vterm_state_convert_color_to_rgb,
-};
+use crate::vterm::pen::{VTermProp, VTermRect, VTermValue, vterm_state_convert_color_to_rgb};
 #[cfg(not(test))]
 use crate::vterm::pen::{vterm_state_set_palette_color, vterm_state_set_penattr};
-#[cfg(not(test))]
-use crate::vterm::screen::{
-    VTermDamageSize, VTermScreenCallbacks, VTermScreenCellAttrs, vterm_screen_get_cell,
-};
 use crate::vterm::screen::{VTermScreen, VTermScreenCell};
+#[cfg(not(test))]
+use crate::vterm::screen::{VTermScreenCallbacks, VTermScreenCellAttrs, vterm_screen_get_cell};
 #[cfg(not(test))]
 use crate::vterm::screen::{
     vterm_obtain_screen, vterm_screen_enable_altscreen, vterm_screen_enable_reflow,
@@ -212,8 +206,40 @@ use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 pub use crate::api::deprecated::StringBuilder;
+#[cfg(not(test))]
+use crate::autocmd::{
+    AUGROUP_ALL, EVENT_TERMCLOSE, EVENT_TERMENTER, EVENT_TERMLEAVE, EVENT_TERMOPEN,
+    EVENT_TERMREQUEST, EVENT_TEXTCHANGEDT,
+};
+#[cfg(not(test))]
+use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE};
 pub use crate::cmdexpand::LineGetter;
+#[cfg(not(test))]
+use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID};
+#[cfg(not(test))]
+use crate::eval::kListLenMayKnow;
+#[cfg(not(test))]
+use crate::ex_getln::{K_EVENT, K_LUA};
+#[cfg(not(test))]
+use crate::input::K_PASTE_START;
+#[cfg(not(test))]
+use crate::mouse::{MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP};
 pub use crate::vterm::keyboard::VTermKey;
+#[cfg(not(test))]
+use crate::vterm::parser::VTERM_TERMINATOR_BEL;
+#[cfg(not(test))]
+use crate::vterm::pen::{
+    VTERM_ATTR_URI, VTERM_UNDERLINE_CURLY, VTERM_UNDERLINE_DOUBLE, VTERM_UNDERLINE_SINGLE,
+    VTERM_VALUETYPE_INT,
+};
+#[cfg(not(test))]
+use crate::vterm::screen::{VTERM_DAMAGE_SCROLL, VTERM_PROP_ALTSCREEN};
+#[cfg(not(test))]
+use crate::vterm::state::{
+    VTERM_PROP_CURSORBLINK, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORSHAPE_BAR_LEFT,
+    VTERM_PROP_CURSORSHAPE_BLOCK, VTERM_PROP_CURSORSHAPE_UNDERLINE, VTERM_PROP_CURSORVISIBLE,
+    VTERM_PROP_MOUSE, VTERM_PROP_SYNCOUTPUT, VTERM_PROP_THEMEUPDATES, VTERM_PROP_TITLE,
+};
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
@@ -253,64 +279,9 @@ const kOptTpfFlagC1: c_uint = 0x40;
 
 #[cfg(not(test))]
 const VV_TERMREQUEST: c_int = 10;
-#[cfg(not(test))]
-const AUGROUP_ALL: c_int = -3;
-
-#[cfg(not(test))]
-const EVENT_TERMCLOSE: event_T = 121;
-#[cfg(not(test))]
-const EVENT_TERMENTER: event_T = 122;
-#[cfg(not(test))]
-const EVENT_TERMLEAVE: event_T = 123;
-#[cfg(not(test))]
-const EVENT_TERMOPEN: event_T = 124;
-#[cfg(not(test))]
-const EVENT_TERMREQUEST: event_T = 125;
-#[cfg(not(test))]
-const EVENT_TEXTCHANGEDT: event_T = 130;
-
-#[cfg(not(test))]
-const VTERM_TERMINATOR_BEL: VTermTerminator = 0;
-
-#[cfg(not(test))]
-const VTERM_ATTR_URI: VTermAttr = 13;
-#[cfg(not(test))]
-const VTERM_VALUETYPE_INT: VTermValueType = 2;
-#[cfg(not(test))]
-const VTERM_DAMAGE_SCROLL: VTermDamageSize = 3;
-
-#[cfg(not(test))]
-const VTERM_PROP_CURSORVISIBLE: VTermProp = 1;
-#[cfg(not(test))]
-const VTERM_PROP_CURSORBLINK: VTermProp = 2;
-#[cfg(not(test))]
-const VTERM_PROP_ALTSCREEN: VTermProp = 3;
-#[cfg(not(test))]
-const VTERM_PROP_TITLE: VTermProp = 4;
-#[cfg(not(test))]
-const VTERM_PROP_CURSORSHAPE: VTermProp = 7;
-#[cfg(not(test))]
-const VTERM_PROP_MOUSE: VTermProp = 8;
-#[cfg(not(test))]
-const VTERM_PROP_THEMEUPDATES: VTermProp = 10;
-#[cfg(not(test))]
-const VTERM_PROP_SYNCOUTPUT: VTermProp = 11;
-
-#[cfg(not(test))]
-const VTERM_PROP_CURSORSHAPE_BLOCK: c_int = 1;
-#[cfg(not(test))]
-const VTERM_PROP_CURSORSHAPE_UNDERLINE: c_int = 2;
-#[cfg(not(test))]
-const VTERM_PROP_CURSORSHAPE_BAR_LEFT: c_int = 3;
 
 #[cfg(not(test))]
 const VTERM_UNDERLINE_OFF: u32 = 0;
-#[cfg(not(test))]
-const VTERM_UNDERLINE_SINGLE: u32 = 1;
-#[cfg(not(test))]
-const VTERM_UNDERLINE_DOUBLE: u32 = 2;
-#[cfg(not(test))]
-const VTERM_UNDERLINE_CURLY: u32 = 3;
 
 #[cfg(not(test))]
 const VTERM_COLOR_INDEXED: u8 = 0x01;
@@ -399,13 +370,6 @@ const VTERM_KEY_KP_DIVIDE: VTermKey = 527;
 const VTERM_KEY_KP_ENTER: VTermKey = 528;
 
 #[cfg(not(test))]
-const K_PASTE_START: c_int = termcap2key(b'P' as c_int, b'S' as c_int);
-#[cfg(not(test))]
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
-#[cfg(not(test))]
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-
-#[cfg(not(test))]
 const Ctrl_AT: c_int = 0;
 #[cfg(not(test))]
 const Ctrl_C: c_int = 3;
@@ -422,27 +386,7 @@ const Ctrl_BSL: c_int = 28;
 const MODE_TERMINAL: c_int = 0x80;
 
 #[cfg(not(test))]
-const UPD_VALID: c_int = 10;
-#[cfg(not(test))]
-const UPD_SOME_VALID: c_int = 35;
-#[cfg(not(test))]
-const UPD_NOT_VALID: c_int = 40;
-
-#[cfg(not(test))]
-const DOBUF_WIPE: c_int = 4;
-#[cfg(not(test))]
-const DOBUF_FIRST: c_int = 1;
-#[cfg(not(test))]
 const FORWARD: c_int = 1;
-
-#[cfg(not(test))]
-const MSCR_DOWN: c_int = 0;
-#[cfg(not(test))]
-const MSCR_UP: c_int = 1;
-#[cfg(not(test))]
-const MSCR_LEFT: c_int = -1;
-#[cfg(not(test))]
-const MSCR_RIGHT: c_int = -2;
 
 #[cfg(not(test))]
 const MAXLNUM: linenr_T = 0x7fffffff;
@@ -450,8 +394,6 @@ const MAXLNUM: linenr_T = 0x7fffffff;
 const kMarkAdjustTerm: c_int = 2;
 #[cfg(not(test))]
 const kExtmarkUndo: c_int = 1;
-#[cfg(not(test))]
-const kListLenMayKnow: isize = -3;
 
 #[cfg(not(test))]
 const TERM_ATTRS_MAX: c_int = 1024;

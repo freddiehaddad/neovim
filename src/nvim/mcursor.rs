@@ -50,7 +50,7 @@ use crate::input_cmdatom::{
     g_atoms, kAInsertSpan, kAMotion, kAVisualSpan, kKeyInsFlush,
 };
 use crate::insexpand::ins_compl_active;
-use crate::keycodes::{K_COMMAND, K_SPECIAL, KE_LUA, KS_EXTRA, termcap2key};
+use crate::keycodes::{K_COMMAND, K_SPECIAL};
 use crate::kvec::KVec;
 use crate::log::{g_min_log_level, logmsg};
 use crate::lua::executor::nlua_call_typval;
@@ -98,29 +98,20 @@ const DECOR_INLINE_INIT: DecorInline = DecorInline {
 const kBoolVarFalse: c_int = 0;
 const kBoolVarTrue: c_int = 1;
 
-const kMTUnknown: MotionType = -1;
-const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
-const kMTBlockWise: MotionType = 2;
 
 const NUL: c_int = 0;
 const NL: c_int = 10;
 const Ctrl_V: c_int = 22;
 const ESC: c_char = 27;
 
-const FAIL: c_int = 0;
 const MAXLNUM: linenr_T = 0x7fffffff;
 const MAXCOL: colnr_T = 0x7fffffff;
 
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-const LUA_INTERNAL_CALL: u64 = 2u64 << 62;
 const CMOD_KEEPJUMPS: c_int = 0x0400;
-const REMAP_NONE: c_int = -1;
-const UPD_SOME_VALID: c_int = 35;
 const OPT_LOCAL: c_int = 2;
 const kOptFollow: c_int = 114;
 const VV_CASCADING: c_int = 108;
-const LOGLVL_DBG: c_int = 1;
 
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
@@ -131,10 +122,6 @@ const kCtxCursor: c_int = 64;
 const kCtxMarks: c_int = 128;
 const kCtxVisual: c_int = 256;
 const kCtxMergeReg: c_int = 1;
-
-const DELETION_REGISTER: c_int = 36;
-const STAR_REGISTER: c_int = 37;
-const PLUS_REGISTER: c_int = 38;
 
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 
@@ -195,7 +182,15 @@ const CONTEXT_INIT: Context = Context {
     },
 };
 
+use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::vim::REMAP_NONE;
+use crate::drawscreen::UPD_SOME_VALID;
+use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTUnknown};
+use crate::ex_getln::K_LUA;
 pub use crate::input::RedoState;
+use crate::log::LOGLVL_DBG;
+use crate::math::FAIL;
+use crate::register::{DELETION_REGISTER, PLUS_REGISTER, STAR_REGISTER};
 
 #[repr(C)]
 struct McSandbox {

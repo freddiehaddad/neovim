@@ -49,18 +49,14 @@ use std::ptr;
 
 pub use crate::cursor::colnr_T;
 pub use crate::cursor::linenr_T;
+use crate::drawscreen::{FR_LEAF, FR_ROW};
 pub use crate::eval::buffer::varnumber_T;
+use crate::eval::{kListLenMayKnow, kListLenUnknown};
+use crate::math::{FAIL, OK};
+use crate::window::LOWEST_WIN_ID;
 pub type dictitem_T = ScopeDictDictItem;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const LOWEST_WIN_ID: c_int = 1000;
-const kListLenUnknown: isize = -1;
-const kListLenMayKnow: isize = -3;
-
-const FR_LEAF: c_char = 0;
-const FR_ROW: c_char = 1;
 
 const WSP_VERT: c_int = 0x02;
 const WSP_BELOW: c_int = 0x40;

@@ -136,32 +136,23 @@ use crate::os::proc::os_proc_info;
 
 const NUL: c_char = 0;
 const NL: c_char = b'\n' as c_char;
-const MAXPATHL: usize = 4096;
-const MAX_SCHAR_SIZE: usize = 32;
-const ERR_BUFLEN: usize = 256;
+pub(crate) const MAXPATHL: usize = 4096;
+pub(crate) const ERR_BUFLEN: usize = 256;
 const SIGN_SHOW_MAX: usize = 9;
 
 const FORWARD: c_int = 1;
 const BACKWARD: c_int = -1;
 
-const REMAP_YES: c_int = 0;
-const REMAP_NONE: c_int = -1;
+pub(crate) const REMAP_YES: c_int = 0;
+pub(crate) const REMAP_NONE: c_int = -1;
 
 const DIP_ALL: c_int = 0x01;
 const DIP_DIRFILE: c_int = 0x200;
-const DOSO_NONE: c_int = 0;
 
 const kCdScopeGlobal: c_int = 3;
 
-const DOBUF_GOTO: c_int = 0;
-const DOBUF_FIRST: c_int = 1;
-
-const BLN_LISTED: c_int = 2;
-const BLN_NEW: c_int = 8;
-const BLN_NOOPT: c_int = 16;
-
-const BCO_ENTER: c_int = 1;
-const BCO_NOHELP: c_int = 4;
+pub(crate) const BCO_ENTER: c_int = 1;
+pub(crate) const BCO_NOHELP: c_int = 4;
 
 const OPT_LOCAL: c_int = 2;
 const kOptScopeBuf: c_int = 2;
@@ -170,7 +161,7 @@ const kOptBuftype: c_int = 29;
 const kOptCotFlagPopup: c_uint = 0x100;
 
 const LUA_NOREF: LuaRef = -2;
-const kChannelStreamInternal: ChannelStreamType = 4;
+pub(crate) const kChannelStreamInternal: ChannelStreamType = 4;
 
 const kRetObject: c_int = 0;
 const kRetNilBool: c_int = 1;
@@ -180,31 +171,25 @@ const kFalse: c_int = 0;
 const kTrue: c_int = 1;
 
 const kCtxRegs: CtxStateFlags = 1;
-const kCtxJumps: CtxStateFlags = 2;
-const kCtxBufs: CtxStateFlags = 4;
-const kCtxGVars: CtxStateFlags = 8;
-const kCtxSFuncs: CtxStateFlags = 16;
-const kCtxFuncs: CtxStateFlags = 32;
+pub(crate) const kCtxJumps: CtxStateFlags = 2;
+pub(crate) const kCtxBufs: CtxStateFlags = 4;
+pub(crate) const kCtxGVars: CtxStateFlags = 8;
+pub(crate) const kCtxSFuncs: CtxStateFlags = 16;
+pub(crate) const kCtxFuncs: CtxStateFlags = 32;
 const kCtxAll: CtxStateFlags = kCtxRegs | kCtxJumps | kCtxBufs | kCtxGVars | kCtxSFuncs | kCtxFuncs;
 
-const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
-
 const EVENT_CHANINFO: c_int = 23;
-
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
-const UPD_CLEAR: c_int = 50;
 
 const VV_LNUM: c_int = 9;
 const VV_RELNUM: c_int = 102;
 const VV_VIRTNUM: c_int = 103;
 
-const HLF_N: c_int = 12;
-const HLF_LNA: c_int = 13;
-const HLF_LNB: c_int = 14;
-const HLF_CLN: c_int = 15;
-const HLF_CLS: c_int = 16;
-const HLF_SC: c_int = 35;
+pub(crate) const HLF_N: c_int = 12;
+pub(crate) const HLF_LNA: c_int = 13;
+pub(crate) const HLF_LNB: c_int = 14;
+pub(crate) const HLF_CLN: c_int = 15;
+pub(crate) const HLF_CLS: c_int = 16;
+pub(crate) const HLF_SC: c_int = 35;
 
 const STL_FOLDCOL: c_int = b'C' as c_int;
 const STL_SIGNCOL: c_int = b's' as c_int;
@@ -375,7 +360,12 @@ pub use crate::mapping::typebuf_T;
 pub use crate::api::private::helpers::HlMessageChunk;
 
 pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
+use crate::api::buffer::INTERNAL_CALL_MASK;
 pub use crate::api::private::helpers::ArrayBuilder;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::buffer::{BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO};
+use crate::drawscreen::{UPD_CLEAR, UPD_NOT_VALID, UPD_VALID};
+use crate::runtime::DOSO_NONE;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

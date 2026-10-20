@@ -33,8 +33,7 @@ use crate::insert::get_last_insert_save;
 use crate::keycodes::{
     K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_HOME, K_IGNORE, K_LEFT, K_LEFTMOUSE, K_LEFTMOUSE_NM,
     K_MIDDLEMOUSE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSERIGHT, K_MOUSEUP, K_RIGHT, K_RIGHTMOUSE,
-    K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, KE_EVENT, KE_LUA, KS_EXTRA,
-    get_special_key_name, termcap2key,
+    K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, get_special_key_name, termcap2key,
 };
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
@@ -61,9 +60,15 @@ pub use crate::api::deprecated::StringBuilder;
 pub type CmdAtomVec = KVec<CmdAtom>;
 pub use crate::os::time::Timestamp;
 
-const MAX_SCHAR_SIZE: usize = 32;
-
 pub use crate::api::options::bufref_T;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::autocmd::AUGROUP_ALL;
+use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
+use crate::ex_getln::{K_EVENT, K_LUA};
+use crate::mapping::MAXMAPLEN;
+use crate::normal::REPLACE_CR_NCHAR;
+use crate::ops::{OP_APPEND, OP_CHANGE, OP_INSERT, OP_NOP, OP_NR_ADD, OP_NR_SUB, OP_REPLACE};
+use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -85,7 +90,6 @@ pub struct cmdarg_T {
 
 const NUL: c_int = 0;
 const Ctrl_D: c_int = 4;
-const Ctrl_E: c_int = 5;
 const Ctrl_F: c_int = 6;
 const Ctrl_G: c_int = 7;
 const Ctrl_H: c_int = 8;
@@ -97,34 +101,17 @@ const Ctrl_T: c_int = 20;
 const Ctrl_U: c_int = 21;
 const Ctrl_V: c_int = 22;
 const Ctrl_W: c_int = 23;
-const Ctrl_Y: c_int = 25;
 const ESC: u8 = 27;
 const DEL: c_int = 0x7f;
 
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-
-const MAXMAPLEN: usize = 50;
 const MB_MAXBYTES: usize = 30;
-const NUMBUFLEN: usize = 65;
 
 const NV_LANG: c_int = 0x08;
 const NV_NCH_ARG: c_int = 0x400;
 const NV_MOTION: c_int = 0x800;
 const NV_JUMP: c_int = 0x1000;
 
-const OP_NOP: c_int = 0;
-const OP_CHANGE: c_int = 3;
-const OP_REPLACE: c_int = 16;
-const OP_INSERT: c_int = 17;
-const OP_APPEND: c_int = 18;
-const OP_NR_ADD: c_int = 28;
-const OP_NR_SUB: c_int = 29;
-
-const REPLACE_CR_NCHAR: c_int = -1;
-
 const EVENT_CMDATOM: c_int = 25;
-const AUGROUP_ALL: c_int = -3;
 const VV_OP: c_int = 55;
 const kCpoRedo: c_int = b'r' as c_int;
 

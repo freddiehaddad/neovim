@@ -75,19 +75,10 @@ pub use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
-#[cfg(not(test))]
-const OK: c_int = 1;
-const FAIL: c_int = 0;
-#[cfg(all(not(test), windows))]
-const MAXPATHL: usize = 4096;
-#[cfg(not(test))]
-const STDIN_FILENO: c_int = 0;
 
 const NODE_NORMAL: c_int = 0;
-#[cfg(not(test))]
-const NODE_WRITABLE: c_int = 1;
-#[cfg(not(test))]
-const NODE_OTHER: c_int = 2;
+#[cfg(any(not(test), unix))]
+pub(crate) const NODE_OTHER: c_int = 2;
 
 #[cfg(not(test))]
 const kPathGeneric: c_int = 1;
@@ -97,15 +88,9 @@ const kPathDrive: c_int = 2;
 const kPathUNC: c_int = 3;
 #[cfg(all(not(test), windows))]
 const kPathDevice: c_int = 4;
-#[cfg(all(not(test), windows))]
-const kPathDeviceUNC: c_int = 5;
 
 #[cfg(not(test))]
 const UV_FS: c_int = 6;
-#[cfg(all(not(test), windows))]
-const UV_TTY: c_int = 14;
-#[cfg(all(not(test), windows))]
-const UV_FILE: c_int = 17;
 
 #[cfg(not(test))]
 const UV_EOF: c_int = -4095;
@@ -144,8 +129,7 @@ const W_OK: c_int = 2;
 #[cfg(all(not(test), unix))]
 const X_OK: c_int = 1;
 
-const O_RDONLY: c_int = 0;
-const O_WRONLY: c_int = 1;
+pub(crate) const O_WRONLY: c_int = 1;
 const O_RDWR: c_int = 2;
 
 #[cfg(windows)]
@@ -307,12 +291,26 @@ struct IPersistFile {
     lp_vtbl: *const IPersistFileVtbl,
 }
 
+#[cfg(all(not(test), windows))]
+use crate::api::vim::MAXPATHL;
+#[cfg(not(test))]
+use crate::bufwrite::NODE_WRITABLE;
+#[cfg(not(test))]
+use crate::channel::STDIN_FILENO;
 #[cfg(not(test))]
 use crate::event::r#loop::{uv_chdir, uv_cwd, uv_fs_req_cleanup};
+#[cfg(all(not(test), windows))]
+use crate::event::stream::{UV_FILE, UV_TTY};
+use crate::fileio::O_RDONLY;
 #[cfg(all(not(test), windows))]
 use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
+use crate::math::FAIL;
+#[cfg(not(test))]
+use crate::math::OK;
+#[cfg(all(not(test), windows))]
+use crate::memline::kPathDeviceUNC;
 
 #[cfg(not(test))]
 unsafe extern "C" {

@@ -57,15 +57,9 @@ type wint_t = u32;
 const NUL: c_char = 0;
 const TAB: c_char = b'\t' as c_char;
 const NL: c_char = b'\n' as c_char;
-const OK: c_int = 1;
-const FAIL: c_int = 0;
-const IOSIZE: usize = 1025;
-const NUMBUFLEN: usize = 65;
 const MAXCOL: usize = 0x7fff_ffff;
-const MAX_SCHAR_SIZE: usize = 32;
 const MB_MAXCHAR: c_int = 6;
 const GRAPHEME_STATE_INIT: GraphemeState = 0;
-const UPD_NOT_VALID: c_int = 40;
 
 const K_SPECIAL: u8 = 0x80;
 const KS_SPECIAL: u8 = 254;
@@ -83,7 +77,6 @@ const ENC_LATIN1: c_int = 0x200;
 const ENC_LATIN9: c_int = 0x400;
 const ENC_MACROMAN: c_int = 0x800;
 
-const CONV_NONE: c_int = 0;
 const CONV_TO_UTF8: c_int = 1;
 const CONV_9_TO_UTF8: c_int = 2;
 const CONV_TO_LATIN1: c_int = 3;
@@ -119,7 +112,6 @@ const UTF8PROC_BOUNDCLASS_PREPEND: u32 = 13;
 const UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC: u32 = 19;
 
 const ICONV_E2BIG: c_int = 7;
-const ICONV_EINVAL: c_int = 22;
 #[cfg(windows)]
 const ICONV_EILSEQ: c_int = 42;
 #[cfg(target_os = "linux")]
@@ -988,8 +980,15 @@ unsafe extern "system" {
     ) -> c_int;
 }
 
+use crate::api::options::IOSIZE;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::drawscreen::UPD_NOT_VALID;
+use crate::fileio::ICONV_EINVAL;
+use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
+use crate::regexp::NUMBUFLEN;
+use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
 pub unsafe fn mb_ptr_adv(p: &mut *mut c_char) {

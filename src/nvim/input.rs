@@ -48,9 +48,8 @@ use crate::keycodes::{
     K_KLEFT, K_KMINUS, K_KMULTIPLY, K_KPLUS, K_KPOINT, K_KRIGHT, K_KUP, K_LEFT, K_LEFTMOUSE,
     K_MOUSEMOVE, K_RIGHT, K_S_END, K_S_HOME, K_SNR, K_SPECIAL, K_UP, K_XDOWN, K_XEND, K_XHOME,
     K_XLEFT, K_XRIGHT, K_XUP, K_ZEND, K_ZERO, K_ZHOME, KE_COMPLETE_DELAY, KE_FILLER, KE_IGNORE,
-    KE_LUA, KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_ALT,
-    MOD_MASK_CTRL, MOD_MASK_SHIFT, NL, TAB, is_special, key2termcap0, key2termcap1, special_to_buf,
-    termcap2key,
+    KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
+    MOD_MASK_SHIFT, NL, TAB, is_special, key2termcap0, key2termcap1, special_to_buf, termcap2key,
 };
 use crate::kvec::KVec;
 use crate::lua::converter::LuaRef;
@@ -100,15 +99,12 @@ pub type flush_buffers_T = c_int;
 pub use crate::fileio::FILE;
 
 const NUL: c_int = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 
 const FLUSH_MINIMAL: flush_buffers_T = 0;
 const FLUSH_INPUT: flush_buffers_T = 2;
 
 const NSCRIPT: usize = 15;
 const MB_MAXBYTES: usize = 30;
-const MAXPATHL: usize = 4096;
 const SHOWCMD_COLS: c_int = 10;
 const TYPELEN_INIT: usize = 5 * (MAXMAPLEN + 3);
 const DUM_LEN: usize = MAXMAPLEN * 3 + 3;
@@ -124,9 +120,7 @@ const RM_NONE: u8 = 1;
 const RM_SCRIPT: u8 = 2;
 const RM_ABBR: u8 = 4;
 
-const REMAP_YES: c_int = 0;
-const REMAP_NONE: c_int = -1;
-const REMAP_SCRIPT: c_int = -2;
+pub(crate) const REMAP_SCRIPT: c_int = -2;
 const REMAP_SKIP: c_int = -3;
 
 const KEYLEN_PART_KEY: c_int = -1;
@@ -136,23 +130,21 @@ const KS_VER_SCROLLBAR: c_int = 249;
 const KS_HOR_SCROLLBAR: c_int = 248;
 const K_VER_SCROLLBAR: c_int = termcap2key(KS_VER_SCROLLBAR, KE_FILLER as c_int);
 const K_HOR_SCROLLBAR: c_int = termcap2key(KS_HOR_SCROLLBAR, KE_FILLER as c_int);
-const K_PASTE_START: c_int = termcap2key(b'P' as c_int, b'S' as c_int);
+pub(crate) const K_PASTE_START: c_int = termcap2key(b'P' as c_int, b'S' as c_int);
 const K_PASTE_END: c_int = termcap2key(b'P' as c_int, b'E' as c_int);
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-const K_COMPLETE_DELAY: c_int = termcap2key(KS_EXTRA as c_int, KE_COMPLETE_DELAY as c_int);
+pub(crate) const K_COMPLETE_DELAY: c_int =
+    termcap2key(KS_EXTRA as c_int, KE_COMPLETE_DELAY as c_int);
 
 const K_SELECT_STRING: &[u8; 4] = b"\x80\xf5X\0";
 const ESC_STR: &CStr = c"\x1b";
 const NL_STR: &CStr = c"\n";
 
-const kInsNone: c_int = 0;
+pub(crate) const kInsNone: c_int = 0;
 const kNone: TriState = -1;
 const kFalse: TriState = 0;
 const kOptBoFlagError: c_uint = 0x40;
 const LUA_NOREF: LuaRef = -2;
 const kRetNilBool: c_int = 1;
-const VIML_INTERNAL_CALL: u64 = 1u64 << 63;
-const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 
 const VV_MOUSE_WIN: c_int = 51;
 const VV_MOUSE_WINID: c_int = 52;
@@ -328,7 +320,13 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
+use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::buffer::VIML_INTERNAL_CALL;
+use crate::api::vim::MAXPATHL;
+use crate::api::vim::{REMAP_NONE, REMAP_YES};
 use crate::event::r#loop::main_loop_events;
+use crate::ex_getln::K_LUA;
+use crate::math::{FAIL, OK};
 
 #[inline]
 const fn k_second(c: c_int) -> c_int {

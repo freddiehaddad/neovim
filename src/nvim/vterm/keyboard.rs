@@ -23,8 +23,8 @@ const NUL: c_int = 0;
 const C1_SS3: u8 = 0x8f;
 const C1_CSI: u8 = 0x9b;
 
-const BUFIDX_PRIMARY: usize = 0;
-const BUFIDX_ALTSCREEN: usize = 1;
+pub(crate) const BUFIDX_PRIMARY: usize = 0;
+pub(crate) const BUFIDX_ALTSCREEN: usize = 1;
 
 const VTERM_MOD_NONE: c_int = 0x00;
 const VTERM_MOD_SHIFT: c_int = 0x01;

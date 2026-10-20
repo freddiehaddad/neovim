@@ -78,11 +78,8 @@ pub use crate::ex_getln::disptick_T;
 pub use crate::regexp::regprog_T;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
 const MAXCOL: colnr_T = 0x7fffffff;
 const MAXLNUM: linenr_T = 0x7fffffff;
-const NSUBEXP: usize = 10;
 
 pub const HL_CONTAINED: c_int = 0x01;
 pub const HL_TRANSP: c_int = 0x02;
@@ -155,10 +152,6 @@ const SYNFLD_MINIMUM: c_int = 1;
 const HLF_D: c_int = 5;
 const EX_XFILE: u32 = 0x008;
 const EX_NOSPC: u32 = 0x010;
-const RE_MAGIC: c_int = 1;
-const REX_SET: c_int = 1;
-const REX_USE: c_int = 2;
-const EXPAND_BUF_LEN: usize = 256;
 const IDL_CACHE_SIZE: usize = 16;
 
 const ITEM_START: usize = 0;
@@ -166,7 +159,6 @@ const ITEM_SKIP: usize = 1;
 const ITEM_END: usize = 2;
 const ITEM_MATCHGROUP: usize = 3;
 
-const EXP_SUBCMD: c_int = 0;
 const EXP_CASE: c_int = 1;
 const EXP_SPELL: c_int = 2;
 const EXP_SYNC: c_int = 3;
@@ -191,7 +183,11 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
     c"lc=".as_ptr(),
 ];
 
+use crate::math::{FAIL, OK};
+use crate::os::env::EXPAND_BUF_LEN;
 pub use crate::regexp::reg_extmatch_T;
+use crate::regexp::{NSUBEXP, RE_MAGIC, REX_SET, REX_USE};
+use crate::sign::EXP_SUBCMD;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

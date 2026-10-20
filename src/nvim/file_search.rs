@@ -61,9 +61,6 @@ pub const FNAME_REL: c_int = 16;
 pub const FNAME_UNESC: c_int = 32;
 
 const NUL: c_char = 0;
-const FAIL: c_int = 0;
-const OK: c_int = 1;
-const MAXPATHL: usize = 4096;
 
 const PATHSEP: c_char = b'/' as c_char;
 const PATHSEPSTR_C: &CStr = c"/";
@@ -80,13 +77,9 @@ const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 const kCpoDottag: c_int = b'd' as c_int;
 
 const VV_FNAME: c_int = 12;
-const kOptIncludeexpr: OptIndex = 147;
-const kBufOptIncludeexpr: usize = 47;
+pub(crate) const kOptIncludeexpr: OptIndex = 147;
+pub(crate) const kBufOptIncludeexpr: usize = 47;
 const OPT_LOCAL: c_int = 0x02;
-const kCallbackNone: c_int = 0;
-
-const EVENT_DIRCHANGED: event_T = 45;
-const EVENT_DIRCHANGEDPRE: event_T = 46;
 
 const kCdScopeBuffer: CdScope = 0;
 const kCdScopeWindow: CdScope = 1;
@@ -94,8 +87,6 @@ const kCdScopeTabpage: CdScope = 2;
 const kCdScopeGlobal: CdScope = 3;
 
 const kCdCauseOther: CdCause = -1;
-const kCdCauseManual: CdCause = 0;
-const kCdCauseWindow: CdCause = 1;
 const kCdCauseBuffer: CdCause = 2;
 const kCdCauseAuto: CdCause = 3;
 
@@ -106,7 +97,13 @@ const NULL_STRING: NvimString = NvimString {
 
 const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completion";
 
+use crate::api::autocmd::kCallbackNone;
+use crate::api::vim::MAXPATHL;
+use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE};
+use crate::context::kCdCauseWindow;
 pub use crate::eval::deprecated::FileID;
+use crate::ex_docmd::kCdCauseManual;
+use crate::math::{FAIL, OK};
 
 #[repr(C)]
 pub struct ff_stack_T {

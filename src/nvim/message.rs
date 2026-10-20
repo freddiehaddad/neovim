@@ -56,8 +56,8 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, K_ZERO, KE_FILLER, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_SHIFT, NL,
-    TAB, get_special_key, is_special, key2termcap1, keychord, termcap2key,
+    K_X2MOUSE, K_ZERO, KE_FILLER, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_SHIFT, NL, TAB,
+    get_special_key, is_special, key2termcap1, keychord, termcap2key,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::map_glyph_cache::NvimString;
@@ -100,28 +100,21 @@ pub use crate::option::OptInt;
 const NUL: c_char = 0;
 const BELL: c_int = 0x07;
 
-const kZIndexMessages: c_int = 200;
+pub(crate) const kZIndexMessages: c_int = 200;
 const kUIMessages: UIExtension = 4;
 const kUIMultigrid: UIExtension = 6;
 
-const MAX_SCHAR_SIZE: usize = 32;
 const MB_MAXCHAR: usize = 6;
 const MB_MAXBYTES: usize = 30;
-const MSG_BUF_LEN: usize = 480;
 
 const HLF_8: c_int = 1;
 const HLF_AT: c_int = 4;
 const HLF_E: c_int = 6;
-const HLF_M: c_int = 10;
-const HLF_N: c_int = 12;
+pub(crate) const HLF_M: c_int = 10;
 const HLF_R: c_int = 18;
 const HLF_T: c_int = 23;
 const HLF_W: c_int = 26;
-const HLF_0: c_int = 59;
 const HLF_MSG: c_int = 63;
-
-const UPD_VALID: c_int = 10;
-const UPD_NOT_VALID: c_int = 40;
 
 const FLUSH_MINIMAL: c_int = 0;
 
@@ -143,10 +136,7 @@ const kTrue: TriState = 1;
 const Ctrl_B: c_int = 2;
 const Ctrl_C: c_int = 3;
 const Ctrl_F: c_int = 6;
-const KE_EVENT: u8 = 102;
-const K_EVENT: c_int = termcap2key(KS_EXTRA as c_int, KE_EVENT as c_int);
 
-const kCallbackNone: c_int = 0;
 const VAR_UNLOCKED: c_int = 0;
 
 const VERBOSE_KIND: &CStr = c"verbose";
@@ -451,6 +441,13 @@ macro_rules! swmsg {
         let _ = (hl_val, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
     }};
 }
+use crate::api::autocmd::kCallbackNone;
+use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::api::vim::HLF_N;
+use crate::drawline::HLF_0;
+use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID};
+use crate::eval::userfunc::MSG_BUF_LEN;
+use crate::ex_getln::K_EVENT;
 pub use swmsg;
 
 #[inline]

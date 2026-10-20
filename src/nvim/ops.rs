@@ -54,7 +54,7 @@ use crate::input_cmdatom::{
     atom_visual_redoable, cmdarg_T, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
 };
 use crate::insert::{beginline, display_dollar, edit};
-use crate::keycodes::{K_COMMAND, KE_LUA, KS_EXTRA, termcap2key};
+use crate::keycodes::K_COMMAND;
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
 use crate::math::{FAIL, OK, trim_to_int};
 use crate::mbyte::{
@@ -96,8 +96,19 @@ use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
+use crate::api::options::IOSIZE;
+use crate::change::{COM_END, kCpoDollar};
+use crate::charset::{STR2NR_BIN, STR2NR_HEX, STR2NR_OCT};
 pub use crate::cmdexpand::LineGetter;
+use crate::eval::funcs::{kMTBlockWise, kMTCharWise};
+use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
+use crate::ex_getln::K_LUA;
+use crate::fileio::EOL_DOS;
+use crate::indent::{INDENT_SET, SIN_CHANGED};
+use crate::insert::kFoAuto;
+use crate::normal::{CA_COMMAND_BUSY, CA_NO_ADJ_OP_END, REPLACE_CR_NCHAR, REPLACE_NL_NCHAR};
 pub use crate::option::OptInt;
+use crate::regexp::NUMBUFLEN;
 
 pub const OP_NOP: c_int = 0;
 pub const OP_DELETE: c_int = 1;
@@ -142,54 +153,25 @@ const Ctrl_A: c_int = 1;
 const Ctrl_V: c_int = 22;
 const Ctrl_X: c_int = 24;
 const MAXCOL: colnr_T = 0x7fffffff;
-const IOSIZE: usize = 1025;
-const NUMBUFLEN: usize = 65;
 
-const K_LUA: c_int = termcap2key(KS_EXTRA as c_int, KE_LUA as c_int);
-
-const kMTCharWise: MotionType = 0;
 const kMTLineWise: MotionType = 1;
-const kMTBlockWise: MotionType = 2;
 
 const kNone: TriState = -1;
 
 const kExtmarkUndo: ExtmarkOp = 1;
 
-const INDENT_SET: c_int = 1;
-const SIN_CHANGED: c_int = 1;
-
-const BL_WHITE: c_int = 1;
-const BL_SOL: c_int = 2;
-const BL_FIX: c_int = 4;
-
 const ML_EMPTY: c_int = 0x01;
 const CMOD_LOCKMARKS: c_int = 0x0800;
-
-const REPLACE_CR_NCHAR: c_int = -1;
-const REPLACE_NL_NCHAR: c_int = -2;
-
-const CA_COMMAND_BUSY: c_int = 1;
-const CA_NO_ADJ_OP_END: c_int = 2;
 
 const VALID_WROW: c_int = 0x01;
 const VALID_WCOL: c_int = 0x02;
 const VALID_VIRTCOL: c_int = 0x04;
 
-const COM_END: c_char = b'e' as c_char;
-
-const STR2NR_BIN: c_int = 1 << 0;
-const STR2NR_OCT: c_int = 1 << 1;
-const STR2NR_HEX: c_int = 1 << 2;
-
-const EOL_DOS: c_int = 1;
-
-const kCpoDollar: c_int = b'$' as c_int;
 const kCpoEmptyregion: c_int = b'E' as c_int;
 const kCpoFilter: c_int = b'!' as c_int;
 const kCpoJoincol: c_int = b'q' as c_int;
 const kCpoYank: c_int = b'y' as c_int;
 
-const kFoAuto: c_int = b'a' as c_int;
 const kFoMbyteJoin: c_int = b'M' as c_int;
 const kFoMbyteJoin2: c_int = b'B' as c_int;
 const kFoRemoveComs: c_int = b'j' as c_int;

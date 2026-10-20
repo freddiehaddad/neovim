@@ -5,6 +5,8 @@
 
 #[cfg(not(test))]
 use crate::api::private::converter::partial_T;
+#[cfg(not(test))]
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_SPECIAL_VAR_NULL};
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
@@ -14,11 +16,17 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Array, Dict, Error, Object, ObjectType};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectData};
+#[cfg(not(test))]
+use crate::buffer::NOTDONE;
 use crate::clipboard::typval_T;
 #[cfg(not(test))]
 use crate::clipboard::{TypvalVval, VarType};
 #[cfg(not(test))]
+use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP};
+#[cfg(not(test))]
 use crate::eval::decode::{decode_create_map_special_dict, decode_string, dict_T, dictitem_T};
+#[cfg(not(test))]
+use crate::eval::encode::{K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING};
 #[cfg(not(test))]
 use crate::eval::encode::{
     MPConvStackData, MPConvStackVal, MPConvStackValType, encode_vim_list_to_buf,
@@ -34,6 +42,8 @@ use crate::eval::typval::{
 #[cfg(not(test))]
 use crate::eval::userfunc::{find_func, register_luafunc};
 #[cfg(not(test))]
+use crate::eval::vars::NUM_MSGPACK_TYPES;
+#[cfg(not(test))]
 use crate::eval::vars::eval_msgpack_type_lists;
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
@@ -43,6 +53,8 @@ use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 #[cfg(not(test))]
 use crate::highlight_group::syn_check_group;
+#[cfg(not(test))]
+use crate::lua::base64::LUA_TSTRING;
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
@@ -72,15 +84,9 @@ pub type lua_Number = f64;
 pub type lua_Integer = isize;
 
 #[cfg(not(test))]
-const NOTDONE: c_int = 2;
-#[cfg(not(test))]
 const VAR_UNLOCKED: c_int = 0;
 #[cfg(not(test))]
-const K_BOOL_VAR_FALSE: i64 = 0;
-#[cfg(not(test))]
 const K_BOOL_VAR_TRUE: i64 = 1;
-#[cfg(not(test))]
-const K_SPECIAL_VAR_NULL: i64 = 0;
 const LUA_NOREF: LuaRef = -2;
 #[cfg(not(test))]
 const FC_LUAREF: c_int = 0x800;
@@ -96,38 +102,17 @@ const TYPE_IDX_VALUE: bool = true;
 const VAL_IDX_VALUE: bool = false;
 
 #[cfg(not(test))]
-const LUA_TNIL: c_int = 0;
+pub(crate) const LUA_TNIL: c_int = 0;
 #[cfg(not(test))]
-const LUA_TBOOLEAN: c_int = 1;
+pub(crate) const LUA_TBOOLEAN: c_int = 1;
 #[cfg(not(test))]
-const LUA_TNUMBER: c_int = 3;
+pub(crate) const LUA_TNUMBER: c_int = 3;
 #[cfg(not(test))]
-const LUA_TSTRING: c_int = 4;
+pub(crate) const LUA_TTABLE: c_int = 5;
 #[cfg(not(test))]
-const LUA_TTABLE: c_int = 5;
-#[cfg(not(test))]
-const LUA_TFUNCTION: c_int = 6;
+pub(crate) const LUA_TFUNCTION: c_int = 6;
 #[cfg(not(test))]
 const LUA_TUSERDATA: c_int = 7;
-
-#[cfg(not(test))]
-const K_MP_NIL: usize = 0;
-#[cfg(not(test))]
-const K_MP_BOOLEAN: usize = 1;
-#[cfg(not(test))]
-const K_MP_INTEGER: usize = 2;
-#[cfg(not(test))]
-const K_MP_FLOAT: usize = 3;
-#[cfg(not(test))]
-const K_MP_STRING: usize = 4;
-#[cfg(not(test))]
-const K_MP_ARRAY: usize = 5;
-#[cfg(not(test))]
-const K_MP_MAP: usize = 6;
-#[cfg(not(test))]
-const K_MP_EXT: usize = 7;
-#[cfg(not(test))]
-const NUM_MSGPACK_TYPES: usize = 8;
 
 #[cfg(not(test))]
 static TYPVAL_CONV_SPECIAL: AtomicBool = AtomicBool::new(false);

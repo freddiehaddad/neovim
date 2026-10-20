@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 pub const UV_BROWSER_MAX_FD: usize = 256;
 
 const UV_EINVAL: c_int = -22;
-const EINVAL: c_int = 22;
+pub(crate) const EINVAL: c_int = 22;
 
 #[repr(C)]
 pub struct UvBrowserSharedState {

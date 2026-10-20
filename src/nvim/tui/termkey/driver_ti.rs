@@ -10,6 +10,7 @@
 use std::ffi::{c_char, c_int, c_uchar, c_void};
 
 use crate::memory::{xfree, xmalloc, xstrdup};
+use crate::tui::terminfo::{kTerm_keypad_local, kTerm_keypad_xmit};
 
 pub type TermKeyResult = c_int;
 pub const TERMKEY_RES_NONE: TermKeyResult = 0;
@@ -104,8 +105,6 @@ pub const TERMKEY_KEYMOD_SHIFT: c_int = 1 << 0;
 pub const TERMKEY_KEYMOD_ALT: c_int = 1 << 1;
 pub const TERMKEY_KEYMOD_CTRL: c_int = 1 << 2;
 
-pub const kTerm_keypad_local: usize = 28;
-pub const kTerm_keypad_xmit: usize = 29;
 pub const kTermCount: usize = 49;
 
 pub type TerminfoKey = c_int;
