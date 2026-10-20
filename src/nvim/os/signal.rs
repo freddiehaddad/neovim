@@ -61,18 +61,18 @@ const SIG_SETMASK: c_int = 3;
 const SIG_IGN: usize = 1;
 
 #[repr(C, align(8))]
-struct SignalWatcherBuf([u8; 320]);
+struct SignalWatcherBuf([u8; 512]);
 
-static mut spipe: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut shup: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut sint: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut squit: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut sterm: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut susr1: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut swinch: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
-static mut ststp: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
+static mut spipe: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut shup: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut sint: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut squit: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut sterm: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut susr1: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut swinch: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
+static mut ststp: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 #[cfg(target_os = "linux")]
-static mut spwr: SignalWatcherBuf = SignalWatcherBuf([0; 320]);
+static mut spwr: SignalWatcherBuf = SignalWatcherBuf([0; 512]);
 
 static mut rejecting_deadly: bool = false;
 

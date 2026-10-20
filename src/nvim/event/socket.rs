@@ -118,10 +118,10 @@ struct SockaddrStorage {
 struct UvGetaddrinfoReq([u8; 512]);
 
 #[repr(C, align(8))]
-struct UvConnectReq([u8; 256]);
+struct UvConnectReq([u8; 512]);
 
 #[repr(C, align(8))]
-struct RStreamBuf([u8; 512]);
+struct RStreamBuf([u8; 1024]);
 
 unsafe extern "C" {
     fn uv_getaddrinfo(
@@ -360,7 +360,8 @@ unsafe extern "C" fn connect_close_cb(_stream: *mut Stream, data: *mut c_void) {
 /// Check if a socket is alive by attempting to connect to it.
 unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
     unsafe {
-        let mut stream = RStreamBuf([0; 512]);
+        debug_assert!(crate::event::rstream::rstream_size() <= size_of::<RStreamBuf>());
+        let mut stream = RStreamBuf([0; 1024]);
         let mut error: *const c_char = ptr::null();
 
         let stream_ptr = (&raw mut stream).cast::<RStream>();
@@ -607,7 +608,7 @@ pub unsafe extern "C" fn socket_connect(
         let mut success = false;
         let mut closed = false;
         let mut status: c_int = 1;
-        let mut req = UvConnectReq([0; 256]);
+        let mut req = UvConnectReq([0; 512]);
         let req_ptr = (&raw mut req).cast::<uv_connect_t>();
         let status_ptr: *mut c_int = &raw mut status;
         let closed_ptr: *mut bool = &raw mut closed;

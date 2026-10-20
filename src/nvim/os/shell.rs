@@ -120,7 +120,7 @@ const kProcTypeUv: c_int = 0;
 const CP_UTF8: u32 = 65001;
 
 #[repr(C, align(8))]
-struct LibuvProcBuf([u8; 2048]);
+struct LibuvProcBuf([u8; 4096]);
 
 static mut did_find_nul: bool = false;
 static mut throttle_started: u64 = 0;
@@ -934,7 +934,10 @@ unsafe fn do_os_system(
         xstrlcpy(prog.as_mut_ptr(), *argv, MAXPATHL);
 
         let mloop = main_loop_ptr();
-        let mut uvproc = LibuvProcBuf([0; 2048]);
+        debug_assert!(
+            crate::msgpack_rpc::channel::channel_stream_union_size() <= size_of::<LibuvProcBuf>()
+        );
+        let mut uvproc = LibuvProcBuf([0; 4096]);
         let proc_: *mut Proc = (&raw mut uvproc).cast();
         let hdr = proc_header(proc_);
         let ptail = proc_tail(proc_);

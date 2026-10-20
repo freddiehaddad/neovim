@@ -420,7 +420,7 @@ pub struct Terminal {
     refcount: usize,
 }
 
-static mut REFRESH_TIMER: [u64; 32] = [0; 32];
+static mut REFRESH_TIMER: [u64; 64] = [0; 64];
 static mut REFRESH_PENDING: bool = false;
 
 static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
