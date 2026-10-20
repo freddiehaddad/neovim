@@ -234,14 +234,11 @@ pub fn build(b: *std.Build) !void {
 
     // TODO(bfredl): these should just become subdirs..
     const windows_only = [_][]const u8{
-        "pty_proc_win.c",
         "pty_proc_win.h",
-        "pty_conpty_win.c",
         "pty_conpty_win.h",
-        "os_win_console.c",
         "win_defs.h",
     };
-    const unix_only = [_][]const u8{ "unix_defs.h", "pty_proc_unix.c", "pty_proc_unix.h" };
+    const unix_only = [_][]const u8{ "unix_defs.h", "pty_proc_unix.h" };
     const exclude_list = if (is_windows) &unix_only else &windows_only;
 
     const src_dir = b.build_root.handle;
@@ -575,18 +572,6 @@ pub fn build(b: *std.Build) !void {
         if (is_wasm) "-DMAKE_LIB" else "",
     };
     nvim_mod.addCSourceFiles(.{ .files = src_paths, .flags = &flags });
-
-    nvim_mod.addCSourceFiles(.{ .files = &.{
-        "src/xdiff/xdiffi.c",
-        "src/xdiff/xemit.c",
-        "src/xdiff/xhistogram.c",
-        "src/xdiff/xpatience.c",
-        "src/xdiff/xprepare.c",
-        "src/xdiff/xutils.c",
-        "src/cjson/lua_cjson.c",
-        "src/cjson/fpconv.c",
-        "src/cjson/strbuf.c",
-    }, .flags = &flags });
 
     if (is_wasm) {
         nvim_mod.addCSourceFiles(.{ .files = &.{

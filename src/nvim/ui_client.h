@@ -65,6 +65,4 @@ DLLEXPORT HlAttrs ui_client_dict2hlattrs(Dict d, bool rgb);
 DLLEXPORT UIClientHandler ui_client_get_redraw_handler(const char *name, size_t name_len,
                                                        Error *error);
 
-// uncrustify:off
-# include "ui_events_client.h.generated.h"
-// uncrustify:on
+#include "nvim/func_attr.h"

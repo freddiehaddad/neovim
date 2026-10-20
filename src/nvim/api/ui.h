@@ -85,4 +85,4 @@ DLLEXPORT void push_call(RemoteUI *ui, const char *name, Array args);
 DLLEXPORT void remote_ui_event(RemoteUI *ui, char *name, Array args);
 DLLEXPORT void nvim_ui_send(uint64_t channel_id, String content, Error *err) FUNC_API_SINCE(14);
 
-#include "ui_events_remote.h.generated.h"
+#include "nvim/func_attr.h"

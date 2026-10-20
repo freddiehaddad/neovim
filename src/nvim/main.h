@@ -2,12 +2,8 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#include "nvim/api/private/defs.h"
-#include "nvim/api/private/dispatch.h"
-#include "nvim/eval/funcs.h"
-#include "nvim/eval/typval_defs.h"
-#include "nvim/option.h"
 #include "nvim/types_defs.h"
 
 // Maximum number of commands from + or -c arguments.
@@ -75,5 +71,10 @@ DLLEXPORT int nvim_main(int argc, char **argv);
 DLLEXPORT void os_exit(int r) FUNC_ATTR_NORETURN;
 DLLEXPORT void getout(int exitval) FUNC_ATTR_NORETURN;
 DLLEXPORT void preserve_exit(const char *errmsg) FUNC_ATTR_NORETURN;
+DLLEXPORT const void *nlua_get_builtin_modules(size_t *count);
+DLLEXPORT const uint8_t *api_get_packed_metadata(size_t *len);
+DLLEXPORT int main(int argc, char **argv);
+DLLEXPORT const char *__ubsan_default_options(void);
+DLLEXPORT const char *__asan_default_options(void);
 
-#include "main.h.generated.h"
+#include "nvim/func_attr.h"

@@ -389,22 +389,12 @@ file(MAKE_DIRECTORY ${TOUCHES_DIR} ${GENERATED_DIR} ${GENERATED_INCLUDES_DIR})
 
 file(GLOB NVIM_SOURCES CONFIGURE_DEPENDS *.c)
 file(GLOB NVIM_HEADERS CONFIGURE_DEPENDS *.h)
-file(GLOB EXTERNAL_SOURCES CONFIGURE_DEPENDS ../klib/*.c)
 file(GLOB EXTERNAL_HEADERS CONFIGURE_DEPENDS ../xdiff/*.h ../mpack/*.h ../cjson/*.h ../klib/*.h ../lpeg/*.h)
 
 set(NLUA0_SOURCES)
 
 if(PREFER_LUA)
   target_compile_definitions(main_lib INTERFACE NVIM_VENDOR_BIT)
-endif()
-
-# Inlined external projects, we don't maintain it. #9306
-if(MSVC)
-  set_source_files_properties(
-    ${EXTERNAL_SOURCES} PROPERTIES COMPILE_OPTIONS "-wd4090;-wd4244;-wd4267")
-else()
-  set_source_files_properties(
-    ${EXTERNAL_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wno-conversion;-Wno-missing-noreturn;-Wno-missing-format-attribute;-Wno-double-promotion;-Wno-strict-prototypes;-Wno-misleading-indentation;-Wno-sign-compare;-Wno-implicit-fallthrough;-Wno-missing-prototypes;-Wno-missing-field-initializers")
 endif()
 
 list(APPEND NLUA0_SOURCES ${PROJECT_SOURCE_DIR}/src/nlua0.c)
@@ -442,22 +432,6 @@ list(APPEND UNCRUSTIFY_NVIM_SOURCES ${NVIM_SOURCES} ${NVIM_HEADERS})
 list(APPEND UNCRUSTIFY_NVIM_SOURCES
   ${PROJECT_SOURCE_DIR}/src/wasm/wasm_stubs.c
 )
-
-foreach(sfile ${NVIM_SOURCES})
-  get_filename_component(f ${sfile} NAME)
-  if(WIN32 AND ${f} MATCHES "^(pty_proc_unix.c)$")
-    list(REMOVE_ITEM NVIM_SOURCES ${sfile})
-  endif()
-  if(NOT WIN32 AND ${f} MATCHES "^(pty_proc_win.c)$")
-    list(REMOVE_ITEM NVIM_SOURCES ${sfile})
-  endif()
-  if(NOT WIN32 AND ${f} MATCHES "^(pty_conpty_win.c)$")
-    list(REMOVE_ITEM NVIM_SOURCES ${sfile})
-  endif()
-  if(NOT WIN32 AND ${f} MATCHES "^(os_win_console.c)$")
-    list(REMOVE_ITEM NVIM_SOURCES ${sfile})
-  endif()
-endforeach()
 
 foreach(hfile ${NVIM_HEADERS})
   get_filename_component(f ${hfile} NAME)
@@ -539,55 +513,24 @@ set(NVIM_LUA $<TARGET_FILE:nvim_bin> -u NONE -l ${NVIM_LUA_PRELOAD} ${PROJECT_SO
 # NVIM_GENERATED_FOR_HEADERS: generated headers to be included in headers
 # NVIM_GENERATED_FOR_SOURCES: generated headers to be included in sources
 # These lists must be mutually exclusive.
-foreach(sfile ${NVIM_SOURCES}
-              ${NVIM_HEADERS}
-              ${GENERATED_API_DISPATCH}
-              "${GENERATED_UI_EVENTS_CALL}"
-              "${GENERATED_UI_EVENTS_REMOTE}"
-              "${GENERATED_UI_EVENTS_CLIENT}"
-              )
+foreach(sfile ${NVIM_HEADERS})
+  get_filename_component(ext ${sfile} EXT)
+  if("${ext}" STREQUAL ".c.h")
+    continue()
+  endif()
   get_filename_component(full_d ${sfile} DIRECTORY)
   file(RELATIVE_PATH d "${CMAKE_CURRENT_LIST_DIR}" "${full_d}")
-  if(${d} MATCHES "^[.][.]|auto/")
-    file(RELATIVE_PATH d "${GENERATED_DIR}" "${full_d}")
-  endif()
-  get_filename_component(f ${sfile} NAME)
   get_filename_component(r ${sfile} NAME_WE)
-  get_filename_component(ext ${sfile} EXT)
   if(NOT ${d} EQUAL ".")
-    set(f "${d}/${f}")
     set(r "${d}/${r}")
   endif()
-  if ("${ext}" STREQUAL ".c.h")
-    continue() # .c.h files are sussy baka, skip
-  elseif(${sfile} IN_LIST NVIM_HEADERS)
-    set(gf_basename "${r}.h.inline.generated.h")
-    set(gf_c_h "${GENERATED_INCLUDES_DIR}/${r}.h.inline.generated.h")
-    set(gf_h_h "SKIP")
-    set(gf_h_h_out "")
-  else()
-    set(gf_basename "${r}.c.generated.h")
-    set(gf_c_h "${GENERATED_DIR}/${r}.c.generated.h")
-    set(gf_h_h "${GENERATED_INCLUDES_DIR}/${r}.h.generated.h")
-    set(gf_h_h_out "${gf_h_h}")
-  endif()
-
-  set(depends "${HEADER_GENERATOR}" "${sfile}" "${LUA_GEN_DEPS}" "${GENERATOR_C_GRAMMAR}")
-  if("${f}" STREQUAL "main.c")
-    # Ensure auto/versiondef_git.h exists after "make clean".
-    list(APPEND depends update_version_stamp "${NVIM_VERSION_GIT_H}" "${NVIM_VERSION_DEF_H}")
-  endif()
+  set(gf_basename "${r}.h.inline.generated.h")
+  set(gf_c_h "${GENERATED_INCLUDES_DIR}/${r}.h.inline.generated.h")
   add_custom_command(
-    OUTPUT "${gf_c_h}" ${gf_h_h_out}
-    COMMAND ${LUA_GEN} "${HEADER_GENERATOR}" "${sfile}" "${gf_c_h}" "${gf_h_h}" "${gf_basename}"
-    DEPENDS ${depends})
+    OUTPUT "${gf_c_h}"
+    COMMAND ${LUA_GEN} "${HEADER_GENERATOR}" "${sfile}" "${gf_c_h}" "SKIP" "${gf_basename}"
+    DEPENDS "${HEADER_GENERATOR}" "${sfile}" "${LUA_GEN_DEPS}" "${GENERATOR_C_GRAMMAR}")
   list(APPEND NVIM_GENERATED_FOR_SOURCES "${gf_c_h}")
-  if (NOT ${sfile} IN_LIST NVIM_HEADERS)
-    list(APPEND NVIM_GENERATED_FOR_HEADERS "${gf_h_h}")
-    if(${d} MATCHES "^api$" AND NOT ${f} MATCHES "^api/helpers.c$")
-      list(APPEND API_HEADERS ${gf_h_h})
-    endif()
-  endif()
 endforeach()
 
 set(NVIM_VERSION_LUA ${PROJECT_BINARY_DIR}/nvim_version.lua)
@@ -717,17 +660,10 @@ list(APPEND NVIM_GENERATED_FOR_HEADERS
 )
 
 list(APPEND NVIM_GENERATED_FOR_SOURCES
-  "${GENERATED_API_DISPATCH}"
-  "${GENERATED_EX_CMDS_DEFS}"
-  "${GENERATED_EVENTS_NAMES_MAP}"
-  "${GENERATED_FUNCS}"
-  "${GENERATED_KEYCODE_NAMES}"
-  "${GENERATED_OPTIONS}"
-  "${GENERATED_OPTIONS_MAP}"
-  "${GENERATED_OPTIONS_CHARTAB}"
-  "${GENERATED_OPTIONS_KEYSETS}"
   "${VIM_MODULE_FILE}"
   "${GENERATED_API_METADATA}"
+  "${NVIM_VERSION_GIT_H}"
+  "${NVIM_VERSION_DEF_H}"
   "${PROJECT_BINARY_DIR}/cmake.config/auto/pathdef.h"
 )
 
@@ -750,7 +686,6 @@ target_sources(main_lib INTERFACE
   ${NVIM_GENERATED_FOR_HEADERS}
   ${NVIM_SOURCES}
   ${NVIM_HEADERS}
-  ${EXTERNAL_SOURCES}
   ${EXTERNAL_HEADERS})
 
 find_program(CARGO_PRG cargo

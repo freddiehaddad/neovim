@@ -32,7 +32,6 @@ typedef struct {
 
 #include "api/private/api_metadata.generated.h"
 #include "lua/vim_module.generated.h"
-#include "main.c.generated.h"
 
 // for ":version", ":intro", and "nvim --version"
 #ifndef NVIM_VERSION_MEDIUM

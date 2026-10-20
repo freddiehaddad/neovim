@@ -41,5 +41,4 @@ DLLEXPORT MsgpackRpcRequestHandler msgpack_rpc_get_handler_at(int hash);
 #include "nvim/func_attr.h"
 
 #include "api/private/dispatch.h.inline.generated.h"
-#include "api/private/dispatch_wrappers.h.generated.h"
 #include "keysets_defs.generated.h"

@@ -61,10 +61,7 @@ DLLEXPORT void ui_add_cb(uint32_t ns_id, LuaRef cb, bool *ext_widgets);
 DLLEXPORT void ui_remove_cb(uint32_t ns_id, bool checkerr);
 DLLEXPORT void ui_log(const char *funname);
 
-// uncrustify:off
-#include "ui_events_call.h.generated.h"
-EXTERN Array noargs INIT(= ARRAY_DICT_INIT);
-// uncrustify:on
+EXTERN Array noargs INIT( = ARRAY_DICT_INIT);
 
 // vim.ui_attach() namespace of currently executed callback.
 EXTERN uint32_t ui_event_ns_id INIT( = 0);
