@@ -289,16 +289,9 @@ unsafe fn is_none_str(s: *const c_char) -> bool {
     !s.is_null() && unsafe { CStr::from_ptr(s).to_bytes().eq_ignore_ascii_case(b"NONE") }
 }
 
-unsafe extern "C-unwind" {
-    fn KeyDict_highlight_get_field(
-        str_: *const c_char,
-        len: usize,
-    ) -> *const crate::lua::converter::KeySetLink;
-    fn KeyDict_highlight_cterm_get_field(
-        str_: *const c_char,
-        len: usize,
-    ) -> *const crate::lua::converter::KeySetLink;
-}
+use crate::api::private::dispatch::{
+    KeyDict_highlight_cterm_get_field, KeyDict_highlight_get_field,
+};
 
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {

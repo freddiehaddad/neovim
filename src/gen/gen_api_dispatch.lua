@@ -778,7 +778,7 @@ local function process_function(fn)
     write_shifted_output(
       [[
     if (%s) {
-      api_set_error(&err, kErrorTypeValidation, "%s");
+      api_set_error_str(&err, kErrorTypeValidation, "%s");
       goto exit_0;
     }
   ]],
@@ -805,7 +805,7 @@ local function process_function(fn)
   if fn.textlock then
     write_shifted_output([[
     if (text_locked()) {
-      api_set_error(&err, kErrorTypeException, "%%s", get_text_locked_msg());
+      api_set_error_str(&err, kErrorTypeException, get_text_locked_msg());
       goto exit_0;
     }
     ]])

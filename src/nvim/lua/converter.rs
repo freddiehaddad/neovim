@@ -119,6 +119,8 @@ pub struct KeySetLink {
     pub is_hlgroup: bool,
 }
 
+unsafe impl Sync for KeySetLink {}
+
 pub type FieldHashfn =
     Option<unsafe extern "C-unwind" fn(str: *const c_char, len: usize) -> *const KeySetLink>;
 

@@ -72,7 +72,7 @@ use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
 use crate::eval::vars::{VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list};
 use crate::hashtab::{hashitem_T, hashitem_empty};
-use crate::lua::converter::{Boolean, KeySetLink};
+use crate::lua::converter::Boolean;
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t,
     mh_get_cstr_t, mh_get_path_t, mh_get_ptr_t, mh_put_cstr_t, mh_put_path_t, mh_put_ptr_t, path_t,
@@ -664,13 +664,15 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
 
 static mut default_shada_file: *mut c_char = ptr::null_mut();
 
+use crate::api::private::dispatch::{
+    KeyDict__shada_buflist_item_get_field as shada_buflist_item_get_field_cb,
+    KeyDict__shada_mark_get_field as shada_mark_get_field_cb,
+    KeyDict__shada_register_get_field as shada_register_get_field_cb,
+    KeyDict__shada_search_pat_get_field as shada_search_pat_get_field_cb,
+};
+
 unsafe extern "C" {
     static mut longVersion: *mut c_char;
-
-    fn KeyDict__shada_buflist_item_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
-    fn KeyDict__shada_mark_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
-    fn KeyDict__shada_register_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
-    fn KeyDict__shada_search_pat_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
 
     #[link_name = "uv_strerror"]
     fn os_strerror(err: c_int) -> *const c_char;
@@ -727,34 +729,6 @@ unsafe fn tv_dict_hi2di(hi: *const hashitem_T) -> *mut dictitem_T {
 #[inline]
 unsafe fn xmemdupz_cstr(data: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(data.cast::<c_void>(), len).cast::<c_char>() }
-}
-
-unsafe extern "C-unwind" fn shada_buflist_item_get_field_cb(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    unsafe { KeyDict__shada_buflist_item_get_field(str_, len) }
-}
-
-unsafe extern "C-unwind" fn shada_mark_get_field_cb(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    unsafe { KeyDict__shada_mark_get_field(str_, len) }
-}
-
-unsafe extern "C-unwind" fn shada_register_get_field_cb(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    unsafe { KeyDict__shada_register_get_field(str_, len) }
-}
-
-unsafe extern "C-unwind" fn shada_search_pat_get_field_cb(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    unsafe { KeyDict__shada_search_pat_get_field(str_, len) }
 }
 
 #[inline]

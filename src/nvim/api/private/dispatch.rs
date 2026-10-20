@@ -1,4 +1,4 @@
-//! API Msgpack-RPC request handler lookup (`src/nvim/api/private/dispatch.c`).
+//! API Msgpack-RPC request handler lookup and dispatch wrappers (`src/nvim/api/private/dispatch.c`).
 
 #![allow(
     dead_code,
@@ -6,16 +6,132 @@
     non_snake_case,
     non_upper_case_globals,
     clashing_extern_declarations,
-    clippy::missing_safety_doc
+    unused_assignments,
+    unused_imports,
+    unused_mut,
+    unused_variables,
+    clippy::collapsible_if,
+    clippy::missing_safety_doc,
+    clippy::too_many_lines
 )]
 
-#[allow(unused_imports)]
-use crate::api::private::helpers::api_set_error;
 use std::ffi::{c_char, c_int};
+use std::mem::{offset_of, zeroed};
 use std::ptr;
 
-use crate::api::private::validate::{Array, Error, ErrorType, Object};
+use crate::api::private::helpers::{
+    api_dict_to_keydict, api_keydict_to_dict, api_set_error, api_set_error_str,
+};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
+};
+use crate::api::tabpage::{Buffer, Tabpage, Window};
+use crate::ex_getln::{get_text_locked_msg, text_locked};
+use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink};
+use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
+use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::ui_client::handle_ui_client_redraw;
+
+use crate::api::autocmd::{
+    KeyDict_clear_autocmds, KeyDict_create_augroup, KeyDict_create_autocmd, KeyDict_exec_autocmds,
+    KeyDict_get_autocmds, nvim_clear_autocmds, nvim_create_augroup, nvim_create_autocmd,
+    nvim_del_augroup_by_id, nvim_del_augroup_by_name, nvim_del_autocmd, nvim_exec_autocmds,
+    nvim_get_autocmds,
+};
+use crate::api::buffer::{
+    KeyDict_buf_attach, KeyDict_buf_delete, KeyDict_keymap, KeyDict_keymap_del, nvim__buf_stats,
+    nvim_buf_attach, nvim_buf_del_keymap, nvim_buf_del_mark, nvim_buf_del_var, nvim_buf_delete,
+    nvim_buf_detach, nvim_buf_get_changedtick, nvim_buf_get_keymap, nvim_buf_get_lines,
+    nvim_buf_get_mark, nvim_buf_get_name, nvim_buf_get_offset, nvim_buf_get_text, nvim_buf_get_var,
+    nvim_buf_is_loaded, nvim_buf_is_valid, nvim_buf_line_count, nvim_buf_set_keymap,
+    nvim_buf_set_lines, nvim_buf_set_mark, nvim_buf_set_name, nvim_buf_set_text, nvim_buf_set_var,
+};
+use crate::api::command::{
+    KeyDict_cmd, KeyDict_cmd_magic, KeyDict_cmd_mods, KeyDict_cmd_mods_filter, KeyDict_cmd_opts,
+    KeyDict_get_commands, KeyDict_user_command, nvim_buf_create_user_command,
+    nvim_buf_del_user_command, nvim_buf_get_commands, nvim_cmd, nvim_create_user_command,
+    nvim_del_user_command, nvim_get_commands, nvim_parse_cmd,
+};
+use crate::api::deprecated::{
+    KeyDict_empty, buffer_del_line, buffer_del_var, buffer_get_line, buffer_get_line_slice,
+    buffer_insert, buffer_set_line, buffer_set_line_slice, buffer_set_var, nvim_buf_add_highlight,
+    nvim_buf_clear_highlight, nvim_buf_get_number, nvim_buf_get_option, nvim_buf_set_option,
+    nvim_buf_set_virtual_text, nvim_call_atomic, nvim_command_output, nvim_err_write,
+    nvim_err_writeln, nvim_exec, nvim_execute_lua, nvim_get_hl_by_id, nvim_get_hl_by_name,
+    nvim_get_option, nvim_get_option_info, nvim_notify, nvim_out_write, nvim_set_option,
+    nvim_subscribe, nvim_unsubscribe, nvim_win_get_option, nvim_win_set_height,
+    nvim_win_set_option, nvim_win_set_width, tabpage_del_var, tabpage_set_var, vim_del_var,
+    vim_set_var, window_del_var, window_set_var,
+};
+use crate::api::events::{nvim_error_event, nvim_ui_term_event};
+use crate::api::extmark::{
+    KeyDict_get_extmark, KeyDict_get_extmarks, KeyDict_ns_opts, KeyDict_set_decoration_provider,
+    KeyDict_set_extmark, nvim__buf_debug_extmarks, nvim__ns_get, nvim__ns_set,
+    nvim_buf_clear_namespace, nvim_buf_del_extmark, nvim_buf_get_extmark_by_id,
+    nvim_buf_get_extmarks, nvim_buf_set_extmark, nvim_create_namespace, nvim_get_namespaces,
+};
+use crate::api::options::{
+    KeyDict_option, nvim_get_all_options_info, nvim_get_option_info2, nvim_get_option_value,
+    nvim_set_option_value,
+};
+use crate::api::tabpage::{
+    KeyDict_tabpage_config, nvim_open_tabpage, nvim_tabpage_del_var, nvim_tabpage_get_number,
+    nvim_tabpage_get_var, nvim_tabpage_get_win, nvim_tabpage_is_valid, nvim_tabpage_list_wins,
+    nvim_tabpage_set_var, nvim_tabpage_set_win,
+};
+use crate::api::ui::{
+    nvim_ui_attach, nvim_ui_detach, nvim_ui_pum_set_bounds, nvim_ui_pum_set_height, nvim_ui_send,
+    nvim_ui_set_focus, nvim_ui_set_option, nvim_ui_try_resize, nvim_ui_try_resize_grid, ui_attach,
+};
+use crate::api::vim::{
+    KeyDict_chan_set, KeyDict_complete_set, KeyDict_context, KeyDict_echo_opts,
+    KeyDict_eval_statusline, KeyDict_get_ns, KeyDict_open_term, KeyDict_redraw, KeyDict_runtime,
+    nvim__cmdwin_set, nvim__complete_set, nvim__exec_lua_fast, nvim__get_lib_dir,
+    nvim__get_runtime, nvim__id, nvim__id_array, nvim__id_dict, nvim__id_float, nvim__inspect_cell,
+    nvim__invalidate_glyph_cache, nvim__redraw, nvim__runtime_inspect, nvim__screenshot,
+    nvim__set_restart_on_crash, nvim__stats, nvim__unpack, nvim_chan_send, nvim_chan_set,
+    nvim_create_buf, nvim_del_current_line, nvim_del_keymap, nvim_del_mark, nvim_del_var,
+    nvim_echo, nvim_eval_statusline, nvim_exec_lua, nvim_feedkeys, nvim_get_api_info,
+    nvim_get_chan_info, nvim_get_color_by_name, nvim_get_color_map, nvim_get_context,
+    nvim_get_current_buf, nvim_get_current_line, nvim_get_current_tabpage, nvim_get_current_win,
+    nvim_get_hl, nvim_get_hl_id_by_name, nvim_get_hl_ns, nvim_get_keymap, nvim_get_mark,
+    nvim_get_mode, nvim_get_proc, nvim_get_proc_children, nvim_get_runtime_file, nvim_get_var,
+    nvim_get_vvar, nvim_input, nvim_input_mouse, nvim_list_bufs, nvim_list_chans,
+    nvim_list_runtime_paths, nvim_list_tabpages, nvim_list_uis, nvim_list_wins, nvim_load_context,
+    nvim_open_term, nvim_paste, nvim_put, nvim_replace_termcodes, nvim_select_popupmenu_item,
+    nvim_set_client_info, nvim_set_current_buf, nvim_set_current_dir, nvim_set_current_line,
+    nvim_set_current_tabpage, nvim_set_current_win, nvim_set_hl, nvim_set_hl_ns,
+    nvim_set_hl_ns_fast, nvim_set_keymap, nvim_set_var, nvim_set_vvar, nvim_strwidth,
+};
+use crate::api::vimscript::{
+    KeyDict_exec_opts, nvim_call_dict_function, nvim_call_function, nvim_command, nvim_eval,
+    nvim_exec2, nvim_parse_expression,
+};
+use crate::api::win_config::{
+    KeyDict_win_config, nvim_open_win, nvim_win_get_config, nvim_win_set_config,
+};
+use crate::api::window::{
+    KeyDict_win_resize, KeyDict_win_text_height, nvim_win_close, nvim_win_del_var,
+    nvim_win_get_buf, nvim_win_get_cursor, nvim_win_get_height, nvim_win_get_number,
+    nvim_win_get_position, nvim_win_get_tabpage, nvim_win_get_var, nvim_win_get_width,
+    nvim_win_hide, nvim_win_is_valid, nvim_win_resize, nvim_win_set_buf, nvim_win_set_cursor,
+    nvim_win_set_hl_ns, nvim_win_set_var, nvim_win_text_height,
+};
+use crate::highlight::{KeyDict_highlight, KeyDict_highlight_cterm};
+use crate::highlight_group::KeyDict_get_highlight;
+use crate::lua::xdiff::KeyDict_xdl_diff;
+use crate::shada::{
+    KeyDict__shada_buflist_item, KeyDict__shada_mark, KeyDict__shada_register,
+    KeyDict__shada_search_pat,
+};
+
+const kUnpackTypeStringArray: c_int = -1;
+
+const OBJECT_NIL: Object = Object {
+    obj_type: ObjectType::kObjectTypeNil,
+    data: ObjectData { integer: 0 },
+};
 
 pub type ApiDispatchWrapper = Option<
     unsafe extern "C" fn(
@@ -35,9 +151,16836 @@ pub struct MsgpackRpcRequestHandler {
     pub ret_alloc: bool,
 }
 
-unsafe extern "C" {
-    fn msgpack_rpc_get_handler_for_hash(str_in: *const c_char, len: usize) -> c_int;
-    fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler;
+unsafe impl Sync for MsgpackRpcRequestHandler {}
+
+#[inline]
+const fn boolean_obj(b: Boolean) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBoolean,
+        data: ObjectData { boolean: b },
+    }
+}
+
+#[inline]
+const fn integer_obj(i: Integer) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeInteger,
+        data: ObjectData { integer: i },
+    }
+}
+
+#[inline]
+const fn float_obj(f: Float) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeFloat,
+        data: ObjectData { floating: f },
+    }
+}
+
+#[inline]
+const fn string_obj(s: NvimString) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeString,
+        data: ObjectData { string: s },
+    }
+}
+
+#[inline]
+const fn buffer_obj(b: Buffer) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeBuffer,
+        data: ObjectData {
+            integer: b as Integer,
+        },
+    }
+}
+
+#[inline]
+const fn window_obj(w: Window) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeWindow,
+        data: ObjectData {
+            integer: w as Integer,
+        },
+    }
+}
+
+#[inline]
+const fn tabpage_obj(t: Tabpage) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeTabpage,
+        data: ObjectData {
+            integer: t as Integer,
+        },
+    }
+}
+
+#[inline]
+const fn array_obj(a: Array) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeArray,
+        data: ObjectData { array: a },
+    }
+}
+
+#[inline]
+const fn dict_obj(d: Dict) -> Object {
+    Object {
+        obj_type: ObjectType::kObjectTypeDict,
+        data: ObjectData { dict: d },
+    }
+}
+
+#[inline]
+unsafe fn dlog_internal_call(channel_id: u64, func_name: *const c_char, msg: *const c_char) {
+    #[cfg(debug_assertions)]
+    unsafe {
+        if (channel_id & (1u64 << 63)) != 0 {
+            let _ = crate::log::logmsg_str(
+                crate::log::LOGLVL_DBG,
+                ptr::null(),
+                func_name,
+                0,
+                true,
+                msg,
+            );
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (channel_id, func_name, msg);
+}
+
+#[inline]
+unsafe fn extract_keydict<T>(
+    item: Object,
+    out: *mut T,
+    get_field: FieldHashfn,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeDict {
+            ptr::write_bytes(out, 0, 1);
+            api_dict_to_keydict(out.cast(), get_field, item.data.dict, error)
+        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array.size == 0 {
+            ptr::write_bytes(out, 0, 1);
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_handle(
+    item: Object,
+    expected: ObjectType,
+    out: *mut handle_T,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if (item.obj_type == expected || item.obj_type == ObjectType::kObjectTypeInteger)
+            && item.data.integer >= 0
+        {
+            *out = item.data.integer as handle_T;
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_boolean(
+    item: Object,
+    out: *mut Boolean,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeBoolean {
+            *out = item.data.boolean;
+            true
+        } else if item.obj_type == ObjectType::kObjectTypeInteger && item.data.integer >= 0 {
+            *out = (item.data.integer as handle_T) != 0;
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_float(
+    item: Object,
+    out: *mut Float,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeFloat {
+            *out = item.data.floating;
+            true
+        } else if item.obj_type == ObjectType::kObjectTypeInteger {
+            *out = item.data.integer as Float;
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_dict(
+    item: Object,
+    out: *mut Dict,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeDict {
+            *out = item.data.dict;
+            true
+        } else if item.obj_type == ObjectType::kObjectTypeArray && item.data.array.size == 0 {
+            *out = Dict {
+                items: ptr::null_mut(),
+                size: 0,
+                capacity: 0,
+            };
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_integer(
+    item: Object,
+    out: *mut Integer,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeInteger {
+            *out = item.data.integer;
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_string(
+    item: Object,
+    out: *mut NvimString,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeString {
+            *out = item.data.string;
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[inline]
+unsafe fn extract_array(
+    item: Object,
+    out: *mut Array,
+    wrong_type_msg: *const c_char,
+    error: *mut Error,
+) -> bool {
+    unsafe {
+        if item.obj_type == ObjectType::kObjectTypeArray {
+            *out = item.data.array;
+            true
+        } else {
+            api_set_error_str(error, ErrorType::kErrorTypeException, wrong_type_msg);
+            false
+        }
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static _shada_buflist_item_table: [KeySetLink; 4] = [
+    KeySetLink {
+        str: c"c".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_buflist_item, c),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"f".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_buflist_item, f),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"l".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_buflist_item, l),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn _shada_buflist_item_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"c" => 0,
+        b"f" => 1,
+        b"l" => 2,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict__shada_buflist_item_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { _shada_buflist_item_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const _shada_buflist_item_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static _shada_mark_table: [KeySetLink; 5] = [
+    KeySetLink {
+        str: c"c".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_mark, c),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"f".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_mark, f),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"l".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_mark, l),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"n".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_mark, n),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn _shada_mark_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"c" => 0,
+        b"f" => 1,
+        b"l" => 2,
+        b"n" => 3,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict__shada_mark_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { _shada_mark_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const _shada_mark_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static _shada_register_table: [KeySetLink; 6] = [
+    KeySetLink {
+        str: c"n".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_register, n),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"rc".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_register, rc),
+        key_type: kUnpackTypeStringArray,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"rt".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_register, rt),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ru".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_register, ru),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"rw".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_register, rw),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn _shada_register_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"n" => 0,
+        b"rc" => 1,
+        b"rt" => 2,
+        b"ru" => 3,
+        b"rw" => 4,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict__shada_register_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { _shada_register_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const _shada_register_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static _shada_search_pat_table: [KeySetLink; 11] = [
+    KeySetLink {
+        str: c"sb".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, search_backward),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sc".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, smartcase),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"se".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, place_cursor_at_end),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sh".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, highlighted),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sl".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, has_line_offset),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sm".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, magic),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"so".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, offset),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sp".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, pat),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ss".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, is_substitute_pattern),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"su".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict__shada_search_pat, is_last_used),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn _shada_search_pat_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"sb" => 0,
+        b"sc" => 1,
+        b"se" => 2,
+        b"sh" => 3,
+        b"sl" => 4,
+        b"sm" => 5,
+        b"so" => 6,
+        b"sp" => 7,
+        b"ss" => 8,
+        b"su" => 9,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict__shada_search_pat_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { _shada_search_pat_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const _shada_search_pat_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static buf_attach_table: [KeySetLink; 8] = [
+    KeySetLink {
+        str: c"preview".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, preview),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_bytes".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, on_bytes),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_lines".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, on_lines),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"utf_sizes".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, utf_sizes),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_detach".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, on_detach),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_reload".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, on_reload),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_changedtick".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_attach, on_changedtick),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn buf_attach_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"preview" => 0,
+        b"on_bytes" => 1,
+        b"on_lines" => 2,
+        b"utf_sizes" => 3,
+        b"on_detach" => 4,
+        b"on_reload" => 5,
+        b"on_changedtick" => 6,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_buf_attach_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { buf_attach_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const buf_attach_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static buf_delete_table: [KeySetLink; 3] = [
+    KeySetLink {
+        str: c"force".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_delete, force),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"unload".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_buf_delete, unload),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn buf_delete_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"force" => 0,
+        b"unload" => 1,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_buf_delete_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { buf_delete_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const buf_delete_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static chan_set_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"detach".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_chan_set, detach),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn chan_set_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"detach" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_chan_set_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { chan_set_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const chan_set_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static clear_autocmds_table: [KeySetLink; 6] = [
+    KeySetLink {
+        str: c"buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_clear_autocmds, buf),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"event".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_clear_autocmds, event),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_clear_autocmds, group),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"buffer".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_clear_autocmds, buffer),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"pattern".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_clear_autocmds, pattern),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn clear_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"buf" => 0,
+        b"event" => 1,
+        b"group" => 2,
+        b"buffer" => 3,
+        b"pattern" => 4,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_clear_autocmds_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { clear_autocmds_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const clear_autocmds_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static cmd_table: [KeySetLink; 12] = [
+    KeySetLink {
+        str: c"cmd".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, cmd),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"reg".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, reg),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"bang".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, bang),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"addr".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, addr),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"mods".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, mods),
+        key_type: ObjectType::kObjectTypeDict as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"args".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, args),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"count".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, count),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"magic".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, magic),
+        key_type: ObjectType::kObjectTypeDict as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nargs".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, nargs),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"range".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, range),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nextcmd".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd, nextcmd),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmd_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"cmd" => 0,
+        b"reg" => 1,
+        b"bang" => 2,
+        b"addr" => 3,
+        b"mods" => 4,
+        b"args" => 5,
+        b"count" => 6,
+        b"magic" => 7,
+        b"nargs" => 8,
+        b"range" => 9,
+        b"nextcmd" => 10,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_cmd_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { cmd_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const cmd_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static cmd_magic_table: [KeySetLink; 3] = [
+    KeySetLink {
+        str: c"bar".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_magic, bar),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"file".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_magic, file),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmd_magic_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"bar" => 0,
+        b"file" => 1,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_cmd_magic_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { cmd_magic_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const cmd_magic_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static cmd_mods_table: [KeySetLink; 21] = [
+    KeySetLink {
+        str: c"tab".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, tab),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hide".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, hide),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"split".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, split),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"browse".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, browse),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"filter".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, filter),
+        key_type: ObjectType::kObjectTypeDict as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"silent".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, silent),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"confirm".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, confirm),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"keepalt".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, keepalt),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sandbox".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, sandbox),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"verbose".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, verbose),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"unsilent".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, unsilent),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"vertical".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, vertical),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 12,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"keepjumps".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, keepjumps),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 13,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"keepmarks".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, keepmarks),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 14,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"lockmarks".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, lockmarks),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 15,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"noautocmd".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, noautocmd),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 16,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"horizontal".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, horizontal),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 17,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"noswapfile".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, noswapfile),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 18,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"emsg_silent".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, emsg_silent),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 19,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"keeppatterns".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods, keeppatterns),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 20,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmd_mods_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"tab" => 0,
+        b"hide" => 1,
+        b"split" => 2,
+        b"browse" => 3,
+        b"filter" => 4,
+        b"silent" => 5,
+        b"confirm" => 6,
+        b"keepalt" => 7,
+        b"sandbox" => 8,
+        b"verbose" => 9,
+        b"unsilent" => 10,
+        b"vertical" => 11,
+        b"keepjumps" => 12,
+        b"keepmarks" => 13,
+        b"lockmarks" => 14,
+        b"noautocmd" => 15,
+        b"horizontal" => 16,
+        b"noswapfile" => 17,
+        b"emsg_silent" => 18,
+        b"keeppatterns" => 19,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_cmd_mods_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { cmd_mods_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const cmd_mods_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static cmd_mods_filter_table: [KeySetLink; 3] = [
+    KeySetLink {
+        str: c"force".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods_filter, force),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"pattern".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_mods_filter, pattern),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmd_mods_filter_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"force" => 0,
+        b"pattern" => 1,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_cmd_mods_filter_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { cmd_mods_filter_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const cmd_mods_filter_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static cmd_opts_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"output".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_cmd_opts, output),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn cmd_opts_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"output" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_cmd_opts_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { cmd_opts_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const cmd_opts_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static complete_set_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"info".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_complete_set, info),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn complete_set_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"info" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_complete_set_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { complete_set_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const complete_set_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static context_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"types".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_context, types),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn context_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"types" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_context_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { context_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const context_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static create_augroup_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"clear".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_augroup, clear),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn create_augroup_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"clear" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_create_augroup_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { create_augroup_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const create_augroup_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static create_autocmd_table: [KeySetLink; 10] = [
+    KeySetLink {
+        str: c"buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, buf),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"desc".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, desc),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"once".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, once),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, group),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"buffer".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, buffer),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nested".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, nested),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"command".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, command),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"pattern".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, pattern),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"callback".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_create_autocmd, callback),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn create_autocmd_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"buf" => 0,
+        b"desc" => 1,
+        b"once" => 2,
+        b"group" => 3,
+        b"buffer" => 4,
+        b"nested" => 5,
+        b"command" => 6,
+        b"pattern" => 7,
+        b"callback" => 8,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_create_autocmd_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { create_autocmd_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const create_autocmd_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static echo_opts_table: [KeySetLink; 11] = [
+    KeySetLink {
+        str: c"id".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, id),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"err".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, err),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"data".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, data),
+        key_type: ObjectType::kObjectTypeDict as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"kind".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, kind),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"title".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, title),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"source".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, source),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"status".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, status),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"percent".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, percent),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"verbose".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, verbose),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"_truncate".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_echo_opts, _truncate),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn echo_opts_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"id" => 0,
+        b"err" => 1,
+        b"data" => 2,
+        b"kind" => 3,
+        b"title" => 4,
+        b"source" => 5,
+        b"status" => 6,
+        b"percent" => 7,
+        b"verbose" => 8,
+        b"_truncate" => 9,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_echo_opts_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { echo_opts_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const echo_opts_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static empty_table: [KeySetLink; 1] = [KeySetLink {
+    str: ptr::null_mut(),
+    ptr_off: 0,
+    key_type: ObjectType::kObjectTypeNil as c_int,
+    opt_index: -1,
+    is_hlgroup: false,
+}];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn empty_hash(str_: *const c_char, len: usize) -> c_int {
+    let _ = (str_, len);
+    -1
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_empty_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { empty_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const empty_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static eval_statusline_table: [KeySetLink; 8] = [
+    KeySetLink {
+        str: c"winid".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, winid),
+        key_type: ObjectType::kObjectTypeWindow as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"fillchar".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, fillchar),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"maxwidth".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, maxwidth),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"highlights".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, highlights),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"use_winbar".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, use_winbar),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"use_tabline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, use_tabline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"use_statuscol_lnum".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_eval_statusline, use_statuscol_lnum),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn eval_statusline_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"winid" => 0,
+        b"fillchar" => 1,
+        b"maxwidth" => 2,
+        b"highlights" => 3,
+        b"use_winbar" => 4,
+        b"use_tabline" => 5,
+        b"use_statuscol_lnum" => 6,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_eval_statusline_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { eval_statusline_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const eval_statusline_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static exec_autocmds_table: [KeySetLink; 7] = [
+    KeySetLink {
+        str: c"buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_autocmds, buf),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"data".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_autocmds, data),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_autocmds, group),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"buffer".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_autocmds, buffer),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"pattern".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_autocmds, pattern),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"modeline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_autocmds, modeline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn exec_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"buf" => 0,
+        b"data" => 1,
+        b"group" => 2,
+        b"buffer" => 3,
+        b"pattern" => 4,
+        b"modeline" => 5,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_exec_autocmds_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { exec_autocmds_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const exec_autocmds_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static exec_opts_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"output".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_exec_opts, output),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn exec_opts_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"output" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_exec_opts_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { exec_opts_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const exec_opts_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static get_autocmds_table: [KeySetLink; 7] = [
+    KeySetLink {
+        str: c"id".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_autocmds, id),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_autocmds, buf),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"event".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_autocmds, event),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_autocmds, group),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"buffer".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_autocmds, buffer),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"pattern".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_autocmds, pattern),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_autocmds_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"id" => 0,
+        b"buf" => 1,
+        b"event" => 2,
+        b"group" => 3,
+        b"buffer" => 4,
+        b"pattern" => 5,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_get_autocmds_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { get_autocmds_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const get_autocmds_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static get_commands_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"builtin".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_commands, builtin),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_commands_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"builtin" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_get_commands_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { get_commands_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const get_commands_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static get_extmark_table: [KeySetLink; 3] = [
+    KeySetLink {
+        str: c"details".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmark, details),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hl_name".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmark, hl_name),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_extmark_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"details" => 0,
+        b"hl_name" => 1,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_get_extmark_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { get_extmark_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const get_extmark_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static get_extmarks_table: [KeySetLink; 6] = [
+    KeySetLink {
+        str: c"type".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmarks, type_),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"limit".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmarks, limit),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"details".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmarks, details),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hl_name".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmarks, hl_name),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"overlap".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_extmarks, overlap),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_extmarks_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"type" => 0,
+        b"limit" => 1,
+        b"details" => 2,
+        b"hl_name" => 3,
+        b"overlap" => 4,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_get_extmarks_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { get_extmarks_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const get_extmarks_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static get_highlight_table: [KeySetLink; 5] = [
+    KeySetLink {
+        str: c"id".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_highlight, id),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"link".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_highlight, link),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"name".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_highlight, name),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"create".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_highlight, create),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_highlight_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"id" => 0,
+        b"link" => 1,
+        b"name" => 2,
+        b"create" => 3,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_get_highlight_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { get_highlight_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const get_highlight_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static get_ns_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"winid".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_get_ns, winid),
+        key_type: ObjectType::kObjectTypeWindow as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn get_ns_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"winid" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_get_ns_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { get_ns_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const get_ns_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static highlight_table: [KeySetLink; 37] = [
+    KeySetLink {
+        str: c"bg".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, bg),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"fg".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, fg),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sp".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, sp),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"dim".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, dim),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"url".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, url),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"bold".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, bold),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"font".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, font),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"link".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, link),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 8,
+        is_hlgroup: true,
+    },
+    KeySetLink {
+        str: c"blend".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, blend),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"force".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, force),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"blink".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, blink),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"cterm".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, cterm),
+        key_type: ObjectType::kObjectTypeDict as c_int,
+        opt_index: 12,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"italic".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, italic),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 13,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"update".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, update),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 14,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"reverse".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, reverse),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 15,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"default".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, default_),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 16,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"altfont".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, altfont),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 17,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"conceal".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, conceal),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 18,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"special".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, special),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 19,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ctermfg".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, ctermfg),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 20,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ctermbg".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, ctermbg),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 21,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"fallback".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, fallback),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 22,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"overline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, overline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 23,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"standout".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, standout),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 24,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nocombine".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, nocombine),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 25,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"undercurl".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, undercurl),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 26,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, underline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 27,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"background".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, background),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 28,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"bg_indexed".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, bg_indexed),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 29,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"foreground".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, foreground),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 30,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"fg_indexed".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, fg_indexed),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 31,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"link_global".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, link_global),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 32,
+        is_hlgroup: true,
+    },
+    KeySetLink {
+        str: c"underdashed".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, underdashed),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 33,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underdotted".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, underdotted),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 34,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underdouble".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, underdouble),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 35,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"strikethrough".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight, strikethrough),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 36,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn highlight_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"bg" => 0,
+        b"fg" => 1,
+        b"sp" => 2,
+        b"dim" => 3,
+        b"url" => 4,
+        b"bold" => 5,
+        b"font" => 6,
+        b"link" => 7,
+        b"blend" => 8,
+        b"force" => 9,
+        b"blink" => 10,
+        b"cterm" => 11,
+        b"italic" => 12,
+        b"update" => 13,
+        b"reverse" => 14,
+        b"default" => 15,
+        b"altfont" => 16,
+        b"conceal" => 17,
+        b"special" => 18,
+        b"ctermfg" => 19,
+        b"ctermbg" => 20,
+        b"fallback" => 21,
+        b"overline" => 22,
+        b"standout" => 23,
+        b"nocombine" => 24,
+        b"undercurl" => 25,
+        b"underline" => 26,
+        b"background" => 27,
+        b"bg_indexed" => 28,
+        b"foreground" => 29,
+        b"fg_indexed" => 30,
+        b"link_global" => 31,
+        b"underdashed" => 32,
+        b"underdotted" => 33,
+        b"underdouble" => 34,
+        b"strikethrough" => 35,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_highlight_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { highlight_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const highlight_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static highlight_cterm_table: [KeySetLink; 17] = [
+    KeySetLink {
+        str: c"dim".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, dim),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"bold".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, bold),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"blink".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, blink),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"italic".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, italic),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"altfont".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, altfont),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"conceal".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, conceal),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"reverse".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, reverse),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"overline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, overline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"standout".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, standout),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nocombine".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, nocombine),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"undercurl".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, undercurl),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, underline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underdashed".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, underdashed),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underdotted".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, underdotted),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"underdouble".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, underdouble),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"strikethrough".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_highlight_cterm, strikethrough),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn highlight_cterm_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"dim" => 0,
+        b"bold" => 1,
+        b"blink" => 2,
+        b"italic" => 3,
+        b"altfont" => 4,
+        b"conceal" => 5,
+        b"reverse" => 6,
+        b"overline" => 7,
+        b"standout" => 8,
+        b"nocombine" => 9,
+        b"undercurl" => 10,
+        b"underline" => 11,
+        b"underdashed" => 12,
+        b"underdotted" => 13,
+        b"underdouble" => 14,
+        b"strikethrough" => 15,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_highlight_cterm_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { highlight_cterm_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const highlight_cterm_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static keymap_table: [KeySetLink; 10] = [
+    KeySetLink {
+        str: c"desc".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, desc),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"expr".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, expr),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"script".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, script),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"silent".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, silent),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"unique".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, unique),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nowait".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, nowait),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"noremap".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, noremap),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"callback".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, callback),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"replace_keycodes".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap, replace_keycodes),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn keymap_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"desc" => 0,
+        b"expr" => 1,
+        b"script" => 2,
+        b"silent" => 3,
+        b"unique" => 4,
+        b"nowait" => 5,
+        b"noremap" => 6,
+        b"callback" => 7,
+        b"replace_keycodes" => 8,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_keymap_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { keymap_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const keymap_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static keymap_del_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"lhs".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_keymap_del, lhs),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn keymap_del_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"lhs" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_keymap_del_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { keymap_del_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const keymap_del_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static ns_opts_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"wins".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_ns_opts, wins),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn ns_opts_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"wins" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_ns_opts_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { ns_opts_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const ns_opts_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static open_term_table: [KeySetLink; 3] = [
+    KeySetLink {
+        str: c"on_input".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_open_term, on_input),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"force_crlf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_open_term, force_crlf),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn open_term_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"on_input" => 0,
+        b"force_crlf" => 1,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_open_term_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { open_term_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const open_term_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static option_table: [KeySetLink; 8] = [
+    KeySetLink {
+        str: c"buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, buf),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"tab".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, tab),
+        key_type: ObjectType::kObjectTypeTabpage as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"win".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, win),
+        key_type: ObjectType::kObjectTypeWindow as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"scope".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, scope),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"dry_run".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, dry_run),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"filetype".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, filetype),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"operation".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_option, operation),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn option_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"buf" => 0,
+        b"tab" => 1,
+        b"win" => 2,
+        b"scope" => 3,
+        b"dry_run" => 4,
+        b"filetype" => 5,
+        b"operation" => 6,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_option_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { option_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const option_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static redraw_table: [KeySetLink; 11] = [
+    KeySetLink {
+        str: c"buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, buf),
+        key_type: ObjectType::kObjectTypeBuffer as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"win".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, win),
+        key_type: ObjectType::kObjectTypeWindow as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"flush".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, flush),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"range".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, range),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"valid".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, valid),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"cursor".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, cursor),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"winbar".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, winbar),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"tabline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, tabline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"statusline".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, statusline),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"statuscolumn".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_redraw, statuscolumn),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn redraw_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"buf" => 0,
+        b"win" => 1,
+        b"flush" => 2,
+        b"range" => 3,
+        b"valid" => 4,
+        b"cursor" => 5,
+        b"winbar" => 6,
+        b"tabline" => 7,
+        b"statusline" => 8,
+        b"statuscolumn" => 9,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_redraw_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { redraw_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const redraw_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static runtime_table: [KeySetLink; 3] = [
+    KeySetLink {
+        str: c"is_lua".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_runtime, is_lua),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"do_source".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_runtime, do_source),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn runtime_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"is_lua" => 0,
+        b"do_source" => 1,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_runtime_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { runtime_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const runtime_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static set_decoration_provider_table: [KeySetLink; 10] = [
+    KeySetLink {
+        str: c"on_buf".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, on_buf),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_end".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, on_end),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_win".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, on_win),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_line".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, on_line),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_range".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, on_range),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_start".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, on_start),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"_on_hl_def".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_hl_def),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"_on_spell_nav".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_spell_nav),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"_on_conceal_line".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_decoration_provider, _on_conceal_line),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_decoration_provider_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"on_buf" => 0,
+        b"on_end" => 1,
+        b"on_win" => 2,
+        b"on_line" => 3,
+        b"on_range" => 4,
+        b"on_start" => 5,
+        b"_on_hl_def" => 6,
+        b"_on_spell_nav" => 7,
+        b"_on_conceal_line" => 8,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_set_decoration_provider_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { set_decoration_provider_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const set_decoration_provider_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static set_extmark_table: [KeySetLink; 36] = [
+    KeySetLink {
+        str: c"id".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, id),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"url".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, url),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"spell".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, spell),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"scoped".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, scoped),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hl_eol".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, hl_eol),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"strict".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, strict),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"end_col".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, end_col),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"conceal".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, conceal),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hl_mode".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, hl_mode),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"end_row".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, end_row),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"end_line".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, end_line),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hl_group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, hl_group),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 12,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"priority".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, priority),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 13,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ephemeral".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, ephemeral),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 14,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sign_text".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, sign_text),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 15,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"virt_text".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_text),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 16,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"invalidate".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, invalidate),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 17,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ui_watched".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, ui_watched),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 18,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"virt_lines".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_lines),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 19,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"_subpriority".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, _subpriority),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 20,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"undo_restore".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, undo_restore),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 21,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"conceal_lines".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, conceal_lines),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 22,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"line_hl_group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, line_hl_group),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 23,
+        is_hlgroup: true,
+    },
+    KeySetLink {
+        str: c"right_gravity".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, right_gravity),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 24,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"sign_hl_group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, sign_hl_group),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 25,
+        is_hlgroup: true,
+    },
+    KeySetLink {
+        str: c"virt_text_pos".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_text_pos),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 26,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"virt_text_hide".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_text_hide),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 27,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"number_hl_group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, number_hl_group),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 28,
+        is_hlgroup: true,
+    },
+    KeySetLink {
+        str: c"virt_lines_above".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_above),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 29,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"end_right_gravity".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, end_right_gravity),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 30,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"virt_text_win_col".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_text_win_col),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 31,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"virt_lines_leftcol".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_leftcol),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 32,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"cursorline_hl_group".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, cursorline_hl_group),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 33,
+        is_hlgroup: true,
+    },
+    KeySetLink {
+        str: c"virt_lines_overflow".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_lines_overflow),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 34,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"virt_text_repeat_linebreak".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_set_extmark, virt_text_repeat_linebreak),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 35,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn set_extmark_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"id" => 0,
+        b"url" => 1,
+        b"spell" => 2,
+        b"scoped" => 3,
+        b"hl_eol" => 4,
+        b"strict" => 5,
+        b"end_col" => 6,
+        b"conceal" => 7,
+        b"hl_mode" => 8,
+        b"end_row" => 9,
+        b"end_line" => 10,
+        b"hl_group" => 11,
+        b"priority" => 12,
+        b"ephemeral" => 13,
+        b"sign_text" => 14,
+        b"virt_text" => 15,
+        b"invalidate" => 16,
+        b"ui_watched" => 17,
+        b"virt_lines" => 18,
+        b"_subpriority" => 19,
+        b"undo_restore" => 20,
+        b"conceal_lines" => 21,
+        b"line_hl_group" => 22,
+        b"right_gravity" => 23,
+        b"sign_hl_group" => 24,
+        b"virt_text_pos" => 25,
+        b"virt_text_hide" => 26,
+        b"number_hl_group" => 27,
+        b"virt_lines_above" => 28,
+        b"end_right_gravity" => 29,
+        b"virt_text_win_col" => 30,
+        b"virt_lines_leftcol" => 31,
+        b"cursorline_hl_group" => 32,
+        b"virt_lines_overflow" => 33,
+        b"virt_text_repeat_linebreak" => 34,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_set_extmark_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { set_extmark_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const set_extmark_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static tabpage_config_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"after".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_tabpage_config, after),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn tabpage_config_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"after" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_tabpage_config_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { tabpage_config_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const tabpage_config_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static user_command_table: [KeySetLink; 13] = [
+    KeySetLink {
+        str: c"bar".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, bar),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"addr".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, addr),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"bang".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, bang),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"desc".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, desc),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"count".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, count),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"force".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, force),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"nargs".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, nargs),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"range".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, range),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"preview".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, preview),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"complete".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, complete),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"register".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, register_),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"keepscript".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_user_command, keepscript),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 12,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn user_command_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"bar" => 0,
+        b"addr" => 1,
+        b"bang" => 2,
+        b"desc" => 3,
+        b"count" => 4,
+        b"force" => 5,
+        b"nargs" => 6,
+        b"range" => 7,
+        b"preview" => 8,
+        b"complete" => 9,
+        b"register" => 10,
+        b"keepscript" => 11,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_user_command_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { user_command_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const user_command_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static win_config_table: [KeySetLink; 25] = [
+    KeySetLink {
+        str: c"col".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, col),
+        key_type: ObjectType::kObjectTypeFloat as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"row".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, row),
+        key_type: ObjectType::kObjectTypeFloat as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"win".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, win),
+        key_type: ObjectType::kObjectTypeWindow as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"hide".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, hide),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"width".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, width),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"split".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, split),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"title".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, title),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"mouse".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, mouse),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"fixed".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, fixed),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"style".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, style),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"anchor".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, anchor),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"bufpos".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, bufpos),
+        key_type: ObjectType::kObjectTypeArray as c_int,
+        opt_index: 12,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"height".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, height),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 13,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"zindex".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, zindex),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 14,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"footer".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, footer),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 15,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"border".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, border),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 16,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"external".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, external),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 17,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"relative".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, relative),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 18,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"vertical".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, vertical),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 19,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"focusable".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, focusable),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 20,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"noautocmd".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, noautocmd),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 21,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"title_pos".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, title_pos),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 22,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"footer_pos".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, footer_pos),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 23,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"_cmdline_offset".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_config, _cmdline_offset),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 24,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn win_config_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"col" => 0,
+        b"row" => 1,
+        b"win" => 2,
+        b"hide" => 3,
+        b"width" => 4,
+        b"split" => 5,
+        b"title" => 6,
+        b"mouse" => 7,
+        b"fixed" => 8,
+        b"style" => 9,
+        b"anchor" => 10,
+        b"bufpos" => 11,
+        b"height" => 12,
+        b"zindex" => 13,
+        b"footer" => 14,
+        b"border" => 15,
+        b"external" => 16,
+        b"relative" => 17,
+        b"vertical" => 18,
+        b"focusable" => 19,
+        b"noautocmd" => 20,
+        b"title_pos" => 21,
+        b"footer_pos" => 22,
+        b"_cmdline_offset" => 23,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_win_config_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { win_config_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const win_config_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static win_resize_table: [KeySetLink; 2] = [
+    KeySetLink {
+        str: c"anchor".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_resize, anchor),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn win_resize_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"anchor" => 0,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_win_resize_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { win_resize_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const win_resize_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static win_text_height_table: [KeySetLink; 6] = [
+    KeySetLink {
+        str: c"end_row".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_text_height, end_row),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"end_vcol".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_text_height, end_vcol),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"start_row".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_text_height, start_row),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"max_height".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_text_height, max_height),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"start_vcol".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_win_text_height, start_vcol),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn win_text_height_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"end_row" => 0,
+        b"end_vcol" => 1,
+        b"start_row" => 2,
+        b"max_height" => 3,
+        b"start_vcol" => 4,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_win_text_height_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { win_text_height_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const win_text_height_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static xdl_diff_table: [KeySetLink; 13] = [
+    KeySetLink {
+        str: c"ctxlen".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, ctxlen),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"on_hunk".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, on_hunk),
+        key_type: ObjectType::kObjectTypeLuaRef as c_int,
+        opt_index: 2,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"algorithm".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, algorithm),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 3,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"linematch".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, linematch),
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: 4,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"result_type".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, result_type),
+        key_type: ObjectType::kObjectTypeString as c_int,
+        opt_index: 5,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"interhunkctxlen".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, interhunkctxlen),
+        key_type: ObjectType::kObjectTypeInteger as c_int,
+        opt_index: 6,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ignore_cr_at_eol".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, ignore_cr_at_eol),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 7,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"indent_heuristic".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, indent_heuristic),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 8,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ignore_whitespace".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 9,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ignore_blank_lines".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, ignore_blank_lines),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 10,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ignore_whitespace_change".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace_change),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 11,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: c"ignore_whitespace_change_at_eol".as_ptr().cast_mut(),
+        ptr_off: offset_of!(KeyDict_xdl_diff, ignore_whitespace_change_at_eol),
+        key_type: ObjectType::kObjectTypeBoolean as c_int,
+        opt_index: 12,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: ptr::null_mut(),
+        ptr_off: 0,
+        key_type: ObjectType::kObjectTypeNil as c_int,
+        opt_index: -1,
+        is_hlgroup: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn xdl_diff_hash(str_: *const c_char, len: usize) -> c_int {
+    if str_.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), len) } {
+        b"ctxlen" => 0,
+        b"on_hunk" => 1,
+        b"algorithm" => 2,
+        b"linematch" => 3,
+        b"result_type" => 4,
+        b"interhunkctxlen" => 5,
+        b"ignore_cr_at_eol" => 6,
+        b"indent_heuristic" => 7,
+        b"ignore_whitespace" => 8,
+        b"ignore_blank_lines" => 9,
+        b"ignore_whitespace_change" => 10,
+        b"ignore_whitespace_change_at_eol" => 11,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C-unwind" fn KeyDict_xdl_diff_get_field(
+    str_: *const c_char,
+    len: usize,
+) -> *const KeySetLink {
+    let hash = unsafe { xdl_diff_hash(str_, len) };
+    if hash == -1 {
+        ptr::null()
+    } else {
+        &raw const xdl_diff_table[hash as usize]
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_autocmds(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_autocmds".as_ptr(),
+            c"API: vim -> nvim_get_autocmds".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_get_autocmds = zeroed();
+        if args.size > 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if args.size >= 1 {
+            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_get_autocmds, expecting Dict(get_autocmds) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_autocmds(&raw mut arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_create_autocmd(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_create_autocmd".as_ptr(),
+            c"API: vim -> nvim_create_autocmd".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Object = zeroed();
+        let mut arg_2: KeyDict_create_autocmd = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        arg_1 = *args.items.add(0);
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_autocmd_get_field), c"Wrong type for argument 2 when calling nvim_create_autocmd, expecting Dict(create_autocmd) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_create_autocmd(channel_id, arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_autocmd(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_autocmd".as_ptr(),
+            c"API: vim -> nvim_del_autocmd".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_autocmd, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_del_autocmd(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_clear_autocmds(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_clear_autocmds".as_ptr(),
+            c"API: vim -> nvim_clear_autocmds".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_clear_autocmds = zeroed();
+        if args.size > 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if args.size >= 1 {
+            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_clear_autocmds_get_field), c"Wrong type for argument 1 when calling nvim_clear_autocmds, expecting Dict(clear_autocmds) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_clear_autocmds(&raw mut arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_create_augroup(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_create_augroup".as_ptr(),
+            c"API: vim -> nvim_create_augroup".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_create_augroup = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_create_augroup, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_create_augroup_get_field), c"Wrong type for argument 2 when calling nvim_create_augroup, expecting Dict(create_augroup) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_create_augroup(channel_id, arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_augroup_by_id(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_augroup_by_id".as_ptr(),
+            c"API: vim -> nvim_del_augroup_by_id".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_augroup_by_id, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_del_augroup_by_id(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_augroup_by_name(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_augroup_by_name".as_ptr(),
+            c"API: vim -> nvim_del_augroup_by_name".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_augroup_by_name, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_del_augroup_by_name(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_exec_autocmds(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_exec_autocmds".as_ptr(),
+            c"API: vim -> nvim_exec_autocmds".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Object = zeroed();
+        let mut arg_2: KeyDict_exec_autocmds = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        arg_1 = *args.items.add(0);
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_exec_autocmds_get_field), c"Wrong type for argument 2 when calling nvim_exec_autocmds, expecting Dict(exec_autocmds) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_exec_autocmds(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_line_count(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_line_count".as_ptr(),
+            c"API: vim -> nvim_buf_line_count".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_line_count, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_line_count(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_attach(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_attach".as_ptr(),
+            c"API: vim -> nvim_buf_attach".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: KeyDict_buf_attach = zeroed();
+        if args.size < 2 || args.size > 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_attach, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_attach, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 3 {
+            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_buf_attach_get_field), c"Wrong type for argument 3 when calling nvim_buf_attach, expecting Dict(buf_attach) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_attach(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_detach(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_detach".as_ptr(),
+            c"API: vim -> nvim_buf_detach".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_detach, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_detach(channel_id, arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_lines(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_lines".as_ptr(),
+            c"API: vim -> nvim_buf_get_lines".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Boolean = zeroed();
+        if args.size != 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_lines, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_lines, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_get_lines, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_get_lines, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_lines(
+            channel_id,
+            arg_1,
+            arg_2,
+            arg_3,
+            arg_4,
+            arena,
+            ptr::null_mut(),
+            error,
+        );
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_lines(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_lines".as_ptr(),
+            c"API: vim -> nvim_buf_set_lines".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Boolean = zeroed();
+        let mut arg_5: Array = zeroed();
+        if args.size != 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_lines, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_lines, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_set_lines, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_set_lines, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling nvim_buf_set_lines, expecting ArrayOf(String)"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_buf_set_lines(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_text(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_text".as_ptr(),
+            c"API: vim -> nvim_buf_set_text".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Integer = zeroed();
+        let mut arg_5: Integer = zeroed();
+        let mut arg_6: Array = zeroed();
+        if args.size != 6 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_text, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling nvim_buf_set_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(5),
+            &raw mut arg_6,
+            c"Wrong type for argument 6 when calling nvim_buf_set_text, expecting ArrayOf(String)"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_buf_set_text(
+            channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error,
+        );
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_text(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_text".as_ptr(),
+            c"API: vim -> nvim_buf_get_text".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Integer = zeroed();
+        let mut arg_5: Integer = zeroed();
+        let mut arg_6: KeyDict_empty = zeroed();
+        if args.size < 5 || args.size > 6 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 5 to 6 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_text, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling nvim_buf_get_text, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 6 {
+            if !extract_keydict(*args.items.add(5), &raw mut arg_6, Some(KeyDict_empty_get_field), c"Wrong type for argument 6 when calling nvim_buf_get_text, expecting Dict(empty) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_get_text(
+            channel_id,
+            arg_1,
+            arg_2,
+            arg_3,
+            arg_4,
+            arg_5,
+            &raw mut arg_6,
+            arena,
+            ptr::null_mut(),
+            error,
+        );
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_offset(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_offset".as_ptr(),
+            c"API: vim -> nvim_buf_get_offset".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_offset, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_offset, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_offset(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_var".as_ptr(),
+            c"API: vim -> nvim_buf_get_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_var, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_changedtick(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_changedtick".as_ptr(),
+            c"API: vim -> nvim_buf_get_changedtick".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_changedtick, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_changedtick(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_keymap(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_keymap".as_ptr(),
+            c"API: vim -> nvim_buf_get_keymap".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_keymap, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_keymap, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_keymap(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_keymap(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_keymap".as_ptr(),
+            c"API: vim -> nvim_buf_set_keymap".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        let mut arg_4: NvimString = zeroed();
+        let mut arg_5: KeyDict_keymap = zeroed();
+        if args.size < 4 || args.size > 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_keymap, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_keymap, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_set_keymap, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_set_keymap, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 5 {
+            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_keymap_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_keymap, expecting Dict(keymap) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_buf_set_keymap(
+            channel_id,
+            arg_1,
+            arg_2,
+            arg_3,
+            arg_4,
+            &raw mut arg_5,
+            error,
+        );
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_del_keymap(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_del_keymap".as_ptr(),
+            c"API: vim -> nvim_buf_del_keymap".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        let mut arg_4: KeyDict_keymap_del = zeroed();
+        if args.size < 3 || args.size > 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_del_keymap, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_del_keymap, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_del_keymap, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 4 {
+            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 4 when calling nvim_buf_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_buf_del_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_var".as_ptr(),
+            c"API: vim -> nvim_buf_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_var, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        nvim_buf_set_var(arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_del_var".as_ptr(),
+            c"API: vim -> nvim_buf_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_del_var, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_buf_del_var(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_name(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_name".as_ptr(),
+            c"API: vim -> nvim_buf_get_name".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_name, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_name(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_name(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_name".as_ptr(),
+            c"API: vim -> nvim_buf_set_name".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_name, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_name, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_buf_set_name(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_is_loaded(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_is_loaded".as_ptr(),
+            c"API: vim -> nvim_buf_is_loaded".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_is_loaded, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_is_loaded(arg_1);
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_delete(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_delete".as_ptr(),
+            c"API: vim -> nvim_buf_delete".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: KeyDict_buf_delete = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_delete, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_buf_delete_get_field), c"Wrong type for argument 2 when calling nvim_buf_delete, expecting Dict(buf_delete) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_buf_delete(arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_is_valid(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_is_valid".as_ptr(),
+            c"API: vim -> nvim_buf_is_valid".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_is_valid, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_is_valid(arg_1);
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_del_mark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_del_mark".as_ptr(),
+            c"API: vim -> nvim_buf_del_mark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_del_mark, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_del_mark, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_del_mark(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_mark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_mark".as_ptr(),
+            c"API: vim -> nvim_buf_set_mark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Integer = zeroed();
+        let mut arg_5: KeyDict_empty = zeroed();
+        if args.size < 4 || args.size > 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_mark, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_mark, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_set_mark, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_set_mark, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 5 {
+            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_mark, expecting Dict(empty) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_set_mark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_mark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_mark".as_ptr(),
+            c"API: vim -> nvim_buf_get_mark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_mark, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_mark, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_mark(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__buf_stats(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__buf_stats".as_ptr(),
+            c"API: vim -> nvim__buf_stats".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__buf_stats, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__buf_stats(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_parse_cmd(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_parse_cmd".as_ptr(),
+            c"API: vim -> nvim_parse_cmd".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_empty = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_parse_cmd, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(
+                *args.items.add(1),
+                &raw mut arg_2,
+                Some(KeyDict_empty_get_field),
+                c"Wrong type for argument 2 when calling nvim_parse_cmd, expecting Dict(empty) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        let mut rv = nvim_parse_cmd(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(api_keydict_to_dict(
+            (&raw mut rv).cast(),
+            (&raw const cmd_table).cast_mut().cast(),
+            cmd_table.len(),
+            arena,
+        ));
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_cmd(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_cmd".as_ptr(),
+            c"API: vim -> nvim_cmd".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_cmd = zeroed();
+        let mut arg_2: KeyDict_cmd_opts = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_keydict(
+            *args.items.add(0),
+            &raw mut arg_1,
+            Some(KeyDict_cmd_get_field),
+            c"Wrong type for argument 1 when calling nvim_cmd, expecting Dict(cmd) *".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(
+                *args.items.add(1),
+                &raw mut arg_2,
+                Some(KeyDict_cmd_opts_get_field),
+                c"Wrong type for argument 2 when calling nvim_cmd, expecting Dict(cmd_opts) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        let rv = nvim_cmd(channel_id, &raw mut arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_create_user_command(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_create_user_command".as_ptr(),
+            c"API: vim -> nvim_create_user_command".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        let mut arg_3: KeyDict_user_command = zeroed();
+        if args.size < 2 || args.size > 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_create_user_command, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        if args.size >= 3 {
+            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_user_command_get_field), c"Wrong type for argument 3 when calling nvim_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_create_user_command(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_user_command(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_user_command".as_ptr(),
+            c"API: vim -> nvim_del_user_command".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_user_command, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_del_user_command(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_create_user_command(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_create_user_command".as_ptr(),
+            c"API: vim -> nvim_buf_create_user_command".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        let mut arg_4: KeyDict_user_command = zeroed();
+        if args.size < 3 || args.size > 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(*args.items.add(0), ObjectType::kObjectTypeBuffer, &raw mut arg_1, c"Wrong type for argument 1 when calling nvim_buf_create_user_command, expecting Buffer".as_ptr(), error) {
+            return ret;
+        }
+        if !extract_string(*args.items.add(1), &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_buf_create_user_command, expecting String".as_ptr(), error) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        if args.size >= 4 {
+            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_user_command_get_field), c"Wrong type for argument 4 when calling nvim_buf_create_user_command, expecting Dict(user_command) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_buf_create_user_command(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_del_user_command(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_del_user_command".as_ptr(),
+            c"API: vim -> nvim_buf_del_user_command".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_del_user_command, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_del_user_command, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_buf_del_user_command(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_commands(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_commands".as_ptr(),
+            c"API: vim -> nvim_get_commands".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_get_commands = zeroed();
+        if args.size > 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if args.size >= 1 {
+            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 1 when calling nvim_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_commands(&raw mut arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_commands(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_commands".as_ptr(),
+            c"API: vim -> nvim_buf_get_commands".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: KeyDict_get_commands = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_commands, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_commands_get_field), c"Wrong type for argument 2 when calling nvim_buf_get_commands, expecting Dict(get_commands) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_get_commands(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_exec(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_exec".as_ptr(),
+            c"API: vim -> nvim_exec".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_exec, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_exec, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_exec(channel_id, arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_command_output(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_command_output".as_ptr(),
+            c"API: vim -> nvim_command_output".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_command_output, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_command_output(channel_id, arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_execute_lua(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_execute_lua".as_ptr(),
+            c"API: vim -> nvim_execute_lua".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Array = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_execute_lua, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_execute_lua, expecting Array".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_execute_lua(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_number(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_number".as_ptr(),
+            c"API: vim -> nvim_buf_get_number".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_number, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_number(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_clear_highlight(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_clear_highlight".as_ptr(),
+            c"API: vim -> nvim_buf_clear_highlight".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Integer = zeroed();
+        if args.size != 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_clear_highlight, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_clear_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_clear_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_clear_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_buf_clear_highlight(arg_1, arg_2, arg_3, arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_add_highlight(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_add_highlight".as_ptr(),
+            c"API: vim -> nvim_buf_add_highlight".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        let mut arg_4: Integer = zeroed();
+        let mut arg_5: Integer = zeroed();
+        let mut arg_6: Integer = zeroed();
+        if args.size != 6 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_add_highlight, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_add_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_add_highlight, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_add_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling nvim_buf_add_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(5),
+            &raw mut arg_6,
+            c"Wrong type for argument 6 when calling nvim_buf_add_highlight, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_add_highlight(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_virtual_text(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_virtual_text".as_ptr(),
+            c"API: vim -> nvim_buf_set_virtual_text".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Array = zeroed();
+        let mut arg_5: KeyDict_empty = zeroed();
+        if args.size < 4 || args.size > 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_virtual_text, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_virtual_text, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_set_virtual_text, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_set_virtual_text, expecting Array"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 5 {
+            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_empty_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_virtual_text, expecting Dict(empty) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_set_virtual_text(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_hl_by_id(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_hl_by_id".as_ptr(),
+            c"API: vim -> nvim_get_hl_by_id".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_hl_by_id, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_get_hl_by_id, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_hl_by_id(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_hl_by_name(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_hl_by_name".as_ptr(),
+            c"API: vim -> nvim_get_hl_by_name".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_hl_by_name, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_get_hl_by_name, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_hl_by_name(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_insert(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_insert".as_ptr(),
+            c"API: vim -> buffer_insert".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Array = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_insert, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_insert, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling buffer_insert, expecting ArrayOf(String)"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        buffer_insert(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_get_line(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_get_line".as_ptr(),
+            c"API: vim -> buffer_get_line".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_get_line, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_get_line, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = buffer_get_line(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_set_line(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_set_line".as_ptr(),
+            c"API: vim -> buffer_set_line".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_set_line, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_set_line, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling buffer_set_line, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        buffer_set_line(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_del_line(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_del_line".as_ptr(),
+            c"API: vim -> buffer_del_line".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_del_line, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_del_line, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        buffer_del_line(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_get_line_slice(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_get_line_slice".as_ptr(),
+            c"API: vim -> buffer_get_line_slice".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Boolean = zeroed();
+        let mut arg_5: Boolean = zeroed();
+        if args.size != 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_get_line_slice, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_get_line_slice, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling buffer_get_line_slice, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling buffer_get_line_slice, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling buffer_get_line_slice, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = buffer_get_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_set_line_slice(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_set_line_slice".as_ptr(),
+            c"API: vim -> buffer_set_line_slice".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Boolean = zeroed();
+        let mut arg_5: Boolean = zeroed();
+        let mut arg_6: Array = zeroed();
+        if args.size != 6 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_set_line_slice, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_set_line_slice, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling buffer_set_line_slice, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling buffer_set_line_slice, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling buffer_set_line_slice, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(*args.items.add(5), &raw mut arg_6, c"Wrong type for argument 6 when calling buffer_set_line_slice, expecting ArrayOf(String)".as_ptr(), error) {
+            return ret;
+        }
+        buffer_set_line_slice(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_set_var".as_ptr(),
+            c"API: vim -> buffer_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_set_var, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        let rv = buffer_set_var(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_buffer_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_buffer_del_var".as_ptr(),
+            c"API: vim -> buffer_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling buffer_del_var, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling buffer_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = buffer_del_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_window_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_window_set_var".as_ptr(),
+            c"API: vim -> window_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling window_set_var, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling window_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        let rv = window_set_var(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_window_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_window_del_var".as_ptr(),
+            c"API: vim -> window_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling window_del_var, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling window_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = window_del_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_tabpage_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_tabpage_set_var".as_ptr(),
+            c"API: vim -> tabpage_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling tabpage_set_var, expecting Tabpage".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling tabpage_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        let rv = tabpage_set_var(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_tabpage_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_tabpage_del_var".as_ptr(),
+            c"API: vim -> tabpage_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling tabpage_del_var, expecting Tabpage".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling tabpage_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = tabpage_del_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_vim_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_vim_set_var".as_ptr(),
+            c"API: vim -> vim_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling vim_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        let rv = vim_set_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_vim_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_vim_del_var".as_ptr(),
+            c"API: vim -> vim_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling vim_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = vim_del_var(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_option_info(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_option_info".as_ptr(),
+            c"API: vim -> nvim_get_option_info".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_option_info, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_option_info(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_option".as_ptr(),
+            c"API: vim -> nvim_set_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_option, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        nvim_set_option(channel_id, arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_option".as_ptr(),
+            c"API: vim -> nvim_get_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_option, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_option(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_option".as_ptr(),
+            c"API: vim -> nvim_buf_get_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_option, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_option, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_get_option(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_option".as_ptr(),
+            c"API: vim -> nvim_buf_set_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_option, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_option, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        nvim_buf_set_option(channel_id, arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_option".as_ptr(),
+            c"API: vim -> nvim_win_get_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_option, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_get_option, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_option(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_option".as_ptr(),
+            c"API: vim -> nvim_win_set_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_option, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_set_option, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        nvim_win_set_option(channel_id, arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_call_atomic(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_call_atomic".as_ptr(),
+            c"API: vim -> nvim_call_atomic".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Array = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_call_atomic, expecting Array".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_call_atomic(channel_id, arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_subscribe(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_subscribe".as_ptr(),
+            c"API: vim -> nvim_subscribe".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_subscribe, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_subscribe(channel_id, arg_1);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_unsubscribe(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_unsubscribe".as_ptr(),
+            c"API: vim -> nvim_unsubscribe".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_unsubscribe, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_unsubscribe(channel_id, arg_1);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_out_write(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_out_write".as_ptr(),
+            c"API: vim -> nvim_out_write".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_out_write, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_out_write(arg_1);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_err_write(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_err_write".as_ptr(),
+            c"API: vim -> nvim_err_write".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_err_write, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_err_write(arg_1);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_err_writeln(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_err_writeln".as_ptr(),
+            c"API: vim -> nvim_err_writeln".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_err_writeln, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_err_writeln(arg_1);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_notify(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_notify".as_ptr(),
+            c"API: vim -> nvim_notify".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Dict = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_notify, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_notify, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_notify, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_notify(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_height(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_height".as_ptr(),
+            c"API: vim -> nvim_win_set_height".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_height, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_set_height, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_win_set_height(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_width(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_width".as_ptr(),
+            c"API: vim -> nvim_win_set_width".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_width, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_set_width, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_win_set_width(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_error_event(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_error_event".as_ptr(),
+            c"API: vim -> nvim_error_event".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_error_event, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_error_event, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_error_event(channel_id, arg_1, arg_2);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_term_event(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_term_event".as_ptr(),
+            c"API: vim -> nvim_ui_term_event".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_term_event, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        nvim_ui_term_event(channel_id, arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_create_namespace(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_create_namespace".as_ptr(),
+            c"API: vim -> nvim_create_namespace".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_create_namespace, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_create_namespace(arg_1);
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_namespaces(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_namespaces".as_ptr(),
+            c"API: vim -> nvim_get_namespaces".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_namespaces(arena);
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_extmark_by_id(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_extmark_by_id".as_ptr(),
+            c"API: vim -> nvim_buf_get_extmark_by_id".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: KeyDict_get_extmark = zeroed();
+        if args.size < 3 || args.size > 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_extmark_by_id, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_extmark_by_id, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_get_extmark_by_id, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 4 {
+            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_get_extmark_get_field), c"Wrong type for argument 4 when calling nvim_buf_get_extmark_by_id, expecting Dict(get_extmark) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_get_extmark_by_id(arg_1, arg_2, arg_3, &raw mut arg_4, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_get_extmarks(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_get_extmarks".as_ptr(),
+            c"API: vim -> nvim_buf_get_extmarks".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Object = zeroed();
+        let mut arg_4: Object = zeroed();
+        let mut arg_5: KeyDict_get_extmarks = zeroed();
+        if args.size < 4 || args.size > 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_get_extmarks, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_get_extmarks, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        arg_4 = *args.items.add(3);
+        if args.size >= 5 {
+            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_get_extmarks_get_field), c"Wrong type for argument 5 when calling nvim_buf_get_extmarks, expecting Dict(get_extmarks) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_get_extmarks(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_set_extmark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_set_extmark".as_ptr(),
+            c"API: vim -> nvim_buf_set_extmark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Integer = zeroed();
+        let mut arg_5: KeyDict_set_extmark = zeroed();
+        if args.size < 4 || args.size > 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 to 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_set_extmark, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_set_extmark, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_set_extmark, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_set_extmark, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 5 {
+            if !extract_keydict(*args.items.add(4), &raw mut arg_5, Some(KeyDict_set_extmark_get_field), c"Wrong type for argument 5 when calling nvim_buf_set_extmark, expecting Dict(set_extmark) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_buf_set_extmark(arg_1, arg_2, arg_3, arg_4, &raw mut arg_5, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_del_extmark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_del_extmark".as_ptr(),
+            c"API: vim -> nvim_buf_del_extmark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_del_extmark, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_del_extmark, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_del_extmark, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_buf_del_extmark(arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_buf_clear_namespace(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_buf_clear_namespace".as_ptr(),
+            c"API: vim -> nvim_buf_clear_namespace".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: Integer = zeroed();
+        if args.size != 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_buf_clear_namespace, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_buf_clear_namespace, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_buf_clear_namespace, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_buf_clear_namespace, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_buf_clear_namespace(arg_1, arg_2, arg_3, arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__buf_debug_extmarks(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__buf_debug_extmarks".as_ptr(),
+            c"API: vim -> nvim__buf_debug_extmarks".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__buf_debug_extmarks, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim__buf_debug_extmarks, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim__buf_debug_extmarks, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__buf_debug_extmarks(arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__ns_set(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__ns_set".as_ptr(),
+            c"API: vim -> nvim__ns_set".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: KeyDict_ns_opts = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__ns_set, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(
+                *args.items.add(1),
+                &raw mut arg_2,
+                Some(KeyDict_ns_opts_get_field),
+                c"Wrong type for argument 2 when calling nvim__ns_set, expecting Dict(ns_opts) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        nvim__ns_set(arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__ns_get(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__ns_get".as_ptr(),
+            c"API: vim -> nvim__ns_get".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__ns_get, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let mut rv = nvim__ns_get(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(api_keydict_to_dict(
+            (&raw mut rv).cast(),
+            (&raw const ns_opts_table).cast_mut().cast(),
+            ns_opts_table.len(),
+            arena,
+        ));
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_option_value(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_option_value".as_ptr(),
+            c"API: vim -> nvim_get_option_value".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_option = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_option_value, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_value, expecting Dict(option) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_option_value(arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_option_value(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_option_value".as_ptr(),
+            c"API: vim -> nvim_set_option_value".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        let mut arg_3: KeyDict_option = zeroed();
+        if args.size < 2 || args.size > 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_option_value, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        if args.size >= 3 {
+            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_option_get_field), c"Wrong type for argument 3 when calling nvim_set_option_value, expecting Dict(option) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_set_option_value(channel_id, arg_1, arg_2, &raw mut arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_all_options_info(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_all_options_info".as_ptr(),
+            c"API: vim -> nvim_get_all_options_info".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_all_options_info(arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_option_info2(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_option_info2".as_ptr(),
+            c"API: vim -> nvim_get_option_info2".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_option = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_option_info2, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_option_get_field), c"Wrong type for argument 2 when calling nvim_get_option_info2, expecting Dict(option) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_option_info2(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_list_wins(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_list_wins".as_ptr(),
+            c"API: vim -> nvim_tabpage_list_wins".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_list_wins, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_tabpage_list_wins(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_get_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_get_var".as_ptr(),
+            c"API: vim -> nvim_tabpage_get_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_get_var, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_tabpage_get_var, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_tabpage_get_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_set_var".as_ptr(),
+            c"API: vim -> nvim_tabpage_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_set_var, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_tabpage_set_var, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        nvim_tabpage_set_var(arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_del_var".as_ptr(),
+            c"API: vim -> nvim_tabpage_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_del_var, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_tabpage_del_var, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_tabpage_del_var(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_get_win(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_get_win".as_ptr(),
+            c"API: vim -> nvim_tabpage_get_win".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_get_win, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_tabpage_get_win(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = window_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_set_win(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_set_win".as_ptr(),
+            c"API: vim -> nvim_tabpage_set_win".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        let mut arg_2: Window = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_set_win, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(1),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_tabpage_set_win, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_tabpage_set_win(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_get_number(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_get_number".as_ptr(),
+            c"API: vim -> nvim_tabpage_get_number".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_get_number, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_tabpage_get_number(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_tabpage_is_valid(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_tabpage_is_valid".as_ptr(),
+            c"API: vim -> nvim_tabpage_is_valid".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_tabpage_is_valid, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_tabpage_is_valid(arg_1);
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_open_tabpage(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_open_tabpage".as_ptr(),
+            c"API: vim -> nvim_open_tabpage".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: KeyDict_tabpage_config = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_open_tabpage, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_open_tabpage, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_tabpage_config_get_field), c"Wrong type for argument 3 when calling nvim_open_tabpage, expecting Dict(tabpage_config) *".as_ptr(), error) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        let rv = nvim_open_tabpage(arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = tabpage_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_attach(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_attach".as_ptr(),
+            c"API: vim -> nvim_ui_attach".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Dict = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_attach, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_ui_attach, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_ui_attach, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_attach(channel_id, arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_ui_attach(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_ui_attach".as_ptr(),
+            c"API: vim -> ui_attach".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling ui_attach, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling ui_attach, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling ui_attach, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        ui_attach(channel_id, arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_set_focus(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_set_focus".as_ptr(),
+            c"API: vim -> nvim_ui_set_focus".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Boolean = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_set_focus, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_set_focus(channel_id, arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_detach(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_detach".as_ptr(),
+            c"API: vim -> nvim_ui_detach".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        nvim_ui_detach(channel_id, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_try_resize(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_try_resize".as_ptr(),
+            c"API: vim -> nvim_ui_try_resize".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_try_resize, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_ui_try_resize, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_try_resize(channel_id, arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_set_option(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_set_option".as_ptr(),
+            c"API: vim -> nvim_ui_set_option".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_set_option, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        nvim_ui_set_option(channel_id, arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_try_resize_grid(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_try_resize_grid".as_ptr(),
+            c"API: vim -> nvim_ui_try_resize_grid".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_try_resize_grid, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_ui_try_resize_grid, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_ui_try_resize_grid, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_try_resize_grid(channel_id, arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_pum_set_height(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_pum_set_height".as_ptr(),
+            c"API: vim -> nvim_ui_pum_set_height".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_pum_set_height, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_pum_set_height(channel_id, arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_pum_set_bounds(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_pum_set_bounds".as_ptr(),
+            c"API: vim -> nvim_ui_pum_set_bounds".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Float = zeroed();
+        let mut arg_2: Float = zeroed();
+        let mut arg_3: Float = zeroed();
+        let mut arg_4: Float = zeroed();
+        if args.size != 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_float(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_pum_set_bounds, expecting Float"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_float(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_ui_pum_set_bounds, expecting Float"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_float(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_ui_pum_set_bounds, expecting Float"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_float(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_ui_pum_set_bounds, expecting Float"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_pum_set_bounds(channel_id, arg_1, arg_2, arg_3, arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_ui_send(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_ui_send".as_ptr(),
+            c"API: vim -> nvim_ui_send".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_ui_send, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_ui_send(channel_id, arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_hl_id_by_name(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_hl_id_by_name".as_ptr(),
+            c"API: vim -> nvim_get_hl_id_by_name".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_hl_id_by_name, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_hl_id_by_name(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_hl(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_hl".as_ptr(),
+            c"API: vim -> nvim_get_hl".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: KeyDict_get_highlight = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_hl, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_get_highlight_get_field), c"Wrong type for argument 2 when calling nvim_get_hl, expecting Dict(get_highlight) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_hl(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_hl(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_hl".as_ptr(),
+            c"API: vim -> nvim_set_hl".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: KeyDict_highlight = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_hl, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_set_hl, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_keydict(
+            *args.items.add(2),
+            &raw mut arg_3,
+            Some(KeyDict_highlight_get_field),
+            c"Wrong type for argument 3 when calling nvim_set_hl, expecting Dict(highlight) *"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_set_hl(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_hl_ns(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_hl_ns".as_ptr(),
+            c"API: vim -> nvim_get_hl_ns".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_get_ns = zeroed();
+        if args.size > 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if args.size >= 1 {
+            if !extract_keydict(
+                *args.items.add(0),
+                &raw mut arg_1,
+                Some(KeyDict_get_ns_get_field),
+                c"Wrong type for argument 1 when calling nvim_get_hl_ns, expecting Dict(get_ns) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_hl_ns(&raw mut arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_hl_ns(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_hl_ns".as_ptr(),
+            c"API: vim -> nvim_set_hl_ns".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_hl_ns, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_set_hl_ns(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_hl_ns_fast(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_hl_ns_fast".as_ptr(),
+            c"API: vim -> nvim_set_hl_ns_fast".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_hl_ns_fast, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_set_hl_ns_fast(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_feedkeys(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_feedkeys".as_ptr(),
+            c"API: vim -> nvim_feedkeys".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_feedkeys, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_feedkeys, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_feedkeys, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_feedkeys(arg_1, arg_2, arg_3);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_input(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_input".as_ptr(),
+            c"API: vim -> nvim_input".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_input, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_input(channel_id, arg_1);
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_input_mouse(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_input_mouse".as_ptr(),
+            c"API: vim -> nvim_input_mouse".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        let mut arg_4: Integer = zeroed();
+        let mut arg_5: Integer = zeroed();
+        let mut arg_6: Integer = zeroed();
+        if args.size != 6 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 6 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_input_mouse, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_input_mouse, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_input_mouse, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_input_mouse, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling nvim_input_mouse, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(5),
+            &raw mut arg_6,
+            c"Wrong type for argument 6 when calling nvim_input_mouse, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_input_mouse(arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_replace_termcodes(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_replace_termcodes".as_ptr(),
+            c"API: vim -> nvim_replace_termcodes".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        let mut arg_4: Boolean = zeroed();
+        if args.size != 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_replace_termcodes, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_replace_termcodes, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_replace_termcodes, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_replace_termcodes, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_replace_termcodes(arg_1, arg_2, arg_3, arg_4);
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_exec_lua(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_exec_lua".as_ptr(),
+            c"API: vim -> nvim_exec_lua".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Array = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_exec_lua, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_exec_lua, expecting Array".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_exec_lua(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__exec_lua_fast(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__exec_lua_fast".as_ptr(),
+            c"API: vim -> nvim__exec_lua_fast".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Array = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__exec_lua_fast, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim__exec_lua_fast, expecting Array".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__exec_lua_fast(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_strwidth(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_strwidth".as_ptr(),
+            c"API: vim -> nvim_strwidth".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_strwidth, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_strwidth(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_list_runtime_paths(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_list_runtime_paths".as_ptr(),
+            c"API: vim -> nvim_list_runtime_paths".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_list_runtime_paths(arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__runtime_inspect(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__runtime_inspect".as_ptr(),
+            c"API: vim -> nvim__runtime_inspect".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim__runtime_inspect(arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_runtime_file(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_runtime_file".as_ptr(),
+            c"API: vim -> nvim_get_runtime_file".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_runtime_file, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_get_runtime_file, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_runtime_file(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__get_lib_dir(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__get_lib_dir".as_ptr(),
+            c"API: vim -> nvim__get_lib_dir".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim__get_lib_dir();
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__get_runtime(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__get_runtime".as_ptr(),
+            c"API: vim -> nvim__get_runtime".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Array = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: KeyDict_runtime = zeroed();
+        if args.size < 2 || args.size > 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__get_runtime, expecting ArrayOf(String)"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim__get_runtime, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 3 {
+            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_runtime_get_field), c"Wrong type for argument 3 when calling nvim__get_runtime, expecting Dict(runtime) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim__get_runtime(arg_1, arg_2, &raw mut arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_current_dir(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_current_dir".as_ptr(),
+            c"API: vim -> nvim_set_current_dir".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_current_dir, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_set_current_dir(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_current_line(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_current_line".as_ptr(),
+            c"API: vim -> nvim_get_current_line".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_current_line(arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = string_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_current_line(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_current_line".as_ptr(),
+            c"API: vim -> nvim_set_current_line".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_current_line, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_set_current_line(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_current_line(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_current_line".as_ptr(),
+            c"API: vim -> nvim_del_current_line".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_del_current_line(arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_var".as_ptr(),
+            c"API: vim -> nvim_get_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_var(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_var".as_ptr(),
+            c"API: vim -> nvim_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        nvim_set_var(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_var".as_ptr(),
+            c"API: vim -> nvim_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_del_var(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_vvar(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_vvar".as_ptr(),
+            c"API: vim -> nvim_get_vvar".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_vvar, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_vvar(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_vvar(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_vvar".as_ptr(),
+            c"API: vim -> nvim_set_vvar".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Object = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_vvar, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_2 = *args.items.add(1);
+        nvim_set_vvar(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_echo(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_echo".as_ptr(),
+            c"API: vim -> nvim_echo".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Array = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: KeyDict_echo_opts = zeroed();
+        if args.size < 2 || args.size > 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_array(*args.items.add(0), &raw mut arg_1, c"Wrong type for argument 1 when calling nvim_echo, expecting ArrayOf(Tuple(String, *HLGroupID))".as_ptr(), error) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_echo, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 3 {
+            if !extract_keydict(
+                *args.items.add(2),
+                &raw mut arg_3,
+                Some(KeyDict_echo_opts_get_field),
+                c"Wrong type for argument 3 when calling nvim_echo, expecting Dict(echo_opts) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        let rv = nvim_echo(arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_list_bufs(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_list_bufs".as_ptr(),
+            c"API: vim -> nvim_list_bufs".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_list_bufs(arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_current_buf(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_current_buf".as_ptr(),
+            c"API: vim -> nvim_get_current_buf".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_current_buf();
+        ret = buffer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_current_buf(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_current_buf".as_ptr(),
+            c"API: vim -> nvim_set_current_buf".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_current_buf, expecting Buffer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_set_current_buf(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_list_wins(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_list_wins".as_ptr(),
+            c"API: vim -> nvim_list_wins".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_list_wins(arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_current_win(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_current_win".as_ptr(),
+            c"API: vim -> nvim_get_current_win".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_current_win();
+        ret = window_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_current_win(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_current_win".as_ptr(),
+            c"API: vim -> nvim_set_current_win".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_current_win, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_set_current_win(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_create_buf(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_create_buf".as_ptr(),
+            c"API: vim -> nvim_create_buf".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Boolean = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_create_buf, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_create_buf, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_create_buf(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = buffer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_open_term(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_open_term".as_ptr(),
+            c"API: vim -> nvim_open_term".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: KeyDict_open_term = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_open_term, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_open_term_get_field), c"Wrong type for argument 2 when calling nvim_open_term, expecting Dict(open_term) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        let rv = nvim_open_term(arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_chan_send(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_chan_send".as_ptr(),
+            c"API: vim -> nvim_chan_send".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_chan_send, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_chan_send, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_chan_send(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_list_tabpages(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_list_tabpages".as_ptr(),
+            c"API: vim -> nvim_list_tabpages".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_list_tabpages(arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_current_tabpage(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_current_tabpage".as_ptr(),
+            c"API: vim -> nvim_get_current_tabpage".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_current_tabpage();
+        ret = tabpage_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_current_tabpage(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_current_tabpage".as_ptr(),
+            c"API: vim -> nvim_set_current_tabpage".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Tabpage = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeTabpage,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_current_tabpage, expecting Tabpage"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_set_current_tabpage(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_paste(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_paste".as_ptr(),
+            c"API: vim -> nvim_paste".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: Integer = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_paste, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_paste, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_paste, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        let rv = nvim_paste(channel_id, arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_put(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_put".as_ptr(),
+            c"API: vim -> nvim_put".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Array = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        let mut arg_4: Boolean = zeroed();
+        if args.size != 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_put, expecting ArrayOf(String)".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_put, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_put, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_put, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_put(arg_1, arg_2, arg_3, arg_4, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_color_by_name(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_color_by_name".as_ptr(),
+            c"API: vim -> nvim_get_color_by_name".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_color_by_name, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_color_by_name(arg_1);
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_color_map(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_color_map".as_ptr(),
+            c"API: vim -> nvim_get_color_map".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_color_map(arena);
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_context(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_context".as_ptr(),
+            c"API: vim -> nvim_get_context".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_context = zeroed();
+        if args.size > 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if args.size >= 1 {
+            if !extract_keydict(*args.items.add(0), &raw mut arg_1, Some(KeyDict_context_get_field), c"Wrong type for argument 1 when calling nvim_get_context, expecting Dict(context) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_context(&raw mut arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_load_context(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_load_context".as_ptr(),
+            c"API: vim -> nvim_load_context".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Dict = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_load_context, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_load_context(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_mode(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_mode".as_ptr(),
+            c"API: vim -> nvim_get_mode".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_mode(arena);
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_keymap(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_keymap".as_ptr(),
+            c"API: vim -> nvim_get_keymap".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_keymap, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_keymap(arg_1, arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_keymap(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_keymap".as_ptr(),
+            c"API: vim -> nvim_set_keymap".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        let mut arg_4: KeyDict_keymap = zeroed();
+        if args.size < 3 || args.size > 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_keymap, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_set_keymap, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_set_keymap, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 4 {
+            if !extract_keydict(
+                *args.items.add(3),
+                &raw mut arg_4,
+                Some(KeyDict_keymap_get_field),
+                c"Wrong type for argument 4 when calling nvim_set_keymap, expecting Dict(keymap) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        nvim_set_keymap(channel_id, arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_keymap(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_keymap".as_ptr(),
+            c"API: vim -> nvim_del_keymap".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: KeyDict_keymap_del = zeroed();
+        if args.size < 2 || args.size > 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 to 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_keymap, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_del_keymap, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 3 {
+            if !extract_keydict(*args.items.add(2), &raw mut arg_3, Some(KeyDict_keymap_del_get_field), c"Wrong type for argument 3 when calling nvim_del_keymap, expecting Dict(keymap_del) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_del_keymap(channel_id, arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_api_info(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_api_info".as_ptr(),
+            c"API: vim -> nvim_get_api_info".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_get_api_info(channel_id, arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_set_client_info(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_set_client_info".as_ptr(),
+            c"API: vim -> nvim_set_client_info".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Dict = zeroed();
+        let mut arg_3: NvimString = zeroed();
+        let mut arg_4: Dict = zeroed();
+        let mut arg_5: Dict = zeroed();
+        if args.size != 5 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 5 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_set_client_info, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_set_client_info, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_set_client_info, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(3),
+            &raw mut arg_4,
+            c"Wrong type for argument 4 when calling nvim_set_client_info, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(4),
+            &raw mut arg_5,
+            c"Wrong type for argument 5 when calling nvim_set_client_info, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_set_client_info(channel_id, arg_1, arg_2, arg_3, arg_4, arg_5, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_chan_set(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_chan_set".as_ptr(),
+            c"API: vim -> nvim_chan_set".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: KeyDict_chan_set = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_chan_set, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_keydict(
+            *args.items.add(1),
+            &raw mut arg_2,
+            Some(KeyDict_chan_set_get_field),
+            c"Wrong type for argument 2 when calling nvim_chan_set, expecting Dict(chan_set) *"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_chan_set(channel_id, arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__cmdwin_set(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__cmdwin_set".as_ptr(),
+            c"API: vim -> nvim__cmdwin_set".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Buffer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__cmdwin_set, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(1),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim__cmdwin_set, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim__cmdwin_set(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_chan_info(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_chan_info".as_ptr(),
+            c"API: vim -> nvim_get_chan_info".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_chan_info, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_chan_info(channel_id, arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_list_chans(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_list_chans".as_ptr(),
+            c"API: vim -> nvim_list_chans".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_list_chans(arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__id(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__id".as_ptr(),
+            c"API: vim -> nvim__id".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Object = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        arg_1 = *args.items.add(0);
+        let rv = nvim__id(arg_1, arena);
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__id_array(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__id_array".as_ptr(),
+            c"API: vim -> nvim__id_array".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Array = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__id_array, expecting Array".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__id_array(arg_1, arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__id_dict(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__id_dict".as_ptr(),
+            c"API: vim -> nvim__id_dict".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Dict = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_dict(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__id_dict, expecting Dict".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__id_dict(arg_1, arena);
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__id_float(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__id_float".as_ptr(),
+            c"API: vim -> nvim__id_float".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Float = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_float(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__id_float, expecting Float".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__id_float(arg_1);
+        ret = float_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__stats(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__stats".as_ptr(),
+            c"API: vim -> nvim__stats".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim__stats(arena);
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_list_uis(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_list_uis".as_ptr(),
+            c"API: vim -> nvim_list_uis".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        let rv = nvim_list_uis(arena);
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_proc_children(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_proc_children".as_ptr(),
+            c"API: vim -> nvim_get_proc_children".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_proc_children, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_proc_children(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_proc(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_proc".as_ptr(),
+            c"API: vim -> nvim_get_proc".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_proc, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_get_proc(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_select_popupmenu_item(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_select_popupmenu_item".as_ptr(),
+            c"API: vim -> nvim_select_popupmenu_item".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        let mut arg_4: KeyDict_empty = zeroed();
+        if args.size < 3 || args.size > 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_select_popupmenu_item, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_select_popupmenu_item, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_select_popupmenu_item, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 4 {
+            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_empty_get_field), c"Wrong type for argument 4 when calling nvim_select_popupmenu_item, expecting Dict(empty) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_select_popupmenu_item(arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__inspect_cell(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__inspect_cell".as_ptr(),
+            c"API: vim -> nvim__inspect_cell".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__inspect_cell, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim__inspect_cell, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim__inspect_cell, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__inspect_cell(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__screenshot(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__screenshot".as_ptr(),
+            c"API: vim -> nvim__screenshot".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__screenshot, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim__screenshot(arg_1);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__invalidate_glyph_cache(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__invalidate_glyph_cache".as_ptr(),
+            c"API: vim -> nvim__invalidate_glyph_cache".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        if args.size != 0 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 0 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        nvim__invalidate_glyph_cache();
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__unpack(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__unpack".as_ptr(),
+            c"API: vim -> nvim__unpack".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__unpack, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim__unpack(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_del_mark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_del_mark".as_ptr(),
+            c"API: vim -> nvim_del_mark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_del_mark, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_del_mark(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_get_mark(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_get_mark".as_ptr(),
+            c"API: vim -> nvim_get_mark".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_empty = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_get_mark, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(
+                *args.items.add(1),
+                &raw mut arg_2,
+                Some(KeyDict_empty_get_field),
+                c"Wrong type for argument 2 when calling nvim_get_mark, expecting Dict(empty) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        let rv = nvim_get_mark(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_eval_statusline(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_eval_statusline".as_ptr(),
+            c"API: vim -> nvim_eval_statusline".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_eval_statusline = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_eval_statusline, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_eval_statusline_get_field), c"Wrong type for argument 2 when calling nvim_eval_statusline, expecting Dict(eval_statusline) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_eval_statusline(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__complete_set(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__complete_set".as_ptr(),
+            c"API: vim -> nvim__complete_set".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Integer = zeroed();
+        let mut arg_2: KeyDict_complete_set = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__complete_set, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_complete_set_get_field), c"Wrong type for argument 2 when calling nvim__complete_set, expecting Dict(complete_set) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim__complete_set(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__redraw(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__redraw".as_ptr(),
+            c"API: vim -> nvim__redraw".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: KeyDict_redraw = zeroed();
+        if args.size > 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting at most 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if args.size >= 1 {
+            if !extract_keydict(
+                *args.items.add(0),
+                &raw mut arg_1,
+                Some(KeyDict_redraw_get_field),
+                c"Wrong type for argument 1 when calling nvim__redraw, expecting Dict(redraw) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        nvim__redraw(&raw mut arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim__set_restart_on_crash(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim__set_restart_on_crash".as_ptr(),
+            c"API: vim -> nvim__set_restart_on_crash".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Array = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim__set_restart_on_crash, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim__set_restart_on_crash, expecting Array"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim__set_restart_on_crash(arg_1, arg_2);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_exec2(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_exec2".as_ptr(),
+            c"API: vim -> nvim_exec2".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: KeyDict_exec_opts = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_exec2, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(
+                *args.items.add(1),
+                &raw mut arg_2,
+                Some(KeyDict_exec_opts_get_field),
+                c"Wrong type for argument 2 when calling nvim_exec2, expecting Dict(exec_opts) *"
+                    .as_ptr(),
+                error,
+            ) {
+                return ret;
+            }
+        }
+        let rv = nvim_exec2(channel_id, arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_command(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_command".as_ptr(),
+            c"API: vim -> nvim_command".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_command, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_command(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_eval(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_eval".as_ptr(),
+            c"API: vim -> nvim_eval".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_eval, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_eval(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_call_function(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_call_function".as_ptr(),
+            c"API: vim -> nvim_call_function".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: Array = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_call_function, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_call_function, expecting Array".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_call_function(channel_id, arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_call_dict_function(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_call_dict_function".as_ptr(),
+            c"API: vim -> nvim_call_dict_function".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Object = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Array = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        arg_1 = *args.items.add(0);
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_call_dict_function, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_call_dict_function, expecting Array"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_call_dict_function(channel_id, arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_parse_expression(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_parse_expression".as_ptr(),
+            c"API: vim -> nvim_parse_expression".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: NvimString = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Boolean = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(0),
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_parse_expression, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_parse_expression, expecting String"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_parse_expression, expecting Boolean"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_parse_expression(arg_1, arg_2, arg_3, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_open_win(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_open_win".as_ptr(),
+            c"API: vim -> nvim_open_win".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Buffer = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        let mut arg_3: KeyDict_win_config = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_open_win, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_open_win, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_keydict(
+            *args.items.add(2),
+            &raw mut arg_3,
+            Some(KeyDict_win_config_get_field),
+            c"Wrong type for argument 3 when calling nvim_open_win, expecting Dict(win_config) *"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        let rv = nvim_open_win(arg_1, arg_2, &raw mut arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = window_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_config(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_config".as_ptr(),
+            c"API: vim -> nvim_win_set_config".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: KeyDict_win_config = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_config, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_win_config_get_field), c"Wrong type for argument 2 when calling nvim_win_set_config, expecting Dict(win_config) *".as_ptr(), error) {
+            return ret;
+        }
+        nvim_win_set_config(arg_1, &raw mut arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_config(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_config".as_ptr(),
+            c"API: vim -> nvim_win_get_config".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_config, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let mut rv = nvim_win_get_config(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(api_keydict_to_dict(
+            (&raw mut rv).cast(),
+            (&raw const win_config_table).cast_mut().cast(),
+            win_config_table.len(),
+            arena,
+        ));
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_buf(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_buf".as_ptr(),
+            c"API: vim -> nvim_win_get_buf".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_buf, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_buf(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = buffer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_buf(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_buf".as_ptr(),
+            c"API: vim -> nvim_win_set_buf".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Buffer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_buf, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(1),
+            ObjectType::kObjectTypeBuffer,
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_set_buf, expecting Buffer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_win_set_buf(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_cursor(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_cursor".as_ptr(),
+            c"API: vim -> nvim_win_get_cursor".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_cursor, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_cursor(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_cursor(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_cursor".as_ptr(),
+            c"API: vim -> nvim_win_set_cursor".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Array = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_cursor, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_array(*args.items.add(1), &raw mut arg_2, c"Wrong type for argument 2 when calling nvim_win_set_cursor, expecting ArrayOf(Integer, 2)".as_ptr(), error) {
+            return ret;
+        }
+        nvim_win_set_cursor(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_height(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_height".as_ptr(),
+            c"API: vim -> nvim_win_get_height".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_height, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_height(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_width(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_width".as_ptr(),
+            c"API: vim -> nvim_win_get_width".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_width, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_width(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_var".as_ptr(),
+            c"API: vim -> nvim_win_get_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_var, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_get_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_var(arg_1, arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = rv;
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_var".as_ptr(),
+            c"API: vim -> nvim_win_set_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        let mut arg_3: Object = zeroed();
+        if args.size != 3 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_var, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_set_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        arg_3 = *args.items.add(2);
+        nvim_win_set_var(arg_1, arg_2, arg_3, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_del_var(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_del_var".as_ptr(),
+            c"API: vim -> nvim_win_del_var".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: NvimString = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_del_var, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_string(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_del_var, expecting String".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_win_del_var(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_position(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_position".as_ptr(),
+            c"API: vim -> nvim_win_get_position".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_position, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_position(arg_1, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = array_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_tabpage(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_tabpage".as_ptr(),
+            c"API: vim -> nvim_win_get_tabpage".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_tabpage, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_tabpage(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = tabpage_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_get_number(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_get_number".as_ptr(),
+            c"API: vim -> nvim_win_get_number".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_get_number, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_get_number(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = integer_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_is_valid(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_is_valid".as_ptr(),
+            c"API: vim -> nvim_win_is_valid".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_is_valid, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        let rv = nvim_win_is_valid(arg_1);
+        ret = boolean_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_hide(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_hide".as_ptr(),
+            c"API: vim -> nvim_win_hide".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        if args.size != 1 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_hide, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_win_hide(arg_1, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_close(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_close".as_ptr(),
+            c"API: vim -> nvim_win_close".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Boolean = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_close, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_boolean(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_close, expecting Boolean".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if text_locked() {
+            api_set_error_str(error, ErrorType::kErrorTypeException, get_text_locked_msg());
+            return ret;
+        }
+        nvim_win_close(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_set_hl_ns(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_set_hl_ns".as_ptr(),
+            c"API: vim -> nvim_win_set_hl_ns".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Integer = zeroed();
+        if args.size != 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_set_hl_ns, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_set_hl_ns, expecting Integer"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        nvim_win_set_hl_ns(arg_1, arg_2, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_text_height(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_text_height".as_ptr(),
+            c"API: vim -> nvim_win_text_height".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: KeyDict_win_text_height = zeroed();
+        if args.size < 1 || args.size > 2 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 1 to 2 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_text_height, expecting Window"
+                .as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 2 {
+            if !extract_keydict(*args.items.add(1), &raw mut arg_2, Some(KeyDict_win_text_height_get_field), c"Wrong type for argument 2 when calling nvim_win_text_height, expecting Dict(win_text_height) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        let rv = nvim_win_text_height(arg_1, &raw mut arg_2, arena, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret = dict_obj(rv);
+        ret
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn handle_nvim_win_resize(
+    channel_id: u64,
+    args: Array,
+    arena: *mut Arena,
+    error: *mut Error,
+) -> Object {
+    unsafe {
+        dlog_internal_call(
+            channel_id,
+            c"handle_nvim_win_resize".as_ptr(),
+            c"API: vim -> nvim_win_resize".as_ptr(),
+        );
+        let mut ret = OBJECT_NIL;
+        let mut arg_1: Window = zeroed();
+        let mut arg_2: Integer = zeroed();
+        let mut arg_3: Integer = zeroed();
+        let mut arg_4: KeyDict_win_resize = zeroed();
+        if args.size < 3 || args.size > 4 {
+            api_set_error!(
+                error,
+                ErrorType::kErrorTypeException,
+                c"Wrong number of arguments: expecting 3 to 4 but got %zu".as_ptr(),
+                args.size
+            );
+            return ret;
+        }
+        if !extract_handle(
+            *args.items.add(0),
+            ObjectType::kObjectTypeWindow,
+            &raw mut arg_1,
+            c"Wrong type for argument 1 when calling nvim_win_resize, expecting Window".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(1),
+            &raw mut arg_2,
+            c"Wrong type for argument 2 when calling nvim_win_resize, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if !extract_integer(
+            *args.items.add(2),
+            &raw mut arg_3,
+            c"Wrong type for argument 3 when calling nvim_win_resize, expecting Integer".as_ptr(),
+            error,
+        ) {
+            return ret;
+        }
+        if args.size >= 4 {
+            if !extract_keydict(*args.items.add(3), &raw mut arg_4, Some(KeyDict_win_resize_get_field), c"Wrong type for argument 4 when calling nvim_win_resize, expecting Dict(win_resize) *".as_ptr(), error) {
+                return ret;
+            }
+        }
+        nvim_win_resize(arg_1, arg_2, arg_3, &raw mut arg_4, error);
+        if (*error).err_type != ErrorType::kErrorTypeNone {
+            return ret;
+        }
+        ret
+    }
+}
+
+macro_rules! rpc_fn {
+    ($f:ident) => {{
+        #[cfg(not(test))]
+        {
+            Some($f)
+        }
+        #[cfg(test)]
+        {
+            None
+        }
+    }};
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub static method_handlers: [MsgpackRpcRequestHandler; 283] = [
+    MsgpackRpcRequestHandler {
+        name: c"redraw".as_ptr(),
+        r#fn: rpc_fn!(handle_ui_client_redraw),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__id".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__id),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_cmd".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_cmd),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_put".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_put),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_eval".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_eval),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"ui_attach".as_ptr(),
+        r#fn: rpc_fn!(handle_ui_attach),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"ui_detach".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_detach),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_echo".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_echo),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_input".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_input),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_eval".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_eval),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_exec".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_exec),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_exec2".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_exec2),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_input".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_input),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_paste".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_paste),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_hl".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_hl),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_hl".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_hl),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_vim_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_command".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_command),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_notify".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_notify),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__stats".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__stats),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_vim_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_send".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_send),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_vvar".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_vvar),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_feedkeys".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_feedkeys),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__redraw".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__redraw),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_command".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_command),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__unpack".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__unpack),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__ns_get".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__ns_get),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__ns_set".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__ns_set),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_strwidth".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_strwidth),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_vvar".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_vvar),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_vvar".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_vvar),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_subscribe".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_subscribe),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__id_dict".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__id_dict),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_mode".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_mode),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_hide".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_hide),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_chan_set".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_chan_set),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_list_uis".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_uis),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_open_win".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_open_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_proc".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_proc),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_insert".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_insert),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_mark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_mark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_mark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_mark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_strwidth".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_strwidth),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_err_write".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_err_write),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_out_write".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_out_write),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_exec_lua".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_exec_lua),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_feedkeys".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_feedkeys),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"ui_try_resize".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_try_resize),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__id_array".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__id_array),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__id_float".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__id_float),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_chan_send".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_chan_send),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_err_write".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_err_write),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_option),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_hl_ns".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_hl_ns),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_list_bufs".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_bufs),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_list_wins".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_wins),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_open_term".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_open_term),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_out_write".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_out_write),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_parse_cmd".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_parse_cmd),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_hl_ns".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_hl_ns),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_subscribe".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_subscribe),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_attach".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_attach),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_detach".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_detach),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_close".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_close),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_window_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_window_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"tabpage_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_tabpage_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"tabpage_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"tabpage_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_tabpage_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_buffers".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_bufs),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_windows".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_wins),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_del_line".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_del_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_create_buf".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_create_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_attach".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_attach),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_delete".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_delete),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_detach".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_detach),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_line".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_get_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_mark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_mark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_is_valid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_is_valid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_is_valid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_is_valid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_keymap".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_keymap),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_resize".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_resize),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_set_line".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_set_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_set_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_list_chans".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_chans),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_keymap".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_keymap),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_option),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_keymap".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_keymap),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__buf_stats".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__buf_stats),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_unsubscribe".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_unsubscribe),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_lines".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_lines),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_set_lines".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_lines),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_width".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_width),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_set_width".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_width),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_call_atomic".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_call_atomic),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__cmdwin_set".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__cmdwin_set),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_autocmd".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_autocmd),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_context".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_context),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"tabpage_is_valid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_is_valid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_buf".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_buf".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_input_mouse".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_input_mouse),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_unsubscribe".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_unsubscribe),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_report_error".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_err_writeln),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_err_writeln".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_err_writeln),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_error_event".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_error_event),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__screenshot".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__screenshot),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_api_info".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_api_info),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_tabpages".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_tabpages),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_execute_lua".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_execute_lua),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_hl_by_id".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_hl_by_id),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_del_mark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_del_mark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_mark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_mark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_mark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_mark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_open_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_open_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_number".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_number),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_set_focus".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_set_focus),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__get_lib_dir".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__get_lib_dir),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_text".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_text),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_text".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_text),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_load_context".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_load_context),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_buffer".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_height".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_height),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_set_height".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_height),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_option),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__get_runtime".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__get_runtime),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_call_function".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_call_function),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_option),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_is_valid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_is_valid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_is_valid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_is_valid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_name_to_color".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_color_by_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_autocmds".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_autocmds),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_color_map".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_color_map),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_api_info".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_api_info),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_commands".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_commands),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_cursor".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_cursor),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_set_cursor".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_cursor),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_line_count".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_line_count),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_call_function".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_call_function),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_exec_autocmds".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_exec_autocmds),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_list_tabpages".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_tabpages),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_chan_info".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_chan_info),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_color_map".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_color_map),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_term_event".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_term_event),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"tabpage_get_window".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_get_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_lines".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_lines),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_width".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_width),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_is_loaded".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_is_loaded),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_command_output".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_command_output),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__complete_set".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__complete_set),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__inspect_cell".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__inspect_cell),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_try_resize".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_try_resize),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_lines".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_lines),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_hl_ns".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_hl_ns),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_width".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_width),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__exec_lua_fast".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__exec_lua_fast),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_hl_by_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_hl_by_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_hl_ns_fast".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_hl_ns_fast),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_line_count".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_line_count),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_del_keymap".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_del_keymap),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_keymap".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_keymap),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_keymap".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_keymap),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_height".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_height),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_height".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_height),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_offset".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_offset),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_create_augroup".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_create_augroup),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"window_get_position".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_position),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"tabpage_get_windows".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_list_wins),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_clear_autocmds".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_clear_autocmds),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_config".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_config),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_config".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_config),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_option),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_namespaces".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_namespaces),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_option),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_option".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_option),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_create_autocmd".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_create_autocmd),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_number".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_number),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_command_output".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_command_output),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_cursor".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_cursor),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_number".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_number),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_set_cursor".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_set_cursor),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_del_extmark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_del_extmark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_extmark".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_extmark),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_current_buf".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_current_buf".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_current_dir".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_dir),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_add_highlight".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_add_highlight),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_text_height".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_text_height),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_eval_statusline".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_eval_statusline),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_del_current_line".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_current_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_current_line".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_set_current_line".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_option_info".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_option_info),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_client_info".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_client_info),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_change_directory".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_dir),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_del_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_del_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_get_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_get_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_set_var".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_set_var),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_current_win".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_current_win".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_get_win".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_get_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_set_win".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_set_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__runtime_inspect".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__runtime_inspect),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_commands".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_commands),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_extmarks".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_extmarks),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_create_namespace".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_create_namespace),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_current_line".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_current_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_user_command".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_user_command),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_replace_termcodes".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_replace_termcodes),
+        fast: true,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_current_line".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_option_info2".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_option_info2),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_option_value".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_option_value),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_runtime_file".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_runtime_file),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_parse_expression".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_parse_expression),
+        fast: true,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_get_line_slice".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_get_line_slice),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_set_line_slice".as_ptr(),
+        r#fn: rpc_fn!(handle_buffer_set_line_slice),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_current_line".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_line),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_option_value".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_option_value),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_is_valid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_is_valid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_win_get_position".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_win_get_position),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_augroup_by_id".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_augroup_by_id),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_list_runtime_paths".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_runtime_paths),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_pum_set_bounds".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_pum_set_bounds),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_current_buffer".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_set_current_buffer".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_buf),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"buffer_clear_highlight".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_clear_highlight),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_add_highlight".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_add_highlight),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_pum_set_height".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_pum_set_height),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_proc_children".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_proc_children),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_replace_termcodes".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_replace_termcodes),
+        fast: true,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_list_wins".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_list_wins),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_current_window".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_set_current_window".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_win),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_color_by_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_color_by_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_hl_id_by_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_hl_id_by_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_call_dict_function".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_call_dict_function),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_get_current_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"vim_set_current_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_list_runtime_paths".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_list_runtime_paths),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_tabpage_get_number".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_tabpage_get_number),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_ui_try_resize_grid".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_ui_try_resize_grid),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_changedtick".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_changedtick),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_current_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_current_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_set_current_tabpage".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_set_current_tabpage),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_del_augroup_by_name".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_del_augroup_by_name),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_clear_highlight".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_clear_highlight),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_clear_namespace".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_clear_namespace),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_create_user_command".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_create_user_command),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__buf_debug_extmarks".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__buf_debug_extmarks),
+        fast: false,
+        ret_alloc: true,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_get_all_options_info".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_get_all_options_info),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_del_user_command".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_del_user_command),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_set_virtual_text".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_set_virtual_text),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__set_restart_on_crash".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__set_restart_on_crash),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_get_extmark_by_id".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_get_extmark_by_id),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_select_popupmenu_item".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_select_popupmenu_item),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim__invalidate_glyph_cache".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim__invalidate_glyph_cache),
+        fast: false,
+        ret_alloc: false,
+    },
+    MsgpackRpcRequestHandler {
+        name: c"nvim_buf_create_user_command".as_ptr(),
+        r#fn: rpc_fn!(handle_nvim_buf_create_user_command),
+        fast: false,
+        ret_alloc: false,
+    },
+];
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn msgpack_rpc_get_handler_for_hash(
+    str_in: *const c_char,
+    len: usize,
+) -> c_int {
+    if str_in.is_null() || len == 0 {
+        return -1;
+    }
+    match unsafe { std::slice::from_raw_parts(str_in.cast::<u8>(), len) } {
+        b"redraw" => 0,
+        b"nvim__id" => 1,
+        b"nvim_cmd" => 2,
+        b"nvim_put" => 3,
+        b"vim_eval" => 4,
+        b"ui_attach" => 5,
+        b"ui_detach" => 6,
+        b"nvim_echo" => 7,
+        b"vim_input" => 8,
+        b"nvim_eval" => 9,
+        b"nvim_exec" => 10,
+        b"nvim_exec2" => 11,
+        b"nvim_input" => 12,
+        b"nvim_paste" => 13,
+        b"nvim_get_hl" => 14,
+        b"nvim_set_hl" => 15,
+        b"vim_del_var" => 16,
+        b"vim_command" => 17,
+        b"nvim_notify" => 18,
+        b"nvim__stats" => 19,
+        b"vim_get_var" => 20,
+        b"vim_set_var" => 21,
+        b"nvim_ui_send" => 22,
+        b"vim_get_vvar" => 23,
+        b"vim_feedkeys" => 24,
+        b"nvim__redraw" => 25,
+        b"nvim_del_var" => 26,
+        b"nvim_command" => 27,
+        b"nvim__unpack" => 28,
+        b"nvim__ns_get" => 29,
+        b"nvim__ns_set" => 30,
+        b"nvim_get_var" => 31,
+        b"nvim_set_var" => 32,
+        b"vim_strwidth" => 33,
+        b"nvim_get_vvar" => 34,
+        b"nvim_set_vvar" => 35,
+        b"vim_subscribe" => 36,
+        b"nvim__id_dict" => 37,
+        b"nvim_get_mode" => 38,
+        b"nvim_win_hide" => 39,
+        b"nvim_chan_set" => 40,
+        b"nvim_list_uis" => 41,
+        b"nvim_open_win" => 42,
+        b"nvim_get_proc" => 43,
+        b"buffer_insert" => 44,
+        b"nvim_del_mark" => 45,
+        b"nvim_get_mark" => 46,
+        b"nvim_strwidth" => 47,
+        b"vim_err_write" => 48,
+        b"vim_out_write" => 49,
+        b"nvim_exec_lua" => 50,
+        b"nvim_feedkeys" => 51,
+        b"ui_try_resize" => 52,
+        b"nvim__id_array" => 53,
+        b"nvim__id_float" => 54,
+        b"nvim_chan_send" => 55,
+        b"nvim_err_write" => 56,
+        b"vim_get_option" => 57,
+        b"vim_set_option" => 58,
+        b"nvim_get_hl_ns" => 59,
+        b"nvim_list_bufs" => 60,
+        b"nvim_list_wins" => 61,
+        b"nvim_open_term" => 62,
+        b"nvim_out_write" => 63,
+        b"nvim_parse_cmd" => 64,
+        b"buffer_del_var" => 65,
+        b"buffer_get_var" => 66,
+        b"buffer_set_var" => 67,
+        b"nvim_set_hl_ns" => 68,
+        b"nvim_subscribe" => 69,
+        b"nvim_ui_attach" => 70,
+        b"nvim_ui_detach" => 71,
+        b"nvim_win_close" => 72,
+        b"window_del_var" => 73,
+        b"window_get_var" => 74,
+        b"window_set_var" => 75,
+        b"tabpage_del_var" => 76,
+        b"tabpage_get_var" => 77,
+        b"tabpage_set_var" => 78,
+        b"vim_get_buffers" => 79,
+        b"vim_get_windows" => 80,
+        b"buffer_del_line" => 81,
+        b"nvim_create_buf" => 82,
+        b"nvim_buf_attach" => 83,
+        b"nvim_buf_delete" => 84,
+        b"nvim_buf_detach" => 85,
+        b"buffer_get_line" => 86,
+        b"buffer_get_mark" => 87,
+        b"buffer_get_name" => 88,
+        b"buffer_is_valid" => 89,
+        b"window_is_valid" => 90,
+        b"nvim_del_keymap" => 91,
+        b"nvim_win_resize" => 92,
+        b"buffer_set_line" => 93,
+        b"buffer_set_name" => 94,
+        b"nvim_list_chans" => 95,
+        b"nvim_get_keymap" => 96,
+        b"nvim_get_option" => 97,
+        b"nvim_set_keymap" => 98,
+        b"nvim_set_option" => 99,
+        b"nvim__buf_stats" => 100,
+        b"vim_unsubscribe" => 101,
+        b"buffer_get_lines" => 102,
+        b"buffer_set_lines" => 103,
+        b"window_get_width" => 104,
+        b"window_set_width" => 105,
+        b"nvim_call_atomic" => 106,
+        b"nvim__cmdwin_set" => 107,
+        b"nvim_del_autocmd" => 108,
+        b"nvim_get_context" => 109,
+        b"tabpage_is_valid" => 110,
+        b"nvim_win_del_var" => 111,
+        b"nvim_win_get_buf" => 112,
+        b"nvim_win_get_var" => 113,
+        b"nvim_win_set_buf" => 114,
+        b"nvim_win_set_var" => 115,
+        b"nvim_input_mouse" => 116,
+        b"nvim_unsubscribe" => 117,
+        b"vim_report_error" => 118,
+        b"nvim_err_writeln" => 119,
+        b"nvim_error_event" => 120,
+        b"nvim__screenshot" => 121,
+        b"vim_get_api_info" => 122,
+        b"vim_get_tabpages" => 123,
+        b"nvim_buf_del_var" => 124,
+        b"nvim_buf_get_var" => 125,
+        b"nvim_buf_set_var" => 126,
+        b"nvim_execute_lua" => 127,
+        b"nvim_get_hl_by_id" => 128,
+        b"nvim_buf_del_mark" => 129,
+        b"nvim_buf_get_mark" => 130,
+        b"nvim_buf_get_name" => 131,
+        b"nvim_buf_set_mark" => 132,
+        b"nvim_buf_set_name" => 133,
+        b"nvim_open_tabpage" => 134,
+        b"buffer_get_number" => 135,
+        b"nvim_ui_set_focus" => 136,
+        b"nvim__get_lib_dir" => 137,
+        b"nvim_buf_get_text" => 138,
+        b"nvim_buf_set_text" => 139,
+        b"nvim_load_context" => 140,
+        b"window_get_buffer" => 141,
+        b"window_get_height" => 142,
+        b"window_set_height" => 143,
+        b"buffer_get_option" => 144,
+        b"buffer_set_option" => 145,
+        b"nvim__get_runtime" => 146,
+        b"vim_call_function" => 147,
+        b"window_get_option" => 148,
+        b"window_set_option" => 149,
+        b"nvim_buf_is_valid" => 150,
+        b"nvim_win_is_valid" => 151,
+        b"vim_name_to_color" => 152,
+        b"nvim_get_autocmds" => 153,
+        b"vim_get_color_map" => 154,
+        b"nvim_get_api_info" => 155,
+        b"nvim_get_commands" => 156,
+        b"window_get_cursor" => 157,
+        b"window_set_cursor" => 158,
+        b"buffer_line_count" => 159,
+        b"nvim_call_function" => 160,
+        b"nvim_exec_autocmds" => 161,
+        b"nvim_list_tabpages" => 162,
+        b"nvim_get_chan_info" => 163,
+        b"nvim_get_color_map" => 164,
+        b"nvim_ui_set_option" => 165,
+        b"nvim_ui_term_event" => 166,
+        b"tabpage_get_window" => 167,
+        b"nvim_buf_get_lines" => 168,
+        b"nvim_win_get_width" => 169,
+        b"nvim_buf_is_loaded" => 170,
+        b"vim_command_output" => 171,
+        b"nvim__complete_set" => 172,
+        b"nvim__inspect_cell" => 173,
+        b"nvim_ui_try_resize" => 174,
+        b"nvim_buf_set_lines" => 175,
+        b"nvim_win_set_hl_ns" => 176,
+        b"nvim_win_set_width" => 177,
+        b"window_get_tabpage" => 178,
+        b"nvim__exec_lua_fast" => 179,
+        b"nvim_get_hl_by_name" => 180,
+        b"nvim_set_hl_ns_fast" => 181,
+        b"nvim_buf_line_count" => 182,
+        b"nvim_buf_del_keymap" => 183,
+        b"nvim_buf_get_keymap" => 184,
+        b"nvim_buf_set_keymap" => 185,
+        b"nvim_win_get_height" => 186,
+        b"nvim_win_set_height" => 187,
+        b"nvim_buf_get_offset" => 188,
+        b"nvim_create_augroup" => 189,
+        b"window_get_position" => 190,
+        b"tabpage_get_windows" => 191,
+        b"nvim_clear_autocmds" => 192,
+        b"nvim_win_get_config" => 193,
+        b"nvim_win_set_config" => 194,
+        b"nvim_buf_get_option" => 195,
+        b"nvim_buf_set_option" => 196,
+        b"nvim_get_namespaces" => 197,
+        b"nvim_win_get_option" => 198,
+        b"nvim_win_set_option" => 199,
+        b"nvim_create_autocmd" => 200,
+        b"nvim_buf_get_number" => 201,
+        b"nvim_command_output" => 202,
+        b"nvim_win_get_cursor" => 203,
+        b"nvim_win_get_number" => 204,
+        b"nvim_win_set_cursor" => 205,
+        b"nvim_buf_del_extmark" => 206,
+        b"nvim_buf_set_extmark" => 207,
+        b"nvim_win_get_tabpage" => 208,
+        b"nvim_get_current_buf" => 209,
+        b"nvim_set_current_buf" => 210,
+        b"nvim_set_current_dir" => 211,
+        b"buffer_add_highlight" => 212,
+        b"nvim_win_text_height" => 213,
+        b"nvim_eval_statusline" => 214,
+        b"vim_del_current_line" => 215,
+        b"vim_get_current_line" => 216,
+        b"vim_set_current_line" => 217,
+        b"nvim_get_option_info" => 218,
+        b"nvim_set_client_info" => 219,
+        b"vim_change_directory" => 220,
+        b"nvim_tabpage_del_var" => 221,
+        b"nvim_tabpage_get_var" => 222,
+        b"nvim_tabpage_set_var" => 223,
+        b"nvim_get_current_win" => 224,
+        b"nvim_set_current_win" => 225,
+        b"nvim_tabpage_get_win" => 226,
+        b"nvim_tabpage_set_win" => 227,
+        b"nvim__runtime_inspect" => 228,
+        b"nvim_buf_get_commands" => 229,
+        b"nvim_buf_get_extmarks" => 230,
+        b"nvim_create_namespace" => 231,
+        b"nvim_del_current_line" => 232,
+        b"nvim_del_user_command" => 233,
+        b"vim_replace_termcodes" => 234,
+        b"nvim_get_current_line" => 235,
+        b"nvim_get_option_info2" => 236,
+        b"nvim_get_option_value" => 237,
+        b"nvim_get_runtime_file" => 238,
+        b"nvim_parse_expression" => 239,
+        b"buffer_get_line_slice" => 240,
+        b"buffer_set_line_slice" => 241,
+        b"nvim_set_current_line" => 242,
+        b"nvim_set_option_value" => 243,
+        b"nvim_tabpage_is_valid" => 244,
+        b"nvim_win_get_position" => 245,
+        b"nvim_del_augroup_by_id" => 246,
+        b"vim_list_runtime_paths" => 247,
+        b"nvim_ui_pum_set_bounds" => 248,
+        b"vim_get_current_buffer" => 249,
+        b"vim_set_current_buffer" => 250,
+        b"buffer_clear_highlight" => 251,
+        b"nvim_buf_add_highlight" => 252,
+        b"nvim_ui_pum_set_height" => 253,
+        b"nvim_get_proc_children" => 254,
+        b"nvim_replace_termcodes" => 255,
+        b"nvim_tabpage_list_wins" => 256,
+        b"vim_get_current_window" => 257,
+        b"vim_set_current_window" => 258,
+        b"nvim_get_color_by_name" => 259,
+        b"nvim_get_hl_id_by_name" => 260,
+        b"nvim_call_dict_function" => 261,
+        b"vim_get_current_tabpage" => 262,
+        b"vim_set_current_tabpage" => 263,
+        b"nvim_list_runtime_paths" => 264,
+        b"nvim_tabpage_get_number" => 265,
+        b"nvim_ui_try_resize_grid" => 266,
+        b"nvim_buf_get_changedtick" => 267,
+        b"nvim_get_current_tabpage" => 268,
+        b"nvim_set_current_tabpage" => 269,
+        b"nvim_del_augroup_by_name" => 270,
+        b"nvim_buf_clear_highlight" => 271,
+        b"nvim_buf_clear_namespace" => 272,
+        b"nvim_create_user_command" => 273,
+        b"nvim__buf_debug_extmarks" => 274,
+        b"nvim_get_all_options_info" => 275,
+        b"nvim_buf_del_user_command" => 276,
+        b"nvim_buf_set_virtual_text" => 277,
+        b"nvim__set_restart_on_crash" => 278,
+        b"nvim_buf_get_extmark_by_id" => 279,
+        b"nvim_select_popupmenu_item" => 280,
+        b"nvim__invalidate_glyph_cache" => 281,
+        b"nvim_buf_create_user_command" => 282,
+        _ => -1,
+    }
+}
+
+#[cfg_attr(not(test), unsafe(no_mangle))]
+pub unsafe extern "C" fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler {
+    method_handlers[hash as usize]
 }
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
@@ -69,5 +17012,43 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
             };
         }
         msgpack_rpc_get_handler_at(hash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn rpc_handler_lookup_resolves_all_methods() {
+        unsafe {
+            for (idx, handler) in method_handlers.iter().enumerate() {
+                let name = CStr::from_ptr(handler.name).to_bytes();
+                assert_eq!(
+                    msgpack_rpc_get_handler_for_hash(handler.name, name.len()),
+                    idx as c_int
+                );
+                let got = msgpack_rpc_get_handler_at(idx as c_int);
+                assert_eq!(got.name, handler.name);
+                assert_eq!(got.fast, handler.fast);
+                assert_eq!(got.ret_alloc, handler.ret_alloc);
+            }
+            assert_eq!(
+                msgpack_rpc_get_handler_for_hash(c"not_a_method".as_ptr(), 12),
+                -1
+            );
+            assert_eq!(msgpack_rpc_get_handler_for_hash(ptr::null(), 0), -1);
+        }
+    }
+
+    #[test]
+    fn keyset_lookup_resolves_known_and_unknown_fields() {
+        unsafe {
+            let link = KeyDict_get_autocmds_get_field(c"event".as_ptr(), 5);
+            assert!(!link.is_null());
+            assert_eq!(CStr::from_ptr((*link).str).to_bytes(), b"event");
+            assert!(KeyDict_get_autocmds_get_field(c"nonexistent".as_ptr(), 11).is_null());
+        }
     }
 }

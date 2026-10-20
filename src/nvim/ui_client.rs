@@ -51,7 +51,6 @@ use crate::event::multiqueue::{
 use crate::event::socket::socket_address_tcp_host_end;
 use crate::grid::{sattr_T, schar_T};
 use crate::highlight::{HLATTRS_INIT, KeyDict_highlight, dict2hlattrs};
-use crate::lua::converter::KeySetLink;
 use crate::map::HlAttrs;
 use crate::memory::{Arena, strequal, xcalloc, xfree, xmalloc, xmemdupz, xstrdup};
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -93,10 +92,11 @@ static mut restart_args: Array = ARRAY_INIT;
 static mut restart_pending: bool = false;
 static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 
+use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
+
 unsafe extern "C" {
     static mut main_loop: Loop;
 
-    fn KeyDict_highlight_get_field(str_: *const c_char, len: usize) -> *const KeySetLink;
     fn uv_os_getpid() -> c_int;
     #[cfg(windows)]
     #[link_name = "_close"]
@@ -109,13 +109,6 @@ unsafe extern "C" {
 }
 
 pub use crate::fileio::FILE;
-
-unsafe extern "C-unwind" fn highlight_get_field_cb(
-    str_: *const c_char,
-    len: usize,
-) -> *const KeySetLink {
-    unsafe { KeyDict_highlight_get_field(str_, len) }
-}
 
 #[inline]
 const fn int_obj(i: Integer) -> Object {

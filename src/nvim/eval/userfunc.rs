@@ -250,6 +250,8 @@ pub struct EvalFuncDef {
     pub data: EvalFuncData,
 }
 
+unsafe impl Sync for EvalFuncDef {}
+
 #[repr(C)]
 struct defer_T {
     dr_name: *mut c_char,

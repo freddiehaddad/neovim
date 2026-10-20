@@ -66,7 +66,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::garray::{ga_clear, ga_init, garray_T};
-use crate::lua::converter::{Boolean, KeySetLink, LuaRef};
+use crate::lua::converter::{Boolean, LuaRef};
 use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdupz};
 use crate::msgpack_rpc::packer::Integer;
@@ -349,11 +349,9 @@ pub struct KeyDict_get_commands {
     pub builtin: Boolean,
 }
 
-unsafe extern "C-unwind" {
-    fn KeyDict_cmd_magic_get_field(str: *const c_char, len: usize) -> *const KeySetLink;
-    fn KeyDict_cmd_mods_get_field(str: *const c_char, len: usize) -> *const KeySetLink;
-    fn KeyDict_cmd_mods_filter_get_field(str: *const c_char, len: usize) -> *const KeySetLink;
-}
+use crate::api::private::dispatch::{
+    KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
+};
 
 #[inline]
 const fn boolean_obj(b: Boolean) -> Object {

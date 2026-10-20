@@ -67,20 +67,20 @@ enum NluaXdiffMode {
 }
 
 #[repr(C)]
-struct KeyDict_xdl_diff {
-    is_set__xdl_diff_: u64,
-    on_hunk: c_int,
-    result_type: NvimString,
-    algorithm: NvimString,
-    ctxlen: i64,
-    interhunkctxlen: i64,
-    linematch: Object,
-    ignore_whitespace: bool,
-    ignore_whitespace_change: bool,
-    ignore_whitespace_change_at_eol: bool,
-    ignore_cr_at_eol: bool,
-    ignore_blank_lines: bool,
-    indent_heuristic: bool,
+pub struct KeyDict_xdl_diff {
+    pub is_set__xdl_diff_: u64,
+    pub on_hunk: c_int,
+    pub result_type: NvimString,
+    pub algorithm: NvimString,
+    pub ctxlen: i64,
+    pub interhunkctxlen: i64,
+    pub linematch: Object,
+    pub ignore_whitespace: bool,
+    pub ignore_whitespace_change: bool,
+    pub ignore_whitespace_change_at_eol: bool,
+    pub ignore_cr_at_eol: bool,
+    pub ignore_blank_lines: bool,
+    pub indent_heuristic: bool,
 }
 
 impl KeyDict_xdl_diff {
@@ -134,20 +134,7 @@ unsafe extern "C-unwind" {
 }
 
 #[cfg(not(test))]
-unsafe extern "C" {
-    fn KeyDict_xdl_diff_get_field(
-        str_ptr: *const c_char,
-        len: usize,
-    ) -> *const crate::lua::converter::KeySetLink;
-}
-
-#[cfg(not(test))]
-unsafe extern "C-unwind" fn xdl_diff_get_field_cb(
-    str_ptr: *const c_char,
-    len: usize,
-) -> *const crate::lua::converter::KeySetLink {
-    unsafe { KeyDict_xdl_diff_get_field(str_ptr, len) }
-}
+use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
 
 #[cfg(not(test))]
 unsafe fn lua_pushhunk(
@@ -384,7 +371,7 @@ unsafe fn process_xdl_diff_opts(
         nlua_pop_keydict(
             lstate,
             (&raw mut opts).cast::<c_void>(),
-            Some(xdl_diff_get_field_cb),
+            Some(KeyDict_xdl_diff_get_field),
             &mut err_param,
             std::ptr::null_mut(),
             err,

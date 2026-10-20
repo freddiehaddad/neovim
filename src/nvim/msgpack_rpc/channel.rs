@@ -288,28 +288,13 @@ type RequestHandlerFn = unsafe extern "C" fn(
 type UIEventHandlerFn = unsafe extern "C" fn(args: Array);
 
 #[cfg(not(test))]
+use crate::api::private::dispatch::{
+    handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
+};
+
+#[cfg(not(test))]
 unsafe extern "C" {
     static mut main_loop: u8;
-
-    fn handle_nvim_get_mode(
-        channel_id: u64,
-        args: Array,
-        arena: *mut Arena,
-        error: *mut Error,
-    ) -> Object;
-    fn handle_nvim_ui_try_resize(
-        channel_id: u64,
-        args: Array,
-        arena: *mut Arena,
-        error: *mut Error,
-    ) -> Object;
-    fn handle_nvim_paste(
-        channel_id: u64,
-        args: Array,
-        arena: *mut Arena,
-        error: *mut Error,
-    ) -> Object;
-
 }
 
 #[inline]

@@ -241,8 +241,8 @@ DLLEXPORT bool set_mark(buf_T *buf, String name, Integer line, Integer col, Erro
 DLLEXPORT const char *get_default_stl_hl(win_T *wp, bool use_winbar, int stc_hl_id);
 DLLEXPORT sctx_T api_set_sctx(uint64_t channel_id);
 DLLEXPORT const uint8_t *api_get_packed_metadata(size_t *len);
-DLLEXPORT void api_set_error(Error *err, ErrorType errType, const char *format, ...)
-  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PRINTF(3, 4);
+DLLEXPORT void api_set_error_str(Error *err, ErrorType errType, const char *msg)
+  FUNC_ATTR_NONNULL_ALL;
 
 #include "nvim/func_attr.h"
 
