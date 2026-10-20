@@ -8,7 +8,6 @@
     unused_assignments,
     unused_imports,
     unused_mut,
-    clashing_extern_declarations,
     clippy::collapsible_else_if,
     clippy::collapsible_if,
     clippy::if_same_then_else,

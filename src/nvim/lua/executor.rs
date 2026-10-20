@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clashing_extern_declarations,
     unpredictable_function_pointer_comparisons,
     unused_assignments,
     unused_imports,

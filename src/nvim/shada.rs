@@ -5,7 +5,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clashing_extern_declarations,
     clippy::enum_variant_names,
     clippy::missing_safety_doc,
     clippy::needless_late_init,

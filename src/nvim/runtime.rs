@@ -7,7 +7,6 @@
     non_upper_case_globals,
     unused_imports,
     unused_mut,
-    clashing_extern_declarations,
     clippy::missing_safety_doc,
     clippy::too_many_arguments,
     clippy::needless_range_loop
