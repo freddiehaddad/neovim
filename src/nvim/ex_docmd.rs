@@ -8481,24 +8481,27 @@ unsafe fn repl_cmdline(
             strcpy_c(new_cmdline.add(i), (*eap).nextcmd);
             (*eap).nextcmd = new_cmdline.add(i);
         }
-        (*eap).cmd = new_cmdline.add(((*eap).cmd as usize) - ((*cmdlinep) as usize));
-        (*eap).arg = new_cmdline.add(((*eap).arg as usize) - ((*cmdlinep) as usize));
+        (*eap).cmd =
+            new_cmdline.wrapping_add(((*eap).cmd as usize).wrapping_sub((*cmdlinep) as usize));
+        (*eap).arg =
+            new_cmdline.wrapping_add(((*eap).arg as usize).wrapping_sub((*cmdlinep) as usize));
 
         for j in 0..(*eap).argc {
             let arg_j = *(*eap).args.add(j);
-            let arg_off = (arg_j as usize) - ((*cmdlinep) as usize);
+            let arg_off = (arg_j as usize).wrapping_sub((*cmdlinep) as usize);
             if offset >= arg_off {
-                *(*eap).args.add(j) = new_cmdline.add(arg_off);
+                *(*eap).args.add(j) = new_cmdline.wrapping_add(arg_off);
             } else {
-                *(*eap).args.add(j) = new_cmdline.add((arg_off + len).wrapping_sub(srclen));
+                *(*eap).args.add(j) =
+                    new_cmdline.wrapping_add(arg_off.wrapping_add(len).wrapping_sub(srclen));
             }
         }
 
         if !(*eap).do_ecmd_cmd.is_null()
             && (*eap).do_ecmd_cmd != (&raw mut dollar_command).cast::<c_char>()
         {
-            (*eap).do_ecmd_cmd =
-                new_cmdline.add(((*eap).do_ecmd_cmd as usize) - ((*cmdlinep) as usize));
+            (*eap).do_ecmd_cmd = new_cmdline
+                .wrapping_add(((*eap).do_ecmd_cmd as usize).wrapping_sub((*cmdlinep) as usize));
         }
         xfree((*cmdlinep).cast());
         *cmdlinep = new_cmdline;

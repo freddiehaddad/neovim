@@ -2461,7 +2461,7 @@ pub unsafe extern "C" fn trans_function_name(
             if lead == 2 || (*lv.ll_name == b'g' as c_char && *lv.ll_name.add(1) == b':' as c_char)
             {
                 lv.ll_name = lv.ll_name.add(2);
-                lv.ll_name_len -= 2;
+                lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
             }
             len = end.offset_from(lv.ll_name) as c_int;
         }
