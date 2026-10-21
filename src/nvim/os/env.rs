@@ -74,27 +74,6 @@ pub struct expand_T {
     pub xp_pre_incsearch_pos: pos_T,
 }
 
-#[cfg(target_os = "linux")]
-#[repr(C)]
-struct Utsname {
-    sysname: [c_char; 65],
-    nodename: [c_char; 65],
-    release: [c_char; 65],
-    version: [c_char; 65],
-    machine: [c_char; 65],
-    domainname: [c_char; 65],
-}
-
-#[cfg(target_os = "macos")]
-#[repr(C)]
-struct Utsname {
-    sysname: [c_char; 256],
-    nodename: [c_char; 256],
-    release: [c_char; 256],
-    version: [c_char; 256],
-    machine: [c_char; 256],
-}
-
 static mut HOMEDIR: *mut c_char = ptr::null_mut();
 static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 
@@ -104,17 +83,28 @@ use crate::event::r#loop::{uv_os_getenv, uv_os_homedir, uv_os_setenv, uv_os_unse
 
 unsafe extern "C" {
     #[cfg(target_os = "macos")]
-    pub fn _NSGetEnviron() -> *mut *mut *mut c_char;
+    fn _NSGetEnviron() -> *mut *mut *mut c_char;
     #[cfg(all(not(windows), not(target_os = "macos")))]
-    pub static mut environ: *mut *mut c_char;
+    static mut environ: *mut *mut c_char;
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
 
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    fn uname(buf: *mut Utsname) -> c_int;
-    #[cfg(all(not(windows), not(any(target_os = "linux", target_os = "macos"))))]
+    #[cfg(not(windows))]
     fn gethostname(name: *mut c_char, len: usize) -> c_int;
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub(crate) unsafe fn os_environ_ptr() -> *mut *mut *mut c_char {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        _NSGetEnviron()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        &raw mut environ
+    }
 }
 
 use crate::charset::NUL;
@@ -381,10 +371,7 @@ pub unsafe extern "C" fn os_getenvname_at_index(index: usize) -> *mut c_char {
     }
     #[cfg(not(windows))]
     unsafe {
-        #[cfg(target_os = "macos")]
-        let env_arr: *const *mut c_char = (*_NSGetEnviron()).cast_const();
-        #[cfg(not(target_os = "macos"))]
-        let env_arr: *const *mut c_char = environ;
+        let env_arr: *const *mut c_char = (*os_environ_ptr()).cast_const();
 
         for i in 0..=index {
             if (*env_arr.add(i)).is_null() {
@@ -413,16 +400,7 @@ pub unsafe extern "C" fn os_hint_priority() {}
 /// Gets the hostname of the current machine.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_get_hostname(hostname: *mut c_char, size: usize) {
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    unsafe {
-        let mut vutsname: Utsname = std::mem::zeroed();
-        if uname(&raw mut vutsname) < 0 {
-            *hostname = NUL;
-        } else {
-            xstrlcpy(hostname, vutsname.nodename.as_ptr(), size);
-        }
-    }
-    #[cfg(all(not(windows), not(any(target_os = "linux", target_os = "macos"))))]
+    #[cfg(not(windows))]
     unsafe {
         if gethostname(hostname, size) < 0 {
             *hostname = NUL;

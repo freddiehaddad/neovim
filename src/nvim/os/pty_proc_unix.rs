@@ -237,10 +237,7 @@ mod unix_impl {
 
     use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
     use crate::fileio::{close, dup, fcntl, kill};
-    #[cfg(target_os = "macos")]
-    use crate::os::env::_NSGetEnviron;
-    #[cfg(not(target_os = "macos"))]
-    use crate::os::env::environ;
+    use crate::os::env::os_environ_ptr;
     use crate::os::signal::signal;
 
     unsafe extern "C" {
@@ -511,14 +508,7 @@ mod unix_impl {
             let prog = proc_get_exepath(proc_);
             debug_assert!(!(*hdr).env.is_null());
             let new_env = tv_dict_to_env((*hdr).env);
-            #[cfg(target_os = "macos")]
-            {
-                *_NSGetEnviron() = new_env;
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                environ = new_env;
-            }
+            *os_environ_ptr() = new_env;
             execvp(prog, (*hdr).argv.cast_const());
             let err = os_errno();
             logmsg!(
