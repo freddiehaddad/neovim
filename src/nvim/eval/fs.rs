@@ -325,16 +325,16 @@ pub unsafe extern "C" fn modify_fname(
                 // - otherwise: The last '.'
                 let is_second_e = (*fnamep as usize) > (tail as usize);
                 if *src.add(*usedlen + 1) == b'e' as c_char && is_second_e {
-                    s = (*fnamep).sub(2);
+                    s = (*fnamep).wrapping_sub(2);
                 } else {
-                    s = (*fnamep).add(*fnamelen).sub(1);
+                    s = (*fnamep).wrapping_add(*fnamelen).wrapping_sub(1);
                 }
 
                 while (s as usize) > (tail as usize) {
                     if *s == b'.' as c_char {
                         break;
                     }
-                    s = s.sub(1);
+                    s = s.wrapping_sub(1);
                 }
                 if *src.add(*usedlen + 1) == b'e' as c_char {
                     if (s as usize) > (tail as usize) {
@@ -342,7 +342,7 @@ pub unsafe extern "C" fn modify_fname(
                         let newstart = s.add(1);
                         let distance_stepped_back =
                             (*fnamep as usize).wrapping_sub(newstart as usize);
-                        *fnamelen += distance_stepped_back;
+                        *fnamelen = (*fnamelen).wrapping_add(distance_stepped_back);
                         *fnamep = newstart;
                     } else if (*fnamep as usize) <= (tail as usize) {
                         *fnamelen = 0;
