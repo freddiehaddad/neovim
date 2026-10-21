@@ -238,33 +238,50 @@ unsafe extern "C" {
     pub fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;
     #[cfg(unix)]
     pub fn pclose(stream: *mut FILE) -> c_int;
+    #[cfg(unix)]
+    pub fn tcdrain(fd: c_int) -> c_int;
+    #[cfg(unix)]
+    pub fn getppid() -> c_int;
+    #[cfg(unix)]
+    pub fn getpgid(pid: c_int) -> c_int;
+    #[cfg(unix)]
+    pub fn getpgrp() -> c_int;
 
-    #[cfg(windows)]
-    fn libiconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
-    #[cfg(windows)]
-    pub fn libiconv(
+    #[cfg_attr(windows, link_name = "libiconv_open")]
+    #[cfg_attr(not(windows), link_name = "iconv_open")]
+    pub fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
+    #[cfg_attr(windows, link_name = "libiconv")]
+    #[cfg_attr(not(windows), link_name = "iconv")]
+    pub fn iconv(
         cd: iconv_t,
         inbuf: *mut *const c_char,
         inbytesleft: *mut usize,
         outbuf: *mut *mut c_char,
         outbytesleft: *mut usize,
     ) -> usize;
-    #[cfg(windows)]
-    pub fn libiconv_close(cd: iconv_t) -> c_int;
-    #[cfg(windows)]
-    pub fn _close(fd: c_int) -> c_int;
-    #[cfg(windows)]
-    pub fn _dup(fd: c_int) -> c_int;
-    #[cfg(windows)]
-    pub fn _lseeki64(fd: c_int, offset: i64, origin: c_int) -> i64;
-    #[cfg(windows)]
-    pub fn _fseeki64(stream: *mut FILE, offset: i64, origin: c_int) -> c_int;
-    #[cfg(windows)]
-    pub fn _ftelli64(stream: *mut FILE) -> i64;
-    #[cfg(windows)]
-    pub fn _fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-    #[cfg(windows)]
-    pub fn _fileno(stream: *mut FILE) -> c_int;
+    #[cfg_attr(windows, link_name = "libiconv_close")]
+    #[cfg_attr(not(windows), link_name = "iconv_close")]
+    pub fn iconv_close(cd: iconv_t) -> c_int;
+    #[cfg_attr(windows, link_name = "close")]
+    pub fn close(fd: c_int) -> c_int;
+    #[cfg_attr(windows, link_name = "_dup")]
+    pub fn dup(oldfd: c_int) -> c_int;
+    #[cfg_attr(windows, link_name = "_dup2")]
+    pub fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
+    #[cfg_attr(windows, link_name = "_lseeki64")]
+    #[cfg_attr(not(windows), link_name = "lseek")]
+    pub fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T;
+    #[cfg_attr(windows, link_name = "_fseeki64")]
+    #[cfg_attr(not(windows), link_name = "fseeko")]
+    pub fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int;
+    #[cfg_attr(windows, link_name = "_ftelli64")]
+    #[cfg_attr(not(windows), link_name = "ftello")]
+    pub fn vim_ftell(stream: *mut FILE) -> off_T;
+    #[cfg_attr(windows, link_name = "_fdopen")]
+    pub fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
+    #[cfg_attr(windows, link_name = "_fileno")]
+    pub fn fileno(stream: *mut FILE) -> c_int;
+
     #[cfg(windows)]
     pub fn _get_osfhandle(fd: c_int) -> isize;
     #[cfg(windows)]
@@ -279,53 +296,17 @@ unsafe extern "C" {
     pub fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
     #[cfg(windows)]
     fn _umask(pmode: c_int) -> c_int;
-    #[cfg(unix)]
-    pub fn tcdrain(fd: c_int) -> c_int;
 
-    #[cfg(not(windows))]
-    fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
-    #[cfg(not(windows))]
-    pub fn iconv(
-        cd: iconv_t,
-        inbuf: *mut *const c_char,
-        inbytesleft: *mut usize,
-        outbuf: *mut *mut c_char,
-        outbytesleft: *mut usize,
-    ) -> usize;
-    #[cfg(not(windows))]
-    pub fn iconv_close(cd: iconv_t) -> c_int;
-    #[cfg(not(windows))]
-    pub fn close(fd: c_int) -> c_int;
-    #[cfg(not(windows))]
-    pub fn lseek(fd: c_int, offset: i64, whence: c_int) -> i64;
-    #[cfg(not(windows))]
-    pub fn fseeko(stream: *mut FILE, offset: i64, whence: c_int) -> c_int;
-    #[cfg(not(windows))]
-    pub fn ftello(stream: *mut FILE) -> i64;
-    #[cfg(not(windows))]
-    pub fn fdopen(fd: c_int, mode: *const c_char) -> *mut FILE;
-    #[cfg(not(windows))]
-    pub fn fileno(stream: *mut FILE) -> c_int;
     #[cfg(not(windows))]
     pub fn fcntl(fd: c_int, cmd: c_int, ...) -> c_int;
     #[cfg(not(windows))]
     pub fn getuid() -> u32;
     #[cfg(not(windows))]
     pub fn getgid() -> u32;
-    #[cfg(unix)]
-    pub fn getppid() -> c_int;
-    #[cfg(unix)]
-    pub fn getpgid(pid: c_int) -> c_int;
-    #[cfg(unix)]
-    pub fn getpgrp() -> c_int;
     #[cfg(not(windows))]
     pub fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
     #[cfg(not(windows))]
     pub fn write(fd: c_int, buf: *const c_void, count: usize) -> isize;
-    #[cfg(not(windows))]
-    pub fn dup(oldfd: c_int) -> c_int;
-    #[cfg_attr(windows, link_name = "_dup2")]
-    pub fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
     #[cfg(not(windows))]
     pub fn kill(pid: c_int, sig: c_int) -> c_int;
     #[cfg(not(windows))]
@@ -342,94 +323,9 @@ unsafe extern "C" {
     fn dirfd(dirp: *mut c_void) -> c_int;
     #[cfg(not(windows))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
-
 }
 
 use crate::os::fs::{s_isdir, s_isfifo, s_isreg, s_issock};
-
-#[inline]
-pub unsafe fn close_fd(fd: c_int) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        _close(fd)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        close(fd)
-    }
-}
-
-#[inline]
-pub unsafe fn vim_lseek(fd: c_int, offset: off_T, whence: c_int) -> off_T {
-    #[cfg(windows)]
-    unsafe {
-        _lseeki64(fd, offset, whence)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        lseek(fd, offset, whence)
-    }
-}
-
-#[inline]
-pub unsafe fn c_fdopen(fd: c_int, mode: *const c_char) -> *mut FILE {
-    #[cfg(windows)]
-    unsafe {
-        _fdopen(fd, mode)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        fdopen(fd, mode)
-    }
-}
-
-#[inline]
-pub unsafe fn c_fileno(stream: *mut FILE) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        _fileno(stream)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        fileno(stream)
-    }
-}
-
-#[inline]
-pub unsafe fn vim_fseek(stream: *mut FILE, offset: off_T, whence: c_int) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        _fseeki64(stream, offset, whence)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        fseeko(stream, offset, whence)
-    }
-}
-
-#[inline]
-pub unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
-    #[cfg(windows)]
-    unsafe {
-        _ftelli64(stream)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        ftello(stream)
-    }
-}
-
-#[inline]
-pub unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
-    #[cfg(windows)]
-    unsafe {
-        libiconv_open(tocode, fromcode)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        iconv_open(tocode, fromcode)
-    }
-}
 
 #[inline]
 pub unsafe fn call_iconv<T: IntoIconvT>(
@@ -439,26 +335,12 @@ pub unsafe fn call_iconv<T: IntoIconvT>(
     outbuf: *mut *mut c_char,
     outbytesleft: *mut usize,
 ) -> usize {
-    #[cfg(windows)]
-    unsafe {
-        libiconv(cd.into_iconv_t(), inbuf, inbytesleft, outbuf, outbytesleft)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        iconv(cd.into_iconv_t(), inbuf, inbytesleft, outbuf, outbytesleft)
-    }
+    unsafe { iconv(cd.into_iconv_t(), inbuf, inbytesleft, outbuf, outbytesleft) }
 }
 
 #[inline]
 pub unsafe fn call_iconv_close<T: IntoIconvT>(cd: T) -> c_int {
-    #[cfg(windows)]
-    unsafe {
-        libiconv_close(cd.into_iconv_t())
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        iconv_close(cd.into_iconv_t())
-    }
+    unsafe { iconv_close(cd.into_iconv_t()) }
 }
 
 pub trait IntoIconvT {
@@ -942,7 +824,7 @@ pub unsafe extern "C" fn readfile(
                 {
                     emsg(tr(E_AUCHANGEDBUF.as_ptr()));
                     if !read_buffer {
-                        close_fd(fd);
+                        close(fd);
                     }
                     break 'theend;
                 }
@@ -971,7 +853,7 @@ pub unsafe extern "C" fn readfile(
 
             if swap_exists_action == SEA_QUIT {
                 if !read_buffer && !read_stdin {
-                    close_fd(fd);
+                    close(fd);
                 }
                 break 'theend;
             }
@@ -991,7 +873,7 @@ pub unsafe extern "C" fn readfile(
                 let n = msg_scrolled;
 
                 if !read_stdin {
-                    close_fd(fd);
+                    close(fd);
                 }
 
                 msg_scroll = 1;
@@ -2056,14 +1938,14 @@ pub unsafe extern "C" fn readfile(
             }
 
             if !read_buffer && !read_stdin {
-                close_fd(fd);
+                close(fd);
             } else {
                 os_set_cloexec(fd);
             }
             xfree(buffer.cast());
 
             if read_stdin {
-                close_fd(fd);
+                close(fd);
                 if stdin_fd < 0 {
                     #[cfg(not(windows))]
                     {
@@ -2559,7 +2441,7 @@ unsafe fn readfile_charconvert(
         if tmpname.is_null() {
             errmsg = tr(c"Can't find temp file for conversion".as_ptr());
         } else {
-            close_fd(*fdp);
+            close(*fdp);
             *fdp = -1;
             if eval_charconvert(fenc, c"utf-8".as_ptr(), fname, tmpname) == FAIL {
                 errmsg = tr(c"Conversion with 'charconvert' failed".as_ptr());

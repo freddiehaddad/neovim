@@ -80,12 +80,10 @@ unsafe extern "C" {
     #[cfg(target_os = "linux")]
     static mut _nl_msg_cat_cntr: c_int;
 
-    #[cfg_attr(windows, link_name = "gettext")]
-    #[cfg_attr(not(windows), link_name = "gettext")]
+    #[link_name = "gettext"]
     pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char;
 
-    #[cfg_attr(windows, link_name = "ngettext")]
-    #[cfg_attr(not(windows), link_name = "ngettext")]
+    #[link_name = "ngettext"]
     pub(crate) fn c_ngettext(
         msgid1: *const c_char,
         msgid2: *const c_char,

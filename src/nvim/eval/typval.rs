@@ -39,12 +39,10 @@ use crate::memory::{
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 #[cfg(unix)]
-use crate::strings::strcasecmp;
+use crate::strings::vim_stricmp;
 #[cfg(windows)]
 use crate::strings::vim_stricmp;
-use crate::strings::{
-    tr, qsort, strcmp, strcoll, strlen, strncmp, strtod, vim_snprintf,
-};
+use crate::strings::{qsort, strcmp, strcoll, strlen, strncmp, strtod, tr, vim_snprintf};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
@@ -1758,7 +1756,7 @@ unsafe fn item_compare(s1: *const c_void, s2: *const c_void, keep_zero: bool) ->
                 }
                 #[cfg(not(windows))]
                 {
-                    res = strcasecmp(p1, p2);
+                    res = vim_stricmp(p1, p2);
                 }
             } else {
                 res = strcmp(p1, p2);

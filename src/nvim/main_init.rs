@@ -223,7 +223,7 @@ use crate::fileio::setbuf;
 #[cfg(unix)]
 use crate::fileio::tcdrain;
 #[cfg(windows)]
-use crate::fileio::{close_fd, dup2};
+use crate::fileio::{close, dup2};
 use crate::globals::IOSIZE;
 use crate::os::fs::MAXPATHL;
 #[cfg(windows)]
@@ -474,14 +474,14 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
             #[cfg(windows)]
             if startup_stderr_fd >= 0 {
                 dup2(startup_stderr_fd, STDERR_FILENO);
-                close_fd(startup_stderr_fd);
+                close(startup_stderr_fd);
             }
             mainerr((&raw const IObuff).cast(), ptr::null(), ptr::null());
         }
 
         #[cfg(windows)]
         if startup_stderr_fd >= 0 {
-            close_fd(startup_stderr_fd);
+            close(startup_stderr_fd);
         }
 
         time_msg_if_enabled(c"expanding arguments".as_ptr());

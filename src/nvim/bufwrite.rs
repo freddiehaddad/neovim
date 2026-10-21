@@ -27,7 +27,7 @@ use crate::ex_eval::{aborting, should_abort};
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_ENDIAN_L, FIO_LATIN1, FIO_NOCONVERT, FIO_UCS2, FIO_UCS4, FIO_UTF8,
     FIO_UTF16, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname, buf_store_file_info, call_iconv,
-    call_iconv_close, close_fd, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t, kShmOver,
+    call_iconv_close, close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t, kShmOver,
     match_file_list, modname, msg_add_fileformat, msg_add_lines, need_conversion, set_rw_fname,
     slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
@@ -43,10 +43,10 @@ use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, short
 use crate::option_vars::*;
 use crate::os::fs::{
     FileInfo, MAXPATHL, O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close,
-    os_copy, os_copy_xattr, os_errno, os_file_is_writable, os_fileinfo,
-    os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync,
-    os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists,
-    os_remove, os_set_acl, os_setperm, vim_acl_T,
+    os_copy, os_copy_xattr, os_errno, os_file_is_writable, os_fileinfo, os_fileinfo_hardlinks,
+    os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync, os_get_acl, os_getperm,
+    os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists, os_remove, os_set_acl,
+    os_setperm, vim_acl_T,
 };
 #[cfg(unix)]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
@@ -922,7 +922,7 @@ unsafe fn buf_write_make_backup(
                             *backup_copyp = true;
                         }
                     }
-                    let _ = close_fd(fd);
+                    let _ = close(fd);
                     let _ = os_remove(tmp_fname.as_ptr());
                 }
             }
@@ -1975,7 +1975,7 @@ pub unsafe extern "C" fn buf_write(
                                     c"E206: Patchmode: can't touch empty original file".as_ptr(),
                                 ));
                             } else {
-                                let _ = close_fd(empty_fd);
+                                let _ = close(empty_fd);
                             }
                         }
                         if !org.is_null() {

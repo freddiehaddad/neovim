@@ -33,8 +33,8 @@ use crate::extmark::{
 #[cfg(unix)]
 use crate::fileio::getuid;
 use crate::fileio::{
-    EOF, FILE, O_RDONLY, c_fdopen, c_fileno, fclose, feof, fflush, fgetc, fread, fwrite, get2c,
-    get4c, get8ctime, off_T, read_eintr, vim_ftell,
+    EOF, FILE, O_RDONLY, fclose, fdopen, feof, fflush, fgetc, fileno, fread, fwrite, get2c, get4c,
+    get8ctime, off_T, read_eintr, vim_ftell,
 };
 use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
@@ -1183,7 +1183,7 @@ pub unsafe extern "C" fn u_write_undo(
                 }
             }
 
-            let fp = c_fdopen(fd, c"w".as_ptr());
+            let fp = fdopen(fd, c"w".as_ptr());
             if fp.is_null() {
                 semsg!(gettext(E_NOT_OPEN.as_ptr()), file_name);
                 os_close(fd);
@@ -1363,7 +1363,7 @@ pub unsafe extern "C" fn u_read_undo(name: *mut c_char, hash: *const u8, orig_na
                 }
 
                 let mut file_info = FileInfo::default();
-                let fsize = if os_fileinfo_fd(c_fileno(fp), &raw mut file_info) {
+                let fsize = if os_fileinfo_fd(fileno(fp), &raw mut file_info) {
                     os_fileinfo_size(&raw const file_info) as off_T
                 } else {
                     0

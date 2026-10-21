@@ -75,14 +75,10 @@ unsafe extern "C" {
     pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
-    #[link_name = "tolower"]
-    fn c_tolower(c: c_int) -> c_int;
-    #[link_name = "toupper"]
-    fn c_toupper(c: c_int) -> c_int;
-    #[link_name = "isalpha"]
-    fn c_isalpha(c: c_int) -> c_int;
-    #[link_name = "strerror"]
-    fn c_strerror(errnum: c_int) -> *mut c_char;
+    pub fn tolower(c: c_int) -> c_int;
+    pub fn toupper(c: c_int) -> c_int;
+    pub fn isalpha(c: c_int) -> c_int;
+    pub fn strerror(errnum: c_int) -> *mut c_char;
 }
 
 pub trait IntoCCharPtr {
@@ -418,16 +414,6 @@ pub unsafe fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_
 }
 
 #[inline]
-pub unsafe fn tolower(c: c_int) -> c_int {
-    unsafe { c_tolower(c) }
-}
-
-#[inline]
-pub unsafe fn isalpha(c: c_int) -> c_int {
-    unsafe { c_isalpha(c) }
-}
-
-#[inline]
 pub unsafe fn strcspn(mut s: *const c_char, reject: *const c_char) -> usize {
     unsafe {
         let mut count = 0;
@@ -631,11 +617,6 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
 }
 
 #[inline]
-pub unsafe fn toupper(c: c_int) -> c_int {
-    unsafe { c_toupper(c) }
-}
-
-#[inline]
 pub unsafe fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
     if n > 0 {
         unsafe { ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), n) };
@@ -719,21 +700,6 @@ pub unsafe fn wcslen(mut s: *const u16) -> usize {
         }
         len
     }
-}
-
-#[inline]
-pub unsafe fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe { vim_stricmp(s1, s2) }
-}
-
-#[inline]
-pub unsafe fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe { vim_strnicmp(s1, s2, n) }
-}
-
-#[inline]
-pub unsafe fn strerror(errnum: c_int) -> *mut c_char {
-    unsafe { c_strerror(errnum) }
 }
 
 use crate::charset::tolower_asc;

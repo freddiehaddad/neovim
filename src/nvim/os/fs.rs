@@ -328,10 +328,10 @@ use crate::channel::STDIN_FILENO;
 #[cfg(windows)]
 use crate::event::stream::{UV_FILE, UV_TTY};
 #[cfg(windows)]
-use crate::fileio::{_close, _dup, _fdopen, _get_osfhandle, _read, _write};
-use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG};
+use crate::fileio::{_get_osfhandle, _read, _write, close};
+use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG, dup, fdopen};
 #[cfg(not(windows))]
-use crate::fileio::{dup, fcntl, fdopen, getuid, read, write};
+use crate::fileio::{fcntl, getuid, read, write};
 use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::memline::kPathDeviceUNC;
@@ -532,7 +532,7 @@ pub unsafe extern "C" fn os_nodetype(name: *const c_char) -> c_int {
             return NODE_NORMAL;
         }
         let guess = uv_guess_handle(fd);
-        let _ = _close(fd);
+        let _ = close(fd);
         match guess {
             UV_TTY => NODE_WRITABLE,
             UV_FILE => NODE_NORMAL,
@@ -770,14 +770,7 @@ pub unsafe extern "C" fn os_fopen(path: *const c_char, flags: *const c_char) -> 
         if fd < 0 {
             return ptr::null_mut();
         }
-        #[cfg(windows)]
-        {
-            _fdopen(fd, flags)
-        }
-        #[cfg(not(windows))]
-        {
-            fdopen(fd, flags)
-        }
+        fdopen(fd, flags)
     }
 }
 
@@ -845,9 +838,6 @@ pub unsafe extern "C" fn os_close(fd: c_int) -> c_int {
 pub unsafe extern "C" fn os_dup(fd: c_int) -> c_int {
     unsafe {
         loop {
-            #[cfg(windows)]
-            let ret = _dup(fd);
-            #[cfg(not(windows))]
             let ret = dup(fd);
 
             if ret < 0 {

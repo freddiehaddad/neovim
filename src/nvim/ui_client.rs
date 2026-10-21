@@ -3,7 +3,7 @@
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
 use crate::api::private::helpers::{
     OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, boolean_obj,
-    copy_array, cstr_as_string, cstr_as_obj, integer_obj,
+    copy_array, cstr_as_obj, cstr_as_string, integer_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -17,7 +17,7 @@ use crate::event::multiqueue::{
     multiqueue_put_event,
 };
 use crate::event::socket::socket_address_tcp_host_end;
-use crate::fileio::close_fd;
+use crate::fileio::close;
 #[cfg(not(windows))]
 use crate::fileio::dup;
 use crate::globals::*;
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn ui_client_start_server(
         }
 
         if ui_client_forward_stdin {
-            close_fd(0);
+            close(0);
             #[cfg(windows)]
             {
                 os_open_conin_fd();
@@ -152,11 +152,17 @@ pub unsafe extern "C" fn ui_client_attach(
         if !term.is_null() {
             put_opt(c"term_name".as_ptr(), cstr_as_obj(term));
         }
-        put_opt(c"term_colors".as_ptr(), integer_obj(Integer::from(t_colors)));
+        put_opt(
+            c"term_colors".as_ptr(),
+            integer_obj(Integer::from(t_colors)),
+        );
         put_opt(c"stdin_tty".as_ptr(), boolean_obj(stdin_isatty));
         put_opt(c"stdout_tty".as_ptr(), boolean_obj(stdout_isatty));
         if ui_client_forward_stdin {
-            put_opt(c"stdin_fd".as_ptr(), integer_obj(Integer::from(UI_CLIENT_STDIN_FD)));
+            put_opt(
+                c"stdin_fd".as_ptr(),
+                integer_obj(Integer::from(UI_CLIENT_STDIN_FD)),
+            );
             ui_client_forward_stdin = false;
         }
 

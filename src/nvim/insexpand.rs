@@ -120,7 +120,7 @@ use crate::spell::{
 };
 use crate::state::{MODE_INSERT, REPLACE_FLAG, may_trigger_modechanged, save_v_event_T};
 #[cfg(unix)]
-use crate::strings::strncasecmp;
+use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
@@ -337,7 +337,7 @@ unsafe fn strnicmp_impl(s1: *const c_char, s2: *const c_char, n: usize) -> c_int
     unsafe {
         #[cfg(unix)]
         {
-            strncasecmp(s1, s2, n)
+            vim_strnicmp(s1, s2, n)
         }
         #[cfg(windows)]
         {

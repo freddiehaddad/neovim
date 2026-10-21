@@ -54,8 +54,8 @@ use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
 use crate::ex_getln::get_list_range;
 use crate::extmark::extmark_splice;
 use crate::fileio::{
-    EINTR, FILE, READ_DUMMY, READ_NEW, c_fdopen, fclose, ferror, fgets, readfile,
-    shorten_buf_fname, shorten_fnames, vim_fgets, vim_tempname,
+    EINTR, FILE, READ_DUMMY, READ_NEW, fclose, fdopen, ferror, fgets, readfile, shorten_buf_fname,
+    shorten_fnames, vim_fgets, vim_tempname,
 };
 use crate::fold::{foldOpenCursor, foldUpdateAll};
 use crate::fuzzy::{FUZZY_MATCH_MAX_LEN, fuzzy_match};
@@ -117,8 +117,8 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    atoi, atol, c_strcpy, gettext, has_non_ascii, strcmp, strlen,
-    vim_snprintf, vim_snprintf_safelen, vim_strchr,
+    atoi, atol, c_strcpy, gettext, has_non_ascii, strcmp, strlen, vim_snprintf,
+    vim_snprintf_safelen, vim_strchr,
 };
 use crate::ui::ui_flush;
 use crate::undo::u_clearallandblockfree;
@@ -1327,7 +1327,7 @@ unsafe fn qf_setup_state(
 
         if !efile.is_null() {
             (*pstate).fd = if strequal(efile, c"-".as_ptr()) {
-                c_fdopen(os_open_stdin_fd(), c"r".as_ptr())
+                fdopen(os_open_stdin_fd(), c"r".as_ptr())
             } else {
                 os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
             };

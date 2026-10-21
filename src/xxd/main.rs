@@ -217,18 +217,15 @@ fn enable_color() -> bool {
         const ENABLE_VIRTUAL_TERMINAL_PROCESSING: u32 = 0x0004;
         unsafe extern "system" {
             fn GetStdHandle(nStdHandle: u32) -> *mut std::ffi::c_void;
-            #[link_name = "GetConsoleMode"]
-            fn xxd_get_console_mode(hConsoleHandle: *mut std::ffi::c_void, lpMode: *mut u32)
-            -> i32;
-            #[link_name = "SetConsoleMode"]
-            fn xxd_set_console_mode(hConsoleHandle: *mut std::ffi::c_void, dwMode: u32) -> i32;
+            fn GetConsoleMode(hConsoleHandle: *mut std::ffi::c_void, lpMode: *mut u32) -> i32;
+            fn SetConsoleMode(hConsoleHandle: *mut std::ffi::c_void, dwMode: u32) -> i32;
         }
         unsafe {
             let out = GetStdHandle(STD_OUTPUT_HANDLE);
             let mut mode: u32 = 0;
-            xxd_get_console_mode(out, &raw mut mode);
+            GetConsoleMode(out, &raw mut mode);
             mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-            xxd_set_console_mode(out, mode) != 0
+            SetConsoleMode(out, mode) != 0
         }
     }
     #[cfg(not(windows))]

@@ -3,12 +3,11 @@
 use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, buf_T};
 use crate::errors::*;
 use crate::event::r#loop::loop_recursive_ptr;
-use crate::fileio::{SEEK_END, SEEK_SET, close_fd, off_T, read_eintr, vim_lseek, write_eintr};
+use crate::fileio::{SEEK_END, SEEK_SET, close, off_T, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
 use crate::map::{
-    MH_TOMBSTONE, Map, map_del_int64_t_int64_t, map_del_int64_t_ptr_t,
-    map_put_ref_int64_t_int64_t, map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t,
-    mh_get_int64_t, ptr_t,
+    MH_TOMBSTONE, Map, map_del_int64_t_int64_t, map_del_int64_t_ptr_t, map_put_ref_int64_t_int64_t,
+    map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t, mh_get_int64_t, ptr_t,
 };
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
@@ -198,7 +197,7 @@ pub unsafe extern "C" fn mf_close(mfp: *mut memfile_T, del_file: bool) {
         return;
     }
     unsafe {
-        if (*mfp).mf_fd >= 0 && close_fd((*mfp).mf_fd) < 0 {
+        if (*mfp).mf_fd >= 0 && close((*mfp).mf_fd) < 0 {
             emsg(gettext(e_swapclose.as_ptr()));
         }
         if del_file && !(*mfp).mf_fname.is_null() {
@@ -234,7 +233,7 @@ pub unsafe extern "C" fn mf_close_file(buf: *mut buf_T, getlines: bool) {
             }
         }
 
-        if close_fd((*mfp).mf_fd) < 0 {
+        if close((*mfp).mf_fd) < 0 {
             emsg(gettext(e_swapclose.as_ptr()));
         }
         (*mfp).mf_fd = -1;
@@ -609,7 +608,7 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
 
                 if attempt == 1 {
                     if (*mfp).mf_fd >= 0 {
-                        let _ = close_fd((*mfp).mf_fd);
+                        let _ = close((*mfp).mf_fd);
                     }
                     {
                         (*mfp).mf_fd =

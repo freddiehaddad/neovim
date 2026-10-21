@@ -2,8 +2,8 @@
 
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_obj, cstr_as_string, static_cstr_as_string, cstr_to_string, dict_obj, integer_obj,
-    put_c, string_obj,
+    boolean_obj, cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, integer_obj, put_c,
+    static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
@@ -34,11 +34,9 @@ use crate::ex_docmd::{
     do_cmdline, do_cmdline_cmd, do_exedit, exarg_T, getline_cookie, getline_equal,
 };
 use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, report_make_pending};
-#[cfg(not(windows))]
-use crate::fileio::fdopen;
+use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
 #[cfg(windows)]
-use crate::fileio::{_fdopen, EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
-use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fgets};
+use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
 use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear, ga_clear_strings, ga_concat, ga_concat_len, ga_grow,
     ga_init, ga_remove_duplicate_strings, ga_set_growsize, garray_T,
@@ -52,8 +50,8 @@ use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
 };
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref_String_int, map_ref_String_int,
-    mh_get_String, mh_put_String,
+    MH_TOMBSTONE, MHPutStatus, Map, Set, map_put_ref_String_int, map_ref_String_int, mh_get_String,
+    mh_put_String,
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -2777,14 +2775,7 @@ unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
 
         os_set_cloexec(fd_tmp);
 
-        #[cfg(windows)]
-        {
-            _fdopen(fd_tmp, c"rb".as_ptr())
-        }
-        #[cfg(not(windows))]
-        {
-            fdopen(fd_tmp, c"rb".as_ptr())
-        }
+        fdopen(fd_tmp, c"rb".as_ptr())
     }
 }
 

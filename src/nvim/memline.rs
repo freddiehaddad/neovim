@@ -284,7 +284,7 @@ use crate::event::r#loop::uv_strerror;
 use crate::ex_docmd::{CMOD_NOSWAPFILE, FLUSH_TYPEAHEAD};
 #[cfg(unix)]
 use crate::fileio::readlink;
-use crate::fileio::{close_fd, vim_lseek};
+use crate::fileio::{close, vim_lseek};
 use crate::globals::IOSIZE;
 use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
@@ -483,7 +483,7 @@ pub unsafe extern "C" fn ml_setname(buf: *mut buf_T) {
                 break;
             }
             if (*mfp).mf_fd >= 0 {
-                close_fd((*mfp).mf_fd);
+                close((*mfp).mf_fd);
                 (*mfp).mf_fd = -1;
             }
 
@@ -1721,7 +1721,7 @@ pub unsafe extern "C" fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
             } else {
                 tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Cannot read file".as_ptr(), 16);
             }
-            close_fd(fd);
+            close(fd);
         } else {
             tv_dict_add_str_len(d, c"error".as_ptr(), 5, c"Cannot open file".as_ptr(), 16);
         }
@@ -1837,7 +1837,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
             } else {
                 sb_push_cstr(msg, tr(c"         [cannot be read]"));
             }
-            close_fd(fd);
+            close(fd);
         } else {
             sb_push_cstr(msg, tr(c"         [cannot be opened]"));
         }
@@ -1860,7 +1860,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
         if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
             != size_of::<ZeroBlock>() as isize
         {
-            close_fd(fd);
+            close(fd);
             return false;
         }
 
@@ -1891,7 +1891,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
         {
             ret = false;
         }
-        close_fd(fd);
+        close(fd);
         ret
     }
 }
@@ -3688,7 +3688,7 @@ unsafe fn findswapname(
                             }
                         }
                     }
-                    close_fd(fd);
+                    close(fd);
                 }
 
                 if !differ

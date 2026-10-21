@@ -141,7 +141,7 @@ unsafe extern "system" {
 #[cfg(windows)]
 use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 #[cfg(windows)]
-use crate::fileio::{_close, _get_osfhandle, _open_osfhandle, O_RDONLY};
+use crate::fileio::{_get_osfhandle, _open_osfhandle, O_RDONLY, close};
 #[cfg(windows)]
 use crate::os::fs::MAXPATHL;
 
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn os_clear_hwnd() {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_redirect_stdin_to_conin() {
     unsafe {
-        _close(STDIN_FILENO);
+        close(STDIN_FILENO);
         let conin_fd = os_open_conin_fd();
         assert_eq!(conin_fd, STDIN_FILENO);
     }
@@ -208,10 +208,10 @@ pub unsafe extern "C" fn os_redirect_stdout_stderr_to_conout() {
             std::ptr::null_mut(),
         );
         assert_ne!(conout_handle, INVALID_HANDLE_VALUE);
-        _close(STDOUT_FILENO);
+        close(STDOUT_FILENO);
         let conout_fd = _open_osfhandle(conout_handle as isize, 0);
         assert_eq!(conout_fd, STDOUT_FILENO);
-        _close(STDERR_FILENO);
+        close(STDERR_FILENO);
         let conerr_fd = _open_osfhandle(conout_handle as isize, 0);
         assert_eq!(conerr_fd, STDERR_FILENO);
     }

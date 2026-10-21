@@ -29,8 +29,8 @@ use crate::file_search::{
 #[cfg(not(windows))]
 use crate::fileio::readlink;
 use crate::fileio::{
-    FILE, SEEK_END, SEEK_SET, c_fileno, delete_recursive, fclose, file_pat_to_reg_pat, fread,
-    off_T, readdir_core, vim_copyfile, vim_fseek, vim_rename, vim_tempname,
+    FILE, SEEK_END, SEEK_SET, delete_recursive, fclose, file_pat_to_reg_pat, fileno, fread, off_T,
+    readdir_core, vim_copyfile, vim_fseek, vim_rename, vim_tempname,
 };
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -1572,7 +1572,7 @@ unsafe fn read_blob(
     unsafe {
         let blob = (*rettv).vval.v_blob;
         let mut file_info = FileInfo::default();
-        if !os_fileinfo_fd(c_fileno(fd), &raw mut file_info) {
+        if !os_fileinfo_fd(fileno(fd), &raw mut file_info) {
             return FAIL; // can't read the file, error
         }
 
