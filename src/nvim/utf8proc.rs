@@ -104,7 +104,6 @@ impl utf8proc_property_t {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 const fn p(
     category: i16,
     combining_class: i16,
