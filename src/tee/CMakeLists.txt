@@ -11,7 +11,7 @@ add_custom_command(
   OUTPUT "${TEE_OUT_BIN}"
   COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
   COMMAND ${CMAKE_COMMAND} -E copy "${TEE_CARGO_BIN}" "${TEE_OUT_BIN}"
-  DEPENDS "${TEE_CARGO_BIN}" nvim_rs_build "${PROJECT_SOURCE_DIR}/src/tee/main.rs")
+  DEPENDS nvim_rs_build "${PROJECT_SOURCE_DIR}/src/tee/main.rs")
 
 add_custom_target(tee ALL DEPENDS "${TEE_OUT_BIN}")
 

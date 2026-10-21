@@ -11,7 +11,7 @@ macro(add_rust_fixture_bin target_name cargo_bin_name src_file)
     OUTPUT "${_out_bin}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
     COMMAND ${CMAKE_COMMAND} -E copy "${_cargo_bin}" "${_out_bin}"
-    DEPENDS "${_cargo_bin}" nvim_rs_build "${CMAKE_CURRENT_LIST_DIR}/${src_file}")
+    DEPENDS nvim_rs_build "${CMAKE_CURRENT_LIST_DIR}/${src_file}")
   add_custom_target(${target_name} DEPENDS "${_out_bin}")
 endmacro()
 
