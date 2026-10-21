@@ -1,7 +1,5 @@
 //! Code related to character sets (`src/nvim/charset.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::buffer::buf_T;
 use crate::cursor::get_cursor_line_ptr;
 use crate::garray::{ga_grow, ga_init, garray_T};
@@ -1003,7 +1001,7 @@ pub unsafe extern "C" fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: 
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
-    let number = unsafe { getdigits(pp, strict, i64::from(def)) };
+    let number = unsafe { getdigits(pp, strict, def as _) };
     match c_long::try_from(number) {
         Ok(v) => v,
         Err(_) => {

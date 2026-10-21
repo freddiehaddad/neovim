@@ -1,7 +1,5 @@
 //! Text formatting functions (`src/nvim/textformat.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::change::{
     COM_END, COM_FIRST, COM_MIDDLE, COM_START, OPENLINE_COM_LIST, OPENLINE_DELSPACES,
     OPENLINE_DO_COM, OPENLINE_FORMAT, OPENLINE_KEEPTRAIL, OPENLINE_MARKFIX, del_bytes, del_char,
@@ -869,7 +867,7 @@ pub unsafe extern "C" fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> 
         let save_sctx = current_sctx;
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
-        set_vim_var_nr(VV_COUNT, i64::from(count));
+        set_vim_var_nr(VV_COUNT, count as _);
         set_vim_var_char(c);
 
         current_sctx = (*curbuf).b_p_script_ctx[kBufOptFormatexpr];

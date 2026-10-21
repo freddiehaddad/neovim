@@ -1,7 +1,5 @@
 //! Command API functions (`src/nvim/api/command.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::dispatch::{
     KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
@@ -750,7 +748,7 @@ pub unsafe extern "C" fn nvim_cmd(
                         if *endptr == 0 && first_arg.data.string.size > 0 {
                             is_numeric = true;
                             {
-                                count_value = i64::from(val);
+                                count_value = val as _;
                             }
                         }
                     }

@@ -1,7 +1,5 @@
 //! Buffer line storage and swapfile recovery (`src/nvim/memline.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::api::private::helpers::{HLF_E, cstr_as_string};
 use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
 use crate::autocmd::{
@@ -1067,7 +1065,7 @@ pub unsafe extern "C" fn ml_recover(checkext: bool) {
             && os_fileinfo((*curbuf).b_ffname, &raw mut org_file_info)
             && ((os_fileinfo((*mfp).mf_fname, &raw mut swp_file_info)
                 && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
-                || i64::from(org_file_info.stat.st_mtim.tv_sec) != mtime)
+                || mtime != org_file_info.stat.st_mtim.tv_sec as _)
         {
             emsg(tr(c"E308: Warning: Original file may have been changed"));
         }
@@ -1790,7 +1788,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
             {
                 sb_push_cstr(msg, tr(c"             dated: "));
             }
-            x = i64::from(file_info.stat.st_mtim.tv_sec);
+            x = file_info.stat.st_mtim.tv_sec as _;
             let mut ctime_buf = [0 as c_char; 100];
             let ct = os_ctime_r(
                 &raw const x,
@@ -1991,8 +1989,8 @@ pub unsafe extern "C" fn ml_sync_all(check_file: c_int, check_char: c_int, do_fs
             {
                 let mut file_info = FileInfo::default();
                 if !os_fileinfo((*buf).b_ffname, &raw mut file_info)
-                    || i64::from(file_info.stat.st_mtim.tv_sec) != (*buf).b_mtime_read
-                    || i64::from(file_info.stat.st_mtim.tv_nsec) != (*buf).b_mtime_read_ns
+                    || (*buf).b_mtime_read != file_info.stat.st_mtim.tv_sec as _
+                    || (*buf).b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
                     || os_fileinfo_size(&raw const file_info) != (*buf).b_orig_size
                 {
                     ml_preserve(buf, false, do_fsync);
@@ -3566,7 +3564,7 @@ unsafe fn attention_message(
             sb_push_cstr(msg, tr(c"      CANNOT BE FOUND"));
         } else {
             sb_push_cstr(msg, tr(c"             dated: "));
-            let x: time_t = i64::from(file_info.stat.st_mtim.tv_sec);
+            let x: time_t = file_info.stat.st_mtim.tv_sec as _;
             let mut ctime_buf = [0 as c_char; 50];
             let ct = os_ctime_r(
                 &raw const x,

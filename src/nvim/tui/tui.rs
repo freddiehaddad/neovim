@@ -1,7 +1,5 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
-#![allow(clippy::unnecessary_cast)]
-
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, arena_array, array_obj, boolean_obj, cstr_as_obj, dict_obj,
     static_cstr_as_obj, static_cstr_as_string, string_obj,
@@ -3226,7 +3224,7 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
 
         if !(*tui).screenshot.is_null() {
             for b in &bufs {
-                fwrite(b.base.cast(), b.len as usize, 1, (*tui).screenshot);
+                fwrite(b.base.cast(), b.len as _, 1, (*tui).screenshot);
             }
         } else {
             let mut nbufs = bufs.len();

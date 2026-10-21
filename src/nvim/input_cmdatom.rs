@@ -1,7 +1,5 @@
 //! Input engine command-atom policy layer (`src/nvim/input_cmdatom.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, array_obj, boolean_obj, cstr_as_obj, cstr_to_obj,
     cstr_to_string, dict_obj, integer_obj,
@@ -717,7 +715,7 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
             xfree(cmd.cast());
         }
         if spec.count > 0 {
-            dict_put(&mut d, c"count", integer_obj(i64::from(spec.count)));
+            dict_put(&mut d, c"count", integer_obj(spec.count as _));
         }
         if (*atom).origin.pos.lnum > 0 {
             dict_put(&mut d, c"moved", boolean_obj((*atom).moved));

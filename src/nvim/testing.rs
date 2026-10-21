@@ -1,7 +1,5 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
@@ -782,7 +780,7 @@ pub unsafe extern "C" fn f_assert_fails(
                         c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
                     valid_args = false;
                 } else if arg3.vval.v_number >= 0 && {
-                    let expected = i64::from(emsg_assert_fails_lnum);
+                    let expected: i64 = emsg_assert_fails_lnum as _;
                     arg3.vval.v_number != expected
                 } {
                     error_found = true;
@@ -820,7 +818,7 @@ pub unsafe extern "C" fn f_assert_fails(
                 if error_found_index == 3 {
                     actual_tv.v_type = VarType::VAR_NUMBER;
                     {
-                        actual_tv.vval.v_number = i64::from(emsg_assert_fails_lnum);
+                        actual_tv.vval.v_number = emsg_assert_fails_lnum as _;
                     }
                 } else if error_found_index == 4 {
                     actual_tv.v_type = VarType::VAR_STRING;

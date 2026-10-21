@@ -1,7 +1,5 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::buffer::{buf_T, buf_get_changedtick, kUIMessages};
 use crate::change::{TAB, get_leader_len};
@@ -1193,7 +1191,7 @@ pub unsafe extern "C" fn parse_search_pattern_offset(
         if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
                 {
-                    (*offset).off = i64::from(atol(p));
+                    (*offset).off = atol(p) as _;
                 }
             } else if *p == b'-' as c_char {
                 (*offset).off = -1;

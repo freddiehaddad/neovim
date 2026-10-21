@@ -1,7 +1,5 @@
 //! File reading, encoding conversion, timestamp checking, and temp files (`src/nvim/fileio.c`).
 
-#![allow(clippy::useless_conversion)]
-
 use crate::api::private::helpers::{HLF_E, cstr_as_obj};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFNEW, EVENT_BUFNEWFILE, EVENT_BUFREADCMD,
@@ -2765,8 +2763,8 @@ pub unsafe extern "C" fn time_differs(
     mtime_ns: i64,
 ) -> bool {
     unsafe {
-        let sec = i64::from((*file_info).stat.st_mtim.tv_sec);
-        let nsec = i64::from((*file_info).stat.st_mtim.tv_nsec);
+        let sec: i64 = (*file_info).stat.st_mtim.tv_sec as _;
+        let nsec: i64 = (*file_info).stat.st_mtim.tv_nsec as _;
         #[cfg(any(target_os = "linux", windows))]
         {
             nsec != mtime_ns || sec - mtime > 1 || mtime - sec > 1
@@ -3794,8 +3792,8 @@ pub unsafe extern "C" fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_op
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo) {
     unsafe {
-        (*buf).b_mtime = i64::from((*file_info).stat.st_mtim.tv_sec);
-        (*buf).b_mtime_ns = i64::from((*file_info).stat.st_mtim.tv_nsec);
+        (*buf).b_mtime = (*file_info).stat.st_mtim.tv_sec as _;
+        (*buf).b_mtime_ns = (*file_info).stat.st_mtim.tv_nsec as _;
         (*buf).b_orig_size = os_fileinfo_size(file_info);
         (*buf).b_orig_mode = (*file_info).stat.st_mode as c_int;
     }
