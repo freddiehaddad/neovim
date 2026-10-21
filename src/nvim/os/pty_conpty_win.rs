@@ -1,13 +1,5 @@
 //! Windows ConPTY pseudo-console support (`src/nvim/os/pty_conpty_win.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::upper_case_acronyms
-)]
-
 #[cfg(windows)]
 use crate::event::r#loop::{uv_dlclose, uv_dlopen, uv_dlsym, uv_translate_sys_error};
 #[cfg(windows)]

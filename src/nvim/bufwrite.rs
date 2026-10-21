@@ -1,13 +1,5 @@
 //! Buffer file writing, encoding conversion, and backup management (`src/nvim/bufwrite.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::autocmd::{
     EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
     EVENT_FILEAPPENDPOST, EVENT_FILEAPPENDPRE, EVENT_FILEWRITECMD, EVENT_FILEWRITEPOST,

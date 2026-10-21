@@ -1,13 +1,5 @@
 //! Functions for managing registers (`src/nvim/register.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{api_clear_string, cbuf_as_string, cbuf_to_string};
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{
@@ -96,7 +88,6 @@ use std::ptr;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum MotionType {
     kMTUnknown = -1,
     kMTCharWise = 0,
@@ -106,7 +97,6 @@ pub enum MotionType {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
 pub struct yankreg_T {
     pub y_array: *mut NvimString,
     pub y_size: usize,

@@ -14,7 +14,6 @@ pub struct NvimString {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum ErrorType {
     kErrorTypeNone = -1,
     kErrorTypeException = 0,
@@ -30,7 +29,6 @@ pub struct Error {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum ObjectType {
     kObjectTypeNil = 0,
     kObjectTypeBoolean = 1,
@@ -272,7 +270,6 @@ pub unsafe extern "C" fn check_string_array(
 }
 
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn api_err_range(err: *mut Error, name: *const c_char) {
     unsafe {
         api_err_invalid(err, name, c"out of range".as_ptr(), 0, false);

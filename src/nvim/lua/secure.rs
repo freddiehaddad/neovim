@@ -1,7 +1,5 @@
 //! Secure file reading and `:trust` command (`src/nvim/lua/secure.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::charset::{skiptowhite, skipwhite};
 use crate::lua::converter::{
     LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,

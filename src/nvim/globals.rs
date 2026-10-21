@@ -1,5 +1,4 @@
 //! Global variables (`src/nvim/globals.h`).
-#![allow(non_upper_case_globals)]
 
 use crate::highlight::{HLF_COUNT, RgbValue};
 use std::ffi::{c_char, c_int, c_long};

@@ -1,7 +1,5 @@
 //! Vimscript debugger (`src/nvim/debugger.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::charset::{getdigits_int32, skipwhite};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::eval::typval::{Callback, tv_free, typval_T};

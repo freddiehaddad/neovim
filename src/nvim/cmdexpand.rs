@@ -1,13 +1,5 @@
 //! Functions for command-line completion (`src/nvim/cmdexpand.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::command::is_user_cmdidx;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, cstr_as_string, cstrn_to_string,

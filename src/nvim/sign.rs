@@ -1,13 +1,5 @@
 //! Functions for managing signs (`src/nvim/sign.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::extmark::{describe_ns, nvim_create_namespace};
 use crate::api::private::helpers::cstr_as_string;
 use crate::api::private::validate::NvimString;

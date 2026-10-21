@@ -1,14 +1,5 @@
 //! ShaDa (Shared Data) file reader and writer (`src/nvim/shada.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::enum_variant_names,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::extmark::set_has_ptr;
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,

@@ -6,7 +6,6 @@ const UNICODE_INVALID: u32 = 0xFFFD;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum VTermEncodingType {
     ENC_UTF8 = 0,
     ENC_SINGLE_94 = 1,

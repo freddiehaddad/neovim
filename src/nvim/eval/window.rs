@@ -1,13 +1,5 @@
 //! Window related builtin functions (`src/nvim/eval/window.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
 use crate::charset::{NUL, getdigits_int};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};

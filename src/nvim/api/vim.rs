@@ -1,16 +1,5 @@
 //! Global Neovim API functions (`src/nvim/api/vim.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::buffer::{
     INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded,
     nvim_buf_del_keymap,
@@ -2555,23 +2544,23 @@ pub unsafe extern "C" fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err
 ///    - "buf"      (optional) Buffer connected to |terminal| instance.
 ///    - "buffer"   (optional) Deprecated alias for `buf`.
 ///    - "client"   (optional) Info about the peer (client on the other end of the channel), as set
-///                 by |nvim_set_client_info()|.
+///      by |nvim_set_client_info()|.
 ///    - "detach"   (optional) Closing the |RPC| channel does not exit Nvim. |nvim_chan_set()|
 ///    - "exitcode" (optional) Exit code of the |terminal| process.
 ///    - "id"       Channel id.
 ///    - "internal" (optional) In-process channel (stream=socket).
 ///    - "mode"     How data received on the channel is interpreted.
-///         - "bytes"      Send and receive raw bytes.
-///         - "terminal"   |terminal| instance interprets ASCII sequences.
-///         - "rpc"        |RPC| communication on the channel is active.
+///      - "bytes"      Send and receive raw bytes.
+///      - "terminal"   |terminal| instance interprets ASCII sequences.
+///      - "rpc"        |RPC| communication on the channel is active.
 ///    - "pty"      (optional) Name of pseudoterminal. On a POSIX system this is a device path like
-///                 "/dev/pts/1". If unknown, the key will still be present if a pty is used (e.g.
-///                 for conpty on Windows).
+///      "/dev/pts/1". If unknown, the key will still be present if a pty is used (e.g.
+///      for conpty on Windows).
 ///    - "stream"   Stream underlying the channel.
-///         - "stdio"      stdin and stdout of this Nvim instance
-///         - "stderr"     stderr of this Nvim instance
-///         - "socket"     TCP/IP socket or named pipe
-///         - "job"        Job with communication over its stdio.
+///      - "stdio"      stdin and stdout of this Nvim instance
+///      - "stderr"     stderr of this Nvim instance
+///      - "socket"     TCP/IP socket or named pipe
+///      - "job"        Job with communication over its stdio.
 // DLLEXPORT Dict nvim_get_chan_info(uint64_t channel_id, Integer chan, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(4);
 #[unsafe(no_mangle)]

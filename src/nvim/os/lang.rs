@@ -1,12 +1,5 @@
 //! Locale and message language management (`src/nvim/os/lang.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::buffer::maketitle;
 use crate::charset::{
     buf_init_isk_chartab, init_isf_chartab, init_isi_chartab, skiptowhite, skipwhite,

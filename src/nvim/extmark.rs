@@ -1,13 +1,5 @@
 //! Extended marks for plugins (`src/nvim/extmark.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::validate::Error;
 use crate::buffer::{MAXLNUM, buf_T, kExtmarkNoUndo};
 use crate::buffer_updates::buf_updates_send_splice;

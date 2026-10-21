@@ -1,13 +1,5 @@
 //! Path manipulation, comparison, canonicalization, and wildcard expansion (`src/nvim/path.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::validate::NvimString;
 use crate::charset::{NUL, backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
 use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE, globpath};

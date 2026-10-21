@@ -1,13 +1,5 @@
 //! Code for reading and writing spell files (`src/nvim/spellfile.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::cstr_as_obj;
 use crate::arglist::get_arglist_exp;
 use crate::buffer::{buf_T, buflist_findname_exp};

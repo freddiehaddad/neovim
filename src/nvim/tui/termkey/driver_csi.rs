@@ -1,13 +1,5 @@
 //! CSI / SS3 / DCS / OSC / APC driver for libtermkey (`src/nvim/tui/termkey/driver-csi.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::needless_range_loop
-)]
-
 use std::ffi::{c_char, c_int, c_uchar, c_uint, c_void};
 
 use crate::memory::{xfree, xmalloc};
@@ -799,7 +791,7 @@ unsafe fn register_keys() -> c_int {
             SS3_KPALTS[i] = 0;
         }
         for i in 0..NCSIFUNCS {
-            CSIFUNCS[i].sym = TERMKEY_SYM_UNKNOWN;
+            (*(&raw mut CSIFUNCS).cast::<keyinfo>().add(i)).sym = TERMKEY_SYM_UNKNOWN;
         }
 
         register_csi_ss3(TERMKEY_TYPE_KEYSYM, TERMKEY_SYM_UP, b'A');

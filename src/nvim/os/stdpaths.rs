@@ -27,7 +27,6 @@ const PATHSEP_BYTE: u8 = b'/';
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum XDGVarType {
     kXDGNone = -1,
     kXDGConfigHome = 0,

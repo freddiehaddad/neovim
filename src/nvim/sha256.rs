@@ -97,7 +97,6 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub struct context_sha256_T {
     pub total: [u32; 2],
     pub state: [u32; 8],

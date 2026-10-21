@@ -1,13 +1,6 @@
 //! Buffer line storage and swapfile recovery (`src/nvim/memline.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::useless_conversion
-)]
+#![allow(clippy::useless_conversion)]
 
 use crate::api::private::helpers::{HLF_E, cstr_as_string};
 use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};

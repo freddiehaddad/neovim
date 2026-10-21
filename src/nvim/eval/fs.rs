@@ -1,13 +1,5 @@
 //! Filesystem related builtin functions (`src/nvim/eval/fs.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handle};
 use crate::api::private::validate::{Error, ErrorType};
 use crate::buffer::buf_T;

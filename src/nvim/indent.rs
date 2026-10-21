@@ -1,13 +1,5 @@
 //! Indentation and tabstop functions (`src/nvim/indent.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::buffer::{buf_T, buf_get_changedtick, modifiable};
 use crate::change::{

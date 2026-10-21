@@ -1,13 +1,5 @@
 //! Functions for displaying messages on the command line (`src/nvim/message.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     HLF_E, HlMessageChunk, api_free_array, copy_string, cstr_as_string, cstr_to_string,
     ga_take_string,

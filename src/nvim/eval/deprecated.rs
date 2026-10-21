@@ -1,7 +1,5 @@
 //! Deprecated Vimscript evaluation functions (`src/nvim/eval/deprecated.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};

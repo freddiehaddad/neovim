@@ -1,13 +1,5 @@
 //! Functions for text objects (`src/nvim/textobject.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::{NUL, ascii_iswhite, skipwhite};
 use crate::cursor::{
     clearpos, coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,

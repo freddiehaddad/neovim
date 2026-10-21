@@ -1,13 +1,5 @@
 //! Main entry point, CLI argument parsing, startup, and shutdown (`src/nvim/main.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     api_free_object, api_metadata_raw, bool_obj, cstr_as_string, cstr_obj, int_obj,
 };

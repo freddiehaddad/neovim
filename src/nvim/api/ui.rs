@@ -1,16 +1,5 @@
 //! Remote UI API and msgpack redraw packing (`src/nvim/api/ui.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, api_typename, arena_array, arena_dict, arr_obj, bool_obj,
     cstr_as_string, dict_obj, error_set, int_obj, str_obj, string_to_cstr, win_obj,

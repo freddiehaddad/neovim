@@ -1,13 +1,5 @@
 //! MessagePack core, object parser, RPC session, and Lua bindings (`src/mpack/`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 pub mod conv;
 pub mod lmpack;
 pub mod mpack_core;

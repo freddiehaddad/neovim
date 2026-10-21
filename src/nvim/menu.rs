@@ -1,13 +1,5 @@
 //! Code for menus, used for the GUI and `'wildmenu'` (`src/nvim/menu.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
 use crate::charset::{Ctrl_V, ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::cursor::{check_cursor, gchar_cursor, pos_T};

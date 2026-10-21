@@ -1,11 +1,4 @@
 //! C-indentation functions (`src/nvim/indent_c.c`).
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
 use crate::buffer::{MAXLNUM, buf_T};
 use crate::change::{
     COM_END, COM_LEFT, COM_MAX_LEN, COM_MIDDLE, COM_RIGHT, COM_START, KEY_OPEN_BACK, KEY_OPEN_FORW,

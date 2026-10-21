@@ -1,12 +1,5 @@
 //! Lua `vim.diff` bindings (`src/nvim/lua/xdiff.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};

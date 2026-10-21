@@ -1,12 +1,5 @@
 //! Low-level libuv stream wrapper (`src/nvim/event/stream.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::event::r#loop::{
     Loop, UV_RUN_NOWAIT, uv_close, uv_guess_handle, uv_handle_size, uv_handle_t, uv_is_closing,
     uv_loop_close, uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open, uv_run,

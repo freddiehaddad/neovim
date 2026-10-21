@@ -10,7 +10,6 @@ use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
 pub type Timestamp = u64;
-#[allow(non_camel_case_types)]
 pub type time_t = i64;
 
 pub const NS_PER_SEC: i64 = 1_000_000_000;

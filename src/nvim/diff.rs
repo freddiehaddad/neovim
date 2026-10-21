@@ -1,11 +1,4 @@
 //! Diff mode functions (`src/nvim/diff.c`).
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{

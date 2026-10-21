@@ -1,12 +1,5 @@
 //! VTerm screen buffer and damage management (`src/nvim/vterm/screen.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 

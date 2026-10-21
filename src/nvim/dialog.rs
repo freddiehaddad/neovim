@@ -1,7 +1,5 @@
 //! User prompts and console dialogs (`yes`/`no`, number, `confirm()`) (`src/nvim/dialog.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::cmdexpand::EXPAND_NOTHING;
 use crate::eval::typval::Callback;
 use crate::ex_cmds::HLF_R;

@@ -1,12 +1,5 @@
 //! Nvim's own UI client, which attaches to a child or remote Nvim server (`src/nvim/ui_client.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
 use crate::api::private::helpers::{
     OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, bool_obj,

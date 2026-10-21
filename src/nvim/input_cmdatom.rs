@@ -1,13 +1,6 @@
 //! Input engine command-atom policy layer (`src/nvim/input_cmdatom.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::useless_conversion
-)]
+#![allow(clippy::useless_conversion)]
 
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, array_obj, boolean_obj, cstr_as_obj, cstr_to_obj,

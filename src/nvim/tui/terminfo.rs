@@ -1,13 +1,5 @@
 //! Built-in fallback terminfo entries and database loader (`src/nvim/tui/terminfo.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::upper_case_acronyms
-)]
-
 use crate::api::private::validate::NvimString;
 use crate::charset::{NUL, kv_transstr};
 use crate::kvec::{KVec, StringBuilder};

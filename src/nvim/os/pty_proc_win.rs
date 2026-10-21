@@ -1,13 +1,5 @@
 //! Windows PTY process spawning (`src/nvim/os/pty_proc_win.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::upper_case_acronyms
-)]
-
 #[cfg(windows)]
 use crate::eval::typval::{dict_T, tv_dict_to_env};
 #[cfg(windows)]

@@ -1,12 +1,5 @@
 //! VTerm terminal state machine (`src/nvim/vterm/state.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::grid::{schar_T, schar_from_ascii, schar_from_buf};
 use crate::mbyte::{utf_ClusterInfo_len, utf_char2bytes, utf_iscomposing, utf_ptr2StrCharInfo_len};
 use crate::regexp::GRAPHEME_STATE_INIT;

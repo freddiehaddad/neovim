@@ -1,5 +1,3 @@
-#![allow(clippy::module_inception)]
-
 pub mod encoding;
 pub mod keyboard;
 pub mod mouse;

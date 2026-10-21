@@ -1,11 +1,6 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc,
-    clippy::useless_conversion
-)]
+#![allow(clippy::useless_conversion)]
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};

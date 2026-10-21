@@ -1,12 +1,5 @@
 //! Lua standard library and internal `vim.*` C bindings (`src/nvim/lua/stdlib.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::{
     TryState, api_clear_error, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
     find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,

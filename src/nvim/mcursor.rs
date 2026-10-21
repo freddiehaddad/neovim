@@ -1,13 +1,5 @@
 //! Multicursor tracking, preview, and cascade replay (`src/nvim/mcursor.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::buffer::{LUA_INTERNAL_CALL, nvim_buf_set_text};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{

@@ -1,13 +1,5 @@
 //! Vimscript expression lexer and parser (`src/nvim/viml/parser/expressions.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, uvarnumber_T, vim_str2nr,
 };

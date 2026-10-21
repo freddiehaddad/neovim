@@ -1,12 +1,5 @@
 //! Msgpack-RPC channel transport and request/response dispatch (`src/nvim/msgpack_rpc/channel.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
     NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict, cstr_as_string,

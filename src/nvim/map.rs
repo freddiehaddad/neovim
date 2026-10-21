@@ -1,7 +1,5 @@
 //! Hash maps and sets (`src/nvim/map.c`, `src/nvim/map_key_impl.c.h`, `src/nvim/map_value_impl.c.h`).
 
-#![allow(clippy::missing_safety_doc)]
-
 use crate::api::private::validate::NvimString;
 use crate::memory::{xcalloc, xfree, xrealloc};
 use crate::os::fs::{CASE_INSENSITIVE_FILENAME, MAXPATHL};
@@ -13,7 +11,6 @@ pub const MH_TOMBSTONE: u32 = u32::MAX;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum MHPutStatus {
     kMHExisting = 0,
     kMHNewKeyDidFit = 1,
@@ -32,11 +29,8 @@ pub struct MapHash {
     pub hash: *mut u32,
 }
 
-#[allow(non_camel_case_types)]
 pub type cstr_t = *const c_char;
-#[allow(non_camel_case_types)]
 pub type path_t = *const c_char;
-#[allow(non_camel_case_types)]
 pub type ptr_t = *mut c_void;
 
 #[repr(C)]
@@ -446,25 +440,21 @@ unsafe fn set_delete<K: Copy>(
 macro_rules! impl_c_set {
     ($K:ty, $find_fn:ident, $get_fn:ident, $rehash_fn:ident, $put_fn:ident, $del_fn:ident, $hash_fn:expr, $eq_fn:expr) => {
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $find_fn(set: *mut Set<$K>, key: $K, put: bool) -> u32 {
             unsafe { set_find_bucket(&mut *set, key, put, $hash_fn, $eq_fn) }
         }
 
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $get_fn(set: *mut Set<$K>, key: $K) -> u32 {
             unsafe { set_get(&mut *set, key, $hash_fn, $eq_fn) }
         }
 
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $rehash_fn(set: *mut Set<$K>) {
             unsafe { set_rehash(&mut *set, $hash_fn, $eq_fn) }
         }
 
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $put_fn(
             set: *mut Set<$K>,
             key: $K,
@@ -474,7 +464,6 @@ macro_rules! impl_c_set {
         }
 
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $del_fn(set: *mut Set<$K>, key: *mut $K) -> u32 {
             unsafe { set_delete(&mut *set, key, $hash_fn, $eq_fn) }
         }
@@ -484,7 +473,6 @@ macro_rules! impl_c_set {
 macro_rules! impl_c_map {
     ($K:ty, $V:ty, $get_set_fn:ident, $put_set_fn:ident, $del_set_fn:ident, $ref_fn:ident, $put_ref_fn:ident, $del_fn:ident, $init_val:expr) => {
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $ref_fn(
             map: *mut Map<$K, $V>,
             key: $K,
@@ -504,7 +492,6 @@ macro_rules! impl_c_map {
         }
 
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $put_ref_fn(
             map: *mut Map<$K, $V>,
             key: $K,
@@ -542,7 +529,6 @@ macro_rules! impl_c_map {
         }
 
         #[unsafe(no_mangle)]
-        #[allow(clippy::missing_safety_doc)]
         pub unsafe extern "C" fn $del_fn(
             map: *mut Map<$K, $V>,
             mut key: $K,

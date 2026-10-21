@@ -1,13 +1,5 @@
 //! Ex command-line evaluation, conditionals, loops, and exception handling (`src/nvim/ex_eval.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::{ascii_isdigit, skipwhite};
 use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;

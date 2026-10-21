@@ -1,12 +1,5 @@
 //! Environment variable inspection and path expansion (`src/nvim/os/env.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::validate::NvimString;
 use crate::buffer::buf_T;
 use crate::charset::skipwhite;

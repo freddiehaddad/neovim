@@ -1,7 +1,5 @@
 //! Command-line history (`src/nvim/cmdhist.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::charset::vim_strsize;
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,

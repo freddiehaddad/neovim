@@ -1,14 +1,6 @@
 //! Functions for drawing window lines on the screen (`src/nvim/drawline.c`).
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::vim::{
     HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX, STL_FOLDCOL, STL_SIGNCOL,
 };

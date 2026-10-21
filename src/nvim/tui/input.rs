@@ -1,12 +1,5 @@
 //! Terminal input stream and key event handling (`src/nvim/tui/input.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
 use crate::api::private::validate::{Array, NvimString};
 use crate::event::r#loop::{

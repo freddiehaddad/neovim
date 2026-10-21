@@ -1,12 +1,5 @@
 //! Lua bindings for Tree-sitter (`src/nvim/lua/treesitter.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::buffer::buf_T;
 use crate::charset::NUL;
 use crate::context::handle_get_buffer;

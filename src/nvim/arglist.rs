@@ -1,13 +1,5 @@
 //! Functions for dealing with the argument list (`src/nvim/arglist.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::{
     BLN_CURBUF, BLN_LISTED, buf_hide, buf_is_empty, buf_set_name, buflist_add, buflist_findnr,
     bufref_T, bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,

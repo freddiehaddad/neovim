@@ -1,12 +1,5 @@
 //! Readable libuv stream wrapper (`src/nvim/event/rstream.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::event::r#loop::{
     Loop, uv_err_name, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop,
     uv_handle_get_type, uv_handle_t, uv_strerror,

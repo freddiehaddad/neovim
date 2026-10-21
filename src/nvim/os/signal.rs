@@ -1,12 +1,5 @@
 //! OS signal handling (`src/nvim/os/signal.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::autocmd::{EVENT_SIGNAL, apply_autocmds};
 use crate::eval::vars::{VV_DYING, set_vim_var_nr};
 use crate::event::signal::{

@@ -1,12 +1,5 @@
 //! Version information, patch checks, and `:version` / `:intro` commands (`src/nvim/version.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::api::win_config::kUIMultigrid;

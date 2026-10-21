@@ -1,13 +1,5 @@
 //! Lua CJSON module (`src/cjson/`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 pub mod fpconv;
 pub mod lua_cjson;
 pub mod strbuf;

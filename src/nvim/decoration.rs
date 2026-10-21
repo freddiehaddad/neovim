@@ -1,13 +1,5 @@
 //! Buffer decorations, virtual text/lines, and sign/highlight range state (`src/nvim/decoration.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::NUL;
 
 use crate::api::extmark::{ns_in_win, virt_text_to_array};

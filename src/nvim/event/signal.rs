@@ -1,12 +1,5 @@
 //! Signal watcher wrapper around libuv `uv_signal_t` (`src/nvim/event/signal.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::event::r#loop::{
     Loop, UV_SIGNAL, uv_close, uv_handle_size, uv_handle_t, uv_signal_init, uv_signal_start,
     uv_signal_stop, uv_signal_t,

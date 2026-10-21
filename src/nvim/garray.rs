@@ -7,7 +7,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
 pub struct garray_T {
     pub ga_len: c_int,
     pub ga_maxlen: c_int,

@@ -1,14 +1,6 @@
 //! B-tree data structure for storing marks at `(row, col)` positions and updating them
 //! to arbitrary text changes (`src/nvim/marktree.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Write as _;
 

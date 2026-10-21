@@ -1,14 +1,5 @@
 //! Autocommand registration, matching, and execution (`src/nvim/autocmd.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
     HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
@@ -1527,8 +1518,8 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
         _ => (0, 0),
     };
 
-    for i in low..high {
-        let ev = EVENT_HASH[i] as usize;
+    for (i, &ev_raw) in EVENT_HASH.iter().enumerate().take(high).skip(low) {
+        let ev = ev_raw as usize;
         if unsafe { vim_strnicmp_asc(str_, EVENT_NAMES[ev].name.as_ptr(), len) == 0 } {
             return i as isize;
         }
@@ -1772,7 +1763,7 @@ unsafe fn au_cleanup() {
         }
 
         for event in 0..NUM_EVENTS {
-            let acs = &raw mut autocmds[event];
+            let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
             let mut nsize = 0usize;
             for i in 0..(*acs).size {
                 let ac = (*acs).items.add(i);
@@ -1900,7 +1891,7 @@ pub unsafe extern "C" fn augroup_del(
 
         if stupid_legacy_mode {
             for event in 0..NUM_EVENTS {
-                let acs = &raw mut autocmds[event];
+                let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
                 for i in 0..(*acs).size {
                     let ap = (*(*acs).items.add(i)).pat;
                     if !ap.is_null() && (*ap).group == group {
@@ -1917,7 +1908,7 @@ pub unsafe extern "C" fn augroup_del(
             }
         } else {
             for event in 0..NUM_EVENTS {
-                let acs = &raw mut autocmds[event];
+                let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
                 for i in 0..(*acs).size {
                     let ac = (*acs).items.add(i);
                     if !(*ac).pat.is_null() && (*(*ac).pat).group == group {
@@ -2017,7 +2008,7 @@ pub unsafe extern "C" fn do_augroup(arg: *mut c_char, del_group: bool) {
 pub unsafe extern "C" fn free_all_autocmds() {
     unsafe {
         for event in 0..NUM_EVENTS {
-            let acs = &raw mut autocmds[event];
+            let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
             for i in 0..(*acs).size {
                 aucmd_del((*acs).items.add(i));
             }
@@ -3961,7 +3952,7 @@ pub unsafe extern "C" fn autocmd_delete_id(id: i64) -> bool {
         let mut success = false;
 
         for event in 0..NUM_EVENTS {
-            let acs = &raw mut autocmds[event];
+            let acs = (&raw mut autocmds).cast::<AutoCmdVec>().add(event);
             for i in 0..(*acs).size {
                 let ac = (*acs).items.add(i);
                 if (*ac).id == id {

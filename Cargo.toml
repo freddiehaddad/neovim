@@ -50,3 +50,16 @@ codegen-units = 256
 
 [profile.release]
 codegen-units = 256
+
+[lints.rust]
+non_camel_case_types = "allow"
+non_snake_case = "allow"
+non_upper_case_globals = "allow"
+
+[lints.clippy]
+enum_variant_names = "allow"
+missing_safety_doc = "allow"
+module_inception = "allow"
+too_many_arguments = "allow"
+upper_case_acronyms = "allow"
+

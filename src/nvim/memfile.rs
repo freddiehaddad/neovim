@@ -1,12 +1,5 @@
 //! Memory file block cache and swap file backing store (`src/nvim/memfile.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, buf_T};
 use crate::errors::*;
 use crate::event::r#loop::loop_recursive_ptr;

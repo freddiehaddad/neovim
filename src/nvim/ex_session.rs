@@ -1,13 +1,5 @@
 //! Functions for creating a session file (`:mkexrc`, `:mkvimrc`, `:mkview`, `:mksession`) (`src/nvim/ex_session.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::arglist::{aentry_T, alist_T, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buf_T, buflist_findnr};

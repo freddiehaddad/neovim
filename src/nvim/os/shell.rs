@@ -1,13 +1,5 @@
 //! Shell execution and wildcard expansion (`src/nvim/os/shell.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::validate::NvimString;
 use crate::buffer::{kUIMessages, read_buffer_into};
 use crate::charset::{NL, NUL, ascii_iswhite, backslash_halve, skipwhite};

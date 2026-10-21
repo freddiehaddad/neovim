@@ -1,8 +1,6 @@
 //! Memory allocation, arena allocator, string utilities, and linked-list mergesort
 //! (`src/nvim/memory.c`).
 
-#![allow(clippy::missing_safety_doc)]
-
 use crate::api::ui::remote_ui_free_all_mem;
 use crate::buffer_updates::buf_free_callbacks;
 use crate::errors::*;
@@ -76,7 +74,6 @@ pub static mut mem_calloc: MemCalloc = crt_calloc;
 pub static mut mem_realloc: MemRealloc = crt_realloc;
 
 /// Indicates that `free_all_mem` function was or is running.
-#[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static mut entered_free_all_mem: bool = false;
 
@@ -502,14 +499,12 @@ pub unsafe extern "C" fn xmemdup(data: *const c_void, len: usize) -> *mut c_void
 
 /// Duplicate `len` bytes of `str_ptr` and append a NUL terminator (`xstrnsave`).
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn xstrnsave(str_ptr: *const c_char, len: usize) -> *mut c_char {
     unsafe { xmemdupz(str_ptr.cast::<c_void>(), len).cast::<c_char>() }
 }
 
 /// Return true if C string `a` equals Rust string `b` (`strequal_str`).
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
     if a.is_null() {
         return false;

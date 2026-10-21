@@ -1,7 +1,5 @@
 //! Conversions between Vimscript `typval_T` and API `Object` (`src/nvim/api/private/converter.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::api::private::helpers::{arena_array, arena_dict, nil_obj};
 use crate::api::private::validate::{
     Array, Dict, Error, NvimString, Object, ObjectData, ObjectType,

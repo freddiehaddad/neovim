@@ -1,7 +1,5 @@
 //! Clipboard register handling (`src/nvim/clipboard.c`).
 
-#![allow(non_snake_case, clippy::missing_safety_doc)]
-
 use crate::api::private::validate::NvimString;
 use crate::eval::typval::{
     VarType, list_T, tv_list_alloc, tv_list_append_list, tv_list_append_string,

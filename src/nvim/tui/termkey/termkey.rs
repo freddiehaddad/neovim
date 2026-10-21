@@ -1,12 +1,5 @@
 //! Core libtermkey state machine and key formatting (`src/nvim/tui/termkey/termkey.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::mbyte::{utf_char2bytes, utf_char2len};
 use crate::memory::{xfree, xmalloc, xrealloc};
 use crate::tui::termkey::driver_csi::{

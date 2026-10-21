@@ -1,15 +1,5 @@
 //! Autocommand API functions (`src/nvim/api/autocmd.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::{
     ArrayBuilder, TryState, add_c, api_set_error, api_set_sctx, api_typename, arena_array,
     arena_dict, arena_string, arena_take_arraybuilder, boolean_obj, cstr_as_string, dict_obj,

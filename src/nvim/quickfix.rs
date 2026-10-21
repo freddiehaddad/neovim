@@ -1,13 +1,5 @@
 //! Quickfix and location list commands and functions (`src/nvim/quickfix.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     boolean_obj, cbuf_as_string, copy_string, cstr_as_obj, cstr_as_string,
 };

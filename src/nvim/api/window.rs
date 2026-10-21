@@ -1,15 +1,5 @@
 //! Window API functions (`src/nvim/api/window.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::{
     MAXCOL, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
     dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj,

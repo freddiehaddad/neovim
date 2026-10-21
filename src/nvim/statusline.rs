@@ -1,13 +1,5 @@
 //! Statusline, winbar, ruler, tabline, and statuscolumn rendering (`src/nvim/statusline.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
@@ -130,7 +122,6 @@ const STL_CLICK_FUNC: c_char = b'@' as c_char;
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-#[allow(clippy::enum_variant_names)]
 enum StlPadding {
     kPaddingNone = 0,
     kPaddingLeft = 1,

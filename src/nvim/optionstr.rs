@@ -1,14 +1,5 @@
 //! String option validation, handling, and completion (`src/nvim/optionstr.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::enum_variant_names,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{TryState, api_clear_error, try_enter, try_leave};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::api::win_config::{WIN_CONFIG_INIT, parse_winborder};

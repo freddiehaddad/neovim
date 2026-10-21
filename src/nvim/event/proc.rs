@@ -1,12 +1,5 @@
 //! Process spawning, waiting, stopping, and teardown (`src/nvim/event/proc.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::eval::typval::dict_T;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{

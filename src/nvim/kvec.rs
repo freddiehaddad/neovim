@@ -122,7 +122,6 @@ impl<T: Copy> Default for KVec<T> {
 }
 
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn kv_ensure_space<T: Copy>(v: *mut KVec<T>, len: usize) {
     unsafe {
         (*v).ensure_space(len);
@@ -130,7 +129,6 @@ pub unsafe fn kv_ensure_space<T: Copy>(v: *mut KVec<T>, len: usize) {
 }
 
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn kv_push<T: Copy>(v: *mut KVec<T>, value: T) {
     unsafe {
         (*v).push(value);
@@ -138,7 +136,6 @@ pub unsafe fn kv_push<T: Copy>(v: *mut KVec<T>, value: T) {
 }
 
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn kv_concat_len<T: Copy>(v: *mut KVec<T>, data: *const T, len: usize) {
     unsafe {
         (*v).concat_len(data, len);
@@ -146,7 +143,6 @@ pub unsafe fn kv_concat_len<T: Copy>(v: *mut KVec<T>, data: *const T, len: usize
 }
 
 #[inline]
-#[allow(clippy::missing_safety_doc)]
 pub unsafe fn kv_destroy<T: Copy>(v: *mut KVec<T>) {
     unsafe {
         (*v).destroy();

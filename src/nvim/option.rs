@@ -1,13 +1,5 @@
 //! User-settable options (`src/nvim/option.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
     api_free_string, api_set_error, arena_dict, boolean_obj, copy_object, cstr_as_obj,

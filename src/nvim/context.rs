@@ -1,12 +1,5 @@
 //! Editor state context and temporary window/buffer context switching (`src/nvim/context.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::extmark::nvim_create_namespace;
 
 use crate::api::private::converter::object_to_vim;

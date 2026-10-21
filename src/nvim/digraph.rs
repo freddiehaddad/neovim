@@ -1,13 +1,5 @@
 //! Digraph and keymap functions (`src/nvim/digraph.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::{
     NUL, ascii_isdigit, char2cells, getdigits_int, is_special, skiptowhite, skipwhite,
 };

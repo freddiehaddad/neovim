@@ -1,13 +1,5 @@
 //! Code for syntax highlighting (`src/nvim/syntax.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick};
 use crate::charset::{

@@ -1,12 +1,5 @@
 //! Libuv process spawning (`src/nvim/event/libuv_proc.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::channel::STDERR_FILENO;
 use crate::eval::typval::tv_dict_to_env;
 use crate::event::r#loop::{

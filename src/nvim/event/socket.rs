@@ -1,12 +1,5 @@
 //! Socket watcher and client connection helpers (`src/nvim/event/socket.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::charset::{NUL, try_getdigits};
 use crate::event::r#loop::{
     Loop, loop_poll_events, main_loop_ptr, uv_close, uv_connect_t, uv_freeaddrinfo,

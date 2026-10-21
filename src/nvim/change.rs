@@ -1,13 +1,5 @@
 //! Functions related to changing text (`src/nvim/change.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
     BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_T, buf_inc_changedtick,

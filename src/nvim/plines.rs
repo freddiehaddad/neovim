@@ -1,12 +1,5 @@
 //! Vertical and horizontal text display size calculations (`src/nvim/plines.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::extmark::ns_in_win;
 use crate::buffer::buf_T;
 use crate::charset::{NUL, vim_isprintc, vim_strsize};

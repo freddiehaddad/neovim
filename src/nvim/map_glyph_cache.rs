@@ -11,7 +11,6 @@ use std::ffi::{c_char, c_void};
 
 #[repr(C)]
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
 pub struct Set_glyph {
     pub h: MapHash,
     pub keys: *mut c_char,

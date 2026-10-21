@@ -10,7 +10,6 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as c_int;
 
-#[allow(non_camel_case_types)]
 pub type handle_T = c_int;
 pub type Integer = i64;
 pub type PackerBufferFlush = Option<unsafe extern "C" fn(buffer: *mut PackerBuffer)>;

@@ -1,13 +1,5 @@
 //! Floating window creation, configuration, and layout (`src/nvim/winfloat.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, cstr_as_obj, error_init, error_set, find_buffer_by_handle,
     find_window_by_handle, has_key,

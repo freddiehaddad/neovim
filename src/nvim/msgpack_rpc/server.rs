@@ -1,12 +1,5 @@
 //! Msgpack-RPC server address and socket watcher management (`src/nvim/msgpack_rpc/server.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::channel::channel_from_connection;
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str, set_vim_var_string};
 use crate::event::r#loop::{

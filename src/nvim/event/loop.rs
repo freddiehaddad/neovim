@@ -1,12 +1,5 @@
 //! Event loop wrapper around `uv_loop_t` (`src/nvim/event/loop.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::eval::funcs::UV_TIMER;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_free, multiqueue_move_events,

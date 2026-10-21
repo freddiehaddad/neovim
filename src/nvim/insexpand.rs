@@ -1,13 +1,5 @@
 //! Functions for Insert mode completion (`src/nvim/insexpand.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     HLF_E, api_clear_string, cbuf_as_string, cbuf_to_string, copy_string,
 };

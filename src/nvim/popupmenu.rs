@@ -1,13 +1,5 @@
 //! Popup menu (PUM) (`src/nvim/popupmenu.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::buffer::nvim_buf_set_lines;
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, arena_array, array_obj, boolean_obj, cstr_as_obj,

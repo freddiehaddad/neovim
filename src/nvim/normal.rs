@@ -1,13 +1,5 @@
 //! Normal and Visual mode command processing (`src/nvim/normal.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
 use crate::api::private::validate::{Array, Object};
 use crate::arglist::ML_EMPTY;

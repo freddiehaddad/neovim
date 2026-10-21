@@ -3,13 +3,6 @@
 //! How Linux `printk()` handles recursion, buffering, etc.:
 //! <https://lwn.net/Articles/780556/>
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 #[cfg(unix)]

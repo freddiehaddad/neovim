@@ -1,13 +1,5 @@
 //! Windows console management (`src/nvim/os/os_win_console.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::upper_case_acronyms
-)]
-
 #[cfg(windows)]
 use crate::globals::*;
 #[cfg(windows)]

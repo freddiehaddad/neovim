@@ -6,7 +6,6 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use crate::math::{FAIL, OK};
 use crate::memory::{xcalloc, xfree};
 
-#[allow(non_camel_case_types)]
 pub type hash_T = usize;
 
 pub const HT_INIT_SIZE: usize = 16;
@@ -14,7 +13,6 @@ const PERTURB_SHIFT: usize = 5;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-#[allow(non_camel_case_types)]
 pub struct hashitem_T {
     pub hi_hash: hash_T,
     pub hi_key: *mut c_char,
@@ -31,7 +29,6 @@ impl Default for hashitem_T {
 
 #[repr(C)]
 #[derive(Debug)]
-#[allow(non_camel_case_types)]
 pub struct hashtab_T {
     pub ht_mask: hash_T,
     pub ht_used: usize,

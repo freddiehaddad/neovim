@@ -1,11 +1,4 @@
 //! Code for spell checking (`src/nvim/spell.c`).
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
 use crate::api::private::helpers::boolean_obj;
 use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
 use crate::buffer::{buf_T, buf_is_empty, bufref_T, bufref_valid, set_bufref};

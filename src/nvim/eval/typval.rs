@@ -1,13 +1,5 @@
 //! Vimscript `typval_T`, `list_T`, `dict_T`, `blob_T`, and `Callback` operations (`src/nvim/eval/typval.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::{NUL, vim_str2nr};
 use crate::eval::userfunc::{
     call_func, func_ref, func_unref, funcexe_T, get_funccal_local_ht, ufunc_T,
@@ -79,7 +71,6 @@ pub const kCallbackLua: c_int = 3;
 pub const kCallbackExpr: c_int = 4;
 
 #[repr(C)]
-#[allow(non_camel_case_types)]
 pub struct blob_T {
     pub bv_ga: garray_T,
     pub bv_refcount: c_int,
@@ -108,7 +99,6 @@ pub struct Callback {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
 pub enum VarType {
     VAR_UNKNOWN = 0,
     VAR_NUMBER = 1,
@@ -125,7 +115,6 @@ pub enum VarType {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-#[allow(non_camel_case_types)]
 pub union TypvalVval {
     pub v_number: i64,
     pub v_bool: c_int,
@@ -140,7 +129,6 @@ pub union TypvalVval {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-#[allow(non_camel_case_types)]
 pub struct typval_T {
     pub v_type: VarType,
     pub v_lock: c_int,
@@ -148,7 +136,6 @@ pub struct typval_T {
 }
 
 #[repr(C)]
-#[allow(non_camel_case_types)]
 pub struct listitem_T {
     pub li_next: *mut listitem_T,
     pub li_prev: *mut listitem_T,
@@ -156,7 +143,6 @@ pub struct listitem_T {
 }
 
 #[repr(C)]
-#[allow(non_camel_case_types)]
 pub struct list_T {
     pub lv_first: *mut listitem_T,
     pub lv_last: *mut listitem_T,

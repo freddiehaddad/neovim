@@ -1,12 +1,5 @@
 //! Timer watcher wrapper around libuv `uv_timer_t` (`src/nvim/event/time.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::event::r#loop::{
     Loop, uv_close, uv_handle_size, uv_handle_t, uv_loop_size, uv_timer_init, uv_timer_start,
     uv_timer_stop, uv_timer_t,

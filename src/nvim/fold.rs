@@ -1,13 +1,5 @@
 //! Code for folding (`src/nvim/fold.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::extmark::parse_virt_text;
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};

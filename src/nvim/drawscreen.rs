@@ -1,13 +1,5 @@
 //! Code for updating all the windows on the screen (`src/nvim/drawscreen.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::buffer::{
     MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_T, buf_meta_total, kUIMessages,

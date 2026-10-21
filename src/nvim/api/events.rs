@@ -1,15 +1,5 @@
 //! API event handlers (`src/nvim/api/events.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::api_typename;
 use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_err_exp};
 use crate::autocmd::do_termresponse_autocmd;

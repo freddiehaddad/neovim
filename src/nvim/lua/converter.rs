@@ -1,8 +1,6 @@
 //! Conversions between Lua stack values, Vimscript `typval_T`, and API `Object`
 //! (`src/nvim/lua/converter.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, arena_array,

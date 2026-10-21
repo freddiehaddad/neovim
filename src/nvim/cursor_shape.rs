@@ -1,7 +1,5 @@
 //! Handling of cursor and mouse pointer shapes in various modes (`src/nvim/cursor_shape.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_nvim_string};
 use crate::api::private::validate::{
     Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,

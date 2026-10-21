@@ -1,16 +1,5 @@
 //! Buffer API functions (`src/nvim/api/buffer.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
     MAXCOL, MAXLNUM, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict,
@@ -115,20 +104,20 @@ use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
 use crate::state::MODE_INSERT;
 
-/// @brief <pre>help
-/// For more information on buffers, see |buffers|.
-///
-/// Unloaded Buffers: ~
-///
-/// Buffers may be unloaded by the |:bunload| command or the buffer's
-/// 'bufhidden' option. When a buffer is unloaded its file contents are freed
-/// from memory and vim cannot operate on the buffer lines until it is reloaded
-/// (usually by opening the buffer again in a new window). API methods such as
-/// |nvim_buf_get_lines()| and |nvim_buf_line_count()| will be affected.
-///
-/// You can use |nvim_buf_is_loaded()| or |nvim_buf_line_count()| to check
-/// whether a buffer is loaded.
-/// </pre>
+// @brief <pre>help
+// For more information on buffers, see |buffers|.
+//
+// Unloaded Buffers: ~
+//
+// Buffers may be unloaded by the |:bunload| command or the buffer's
+// 'bufhidden' option. When a buffer is unloaded its file contents are freed
+// from memory and vim cannot operate on the buffer lines until it is reloaded
+// (usually by opening the buffer again in a new window). API methods such as
+// |nvim_buf_get_lines()| and |nvim_buf_line_count()| will be affected.
+//
+// You can use |nvim_buf_is_loaded()| or |nvim_buf_line_count()| to check
+// whether a buffer is loaded.
+// </pre>
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT buf_T *api_buf_ensure_loaded(Buffer buf, Error *err);

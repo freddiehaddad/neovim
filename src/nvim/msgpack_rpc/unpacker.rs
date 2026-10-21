@@ -1,7 +1,5 @@
 //! Msgpack-RPC and ShaDa deserializer (`src/nvim/msgpack_rpc/unpacker.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::api::private::dispatch::{MsgpackRpcRequestHandler, msgpack_rpc_get_handler_for};
 use crate::api::private::helpers::{api_set_error, nil_obj};
 use crate::api::private::validate::{

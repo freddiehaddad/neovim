@@ -1,13 +1,5 @@
 //! Functions for dealing with Vimscript variables (`src/nvim/eval/vars.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     DI_FLAGS_FIX, DI_FLAGS_LOCK, DI_FLAGS_RO, SID_LUA, cstr_as_string, cstr_to_string, nil_obj,
     string_obj, tv_dict_is_watched,

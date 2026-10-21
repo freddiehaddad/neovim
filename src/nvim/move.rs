@@ -1,13 +1,5 @@
 //! Functions for moving the cursor and scrolling text (`src/nvim/move.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::{VALID_TOPLINE, buf_T, buf_get_changedtick, buf_is_empty};
 use crate::cursor::{
     VALID_VIRTCOL, check_cursor, check_cursor_lnum, coladvance, colnr_T, equalpos, linenr_T, pos_T,

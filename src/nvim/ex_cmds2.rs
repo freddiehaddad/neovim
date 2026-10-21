@@ -1,13 +1,5 @@
 //! Functions for command-line commands (`src/nvim/ex_cmds2.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
     do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,

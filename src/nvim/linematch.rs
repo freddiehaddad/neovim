@@ -176,7 +176,6 @@ fn unwrap_indexes(values: &[c_int], diff_len: &[c_int]) -> usize {
     path_idx
 }
 
-#[allow(clippy::too_many_arguments)]
 unsafe fn try_possible_paths(
     df_iters: &[c_int],
     paths: &[usize],

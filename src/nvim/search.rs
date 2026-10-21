@@ -1,13 +1,6 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::useless_conversion
-)]
+#![allow(clippy::useless_conversion)]
 
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::buffer::{buf_T, buf_get_changedtick, kUIMessages};

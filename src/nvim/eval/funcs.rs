@@ -1,14 +1,5 @@
 //! Builtin Vimscript functions (`src/nvim/eval/funcs.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::enum_variant_names,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::converter::{object_to_vim, object_to_vim_take_luaref, vim_to_object};
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{

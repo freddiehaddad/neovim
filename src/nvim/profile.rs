@@ -1,7 +1,5 @@
 //! Script, function, and startup profiling (`src/nvim/profile.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};

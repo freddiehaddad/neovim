@@ -1,15 +1,6 @@
 //! Terminal UI functions invoked by the UI client process (`src/nvim/tui/tui.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::module_inception,
-    clippy::upper_case_acronyms,
-    clippy::unnecessary_cast
-)]
+#![allow(clippy::unnecessary_cast)]
 
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, arena_array, array_obj, boolean_obj, cstr_as_obj, dict_obj,

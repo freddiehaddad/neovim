@@ -1,12 +1,5 @@
 //! API Msgpack-RPC request handler lookup and dispatch wrappers (`src/nvim/api/private/dispatch.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::autocmd::{
     KeyDict_clear_autocmds, KeyDict_create_augroup, KeyDict_create_autocmd, KeyDict_exec_autocmds,
     KeyDict_get_autocmds, nvim_clear_autocmds, nvim_create_augroup, nvim_create_autocmd,

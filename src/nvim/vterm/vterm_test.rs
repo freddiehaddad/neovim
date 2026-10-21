@@ -1,12 +1,5 @@
 //! VTerm unit-test callback and inspection harness (`test/unit/fixtures/vterm_test.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::fs::OpenOptions;

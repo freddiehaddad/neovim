@@ -1,7 +1,5 @@
 //! JSON and MessagePack decoding into Vimscript `typval_T` values (`src/nvim/eval/decode.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 use crate::eval::string2float;
@@ -259,7 +257,6 @@ unsafe fn json_decoder_pop(
     OK
 }
 
-#[allow(clippy::too_many_arguments)]
 unsafe fn parse_json_string(
     buf: *const c_char,
     buf_len: usize,
@@ -496,7 +493,6 @@ unsafe fn parse_json_string(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 unsafe fn parse_json_number(
     buf: *const c_char,
     buf_len: usize,

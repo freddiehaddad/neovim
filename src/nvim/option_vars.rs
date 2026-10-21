@@ -1,5 +1,4 @@
 //! Global variables for settable options (`src/nvim/option_vars.h`).
-#![allow(non_upper_case_globals)]
 
 use std::ffi::{c_char, c_int, c_uint};
 use std::mem::zeroed;

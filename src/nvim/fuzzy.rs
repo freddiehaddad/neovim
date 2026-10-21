@@ -1,12 +1,5 @@
 //! Fuzzy matching algorithm and functions (`src/nvim/fuzzy.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::buf_T;
 use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_iswordp};
 use crate::cursor::{equalpos, pos_T};

@@ -1,13 +1,5 @@
 //! Code to handle tags and the tag stack (`src/nvim/tag.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
     GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, MAXLNUM, NOTDONE,

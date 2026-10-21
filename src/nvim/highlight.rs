@@ -1,13 +1,5 @@
 //! Low-level code for UI and syntax highlighting (`src/nvim/highlight.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
     cstr_as_string, dict_obj, integer_obj, put_c, string_obj,

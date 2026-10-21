@@ -1,13 +1,5 @@
 //! The input engine "bytes layer" (`src/nvim/input.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
 use crate::api::vim::{is_internal_call, nvim_paste};

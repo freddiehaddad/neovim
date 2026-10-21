@@ -1,11 +1,4 @@
 //! Functions for spelling suggestions (`src/nvim/spellsuggest.c`).
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
 use crate::buffer::buf_T;
 use crate::change::{MB_MAXCHAR, inserted_bytes};
 use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};

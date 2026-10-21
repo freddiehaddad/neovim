@@ -1,8 +1,6 @@
 //! Encoding Vimscript `typval_T` values to strings, `:echo`, JSON, and MessagePack
 //! (`src/nvim/eval/encode.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::validate::NvimString;
 use crate::buffer::NOTDONE;

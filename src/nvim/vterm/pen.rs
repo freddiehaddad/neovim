@@ -1,12 +1,5 @@
 //! VTerm pen and SGR color/attribute handling (`src/nvim/vterm/pen.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use std::ffi::{c_int, c_long, c_void};
 
 use crate::vterm::keyboard::{VTermColor, VTermPen, VTermStateFull};

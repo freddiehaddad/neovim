@@ -1,13 +1,5 @@
 //! String manipulation functions and Vimscript string builtins (`src/nvim/strings.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::charset::{
     STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE, ascii_isdigit,
     ascii_iswhite, rem_backslash, skipwhite, transstr, vim_str2nr,

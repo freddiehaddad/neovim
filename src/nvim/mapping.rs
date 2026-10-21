@@ -1,14 +1,5 @@
 //! Code for mappings and abbreviations (`src/nvim/mapping.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
-)]
-
 use crate::api::buffer::KeyDict_keymap;
 use crate::api::private::converter::object_to_vim_take_luaref;
 use crate::api::private::helpers::{
@@ -866,7 +857,7 @@ unsafe fn buf_do_map(
                             }
                             first_abbr
                         } else {
-                            maphash[hash]
+                            *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                         };
                         while !mp.is_null() && !got_int {
                             if ((*mp).m_mode & mode) != 0 && (*mp).m_keylen == len {
@@ -1314,7 +1305,7 @@ pub unsafe extern "C" fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abb
                 } else if exp_buffer {
                     (*curbuf).b_maphash[hash].cast::<mapblock_T>()
                 } else {
-                    maphash[hash]
+                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                 };
                 while !mp.is_null() {
                     if ((*mp).m_mode & mode) != 0 && !strstr((*mp).m_str, rhs).is_null() {
@@ -1527,7 +1518,7 @@ pub unsafe extern "C" fn ExpandMappings(
             } else if expand_buffer {
                 (*curbuf).b_maphash[hash].cast::<mapblock_T>()
             } else {
-                maphash[hash]
+                *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
             };
             while !mp.is_null() {
                 if (*mp).m_simplified != 0 || ((*mp).m_mode & expand_mapmodes) == 0 {
@@ -1874,7 +1865,7 @@ pub unsafe extern "C" fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                 } else if !buf.is_null() {
                     (*buf).b_maphash[hash].cast::<mapblock_T>()
                 } else {
-                    maphash[hash]
+                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                 };
 
                 while !mp.is_null() {
@@ -2182,7 +2173,7 @@ pub unsafe extern "C" fn check_map(
                 } else if local != 0 {
                     (*curbuf).b_maphash[hash].cast::<mapblock_T>()
                 } else {
-                    maphash[hash]
+                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                 };
                 while !mp.is_null() {
                     if ((*mp).m_mode & mode) != 0 && (exact == 0 || (*mp).m_keylen == len) {
@@ -2699,7 +2690,7 @@ pub unsafe extern "C" fn f_maplist(
                 } else if buffer_local != 0 {
                     (*curbuf).b_maphash[hash].cast::<mapblock_T>()
                 } else {
-                    maphash[hash]
+                    *(&raw const maphash).cast::<*mut mapblock_T>().add(hash)
                 };
                 while !mp.is_null() {
                     if (*mp).m_simplified != 0 {
@@ -2862,7 +2853,7 @@ pub unsafe extern "C" fn langmap_adjust_mb(c: c_int) -> c_int {
 pub unsafe extern "C" fn langmap_init() {
     unsafe {
         for i in 0..256 {
-            langmap_mapchar[i] = i as u8;
+            *(&raw mut langmap_mapchar).cast::<u8>().add(i) = i as u8;
         }
         ga_init(
             &raw mut langmap_mapga,
@@ -3313,7 +3304,7 @@ pub unsafe extern "C" fn keymap_array(
             } else if !buf.is_null() {
                 (*buf).b_maphash[i].cast::<mapblock_T>()
             } else {
-                maphash[i]
+                *(&raw const maphash).cast::<*mut mapblock_T>().add(i)
             };
             while !current_maphash.is_null() {
                 if (*current_maphash).m_simplified == 0

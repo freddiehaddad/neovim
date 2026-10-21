@@ -1,13 +1,5 @@
 //! Functions for dealing with the buffer structure (`src/nvim/buffer.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
 use crate::api::win_config::{UIExtension, kCtxNoDisplay, kWinStyleMinimal};
 use crate::arglist::{ML_EMPTY, alist_T, check_arg_idx};

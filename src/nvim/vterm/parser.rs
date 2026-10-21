@@ -1,12 +1,5 @@
 //! VTerm input byte stream parser (`src/nvim/vterm/parser.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
 

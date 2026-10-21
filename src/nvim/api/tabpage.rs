@@ -1,15 +1,5 @@
 //! Tabpage API functions (`src/nvim/api/tabpage.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::helpers::{
     TryState, api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
     find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, nil_obj, try_enter,
@@ -276,7 +266,8 @@ pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
 /// @param enter  Enter the tabpage (make it the current tabpage).
 /// @param config Configuration for the new tabpage. Keys:
 ///   - after: Position to insert tabpage (default: -1; after current).
-///            0 = first, N = after Nth.
+///     0 = first, N = after Nth.
+///
 /// @param[out] err Error details, if any
 /// @return |tab-ID| of the new tabpage
 // DLLEXPORT Tabpage nvim_open_tabpage(Buffer buf, Boolean enter, Dict(tabpage_config) *config,

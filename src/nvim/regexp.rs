@@ -1,13 +1,5 @@
 //! Regular expression compilation, execution, and substitution (`src/nvim/regexp.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::buf_T;
 use crate::charset::{
     getdigits_int, hex2nr, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,

@@ -1,15 +1,5 @@
 //! Vimscript execution, evaluation, and expression parsing API (`src/nvim/api/vimscript.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::helpers::{
     TryState, add_c, api_set_error, api_set_sctx, arena_array, arena_dict, arena_string, array_obj,

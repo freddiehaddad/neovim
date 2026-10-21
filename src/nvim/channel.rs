@@ -1,13 +1,5 @@
 //! Async I/O and process/socket/stdio/terminal channel management (`src/nvim/channel.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_string, dict_put_cstr};
 use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};

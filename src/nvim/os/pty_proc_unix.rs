@@ -1,12 +1,5 @@
 //! Unix PTY process spawning (`src/nvim/os/pty_proc_unix.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 #[cfg(unix)]
 use crate::eval::typval::tv_dict_to_env;
 #[cfg(unix)]

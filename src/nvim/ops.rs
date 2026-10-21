@@ -1,14 +1,6 @@
 //! Implementation of various operators: `op_shift`, `op_delete`, `op_tilde`,
 //! `op_change`, `op_yank`, `do_join` (`src/nvim/ops.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::{buf_T, buf_get_changedtick, col_print, modifiable};
 use crate::change::{
     COM_END, appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,

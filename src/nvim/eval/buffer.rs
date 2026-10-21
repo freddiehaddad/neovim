@@ -1,13 +1,5 @@
 //! Buffer related builtin functions (`src/nvim/eval/buffer.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::buffer::{
     MAXLNUM, SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, buf_T, buf_ensure_loaded,
     buf_get_changedtick, buflist_add, buflist_findlnum, buflist_findname_exp, buflist_findnr,

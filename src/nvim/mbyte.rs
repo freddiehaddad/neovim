@@ -1,14 +1,5 @@
 //! Multibyte UTF-8 character and encoding handling (`src/nvim/mbyte.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::enum_variant_names
-)]
-
 use crate::arabic::arabic_combine;
 use crate::charset::{ascii_iswhite, ascii2cells, vim_isprintc, vim_iswordc_tab};
 use crate::cursor::{colnr_T, get_cursor_pos_ptr, pos_T};

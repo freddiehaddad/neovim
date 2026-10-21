@@ -1,12 +1,5 @@
 //! Lua `vim.spell` bindings (`src/nvim/lua/spell.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::errors::*;
 use crate::globals::*;
 use crate::lua::converter::{

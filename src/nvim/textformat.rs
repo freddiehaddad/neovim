@@ -1,13 +1,6 @@
 //! Text formatting functions (`src/nvim/textformat.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments,
-    clippy::useless_conversion
-)]
+#![allow(clippy::useless_conversion)]
 
 use crate::change::{
     COM_END, COM_FIRST, COM_MIDDLE, COM_START, OPENLINE_COM_LIST, OPENLINE_DELSPACES,

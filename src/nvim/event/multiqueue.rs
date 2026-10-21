@@ -6,7 +6,6 @@ use crate::memory::{xfree, xmalloc};
 
 pub const EVENT_HANDLER_MAX_ARGC: usize = 10;
 
-#[allow(non_camel_case_types)]
 pub type argv_callback = Option<unsafe extern "C" fn(argv: *mut *mut c_void)>;
 
 #[repr(C)]

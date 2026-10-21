@@ -1,12 +1,5 @@
 //! Core editor state loop and mode queries (`src/nvim/state.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc
-)]
-
 use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE, apply_autocmds, has_event};
 use crate::drawscreen::{kOptVeFlagBlock, setcursor, update_screen};
 use crate::eval::typval::{tv_dict_add_str, tv_dict_set_keys_readonly};

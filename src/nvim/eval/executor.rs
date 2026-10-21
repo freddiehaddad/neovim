@@ -1,8 +1,6 @@
 //! Vimscript compound assignment operator execution (`+=`, `-=`, `*=`, `/=`, `%=`, `.=`)
 //! (`src/nvim/eval/executor.c`).
 
-#![allow(clippy::missing_safety_doc)]
-
 use crate::errors::*;
 use crate::eval::typval::{
     TypvalVval, VarType, blob_T, tv_clear, tv_get_number, tv_get_string, tv_get_string_buf,

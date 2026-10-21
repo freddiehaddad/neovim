@@ -1,7 +1,5 @@
 //! Lua BitOp — a bit operations library for Lua 5.1/5.2 (`src/bit.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use std::ffi::{c_char, c_int};
 use std::ptr;
 

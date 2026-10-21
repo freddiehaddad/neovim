@@ -1,14 +1,5 @@
 //! Functions for setting marks and jumping to them (`src/nvim/mark.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::validate::{
     Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
@@ -939,7 +930,7 @@ pub unsafe extern "C" fn fmarks_check_names(buf: *mut buf_T) {
         }
 
         for i in 0..NGLOBALMARKS {
-            fmarks_check_one(&raw mut namedfm[i], name, buf);
+            fmarks_check_one((&raw mut namedfm).cast::<xfmark_T>().add(i), name, buf);
         }
 
         let mut wp = first_win_in_tab(curtab);
@@ -1480,6 +1471,7 @@ pub unsafe extern "C" fn mark_adjust_buf(
         let by_term = mode == kMarkAdjustTerm;
 
         if (cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+            let fm_base = (&raw mut namedfm).cast::<xfmark_T>();
             for i in 0..NMARKS {
                 one_adjust(
                     &raw mut (*buf).b_namedm[i].mark.lnum,
@@ -1488,9 +1480,10 @@ pub unsafe extern "C" fn mark_adjust_buf(
                     amount,
                     amount_after,
                 );
-                if namedfm[i].fmark.fnum == fnum {
+                let fm = fm_base.add(i);
+                if (*fm).fmark.fnum == fnum {
                     one_adjust_nodel(
-                        &raw mut namedfm[i].fmark.mark.lnum,
+                        &raw mut (*fm).fmark.mark.lnum,
                         line1,
                         line2,
                         amount,
@@ -1499,9 +1492,10 @@ pub unsafe extern "C" fn mark_adjust_buf(
                 }
             }
             for i in NMARKS..NGLOBALMARKS {
-                if namedfm[i].fmark.fnum == fnum {
+                let fm = fm_base.add(i);
+                if (*fm).fmark.fnum == fnum {
                     one_adjust_nodel(
-                        &raw mut namedfm[i].fmark.mark.lnum,
+                        &raw mut (*fm).fmark.mark.lnum,
                         line1,
                         line2,
                         amount,
@@ -1776,6 +1770,7 @@ pub unsafe extern "C" fn mark_col_adjust(
             return;
         }
 
+        let fm_base = (&raw mut namedfm).cast::<xfmark_T>();
         for i in 0..NMARKS {
             col_adjust(
                 &raw mut (*curbuf).b_namedm[i].mark,
@@ -1785,9 +1780,10 @@ pub unsafe extern "C" fn mark_col_adjust(
                 col_amount,
                 spaces_removed,
             );
-            if namedfm[i].fmark.fnum == fnum {
+            let fm = fm_base.add(i);
+            if (*fm).fmark.fnum == fnum {
                 col_adjust(
-                    &raw mut namedfm[i].fmark.mark,
+                    &raw mut (*fm).fmark.mark,
                     lnum,
                     mincol,
                     lnum_amount,
@@ -1797,9 +1793,10 @@ pub unsafe extern "C" fn mark_col_adjust(
             }
         }
         for i in NMARKS..NGLOBALMARKS {
-            if namedfm[i].fmark.fnum == fnum {
+            let fm = fm_base.add(i);
+            if (*fm).fmark.fnum == fnum {
                 col_adjust(
-                    &raw mut namedfm[i].fmark.mark,
+                    &raw mut (*fm).fmark.mark,
                     lnum,
                     mincol,
                     lnum_amount,
@@ -2242,11 +2239,13 @@ pub unsafe extern "C" fn set_last_cursor(win: *mut win_T) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_all_marks() {
     unsafe {
+        let fm_base = (&raw mut namedfm).cast::<xfmark_T>();
         for i in 0..NGLOBALMARKS {
-            if namedfm[i].fmark.mark.lnum != 0 {
-                free_xfmark(namedfm[i]);
+            let fm = fm_base.add(i);
+            if (*fm).fmark.mark.lnum != 0 {
+                free_xfmark(*fm);
             }
-            namedfm[i] = INIT_XFMARK;
+            *fm = INIT_XFMARK;
         }
     }
 }
@@ -2422,11 +2421,13 @@ pub unsafe extern "C" fn get_global_marks(l: *mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 
+        let fm_base = (&raw const namedfm).cast::<xfmark_T>();
         for i in 0..(NMARKS + EXTRA_MARKS) {
-            let name = if namedfm[i].fmark.fnum != 0 {
-                buflist_nr2name(namedfm[i].fmark.fnum, 1, 1)
+            let fm = &*fm_base.add(i);
+            let name = if fm.fmark.fnum != 0 {
+                buflist_nr2name(fm.fmark.fnum, 1, 1)
             } else {
-                namedfm[i].fname
+                fm.fname
             };
             if !name.is_null() {
                 mname[1] = if i >= NMARKS {
@@ -2439,11 +2440,11 @@ pub unsafe extern "C" fn get_global_marks(l: *mut list_T) {
                     l,
                     mname.as_ptr(),
                     2,
-                    &raw const namedfm[i].fmark.mark,
-                    namedfm[i].fmark.fnum,
+                    &raw const fm.fmark.mark,
+                    fm.fmark.fnum,
                     name,
                 );
-                if namedfm[i].fmark.fnum != 0 {
+                if fm.fmark.fnum != 0 {
                     xfree(name.cast());
                 }
             }

@@ -1,16 +1,5 @@
 //! Extmark and namespace API functions (`src/nvim/api/extmark.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     MAXCOL, MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj,
     boolean_obj, copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle,
@@ -451,7 +440,7 @@ unsafe fn extmark_to_array(
 ///
 /// - ns_id: |namespace| id
 /// - invalid: boolean that indicates whether the mark is hidden because the entirety of
-/// text span range is deleted. See also the key `invalidate` in |nvim_buf_set_extmark()|.
+///   text span range is deleted. See also the key `invalidate` in |nvim_buf_set_extmark()|.
 // DLLEXPORT Tuple(Integer, Integer, *DictAs(extmark_details))
 // nvim_buf_get_extmark_by_id(Buffer buf, Integer ns_id, Integer id, Dict(get_extmark) *opts,
 //                            Arena *arena, Error *err)

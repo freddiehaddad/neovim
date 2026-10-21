@@ -1,14 +1,5 @@
 //! Functions for command-line Ex commands (`src/nvim/ex_cmds.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::enum_variant_names,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     api_clear_string, cbuf_as_string, cbuf_to_string, cstr_as_obj, cstr_as_string,
 };

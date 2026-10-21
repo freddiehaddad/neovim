@@ -1,7 +1,5 @@
 //! List support and container (`List`, `Dict`, `Blob`) functions (`src/nvim/eval/list.c`).
 
-#![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
-
 use crate::buffer::VAR_FIXED;
 use crate::errors::*;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;

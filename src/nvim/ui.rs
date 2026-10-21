@@ -1,13 +1,5 @@
 //! UI subsystem (`src/nvim/ui.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, arena_array, arena_dict, arr_obj, bool_obj, cstr_as_string,

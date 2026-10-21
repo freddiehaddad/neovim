@@ -1,16 +1,5 @@
 //! Deprecated API functions (`src/nvim/api/deprecated.c`).
 
-#![allow(
-    clippy::doc_lazy_continuation,
-    clippy::doc_overindented_list_items,
-    clippy::empty_line_after_doc_comments,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;

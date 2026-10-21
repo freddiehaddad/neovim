@@ -1,13 +1,5 @@
 //! Filesystem access and libuv file operations (`src/nvim/os/fs.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::upper_case_acronyms
-)]
-
 use crate::api::private::helpers::cstr_as_string;
 use crate::errors::*;
 

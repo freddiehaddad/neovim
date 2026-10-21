@@ -1,13 +1,5 @@
 //! User defined command support (`src/nvim/usercmd.c`).
 
-#![allow(
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    clippy::missing_safety_doc,
-    clippy::too_many_arguments
-)]
-
 use crate::api::private::helpers::{
     arena_dict, boolean_obj, cstr_as_obj, dict_obj, dict_put_cstr, integer_obj, luaref_obj,
     nil_obj, string_obj,
