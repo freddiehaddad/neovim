@@ -1,6 +1,7 @@
 //! Regular expression compilation, execution, and substitution (`src/nvim/regexp.c`).
 
 use crate::buffer::buf_T;
+pub(super) use crate::charset::{ascii_isdigit, ascii_iswhite, ascii_isxdigit};
 use crate::charset::{
     getdigits_int, hex2nr, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,
 };
@@ -897,23 +898,6 @@ use crate::eval::partial_name;
 use crate::eval::typval::tv_get_string_buf_chk;
 use crate::eval::userfunc::call_func;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
-
-#[inline]
-pub(super) const fn ascii_isdigit(c: c_int) -> bool {
-    c >= b'0' as c_int && c <= b'9' as c_int
-}
-
-#[inline]
-pub(super) const fn ascii_iswhite(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
-pub(super) const fn ascii_isxdigit(c: c_int) -> bool {
-    (c >= b'0' as c_int && c <= b'9' as c_int)
-        || (c >= b'a' as c_int && c <= b'f' as c_int)
-        || (c >= b'A' as c_int && c <= b'F' as c_int)
-}
 
 #[inline]
 pub(super) unsafe fn tv_list_ref(l: *mut list_T) {

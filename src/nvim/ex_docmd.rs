@@ -30,8 +30,9 @@ use crate::buffer::{
 };
 use crate::channel::{CallbackReader, channel_event, channel_job_start, kChannelStdinPipe};
 use crate::charset::{
-    Ctrl_V, backslash_halve, getdigits, getdigits_int, getdigits_int32, skipdigits,
-    skiptowhite_esc, skipwhite,
+    Ctrl_V, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isspace,
+    ascii_isupper, ascii_iswhite, backslash_halve, getdigits, getdigits_int, getdigits_int32,
+    skipdigits, skiptowhite_esc, skipwhite, tolower_asc,
 };
 use crate::clipboard::{end_batch_changes, start_batch_changes};
 use crate::cmdexpand::{
@@ -226,7 +227,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, concat_str, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strlen,
+    atoi, atol, concat_str, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strcpy, strlen,
     strmove, strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp,
     vim_strsave_escaped,
 };
@@ -4716,55 +4717,6 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 ];
 
 #[inline]
-const fn ascii_isdigit_c(c: c_char) -> bool {
-    let b = c as u8;
-    b >= b'0' && b <= b'9'
-}
-
-#[inline]
-const fn ascii_islower_c(c: c_char) -> bool {
-    let b = c as u8;
-    b >= b'a' && b <= b'z'
-}
-
-#[inline]
-const fn ascii_isupper_c(c: c_char) -> bool {
-    let b = c as u8;
-    b >= b'A' && b <= b'Z'
-}
-
-#[inline]
-const fn ascii_isalpha_c(c: c_char) -> bool {
-    ascii_isupper_c(c) || ascii_islower_c(c)
-}
-
-#[inline]
-const fn ascii_isalnum_c(c: c_char) -> bool {
-    ascii_isalpha_c(c) || ascii_isdigit_c(c)
-}
-
-#[inline]
-const fn ascii_iswhite_c(c: c_char) -> bool {
-    c == b' ' as c_char || c == b'\t' as c_char
-}
-
-#[inline]
-const fn ascii_isspace_c(c: c_char) -> bool {
-    let b = c as u8;
-    (b >= 9 && b <= 13) || b == b' '
-}
-
-#[inline]
-const fn tolower_asc_c(c: c_char) -> c_char {
-    let b = c as u8;
-    if b >= b'A' && b <= b'Z' {
-        (b + (b'a' - b'A')) as c_char
-    } else {
-        c
-    }
-}
-
-#[inline]
 fn line_getter_eq(a: LineGetter, b: LineGetter) -> bool {
     match (a, b) {
         (Some(fa), Some(fb)) => ptr::fn_addr_eq(fa, fb),
@@ -4797,14 +4749,6 @@ unsafe fn clear_wcmd_ga(gap: *mut garray_T) {
             xfree((*data.add(i as usize)).line.cast());
         }
         ga_clear(gap);
-    }
-}
-
-#[inline]
-unsafe fn strcpy_c(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let len = strlen(src) + 1;
-        ptr::copy_nonoverlapping(src, dst, len);
     }
 }
 
@@ -5851,7 +5795,7 @@ unsafe fn parse_register(eap: *mut exarg_T) {
         if ((*eap).argt & EX_REGSTR) != 0
             && *(*eap).arg != NUL
             && (!is_user || *(*eap).arg != b'=' as c_char)
-            && !(((*eap).argt & EX_COUNT) != 0 && ascii_isdigit_c(*(*eap).arg))
+            && !(((*eap).argt & EX_COUNT) != 0 && ascii_isdigit(*(*eap).arg))
             && valid_yank_reg(
                 c_int::from(*(*eap).arg as u8),
                 !is_user
@@ -5897,9 +5841,9 @@ pub unsafe extern "C" fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, valid
 
 unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate: bool) -> c_int {
     unsafe {
-        if ((*eap).argt & EX_COUNT) != 0 && ascii_isdigit_c(*(*eap).arg) {
+        if ((*eap).argt & EX_COUNT) != 0 && ascii_isdigit(*(*eap).arg) {
             let p = skipdigits((*eap).arg.add(1));
-            if ((*eap).argt & EX_BUFNAME) == 0 || *p == NUL || ascii_iswhite_c(*p) {
+            if ((*eap).argt & EX_BUFNAME) == 0 || *p == NUL || ascii_iswhite(*p) {
                 let n = getdigits_int32(&raw mut (*eap).arg, false, i32::MAX);
                 (*eap).arg = skipwhite((*eap).arg);
 
@@ -6193,7 +6137,7 @@ unsafe fn execute_cmd0(
                     p = skiptowhite_esc((*eap).arg);
                 } else {
                     p = (*eap).arg.add(strlen((*eap).arg));
-                    while p > (*eap).arg && ascii_iswhite_c(*p.sub(1)) {
+                    while p > (*eap).arg && ascii_iswhite(*p.sub(1)) {
                         p = p.sub(1);
                     }
                 }
@@ -6561,11 +6505,11 @@ unsafe fn do_one_cmd(
             if !p.is_null()
                 && ea.cmdidx == CMD_SIZE_I32
                 && ea.skip == 0
-                && ascii_isupper_c(*ea.cmd)
+                && ascii_isupper(*ea.cmd)
                 && has_event(EVENT_CMDUNDEFINED)
             {
                 let mut cmdend = ea.cmd;
-                while ascii_isalnum_c(*cmdend) {
+                while ascii_isalnum(*cmdend) {
                     cmdend = cmdend.add(1);
                 }
                 let cmdname: *mut c_char =
@@ -7081,7 +7025,7 @@ pub unsafe extern "C" fn parse_command_modifiers(
                         break;
                     }
                     (*cmod).cmod_flags |= CMOD_SILENT;
-                    if *(*eap).cmd == b'!' as c_char && !ascii_iswhite_c(*(*eap).cmd.sub(1)) {
+                    if *(*eap).cmd == b'!' as c_char && !ascii_iswhite(*(*eap).cmd.sub(1)) {
                         (*eap).cmd = skipwhite((*eap).cmd.add(1));
                         (*cmod).cmod_flags |= CMOD_ERRSILENT;
                     }
@@ -7137,7 +7081,7 @@ pub unsafe extern "C" fn parse_command_modifiers(
                     if !checkforcmd(&raw mut p, c"verbose".as_ptr(), 4) {
                         break;
                     }
-                    if ascii_isdigit_c(*(*eap).cmd) {
+                    if ascii_isdigit(*(*eap).cmd) {
                         (*cmod).cmod_verbose = atoi((*eap).cmd) + 1;
                     } else {
                         (*cmod).cmod_verbose = 2;
@@ -7415,7 +7359,7 @@ pub unsafe extern "C" fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, l
             }
             i += 1;
         }
-        if (i as c_int) >= len && !ascii_isalpha_c(*(*pp).add(i)) {
+        if (i as c_int) >= len && !ascii_isalpha(*(*pp).add(i)) {
             *pp = skipwhite((*pp).add(i));
             return true;
         }
@@ -7433,14 +7377,14 @@ unsafe fn append_command(cmd: *const c_char) {
         if len > IOSIZE - 100 {
             d = iobuf_ptr.add(IOSIZE - 100);
             d = d.sub(utf_head_off(iobuf_ptr, d) as usize);
-            strcpy_c(d, c"...".as_ptr());
+            strcpy(d, c"...".as_ptr());
         }
         xstrlcat(iobuf_ptr, c": ".as_ptr(), IOSIZE);
         d = iobuf_ptr.add(strlen(iobuf_ptr));
         while *s != NUL && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE) {
             if (*s as u8) == 0xc2 && (*s.add(1) as u8) == 0xa0 {
                 s = s.add(2);
-                strcpy_c(d, c"<a0>".as_ptr());
+                strcpy(d, c"<a0>".as_ptr());
                 d = d.add(4);
             } else if (d as usize) - (iobuf_ptr as usize) + (utfc_ptr2len(s) as usize) + 1 >= IOSIZE
             {
@@ -7496,11 +7440,11 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
                 *full = c_int::from(true);
             }
         } else {
-            while ascii_isalpha_c(*p) {
+            while ascii_isalpha(*p) {
                 p = p.add(1);
             }
             if *(*eap).cmd == b'p' as c_char && *(*eap).cmd.add(1) == b'y' as c_char {
-                while ascii_isalnum_c(*p) {
+                while ascii_isalnum(*p) {
                     p = p.add(1);
                 }
             }
@@ -7532,7 +7476,7 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
                 }
             }
 
-            if ascii_islower_c(*(*eap).cmd) {
+            if ascii_islower(*(*eap).cmd) {
                 let c1 = *(*eap).cmd as u8;
                 let c2 = if len == 1 {
                     0u8
@@ -7552,7 +7496,7 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
                 if c2.is_ascii_lowercase() {
                     (*eap).cmdidx += c_int::from(CMDIDXS2[idx1][(c2 - b'a') as usize]);
                 }
-            } else if ascii_isupper_c(*(*eap).cmd) {
+            } else if ascii_isupper(*(*eap).cmd) {
                 (*eap).cmdidx = cmdidx_T::CMD_Next as c_int;
             } else {
                 (*eap).cmdidx = cmdidx_T::CMD_bang as c_int;
@@ -7577,7 +7521,7 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
                 && (*(*eap).cmd as u8) >= b'A'
                 && (*(*eap).cmd as u8) <= b'Z'
             {
-                while ascii_isalnum_c(*p) {
+                while ascii_isalnum(*p) {
                     p = p.add(1);
                 }
                 p = find_ucmd(eap, p, full, ptr::null_mut(), ptr::null_mut());
@@ -7601,7 +7545,7 @@ pub unsafe extern "C" fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) ->
 pub unsafe extern "C" fn modifier_len(cmd: *mut c_char) -> c_int {
     unsafe {
         let mut p = cmd;
-        if ascii_isdigit_c(*cmd) {
+        if ascii_isdigit(*cmd) {
             p = skipwhite(skipdigits(cmd.add(1)));
         }
         for info in &CMDMODS {
@@ -7615,7 +7559,7 @@ pub unsafe extern "C" fn modifier_len(cmd: *mut c_char) -> c_int {
                 }
                 j += 1;
             }
-            if j >= info.minlen && !ascii_isalpha_c(*p.add(j)) && (p == cmd || info.has_count) {
+            if j >= info.minlen && !ascii_isalpha(*p.add(j)) && (p == cmd || info.has_count) {
                 return (j + ((p as usize) - (cmd as usize))) as c_int;
             }
         }
@@ -7652,7 +7596,7 @@ pub unsafe extern "C" fn cmd_exists(name: *const c_char) -> c_int {
         if p.is_null() {
             return 3;
         }
-        if ascii_isdigit_c(*name) && ea.cmdidx != cmdidx_T::CMD_match as c_int {
+        if ascii_isdigit(*name) && ea.cmdidx != cmdidx_T::CMD_match as c_int {
             return 0;
         }
         if *skipwhite(p) != NUL {
@@ -8011,7 +7955,7 @@ pub unsafe extern "C" fn get_address(
                         cmd = cmd.add(1);
                     }
                     _ => {
-                        if ascii_isdigit_c(*cmd) {
+                        if ascii_isdigit(*cmd) {
                             lnum = getdigits(&raw mut cmd, false, 0) as linenr_T;
                         }
                     }
@@ -8019,7 +7963,7 @@ pub unsafe extern "C" fn get_address(
 
                 loop {
                     cmd = skipwhite(cmd);
-                    if *cmd != b'-' as c_char && *cmd != b'+' as c_char && !ascii_isdigit_c(*cmd) {
+                    if *cmd != b'-' as c_char && *cmd != b'+' as c_char && !ascii_isdigit(*cmd) {
                         break;
                     }
 
@@ -8037,14 +7981,14 @@ pub unsafe extern "C" fn get_address(
                         }
                     }
 
-                    let op = if ascii_isdigit_c(*cmd) {
+                    let op = if ascii_isdigit(*cmd) {
                         b'+' as c_int
                     } else {
                         let ch = c_int::from(*cmd as u8);
                         cmd = cmd.add(1);
                         ch
                     };
-                    let n = if !ascii_isdigit_c(*cmd) {
+                    let n = if !ascii_isdigit(*cmd) {
                         1
                     } else {
                         let parsed = getdigits_int32(&raw mut cmd, false, MAXLNUM);
@@ -8281,7 +8225,7 @@ pub unsafe extern "C" fn replace_makeprg(
             let mut new_cmdline = strrep(program, c"$*".as_ptr(), arg);
             if new_cmdline.is_null() {
                 new_cmdline = xmalloc(strlen(program) + strlen(arg) + 2).cast();
-                strcpy_c(new_cmdline, program);
+                strcpy(new_cmdline, program);
                 let _ = strcat(new_cmdline, c" ".as_ptr());
                 let _ = strcat(new_cmdline, arg);
             }
@@ -8473,12 +8417,12 @@ unsafe fn repl_cmdline(
         ptr::copy_nonoverlapping(*cmdlinep, new_cmdline, i);
         ptr::copy_nonoverlapping(repl, new_cmdline.add(i), len);
         i += len;
-        strcpy_c(new_cmdline.add(i), src.add(srclen));
+        strcpy(new_cmdline.add(i), src.add(srclen));
         src = new_cmdline.add(i);
 
         if !(*eap).nextcmd.is_null() {
             i = strlen(new_cmdline) + 1;
-            strcpy_c(new_cmdline.add(i), (*eap).nextcmd);
+            strcpy(new_cmdline.add(i), (*eap).nextcmd);
             (*eap).nextcmd = new_cmdline.add(i);
         }
         (*eap).cmd =
@@ -8574,7 +8518,7 @@ pub unsafe extern "C" fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
 
         if *arg == b'+' as c_char {
             arg = arg.add(1);
-            if ascii_isspace_c(*arg) || *arg == NUL {
+            if ascii_isspace(*arg) || *arg == NUL {
                 command = (&raw mut dollar_command).cast();
             } else {
                 command = arg;
@@ -8594,7 +8538,7 @@ pub unsafe extern "C" fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     unsafe {
-        while *p != NUL && !ascii_isspace_c(*p) {
+        while *p != NUL && !ascii_isspace(*p) {
             if *p == b'\\' as c_char && *p.add(1) != NUL {
                 if rembs {
                     strmove(p, p.add(1));
@@ -8654,13 +8598,13 @@ pub unsafe extern "C" fn getargopt(eap: *mut exarg_T) -> c_int {
             return OK;
         }
 
-        if strncmp(arg, c"edit".as_ptr(), 4) == 0 && !ascii_isalpha_c(*arg.add(4)) {
+        if strncmp(arg, c"edit".as_ptr(), 4) == 0 && !ascii_isalpha(*arg.add(4)) {
             (*eap).read_edit = c_int::from(true);
             (*eap).arg = skipwhite(arg.add(4));
             return OK;
         }
 
-        if *arg == b'p' as c_char && !ascii_isalpha_c(*arg.add(1)) {
+        if *arg == b'p' as c_char && !ascii_isalpha(*arg.add(1)) {
             (*eap).mkdir_p = c_int::from(true);
             (*eap).arg = skipwhite(arg.add(1));
             return OK;
@@ -8702,7 +8646,7 @@ pub unsafe extern "C" fn getargopt(eap: *mut exarg_T) -> c_int {
         } else if ptr::eq(pp, &raw mut (*eap).force_enc) {
             let mut p = (*eap).cmd.add((*eap).force_enc as usize);
             while *p != NUL {
-                *p = tolower_asc_c(*p);
+                *p = tolower_asc(c_int::from(*p as u8)) as c_char;
                 p = p.add(1);
             }
         } else if get_bad_opt((*eap).cmd.add(bad_char_idx as usize), eap) == FAIL {
@@ -8855,7 +8799,7 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
                         while {
                             cmdp = cmdp.sub(1);
                             cmdp > *(*eap).cmdlinep
-                                && (ascii_iswhite_c(*cmdp) || ascii_isdigit_c(*cmdp))
+                                && (ascii_iswhite(*cmdp) || ascii_isdigit(*cmdp))
                         } {}
                         if *cmdp == b'-' as c_char {
                             tab_number -= 1;
@@ -11286,7 +11230,7 @@ pub unsafe extern "C" fn do_sleep(msec: i64, hide_cursor: bool) {
 unsafe extern "C" fn ex_winsize(eap: *mut exarg_T) {
     unsafe {
         let mut arg = (*eap).arg;
-        if !ascii_isdigit_c(*arg) {
+        if !ascii_isdigit(*arg) {
             let _ = semsg!(gettext(e_invarg2.as_ptr()), arg);
             return;
         }
@@ -11621,7 +11565,7 @@ unsafe extern "C" fn ex_later(eap: *mut exarg_T) {
 
         if *p == NUL {
             count = 1;
-        } else if ascii_isdigit_c(*p) {
+        } else if ascii_isdigit(*p) {
             count = getdigits_int(&raw mut p, false, 0);
             match *p as u8 {
                 b's' => {
@@ -11705,7 +11649,7 @@ unsafe extern "C" fn ex_redir(eap: *mut exarg_T) {
                     if *arg == b'>' as c_char {
                         arg = arg.add(1);
                     }
-                    if *arg == NUL && !ascii_isupper_c(redir_reg as c_char) {
+                    if *arg == NUL && !ascii_isupper(redir_reg as c_char) {
                         write_reg_contents(redir_reg, c"".as_ptr(), 0, c_int::from(false));
                     }
                 }
@@ -12172,7 +12116,7 @@ unsafe extern "C" fn ex_findpat(eap: *mut exarg_T) {
         };
 
         let mut n: c_int = 1;
-        if ascii_isdigit_c(*(*eap).arg) {
+        if ascii_isdigit(*(*eap).arg) {
             n = getdigits_int(&raw mut (*eap).arg, false, 0);
             (*eap).arg = skipwhite((*eap).arg);
         }
@@ -12660,7 +12604,7 @@ pub unsafe extern "C" fn expand_sfile(arg: *mut c_char) -> *mut c_char {
                 let len = strlen(result) - srclen + strlen(repl) + 1;
                 let newres: *mut c_char = xmalloc(len).cast();
                 ptr::copy_nonoverlapping(result, newres, prefix_len);
-                strcpy_c(newres.add(prefix_len), repl);
+                strcpy(newres.add(prefix_len), repl);
                 let cont_len = strlen(newres);
                 let _ = strcat(newres, p.add(srclen));
                 xfree(repl.cast());

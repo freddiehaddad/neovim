@@ -59,7 +59,7 @@ use crate::plines::{getvcol, linetabsize_eol, win_chartabsize};
 use crate::search::{BACKWARD, FORWARD, findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::strings::{concat_str, tr, vim_strchr, xstrnsave};
+use crate::strings::{concat_str, strcat, tr, vim_strchr, xstrnsave};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
@@ -115,15 +115,6 @@ pub(crate) const HLF_W: c_int = 26;
 #[inline]
 pub const fn replace_normal(s: c_int) -> bool {
     (s & REPLACE_FLAG) != 0 && (s & VREPLACE_FLAG) == 0
-}
-
-#[inline]
-unsafe fn strcat_raw(dst: *mut c_char, src: *const c_char) {
-    unsafe {
-        let dst_len = CStr::from_ptr(dst).to_bytes().len();
-        let src_len = CStr::from_ptr(src).to_bytes().len();
-        ptr::copy_nonoverlapping(src, dst.add(dst_len), src_len + 1);
-    }
 }
 
 #[inline]
@@ -1633,12 +1624,12 @@ pub unsafe extern "C" fn open_line(
                 let padding = second_line_indent
                     - (newindent + CStr::from_ptr(leader).to_bytes().len() as c_int);
                 for _ in 0..padding {
-                    strcat_raw(leader, c" ".as_ptr());
+                    strcat(leader, c" ".as_ptr());
                     less_cols -= 1;
                     newcol += 1;
                 }
             }
-            strcat_raw(leader, p_extra);
+            strcat(leader, p_extra);
             p_extra = leader;
             Ins.did_ai = true;
             less_cols -= lead_len;
@@ -2212,12 +2203,5 @@ mod tests {
         assert!(replace_normal(REPLACE_FLAG));
         assert!(!replace_normal(REPLACE_FLAG | VREPLACE_FLAG));
         assert!(!replace_normal(MODE_INSERT));
-
-        let mut buf: [c_char; 16] = [0; 16];
-        unsafe {
-            strcat_raw(buf.as_mut_ptr(), c"hello".as_ptr());
-            strcat_raw(buf.as_mut_ptr(), c" world".as_ptr());
-            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"hello world");
-        }
     }
 }

@@ -25,7 +25,7 @@ use crate::mbyte::{
     utf_valid_string, utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
+use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemcpyz, xstrdup, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -2367,7 +2367,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> *mut aff
                                         .ga_data
                                         .cast::<*mut c_char>()
                                         .offset(idx as isize);
-                                    if str_equal(p_cond, (*aff_entry).ae_cond) {
+                                    if strequal(p_cond, (*aff_entry).ae_cond) {
                                         break;
                                     }
                                     idx -= 1;
@@ -2926,15 +2926,6 @@ unsafe fn aff_check_string(spinval: *const c_char, affval: *const c_char, name: 
                 name,
             );
         }
-    }
-}
-
-unsafe fn str_equal(s1: *const c_char, s2: *const c_char) -> bool {
-    unsafe {
-        if s1.is_null() || s2.is_null() {
-            return s1 == s2;
-        }
-        strcmp(s1, s2) == 0
     }
 }
 

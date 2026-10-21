@@ -17,7 +17,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memory::{
-    xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
+    strchrsub, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcat, xstrlcpy,
 };
 use crate::option::copy_option_part;
 use crate::option_vars::*;
@@ -34,7 +34,7 @@ use crate::os::shell::os_expand_wildcards;
 use crate::regexp::{
     RE_MAGIC, RE_NOBREAK, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
-use crate::strings::{concat_str, tolower, vim_snprintf, vim_strchr};
+use crate::strings::{concat_str, vim_snprintf, vim_strchr, vim_stricmp};
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
@@ -121,35 +121,6 @@ pub unsafe fn to_slash_save(p: *const c_char) -> *mut c_char {
     #[cfg(not(windows))]
     unsafe {
         xstrdup(p)
-    }
-}
-
-#[inline]
-unsafe fn strchrsub_in_place(mut buf: *mut c_char, c: c_char, x: c_char) {
-    unsafe {
-        while *buf != NUL {
-            if *buf == c {
-                *buf = x;
-            }
-            buf = buf.add(1);
-        }
-    }
-}
-
-#[inline]
-unsafe fn stricmp(mut s1: *const c_char, mut s2: *const c_char) -> c_int {
-    unsafe {
-        loop {
-            let i = tolower(*s1 as u8 as c_int) - tolower(*s2 as u8 as c_int);
-            if i != 0 {
-                return i;
-            }
-            if *s1 == NUL {
-                return 0;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-        }
     }
 }
 
@@ -1452,7 +1423,7 @@ pub unsafe extern "C" fn slash_adjust(p: *mut c_char) {
 
         let from = if p_ssl != 0 { b'\\' as c_char } else { PATHSEP };
         let to = if p_ssl != 0 { PATHSEP } else { b'\\' as c_char };
-        strchrsub_in_place(p, from, to);
+        strchrsub(p, from, to);
     }
 }
 
@@ -1460,7 +1431,7 @@ pub unsafe extern "C" fn slash_adjust(p: *mut c_char) {
 pub unsafe extern "C" fn path_to_backslash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
-            strchrsub_in_place(p, PATHSEP, b'\\' as c_char);
+            strchrsub(p, PATHSEP, b'\\' as c_char);
         }
     }
     p
@@ -1471,7 +1442,7 @@ pub unsafe extern "C" fn path_to_slash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
             if path_with_url(p) == 0 {
-                strchrsub_in_place(p, b'\\' as c_char, PATHSEP);
+                strchrsub(p, b'\\' as c_char, PATHSEP);
             }
         }
     }
@@ -1849,7 +1820,7 @@ pub unsafe extern "C" fn path_fix_case(name: *mut c_char) {
             if entry.is_null() {
                 break;
             }
-            if stricmp(tail, entry) == 0 && taillen == CStr::from_ptr(entry).to_bytes().len() {
+            if vim_stricmp(tail, entry) == 0 && taillen == CStr::from_ptr(entry).to_bytes().len() {
                 let mut newname = [0 as c_char; MAXPATHL + 1];
                 let tail_off = tail.offset_from(name) as usize;
                 xstrlcpy(newname.as_mut_ptr(), name, MAXPATHL + 1);

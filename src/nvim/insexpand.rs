@@ -332,20 +332,6 @@ unsafe fn mb_ptr_adv_const(p: *mut *const c_char) {
     }
 }
 
-#[inline]
-unsafe fn strnicmp_impl(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe {
-        #[cfg(unix)]
-        {
-            vim_strnicmp(s1, s2, n)
-        }
-        #[cfg(windows)]
-        {
-            vim_strnicmp(s1, s2, n)
-        }
-    }
-}
-
 /// Structure used to store one match for insert completion (`compl_T`).
 #[repr(C)]
 pub struct compl_T {
@@ -1302,7 +1288,7 @@ unsafe fn ins_compl_equal(match_: *mut compl_T, str_ptr: *const c_char, len: usi
             return true;
         }
         if ((*match_).cp_flags & CP_ICASE) != 0 {
-            return strnicmp_impl((*match_).cp_str.data, str_ptr, len) == 0;
+            return vim_strnicmp((*match_).cp_str.data, str_ptr, len) == 0;
         }
         strncmp((*match_).cp_str.data, str_ptr, len) == 0
     }
@@ -4933,7 +4919,7 @@ unsafe fn get_register_completion() {
 
                     let matches = compl_orig_text.data.is_null()
                         || if p_ic != 0 {
-                            strnicmp_impl(str_ptr, compl_orig_text.data, compl_orig_text.size) == 0
+                            vim_strnicmp(str_ptr, compl_orig_text.data, compl_orig_text.size) == 0
                         } else {
                             strncmp(str_ptr, compl_orig_text.data, compl_orig_text.size) == 0
                         };
@@ -4972,7 +4958,7 @@ unsafe fn get_register_completion() {
                         let len = word_end.offset_from(p) as c_int;
                         let matches = compl_orig_text.data.is_null()
                             || if p_ic != 0 {
-                                strnicmp_impl(p, compl_orig_text.data, compl_orig_text.size) == 0
+                                vim_strnicmp(p, compl_orig_text.data, compl_orig_text.size) == 0
                             } else {
                                 strncmp(p, compl_orig_text.data, compl_orig_text.size) == 0
                             };

@@ -99,11 +99,6 @@ static mut PREV_DY_UHEX: c_uint = 0;
 static mut PREV_FLP: *mut c_char = ptr::null_mut();
 
 #[inline]
-const fn ascii_iswhite_cint(c: c_int) -> bool {
-    c == b' ' as c_int || c == b'\t' as c_int
-}
-
-#[inline]
 const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
     (v.is_set__briopt_ & (1u64 << bit)) != 0
 }
@@ -1859,7 +1854,7 @@ pub unsafe extern "C" fn get_lisp_indent() -> c_int {
                         {
                             let mut quotecount = false;
                             while *that != NUL
-                                && (!ascii_iswhite_cint(ci.value) || quotecount || parencount != 0)
+                                && (!ascii_iswhite(ci.value) || quotecount || parencount != 0)
                             {
                                 if ci.value == b'"' as i32 {
                                     quotecount = !quotecount;

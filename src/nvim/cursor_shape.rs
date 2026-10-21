@@ -129,23 +129,7 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
-#[inline]
-unsafe fn strchr_ascii(mut s: *const c_char, ch: u8) -> *const c_char {
-    unsafe {
-        loop {
-            let b = *s as u8;
-            if b == ch {
-                return s;
-            }
-            if b == 0 {
-                return std::ptr::null();
-            }
-            s = s.add(1);
-        }
-    }
-}
-
-use crate::strings::vim_strnicmp_asc;
+use crate::strings::{strchr, vim_strnicmp_asc};
 
 unsafe fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!(shape_table) };
@@ -336,8 +320,8 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
             }
             let mut modep: *const c_char = p_guicursor;
             while !modep.is_null() && *modep != 0 {
-                let colonp = strchr_ascii(modep, b':');
-                let commap = strchr_ascii(modep, b',');
+                let colonp = strchr(modep, b':' as c_int).cast_const();
+                let commap = strchr(modep, b',' as c_int).cast_const();
 
                 if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize))
                 {
@@ -432,7 +416,7 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
                             }
                             p = p.add(5);
                         } else {
-                            let mut endp = strchr_ascii(p, b'-');
+                            let mut endp = strchr(p, b'-' as c_int).cast_const();
                             if commap.is_null() {
                                 if endp.is_null() {
                                     endp = p.add(CStr::from_ptr(p).to_bytes().len());
@@ -440,7 +424,7 @@ pub unsafe extern "C" fn parse_shape_opt(what: c_int) -> *const c_char {
                             } else if endp.is_null() || (endp as usize) > (commap as usize) {
                                 endp = commap;
                             }
-                            let slashp = strchr_ascii(p, b'/');
+                            let slashp = strchr(p, b'/' as c_int).cast_const();
                             let mut saved_hl_id = first_byte as c_int;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
                                 saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
