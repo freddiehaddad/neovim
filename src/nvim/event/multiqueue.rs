@@ -119,7 +119,7 @@ pub extern "C" fn multiqueue_new(on_put: PutCallback, data: *mut c_void) -> *mut
 pub unsafe extern "C" fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
     let parent_ref = unsafe { &mut *parent };
     assert!(parent_ref.parent.is_null());
-    parent_ref.size += 1;
+    parent_ref.size = parent_ref.size.wrapping_add(1);
     multiqueue_new_inner(parent, None, std::ptr::null_mut())
 }
 
@@ -188,7 +188,7 @@ unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
         unlink(q, h);
         assert!(!(*h).link || q.parent.is_null());
         let ev = multiqueueitem_get_event(q, h, true);
-        q.size -= 1;
+        q.size = q.size.wrapping_sub(1);
         xfree(h.cast::<c_void>());
         ev
     }
@@ -222,7 +222,7 @@ unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
             push_tail(&mut *q.parent, pitem);
         }
 
-        q.size += 1;
+        q.size = q.size.wrapping_add(1);
     }
 }
 
