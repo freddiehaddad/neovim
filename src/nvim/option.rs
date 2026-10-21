@@ -615,10 +615,7 @@ const SHELL_RULES: [ShellRule; 2] = [
     },
 ];
 
-#[cfg(not(windows))]
 use crate::os::lang::bind_textdomain_codeset;
-#[cfg(windows)]
-use crate::os::lang::libintl_bind_textdomain_codeset;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opt_error(
@@ -978,14 +975,7 @@ pub unsafe extern "C" fn set_init_1(clean_arg: bool) {
         lang_init();
         set_init_fenc_default();
 
-        #[cfg(windows)]
-        {
-            let _ = libintl_bind_textdomain_codeset(c"nvim".as_ptr(), p_enc);
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = bind_textdomain_codeset(c"nvim".as_ptr(), p_enc);
-        }
+        let _ = bind_textdomain_codeset(c"nvim".as_ptr(), p_enc);
 
         set_helplang_default(get_mess_lang());
     }

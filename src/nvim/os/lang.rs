@@ -25,8 +25,13 @@ use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
 use crate::profile::time_msg;
 use crate::strings::{gettext, setlocale};
-use std::ffi::{c_char, c_int};
+use std::ffi::{c_char, c_int, c_ulong};
 use std::ptr;
+
+pub(crate) const HAVE_LIBINTL: bool = match option_env!("NVIM_HAVE_LIBINTL") {
+    Some(s) => !matches!(s.as_bytes(), b"0" | b"false" | b"FALSE" | b"off" | b"OFF"),
+    None => true,
+};
 
 pub(crate) const LC_CTYPE: c_int = if cfg!(target_os = "linux") { 0 } else { 2 };
 
@@ -72,29 +77,46 @@ static mut LOCALES: *mut *mut c_char = ptr::null_mut();
 static mut DID_INIT_LOCALES: bool = false;
 
 unsafe extern "C" {
-
     #[cfg(target_os = "linux")]
     static mut _nl_msg_cat_cntr: c_int;
 
-    #[cfg(windows)]
-    fn libintl_bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
-    #[cfg(windows)]
-    fn libintl_textdomain(domainname: *const c_char) -> *mut c_char;
-    #[cfg(windows)]
-    pub fn libintl_bind_textdomain_codeset(
-        domainname: *const c_char,
-        codeset: *const c_char,
+    #[cfg_attr(windows, link_name = "gettext")]
+    #[cfg_attr(not(windows), link_name = "gettext")]
+    pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char;
+
+    #[cfg_attr(windows, link_name = "ngettext")]
+    #[cfg_attr(not(windows), link_name = "ngettext")]
+    pub(crate) fn c_ngettext(
+        msgid1: *const c_char,
+        msgid2: *const c_char,
+        n: c_ulong,
     ) -> *mut c_char;
 
-    #[cfg(not(windows))]
-    pub fn bind_textdomain_codeset(
-        domainname: *const c_char,
-        codeset: *const c_char,
-    ) -> *mut c_char;
-    #[cfg(target_os = "linux")]
-    fn bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
-    #[cfg(target_os = "linux")]
-    fn textdomain(domainname: *const c_char) -> *mut c_char;
+    #[cfg_attr(windows, link_name = "libintl_bind_textdomain_codeset")]
+    #[cfg_attr(not(windows), link_name = "bind_textdomain_codeset")]
+    fn c_bind_textdomain_codeset(domainname: *const c_char, codeset: *const c_char) -> *mut c_char;
+
+    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg_attr(windows, link_name = "libintl_bindtextdomain")]
+    #[cfg_attr(not(windows), link_name = "bindtextdomain")]
+    fn c_bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
+
+    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg_attr(windows, link_name = "libintl_textdomain")]
+    #[cfg_attr(not(windows), link_name = "textdomain")]
+    fn c_textdomain(domainname: *const c_char) -> *mut c_char;
+}
+
+#[inline]
+pub unsafe fn bind_textdomain_codeset(
+    domainname: *const c_char,
+    codeset: *const c_char,
+) -> *mut c_char {
+    if HAVE_LIBINTL {
+        unsafe { c_bind_textdomain_codeset(domainname, codeset) }
+    } else {
+        ptr::null_mut()
+    }
 }
 
 use crate::charset::NUL;
@@ -199,15 +221,10 @@ pub unsafe extern "C" fn init_locale() {
         let offset = (tail as usize) - (localepath.as_ptr() as usize);
         xstrlcpy(tail, c"share/locale".as_ptr(), MAXPATHL - offset);
 
-        #[cfg(windows)]
-        {
-            let _ = libintl_bindtextdomain(c"nvim".as_ptr(), localepath.as_ptr());
-            let _ = libintl_textdomain(c"nvim".as_ptr());
-        }
-        #[cfg(target_os = "linux")]
-        {
-            let _ = bindtextdomain(c"nvim".as_ptr(), localepath.as_ptr());
-            let _ = textdomain(c"nvim".as_ptr());
+        #[cfg(any(windows, target_os = "linux"))]
+        if HAVE_LIBINTL {
+            let _ = c_bindtextdomain(c"nvim".as_ptr(), localepath.as_ptr());
+            let _ = c_textdomain(c"nvim".as_ptr());
         }
 
         if !time_fd.is_null() {

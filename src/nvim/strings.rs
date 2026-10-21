@@ -75,10 +75,6 @@ unsafe extern "C" {
     pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
-    #[link_name = "gettext"]
-    fn c_gettext(msgid: *const c_char) -> *mut c_char;
-    #[link_name = "ngettext"]
-    fn c_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
     #[link_name = "tolower"]
     fn c_tolower(c: c_int) -> c_int;
     #[link_name = "toupper"]
@@ -137,7 +133,11 @@ pub unsafe fn strmove(dst: *mut c_char, src: *const c_char) {
 
 #[inline]
 pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
-    unsafe { c_gettext(msgid) }
+    if crate::os::lang::HAVE_LIBINTL {
+        unsafe { crate::os::lang::c_gettext(msgid) }
+    } else {
+        msgid.cast_mut()
+    }
 }
 
 pub trait IntoNgettextCount {
@@ -193,7 +193,13 @@ pub unsafe fn ngettext<N: IntoNgettextCount>(
     n: N,
 ) -> *mut c_char {
     let count = n.into_ngettext_count();
-    unsafe { c_ngettext(msgid1, msgid2, count) }
+    if crate::os::lang::HAVE_LIBINTL {
+        unsafe { crate::os::lang::c_ngettext(msgid1, msgid2, count) }
+    } else if count == 1 {
+        msgid1.cast_mut()
+    } else {
+        msgid2.cast_mut()
+    }
 }
 
 #[inline]

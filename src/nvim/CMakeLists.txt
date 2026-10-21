@@ -88,6 +88,11 @@ if(ENABLE_UNIBILIUM)
 else()
   set(NVIM_RUST_UNIBILIUM "0")
 endif()
+if(ENABLE_LIBINTL)
+  set(NVIM_RUST_LIBINTL "1")
+else()
+  set(NVIM_RUST_LIBINTL "0")
+endif()
 
 add_custom_command(
   OUTPUT "${NVIM_CARGO_BIN}"
@@ -111,6 +116,7 @@ add_custom_command(
     "NVIM_DEFAULT_LIB_DIR=${CMAKE_INSTALL_FULL_LIBDIR}/nvim"
     "NVIM_EXITFREE=${NVIM_RUST_EXITFREE}"
     "NVIM_HAVE_UNIBILIUM=${NVIM_RUST_UNIBILIUM}"
+    "NVIM_HAVE_LIBINTL=${NVIM_RUST_LIBINTL}"
     "${CARGO_PRG}" build
     --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
     ${NVIM_RUST_CARGO_FLAGS}

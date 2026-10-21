@@ -36,6 +36,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NVIM_DEFAULT_LIB_DIR");
     println!("cargo:rerun-if-env-changed=NVIM_EXITFREE");
     println!("cargo:rerun-if-env-changed=NVIM_HAVE_UNIBILIUM");
+    println!("cargo:rerun-if-env-changed=NVIM_HAVE_LIBINTL");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let cmake_text =
@@ -166,13 +167,20 @@ fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 
+    let have_libintl = !matches!(
+        env::var("NVIM_HAVE_LIBINTL").as_deref(),
+        Ok("0" | "false" | "OFF" | "off")
+    );
+
     if target_os == "windows" && target_env == "msvc" {
         println!("cargo:rustc-link-search=native={}", deps_lib.display());
+        if have_libintl {
+            println!("cargo:rustc-link-lib=libintl");
+        }
         for lib in [
             "luv",
             "libiconv",
             "tree-sitter",
-            "libintl",
             "lua51",
             "libuv",
             "netapi32",

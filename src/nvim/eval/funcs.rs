@@ -210,8 +210,8 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 use crate::strings::mb_strup_buf;
 use crate::strings::{
     atoi, gettext, strcmp, strlen, strncmp, strtoul, vim_snprintf, vim_snprintf_safelen,
-    vim_snprintf_typval_only, vim_strchr, vim_stricmp, vim_strnicmp,
-    vim_strsave_escaped, vim_strsave_shellescape,
+    vim_snprintf_typval_only, vim_strchr, vim_stricmp, vim_strnicmp, vim_strsave_escaped,
+    vim_strsave_shellescape,
 };
 use crate::syntax::{
     HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char, synblock_T,
@@ -393,6 +393,9 @@ const fn compute_build_has_flags() -> u32 {
     }
     if cfg!(target_os = "android") {
         flags |= 1 << 3;
+    }
+    if crate::os::lang::HAVE_LIBINTL {
+        flags |= 1 << 4;
     }
     flags
 }
@@ -4234,7 +4237,6 @@ static EVAL_HAS_LIST: &[&CStr] = &[
     c"folding",
     #[cfg(unix)]
     c"fork",
-    c"gettext",
     c"iconv",
     c"insert_expand",
     c"jumplist",
@@ -4317,6 +4319,7 @@ unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
             || ((flags & (1 << 1)) != 0 && vim_stricmp(name, c"terminfo".as_ptr()) == 0)
             || ((flags & (1 << 2)) != 0 && vim_stricmp(name, c"xattr".as_ptr()) == 0)
             || ((flags & (1 << 3)) != 0 && vim_stricmp(name, c"termux".as_ptr()) == 0)
+            || ((flags & (1 << 4)) != 0 && vim_stricmp(name, c"gettext".as_ptr()) == 0)
     }
 }
 
