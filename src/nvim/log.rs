@@ -53,16 +53,14 @@ unsafe extern "C" {
 
     #[cfg(windows)]
     fn __acrt_iob_func(ix: u32) -> *mut FILE;
-    #[cfg(target_os = "linux")]
-    #[link_name = "stderr"]
+    #[cfg(not(windows))]
+    #[cfg_attr(target_os = "linux", link_name = "stderr")]
+    #[cfg_attr(not(target_os = "linux"), link_name = "__stderrp")]
     static mut c_stderr: *mut FILE;
-    #[cfg(target_os = "linux")]
-    #[link_name = "stdout"]
+    #[cfg(not(windows))]
+    #[cfg_attr(target_os = "linux", link_name = "stdout")]
+    #[cfg_attr(not(target_os = "linux"), link_name = "__stdoutp")]
     static mut c_stdout: *mut FILE;
-    #[cfg(not(any(windows, target_os = "linux")))]
-    static mut __stderrp: *mut FILE;
-    #[cfg(not(any(windows, target_os = "linux")))]
-    static mut __stdoutp: *mut FILE;
 }
 
 #[unsafe(no_mangle)]
@@ -71,13 +69,9 @@ pub unsafe extern "C" fn log_get_stdout() -> *mut FILE {
     unsafe {
         __acrt_iob_func(1)
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(not(windows))]
     unsafe {
         c_stdout
-    }
-    #[cfg(not(any(windows, target_os = "linux")))]
-    unsafe {
-        __stdoutp
     }
 }
 
@@ -87,30 +81,15 @@ pub unsafe extern "C" fn log_get_stderr() -> *mut FILE {
     unsafe {
         __acrt_iob_func(2)
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(not(windows))]
     unsafe {
         c_stderr
-    }
-    #[cfg(not(any(windows, target_os = "linux")))]
-    unsafe {
-        __stderrp
     }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn log_is_std_stream(fp: *mut FILE) -> bool {
-    #[cfg(windows)]
-    unsafe {
-        fp == __acrt_iob_func(2) || fp == __acrt_iob_func(1)
-    }
-    #[cfg(target_os = "linux")]
-    unsafe {
-        fp == c_stderr || fp == c_stdout
-    }
-    #[cfg(not(any(windows, target_os = "linux")))]
-    unsafe {
-        fp == __stderrp || fp == __stdoutp
-    }
+    unsafe { fp == log_get_stderr() || fp == log_get_stdout() }
 }
 
 #[macro_export]

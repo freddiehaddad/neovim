@@ -344,14 +344,14 @@ use crate::event::r#loop::{
 };
 
 unsafe extern "C" {
-    #[cfg(windows)]
-    fn _errno() -> *mut c_int;
+    #[cfg_attr(windows, link_name = "_errno")]
+    #[cfg_attr(target_os = "linux", link_name = "__errno_location")]
+    #[cfg_attr(all(not(windows), not(target_os = "linux")), link_name = "__error")]
+    pub fn errno_ptr() -> *mut c_int;
 
     #[cfg(not(windows))]
     fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> isize;
 
-    #[cfg(target_os = "linux")]
-    fn __errno_location() -> *mut c_int;
     #[cfg(target_os = "linux")]
     fn listxattr(path: *const c_char, list: *mut c_char, size: usize) -> isize;
     #[cfg(target_os = "linux")]
@@ -365,9 +365,6 @@ unsafe extern "C" {
         size: usize,
         flags: c_int,
     ) -> c_int;
-
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    fn __error() -> *mut c_int;
 }
 
 #[cfg(windows)]
@@ -413,22 +410,6 @@ pub const fn s_isfifo(m: u64) -> bool {
 #[inline]
 pub const fn s_issock(m: u64) -> bool {
     cfg!(unix) && (m & S_IFMT) == crate::fileio::S_IFSOCK
-}
-
-#[inline]
-pub unsafe fn errno_ptr() -> *mut c_int {
-    #[cfg(windows)]
-    unsafe {
-        _errno()
-    }
-    #[cfg(target_os = "linux")]
-    unsafe {
-        __errno_location()
-    }
-    #[cfg(all(not(windows), not(target_os = "linux")))]
-    unsafe {
-        __error()
-    }
 }
 
 #[inline]
