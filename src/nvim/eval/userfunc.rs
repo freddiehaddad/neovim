@@ -14,7 +14,8 @@ use crate::autocmd::{
     funccal_entry_T,
 };
 use crate::charset::{
-    ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite, vim_strsize,
+    NUL, ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite,
+    vim_strsize,
 };
 use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, kUICmdline};
 use crate::cursor::linenr_T;
@@ -137,7 +138,6 @@ pub struct ufunc_T {
 }
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
-use crate::charset::NUL;
 use crate::globals::IOSIZE;
 
 pub const FC_ABORT: c_int = 0x01;

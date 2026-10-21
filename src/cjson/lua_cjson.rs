@@ -11,18 +11,17 @@ use crate::cjson::strbuf::{
     strbuf_extend_length, strbuf_free, strbuf_init, strbuf_length, strbuf_new, strbuf_reset,
     strbuf_set_length, strbuf_string, strbuf_t,
 };
-use crate::lua::base64::{lua_State, luaL_Reg};
 use crate::lua::converter::{
     LUA_ERRRUN, LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TLIGHTUSERDATA, LUA_TNIL, LUA_TNUMBER,
-    LUA_TSTRING, LUA_TTABLE, LUA_TUSERDATA, lua_Integer, lua_Number, lua_call, lua_checkstack,
-    lua_getfield, lua_getmetatable, lua_gettable, lua_gettop, lua_insert, lua_isnil, lua_newtable,
-    lua_newuserdata, lua_next, lua_objlen, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
-    lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
-    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawget, lua_rawgeti,
-    lua_rawset, lua_rawseti, lua_setfield, lua_setmetatable, lua_toboolean, lua_tointeger,
-    lua_tolstring, lua_tonumber, lua_tostring, lua_touserdata, lua_type, lua_typename,
-    lua_upvalueindex, luaL_argerror, luaL_checklstring, luaL_checkstack, luaL_checkstring,
-    luaL_checktype, luaL_error, luaL_getmetafield,
+    LUA_TSTRING, LUA_TTABLE, LUA_TUSERDATA, lua_Integer, lua_Number, lua_State, lua_call,
+    lua_checkstack, lua_getfield, lua_getmetatable, lua_gettable, lua_gettop, lua_insert,
+    lua_isnil, lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pcall, lua_pop,
+    lua_pushboolean, lua_pushcclosure, lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata,
+    lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal,
+    lua_rawget, lua_rawgeti, lua_rawset, lua_rawseti, lua_setfield, lua_setmetatable,
+    lua_toboolean, lua_tointeger, lua_tolstring, lua_tonumber, lua_tostring, lua_touserdata,
+    lua_type, lua_typename, lua_upvalueindex, luaL_Reg, luaL_argerror, luaL_checklstring,
+    luaL_checkstack, luaL_checkstring, luaL_checktype, luaL_error, luaL_getmetafield,
 };
 use crate::lua::executor::{nlua_get_empty_dict_ref, nlua_get_nil_ref, nlua_pushref};
 

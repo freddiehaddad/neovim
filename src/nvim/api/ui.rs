@@ -70,19 +70,19 @@ pub(crate) const CHAN_STDIO: u64 = 1;
 
 pub(crate) const kChannelPartAll: c_int = 4;
 
-const kUICmdline: usize = 0;
+pub(crate) const kUICmdline: usize = 0;
 const kUIPopupmenu: usize = 1;
 const kUIWildmenu: usize = 3;
-const kUIMessages: usize = 4;
+pub(crate) const kUIMessages: usize = 4;
 pub(crate) const kUILinegrid: usize = 5;
-const kUIMultigrid: usize = 6;
+pub(crate) const kUIMultigrid: usize = 6;
 pub(crate) const kUIHlState: usize = 7;
 pub(crate) const kUITermColors: usize = 8;
 pub(crate) const kUIExtCount: usize = 10;
 
 pub(crate) const kLineFlagWrap: c_int = 1;
 
-const ARRAY_INIT: Array = Array {
+pub(crate) const ARRAY_INIT: Array = Array {
     items: ptr::null_mut(),
     size: 0,
     capacity: 0,

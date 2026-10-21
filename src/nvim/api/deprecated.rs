@@ -15,9 +15,9 @@ use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
-    NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename, arena_array,
-    array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var, error_set,
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
+    MAXCOL, MAXLNUM, NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
+    arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
+    error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
     static_cstr_as_string, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
@@ -55,8 +55,6 @@ use crate::window::{win_setheight_win, win_setwidth_win};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-const MAXLNUM: i64 = 0x7fffffff;
-const MAXCOL: i64 = 0x7fffffff;
 const LINE_BUFFER_MIN_SIZE: usize = 4096;
 
 #[repr(C)]

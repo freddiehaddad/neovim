@@ -190,7 +190,7 @@ const fn IS_SPECIAL(c: c_int) -> bool {
 const kInsArrow: c_int = 1;
 const kInsJump: c_int = 2;
 
-const HLF_8: usize = 1;
+pub(crate) const HLF_8: usize = 1;
 
 pub(crate) const kOptFdoFlagAll: c_uint = 0x01;
 pub(crate) const kOptFdoFlagHor: c_uint = 0x04;

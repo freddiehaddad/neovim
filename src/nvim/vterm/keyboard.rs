@@ -7,6 +7,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::input::NUL;
 use std::ffi::{c_char, c_int, c_void};
 
 use crate::tui::termkey::termkey::fill_utf8;
@@ -17,8 +18,6 @@ use crate::vterm::vterm::{
 
 pub type VTermModifier = c_int;
 pub type VTermKey = c_int;
-
-const NUL: c_int = 0;
 
 const C1_SS3: u8 = 0x8f;
 pub(crate) const C1_CSI: u8 = 0x9b;

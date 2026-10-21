@@ -31,7 +31,7 @@ const UV_TTY_MODE_NORMAL: c_int = 0;
 const UV_TTY_MODE_RAW: c_int = 1;
 
 #[cfg(windows)]
-const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
+pub(crate) const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
 
 pub type Stream = c_void;
 pub type uv_stream_t = c_void;

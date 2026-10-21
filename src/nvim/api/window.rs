@@ -11,7 +11,7 @@
 )]
 
 use crate::api::private::helpers::{
-    NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
+    MAXCOL, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
     dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj,
     normalize_index, put_c, try_wrap,
 };
@@ -27,8 +27,7 @@ use crate::errors::*;
 use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
-use crate::lua::base64::lua_State;
-use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::converter::{Boolean, LuaRef, lua_State};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::memory::{Arena, strequal_str as strequal};
 use crate::message::emsg;
@@ -44,8 +43,6 @@ use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
-
-const MAXCOL: i64 = 0x7fffffff;
 
 pub(crate) const kCtxKeepCwd: c_int = 1;
 pub(crate) const kCtxValidate: c_int = 16;

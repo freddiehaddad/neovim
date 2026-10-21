@@ -17,8 +17,8 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::{
-    kLineFlagWrap, kUIExtCount, kUIHlState, kUILinegrid, kUITermColors,
-    remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
+    kLineFlagWrap, kUICmdline, kUIExtCount, kUIHlState, kUILinegrid, kUIMessages, kUIMultigrid,
+    kUITermColors, remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
     remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
     remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
     remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
@@ -73,10 +73,7 @@ const MAX_UI_COUNT: usize = 16;
 const SHAPE_IDX_N: c_int = 0;
 const SHAPE_IDX_R: c_int = 3;
 
-const kUICmdline: usize = 0;
-const kUIMessages: usize = 4;
 const kUIGlobalCount: usize = kUILinegrid;
-const kUIMultigrid: usize = 6;
 const kUIFloatDebug: usize = 9;
 
 pub(crate) const kLineFlagInvalid: c_int = 2;

@@ -7,6 +7,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
 use std::ffi::{c_char, c_int, c_long, c_void};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -17,7 +18,6 @@ use crate::grid::{schar_T, schar_get};
 use crate::mbyte::utf_ptr2StrCharInfo;
 use crate::vterm::keyboard::{VTermColor, VTermStateFull};
 use crate::vterm::mouse::VTermPos;
-use crate::vterm::parser::VTermStringFragment;
 use crate::vterm::pen::{
     VTERM_ATTR_BACKGROUND, VTERM_ATTR_BASELINE, VTERM_ATTR_BLINK, VTERM_ATTR_BOLD,
     VTERM_ATTR_CONCEAL, VTERM_ATTR_DIM, VTERM_ATTR_FONT, VTERM_ATTR_FOREGROUND, VTERM_ATTR_ITALIC,
@@ -37,9 +37,7 @@ use crate::vterm::state::{
 
 pub type VTermAttrMask = c_int;
 
-const CSI_ARG_FLAG_MORE: c_long = (1u64 << 31) as c_long;
 const CSI_ARG_MASK: c_long = !((1u64 << 31) as c_long);
-const CSI_ARG_MISSING: c_long = ((1u64 << 31) - 1) as c_long;
 
 const VTERM_VALUETYPE_STRING: VTermValueType = 3;
 

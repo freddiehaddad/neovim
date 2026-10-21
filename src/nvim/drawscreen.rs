@@ -118,7 +118,7 @@ pub const UPD_CLEAR: c_int = 50;
 pub(crate) const DEFAULT_GRID_HANDLE: handle_T = 1;
 const COL_RULER: c_int = 18;
 pub(crate) const SHOWCMD_COLS: c_int = 10;
-const SIGN_WIDTH: c_int = 2;
+pub(crate) const SIGN_WIDTH: c_int = 2;
 
 pub(crate) const FR_LEAF: c_char = 0;
 pub(crate) const FR_ROW: c_char = 1;

@@ -1,6 +1,7 @@
 //! Global variables (`src/nvim/globals.h`).
 #![allow(non_upper_case_globals)]
 
+use crate::highlight::{HLF_COUNT, RgbValue};
 use std::ffi::{c_char, c_int, c_long};
 use std::mem::zeroed;
 use std::ptr;
@@ -26,7 +27,6 @@ use crate::extmark::TriState;
 use crate::fileio::FILE;
 use crate::garray::garray_T;
 use crate::grid::{GridView, ScreenGrid, sattr_T, schar_T};
-use crate::highlight::RgbValue;
 use crate::kvec::KVec;
 use crate::lua::converter::nlua_ref_state_t;
 use crate::map::{Map, Set, ptr_t};
@@ -49,7 +49,6 @@ pub(crate) const IOSIZE: usize = 1024 + 1;
 pub(crate) const DFLT_ROWS: c_int = 24;
 pub(crate) const DFLT_COLS: c_int = 80;
 pub(crate) const PROF_NONE: c_int = 0;
-const HLF_COUNT: usize = 76;
 
 const fn bytes_to_chars<const N: usize>(b: &[u8; N]) -> [c_char; N] {
     let mut out = [0 as c_char; N];

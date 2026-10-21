@@ -26,7 +26,7 @@ use crate::msgpack_rpc::packer::Integer;
 use std::ffi::c_int;
 use std::ptr;
 
-const ARENA_EMPTY: Arena = Arena {
+pub(crate) const ARENA_EMPTY: Arena = Arena {
     cur_blk: ptr::null_mut(),
     pos: 0,
     size: 0,

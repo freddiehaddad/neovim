@@ -15,6 +15,8 @@ use crate::log::{LOGLVL_ERR, LOGLVL_INF, logmsg};
 #[cfg(windows)]
 use crate::os::env::os_get_pid;
 #[cfg(windows)]
+use crate::os::os_win_console::INVALID_HANDLE_VALUE;
+#[cfg(windows)]
 use std::ffi::{c_char, c_int, c_long, c_void};
 
 #[cfg(windows)]
@@ -30,8 +32,6 @@ pub type HRESULT = c_long;
 #[cfg(windows)]
 use crate::extmark::TriState;
 
-#[cfg(windows)]
-const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 #[cfg(windows)]
 const PIPE_ACCESS_INBOUND: DWORD = 0x0000_0001;
 #[cfg(windows)]

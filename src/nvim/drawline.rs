@@ -35,7 +35,8 @@ use crate::diff::{
     diff_check_with_linestatus, diff_find_change, diffline_T,
 };
 use crate::drawscreen::{
-    WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, spellvars_T, win_draw_end,
+    SIGN_WIDTH, WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, spellvars_T,
+    win_draw_end,
 };
 use crate::eval::typval::kCallbackNone;
 use crate::ex_getln::{disptick_T, hlf_T};
@@ -94,8 +95,7 @@ type HlMode = u8;
 
 const MB_FILLER_CHAR: u8 = b'<';
 const TERM_ATTRS_MAX: usize = 1024;
-const SIGN_WIDTH: c_int = 2;
-const MAX_STCWIDTH: c_int = 20 + 9 * SIGN_WIDTH + 9;
+pub(crate) const MAX_STCWIDTH: c_int = 20 + 9 * SIGN_WIDTH + 9;
 const SPWORDLEN: usize = 150;
 pub(crate) const SMT_ALL: c_int = 0;
 

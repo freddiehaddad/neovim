@@ -17,6 +17,7 @@ use crate::api::private::validate::{
     Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::arglist::alist_T;
+use crate::autocmd::EMPTY_MAP_HASH;
 use crate::buffer::{
     BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buf_T, buflist_findnr, buflist_new,
     buflist_setfpos,
@@ -50,9 +51,9 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::highlight::{OptionalKeys, map_destroy, set_destroy};
 use crate::lua::converter::Boolean;
 use crate::map::{
-    MH_TOMBSTONE, MHPutStatus, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t,
-    map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t,
-    mh_put_path_t, mh_put_ptr_t, path_t, ptr_t,
+    MH_TOMBSTONE, MHPutStatus, Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
+    map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t, mh_put_path_t, mh_put_ptr_t,
+    path_t, ptr_t,
 };
 use crate::mark::{
     EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
@@ -75,6 +76,8 @@ use crate::msgpack_rpc::unpacker::{
     AdditionalDataBuilder, AdditionalDataHeader, StringArray, push_additional_data, unpack_array,
     unpack_integer, unpack_keydict, unpack_skip, unpack_string,
 };
+#[cfg(unix)]
+use crate::option::ROOT_UID;
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_pid};
@@ -125,8 +128,6 @@ pub const kShaDaNoOpt: c_int = 128;
 const NLOCALMARKS: usize = NMARKS + 3;
 const SHADA_MPACK_FREE_SPACE: usize = 4 * MPACK_ITEM_SIZE;
 
-#[cfg(unix)]
-const ROOT_UID: u32 = 0;
 #[cfg(windows)]
 const UV_EEXIST: c_int = -4075;
 #[cfg(windows)]
@@ -142,16 +143,6 @@ const DEFAULT_POS: pos_T = pos_T {
     lnum: 1,
     col: 0,
     coladd: 0,
-};
-
-const EMPTY_MAP_HASH: MapHash = MapHash {
-    n_buckets: 0,
-    size: 0,
-    n_occupied: 0,
-    upper_bound: 0,
-    n_keys: 0,
-    keys_capacity: 0,
-    hash: ptr::null_mut(),
 };
 
 const fn set_init<K>() -> Set<K> {

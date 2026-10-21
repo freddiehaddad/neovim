@@ -38,8 +38,8 @@ use crate::buffer::{
 };
 use crate::channel::{CallbackReader, channel_event, channel_job_start, kChannelStdinPipe};
 use crate::charset::{
-    backslash_halve, getdigits, getdigits_int, getdigits_int32, skipdigits, skiptowhite_esc,
-    skipwhite,
+    Ctrl_V, backslash_halve, getdigits, getdigits_int, getdigits_int32, skipdigits,
+    skiptowhite_esc, skipwhite,
 };
 use crate::clipboard::{end_batch_changes, start_batch_changes};
 use crate::cmdexpand::{
@@ -431,24 +431,23 @@ const ADDR_QUICKFIX_VALID: cmd_addr_T = 7;
 const ADDR_UNSIGNED: cmd_addr_T = 9;
 
 const Ctrl_B: c_char = 2;
-const Ctrl_C: c_char = 3;
+pub(crate) const Ctrl_C: c_char = 3;
 const Ctrl_D: c_char = 4;
 const Ctrl_F: c_char = 6;
-const Ctrl_G: c_char = 7;
+pub(crate) const Ctrl_G: c_char = 7;
 const Ctrl_H: c_char = 8;
 const Ctrl_I: c_char = 9;
 const Ctrl_J: c_char = 10;
 const Ctrl_K: c_char = 11;
 const Ctrl_L: c_char = 12;
-const CAR: c_char = 13;
+pub(crate) const CAR: c_char = 13;
 const Ctrl_N: c_char = 14;
-const Ctrl_O: c_char = 15;
+pub(crate) const Ctrl_O: c_char = 15;
 const Ctrl_P: c_char = 16;
 const Ctrl_Q: c_char = 17;
 const Ctrl_R: c_char = 18;
 const Ctrl_S: c_char = 19;
 const Ctrl_T: c_char = 20;
-const Ctrl_V: c_char = 22;
 const Ctrl_W: c_char = 23;
 const Ctrl_X: c_char = 24;
 const Ctrl_Z: c_char = 26;
@@ -467,7 +466,7 @@ pub(crate) const FLUSH_TYPEAHEAD: c_int = 1;
 
 pub(crate) const kCdCauseManual: CdCause = 0;
 
-const KE_FILLER: c_char = b'X' as c_char;
+pub(crate) const KE_FILLER: c_char = b'X' as c_char;
 
 pub(crate) const FIND_ANY: c_int = 1;
 pub(crate) const FIND_DEFINE: c_int = 2;

@@ -12,9 +12,10 @@
 )]
 
 use crate::api::private::helpers::{
-    add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
-    copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
-    has_key, integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
+    MAXCOL, MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj,
+    boolean_obj, copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle,
+    find_window_by_handle, has_key, integer_obj, object_to_hl_id, put_c, string_obj,
+    string_to_cstr,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -66,8 +67,6 @@ use std::ptr;
 
 use crate::cursor::{colnr_T, linenr_T};
 
-const MAXLNUM: i64 = 0x7fffffff;
-const MAXCOL: i64 = 0x7fffffff;
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
 const kExtmarkSign: ExtmarkType = 0x2;

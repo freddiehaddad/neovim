@@ -14,18 +14,17 @@ use crate::cursor::linenr_T;
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
 use crate::globals::IOSIZE;
 use crate::globals::*;
-use crate::lua::base64::{LUA_TSTRING, lua_State, luaL_Reg};
 use crate::lua::converter::{
-    LUA_MINSTACK, LUA_REGISTRYINDEX, LUA_TNUMBER, LUA_TTABLE, LuaRef, lua_Integer, lua_Number,
-    lua_concat, lua_createtable, lua_error, lua_getfenv, lua_getfield, lua_gettop, lua_isboolean,
-    lua_isfunction, lua_isnil, lua_isstring, lua_istable, lua_newtable, lua_newuserdata,
-    lua_objlen, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure, lua_pushcfunction,
-    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
-    lua_rawgeti, lua_rawseti, lua_setfenv, lua_setfield, lua_setmetatable, lua_toboolean,
-    lua_tointeger, lua_tolstring, lua_touserdata, lua_type, lua_upvalueindex, luaL_argcheck,
-    luaL_argerror, luaL_checkint, luaL_checkinteger, luaL_checklstring, luaL_checknumber,
-    luaL_checkstring, luaL_checkudata, luaL_error, luaL_newmetatable, luaL_ref, luaL_register,
-    luaL_unref,
+    LUA_MINSTACK, LUA_REGISTRYINDEX, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LuaRef, lua_Integer,
+    lua_Number, lua_State, lua_concat, lua_createtable, lua_error, lua_getfenv, lua_getfield,
+    lua_gettop, lua_isboolean, lua_isfunction, lua_isnil, lua_isstring, lua_istable, lua_newtable,
+    lua_newuserdata, lua_objlen, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
+    lua_pushcfunction, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
+    lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_setfenv, lua_setfield,
+    lua_setmetatable, lua_toboolean, lua_tointeger, lua_tolstring, lua_touserdata, lua_type,
+    lua_upvalueindex, luaL_Reg, luaL_argcheck, luaL_argerror, luaL_checkint, luaL_checkinteger,
+    luaL_checklstring, luaL_checknumber, luaL_checkstring, luaL_checkudata, luaL_error,
+    luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
 use crate::map::{
     MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,

@@ -36,10 +36,10 @@ use crate::eval::typval::{
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_allocated_string,
     tv_list_append_string,
 };
-use crate::eval::{eval_to_string, get_v_event, restore_v_event};
+use crate::eval::{ESC, eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
-use crate::ex_docmd::{CMOD_LOCKMARKS, exarg_T};
+use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, exarg_T};
 use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str, getcmdline};
 use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
@@ -54,7 +54,7 @@ use crate::input::{
 use crate::insert::{beginline, get_last_insert, get_last_insert_save, oneright, stuff_inserted};
 use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
 use crate::keycodes::{
-    K_COMMAND, K_SPECIAL, KE_COMMAND, KS_EXTRA, vim_strsave_escape_ks, vim_unescape_ks,
+    K_COMMAND, K_SPECIAL, KE_COMMAND, KS_EXTRA, TAB, vim_strsave_escape_ks, vim_unescape_ks,
 };
 use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::mark::mark_adjust;
@@ -116,9 +116,6 @@ pub struct yankreg_T {
     pub additional_data: *mut c_void,
 }
 
-const TAB: c_int = b'\t' as c_int;
-const CAR: c_char = b'\r' as c_char;
-const ESC: c_char = 0x1b;
 const Ctrl_U: u8 = 21;
 
 pub const PUT_FIXINDENT: c_int = 1;

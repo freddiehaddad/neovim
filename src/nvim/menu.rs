@@ -9,7 +9,7 @@
 )]
 
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
-use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
+use crate::charset::{Ctrl_V, ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::cursor::{check_cursor, gchar_cursor, pos_T};
 use crate::errors::*;
 use crate::eval::typval::{
@@ -20,7 +20,8 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::del_menutrans_vars;
 use crate::ex_docmd::{
-    ends_excmd, exarg_T, exec_normal_cmd, restore_current_state, save_current_state,
+    Ctrl_C, Ctrl_G, Ctrl_O, ends_excmd, exarg_T, exec_normal_cmd, restore_current_state,
+    save_current_state,
 };
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -47,10 +48,6 @@ use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const Ctrl_C: c_char = 3;
-const Ctrl_G: c_char = 7;
-const Ctrl_O: c_char = 15;
-const Ctrl_V: c_char = 22;
 const Ctrl_BSL: c_char = 28;
 
 const MENUDEPTH: usize = 10;

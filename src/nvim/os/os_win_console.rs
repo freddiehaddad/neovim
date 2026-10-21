@@ -46,7 +46,7 @@ type LPARAM = isize;
 type LRESULT = isize;
 
 #[cfg(windows)]
-const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
+pub(crate) const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 #[cfg(windows)]
 const GENERIC_READ: DWORD = 0x8000_0000;
 #[cfg(windows)]

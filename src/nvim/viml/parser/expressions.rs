@@ -11,7 +11,7 @@
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, uvarnumber_T, vim_str2nr,
 };
-use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, trans_special};
+use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, NUL, trans_special};
 use crate::kvec::KVecWithInit;
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
 use crate::memory::{xfree, xmalloc, xmallocz};
@@ -25,16 +25,15 @@ use crate::eval::STR2NR_ALL;
 use crate::eval::typval::float_T;
 use crate::testing::FF;
 
-const NUL: u8 = 0;
-const BS: u8 = 0x08;
-const TAB: u8 = 0x09;
-const NL: u8 = 0x0a;
-const CAR: u8 = 0x0d;
-const ESC: u8 = 0x1b;
-const AUTOLOAD_CHAR: u8 = b'#';
+pub(crate) const BS: u8 = 0x08;
+pub(crate) const TAB: u8 = 0x09;
+pub(crate) const NL: u8 = 0x0a;
+pub(crate) const CAR: u8 = 0x0d;
+pub(crate) const ESC: u8 = 0x1b;
+pub(crate) const AUTOLOAD_CHAR: u8 = b'#';
 
 const Ctrl_A: u8 = 1;
-const Ctrl_H: u8 = 8;
+pub(crate) const Ctrl_H: u8 = 8;
 const Ctrl_K: u8 = 11;
 const Ctrl_Z: u8 = 26;
 

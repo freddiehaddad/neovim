@@ -29,6 +29,7 @@ use crate::cursor::{
 };
 use crate::decoration::DecorInline;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
+use crate::eval::ESC;
 use crate::eval::typval::{TypvalVval, VarType, typval_T, varnumber_T};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
@@ -42,7 +43,8 @@ use crate::extmark::{
 use crate::globals::*;
 use crate::highlight_group::syn_check_group;
 use crate::input::{
-    RedoState, beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
+    NUL, RedoState, beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff,
+    unblock_on_key,
 };
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
@@ -51,7 +53,7 @@ use crate::input_cmdatom::{
     kAVisualSpan, kKeyInsFlush, sb_concat,
 };
 use crate::insexpand::ins_compl_active;
-use crate::keycodes::{K_COMMAND, K_SPECIAL};
+use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
 use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::lua::executor::nlua_call_typval;
@@ -84,7 +86,7 @@ use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::{memcmp, strchr, strlen, strncmp, vim_snprintf};
-use crate::textformat::{InsState, MotionType, oparg_T};
+use crate::textformat::{InsState, oparg_T};
 use crate::undo::{u_forget_unchanged, u_header_T, u_save};
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
@@ -95,10 +97,6 @@ const DECOR_INLINE_INIT: DecorInline = DecorInline {
         hl: DECOR_HIGHLIGHT_INLINE_INIT,
     },
 };
-
-const NUL: c_int = 0;
-const NL: c_int = 10;
-const ESC: c_char = 27;
 
 pub(crate) const kOptFollow: c_int = 114;
 
@@ -1236,7 +1234,7 @@ pub unsafe extern "C" fn mc_vsel_refresh() {
             }
             let mut s = Visual.start;
             let mut e = (*curwin).w_cursor;
-            let r_type: MotionType = if Visual.mode == b'V' as c_int {
+            let r_type: c_int = if Visual.mode == b'V' as c_int {
                 kMTLineWise
             } else if Visual.mode == Ctrl_V {
                 kMTBlockWise
@@ -1458,7 +1456,7 @@ unsafe fn mc_zq_step(keys: *const c_char, pos: pos_T) -> pos_T {
 unsafe fn mc_zq_target(
     step: pos_T,
     search: bool,
-    motion_type: MotionType,
+    motion_type: c_int,
     ctx: *mut Context,
 ) -> visualinfo_T {
     unsafe {
@@ -1498,7 +1496,7 @@ unsafe fn mc_zq_target(
 unsafe fn mc_zq_first(
     keys: *const c_char,
     search: bool,
-    motion_type: MotionType,
+    motion_type: c_int,
     bounds: *const pos_T,
     step: *mut pos_T,
 ) -> bool {
@@ -1560,7 +1558,7 @@ unsafe fn mc_zq_first(
 unsafe fn mc_zq_run(
     keys: *const c_char,
     search: bool,
-    motion_type: MotionType,
+    motion_type: c_int,
     end: pos_T,
     first: pos_T,
 ) -> c_int {

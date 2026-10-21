@@ -26,6 +26,8 @@ use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrl
 use crate::message::semsg;
 use crate::message::{emsg, internal_error};
 use crate::option_vars::*;
+#[cfg(not(windows))]
+use crate::os::fs::ENV_SEPCHAR;
 use crate::os::fs::{UV_EINVAL, os_isdir};
 #[cfg(unix)]
 use crate::os::fs::{os_dirname, os_realpath};
@@ -55,8 +57,6 @@ const PATHSEPSTR: &CStr = c"\\";
 #[cfg(windows)]
 const MAX_ENVPATHLEN: usize = 8192;
 
-#[cfg(not(windows))]
-const ENV_SEPCHAR: u8 = b':';
 #[cfg(not(windows))]
 const ENV_SEPSTR: &CStr = c":";
 #[cfg(windows)]

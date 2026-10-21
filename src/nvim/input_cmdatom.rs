@@ -23,15 +23,16 @@ use crate::eval::vars::{VV_OP, get_vim_var_str};
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::input::{
-    prep_redo, prep_redo_visual, redo_append_lit, redo_append_spec, redo_append_str, redo_keys,
-    redo_new, redo_spec, sb_add_char, sb_add_lit, sb_add_spec, stuff_empty, typebuf_typed,
+    NUL, prep_redo, prep_redo_visual, redo_append_lit, redo_append_spec, redo_append_str,
+    redo_keys, redo_new, redo_spec, sb_add_char, sb_add_lit, sb_add_spec, stuff_empty,
+    typebuf_typed,
 };
 use crate::insert::get_last_insert_save;
 use crate::keycodes::{
     CAR, DEL, K_BS, K_COMMAND, K_DEL, K_DOWN, K_END, K_HOME, K_IGNORE, K_LEFT, K_LEFTMOUSE,
     K_LEFTMOUSE_NM, K_MIDDLEMOUSE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSERIGHT, K_MOUSEUP, K_RIGHT,
-    K_RIGHTMOUSE, K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, get_special_key_name,
-    termcap2key,
+    K_RIGHTMOUSE, K_S_LEFT, K_S_RIGHT, K_SPECIAL, K_UP, K_X1MOUSE, K_X2MOUSE, NL,
+    get_special_key_name, termcap2key,
 };
 use crate::kvec::{KVec, StringBuilder};
 use crate::mbyte::utf_char2bytes;
@@ -52,6 +53,7 @@ use crate::strings::{
     concat_str, strcat, strchr, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::textformat::oparg_T;
+use crate::viml::parser::expressions::ESC;
 use crate::window::{win_T, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
@@ -85,10 +87,6 @@ pub struct cmdarg_T {
     pub retval: c_int,
     pub searchbuf: *mut c_char,
 }
-
-const NUL: c_int = 0;
-const NL: c_int = 10;
-const ESC: u8 = 27;
 
 const NV_LANG: c_int = 0x08;
 const NV_NCH_ARG: c_int = 0x400;

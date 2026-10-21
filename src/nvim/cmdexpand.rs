@@ -21,9 +21,9 @@ use crate::autocmd::{
 };
 use crate::buffer::{ExpandBufnames, kUIMessages};
 use crate::charset::{
-    ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite,
-    backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite, transchar,
-    transchar_byte, vim_isfilec_or_wc, vim_strsize,
+    Ctrl_V, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper,
+    ascii_iswhite, backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite,
+    transchar, transchar_byte, vim_isfilec_or_wc, vim_strsize,
 };
 use crate::cmdhist::get_history_arg;
 use crate::cursor::{ltoreq, pos_T};
@@ -88,6 +88,10 @@ use crate::option_vars::*;
 use crate::os::env::{
     env_name_len, expand_T, expand_env_save_opt, get_env_name, home_replace, vim_getenv,
 };
+#[cfg(not(windows))]
+use crate::os::fs::PATHSEP;
+#[cfg(windows)]
+use crate::os::fs::PATHSEP;
 use crate::os::fs::os_isdir;
 use crate::os::lang::{get_lang_arg, get_locales};
 use crate::os::users::{get_users, match_user};
@@ -773,7 +777,6 @@ pub struct CmdlineInfo {
 
 pub(crate) const Ctrl_N: c_int = 14;
 pub(crate) const Ctrl_P: c_int = 16;
-const Ctrl_V: c_char = 22;
 
 pub(crate) const MB_MAXBYTES: usize = 30;
 
@@ -781,11 +784,6 @@ pub(crate) const MB_MAXBYTES: usize = 30;
 const ENV_SEPCHAR: c_int = b';' as c_int;
 #[cfg(not(windows))]
 const ENV_SEPCHAR: c_int = b':' as c_int;
-
-#[cfg(windows)]
-const PATHSEP: c_char = b'\\' as c_char;
-#[cfg(not(windows))]
-const PATHSEP: c_char = b'/' as c_char;
 
 #[cfg(windows)]
 const PATHSEPSTR: &[u8] = b"\\";

@@ -18,6 +18,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType,
 };
+use crate::buffer_updates::ARENA_EMPTY;
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry_T, shape_table};
 #[cfg(unix)]
@@ -36,14 +37,16 @@ use crate::event::signal::{
     signal_watcher_stop,
 };
 #[cfg(windows)]
-use crate::event::stream::{UV_STREAM, UV_TTY, stream_uv_ptr};
+use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY, stream_uv_ptr};
 use crate::event::stream::{stream_set_blocking, uv_tty_t};
 use crate::event::wstream::uv_buf_t;
+use crate::file_search::NULL_STRING;
 use crate::fileio::{FILE, fclose, fopen, fwrite};
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{
     sattr_T, schar_T, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
 };
+use crate::highlight::HLATTRS_INIT;
 use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
@@ -88,12 +91,6 @@ pub type ModeShape = c_int;
 pub type LineFlags = c_int;
 pub type TerminfoDef = usize;
 
-const ARENA_EMPTY: Arena = Arena {
-    cur_blk: ptr::null_mut(),
-    pos: 0,
-    size: 0,
-};
-
 pub const kTermModeLeftAndRightMargins: TermMode = 69;
 pub const kTermModeMouseButtonEvent: TermMode = 1002;
 pub const kTermModeMouseAnyEvent: TermMode = 1003;
@@ -125,9 +122,6 @@ const SIGSTOP: c_int = 19;
 #[cfg(all(unix, not(target_os = "linux")))]
 const SIGSTOP: c_int = 17;
 
-#[cfg(windows)]
-const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
-
 const LINUXSET0C: &[u8] = b"\x1b[?0c";
 const LINUXSET1C: &[u8] = b"\x1b[?1c";
 
@@ -143,24 +137,6 @@ const XTERM_SETAF_16: *const c_char =
     c"\x1b[%?%p1%{8}%<%t3%p1%d%e%p1%{16}%<%t9%p1%{8}%-%d%e39%;m".as_ptr();
 const XTERM_SETAB_16: *const c_char =
     c"\x1b[%?%p1%{8}%<%t4%p1%d%e%p1%{16}%<%t10%p1%{8}%-%d%e39%;m".as_ptr();
-
-const HLATTRS_INIT: HlAttrs = HlAttrs {
-    rgb_ae_attr: 0,
-    cterm_ae_attr: 0,
-    rgb_fg_color: -1,
-    rgb_bg_color: -1,
-    rgb_sp_color: -1,
-    cterm_fg_color: 0,
-    cterm_bg_color: 0,
-    hl_blend: -1,
-    url: -1,
-    font: -1,
-};
-
-const NULL_STRING: NvimString = NvimString {
-    data: ptr::null_mut(),
-    size: 0,
-};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

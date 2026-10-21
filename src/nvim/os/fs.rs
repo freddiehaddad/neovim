@@ -182,18 +182,18 @@ pub(crate) const CASE_INSENSITIVE_FILENAME: bool =
     cfg!(any(target_os = "windows", target_os = "macos"));
 
 #[cfg(windows)]
-const O_BINARY: c_int = 0x8000;
+pub(crate) const O_BINARY: c_int = 0x8000;
 #[cfg(windows)]
 const ENV_SEPCHAR: u8 = b';';
 #[cfg(windows)]
 const ENV_SEPSTR: &CStr = c";";
 #[cfg(windows)]
-const PATHSEP: c_char = b'\\' as c_char;
+pub(crate) const PATHSEP: c_char = b'\\' as c_char;
 
 #[cfg(not(windows))]
-const ENV_SEPCHAR: u8 = b':';
+pub(crate) const ENV_SEPCHAR: u8 = b':';
 #[cfg(not(windows))]
-const PATHSEP: c_char = b'/' as c_char;
+pub(crate) const PATHSEP: c_char = b'/' as c_char;
 #[cfg(not(windows))]
 const F_GETFD: c_int = 1;
 #[cfg(not(windows))]

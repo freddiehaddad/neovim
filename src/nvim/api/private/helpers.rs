@@ -20,6 +20,7 @@ use crate::eval::typval::{
     tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
 };
 use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
+use crate::ex_docmd::CAR;
 use crate::ex_eval::{
     ET_ERROR, discard_current_exception, except_T, free_global_msglist, get_exception_string,
     msglist_T,
@@ -45,9 +46,8 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-const CAR: c_char = b'\r' as c_char;
-const MAXLNUM: i64 = 0x7fffffff;
-const MAXCOL: i64 = 0x7fffffff;
+pub(crate) const MAXLNUM: i64 = 0x7fffffff;
+pub(crate) const MAXCOL: i64 = 0x7fffffff;
 
 pub(crate) const DI_FLAGS_RO: u8 = 1;
 pub(crate) const DI_FLAGS_FIX: u8 = 4;

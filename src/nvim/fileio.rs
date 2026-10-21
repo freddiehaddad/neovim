@@ -42,7 +42,7 @@ use crate::eval::vars::{
 use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
-use crate::ex_docmd::{CMOD_LOCKMARKS, exarg_T};
+use crate::ex_docmd::{CAR, CMOD_LOCKMARKS, exarg_T};
 use crate::ex_eval::aborting;
 use crate::fold::{foldUpdateAll, foldmethodIsManual};
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
@@ -138,7 +138,6 @@ pub const CONV_RESTLEN: usize = 30;
 pub const WRITEBUFSIZE: usize = 8192;
 pub const ICONV_MULT: isize = 8;
 
-const CAR: c_char = b'\r' as c_char;
 const CTRL_Z: c_char = 0x1a;
 
 pub(crate) const EOF: c_int = -1;

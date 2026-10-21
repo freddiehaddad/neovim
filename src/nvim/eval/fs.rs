@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::{SID_API_CLIENT, find_buffer_by_handle};
+use crate::api::private::helpers::{MAXLNUM, SID_API_CLIENT, find_buffer_by_handle};
 use crate::api::private::validate::{Error, ErrorType};
 use crate::buffer::buf_T;
 use crate::cmdexpand::{
@@ -84,8 +84,6 @@ use crate::regexp::NUMBUFLEN;
 
 pub type CheckItem =
     Option<unsafe extern "C" fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
-
-const MAXLNUM: i64 = 0x7fffffff;
 
 pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 

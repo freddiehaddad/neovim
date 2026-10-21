@@ -12,7 +12,10 @@ use crate::api::private::helpers::{
     find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,
 };
 use crate::api::private::validate::{Error, ErrorType, NvimString};
+use crate::api::win_config::kCtxNoDisplay;
+use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::buffer::buf_T;
+use crate::charset::NUL;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 use crate::cursor::linenr_T;
 use crate::eval::typval::{
@@ -20,22 +23,27 @@ use crate::eval::typval::{
     tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
 };
 use crate::eval::vars::{before_set_vvar, get_globvar_dict, get_vimvar_dict};
-use crate::ex_docmd::{apply_cmdmod, undo_cmdmod};
+use crate::ex_docmd::{
+    CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS,
+    CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, apply_cmdmod,
+    undo_cmdmod,
+};
 use crate::ex_eval::aborting;
+use crate::extmark::kTrue;
 use crate::fold::foldUpdate;
 use crate::globals::*;
 use crate::keycodes::{keychord, mod_mask_table, vim_strsave_escape_ks};
 use crate::log::g_min_log_level;
-use crate::lua::base64::{lua_State, luaL_Reg, luaopen_base64};
+use crate::lua::base64::luaopen_base64;
 use crate::lua::converter::{
-    LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TSTRING, lua_Integer, lua_concat, lua_createtable,
-    lua_error, lua_getfield, lua_getglobal, lua_gettop, lua_isnil, lua_isnoneornil, lua_istable,
-    lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pcall, lua_pop, lua_pushcfunction,
-    lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue,
-    lua_rawseti, lua_setfield, lua_setmetatable, lua_toboolean, lua_tolstring, lua_tostring,
-    lua_type, luaL_argerror, luaL_checkinteger, luaL_checklstring, luaL_checkstring,
-    luaL_checkudata, luaL_error, luaL_newmetatable, luaL_register, luaL_where, nlua_pop_typval,
-    nlua_push_typval,
+    LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TSTRING, lua_Integer, lua_State, lua_concat,
+    lua_createtable, lua_error, lua_getfield, lua_getglobal, lua_gettop, lua_isnil,
+    lua_isnoneornil, lua_istable, lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pcall,
+    lua_pop, lua_pushcfunction, lua_pushinteger, lua_pushlstring, lua_pushnil, lua_pushnumber,
+    lua_pushstring, lua_pushvalue, lua_rawseti, lua_setfield, lua_setmetatable, lua_toboolean,
+    lua_tolstring, lua_tostring, lua_type, luaL_Reg, luaL_argerror, luaL_checkinteger,
+    luaL_checklstring, luaL_checkstring, luaL_checkudata, luaL_error, luaL_newmetatable,
+    luaL_register, luaL_where, nlua_pop_typval, nlua_push_typval,
 };
 use crate::lua::spell::luaopen_spell;
 use crate::lua::xdiff::nlua_xdl_diff;
@@ -47,38 +55,17 @@ use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::xfree;
 use crate::message::str2special;
 use crate::msgpack_rpc::packer::handle_T;
-use crate::regexp::{regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{
+    RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, regmatch_T, regprog_T, vim_regcomp, vim_regexec,
+    vim_regfree,
+};
 use crate::runtime::script_autoload;
+use crate::viml::parser::parser::CONV_NONE;
 use crate::window::{win_T, win_find_tabpage};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const NUL: c_char = 0;
-
-const RE_MAGIC: c_int = 1;
-const RE_STRICT: c_int = 4;
-const RE_AUTO: c_int = 8;
-const RE_NOBREAK: c_int = 16;
-
-const CONV_NONE: c_int = 0;
-const kTrue: c_int = 1;
-
-const CMOD_SANDBOX: c_int = 0x0001;
-const CMOD_SILENT: c_int = 0x0002;
-const CMOD_ERRSILENT: c_int = 0x0004;
-const CMOD_UNSILENT: c_int = 0x0008;
-const CMOD_NOAUTOCMD: c_int = 0x0010;
-const CMOD_HIDE: c_int = 0x0020;
-const CMOD_KEEPALT: c_int = 0x0100;
-const CMOD_KEEPMARKS: c_int = 0x0200;
-const CMOD_KEEPJUMPS: c_int = 0x0400;
-const CMOD_LOCKMARKS: c_int = 0x0800;
-const CMOD_KEEPPATTERNS: c_int = 0x1000;
-
-const kCtxKeepCwd: c_int = 1;
 const kCtxKeepDirs: c_int = 2;
-const kCtxNoDisplay: c_int = 4;
-const kCtxValidate: c_int = 16;
 
 static REGEX_META: [luaL_Reg; 5] = [
     luaL_Reg {

@@ -4,19 +4,18 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-use crate::lua::base64::{lua_State, luaL_Buffer, luaL_Reg};
 use crate::lua::converter::{
     LUA_NOREF, LUA_REGISTRYINDEX, LUA_TBOOLEAN, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE,
-    LUA_TUSERDATA, LUAL_BUFFERSIZE, lua_Integer, lua_Number, lua_call, lua_createtable,
+    LUA_TUSERDATA, LUAL_BUFFERSIZE, lua_Integer, lua_Number, lua_State, lua_call, lua_createtable,
     lua_getfield, lua_getmetatable, lua_gettable, lua_gettop, lua_insert, lua_isboolean,
     lua_isfunction, lua_isnil, lua_isnoneornil, lua_isnumber, lua_isstring, lua_istable,
     lua_isuserdata, lua_newtable, lua_newuserdata, lua_next, lua_objlen, lua_pop, lua_pushboolean,
     lua_pushcfunction, lua_pushfstring, lua_pushinteger, lua_pushlstring, lua_pushnil,
     lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawequal, lua_rawgeti, lua_remove,
     lua_replace, lua_setfield, lua_setmetatable, lua_settable, lua_toboolean, lua_tolstring,
-    lua_tonumber, lua_topointer, lua_type, luaL_argcheck, luaL_buffinit, luaL_checklstring,
-    luaL_checknumber, luaL_checkudata, luaL_error, luaL_getmetatable, luaL_newmetatable,
-    luaL_prepbuffer, luaL_pushresult, luaL_ref, luaL_register, luaL_unref,
+    lua_tonumber, lua_topointer, lua_type, luaL_Buffer, luaL_Reg, luaL_argcheck, luaL_buffinit,
+    luaL_checklstring, luaL_checknumber, luaL_checkudata, luaL_error, luaL_getmetatable,
+    luaL_newmetatable, luaL_prepbuffer, luaL_pushresult, luaL_ref, luaL_register, luaL_unref,
 };
 use crate::memory::{crt_free as free, crt_malloc as malloc};
 use crate::mpack::conv::{

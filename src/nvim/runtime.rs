@@ -18,7 +18,9 @@ use crate::autocmd::{
     AutoPatCmd, DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
     EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd,
 };
-use crate::charset::{skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len};
+use crate::charset::{
+    Ctrl_V, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
+};
 use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
@@ -82,13 +84,17 @@ use crate::os::env::{
     expand_T, expand_env, expand_env_save, home_replace, home_replace_save, os_setenv,
     vim_env_iter, vim_env_iter_rev, vim_get_prefix_from_exepath, vim_getenv,
 };
+#[cfg(windows)]
+use crate::os::fs::O_BINARY;
 use crate::os::fs::{errno_ptr, os_file_is_readable, os_isdir, os_open, os_set_cloexec};
 use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
+#[cfg(not(windows))]
+use crate::path::ENV_SEPCHAR;
 use crate::path::{
-    EW_DIR, EW_FILE, EW_NOBREAK, FreeWild, add_pathsep, after_pathsep, append_path, concat_fnames,
-    fix_fname, gen_expand_wildcards, get_past_head, kPathCmpLiteral, path_cmp, path_equal,
-    path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
+    EW_DIR, EW_FILE, EW_NOBREAK, FreeWild, PATHSEP, add_pathsep, after_pathsep, append_path,
+    concat_fnames, fix_fname, gen_expand_wildcards, get_past_head, kPathCmpLiteral, path_cmp,
+    path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::profile::{
     estack_T, prof_child_enter, prof_child_exit, profile_add, profile_end, profile_init,
@@ -98,6 +104,7 @@ use crate::profile::{
 use crate::regexp::{RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::{gettext, strstr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::usercmd::add_win_cmd_modifiers;
+use crate::viml::parser::expressions::AUTOLOAD_CHAR;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
@@ -124,16 +131,11 @@ pub type DoInRuntimepathCB = Option<
     ) -> bool,
 >;
 
-const Ctrl_V: c_char = 22;
 #[cfg(windows)]
 const Ctrl_Z: c_char = 26;
 
 #[cfg(windows)]
 const ENV_SEPCHAR: c_char = b';' as c_char;
-#[cfg(not(windows))]
-const ENV_SEPCHAR: c_char = b':' as c_char;
-
-const PATHSEP: c_char = b'/' as c_char;
 
 pub const ETYPE_TOP: etype_T = 0;
 pub const ETYPE_SCRIPT: etype_T = 1;
@@ -172,13 +174,9 @@ pub(crate) const SID_ENV: scid_T = -4;
 pub(crate) const SID_ERROR: scid_T = -5;
 pub(crate) const SID_WINLAYOUT: scid_T = -7;
 
-const AUTOLOAD_CHAR: u8 = b'#';
-
 #[cfg(windows)]
 const HLF_W: usize = 26;
 
-#[cfg(windows)]
-const O_BINARY: c_int = 0x8000;
 #[cfg(windows)]
 const O_NOINHERIT: c_int = 0x0080;
 

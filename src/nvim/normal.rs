@@ -9,7 +9,7 @@
 )]
 
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Object};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::buffer::{
@@ -124,8 +124,8 @@ use crate::mcursor::{
 use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get, ml_get_buf, ml_get_len, ml_get_pos};
 use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstrdup, xstrlcpy};
 use crate::message::{
-    emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger, msg_grid_validate,
-    show_sb_text, wait_return,
+    NIL_OBJ, emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger,
+    msg_grid_validate, show_sb_text, wait_return,
 };
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, do_mouse, nv_mouse, nv_mousescroll, setmouse,
@@ -292,11 +292,6 @@ pub(crate) const SEARCH_ECHO: c_int = 0x02;
 pub(crate) const SEARCH_MARK: c_int = 0x200;
 pub(crate) const SMT_BAD: c_int = 1;
 pub(crate) const SMT_RARE: c_int = 2;
-
-const NIL_OBJ: Object = Object {
-    obj_type: ObjectType::kObjectTypeNil,
-    data: ObjectData { integer: 0 },
-};
 
 type nv_func_T = unsafe fn(cap: *mut cmdarg_T);
 

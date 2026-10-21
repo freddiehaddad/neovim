@@ -29,9 +29,12 @@ use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
 use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
+use crate::ex_docmd::CAR;
 use crate::fileio::{SEEK_END, SEEK_SET, fclose, fopen, fread, fseek, ftell, vim_tempname};
 use crate::globals::*;
 use crate::math::{FAIL, OK};
+#[cfg(windows)]
+use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcat, xstrlcpy};
@@ -70,8 +73,6 @@ use crate::eval::typval::varnumber_T;
 use crate::kvec::StringBuilder;
 use crate::state::MODE_EXTERNCMD;
 
-const CAR: c_char = b'\r' as c_char;
-
 const OUT_DATA_THRESHOLD: usize = 1024 * 10;
 const MAX_CHUNK_SIZE: usize = OUT_DATA_THRESHOLD / 2;
 
@@ -89,9 +90,6 @@ const STYLE_GLOBSTAR: c_int = 5;
 
 const HLF_SE: c_int = 72;
 const HLF_SO: c_int = 73;
-
-#[cfg(windows)]
-const CP_UTF8: u32 = 65001;
 
 #[repr(C, align(8))]
 struct LibuvProcBuf([u8; 4096]);

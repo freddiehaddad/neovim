@@ -487,7 +487,7 @@ const B_IMODE_LAST: OptInt = 1;
 const Ctrl_C: OptInt = 3;
 
 #[cfg(unix)]
-const ROOT_UID: u32 = 0;
+pub(crate) const ROOT_UID: u32 = 0;
 
 #[cfg(windows)]
 const PATHSEPSTR: *const c_char = c"\\".as_ptr();

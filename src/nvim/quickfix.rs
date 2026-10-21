@@ -183,64 +183,63 @@ const kOptFdoFlagQuickfix: c_uint = 0x20;
 
 pub(crate) const kOptErrorfile: OptIndex = 86;
 
-type cmdidx_T = c_int;
-const CMD_cNext: cmdidx_T = 46;
-const CMD_cNfile: cmdidx_T = 47;
-const CMD_cabove: cmdidx_T = 50;
-const CMD_caddbuffer: cmdidx_T = 51;
-const CMD_caddexpr: cmdidx_T = 52;
-const CMD_caddfile: cmdidx_T = 53;
-const CMD_cafter: cmdidx_T = 54;
-const CMD_cbuffer: cmdidx_T = 57;
-const CMD_cbefore: cmdidx_T = 58;
-const CMD_cbelow: cmdidx_T = 59;
-const CMD_cc: cmdidx_T = 61;
-const CMD_cd: cmdidx_T = 63;
-const CMD_cexpr: cmdidx_T = 66;
-const CMD_cfile: cmdidx_T = 67;
-const CMD_cfirst: cmdidx_T = 69;
-const CMD_cgetfile: cmdidx_T = 70;
-const CMD_cgetbuffer: cmdidx_T = 71;
-const CMD_cgetexpr: cmdidx_T = 72;
-const CMD_cnfile: cmdidx_T = 88;
-const CMD_colder: cmdidx_T = 93;
-const CMD_cprevious: cmdidx_T = 103;
-const CMD_cpfile: cmdidx_T = 104;
-const CMD_crewind: cmdidx_T = 106;
-const CMD_grep: cmdidx_T = 175;
-const CMD_grepadd: cmdidx_T = 176;
-const CMD_helpgrep: cmdidx_T = 181;
-const CMD_lNext: cmdidx_T = 214;
-const CMD_lNfile: cmdidx_T = 215;
-const CMD_labove: cmdidx_T = 217;
-const CMD_laddexpr: cmdidx_T = 219;
-const CMD_laddbuffer: cmdidx_T = 220;
-const CMD_laddfile: cmdidx_T = 221;
-const CMD_lafter: cmdidx_T = 222;
-const CMD_lbuffer: cmdidx_T = 224;
-const CMD_lbelow: cmdidx_T = 226;
-const CMD_lcd: cmdidx_T = 228;
-const CMD_lexpr: cmdidx_T = 235;
-const CMD_lfile: cmdidx_T = 236;
-const CMD_lfirst: cmdidx_T = 238;
-const CMD_lgetfile: cmdidx_T = 239;
-const CMD_lgetbuffer: cmdidx_T = 240;
-const CMD_lgetexpr: cmdidx_T = 241;
-const CMD_lgrep: cmdidx_T = 242;
-const CMD_lgrepadd: cmdidx_T = 243;
-const CMD_lhelpgrep: cmdidx_T = 244;
-const CMD_ll: cmdidx_T = 246;
-const CMD_lmake: cmdidx_T = 251;
-const CMD_lnfile: cmdidx_T = 255;
-const CMD_lolder: cmdidx_T = 261;
-const CMD_lprevious: cmdidx_T = 263;
-const CMD_lpfile: cmdidx_T = 264;
-const CMD_lrewind: cmdidx_T = 265;
-const CMD_lvimgrep: cmdidx_T = 271;
-const CMD_lvimgrepadd: cmdidx_T = 272;
-const CMD_make: cmdidx_T = 278;
-const CMD_vimgrep: cmdidx_T = 517;
-const CMD_vimgrepadd: cmdidx_T = 518;
+const CMD_cNext: c_int = 46;
+const CMD_cNfile: c_int = 47;
+const CMD_cabove: c_int = 50;
+const CMD_caddbuffer: c_int = 51;
+const CMD_caddexpr: c_int = 52;
+const CMD_caddfile: c_int = 53;
+const CMD_cafter: c_int = 54;
+const CMD_cbuffer: c_int = 57;
+const CMD_cbefore: c_int = 58;
+const CMD_cbelow: c_int = 59;
+const CMD_cc: c_int = 61;
+const CMD_cd: c_int = 63;
+const CMD_cexpr: c_int = 66;
+const CMD_cfile: c_int = 67;
+const CMD_cfirst: c_int = 69;
+const CMD_cgetfile: c_int = 70;
+const CMD_cgetbuffer: c_int = 71;
+const CMD_cgetexpr: c_int = 72;
+const CMD_cnfile: c_int = 88;
+const CMD_colder: c_int = 93;
+const CMD_cprevious: c_int = 103;
+const CMD_cpfile: c_int = 104;
+const CMD_crewind: c_int = 106;
+const CMD_grep: c_int = 175;
+const CMD_grepadd: c_int = 176;
+const CMD_helpgrep: c_int = 181;
+const CMD_lNext: c_int = 214;
+const CMD_lNfile: c_int = 215;
+const CMD_labove: c_int = 217;
+const CMD_laddexpr: c_int = 219;
+const CMD_laddbuffer: c_int = 220;
+const CMD_laddfile: c_int = 221;
+const CMD_lafter: c_int = 222;
+const CMD_lbuffer: c_int = 224;
+const CMD_lbelow: c_int = 226;
+const CMD_lcd: c_int = 228;
+const CMD_lexpr: c_int = 235;
+const CMD_lfile: c_int = 236;
+const CMD_lfirst: c_int = 238;
+const CMD_lgetfile: c_int = 239;
+const CMD_lgetbuffer: c_int = 240;
+const CMD_lgetexpr: c_int = 241;
+const CMD_lgrep: c_int = 242;
+const CMD_lgrepadd: c_int = 243;
+const CMD_lhelpgrep: c_int = 244;
+const CMD_ll: c_int = 246;
+const CMD_lmake: c_int = 251;
+const CMD_lnfile: c_int = 255;
+const CMD_lolder: c_int = 261;
+const CMD_lprevious: c_int = 263;
+const CMD_lpfile: c_int = 264;
+const CMD_lrewind: c_int = 265;
+const CMD_lvimgrep: c_int = 271;
+const CMD_lvimgrepadd: c_int = 272;
+const CMD_make: c_int = 278;
+const CMD_vimgrep: c_int = 517;
+const CMD_vimgrepadd: c_int = 518;
 
 const E_NO_MORE_ITEMS: &CStr = c"E553: No more items";
 const E_CURRENT_QUICKFIX_LIST_WAS_CHANGED: &CStr = c"E925: Current quickfix list was changed";
@@ -4794,7 +4793,7 @@ unsafe fn qf_jump_first(qi: *mut qf_info_T, save_qfid: c_uint, forceit: c_int) {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn grep_internal(cmdidx: cmdidx_T) -> c_int {
+pub unsafe extern "C" fn grep_internal(cmdidx: c_int) -> c_int {
     unsafe {
         let gp = if *(*curbuf).b_p_gp == NUL {
             p_gp
@@ -4811,7 +4810,7 @@ pub unsafe extern "C" fn grep_internal(cmdidx: cmdidx_T) -> c_int {
     }
 }
 
-unsafe fn make_get_auname(cmdidx: cmdidx_T) -> *const c_char {
+unsafe fn make_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_make => c"make".as_ptr(),
         CMD_lmake => c"lmake".as_ptr(),
@@ -5541,7 +5540,7 @@ pub unsafe extern "C" fn ex_cbelow(eap: *mut exarg_T) {
     }
 }
 
-unsafe fn cfile_get_auname(cmdidx: cmdidx_T) -> *const c_char {
+unsafe fn cfile_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_cfile => c"cfile".as_ptr(),
         CMD_cgetfile => c"cgetfile".as_ptr(),
@@ -5628,7 +5627,7 @@ pub unsafe extern "C" fn ex_cfile(eap: *mut exarg_T) {
     }
 }
 
-unsafe fn vgr_get_auname(cmdidx: cmdidx_T) -> *const c_char {
+unsafe fn vgr_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_vimgrep => c"vimgrep".as_ptr(),
         CMD_lvimgrep => c"lvimgrep".as_ptr(),
@@ -7529,7 +7528,7 @@ pub unsafe extern "C" fn set_ref_in_quickfix(copyID: c_int) -> bool {
     }
 }
 
-unsafe fn cbuffer_get_auname(cmdidx: cmdidx_T) -> *const c_char {
+unsafe fn cbuffer_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_cbuffer => c"cbuffer".as_ptr(),
         CMD_cgetbuffer => c"cgetbuffer".as_ptr(),
@@ -7675,7 +7674,7 @@ pub unsafe extern "C" fn ex_cbuffer(eap: *mut exarg_T) {
     }
 }
 
-unsafe fn cexpr_get_auname(cmdidx: cmdidx_T) -> *const c_char {
+unsafe fn cexpr_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_cexpr => c"cexpr".as_ptr(),
         CMD_cgetexpr => c"cgetexpr".as_ptr(),

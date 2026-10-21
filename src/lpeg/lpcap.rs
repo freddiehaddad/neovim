@@ -10,13 +10,12 @@ use crate::lpeg::{
     SUBJIDX, capinside, caplistidx, captype, isclosecap, isopencap, ktableidx, lua_Integer,
     lua_State,
 };
-use crate::lua::base64::luaL_Buffer;
 use crate::lua::converter::{
     LUA_MULTRET, LUAL_BUFFERSIZE, lua_call, lua_equal, lua_gettable, lua_gettop, lua_insert,
     lua_isnil, lua_isstring, lua_newtable, lua_pop, lua_pushinteger, lua_pushlstring,
     lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove, lua_replace, lua_settable, lua_tolstring,
-    lua_tostring, lua_touserdata, luaL_addlstring, luaL_addvalue, luaL_buffinit, luaL_checkstack,
-    luaL_error, luaL_prepbuffer, luaL_pushresult, luaL_typename,
+    lua_tostring, lua_touserdata, luaL_Buffer, luaL_addlstring, luaL_addvalue, luaL_buffinit,
+    luaL_checkstack, luaL_error, luaL_prepbuffer, luaL_pushresult, luaL_typename,
 };
 
 const MAXRECLEVEL: c_int = 200;

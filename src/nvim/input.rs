@@ -96,7 +96,7 @@ use std::ptr;
 use crate::option::OptInt;
 pub type flush_buffers_T = c_int;
 
-const NUL: c_int = 0;
+pub(crate) const NUL: c_int = 0;
 
 pub(crate) const FLUSH_MINIMAL: flush_buffers_T = 0;
 const FLUSH_INPUT: flush_buffers_T = 2;

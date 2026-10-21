@@ -5,10 +5,9 @@
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use crate::lua::base64::{lua_State, luaL_Reg};
 use crate::lua::converter::{
-    LUA_TNONE, lua_gettop, lua_isnumber, lua_pushlstring, lua_pushnumber, lua_tonumber, lua_type,
-    luaL_error, luaL_register, luaL_typerror,
+    LUA_TNONE, lua_State, lua_gettop, lua_isnumber, lua_pushlstring, lua_pushnumber, lua_tonumber,
+    lua_type, luaL_Reg, luaL_error, luaL_register, luaL_typerror,
 };
 pub type SBits = i32;
 pub type UBits = u32;

@@ -70,16 +70,15 @@ const MAXLNUM: usize = 0x7fffffff;
 
 const CCGD_ALLBUF: c_int = 8;
 
-type cmdidx_T = c_int;
-const CMD_bufdo: cmdidx_T = 42;
-pub(crate) const CMD_cdo: cmdidx_T = 64;
-pub(crate) const CMD_cfdo: cmdidx_T = 68;
-const CMD_first: cmdidx_T = 164;
-pub(crate) const CMD_ldo: cmdidx_T = 231;
-pub(crate) const CMD_lfdo: cmdidx_T = 237;
-const CMD_sfirst: cmdidx_T = 410;
-const CMD_tabdo: cmdidx_T = 461;
-const CMD_windo: cmdidx_T = 535;
+const CMD_bufdo: c_int = 42;
+pub(crate) const CMD_cdo: c_int = 64;
+pub(crate) const CMD_cfdo: c_int = 68;
+const CMD_first: c_int = 164;
+pub(crate) const CMD_ldo: c_int = 231;
+pub(crate) const CMD_lfdo: c_int = 237;
+const CMD_sfirst: c_int = 410;
+const CMD_tabdo: c_int = 461;
+const CMD_windo: c_int = 535;
 
 pub(crate) const BF_SYN_SET: c_int = 0x200;
 

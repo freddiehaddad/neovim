@@ -18,6 +18,7 @@ use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
 use crate::globals::*;
 use crate::indent::{get_breakindent_win, tabstop_padding};
+use crate::keycodes::TAB;
 use crate::marktree::{
     MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines, marktree_itr_current,
     marktree_itr_get_filter, marktree_itr_next_filter, mt_decor, mt_invalid, mt_right,
@@ -37,7 +38,6 @@ use crate::insert::kCharsizeFast;
 use crate::regexp::MAXCOL;
 pub type CSType = bool;
 
-const TAB: c_int = b'\t' as c_int;
 const kInvalidByteCells: c_int = 4;
 
 const kCharsizeRegular: CSType = false;

@@ -2,36 +2,10 @@
 
 use crate::base64::{decode_bytes, encode_bytes};
 use crate::lua::converter::{
-    lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type, luaL_argerror,
-    luaL_error, luaL_register,
+    LUA_TSTRING, lua_State, lua_createtable, lua_gettop, lua_pushlstring, lua_tolstring, lua_type,
+    luaL_Reg, luaL_argerror, luaL_error, luaL_register,
 };
-use std::ffi::{c_char, c_int, c_void};
-
-#[allow(non_camel_case_types)]
-pub type lua_State = c_void;
-#[allow(non_camel_case_types)]
-pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State) -> c_int>;
-
-pub(crate) const LUA_TSTRING: c_int = 4;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-#[allow(non_camel_case_types)]
-pub struct luaL_Reg {
-    pub name: *const c_char,
-    pub func: lua_CFunction,
-}
-
-unsafe impl Sync for luaL_Reg {}
-
-#[repr(C)]
-#[allow(non_camel_case_types, non_snake_case)]
-pub struct luaL_Buffer {
-    pub p: *mut c_char,
-    pub lvl: c_int,
-    pub L: *mut lua_State,
-    pub buffer: [c_char; 8192],
-}
+use std::ffi::{c_char, c_int};
 
 unsafe extern "C-unwind" fn nlua_base64_encode(lstate: *mut lua_State) -> c_int {
     unsafe {

@@ -133,7 +133,7 @@ pub const fn to_special(a: c_int, b: c_int) -> c_int {
     }
 }
 
-const Ctrl_V: c_char = 22;
+pub(crate) const Ctrl_V: c_char = 22;
 
 pub(crate) const EOL_MAC: c_int = 2;
 pub(crate) const kOptDyFlagUhex: c_uint = 0x04;

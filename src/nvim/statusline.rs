@@ -22,7 +22,7 @@ use crate::charset::{
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::digraph::get_keymap_str;
-use crate::drawline::{HLF_CLF, HLF_FC, fill_foldcolumn, use_cursor_line_highlight};
+use crate::drawline::{HLF_CLF, HLF_FC, MAX_STCWIDTH, fill_foldcolumn, use_cursor_line_highlight};
 use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing, w_endcol, w_endrow};
 use crate::eval::eval_to_string_safe;
 use crate::eval::typval::{TypvalVval, VarType, typval_T, varnumber_T};
@@ -38,6 +38,7 @@ use crate::grid::{
 };
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
+use crate::keycodes::NL;
 use crate::map::{map_put_ref_int_StcClick, map_put_ref_int_StcClicks};
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
@@ -72,10 +73,8 @@ use crate::ex_getln::hlf_T;
 pub type StlFlag = c_int;
 use crate::api::win_config::{FR_COL, UIExtension};
 
-const NL: c_int = 0x0a;
 const TMPLEN: usize = 70;
 const MAX_STL_EVAL_DEPTH: c_int = 100;
-const MAX_STCWIDTH: c_int = 20 + 9 * (SIGN_WIDTH as c_int) + 9;
 
 const kOptRulerformat: OptIndex = 244;
 const kOptTabline: OptIndex = 306;
@@ -202,7 +201,7 @@ use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
 use crate::charset::NUL;
 use crate::cmdexpand::kUIWildmenu;
-use crate::decoration::{SCL_NUM, SIGN_WIDTH, SignTextAttrs};
+use crate::decoration::{SCL_NUM, SignTextAttrs};
 use crate::keycodes::CAR;
 use crate::option::{OPT_LOCAL, kOptInvalid};
 use crate::os::fs::MAXPATHL;

@@ -13,9 +13,10 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
-    NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
-    cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, has_key,
-    integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj, try_wrap,
+    MAXCOL, MAXLNUM, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict,
+    boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
+    find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
+    static_cstr_as_obj, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, api_err_invalid, api_err_range,
@@ -35,9 +36,8 @@ use crate::ex_cmds::rename_buffer;
 use crate::extmark::{bcount_t, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
-use crate::lua::base64::lua_State;
 use crate::lua::converter::{
-    Boolean, LUA_NOREF, LuaRef, lua_createtable, lua_pushlstring, lua_rawseti,
+    Boolean, LUA_NOREF, LuaRef, lua_State, lua_createtable, lua_pushlstring, lua_rawseti,
 };
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
@@ -61,9 +61,6 @@ use std::ptr;
 
 use crate::charset::{NL, NUL};
 use crate::search::FORWARD;
-
-const MAXLNUM: i64 = 0x7fffffff;
-const MAXCOL: i64 = 0x7fffffff;
 
 pub(crate) const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
 pub(crate) const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;

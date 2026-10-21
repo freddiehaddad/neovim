@@ -31,7 +31,7 @@ use crate::eval::{get_copyID, partial_name};
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
-use crate::lua::base64::lua_State;
+
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::math::{FAIL, OK};
 use crate::memory::{Arena, arena_memdupz, xfree, xstrdup};
@@ -44,6 +44,8 @@ pub type Boolean = bool;
 pub type Float = f64;
 pub type LuaRef = c_int;
 pub(crate) const LUA_NOREF: LuaRef = -2;
+pub type lua_State = c_void;
+pub type lua_CFunction = Option<unsafe extern "C-unwind" fn(lstate: *mut lua_State) -> c_int>;
 pub type lua_Number = f64;
 pub type lua_Integer = isize;
 pub type lua_Alloc = Option<
@@ -54,6 +56,23 @@ pub type lua_Alloc = Option<
         nsize: usize,
     ) -> *mut c_void,
 >;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct luaL_Reg {
+    pub name: *const c_char,
+    pub func: lua_CFunction,
+}
+
+unsafe impl Sync for luaL_Reg {}
+
+#[repr(C)]
+pub struct luaL_Buffer {
+    pub p: *mut c_char,
+    pub lvl: c_int,
+    pub L: *mut lua_State,
+    pub buffer: [c_char; 8192],
+}
 
 pub(crate) const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 const K_NLUA_PUSH_FREE_REFS: c_int = 0x02;
@@ -151,7 +170,7 @@ unsafe extern "C-unwind" {
     pub fn lua_toboolean(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_tolstring(L: *mut lua_State, idx: c_int, len: *mut usize) -> *const c_char;
     pub fn lua_objlen(L: *mut lua_State, idx: c_int) -> usize;
-    pub fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> crate::lua::base64::lua_CFunction;
+    pub fn lua_tocfunction(L: *mut lua_State, idx: c_int) -> lua_CFunction;
     pub fn lua_topointer(L: *mut lua_State, idx: c_int) -> *const c_void;
     pub fn lua_pushnil(L: *mut lua_State);
     pub fn lua_pushnumber(L: *mut lua_State, n: lua_Number);
@@ -181,7 +200,7 @@ unsafe extern "C-unwind" {
     pub fn lua_next(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_concat(L: *mut lua_State, n: c_int);
     pub fn lua_getallocf(L: *mut lua_State, ud: *mut *mut c_void) -> lua_Alloc;
-    pub fn lua_pushcclosure(L: *mut lua_State, fn_: crate::lua::base64::lua_CFunction, n: c_int);
+    pub fn lua_pushcclosure(L: *mut lua_State, fn_: lua_CFunction, n: c_int);
     pub fn lua_isnumber(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_isstring(L: *mut lua_State, idx: c_int) -> c_int;
     pub fn lua_iscfunction(L: *mut lua_State, idx: c_int) -> c_int;
@@ -196,11 +215,7 @@ unsafe extern "C-unwind" {
     pub fn luaL_newmetatable(L: *mut lua_State, tname: *const c_char) -> c_int;
     pub fn luaL_getmetafield(L: *mut lua_State, obj: c_int, e: *const c_char) -> c_int;
     pub fn luaL_checkudata(L: *mut lua_State, ud: c_int, tname: *const c_char) -> *mut c_void;
-    pub fn luaL_register(
-        L: *mut lua_State,
-        libname: *const c_char,
-        l: *const crate::lua::base64::luaL_Reg,
-    );
+    pub fn luaL_register(L: *mut lua_State, libname: *const c_char, l: *const luaL_Reg);
     pub fn luaL_checkstack(L: *mut lua_State, sz: c_int, msg: *const c_char);
     pub fn luaL_checktype(L: *mut lua_State, narg: c_int, t: c_int);
     pub fn luaL_checkany(L: *mut lua_State, narg: c_int);
@@ -218,11 +233,11 @@ unsafe extern "C-unwind" {
         sz: usize,
         name: *const c_char,
     ) -> c_int;
-    pub fn luaL_buffinit(L: *mut lua_State, B: *mut crate::lua::base64::luaL_Buffer);
-    pub fn luaL_prepbuffer(B: *mut crate::lua::base64::luaL_Buffer) -> *mut c_char;
-    pub fn luaL_addlstring(B: *mut crate::lua::base64::luaL_Buffer, s: *const c_char, l: usize);
-    pub fn luaL_addvalue(B: *mut crate::lua::base64::luaL_Buffer);
-    pub fn luaL_pushresult(B: *mut crate::lua::base64::luaL_Buffer);
+    pub fn luaL_buffinit(L: *mut lua_State, B: *mut luaL_Buffer);
+    pub fn luaL_prepbuffer(B: *mut luaL_Buffer) -> *mut c_char;
+    pub fn luaL_addlstring(B: *mut luaL_Buffer, s: *const c_char, l: usize);
+    pub fn luaL_addvalue(B: *mut luaL_Buffer);
+    pub fn luaL_pushresult(B: *mut luaL_Buffer);
 }
 
 #[inline]
@@ -245,7 +260,7 @@ pub unsafe fn lua_newtable(lstate: *mut lua_State) {
 }
 
 #[inline]
-pub unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: crate::lua::base64::lua_CFunction) {
+pub unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
     unsafe {
         lua_pushcclosure(lstate, f, 0);
     }

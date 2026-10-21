@@ -15,8 +15,8 @@ use crate::cursor::{
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::diff_get_corresponding_line;
 use crate::drawscreen::{
-    UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, VALID_BOTLINE, conceal_cursor_line,
-    number_width, redraw_buf_later, redraw_later, redrawWinline, redrawing,
+    SIGN_WIDTH, UPD_INVERTED, UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, VALID_BOTLINE,
+    conceal_cursor_line, number_width, redraw_buf_later, redraw_later, redrawWinline, redrawing,
     win_cursorline_standout, win_scroll_lines,
 };
 use crate::errors::*;
@@ -60,8 +60,6 @@ use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, Direction, FORWARD};
-
-const SIGN_WIDTH: c_int = 2;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]

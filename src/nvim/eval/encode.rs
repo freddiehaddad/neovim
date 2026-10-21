@@ -16,7 +16,7 @@ use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists};
 use crate::eval::{get_copyID, partial_name};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::hashtab::{hashitem_T, hashitem_empty};
-use crate::keycodes::{BS, CAR};
+use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
 use crate::memory::{memchrsub, memcnt, xfree, xmalloc, xmemdupz, xmemscan, xrealloc};
@@ -42,8 +42,6 @@ const SURROGATE_HI_END: c_int = 0xDBFF;
 const SURROGATE_LO_START: c_int = 0xDC00;
 const SURROGATE_LO_END: c_int = 0xDFFF;
 
-const TAB: c_int = 0x09;
-const NL: c_int = 0x0a;
 const FF: c_int = 0x0c;
 
 #[repr(transparent)]

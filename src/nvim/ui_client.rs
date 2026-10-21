@@ -15,6 +15,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
+use crate::api::ui::{ARRAY_INIT, kLineFlagWrap};
 use crate::channel::{CallbackReader, channel_connect, channel_job_start, kChannelStdinPipe};
 use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
@@ -54,12 +55,6 @@ use std::ptr;
 const UI_CLIENT_STDIN_FD: Integer = 3;
 const KEYSET_OPTIDX_highlight__url: u64 = 5;
 
-const ARRAY_INIT: Array = Array {
-    items: ptr::null_mut(),
-    size: 0,
-    capacity: 0,
-};
-
 #[unsafe(no_mangle)]
 pub static mut tui: *mut TUIData = ptr::null_mut();
 static mut tui_width: c_int = 0;
@@ -77,8 +72,6 @@ use crate::fileio::_close as close_fd;
 unsafe extern "C" {
     fn uv_os_getpid() -> c_int;
 }
-
-use crate::api::ui::kLineFlagWrap;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_start_server(

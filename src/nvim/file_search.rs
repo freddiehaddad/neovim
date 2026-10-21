@@ -36,7 +36,7 @@ use crate::os::fs::{
 };
 use crate::os::input::os_breakcheck;
 use crate::path::{
-    EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FreeWild, FullName_save, after_pathsep,
+    EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FreeWild, FullName_save, PATHSEP, after_pathsep,
     expand_wildcards, kPathCmpLiteral, path_cmp, path_equal, path_has_drive_letter, path_is_url,
     path_shorten_fname, path_tail, path_tail_with_sep, path_with_url, simplify_filename,
     vim_isAbsName, vim_ispathsep,
@@ -62,7 +62,6 @@ pub const FNAME_INCL: c_int = 8;
 pub const FNAME_REL: c_int = 16;
 pub const FNAME_UNESC: c_int = 32;
 
-const PATHSEP: c_char = b'/' as c_char;
 const PATHSEPSTR_C: &CStr = c"/";
 const EMPTY_C: &CStr = c"";
 
@@ -73,7 +72,7 @@ const kCpoDottag: c_int = b'd' as c_int;
 pub(crate) const kOptIncludeexpr: OptIndex = 147;
 pub(crate) const kBufOptIncludeexpr: usize = 47;
 
-const NULL_STRING: NvimString = NvimString {
+pub(crate) const NULL_STRING: NvimString = NvimString {
     data: ptr::null_mut(),
     size: 0,
 };

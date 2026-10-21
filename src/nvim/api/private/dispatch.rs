@@ -16871,7 +16871,7 @@ pub unsafe extern "C" fn msgpack_rpc_get_handler_for(
 }
 
 use crate::errors::e_fast_api_disabled;
-use crate::lua::base64::lua_State;
+use crate::lua::converter::lua_State;
 use crate::lua::executor::{active_lstate, api_free_luaref, nlua_is_deferred_safe};
 
 const kNluaPushSpecial: c_int = 0x01;

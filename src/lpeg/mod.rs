@@ -18,8 +18,7 @@ use std::ffi::{CStr, c_char, c_int, c_short, c_uint, c_ushort};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
-use crate::lua::base64::{lua_State, luaL_Reg};
-use crate::lua::converter::{lua_Integer, lua_Number};
+use crate::lua::converter::{lua_Integer, lua_Number, lua_State, luaL_Reg};
 
 pub type byte = u8;
 pub type uint = c_uint;

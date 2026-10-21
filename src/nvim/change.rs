@@ -41,7 +41,7 @@ use crate::indent::{
 use crate::indent_c::{check_linecomment, cin_is_cinword, do_c_expr_indent, in_cinkeys};
 use crate::insert::{prompt_text, replace_push, replace_push_nul, truncate_spaces};
 use crate::insexpand::ins_compl_active;
-use crate::mark::{mark_adjust, mark_col_adjust, mark_view_make, reset_fmark};
+use crate::mark::{JUMPLISTSIZE, mark_adjust, mark_col_adjust, mark_view_make, reset_fmark};
 use crate::marktree::{kMTMetaInline, kMTMetaLines};
 use crate::mbyte::{
     mb_adjust_cursor, ptr2cells, utf_char2bytes, utf_composinglike, utf_head_off,
@@ -92,7 +92,6 @@ pub const OPENLINE_FORCE_INDENT: c_int = 0x40;
 pub(crate) const TAB: c_char = b'\t' as c_char;
 
 pub(crate) const MB_MAXCHAR: usize = 6;
-const JUMPLISTSIZE: c_int = 100;
 pub(crate) const COM_MAX_LEN: usize = 50;
 
 const COM_NEST: c_char = b'n' as c_char;

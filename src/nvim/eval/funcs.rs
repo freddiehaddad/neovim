@@ -33,7 +33,7 @@ use crate::channel::{
     channel_send, channel_terminal_alloc, kChannelPartRpc, kChannelPartStderr, kChannelPartStdin,
     kChannelPartStdout, kChannelStdinPipe, kChannelStreamProc, kProcTypePty,
 };
-use crate::charset::{VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
+use crate::charset::{Ctrl_V, VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
 use crate::cmdexpand::{
     EXPAND_FILES, ExpandCleanup, ExpandInit, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP,
     WILD_ICASE, WILD_KEEP_ALL, WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH,
@@ -89,14 +89,14 @@ use crate::eval::vars::{
 };
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id, win_id2wp_tp};
 use crate::eval::{
-    FNE_CHECK_START, GLV_NO_AUTOLOAD, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET, add_timer_info,
-    add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx, callback_from_typval,
-    clear_lval, common_job_callbacks, do_string_sub, eval_expr_to_bool, eval_expr_typval,
-    eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job, find_timer_by_nr,
-    get_callback_depth, get_copyID, get_lval, kListLenMayKnow, kListLenShouldKnow, kListLenUnknown,
-    list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float, timer_due_cb,
-    timer_start, timer_stop, timer_stop_all, timer_tail, tv_dict_set_ret, tv_to_argv,
-    var_item_copy, var2fpos,
+    FNE_CHECK_START, GLV_NO_AUTOLOAD, GLV_READ_ONLY, TFN_NO_AUTOLOAD, TFN_QUIET, VARNUMBER_MAX,
+    add_timer_info, add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx,
+    callback_from_typval, clear_lval, common_job_callbacks, do_string_sub, eval_expr_to_bool,
+    eval_expr_typval, eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job,
+    find_timer_by_nr, get_callback_depth, get_copyID, get_lval, kListLenMayKnow,
+    kListLenShouldKnow, kListLenUnknown, list2fpos, partial_name, save_tv_as_string,
+    script_host_eval, string2float, timer_due_cb, timer_start, timer_stop, timer_stop_all,
+    timer_tail, tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
 };
 #[cfg(unix)]
 use crate::event::r#loop::uv_kill;
@@ -120,7 +120,7 @@ use crate::ex_eval::aborting;
 use crate::ex_getln::{
     VSE_NONE, get_user_input, hlf_T, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::garray::{ga_append, ga_append_via_ptr, ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{
@@ -190,6 +190,8 @@ use crate::os::stdpaths::{XDGVarType, get_appname, get_xdg_home, stdpaths_get_xd
 use crate::os::time::{
     NS_PER_SEC, Tm, c_time, os_hrtime, os_localtime_r, os_strptime, strftime, time_t,
 };
+#[cfg(not(windows))]
+use crate::path::ENV_SEPCHAR;
 use crate::path::{concat_fnames_realloc, to_slash_save, vim_FullName};
 use crate::plines::{getvvcol, win_chartabsize};
 use crate::popupmenu::{pum_set_event_info, pum_visible};
@@ -227,7 +229,7 @@ use crate::syntax::{
     syntax_present,
 };
 use crate::tag::{get_tagfname, get_tags, get_tagstack, set_tagstack, tagname_T, tagname_free};
-use crate::textformat::{MotionType, oparg_T};
+use crate::textformat::oparg_T;
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_current_col, ui_current_row, ui_flush, ui_gui_attached, ui_has,
     ui_rgb_attached,
@@ -238,14 +240,12 @@ use crate::window::{find_tabpage, tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::extmark::TriState;
 pub type SpecialVarValue = c_int;
 
 const BASE_NONE: u8 = 0;
 const BASE_LAST: u8 = u8::MAX;
 
 pub(crate) const MAX_FUNC_ARGS: usize = 20;
-const VARNUMBER_MAX: varnumber_T = varnumber_T::MAX;
 
 pub(crate) const kSpecialVarNull: SpecialVarValue = 0;
 
@@ -275,7 +275,6 @@ pub(crate) const DOCMD_KEYTYPED: c_int = 0x08;
 pub(crate) const MENU_INDEX_TIP: c_int = 7;
 pub(crate) const MENU_ALL_MODES: c_int = (1 << MENU_INDEX_TIP) - 1;
 const AUTOLOAD_CHAR: c_int = b'#' as c_int;
-const Ctrl_V: c_char = 22;
 
 pub(crate) const UV_TIMER: c_int = 13;
 
@@ -300,10 +299,10 @@ const SP_COLUMN: c_int = 0x80;
 
 pub(crate) const kOptCpoptions: OptIndex = 61;
 
-pub(crate) const kMTUnknown: MotionType = -1;
-pub(crate) const kMTCharWise: MotionType = 0;
-pub(crate) const kMTLineWise: MotionType = 1;
-pub(crate) const kMTBlockWise: MotionType = 2;
+pub(crate) const kMTUnknown: c_int = -1;
+pub(crate) const kMTCharWise: c_int = 0;
+pub(crate) const kMTLineWise: c_int = 1;
+pub(crate) const kMTBlockWise: c_int = 2;
 
 pub(crate) const HLF_SPB: hlf_T = 37;
 pub(crate) const HLF_SPC: hlf_T = 38;
@@ -326,8 +325,6 @@ pub(crate) const HL_CONCEALED: c_int = 0x10000;
 
 #[cfg(windows)]
 const ENV_SEPCHAR: c_char = b';' as c_char;
-#[cfg(not(windows))]
-const ENV_SEPCHAR: c_char = b':' as c_char;
 
 const E_INVALID_SUBMATCH_NUMBER_NR: &CStr = c"E935: Invalid submatch number: %d";
 pub(crate) const E_STRING_LIST_OR_BLOB_REQUIRED: &CStr = c"E1098: String, List or Blob required";
@@ -3604,7 +3601,7 @@ unsafe fn getregionpos(
     p1: *mut pos_T,
     p2: *mut pos_T,
     inclusive: *mut bool,
-    region_type: *mut MotionType,
+    region_type: *mut c_int,
     oap: *mut oparg_T,
 ) -> c_int {
     unsafe {

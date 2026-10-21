@@ -63,9 +63,8 @@ use std::ptr;
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, cmd_addr_T};
 use crate::cursor::linenr_T;
 
-type cmdidx_T = c_int;
-const CMD_iput: cmdidx_T = 200;
-const CMD_put: cmdidx_T = 350;
+const CMD_iput: c_int = 200;
+const CMD_put: c_int = 350;
 
 const KEYSET_OPTIDX_cmd__cmd: u64 = 1;
 const KEYSET_OPTIDX_cmd__reg: u64 = 2;

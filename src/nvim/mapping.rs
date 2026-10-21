@@ -35,7 +35,7 @@ use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::{scid_T, set_vim_var_char};
 use crate::eval::{eval_to_string, kListLenUnknown, last_set_msg};
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::exarg_T;
+use crate::ex_docmd::{Ctrl_C, exarg_T};
 use crate::ex_session::put_eol;
 use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
@@ -45,7 +45,7 @@ use crate::garray::{
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
-    K_SPECIAL, K_ZERO, KE_FILLER, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, REPTERM_DO_LT,
+    K_SPECIAL, K_ZERO, KE_FILLER, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, NL, REPTERM_DO_LT,
     REPTERM_FROM_PART, REPTERM_NO_SIMPLIFY, get_special_key_name, key2termcap1, replace_termcodes,
     vim_strsave_escape_ks, vim_unescape_ks,
 };
@@ -72,6 +72,7 @@ use crate::os::env::expand_T;
 use crate::regexp::{Ctrl_V, NUMBUFLEN, regmatch_T, vim_regexec};
 use crate::runtime::{sctx_T, sourcing_lnum};
 use crate::strings::{atoi, gettext, sort_strings, strpbrk, strstr, vim_snprintf, vim_strchr};
+use crate::viml::parser::expressions::Ctrl_H;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
@@ -83,9 +84,6 @@ pub const MAX_MAPHASH: usize = 256;
 pub(crate) const REMAP_YES: c_int = 0;
 pub(crate) const REMAP_NONE: c_int = -1;
 
-const NL: c_int = b'\n' as c_int;
-const Ctrl_C: c_char = 3;
-const Ctrl_H: u8 = 8;
 const UCHAR_MAX: c_int = 255;
 
 pub const MAPTYPE_MAP: c_int = 0;

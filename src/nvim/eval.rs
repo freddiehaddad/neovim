@@ -12,9 +12,9 @@ use crate::api::private::helpers::{
     HLF_E, api_clear_error, arena_array, cstr_as_string, cstr_to_string, tv_dict_is_watched,
 };
 use crate::charset::{
-    VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower, ascii_isupper,
-    ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits, skiptowhite,
-    skipwhite, vim_str2nr,
+    NL, NUL, VARNUMBER_MIN, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_islower,
+    ascii_isupper, ascii_iswhite, ascii_iswhite_or_nul, ascii_isxdigit, hex2nr, skipdigits,
+    skiptowhite, skipwhite, vim_str2nr,
 };
 use crate::eval::typval::{
     Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, blob_T, callback_copy,
@@ -45,6 +45,9 @@ use crate::eval::vars::{
     skip_var_list, tv_init, valid_varname, var_check_lock, var_check_ro, var_wrong_func_name,
 };
 use crate::event::r#loop::{loop_queues, uv_handle_size};
+use crate::ex_docmd::{
+    CAR, check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
+};
 use crate::strings::{
     atol, concat_str, gettext, strcmp, strlen, strncmp, strpbrk, strstr, strtod, vim_snprintf,
     vim_strchr,
@@ -76,9 +79,6 @@ use crate::eval::userfunc::{
     ufunc_T,
 };
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{
-    check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
-};
 use crate::globals::*;
 use crate::lua::executor::{
     kRetObject, nlua_call_ref, nlua_is_deferred_safe, nlua_is_table_from_lua,
@@ -92,14 +92,15 @@ use crate::message::{
 };
 use crate::r#move::{check_cursor_moved, update_topline, validate_botline_win};
 use crate::option::{
-    find_option_end, get_option_value, get_tty_option, is_option_hidden, is_tty_option,
-    kOptFoldexpr, kOptFoldtext, optval_free, set_option_value_give_err, was_set_insecurely,
+    OPT_GLOBAL, OPT_LOCAL, find_option_end, get_option_value, get_tty_option, is_option_hidden,
+    is_tty_option, kOptFoldexpr, kOptFoldtext, kOptInvalid, optval_free, set_option_value_give_err,
+    was_set_insecurely,
 };
 use crate::option_vars::*;
 use crate::quickfix::set_ref_in_quickfix;
 use crate::regexp::{
-    RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, regmatch_T, vim_regcomp, vim_regexec_nl,
-    vim_regfree, vim_regsub,
+    NUMBUFLEN, RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, regmatch_T, vim_regcomp,
+    vim_regexec_nl, vim_regfree, vim_regsub,
 };
 use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter, yankreg_T};
 use crate::runtime::{
@@ -164,10 +165,7 @@ use crate::tag::set_ref_in_tagfunc;
 use crate::window::win_T;
 
 use crate::change::TAB;
-use crate::charset::{NL, NUL};
 use crate::globals::IOSIZE;
-use crate::option::{OPT_GLOBAL, OPT_LOCAL, kOptInvalid};
-use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 pub type timer_T = c_void;
 pub type var_flavour_T = c_int;
@@ -211,12 +209,11 @@ pub(crate) const FNE_CHECK_START: c_int = 2;
 
 const BS: c_char = 0x08;
 const FF: c_char = 0x0c;
-const CAR: c_char = 0x0d;
-const ESC: c_char = 0x1b;
+pub(crate) const ESC: c_char = 0x1b;
 
 pub(crate) const DICT_MAXNEST: c_int = 100;
 
-const VARNUMBER_MAX: varnumber_T = i64::MAX;
+pub(crate) const VARNUMBER_MAX: varnumber_T = i64::MAX;
 
 pub(crate) const VAR_DEF_SCOPE: c_int = 2;
 

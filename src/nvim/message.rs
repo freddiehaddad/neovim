@@ -117,7 +117,7 @@ const PROGRESS_TARGET_CMD: c_int = 0x01;
 
 const VERBOSE_KIND: &CStr = c"verbose";
 
-const NIL_OBJ: Object = Object {
+pub(crate) const NIL_OBJ: Object = Object {
     obj_type: ObjectType::kObjectTypeNil,
     data: ObjectData { integer: 0 },
 };

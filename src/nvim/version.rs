@@ -18,6 +18,7 @@ use crate::globals::*;
 use crate::grid::{GridView, grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
+use crate::insert::HLF_8;
 use crate::lua::executor::{kRetObject, nlua_exec};
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
 use crate::memory::{xfree, xmallocz};
@@ -30,7 +31,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 const kShmIntro: c_int = b'I' as c_int;
-const HLF_8: usize = 1;
 
 static VIM_VERSIONS: [c_int; 5] = [801, 802, 900, 901, 902];
 static NUM_PATCHES: [usize; 5] = [2409, 4049, 1650, 1726, 823];

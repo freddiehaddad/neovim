@@ -56,7 +56,7 @@ use crate::input_cmdatom::{
     atom_visual_redoable, cmdarg_T, kVInsKeys, kVInsMotion, kVInsNone, kVInsOther,
 };
 use crate::insert::{Ctrl_X, beginline, display_dollar, edit, kFoAuto, linetabsize_str};
-use crate::keycodes::{CAR, K_COMMAND};
+use crate::keycodes::{CAR, K_COMMAND, NL, TAB};
 use crate::mark::{mark_col_adjust, mark_mb_adjustpos};
 use crate::math::{FAIL, OK, trim_to_int};
 use crate::mbyte::{
@@ -90,9 +90,7 @@ use crate::register::{
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
 use crate::strings::{ngettext, strcpy_raw, tr, vim_snprintf, vim_strchr};
-use crate::textformat::{
-    MotionType, auto_format, has_format_option, op_format, op_formatexpr, oparg_T,
-};
+use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, oparg_T};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
@@ -141,9 +139,6 @@ pub const OP_MCURSOR: c_int = 30;
 
 const OPF_LINES: u8 = 1;
 const OPF_CHANGE: u8 = 2;
-
-const TAB: c_int = b'\t' as c_int;
-const NL: c_int = b'\n' as c_int;
 
 const kCpoEmptyregion: c_int = b'E' as c_int;
 const kCpoFilter: c_int = b'!' as c_int;
@@ -2343,7 +2338,7 @@ pub unsafe extern "C" fn block_prep(
 pub unsafe extern "C" fn getregionpos_prep(
     p1: *mut pos_T,
     p2: *mut pos_T,
-    region_type: MotionType,
+    region_type: c_int,
     exclusive: bool,
     block_width: c_int,
     inclusive: *mut bool,
@@ -2399,7 +2394,7 @@ pub unsafe extern "C" fn getregionpos_line(
     p1: pos_T,
     p2: pos_T,
     inclusive: bool,
-    region_type: MotionType,
+    region_type: c_int,
     oap: *mut oparg_T,
     allow_eol: bool,
     ret_p1: *mut pos_T,

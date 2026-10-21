@@ -75,7 +75,7 @@ use crate::grid::{
 use crate::hashtab::hash_init;
 use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
-use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
+use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
 use crate::kvec::KVec;
 use crate::main_init::getout;
 use crate::map::{StcClick, StcClicks, map_del_int_ptr_t, map_put_ref_int_ptr_t};
@@ -538,8 +538,6 @@ pub const MIN_COLUMNS: c_int = 12;
 pub const MIN_LINES: c_int = 2;
 pub const STATUS_HEIGHT: c_int = 1;
 pub const LOWEST_WIN_ID: c_int = 1000;
-
-const TAB: c_int = b'\t' as c_int;
 
 const SNAP_HELP_IDX: usize = 0;
 const SNAP_QUICKFIX_IDX: usize = 2;

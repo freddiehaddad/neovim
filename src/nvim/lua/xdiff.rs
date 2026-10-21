@@ -10,12 +10,11 @@
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
 use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
-use crate::lua::base64::lua_State;
 use crate::lua::converter::{
-    LUA_TFUNCTION, LUA_TTABLE, lua_concat, lua_createtable, lua_error, lua_gettop, lua_isnumber,
-    lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushstring, lua_pushvalue,
-    lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error,
-    luaL_where, nlua_pop_keydict,
+    LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat, lua_createtable, lua_error, lua_gettop,
+    lua_isnumber, lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushstring,
+    lua_pushvalue, lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror,
+    luaL_error, luaL_where, nlua_pop_keydict,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::memory::{strequal, xfree};
@@ -108,8 +107,7 @@ use crate::diff::{
     XDF_IGNORE_BLANK_LINES, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
     XDF_IGNORE_WHITESPACE_CHANGE,
 };
-use crate::lua::base64::LUA_TSTRING;
-use crate::lua::converter::LUA_NOREF;
+use crate::lua::converter::{LUA_NOREF, LUA_TSTRING};
 
 unsafe fn lua_pushhunk(
     lstate: *mut lua_State,

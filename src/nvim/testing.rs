@@ -36,16 +36,12 @@ use crate::os::fs::os_fopen;
 use crate::regexp::NUMBUFLEN;
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
 use crate::strings::{vim_snprintf, vim_snprintf_safelen};
+use crate::viml::parser::expressions::{BS, CAR, ESC, NL, TAB};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 const EOF_VAL: c_int = -1;
 
-const BS: u8 = 0x08;
-const TAB: u8 = 0x09;
-const NL: u8 = 0x0a;
 pub(crate) const FF: u8 = 0x0c;
-const CAR: u8 = 0x0d;
-const ESC: u8 = 0x1b;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AssertType {

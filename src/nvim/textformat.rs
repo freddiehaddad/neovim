@@ -70,7 +70,6 @@ const kFoRigorousTw: c_int = b']' as c_int;
 const kFoWrap: c_int = b't' as c_int;
 const kFoWrapComs: c_int = b'c' as c_int;
 
-pub type MotionType = c_int;
 pub type InsArrow = c_int;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_docmd::CMOD_LOCKMARKS;
@@ -85,7 +84,7 @@ use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
 pub struct oparg_T {
     pub op_type: c_int,
     pub regname: c_int,
-    pub motion_type: MotionType,
+    pub motion_type: c_int,
     pub motion_force: c_int,
     pub use_reg_one: bool,
     pub inclusive: bool,

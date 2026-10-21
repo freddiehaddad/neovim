@@ -41,8 +41,8 @@ use crate::ex_docmd::{
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
     CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_BUFNAME, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT,
-    EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, cmdmod_T, do_cmdline,
-    ends_excmd, exarg_T,
+    EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, KE_FILLER, cmdmod_T,
+    do_cmdline, ends_excmd, exarg_T,
 };
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::IOSIZE;
@@ -73,7 +73,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub(crate) const UC_BUFFER: c_int = 1;
-const KE_FILLER: c_char = b'X' as c_char;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

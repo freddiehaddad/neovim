@@ -113,7 +113,7 @@ pub struct WinInfo {
 pub(crate) const EXTRA_MARKS: usize = 10;
 const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NMARK_LOCAL_MAX: c_int = 126;
-const JUMPLISTSIZE: c_int = 100;
+pub(crate) const JUMPLISTSIZE: c_int = 100;
 
 pub(crate) const kMarkMoveSuccess: MarkMoveRes = 1;
 pub(crate) const kMarkMoveFailed: MarkMoveRes = 2;

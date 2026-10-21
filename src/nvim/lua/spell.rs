@@ -9,10 +9,10 @@
 
 use crate::errors::*;
 use crate::globals::*;
-use crate::lua::base64::{LUA_TSTRING, lua_State, luaL_Reg};
 use crate::lua::converter::{
-    lua_Integer, lua_createtable, lua_gettop, lua_pushinteger, lua_pushlstring, lua_pushstring,
-    lua_rawseti, lua_tolstring, lua_type, luaL_argerror, luaL_error, luaL_register,
+    LUA_TSTRING, lua_Integer, lua_State, lua_createtable, lua_gettop, lua_pushinteger,
+    lua_pushlstring, lua_pushstring, lua_rawseti, lua_tolstring, lua_type, luaL_Reg, luaL_argerror,
+    luaL_error, luaL_register,
 };
 use crate::message::emsg;
 use crate::spell::{parse_spelllang, spell_check};

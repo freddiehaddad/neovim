@@ -47,21 +47,21 @@ use crate::globals::*;
 use crate::input::vgetc;
 use crate::keycodes::{special_to_buf, vim_unescape_ks};
 use crate::log::log_get_stderr;
-use crate::lua::base64::{LUA_TSTRING, lua_CFunction, lua_State};
 use crate::lua::converter::{
     K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TBOOLEAN,
-    LUA_TFUNCTION, LUA_TTABLE, LuaRef, lua_Integer, lua_call, lua_checkstack, lua_close,
-    lua_concat, lua_createtable, lua_error, lua_getfield, lua_getglobal, lua_getmetatable,
-    lua_gettop, lua_insert, lua_isboolean, lua_iscfunction, lua_isfunction, lua_isnil,
-    lua_isnumber, lua_isstring, lua_istable, lua_newtable, lua_newuserdata, lua_next, lua_pcall,
-    lua_pop, lua_pushboolean, lua_pushcclosure, lua_pushcfunction, lua_pushinteger,
-    lua_pushlightuserdata, lua_pushlstring, lua_pushnil, lua_pushnumber, lua_pushstring,
-    lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove, lua_replace, lua_setfield, lua_setglobal,
-    lua_setmetatable, lua_settop, lua_toboolean, lua_tocfunction, lua_tointeger, lua_tolstring,
-    lua_tostring, lua_touserdata, lua_type, lua_upvalueindex, luaL_checkinteger, luaL_checklstring,
-    luaL_checktype, luaL_error, luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref,
-    luaL_unref, luaL_where, nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object,
-    nlua_pop_typval, nlua_push_Array, nlua_push_Object, nlua_push_typval, nlua_ref_state_t,
+    LUA_TFUNCTION, LUA_TSTRING, LUA_TTABLE, LuaRef, lua_CFunction, lua_Integer, lua_State,
+    lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable, lua_error, lua_getfield,
+    lua_getglobal, lua_getmetatable, lua_gettop, lua_insert, lua_isboolean, lua_iscfunction,
+    lua_isfunction, lua_isnil, lua_isnumber, lua_isstring, lua_istable, lua_newtable,
+    lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
+    lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
+    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove,
+    lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean,
+    lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata, lua_type,
+    lua_upvalueindex, luaL_checkinteger, luaL_checklstring, luaL_checktype, luaL_error,
+    luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref, luaL_unref, luaL_where,
+    nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object, nlua_pop_typval,
+    nlua_push_Array, nlua_push_Object, nlua_push_typval, nlua_ref_state_t,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::{nlua_treesitter_free, nlua_treesitter_init};

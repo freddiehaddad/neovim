@@ -25,7 +25,7 @@ use crate::autocmd::{
 use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_T, buf_get_changedtick, do_buffer};
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
 use crate::channel::TerminalOptions;
-use crate::charset::is_special;
+use crate::charset::{NUL, is_special};
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
 };
@@ -79,7 +79,7 @@ use crate::keycodes::{
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
-use crate::kvec::KVec;
+use crate::kvec::{KVec, StringBuilder};
 use crate::map::{
     HlAttrs, MH_TOMBSTONE, MHPutStatus, MapHash, Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t,
     ptr_t,
@@ -145,7 +145,6 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
-use crate::charset::NUL;
 use crate::cmdexpand::Ctrl_N;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, kOptCuloptFlagNumber};
 use crate::eval::funcs::{
@@ -155,7 +154,6 @@ use crate::eval::funcs::{
 use crate::ex_cmds::Ctrl_C;
 use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
 use crate::extmark::kExtmarkUndo;
-use crate::kvec::StringBuilder;
 use crate::search::FORWARD;
 
 const REFRESH_DELAY: u64 = 10;

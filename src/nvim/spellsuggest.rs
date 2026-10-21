@@ -57,6 +57,7 @@ use crate::strings::{
 use crate::syntax::synblock_T;
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
+use crate::viml::parser::expressions::TAB;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 pub type idx_T = c_int;
@@ -68,7 +69,6 @@ use crate::globals::IOSIZE;
 use crate::keycodes::ESC;
 use crate::math::{FAIL, OK};
 use crate::search::FORWARD;
-const TAB: u8 = b'\t';
 const WF_MIXCAP: c_int = 0x20;
 const SCORE_SPLIT: c_int = 149;
 const SCORE_SPLIT_NO: c_int = 249;

@@ -109,7 +109,9 @@ use crate::os::env::expand_T;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::os::time::os_hrtime;
-use crate::path::{EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, FreeWild, expand_wildcards, path_tail};
+use crate::path::{
+    EW_ADDSLASH, EW_DIR, EW_FILE, EW_SILENT, FreeWild, PATHSEP, expand_wildcards, path_tail,
+};
 #[cfg(windows)]
 use crate::path::{path_has_drive_letter, path_to_slash};
 use crate::popupmenu::{
@@ -165,7 +167,6 @@ pub(crate) const ACTION_EXPAND: c_int = 5;
 pub(crate) const LSIZE: usize = 512;
 const MIN_SPACE: c_int = 75;
 const LOOKBACK_LINE_COUNT: linenr_T = 1000;
-const PATHSEP: c_char = b'/' as c_char;
 
 pub(crate) const Ctrl_I: c_int = 9;
 

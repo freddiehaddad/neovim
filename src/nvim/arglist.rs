@@ -58,13 +58,12 @@ const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
 const AL_DEL: c_int = 3;
 
-type cmdidx_T = c_int;
-const CMD_args: cmdidx_T = 7;
-pub(crate) const CMD_argdo: cmdidx_T = 10;
-const CMD_argglobal: cmdidx_T = 13;
-const CMD_arglocal: cmdidx_T = 14;
-const CMD_drop: cmdidx_T = 132;
-const CMD_snext: cmdidx_T = 420;
+const CMD_args: c_int = 7;
+pub(crate) const CMD_argdo: c_int = 10;
+const CMD_argglobal: c_int = 13;
+const CMD_arglocal: c_int = 14;
+const CMD_drop: c_int = 132;
+const CMD_snext: c_int = 420;
 
 pub(crate) const CCGD_AW: c_int = 1;
 pub(crate) const CCGD_MULTWIN: c_int = 2;

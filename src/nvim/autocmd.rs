@@ -344,7 +344,7 @@ const EMPTY_AUCMD_VEC: AutoCmdVec = AutoCmdVec {
     items: ptr::null_mut(),
 };
 
-const EMPTY_MAP_HASH: MapHash = MapHash {
+pub(crate) const EMPTY_MAP_HASH: MapHash = MapHash {
     hash: ptr::null_mut(),
     n_buckets: 0,
     size: 0,

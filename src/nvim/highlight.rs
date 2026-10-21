@@ -58,7 +58,7 @@ pub(crate) const HLF_PST: c_int = 50;
 pub(crate) const HLF_INACTIVE: usize = 60;
 const HLF_NFLOAT: usize = 62;
 const HLF_BORDER: usize = 64;
-const HLF_COUNT: usize = 76;
+pub(crate) const HLF_COUNT: usize = 76;
 
 const kHlUnknown: HlKind = 0;
 const kHlUI: HlKind = 1;

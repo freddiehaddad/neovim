@@ -22,9 +22,7 @@ use crate::eval::typval::{
 #[cfg(windows)]
 use crate::event::r#loop::uv_translate_sys_error;
 #[cfg(not(windows))]
-use crate::fileio::iconv;
-#[cfg(not(windows))]
-use crate::fileio::iconv_close;
+use crate::fileio::{iconv, iconv_close};
 #[cfg(windows)]
 use crate::fileio::{libiconv, libiconv_close};
 use crate::globals::*;
@@ -110,7 +108,7 @@ const CODESET: c_int = 14;
 const CODESET: c_int = 0;
 
 #[cfg(windows)]
-const CP_UTF8: u32 = 65001;
+pub(crate) const CP_UTF8: u32 = 65001;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
