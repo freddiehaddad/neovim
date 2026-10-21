@@ -9,7 +9,7 @@
 )]
 
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
-use crate::charset::{ascii_iswhite, vim_iswordc};
+use crate::charset::{NUL, ascii_iswhite, vim_iswordc};
 use crate::cursor::{
     coladvance, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, lt, ltoreq, pos_T, set_leftcol,
 };
@@ -19,9 +19,9 @@ use crate::drawscreen::{
     DEFAULT_GRID_HANDLE, FR_LEAF, FR_ROW, UPD_INVERTED, UPD_VALID, VALID_BOTLINE,
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
     EvalFuncData, TypvalVval, VarType, tv_clear, tv_dict_add_nr, tv_dict_alloc_ret, typval_T,
+    varnumber_T,
 };
 use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
@@ -43,8 +43,7 @@ use crate::keycodes::{
     K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
-use crate::map::{Map, StcClick, StcClicks, mh_get_int};
-use crate::map_glyph_cache::MH_TOMBSTONE;
+use crate::map::{MH_TOMBSTONE, Map, StcClick, StcClicks, mh_get_int};
 use crate::mbyte::{
     mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf8len_tab, utfc_ptr2len,
 };
@@ -67,7 +66,7 @@ use crate::popupmenu::pum_visible;
 use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline, yankreg_T,
 };
-use crate::search::findmatch;
+use crate::search::{BACKWARD, FORWARD, findmatch};
 use crate::state::{MODE_INSERT, MODE_NORMAL, REPLACE_FLAG, virtual_active};
 use crate::statusline::stl_connected;
 use crate::strings::vim_strchr;
@@ -75,18 +74,17 @@ use crate::textformat::oparg_T;
 use crate::ui::{ui_check_mouse, ui_cursor_shape, ui_flush, ui_mouse_has};
 use crate::ui_compositor::ui_comp_mouse_focus;
 use crate::window::{
-    find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move, win_T,
-    win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
+    VALID_BOTLINE_AP, find_tabpage, global_stl_height, goto_tabpage, tabpage_index, tabpage_move,
+    win_T, win_drag_status_line, win_drag_vsep_line, win_enter, win_fdccol_count, win_valid,
 };
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
-use crate::api::buffer::{FORWARD, NUL, VALID_BOTLINE_AP};
-use crate::api::vim::{BACKWARD, kNone};
 use crate::cmdexpand::Ctrl_P;
 use crate::drawline::{VALID_CROW, VALID_WROW};
 use crate::eval::funcs::{kMTCharWise, kMTLineWise};
 use crate::ex_getln::{Ctrl_G, Ctrl_O, Ctrl_R, Ctrl_RSB, Ctrl_T};
+use crate::extmark::kNone;
 use crate::insexpand::kWinInfo;
 use crate::math::FAIL;
 use crate::regexp::Ctrl_V;

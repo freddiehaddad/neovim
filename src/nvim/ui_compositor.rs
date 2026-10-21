@@ -9,6 +9,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::private::validate::NvimString;
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii, schar_from_buf,
@@ -18,7 +19,6 @@ use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::{xfree, xmalloc, xrealloc};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::option_vars::*;

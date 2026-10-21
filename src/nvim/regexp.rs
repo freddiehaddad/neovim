@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::converter::{partial_T, ufunc_T};
 use crate::buffer::buf_T;
 use crate::charset::{
     getdigits_int, hex2nr, vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc_buf, vim_iswordp_buf,
@@ -17,10 +16,10 @@ use crate::cursor::{colnr_T, linenr_T, lpos_T, lt};
 use crate::errors::*;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
-    VarType, list_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string, tv_list_first,
-    tv_list_init_static10, tv_list_len, typval_T,
+    VarType, list_T, partial_T, staticList10_T, tv_clear, tv_list_alloc, tv_list_append_string,
+    tv_list_first, tv_list_init_static10, tv_list_len, typval_T,
 };
-use crate::eval::userfunc::funcexe_T;
+use crate::eval::userfunc::{funcexe_T, ufunc_T};
 use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::keycodes::{BS, CAR, ESC, K_SPECIAL};

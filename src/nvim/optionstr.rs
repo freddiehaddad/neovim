@@ -9,9 +9,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{TryState, api_clear_error, try_enter, try_leave};
-use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Error, ErrorType, NvimString, Object, ObjectData, ObjectType};
 use crate::api::win_config::{WIN_CONFIG_INIT, parse_winborder};
 use crate::autocmd::{check_ei, get_event_name_no_group};
 use crate::buffer::{MAXLNUM, STL_IN_ICON, STL_IN_TITLE, buf_T, kUIMessages, modifiable};
@@ -43,7 +42,6 @@ use crate::indent::{briopt_check, kOptBreakindentopt, tabstop_set};
 use crate::indent_c::parse_cino;
 use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
-use crate::map_glyph_cache::NvimString;
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -66,6 +64,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::os::env::{expand_T, vim_unsetenv_ext};
 use crate::regexp::{regmatch_T, regprog_T, vim_regexec, vim_regfree};
+use crate::runtime::sctx_T;
 use crate::spell::{
     compile_cap_prog, did_set_spell_option, spell_reload, valid_spellfile, valid_spelllang,
 };
@@ -198,13 +197,14 @@ pub struct vimoption_T {
     pub script_ctx: sctx_T,
 }
 
-use crate::api::buffer::NUL;
-use crate::api::options::{IOSIZE, SID_NONE};
+use crate::charset::NUL;
 use crate::decoration::SCL_NUM;
 use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{kOptSsopFlagCurdir, kOptSsopFlagSesdir};
 use crate::fileio::kOptFileencoding;
+use crate::globals::IOSIZE;
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
+use crate::runtime::SID_NONE;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

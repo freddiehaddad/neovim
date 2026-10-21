@@ -13,14 +13,14 @@ use crate::api::private::helpers::{
     api_free_dict, api_free_string, array_obj, boolean_obj, cstr_as_obj, cstr_to_obj,
     cstr_to_string, dict_obj, integer_obj,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
+use crate::api::private::validate::{Array, Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
 use crate::buffer::{buf_T, buf_get_changedtick, bufref_T, bufref_valid, set_bufref};
 use crate::charset::is_special;
 use crate::cursor::{equalpos, pos_T};
-use crate::eval::buffer::varnumber_T;
+use crate::eval::typval::varnumber_T;
 use crate::eval::vars::{VV_OP, get_vim_var_str};
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::globals::*;
 use crate::input::{
     prep_redo, prep_redo_visual, redo_append_lit, redo_append_spec, redo_append_str, redo_keys,
@@ -34,7 +34,6 @@ use crate::keycodes::{
     termcap2key,
 };
 use crate::kvec::{KVec, StringBuilder};
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::utf_char2bytes;
 use crate::mcursor::{
     mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
@@ -61,7 +60,6 @@ pub type CmdAtomVec = KVec<CmdAtom>;
 use crate::os::time::Timestamp;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::ex_cmds::{Ctrl_E, Ctrl_Y};
 use crate::ex_getln::{

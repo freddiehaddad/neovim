@@ -20,10 +20,9 @@ use crate::drawscreen::{
     win_cursorline_standout, win_scroll_lines,
 };
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
     EvalFuncData, tv_check_for_number_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number,
-    tv_get_number_chk, typval_T,
+    tv_get_number_chk, typval_T, varnumber_T,
 };
 use crate::eval::window::{find_win_by_nr_or_id, viewstate_T};
 use crate::fold::{foldAdjustCursor, hasFolding};
@@ -48,20 +47,19 @@ use crate::plines::{
 };
 use crate::strings::{tr, vim_strchr};
 use crate::textformat::oparg_T;
-use crate::window::{win_T, win_fdccol_count};
+use crate::window::{VALID_BOTLINE_AP, win_T, win_fdccol_count};
 use crate::winfloat::win_check_anchored_floats;
 use std::ffi::c_int;
 use std::ptr;
 
-use crate::api::buffer::{FORWARD, NUL, VALID_BOTLINE_AP};
-use crate::api::vim::BACKWARD;
+use crate::charset::NUL;
 use crate::drawline::{
     VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
 };
 use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
-use crate::search::Direction;
+use crate::search::{BACKWARD, Direction, FORWARD};
 
 const SIGN_WIDTH: c_int = 2;
 

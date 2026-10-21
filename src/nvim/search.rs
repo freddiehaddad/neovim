@@ -9,11 +9,10 @@
     clippy::useless_conversion
 )]
 
-use crate::api::command::CMOD_KEEPPATTERNS;
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::buffer::{buf_T, buf_get_changedtick, kUIMessages};
 use crate::change::{TAB, get_leader_len};
-use crate::charset::{ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
+use crate::charset::{NUL, ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
     check_cursor, clearpos, colnr_T, dec_cursor, equalpos, get_cursor_line_len,
@@ -24,20 +23,19 @@ use crate::drawscreen::{
     setcursor, show_cursor_info_later, showmode, update_screen,
 };
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
     EvalFuncData, VarType, dict_T, dictitem_T, listitem_T, tv_check_for_nonnull_dict_arg,
     tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_get_number_chk,
-    tv_get_string_chk, tv_list_find, tv_list_len, typval_T,
+    tv_get_string_chk, tv_list_find, tv_list_len, typval_T, varnumber_T,
 };
 use crate::eval::vars::{VV_SEARCHFORWARD, set_vim_var_nr};
 use crate::ex_cmds::{HLF_R, RE_BOTH, RE_SUBST, SEARCH_HIS, getfile, prepare_tagpreview};
 use crate::ex_docmd::{
-    ACTION_SHOW, ACTION_SHOW_ALL, ACTION_SPLIT, CHECK_PATH, FIND_DEFINE, SEARCH_MSG,
-    set_no_hlsearch,
+    ACTION_SHOW, ACTION_SHOW_ALL, ACTION_SPLIT, CHECK_PATH, CMOD_KEEPPATTERNS, FIND_DEFINE,
+    SEARCH_MSG, set_no_hlsearch,
 };
 use crate::ex_getln::gotocmdline;
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
@@ -93,12 +91,13 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub type Direction = c_int;
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::options::IOSIZE;
+pub(crate) const FORWARD: Direction = 1;
+pub(crate) const BACKWARD: Direction = -1;
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::vim::{BACKWARD, HLF_N, kFalse, kNone, kTrue};
+use crate::api::vim::HLF_N;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, kMTLineWise};
+use crate::globals::IOSIZE;
 pub type AdditionalData = c_void;
 
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;

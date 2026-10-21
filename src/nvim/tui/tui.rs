@@ -16,7 +16,7 @@ use crate::api::private::helpers::{
     static_cstr_as_obj, static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType,
 };
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry_T, shape_table};
@@ -47,8 +47,7 @@ use crate::grid::{
 use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
-use crate::map::{HlAttrs, Set, cstr_t, mh_put_cstr_t};
-use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString};
+use crate::map::{HlAttrs, MHPutStatus, MapHash, Set, cstr_t, mh_put_cstr_t};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{
     Arena, arena_finish, arena_mem_free, arena_memdupz, arena_strdup, strequal, xcalloc, xfree,
@@ -288,9 +287,9 @@ unsafe extern "C" {
     fn getpgrp() -> c_int;
 }
 
-use crate::api::buffer::NUL;
 use crate::api::ui::{MAX_SCHAR_SIZE, kLineFlagWrap};
 use crate::channel::STDOUT_FILENO;
+use crate::charset::NUL;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_STANDOUT, HL_UNDERCURL,

@@ -3,18 +3,15 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-use crate::api::buffer::LUA_NOREF;
 #[cfg(not(test))]
-use crate::api::private::converter::{
-    K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL, VAR_UNLOCKED, partial_T,
-};
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_free_array, api_free_dict, api_free_object, api_set_error, api_typename, arena_array,
     arena_dict, cbuf_to_arena_str, error_set,
 };
-use crate::api::private::validate::{Array, Dict, Error, Object, ObjectType};
+use crate::api::private::validate::{Array, Dict, Error, NvimString, Object, ObjectType};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectData};
 #[cfg(not(test))]
@@ -28,14 +25,13 @@ use crate::eval::encode::{
     K_MP_ARRAY, K_MP_BOOLEAN, K_MP_FLOAT, K_MP_NIL, K_MP_STRING, MPConvStackData, MPConvStackVal,
     MPConvStackValType, encode_vim_list_to_buf,
 };
-#[cfg(not(test))]
-use crate::eval::executor::blob_T;
 use crate::eval::typval::typval_T;
 #[cfg(not(test))]
 use crate::eval::typval::{
-    TypvalVval, VarType, dict_T, dictitem_T, tv_blob_len, tv_clear, tv_copy, tv_dict_add,
-    tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len, tv_list_alloc, tv_list_append_list,
-    tv_list_append_owned_tv, tv_list_first, tv_list_last, tv_list_len, tv_list_ref,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, dictitem_T, partial_T, tv_blob_len,
+    tv_clear, tv_copy, tv_dict_add, tv_dict_alloc, tv_dict_find, tv_dict_item_alloc_len,
+    tv_list_alloc, tv_list_append_list, tv_list_append_owned_tv, tv_list_first, tv_list_last,
+    tv_list_len, tv_list_ref,
 };
 #[cfg(not(test))]
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
@@ -52,7 +48,6 @@ use crate::highlight_group::syn_check_group;
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::math::{FAIL, OK};
 use crate::memory::Arena;
@@ -72,6 +67,7 @@ use std::sync::atomic::Ordering;
 pub type Boolean = bool;
 pub type Float = f64;
 pub type LuaRef = c_int;
+pub(crate) const LUA_NOREF: LuaRef = -2;
 pub type lua_Number = f64;
 pub type lua_Integer = isize;
 pub type lua_Alloc = Option<

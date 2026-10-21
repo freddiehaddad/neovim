@@ -8,22 +8,21 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_KEEPALT, exarg_T};
 use crate::api::private::helpers::cstr_as_obj;
 use crate::buffer::{bt_help, buflist_findnr, set_buflisted, wipe_buffer};
 use crate::charset::{
-    ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
+    NUL, ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
 };
 use crate::errors::*;
 use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
-use crate::ex_docmd::do_cmdline_cmd;
+use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, exarg_T};
 use crate::fileio::fclose;
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
 use crate::memory::{xfree, xstrdup, xstrlcpy};
 use crate::message::{emsg, semsg, smsg};
-use crate::option::{OPT_LOCAL, OptInt, set_option_direct};
+use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
@@ -36,10 +35,9 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::buffer::NUL;
-use crate::api::options::{IOSIZE, kOptBuftype};
 use crate::cmdexpand::TAG_MANY;
 use crate::diff::kOptFoldmethod;
+use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 

@@ -8,24 +8,21 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::NUL;
-use crate::api::extmark::NS;
-use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{
     api_set_error, arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
 };
-use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
+use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
-use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::buffer::kUIMessages;
 use crate::change::HLF_W;
 use crate::charset::{
-    ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
+    NUL, ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
 };
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, HLF_D};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
+use crate::decoration::NS;
 use crate::decoration_provider::decor_provider_invalidate_hl;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
 use crate::drawscreen::{HLF_MSG, UPD_NOT_VALID, UPD_SOME_VALID, redraw_all_later};
@@ -37,7 +34,7 @@ use crate::eval::funcs::{
 use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_docmd::ends_excmd;
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::highlight::{
@@ -49,7 +46,6 @@ use crate::highlight::{
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::map::{HlAttrs, Map, Set, cstr_t, map_put_ref_cstr_t_int, map_ref_cstr_t_int};
-use crate::map_glyph_cache::NvimString;
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
 use crate::memory::{
@@ -65,7 +61,9 @@ use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::expand_T;
 use crate::os::time::os_delay;
-use crate::runtime::{DIP_OPT, DIP_START, source_runtime_vim_lua, sourcing_lnum, sourcing_name};
+use crate::runtime::{
+    DIP_OPT, DIP_START, sctx_T, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
+};
 use crate::strings::{atoi, gettext, strchr, strncmp, strtol, vim_memcpy_up, vim_strup};
 use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,

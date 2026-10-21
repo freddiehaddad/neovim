@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{EX_NOSPC, EX_XFILE, exarg_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick};
 use crate::charset::{
@@ -21,7 +20,8 @@ use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, redraw_curbuf_later, redr
 use crate::errors::*;
 use crate::eval::vars::{do_unlet, get_var_value, set_internal_string_var};
 use crate::ex_docmd::{
-    check_nextcmd, do_cmdline_cmd, ends_excmd, expand_filename, find_nextcmd, separate_nextcmd,
+    EX_NOSPC, EX_XFILE, check_nextcmd, do_cmdline_cmd, ends_excmd, exarg_T, expand_filename,
+    find_nextcmd, separate_nextcmd,
 };
 use crate::fold::{foldUpdateAll, foldmethodIsSyntax};
 use crate::garray::{ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
@@ -230,7 +230,7 @@ const spo_name_tab: [*const c_char; SPO_COUNT] = [
     c"lc=".as_ptr(),
 ];
 
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 use crate::math::{FAIL, OK};
 use crate::sign::EXP_SUBCMD;
 

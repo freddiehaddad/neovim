@@ -8,8 +8,9 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::private::validate::NvimString;
 use crate::buffer::{kUIMessages, read_buffer_into};
-use crate::charset::{ascii_iswhite, backslash_halve, skipwhite};
+use crate::charset::{NL, NUL, ascii_iswhite, backslash_halve, skipwhite};
 use crate::errors::*;
 use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
 use crate::event::r#loop::{
@@ -28,9 +29,8 @@ use crate::event::wstream::{
     wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
 };
 use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
-use crate::fileio::{fclose, fopen, fread, fseek, ftell, vim_tempname};
+use crate::fileio::{SEEK_END, SEEK_SET, fclose, fopen, fread, fseek, ftell, vim_tempname};
 use crate::globals::*;
-use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
@@ -43,7 +43,7 @@ use crate::message::{
 use crate::option_vars::*;
 #[cfg(windows)]
 use crate::os::env::{os_getenv, os_setenv, restore_env_var};
-use crate::os::fs::{os_can_exe, os_fopen, os_isdir, os_path_exists, os_remove};
+use crate::os::fs::{MAXPATHL, os_can_exe, os_fopen, os_isdir, os_path_exists, os_remove};
 use crate::os::signal::{signal_accept_deadly, signal_reject_deadly};
 use crate::os::time::{os_delay, os_hrtime};
 #[cfg(unix)]
@@ -62,14 +62,11 @@ use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::buffer::{NL, NUL};
-use crate::api::vim::MAXPATHL;
 use crate::autocmd::PROF_YES;
 use crate::change::TAB;
 use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
 use crate::diff::{kShellOptDoOut, kShellOptSilent};
-use crate::eval::buffer::varnumber_T;
-use crate::eval::fs::{SEEK_END, SEEK_SET};
+use crate::eval::typval::varnumber_T;
 use crate::kvec::StringBuilder;
 use crate::state::MODE_EXTERNCMD;
 

@@ -14,10 +14,12 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
     copy_array, copy_object, cstr_literal, error_set, put_c, string_obj, string_to_array,
 };
-use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
+use crate::api::private::validate::{Array, Dict, Error, ErrorType, NvimString, ObjectType};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
-use crate::buffer::{MAXLNUM, bt_prompt, buf_T, bufref_valid, do_autochdir, set_bufref};
+use crate::buffer::{
+    BCO_ENTER, BCO_NOHELP, MAXLNUM, bt_prompt, buf_T, bufref_valid, do_autochdir, set_bufref,
+};
 use crate::cursor::{check_cursor, check_pos, colnr_T, equalpos, pos_T};
 use crate::eval::encode::encode_vim_list_to_buf;
 use crate::eval::typval::{VarType, tv_clear, typval_T};
@@ -28,15 +30,14 @@ use crate::extmark::{extmark_del_id, extmark_get_pos, extmark_set_pos};
 use crate::fileio::shorten_fnames;
 use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
-use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
-use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
+use crate::map::{MH_TOMBSTONE, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::memory::{Arena, strequal_str as strequal, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::visualinfo_T;
 use crate::option::buf_copy_options;
 use crate::option_vars::*;
-use crate::os::fs::{os_chdir, os_dirname};
+use crate::os::fs::{MAXPATHL, os_chdir, os_dirname};
 use crate::register::{free_register, get_y_register};
 use crate::shada::{
     kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo, shada_encode_buflist,
@@ -52,10 +53,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
-use crate::api::vim::{
-    BCO_ENTER, BCO_NOHELP, MAXPATHL, kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxRegs,
-    kCtxSFuncs,
-};
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::keycodes::K_SPECIAL;
@@ -95,6 +92,12 @@ const NUM_SAVED_REGISTERS: c_int = 37;
 
 pub(crate) const kCdCauseWindow: CdCause = 1;
 
+pub(crate) const kCtxRegs: CtxStateFlags = 1;
+pub(crate) const kCtxJumps: CtxStateFlags = 2;
+pub(crate) const kCtxBufs: CtxStateFlags = 4;
+pub(crate) const kCtxGVars: CtxStateFlags = 8;
+pub(crate) const kCtxSFuncs: CtxStateFlags = 16;
+pub(crate) const kCtxFuncs: CtxStateFlags = 32;
 pub(crate) const kCtxCursor: CtxStateFlags = 64;
 pub(crate) const kCtxMarks: CtxStateFlags = 128;
 pub(crate) const kCtxVisual: CtxStateFlags = 256;

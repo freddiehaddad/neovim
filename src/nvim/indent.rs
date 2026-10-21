@@ -8,8 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::buffer::{buf_T, buf_get_changedtick, modifiable};
 use crate::change::{
@@ -17,7 +15,7 @@ use crate::change::{
     replace_normal,
 };
 use crate::charset::{
-    ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
+    NUL, ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
     getwhitecols_curline, kOptDyFlagUhex, skipwhite, vim_strsize,
 };
 use crate::cursor::{
@@ -27,10 +25,10 @@ use crate::cursor::{
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later};
 use crate::errors::*;
 use crate::eval::eval_expr_option_number;
-use crate::eval::typval::{EvalFuncData, tv_get_lnum, typval_T};
+use crate::eval::typval::{EvalFuncData, kCallbackNone, tv_get_lnum, typval_T, varnumber_T};
 use crate::eval::vars::{VV_LNUM, set_vim_var_nr};
-use crate::ex_docmd::handle_did_throw;
-use crate::extmark::extmark_splice_cols;
+use crate::ex_docmd::{CMOD_LOCKMARKS, exarg_T, handle_did_throw};
+use crate::extmark::{extmark_splice_cols, kExtmarkUndo};
 use crate::globals::*;
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::insert::{
@@ -65,14 +63,12 @@ use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
-use crate::eval::buffer::varnumber_T;
 use crate::msgpack_rpc::packer::handle_T;
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
-use crate::api::buffer::{NUL, kExtmarkUndo};
-use crate::api::options::IOSIZE;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
+use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 use crate::state::{MODE_INSERT, VREPLACE_FLAG};
 

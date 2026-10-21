@@ -8,9 +8,9 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::NUL;
 use crate::buffer::buf_T;
 use crate::change::{TAB, inserted_bytes, kOptVeFlagOnemore};
+use crate::charset::NUL;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;

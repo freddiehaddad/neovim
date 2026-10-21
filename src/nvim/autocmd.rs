@@ -9,33 +9,27 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{AutoCmd, AutoCmdVec, AutoPat, event_T, kCallbackLua};
-use crate::api::buffer::NUL;
-use crate::api::command::exarg_T;
-use crate::api::options::SID_NONE;
-use crate::api::private::converter::{object_to_vim, sctx_T};
+use crate::api::private::converter::object_to_vim;
 use crate::api::private::helpers::{
     HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
     cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, find_buffer_by_handle, integer_obj,
     static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType,
 };
 use crate::api::tabpage::Buffer;
 use crate::api::ui::NO_SCREEN;
-use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{
     bt_nofile, buf_T, buflist_findnr, bufref_T, bufref_valid, do_modelines, set_bufref,
 };
-use crate::charset::{ascii_iswhite, getdigits_int, skipdigits, skipwhite};
+use crate::charset::{NUL, ascii_iswhite, getdigits_int, skipdigits, skipwhite};
 use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
-    Callback, callback_copy, callback_free, callback_to_string, tv_clear, tv_dict_add_nr,
-    tv_dict_add_tv, tv_dict_set_keys_readonly, typval_T,
+    Callback, callback_copy, callback_free, callback_to_string, kCallbackLua, tv_clear,
+    tv_dict_add_nr, tv_dict_add_tv, tv_dict_set_keys_readonly, typval_T, varnumber_T,
 };
 use crate::eval::userfunc::{restore_funccal, save_funccal};
 use crate::eval::vars::{
@@ -47,9 +41,9 @@ use crate::event::r#loop::{Loop, loop_queues};
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
-use crate::ex_docmd::{do_cmdline, ends_excmd, expand_sfile};
+use crate::ex_docmd::{do_cmdline, ends_excmd, exarg_T, expand_sfile};
 use crate::ex_eval::{aborting, should_abort};
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
 use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
@@ -57,10 +51,9 @@ use crate::insexpand::ins_compl_active;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::map::{
-    Map, Set, map_del_String_int, map_del_int_String, map_put_ref_String_int,
+    Map, MapHash, Set, map_del_String_int, map_del_int_String, map_put_ref_String_int,
     map_put_ref_int_String, map_ref_String_int, map_ref_int_String,
 };
-use crate::map_glyph_cache::{MapHash, NvimString};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_strcmp_ic, vim_strchr, vim_strnicmp_asc};
 use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrnsave};
@@ -74,12 +67,13 @@ use crate::option::{OPT_LOCAL, apply_optionset_autocmd_now, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::{expand_T, expand_env_save};
+use crate::os::fs::MAXPATHL;
 use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
 use crate::regexp::{RE_MAGIC, RE_NOBREAK, vim_regcomp, vim_regfree};
-use crate::runtime::{ETYPE_AUCMD, estack_pop, estack_push, exestack};
+use crate::runtime::{ETYPE_AUCMD, SID_NONE, estack_pop, estack_push, exestack, sctx_T};
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::state::{MODE_INSERT, MODE_NORMAL_BUSY, get_mode, get_real_state, save_v_event_T};
 use crate::strings::tr;
@@ -90,7 +84,38 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
+pub type event_T = c_int;
 pub(crate) const BUFLOCAL_PAT_LEN: usize = 25;
+
+#[repr(C)]
+pub struct AutoPat {
+    pub refcount: usize,
+    pub pat: *mut c_char,
+    pub reg_prog: *mut crate::regexp::regprog_T,
+    pub group: c_int,
+    pub patlen: c_int,
+    pub buflocal_nr: c_int,
+    pub allow_dirs: c_char,
+}
+
+#[repr(C)]
+pub struct AutoCmd {
+    pub pat: *mut AutoPat,
+    pub id: i64,
+    pub desc: *mut c_char,
+    pub handler_cmd: *mut c_char,
+    pub handler_fn: Callback,
+    pub script_ctx: crate::runtime::sctx_T,
+    pub once: bool,
+    pub nested: bool,
+}
+
+#[repr(C)]
+pub struct AutoCmdVec {
+    pub size: usize,
+    pub capacity: usize,
+    pub items: *mut AutoCmd,
+}
 
 pub const AUGROUP_DEFAULT: c_int = -1;
 pub const AUGROUP_ERROR: c_int = -2;

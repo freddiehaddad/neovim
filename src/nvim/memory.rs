@@ -915,7 +915,6 @@ pub unsafe extern "C" fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char)
 #[cfg(not(test))]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_all_mem() {
-    use crate::api::command::exarg_T;
     use crate::api::extmark::api_extmark_free_all_mem;
     use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};
@@ -929,6 +928,7 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::drawline::drawline_free_all_mem;
     use crate::eval::eval_clear;
     use crate::ex_cmds::free_old_sub;
+    use crate::ex_docmd::exarg_T;
     use crate::file_search::free_findfile;
     use crate::grid::grid_free_all_mem;
     use crate::highlight::clear_hl_tables;
@@ -937,8 +937,7 @@ pub unsafe extern "C" fn free_all_mem() {
     use crate::input_cmdatom::atom_free_all;
     use crate::insert::free_last_insert;
     use crate::insexpand::free_insexpand_stuff;
-    use crate::map::{Map, Set};
-    use crate::map_glyph_cache::MapHash;
+    use crate::map::{Map, MapHash, Set};
     use crate::mapping::map_clear_mode;
     use crate::mark::free_all_marks;
     use crate::mcursor::mc_free_all;

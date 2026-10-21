@@ -9,8 +9,6 @@
     clippy::useless_conversion
 )]
 
-use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
-use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{HLF_E, cstr_as_obj};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFNEW, EVENT_BUFNEWFILE, EVENT_BUFREADCMD,
@@ -36,7 +34,7 @@ use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
 use crate::errors::*;
-use crate::eval::fs::{CheckItem, FileInfo, SEEK_SET};
+use crate::eval::fs::CheckItem;
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_FCS_CHOICE, VV_FCS_REASON, VV_WARNINGMSG,
     eval_charconvert, get_vim_var_str, set_vim_var_string,
@@ -46,9 +44,11 @@ use crate::eval::vars::{VV_TESTING, get_vim_var_nr};
 use crate::event::r#loop::uv_strerror;
 #[cfg(unix)]
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
+use crate::ex_docmd::{CMOD_LOCKMARKS, exarg_T};
 use crate::ex_eval::aborting;
 use crate::fold::{foldUpdateAll, foldmethodIsManual};
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::{stuff_empty, typebuf_typed};
 use crate::insert::beginline;
@@ -79,7 +79,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
 use crate::os::fs::{
-    Directory, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, os_closedir, os_copy, os_dirname,
+    Directory, FileInfo, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, os_closedir, os_copy, os_dirname,
     os_errno as get_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
     os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm, os_isdir,
     os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename, os_rmdir,
@@ -212,6 +212,8 @@ const BACKSLASH_IN_FILENAME_BOOL: bool = false;
 
 #[cfg(all(not(test), unix))]
 const LOCK_SH: c_int = 1;
+pub(crate) const SEEK_SET: c_int = 0;
+pub(crate) const SEEK_END: c_int = 2;
 
 static E_AUCHANGEDBUF: &CStr = c"E812: Autocommands changed buffer or buffer name";
 static MSG_IS_A_DIRECTORY: &CStr = c"is a directory";
@@ -221,15 +223,15 @@ static mut VIM_TEMPDIR: *mut c_char = ptr::null_mut();
 #[cfg(all(not(test), unix))]
 static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{NL, NUL};
-use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
+use crate::charset::{NL, NUL};
 use crate::eval::funcs::VIM_WARNING;
+use crate::eval::typval::kCallbackNone;
 use crate::ex_cmds::{BL_FIX, BL_WHITE, kShmOverall};
 use crate::ex_docmd::UNDO_HASH_SIZE;
 use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
+use crate::os::fs::MAXPATHL;
 
 unsafe extern "C" {
 

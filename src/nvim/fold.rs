@@ -14,7 +14,7 @@ use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, Object
 use crate::buffer::{MAXLNUM, buf_T};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
-use crate::charset::{ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
+use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T, ltoreq, pos_T};
 use crate::decoration::{VirtText, clear_virttext, next_virt_text_chunk};
 use crate::diff::{diff_infold, diff_lnum_win};
@@ -22,14 +22,16 @@ use crate::drawscreen::{
     UPD_INVERTED, UPD_NOT_VALID, redraw_buf_later, redraw_later, redraw_win_range_later,
 };
 use crate::errors::*;
-use crate::eval::typval::{EvalFuncData, VarType, tv_get_lnum, typval_T};
+use crate::eval::typval::{
+    EvalFuncData, VarType, kCallbackNone, tv_get_lnum, typval_T, varnumber_T,
+};
 use crate::eval::vars::{
     VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM, get_vim_var_nr,
     get_vim_var_str, set_vim_var_nr, set_vim_var_string,
 };
 use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::ex_session::{put_eol, put_line};
-use crate::extmark::{TriState, extmark_splice_cols};
+use crate::extmark::{TriState, extmark_splice_cols, kExtmarkUndo, kFalse, kNone, kTrue};
 use crate::fileio::{FILE, fputs};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -47,7 +49,7 @@ use crate::ops::skip_comment;
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
-use crate::search::linewhite;
+use crate::search::{FORWARD, linewhite};
 use crate::statusline::foldinfo_T;
 use crate::strings::{atoi, concat_str, gettext, strstr, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
@@ -56,10 +58,6 @@ use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_ulong, c_void};
 use std::ptr;
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
-use crate::api::vim::{kFalse, kNone, kTrue};
-use crate::eval::buffer::varnumber_T;
 use crate::state::MODE_INSERT;
 
 pub const FOLD_TEXT_LEN: usize = 51;

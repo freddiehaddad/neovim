@@ -9,13 +9,14 @@
     clippy::useless_conversion
 )]
 
-use crate::api::autocmd::kCallbackNone;
 use crate::change::{
     COM_END, COM_FIRST, COM_MIDDLE, COM_START, OPENLINE_COM_LIST, OPENLINE_DELSPACES,
     OPENLINE_DO_COM, OPENLINE_FORMAT, OPENLINE_KEEPTRAIL, OPENLINE_MARKFIX, del_bytes, del_char,
     get_leader_len, ins_bytes, ins_str, open_line,
 };
-use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite};
+use crate::charset::{
+    NUL, ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite,
+};
 use crate::cursor::{
     check_cursor, check_cursor_col, coladvance, colnr_T, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor,
@@ -23,6 +24,7 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
+use crate::eval::typval::kCallbackNone;
 use crate::eval::vars::{
     VV_CHAR, VV_COUNT, VV_LNUM, set_vim_var_char, set_vim_var_nr, set_vim_var_string,
 };
@@ -70,12 +72,12 @@ const kFoWrapComs: c_int = b'c' as c_int;
 
 pub type MotionType = c_int;
 pub type InsArrow = c_int;
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::command::CMOD_LOCKMARKS;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
+use crate::ex_docmd::CMOD_LOCKMARKS;
 use crate::extmark::TriState;
 use crate::math::FAIL;
 use crate::regexp::MAXCOL;
+use crate::search::FORWARD;
 use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};
 
 #[repr(C)]

@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{FORWARD, NUL, bcount_t, kExtmarkNOOP, kExtmarkUndo};
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
     BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_T, buf_inc_changedtick,
@@ -16,7 +15,7 @@ use crate::buffer::{
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
-    ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
+    NUL, ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
@@ -29,7 +28,9 @@ use crate::drawscreen::{
     set_must_redraw, showmode,
 };
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
-use crate::extmark::{extmark_adjust, extmark_splice, extmark_splice_cols};
+use crate::extmark::{
+    bcount_t, extmark_adjust, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo,
+};
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
 use crate::globals::*;
 use crate::grid::wline_T;
@@ -63,7 +64,7 @@ use crate::r#move::{
 use crate::option::{copy_option_part, get_ve_flags};
 use crate::option_vars::*;
 use crate::plines::{getvcol, linetabsize_eol, win_chartabsize};
-use crate::search::{findmatch, linewhite, showmatch};
+use crate::search::{BACKWARD, FORWARD, findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
 use crate::strings::{concat_str, tr, vim_strchr, xstrnsave};
@@ -74,10 +75,9 @@ use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
-use crate::api::vim::BACKWARD;
 use crate::arglist::ML_EMPTY;
+use crate::eval::typval::kCallbackNone;
+use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::math::{FAIL, OK};
 use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 

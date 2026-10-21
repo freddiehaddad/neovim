@@ -8,17 +8,17 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::buffer::NUL;
-#[cfg(not(test))]
-use crate::api::options::IOSIZE;
-#[cfg(not(test))]
 use crate::buffer::buf_T;
+#[cfg(not(test))]
+use crate::charset::NUL;
 #[cfg(not(test))]
 use crate::context::handle_get_buffer;
 #[cfg(not(test))]
 use crate::cursor::linenr_T;
 #[cfg(not(test))]
 use crate::event::r#loop::{uv_dlclose, uv_dlerror, uv_dlopen, uv_dlsym};
+#[cfg(not(test))]
+use crate::globals::IOSIZE;
 #[cfg(not(test))]
 use crate::globals::*;
 use crate::lua::base64::lua_State;
@@ -39,10 +39,9 @@ use crate::lua::converter::{
 };
 #[cfg(not(test))]
 use crate::map::{
-    Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
+    MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
+    mh_get_cstr_t, ptr_t,
 };
-#[cfg(not(test))]
-use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
 #[cfg(not(test))]
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 #[cfg(not(test))]

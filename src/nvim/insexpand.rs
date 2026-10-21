@@ -11,6 +11,7 @@
 use crate::api::private::helpers::{
     HLF_E, api_clear_string, cbuf_as_string, cbuf_to_string, copy_string,
 };
+use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
@@ -37,14 +38,13 @@ use crate::drawscreen::{
     conceal_cursor_line, kShmCompletionmenu, redrawWinline, setcursor, showmode, update_screen,
 };
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
     Callback, EvalFuncData, VarType, callback_copy, callback_free, dict_T, list_T, listitem_T,
     tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_alloc_ret, tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv,
     tv_dict_set_keys_readonly, tv_dict_unref, tv_get_number_chk, tv_get_string, tv_get_string_chk,
-    tv_list_alloc, tv_list_append_dict, tv_list_unref, typval_T,
+    tv_list_alloc, tv_list_append_dict, tv_list_unref, typval_T, varnumber_T,
 };
 use crate::eval::userfunc::callback_call_retnr;
 use crate::eval::vars::{VV_COMPLETED_ITEM, set_vim_var_dict};
@@ -85,7 +85,6 @@ use crate::keycodes::{
 };
 use crate::kvec::KVec;
 use crate::lua::executor::nlua_expand_pat;
-use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr_back, mb_ptr2char_adv, mb_tolower,
@@ -450,16 +449,17 @@ struct cpt_source_T {
     cs_flag: c_char,
 }
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
-use crate::api::options::IOSIZE;
-use crate::api::vim::BACKWARD;
+use crate::charset::NUL;
 use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::eval::funcs::SEARCH_KEEP;
+use crate::eval::typval::kCallbackNone;
 use crate::ex_cmds::{Ctrl_C, Ctrl_E, Ctrl_Y, HLF_R};
 use crate::ex_docmd::{FIND_ANY, FIND_DEFINE};
+use crate::extmark::kExtmarkUndo;
+use crate::globals::IOSIZE;
 use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
+use crate::search::{BACKWARD, FORWARD};
 
 static mut compl_first_match: *mut compl_T = ptr::null_mut();
 static mut compl_curr_match: *mut compl_T = ptr::null_mut();

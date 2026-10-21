@@ -7,7 +7,7 @@
     clippy::missing_safety_doc
 )]
 
-use crate::charset::try_getdigits;
+use crate::charset::{NUL, try_getdigits};
 use crate::event::r#loop::{
     Loop, loop_poll_events, main_loop_ptr, uv_close, uv_connect_cb, uv_connect_t, uv_freeaddrinfo,
     uv_handle_get_loop, uv_handle_get_type, uv_handle_size, uv_handle_t, uv_loop_t,
@@ -57,7 +57,6 @@ const UV_EADDRINUSE: c_int = -98;
 const UV_EADDRINUSE: c_int = -48;
 
 pub type SocketWatcher = c_void;
-use crate::api::buffer::NUL;
 use crate::event::rstream::RStream;
 pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;

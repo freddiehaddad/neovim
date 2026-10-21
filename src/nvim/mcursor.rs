@@ -13,15 +13,15 @@ use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
     api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
 };
-use crate::api::private::validate::{Error, ErrorType};
-use crate::api::vim::{REMAP_NONE, kCtxRegs, kFalse, kNone, kTrue, nvim_feedkeys};
+use crate::api::private::validate::{Error, ErrorType, NvimString};
+use crate::api::vim::nvim_feedkeys;
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{MAXLNUM, buf_T, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::set_clipboard;
 use crate::context::{
     CONTEXT_INIT, Context, INIT_POS, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor,
-    kCtxMarks, kCtxMergeReg, kCtxVisual,
+    kCtxMarks, kCtxMergeReg, kCtxRegs, kCtxVisual,
 };
 use crate::cursor::{
     check_cursor, check_cursor_col, check_pos, colnr_T, equalpos, getvpos, linenr_T, lt, ltoreq,
@@ -29,16 +29,15 @@ use crate::cursor::{
 };
 use crate::decoration::DecorInline;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
-use crate::eval::buffer::varnumber_T;
-use crate::eval::typval::{TypvalVval, VarType, typval_T};
+use crate::eval::typval::{TypvalVval, VarType, typval_T, varnumber_T};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
 use crate::ex_docmd::{
-    exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
+    CMOD_KEEPJUMPS, exec_normal_cmd, restore_current_state, save_current_state, set_no_hlsearch,
 };
 use crate::extmark::{
     TriState, extmark_clear, extmark_del_id, extmark_from_id, extmark_get_pos, extmark_set,
-    extmark_set_pos,
+    extmark_set_pos, kFalse, kNone, kTrue,
 };
 use crate::globals::*;
 use crate::highlight_group::syn_check_group;
@@ -56,7 +55,7 @@ use crate::keycodes::{K_COMMAND, K_SPECIAL};
 use crate::kvec::{KVec, StringBuilder};
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::lua::executor::nlua_call_typval;
-use crate::map_glyph_cache::NvimString;
+use crate::mapping::REMAP_NONE;
 use crate::mark::mark_get_visual;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorInlineData, MT_FLAG_DECOR_HL, MTPair, MarkTreeIter,
@@ -105,7 +104,6 @@ pub(crate) const kOptFollow: c_int = 114;
 
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 
-use crate::api::command::CMOD_KEEPJUMPS;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::ex_getln::K_LUA;

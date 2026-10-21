@@ -8,13 +8,14 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::api::private::helpers::{
     HLF_E, HlMessageChunk, api_free_array, copy_string, cstr_as_string, cstr_to_string,
     ga_take_string,
 };
-use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::vim::{HLF_N, HlMessage, MessageData, kFalse, kTrue};
+use crate::api::private::validate::{
+    Array, Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+};
+use crate::api::vim::{HLF_N, HlMessage, MessageData};
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
     ascii_iswhite, ascii2cells, char2cells, is_special, k_second, skipwhite, to_special,
@@ -33,9 +34,9 @@ use crate::eval::vars::{
 };
 use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_process_events};
-use crate::ex_docmd::do_sleep;
+use crate::ex_docmd::{do_sleep, exarg_T};
 use crate::ex_eval::cause_errthrow;
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fileio::{FILE, check_timestamps, fclose, fprintf, fputc, fputs, printf};
 use crate::garray::{ga_append, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::*;
@@ -60,7 +61,6 @@ use crate::keycodes::{
     keychord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
-use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells, utf_head_off,
@@ -417,15 +417,14 @@ macro_rules! swmsg {
         let _ = (hl_val, fmt_ptr $(, $crate::strings::IntoFmtVal::into_fmt_val($arg))*);
     }};
 }
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::NUL;
-use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::win_config::kUIMultigrid;
 use crate::buffer::kUIMessages;
 use crate::change::{HLF_W, MB_MAXCHAR};
+use crate::charset::NUL;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_0, HLF_AT};
+use crate::eval::typval::{VAR_UNLOCKED, kCallbackNone};
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::ex_cmds::{Ctrl_C, HLF_R};
 use crate::ex_getln::{Ctrl_B, Ctrl_F, K_EVENT};

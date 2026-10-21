@@ -14,7 +14,7 @@ use crate::event::signal::{
     signal_watcher_stop,
 };
 use crate::ex_cmds2::autowrite_all;
-use crate::globals::{main_loop, *};
+use crate::globals::{IOSIZE, main_loop, *};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
 #[cfg(unix)]
@@ -24,7 +24,6 @@ use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::options::IOSIZE;
 use crate::event::proc::{SIGHUP, SIGTERM};
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;

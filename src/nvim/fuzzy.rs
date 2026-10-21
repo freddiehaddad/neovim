@@ -7,10 +7,6 @@
     clippy::too_many_arguments
 )]
 
-#[cfg(not(test))]
-use crate::api::buffer::FORWARD;
-#[cfg(not(test))]
-use crate::api::private::converter::VAR_UNLOCKED;
 use crate::buffer::buf_T;
 #[cfg(not(test))]
 use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_iswordp};
@@ -25,7 +21,7 @@ use crate::eval::decode::K_LIST_LEN_MAY_KNOW;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 #[cfg(not(test))]
 use crate::eval::typval::{
-    Callback, TypvalVval, VarType, callback_free, dict_T, list_T, listitem_T,
+    Callback, TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, list_T, listitem_T,
     tv_check_for_nonnull_dict_arg, tv_clear, tv_dict_find, tv_dict_get_callback,
     tv_dict_get_string, tv_dict_has_key, tv_dict_unref, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_list, tv_list_append_number,
@@ -53,6 +49,8 @@ use crate::memory::{xcalloc, xfree, xmalloc, xstrdup};
 use crate::message::semsg;
 #[cfg(not(test))]
 use crate::option_vars::*;
+#[cfg(not(test))]
+use crate::search::FORWARD;
 #[cfg(not(test))]
 use crate::strings::qsort;
 use std::ffi::{CStr, c_char, c_int, c_void};

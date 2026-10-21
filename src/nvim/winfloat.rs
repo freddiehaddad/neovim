@@ -13,7 +13,7 @@ use crate::api::private::helpers::{
     find_window_by_handle, has_key,
 };
 use crate::api::private::validate::{Error, ErrorType};
-use crate::api::vim::{MAXPATHL, nvim_create_buf};
+use crate::api::vim::nvim_create_buf;
 use crate::api::win_config::{
     WIN_CONFIG_INIT, kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth,
     kFloatRelativeCursor, kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse,
@@ -32,10 +32,12 @@ use crate::memory::{xfree, xrealloc, xstrdup};
 use crate::message::{emsg, kZIndexMessages};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
-use crate::option::{OPT_LOCAL, kOptScopeBuf, parse_winhl_opt, set_option_direct_for};
+use crate::option::{
+    OPT_LOCAL, kOptBufhidden, kOptScopeBuf, parse_winhl_opt, set_option_direct_for,
+};
 use crate::option_vars::*;
 use crate::optionstr::{OptKeyDict_pvp, free_string_option, kOptPreviewpopup, opt_keyset};
-use crate::os::fs::os_dirname;
+use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext, qsort};
 use crate::ui::ui_has;
@@ -52,8 +54,7 @@ const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;
 const KEYSET_OPTIDX_pvp__height: u64 = 3;
 
-use crate::api::buffer::NUL;
-use crate::api::options::kOptBufhidden;
+use crate::charset::NUL;
 use crate::ex_cmds::kWinPreview;
 use crate::math::FAIL;
 

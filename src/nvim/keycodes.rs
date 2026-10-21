@@ -7,6 +7,7 @@
     clippy::missing_safety_doc
 )]
 
+use crate::api::private::validate::NvimString;
 use crate::charset::is_special;
 #[cfg(not(test))]
 use crate::charset::{ascii_isalpha, ascii_isdigit, transchar, vim_isprintc, vim_str2nr};
@@ -14,7 +15,6 @@ use crate::charset::{ascii_isalpha, ascii_isdigit, transchar, vim_isprintc, vim_
 use crate::eval::vars::get_var_value;
 #[cfg(not(test))]
 use crate::globals::*;
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mbyte::{
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,

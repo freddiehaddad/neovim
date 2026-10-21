@@ -14,7 +14,7 @@ use crate::api::private::helpers::{
     find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,
 };
 #[cfg(not(test))]
-use crate::api::private::validate::{Error, ErrorType};
+use crate::api::private::validate::{Error, ErrorType, NvimString};
 #[cfg(not(test))]
 use crate::buffer::buf_T;
 #[cfg(not(test))]
@@ -58,8 +58,6 @@ use crate::lua::converter::{
 use crate::lua::spell::luaopen_spell;
 #[cfg(not(test))]
 use crate::lua::xdiff::nlua_xdl_diff;
-#[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mbyte::{
     convert_setup, convert_setup_ext, enc_canonize, enc_skip, mb_stricmp, mb_utf_index_to_bytes,

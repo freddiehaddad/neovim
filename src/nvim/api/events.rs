@@ -12,7 +12,7 @@
 
 #[cfg(not(test))]
 use crate::api::private::helpers::api_typename;
-use crate::api::private::validate::{Error, Object};
+use crate::api::private::validate::{Error, NvimString, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{ObjectType, api_err_exp};
 #[cfg(not(test))]
@@ -21,7 +21,6 @@ use crate::autocmd::do_termresponse_autocmd;
 use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_string};
 #[cfg(not(test))]
 use crate::log::{LOGLVL_ERR, logmsg};
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use std::ffi::CStr;
 

@@ -8,15 +8,16 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::extmark::{HLGroupID, NS};
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
     cstr_as_string, dict_obj, integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_exp,
+    api_err_invalid,
 };
 use crate::api::ui::{HLATTRS_DICT_SIZE, remote_ui_hl_attr_define, remote_ui_hl_group_set};
+use crate::decoration::{HLGroupID, NS};
 use crate::decoration_provider::get_decor_provider;
 use crate::drawscreen::screen_invalidate_highlights;
 use crate::globals::*;
@@ -27,11 +28,11 @@ use crate::highlight_group::{
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_call_ref};
 use crate::map::{
-    ColorItem, ColorKey, HlAttrs, HlEntry, Map, Set, cstr_t, map_put_ref_ColorKey_ColorItem,
-    map_put_ref_int_ptr_t, map_put_ref_uint64_t_int, map_ref_ColorKey_ColorItem, map_ref_int_ptr_t,
-    map_ref_uint64_t_int, mh_clear, mh_get_ColorKey, mh_put_HlEntry, mh_put_cstr_t, ptr_t,
+    ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, MapHash, Set, cstr_t,
+    map_put_ref_ColorKey_ColorItem, map_put_ref_int_ptr_t, map_put_ref_uint64_t_int,
+    map_ref_ColorKey_ColorItem, map_ref_int_ptr_t, map_ref_uint64_t_int, mh_clear, mh_get_ColorKey,
+    mh_put_HlEntry, mh_put_cstr_t, ptr_t,
 };
-use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xstrdup};
 use crate::message::emsg;
 use crate::msgpack_rpc::packer::Integer;
@@ -255,7 +256,6 @@ unsafe fn is_none_str(s: *const c_char) -> bool {
     !s.is_null() && unsafe { CStr::from_ptr(s).to_bytes().eq_ignore_ascii_case(b"NONE") }
 }
 
-use crate::api::buffer::LUA_NOREF;
 use crate::api::private::dispatch::{
     KeyDict_highlight_cterm_get_field, KeyDict_highlight_get_field,
 };
@@ -264,6 +264,7 @@ use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_NOCOMBINE, HL_STANDOUT,
     HL_UNDERCURL, HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
 };
+use crate::lua::converter::LUA_NOREF;
 
 #[inline]
 const fn has_key(mask: OptionalKeys, idx: c_int) -> bool {

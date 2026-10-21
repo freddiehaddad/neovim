@@ -15,11 +15,10 @@ use crate::charset::{
 };
 use crate::charset::{ascii_isdigit, ascii_iswhite, rem_backslash};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
 use crate::eval::encode::encode_tv2echo;
 use crate::eval::encode::encode_tv2string;
-use crate::eval::typval::{EvalFuncData, VarType, float_T, typval_T};
+use crate::eval::typval::{EvalFuncData, VarType, float_T, typval_T, varnumber_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     tv_check_for_number_arg, tv_check_for_opt_bool_arg, tv_check_for_opt_number_arg,
@@ -2944,7 +2943,7 @@ macro_rules! vim_snprintf_safelen {
         )
     };
 }
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 use crate::cmdexpand::MB_MAXBYTES;
 #[cfg(not(test))]
 use crate::eval::kListLenUnknown;

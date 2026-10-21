@@ -8,13 +8,14 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::private::validate::NvimString;
 use crate::arabic::arabic_shape;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::decoration::{VirtText, decor_check_invalid_glyphs, next_virt_text_chunk};
 use crate::globals::*;
 use crate::highlight::{hl_apply_winblend, hl_combine_attr};
-use crate::map::mh_clear;
-use crate::map_glyph_cache::{MHPutStatus, MapHash, NvimString, Set_glyph, mh_put_glyph};
+use crate::map::{MHPutStatus, MapHash, mh_clear};
+use crate::map_glyph_cache::{Set_glyph, mh_put_glyph};
 use crate::mbyte::{
     mb_string2cells, ptr2cells, utf_ClusterInfo_len, utf_char2bytes, utf_char2len, utf_cp_bounds,
     utf_ptr2StrCharInfo_len, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -35,12 +36,12 @@ use std::ptr;
 pub type schar_T = u32;
 pub type sattr_T = i32;
 pub type sscratch_T = i32;
-use crate::api::buffer::NUL;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::win_config::{
     AlignTextPos, BorderTextType, kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter,
     kBorderTextTitle, kUIMultigrid,
 };
+use crate::charset::NUL;
 use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
 use crate::drawscreen::DEFAULT_GRID_HANDLE;
 

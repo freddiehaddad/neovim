@@ -8,15 +8,12 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{event_T, kCallbackNone};
-use crate::api::buffer::{FORWARD, ML_LINE_DIRTY, NUL};
-use crate::api::command::CMOD_KEEPJUMPS;
-use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
+use crate::api::private::validate::NvimString;
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{
     EVENT_CURSORMOVEDI, EVENT_INSERTCHANGE, EVENT_INSERTCHARPRE, EVENT_INSERTENTER,
     EVENT_INSERTLEAVE, EVENT_INSERTLEAVEPRE, EVENT_TEXTCHANGEDI, EVENT_TEXTCHANGEDP,
-    apply_autocmds, has_event,
+    apply_autocmds, event_T, has_event,
 };
 use crate::buffer::{
     bt_cmdwin, bt_prompt, bt_quickfix, buf_T, buf_get_changedtick, buf_is_empty, buf_meta_total,
@@ -28,8 +25,8 @@ use crate::change::{
     inserted_bytes, kCpoListwm, kOptVeFlagOnemore, open_line,
 };
 use crate::charset::{
-    ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells, hex2nr,
-    skipwhite, vim_isprintc, vim_iswordc,
+    NUL, ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells,
+    hex2nr, skipwhite, vim_isprintc, vim_iswordc,
 };
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
@@ -49,15 +46,17 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
+use crate::eval::typval::kCallbackNone;
 use crate::eval::userfunc::ascii_iswhite_nl_or_nul;
 use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y};
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, expr_map_locked};
+use crate::ex_docmd::{CMOD_KEEPJUMPS, do_cmdline, do_cmdline_cmd, expr_map_locked};
 use crate::ex_getln::{
     ABBR_OFF, B_IMODE_NONE, Ctrl__, Ctrl_A, Ctrl_BSL, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K,
     Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_W, Ctrl_Z, K_EVENT, K_LUA,
     K_SELECT, cmdwin_do_action,
 };
+use crate::extmark::{kFalse, kNone, kTrue};
 use crate::fileio::check_timestamps;
 use crate::fold::{
     foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
@@ -108,7 +107,6 @@ use crate::keycodes::{
     KS_MODIFIER, NL, TAB, add_char2buf, get_special_key_name,
 };
 use crate::kvec::KVec;
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::kMTMetaInline;
@@ -119,7 +117,9 @@ use crate::mbyte::{
     utf8len_tab, utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
-use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
+use crate::memline::{
+    ML_LINE_DIRTY, gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace,
+};
 use crate::memory::{strnequal, xfree, xmalloc, xmemdupz, xstrdup, xstrnsave};
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
@@ -150,6 +150,7 @@ use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
     insert_reg, is_literal_register, valid_yank_reg, yankreg_T,
 };
+use crate::search::{BACKWARD, FORWARD};
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL, MODE_REPLACE, MODE_VREPLACE,
     REPLACE_FLAG, VREPLACE_FLAG, VimState, may_trigger_modechanged, may_trigger_safestate,

@@ -13,7 +13,6 @@
 )]
 
 use crate::api::deprecated::KeyDict_empty;
-use crate::api::private::converter::sctx_T;
 use crate::api::private::dispatch::{
     KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
 };
@@ -24,91 +23,49 @@ use crate::api::private::helpers::{
     try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
-use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_long, skiptowhite, skipwhite};
+use crate::charset::{NUL, ascii_isupper, ascii_iswhite, getdigits_long, skiptowhite, skipwhite};
 use crate::ex_docmd::{
-    excmd_get_argt, execute_cmd, find_ex_command, get_command_name, getargcmd, getargopt,
-    invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline, replace_makeprg, set_cmd_count,
-    undo_cmdmod,
+    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
+    CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
+    CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
+    CMOD_UNSILENT, EX_ARGOPT, EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA,
+    EX_KEEPSCRIPT, EX_NEEDARG, EX_NOSPC, EX_PREVIEW, EX_RANGE, EX_REGSTR, EX_SBOXOK, EX_TRLBAR,
+    EX_XFILE, EX_ZEROR, cmdmod_T, exarg_T, excmd_get_argt, execute_cmd, find_ex_command,
+    get_command_name, getargcmd, getargopt, invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline,
+    replace_makeprg, set_cmd_count, undo_cmdmod,
 };
 use crate::ex_eval::aborting;
 use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::kvec::StringBuilder;
-use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::mb_islower;
 use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str as strequal, xcalloc, xfree};
 use crate::msgpack_rpc::packer::Integer;
-use crate::regexp::{RE_MAGIC, regmatch_T, vim_regcomp};
+use crate::regexp::{RE_MAGIC, vim_regcomp};
 use crate::register::valid_yank_reg;
 use crate::usercmd::{
-    commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
-    uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name, ucmds,
+    UC_BUFFER, commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg,
+    parse_compl_arg, uc_add_command, uc_nargs_upper_bound, uc_split_args_iter, uc_validate_name,
+    ucmd_T, ucmds,
 };
-use std::ffi::{CStr, c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::cursor::linenr_T;
-pub type cmdidx_T = c_int;
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, cmd_addr_T};
+use crate::cursor::linenr_T;
 
-pub(crate) const UC_BUFFER: c_int = 1;
-
+type cmdidx_T = c_int;
 const CMD_iput: cmdidx_T = 200;
 const CMD_put: cmdidx_T = 350;
-pub(crate) const CMD_SIZE: cmdidx_T = 564;
-pub(crate) const CMD_USER: cmdidx_T = -1;
-pub(crate) const CMD_USER_BUF: cmdidx_T = -2;
-
-pub(crate) const EX_RANGE: u32 = 0x001;
-pub(crate) const EX_BANG: u32 = 0x002;
-pub(crate) const EX_EXTRA: u32 = 0x004;
-pub(crate) const EX_XFILE: u32 = 0x008;
-pub(crate) const EX_NOSPC: u32 = 0x010;
-pub(crate) const EX_DFLALL: u32 = 0x020;
-pub(crate) const EX_NEEDARG: u32 = 0x080;
-pub(crate) const EX_TRLBAR: u32 = 0x100;
-pub(crate) const EX_REGSTR: u32 = 0x200;
-pub(crate) const EX_COUNT: u32 = 0x400;
-pub(crate) const EX_ZEROR: u32 = 0x1000;
-pub(crate) const EX_CMDARG: u32 = 0x4000;
-pub(crate) const EX_ARGOPT: u32 = 0x20000;
-pub(crate) const EX_SBOXOK: u32 = 0x40000;
-pub(crate) const EX_KEEPSCRIPT: u32 = 0x4000000;
-pub(crate) const EX_PREVIEW: u32 = 0x8000000;
-pub(crate) const EX_ARGSPACE: u32 = 0x40000000;
-
-pub(crate) const ADDR_LINES: cmd_addr_T = 0;
-pub(crate) const ADDR_WINDOWS: cmd_addr_T = 1;
-pub(crate) const ADDR_ARGUMENTS: cmd_addr_T = 2;
-pub(crate) const ADDR_LOADED_BUFFERS: cmd_addr_T = 3;
-pub(crate) const ADDR_BUFFERS: cmd_addr_T = 4;
-pub(crate) const ADDR_TABS: cmd_addr_T = 5;
-pub(crate) const ADDR_QUICKFIX: cmd_addr_T = 8;
-pub(crate) const ADDR_OTHER: cmd_addr_T = 10;
-pub(crate) const ADDR_NONE: cmd_addr_T = 11;
-
-pub(crate) const CMOD_SANDBOX: c_int = 0x0001;
-pub(crate) const CMOD_SILENT: c_int = 0x0002;
-pub(crate) const CMOD_ERRSILENT: c_int = 0x0004;
-pub(crate) const CMOD_UNSILENT: c_int = 0x0008;
-pub(crate) const CMOD_NOAUTOCMD: c_int = 0x0010;
-pub(crate) const CMOD_HIDE: c_int = 0x0020;
-pub(crate) const CMOD_BROWSE: c_int = 0x0040;
-pub(crate) const CMOD_CONFIRM: c_int = 0x0080;
-pub(crate) const CMOD_KEEPALT: c_int = 0x0100;
-pub(crate) const CMOD_KEEPMARKS: c_int = 0x0200;
-pub(crate) const CMOD_KEEPJUMPS: c_int = 0x0400;
-pub(crate) const CMOD_LOCKMARKS: c_int = 0x0800;
-pub(crate) const CMOD_KEEPPATTERNS: c_int = 0x1000;
-pub(crate) const CMOD_NOSWAPFILE: c_int = 0x2000;
 
 const KEYSET_OPTIDX_cmd__cmd: u64 = 1;
 const KEYSET_OPTIDX_cmd__reg: u64 = 2;
@@ -141,91 +98,8 @@ const KEYSET_OPTIDX_user_command__range: u64 = 8;
 const KEYSET_OPTIDX_user_command__preview: u64 = 9;
 const KEYSET_OPTIDX_user_command__complete: u64 = 10;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ExMagic {
-    pub file: bool,
-    pub bar: bool,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct exarg_T {
-    pub arg: *mut c_char,
-    pub args: *mut *mut c_char,
-    pub arglens: *mut usize,
-    pub argc: usize,
-    pub nextcmd: *mut c_char,
-    pub cmd: *mut c_char,
-    pub cmdlinep: *mut *mut c_char,
-    pub cmdline_tofree: *mut c_char,
-    pub cmdidx: cmdidx_T,
-    pub argt: u32,
-    pub skip: c_int,
-    pub forceit: c_int,
-    pub addr_count: c_int,
-    pub line1: linenr_T,
-    pub line2: linenr_T,
-    pub addr_type: cmd_addr_T,
-    pub flags: c_int,
-    pub do_ecmd_cmd: *mut c_char,
-    pub do_ecmd_lnum: linenr_T,
-    pub append: c_int,
-    pub usefilter: c_int,
-    pub amount: c_int,
-    pub regname: c_int,
-    pub force_bin: c_int,
-    pub read_edit: c_int,
-    pub mkdir_p: c_int,
-    pub force_ff: c_int,
-    pub force_enc: c_int,
-    pub bad_char: c_int,
-    pub useridx: c_int,
-    pub errmsg: *mut c_char,
-    pub ea_getline: crate::cmdexpand::LineGetter,
-    pub cookie: *mut c_void,
-    pub cstack: *mut c_void,
-    pub magic: ExMagic,
-}
-
-use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::math::{FAIL, OK};
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct cmdmod_T {
-    pub cmod_flags: c_int,
-    pub cmod_split: c_int,
-    pub cmod_tab: c_int,
-    pub cmod_filter_pat: *mut c_char,
-    pub cmod_filter_regmatch: regmatch_T,
-    pub cmod_filter_force: bool,
-    pub cmod_verbose: c_int,
-    pub cmod_save_ei: *mut c_char,
-    pub cmod_did_sandbox: c_int,
-    pub cmod_verbose_save: i64,
-    pub cmod_save_msg_silent: c_int,
-    pub cmod_save_msg_scroll: c_int,
-    pub cmod_did_esilent: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct ucmd_T {
-    pub uc_name: *mut c_char,
-    pub uc_argt: u32,
-    pub uc_rep: *mut c_char,
-    pub uc_def: i64,
-    pub uc_compl: c_int,
-    pub uc_addr_type: cmd_addr_T,
-    pub uc_script_ctx: sctx_T,
-    pub uc_compl_arg: *mut c_char,
-    pub uc_compl_luaref: LuaRef,
-    pub uc_preview_luaref: LuaRef,
-    pub uc_luaref: LuaRef,
-    pub uc_desc: *mut c_char,
-}
 
 #[repr(C)]
 #[derive(Clone, Copy)]

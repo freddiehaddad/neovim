@@ -218,11 +218,11 @@ macro_rules! logmsg {
         }
     }};
 }
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 #[cfg(all(not(test), unix))]
-use crate::api::options::IOSIZE;
+use crate::globals::IOSIZE;
 #[cfg(not(test))]
-use crate::api::vim::MAXPATHL;
+use crate::os::fs::MAXPATHL;
 pub use logmsg;
 
 unsafe fn log_try_create(fname: *const c_char) -> bool {

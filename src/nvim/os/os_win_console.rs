@@ -135,14 +135,14 @@ unsafe extern "system" {
     ) -> HANDLE;
 }
 
-#[cfg(all(not(test), windows))]
-use crate::api::vim::MAXPATHL;
 #[cfg(windows)]
 use crate::channel::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO};
 #[cfg(all(not(test), windows))]
 use crate::fileio::_get_osfhandle;
 #[cfg(windows)]
 use crate::fileio::{_close, O_RDONLY};
+#[cfg(all(not(test), windows))]
+use crate::os::fs::MAXPATHL;
 
 #[cfg(windows)]
 unsafe extern "C" {

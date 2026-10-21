@@ -7,9 +7,10 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::private::converter::{object_to_vim, sctx_T, vim_to_object};
+use crate::api::private::converter::{object_to_vim, vim_to_object};
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+    api_err_exp,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::buffer::buf_T;
@@ -28,8 +29,7 @@ use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
 use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, LuaRef, OptKeySet};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
-use crate::map::{Map, mh_get_int};
-use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
+use crate::map::{MH_TOMBSTONE, Map, mh_get_int};
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
@@ -39,7 +39,7 @@ use crate::memory::{
 use crate::message::hl_msg_free;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
-use crate::runtime::script_is_lua;
+use crate::runtime::{script_is_lua, sctx_T};
 use crate::window::{tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::mem::{size_of, zeroed};
@@ -3756,7 +3756,8 @@ static PACKED_API_METADATA_SUFFIX: &[u8] = &[
     109, 95, 116, 97, 98, 112, 97, 103, 101, 95,
 ];
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, NL, NUL, VIML_INTERNAL_CALL};
+use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
+use crate::charset::{NL, NUL};
 use crate::version::nvim_version_build;
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();

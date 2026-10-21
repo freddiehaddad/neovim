@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
     GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, MAXLNUM, NOTDONE,
@@ -26,18 +25,18 @@ use crate::cursor::{check_cursor, linenr_T, pos_T};
 use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VarType, callback_free, dict_T, dictitem_T, list_T, tv_clear, tv_dict_add_bool,
-    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc,
-    tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number, tv_dict_get_string, tv_get_number,
-    tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
-    tv_list_append_tv, tv_list_free, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, callback_free, dict_T, dictitem_T, kCallbackNone, list_T,
+    tv_clear, tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str,
+    tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number,
+    tv_dict_get_string, tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
+    tv_list_append_number, tv_list_append_tv, tv_list_free, typval_T, varnumber_T,
 };
 use crate::eval::vars::{VV_SWAPCOMMAND, set_vim_var_string};
 use crate::eval::{callback_call, list2fpos, set_ref_in_callback};
 use crate::ex_cmds::{getfile, prepare_tagpreview};
 use crate::ex_docmd::{
     DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG,
-    do_cmdline_cmd, set_no_hlsearch,
+    do_cmdline_cmd, exarg_T, set_no_hlsearch,
 };
 use crate::file_search::{
     FINDFILE_FILE, vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
@@ -91,8 +90,6 @@ use crate::window::{
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
-
-use crate::eval::buffer::varnumber_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -156,17 +153,15 @@ pub struct tagname_T {
     pub tn_search_ctx: *mut c_void,
 }
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::NUL;
-use crate::api::options::IOSIZE;
-use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::vim::MAXPATHL;
 use crate::change::{HLF_W, TAB};
+use crate::charset::NUL;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-use crate::eval::fs::{SEEK_END, SEEK_SET};
 use crate::eval::funcs::{SEARCH_KEEP, kSpecialVarNull};
+use crate::fileio::{SEEK_END, SEEK_SET};
+use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 use crate::os::env::expand_T;
+use crate::os::fs::MAXPATHL;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[derive(Clone, Copy)]

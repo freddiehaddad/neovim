@@ -9,14 +9,15 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, exarg_T};
-use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{
+    Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+};
 use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
     GETF_SETMARK, MAXLNUM, NMARKS, bt_prompt, buf_T, buflist_findnr, buflist_getfile, buflist_new,
     buflist_nr2name, first_win_in_tab, kMarkAdjustNormal,
 };
-use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
+use crate::charset::{NUL, ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::context::{INIT_FMARK, INIT_FMARKV};
 use crate::cursor::{check_cursor, colnr_T, equalpos, linenr_T, lt, pos_T};
 use crate::diff::diff_mark_adjust;
@@ -25,13 +26,13 @@ use crate::eval::typval::{
     list_T, tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
     tv_list_append_dict, tv_list_append_number,
 };
-use crate::extmark::{ExtmarkOp, extmark_adjust};
+use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, exarg_T};
+use crate::extmark::{ExtmarkOp, extmark_adjust, kExtmarkNOOP};
 use crate::fold::{foldMarkAdjust, hasFolding};
 use crate::garray::garray_T;
 use crate::globals::*;
 use crate::insert::beginline;
 use crate::lua::executor::nlua_call_excmd;
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{ptr2cells, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len};
@@ -43,7 +44,7 @@ use crate::message::{
 use crate::r#move::set_topline;
 use crate::option_vars::*;
 use crate::os::env::expand_env;
-use crate::os::fs::os_dirname;
+use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{kPathCmpLiteral, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
@@ -62,6 +63,9 @@ pub type MarkMoveRes = c_int;
 pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
+
+pub(crate) const kMarkAdjustApi: MarkAdjustMode = 1;
+pub(crate) const kMarkAllNoResolve: MarkGet = 2;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -86,15 +90,14 @@ pub struct xfmark_T {
     pub fmark: fmark_T,
     pub fname: *mut c_char,
 }
-use crate::api::buffer::{FORWARD, NUL, kExtmarkNOOP, kMarkAdjustApi, kMarkAllNoResolve};
-use crate::api::options::IOSIZE;
-use crate::api::vim::{BACKWARD, MAXPATHL};
 use crate::change::TAB;
 use crate::cmdexpand::HLF_D;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
+use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 use crate::regexp::{MAXCOL, kMarkBufLocal};
+use crate::search::{BACKWARD, FORWARD};
 
 #[repr(C)]
 pub struct WinInfo {

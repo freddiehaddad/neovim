@@ -9,10 +9,8 @@
 )]
 
 use crate::api::private::helpers::api_clear_error;
-use crate::api::private::validate::{Array, Error, ErrorType};
-use crate::api::vim::{
-    MAXPATHL, REMAP_NONE, REMAP_YES, is_internal_call, kFalse, kNone, nvim_paste,
-};
+use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
+use crate::api::vim::{is_internal_call, nvim_paste};
 use crate::charset::{ascii_iswhite, is_special, skipwhite, to_special};
 use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
 use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
@@ -20,7 +18,7 @@ use crate::errors::*;
 use crate::eval::garbage_collect;
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_check_for_opt_dict_arg, tv_dict_get_bool, tv_dict_get_string,
-    tv_dict_has_key, tv_get_bool_chk, typval_T,
+    tv_dict_has_key, tv_get_bool_chk, typval_T, varnumber_T,
 };
 use crate::eval::vars::{
     VV_MOUSE_COL, VV_MOUSE_LNUM, VV_MOUSE_WIN, VV_MOUSE_WINID, set_vim_var_nr,
@@ -33,7 +31,7 @@ use crate::ex_getln::{
     Ctrl_O, K_LUA, get_cmdline_info, kOptBoFlagError, putcmdline, redrawcmd, redrawcmdline,
     unputcmdline,
 };
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone};
 use crate::fileio::fputc;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -56,10 +54,9 @@ use crate::keycodes::{
 };
 use crate::kvec::{KVec, StringBuilder, kv_concat_len, kv_destroy, kv_push};
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::{
-    MAXMAPLEN, eval_map_expr, get_buf_maphash_list, get_maphash_list, langmap_adjust_mb,
-    map_luaid_get, mapblock_T, typebuf_T,
+    MAXMAPLEN, REMAP_NONE, REMAP_YES, eval_map_expr, get_buf_maphash_list, get_maphash_list,
+    langmap_adjust_mb, map_luaid_get, mapblock_T, typebuf_T,
 };
 use crate::mbyte::{
     mb_cptr2char_adv, mb_unescape, utf_ClusterInfo, utf_byte2len, utf_char2bytes, utf_head_off,
@@ -79,6 +76,7 @@ use crate::os::fileio::{
     FileDescriptor, K_FILE_NON_BLOCKING, K_FILE_READ_ONLY, file_close, file_open, file_open_stdin,
     file_read,
 };
+use crate::os::fs::MAXPATHL;
 use crate::os::input::{input_available, input_get, line_breakcheck, os_breakcheck};
 use crate::plines::{
     CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, win_charsize,
@@ -95,7 +93,6 @@ use crate::undo::u_sync;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
-use crate::eval::buffer::varnumber_T;
 use crate::option::OptInt;
 pub type flush_buffers_T = c_int;
 
@@ -301,8 +298,9 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF};
+use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
+use crate::lua::converter::LUA_NOREF;
 use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
 

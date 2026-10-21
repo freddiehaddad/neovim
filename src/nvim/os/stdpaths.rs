@@ -1,8 +1,6 @@
 //! XDG standard directory paths (`src/nvim/os/stdpaths.c`).
 
 #[cfg(not(test))]
-use crate::api::vim::MAXPATHL;
-#[cfg(not(test))]
 use crate::fileio::vim_gettempdir;
 use crate::garray::K_PATH_CMP_LITERAL;
 #[cfg(not(test))]
@@ -14,6 +12,8 @@ use crate::memory::{xfree, xmallocz, xrealloc};
 use crate::os::env::os_env_exists;
 #[cfg(not(test))]
 use crate::os::env::{expand_env_save, os_getenv, os_getenv_noalloc};
+#[cfg(not(test))]
+use crate::os::fs::MAXPATHL;
 #[cfg(all(not(test), windows))]
 use crate::os::fs::os_realpath;
 #[cfg(not(test))]

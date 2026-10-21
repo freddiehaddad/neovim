@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_CONFIRM, cmdidx_T, exarg_T};
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
     do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
@@ -32,12 +31,13 @@ use crate::errors::*;
 use crate::eval::eval_call_provider;
 use crate::eval::typval::{
     tv_list_alloc, tv_list_append_allocated_string, tv_list_append_number, tv_list_append_string,
+    varnumber_T,
 };
 use crate::eval::vars::{
     VV_SWAPCOMMAND, do_unlet, get_var_value, set_internal_string_var, set_vim_var_string,
 };
 use crate::ex_cmds::{DIALOG_MSG_SIZE, check_overwrite, set_swapcommand};
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd};
+use crate::ex_docmd::{CMOD_CONFIRM, do_cmdline, do_cmdline_cmd, exarg_T};
 use crate::ex_getln::script_get;
 use crate::fileio::{buf_check_timestamp, check_timestamps};
 use crate::globals::*;
@@ -59,17 +59,18 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::vim::MAXPATHL;
+use crate::charset::NUL;
 use crate::cursor::linenr_T;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::funcs::VIM_QUESTION;
 use crate::math::{FAIL, OK};
+use crate::os::fs::MAXPATHL;
+use crate::search::FORWARD;
 
 const MAXLNUM: usize = 0x7fffffff;
 
 const CCGD_ALLBUF: c_int = 8;
 
+type cmdidx_T = c_int;
 const CMD_bufdo: cmdidx_T = 42;
 pub(crate) const CMD_cdo: cmdidx_T = 64;
 pub(crate) const CMD_cfdo: cmdidx_T = 68;

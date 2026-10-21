@@ -25,14 +25,16 @@ use crate::path::path_has_wildcard;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
-use crate::api::buffer::{NL, NUL};
 use crate::change::TAB;
-use crate::eval::buffer::varnumber_T;
+use crate::eval::typval::varnumber_T;
 use crate::keycodes::CAR;
 use crate::kvec::StringBuilder;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 pub type uvarnumber_T = u64;
+
+pub(crate) const NUL: c_char = 0;
+pub(crate) const NL: c_char = b'\n' as c_char;
 
 pub trait AsciiInt {
     fn into_ascii_int(self) -> c_int;

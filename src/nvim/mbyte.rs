@@ -14,11 +14,10 @@ use crate::charset::{ascii_iswhite, ascii2cells, vim_isprintc, vim_iswordc_tab};
 use crate::cursor::{colnr_T, get_cursor_pos_ptr, pos_T};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
     EvalFuncData, VarType, list_T, listitem_T, tv_check_for_string_arg, tv_get_string,
     tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
-    tv_list_append_number, tv_list_first, tv_list_len, typval_T,
+    tv_list_append_number, tv_list_first, tv_list_len, typval_T, varnumber_T,
 };
 #[cfg(windows)]
 use crate::event::r#loop::uv_translate_sys_error;
@@ -961,13 +960,13 @@ unsafe extern "system" {
     ) -> c_int;
 }
 
-use crate::api::buffer::{NL, NUL};
-use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::change::TAB;
+use crate::charset::{NL, NUL};
 use crate::fileio::{
     ENC_2BYTE, ENC_2WORD, ENC_4BYTE, ENC_ENDIAN_L, ENC_LATIN1, ENC_UNICODE, ICONV_EINVAL,
 };
+use crate::globals::IOSIZE;
 use crate::keycodes::{K_SPECIAL, KE_FILLER, KS_SPECIAL};
 use crate::math::{FAIL, OK};
 #[cfg(windows)]

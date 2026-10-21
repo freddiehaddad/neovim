@@ -6,7 +6,7 @@
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{api_set_error, nil_obj};
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 #[cfg(not(test))]
 use crate::globals::*;
@@ -16,7 +16,6 @@ use crate::kvec::KVec;
 use crate::lua::converter::FieldHashfn;
 #[cfg(not(test))]
 use crate::lua::converter::{Boolean, OptKeySet};
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::xstrdup;
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};

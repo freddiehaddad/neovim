@@ -8,7 +8,7 @@
 )]
 
 use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
-use crate::api::private::validate::Array;
+use crate::api::private::validate::{Array, NvimString};
 use crate::event::r#loop::Loop;
 #[cfg(not(test))]
 use crate::event::r#loop::{
@@ -26,7 +26,6 @@ use crate::event::rstream::{rstream_available, rstream_consume, rstream_fields};
 use crate::globals::*;
 #[cfg(not(test))]
 use crate::main_init::os_exit;
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::msgpack_rpc::channel::rpc_send_event;
 #[cfg(not(test))]

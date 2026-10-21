@@ -127,19 +127,19 @@ pub struct debuggy {
     pub dbg_level: c_int,
 }
 
-use crate::api::command::exarg_T as exarg_Full;
+use crate::ex_docmd::exarg_T as exarg_Full;
 
 #[cfg(not(test))]
 use crate::input::tasave_T;
 
-#[cfg(not(test))]
-use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::autocmd::DOCMD_VERBOSE;
 #[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
 #[cfg(not(test))]
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
+#[cfg(not(test))]
+use crate::os::fs::MAXPATHL;
 #[cfg(not(test))]
 use crate::state::MODE_NORMAL;
 

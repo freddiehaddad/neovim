@@ -6,8 +6,6 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
-use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{ADDR_LINES, CMOD_LOCKMARKS, cmdidx_T, exarg_T};
 use crate::api::private::helpers::{boolean_obj, static_cstr_as_obj};
 use crate::autocmd::{EVENT_DIFFUPDATED, apply_autocmds};
 use crate::buffer::{
@@ -22,12 +20,14 @@ use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
-use crate::eval::fs::FileInfo;
-use crate::eval::typval::{EvalFuncData, tv_get_lnum, tv_get_number, typval_T};
+use crate::eval::typval::{
+    EvalFuncData, kCallbackNone, tv_get_lnum, tv_get_number, typval_T, varnumber_T,
+};
 use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
-use crate::ex_docmd::{do_cmdline_cmd, do_exedit, get_address};
+use crate::ex_docmd::{
+    ADDR_LINES, CMOD_LOCKMARKS, do_cmdline_cmd, do_exedit, exarg_T, get_address,
+};
 use crate::ex_getln::hlf_T;
 use crate::extmark::{TriState, extmark_adjust};
 use crate::fileio::{FILE, buf_check_timestamp, fclose, fwrite, vim_fgets, vim_tempname};
@@ -56,7 +56,7 @@ use crate::option::{set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, OptKeyDict_dip, free_string_option, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
-use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
+use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 use crate::strings::{
     atol, gettext, strcat, strcmp, strcpy, strlen, strncmp, tolower, vim_snprintf, vim_strchr,
@@ -109,6 +109,7 @@ const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
 pub(crate) const kOptDiff: OptIndex = 70;
 pub(crate) const kOptDiffopt: OptIndex = 73;
 pub(crate) const kOptFoldmethod: OptIndex = 109;
+type cmdidx_T = c_int;
 const CMD_diffget: cmdidx_T = 121;
 const CMD_diffput: cmdidx_T = 124;
 const CMD_split: cmdidx_T = 426;
@@ -192,15 +193,16 @@ struct linemap_entry_T {
     num_bytes: colnr_T,
     lineoff: c_int,
 }
-use crate::api::buffer::{FORWARD, NL, NUL, kExtmarkNOOP, kExtmarkUndo};
-#[cfg(unix)]
-use crate::api::vim::MAXPATHL;
-use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
+use crate::charset::{NL, NUL};
 use crate::cmdexpand::MB_MAXBYTES;
+use crate::extmark::{kExtmarkNOOP, kExtmarkUndo, kFalse, kNone, kTrue};
 use crate::math::{FAIL, OK};
 use crate::option::{OPT_LOCAL, kOptScopeWin};
+#[cfg(unix)]
+use crate::os::fs::MAXPATHL;
 use crate::regexp::MAXCOL;
+use crate::search::{BACKWARD, FORWARD};
 static mut diff_busy: bool = false;
 static mut diff_need_update: bool = false;
 static mut diff_flags: c_int =

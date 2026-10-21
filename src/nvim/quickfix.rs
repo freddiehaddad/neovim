@@ -8,13 +8,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_HIDE, cmdidx_T, exarg_T};
-use crate::api::options::{
-    BF_DUMMY, IOSIZE, kOptBufhidden, kOptBuftype, kOptFiletype, kOptSwapfile,
-};
 use crate::api::private::helpers::{
     boolean_obj, cbuf_as_string, copy_string, cstr_as_obj, cstr_as_string,
 };
+use crate::api::private::validate::NvimString;
 use crate::arglist::{ML_EMPTY, get_arglist_exp};
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_FILETYPE, EVENT_QUICKFIXCMDPOST,
@@ -22,29 +19,29 @@ use crate::autocmd::{
     block_autocmds, unblock_autocmds,
 };
 use crate::buffer::{
-    BF_NEW, BLN_DUMMY, BLN_NOOPT, DOBUF_UNLOAD, DOBUF_WIPE, GETF_SETMARK, GETF_SWITCH, MAXLNUM,
-    NOTDONE, VAR_FIXED, bt_help, bt_normal, bt_quickfix, buf_T, buf_valid, buflist_findname_exp,
-    buflist_findnr, buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer,
-    do_modelines, kExtmarkNoUndo, no_write_message, set_bufref, setfname, wipe_buffer,
+    BCO_ENTER, BCO_NOHELP, BF_DUMMY, BF_NEW, BLN_DUMMY, BLN_NOOPT, DOBUF_UNLOAD, DOBUF_WIPE,
+    GETF_SETMARK, GETF_SWITCH, MAXLNUM, NOTDONE, VAR_FIXED, bt_help, bt_normal, bt_quickfix, buf_T,
+    buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, bufref_T,
+    bufref_valid, close_buffer, do_modelines, kExtmarkNoUndo, no_write_message, set_bufref,
+    setfname, wipe_buffer,
 };
 use crate::change::{TAB, changed_lines};
-use crate::charset::{ascii_iswhite, skipdigits, skipwhite, vim_isprintc};
+use crate::charset::{NL, NUL, ascii_iswhite, skipdigits, skipwhite, vim_isprintc};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_ptr, linenr_T, pos_T};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_buf_later, redraw_curbuf_later, redraw_later, update_screen,
 };
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
-use crate::eval::fs::FileInfo;
 use crate::eval::typval::{
     Callback, EvalFuncData, VarType, callback_copy, callback_free, callback_put, dict_T,
-    dictitem_T, list_T, listitem_T, tv_clear, tv_copy, tv_dict_add, tv_dict_add_list,
-    tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc,
-    tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
-    tv_dict_get_string, tv_dict_get_tv, tv_dict_item_alloc_len, tv_dict_item_free, tv_dict_unref,
-    tv_free, tv_get_number_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_first, tv_list_len, tv_list_ref, tv_list_unref, typval_T,
+    dictitem_T, kCallbackNone, list_T, listitem_T, tv_clear, tv_copy, tv_dict_add,
+    tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv,
+    tv_dict_alloc, tv_dict_alloc_lock, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
+    tv_dict_get_number, tv_dict_get_string, tv_dict_get_tv, tv_dict_item_alloc_len,
+    tv_dict_item_free, tv_dict_unref, tv_free, tv_get_number_chk, tv_get_string_chk, tv_list_alloc,
+    tv_list_alloc_ret, tv_list_append_dict, tv_list_first, tv_list_len, tv_list_ref, tv_list_unref,
+    typval_T, varnumber_T,
 };
 use crate::eval::vars::set_internal_string_var;
 use crate::eval::window::{find_win_by_nr_or_id, win_id2wp};
@@ -58,7 +55,7 @@ use crate::ex_cmds::{
     skip_vimgrep_pat,
 };
 use crate::ex_cmds2::{CMD_cdo, CMD_cfdo, CMD_ldo, CMD_lfdo, autowrite_all, can_abandon};
-use crate::ex_docmd::{do_cmdline_cmd, ex_cd, is_loclist_cmd};
+use crate::ex_docmd::{CMOD_HIDE, do_cmdline_cmd, ex_cd, exarg_T, is_loclist_cmd};
 use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
 use crate::ex_getln::get_list_range;
 use crate::extmark::extmark_splice;
@@ -69,12 +66,20 @@ use crate::fileio::{
 use crate::fold::{foldOpenCursor, foldUpdateAll};
 use crate::fuzzy::{FUZZY_MATCH_MAX_LEN, fuzzy_match};
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_concat_len, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::help::check_help_lang;
 use crate::highlight_group::syn_name2id;
 use crate::insert::beginline;
-use crate::map_glyph_cache::NvimString;
 use crate::mark::{BUF_HAS_LL_ENTRY, BUF_HAS_QF_ENTRY, setpcmark};
+use crate::option::{
+    OPT_LOCAL, buf_copy_options, copy_option_part, kOptBufhidden, kOptBuftype, kOptFiletype,
+    kOptSwapfile, set_option_direct, set_option_value_give_err, shortmess, skip_to_option_part,
+};
+use crate::os::fs::{
+    FileInfo, MAXPATHL, os_dirname, os_errno as get_errno, os_fileinfo_link, os_fopen, os_isdir,
+    os_open_stdin_fd, os_path_exists, os_remove, os_set_errno as set_errno,
+};
 use crate::regexp::{
     RE_MAGIC, RE_STRING, regmatch_T, regmmatch_T, regprog_T, vim_regcomp, vim_regexec,
     vim_regexec_multi, vim_regfree,
@@ -104,17 +109,9 @@ use crate::r#move::update_topline;
 use crate::msgpack_rpc::packer::handle_T;
 use crate::normal::reset_VIsual_and_resel;
 use crate::ops::get_region_bytecount;
-use crate::option::{
-    OPT_LOCAL, buf_copy_options, copy_option_part, set_option_direct, set_option_value_give_err,
-    shortmess, skip_to_option_part,
-};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::env::{expand_env, os_get_pid};
-use crate::os::fs::{
-    os_dirname, os_errno as get_errno, os_fileinfo_link, os_fopen, os_isdir, os_open_stdin_fd,
-    os_path_exists, os_remove, os_set_errno as set_errno,
-};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::time::{c_time as time, time_t};
 #[cfg(windows)]
@@ -124,7 +121,7 @@ use crate::path::{
     kPathCmpLiteral, path_equal, path_is_absolute, path_tail, path_try_shorten_fname,
     vim_isAbsName,
 };
-use crate::search::{Direction, do_search, last_search_pat};
+use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
     atoi, atol, c_strcpy, gettext, has_non_ascii, strcmp as c_strcmp, strlen as c_strlen,
     vim_snprintf, vim_snprintf_safelen, vim_strchr,
@@ -134,9 +131,7 @@ use crate::undo::u_clearallandblockfree;
 use std::ffi::{CStr, c_char, c_int, c_longlong, c_uint, c_void};
 use std::ptr;
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NL, NUL};
-use crate::api::vim::{BACKWARD, BCO_ENTER, BCO_NOHELP, HLF_N, MAXPATHL};
+use crate::api::vim::HLF_N;
 use crate::cmdexpand::HLF_D;
 use crate::diff::kOptFoldmethod;
 use crate::drawline::HLF_QFL;
@@ -188,6 +183,7 @@ const kOptFdoFlagQuickfix: c_uint = 0x20;
 
 pub(crate) const kOptErrorfile: OptIndex = 86;
 
+type cmdidx_T = c_int;
 const CMD_cNext: cmdidx_T = 46;
 const CMD_cNfile: cmdidx_T = 47;
 const CMD_cabove: cmdidx_T = 50;

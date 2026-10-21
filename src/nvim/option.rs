@@ -8,19 +8,15 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_NOSWAPFILE, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
-use crate::api::options::{
-    IOSIZE, OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, SID_NONE, kOptBufhidden,
-    kOptBuftype, kOptFiletype, kOptModeline, kOptScopeTab, kOptSwapfile,
-};
-use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::{
     api_free_string, api_set_error, arena_dict, boolean_obj, copy_object, cstr_as_obj,
     cstr_as_string, cstr_to_obj, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c,
     string_obj,
 };
-use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{
+    Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
+};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_OPTIONSET, EVENT_SYNTAX, OPT_NOWIN, apply_autocmds,
     aucmd_defer_modified, do_filetype_autocmd, kOptModified,
@@ -65,7 +61,9 @@ use crate::eval::vars::{
     reset_v_option_vars, scid_T, set_vim_var_string, set_vim_var_tv, tristate_from_int,
 };
 use crate::eval::{STR2NR_ALL, callback_from_typval, eval_expr, last_set_msg};
-use crate::ex_docmd::{UNDO_HASH_SIZE, free_findfunc_option, kOptFindfunc, set_no_hlsearch};
+use crate::ex_docmd::{
+    CMOD_NOSWAPFILE, UNDO_HASH_SIZE, exarg_T, free_findfunc_option, kOptFindfunc, set_no_hlsearch,
+};
 use crate::ex_getln::{
     B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim, did_set_cedit, gotocmdline,
 };
@@ -78,6 +76,7 @@ use crate::fold::{
 };
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::highlight::{HL_GLOBAL, hl_invalidate_blends, ns_hl_def};
 use crate::highlight_group::{highlight_changed, syn_check_group};
@@ -96,7 +95,6 @@ use crate::log::logmsg;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str, nlua_set_sctx};
 use crate::map::HlAttrs;
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::{langmap_init, put_escstr};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{enc_locale, utfc_ptr2len};
@@ -134,7 +132,9 @@ use crate::path::{
 use crate::popupmenu::{pum_drawn, pum_redraw};
 use crate::quickfix::{ll_resize_stack, qf_resize_stack};
 use crate::regexp::{MAXCOL, NUMBUFLEN, regmatch_T, vim_regexec};
-use crate::runtime::{DIP_ALL, runtimepath_default, source_runtime_vim_lua, sourcing_lnum};
+use crate::runtime::{
+    DIP_ALL, SID_NONE, runtimepath_default, sctx_T, source_runtime_vim_lua, sourcing_lnum,
+};
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
@@ -165,27 +165,40 @@ pub type set_prefix_T = c_int;
 
 pub(crate) const OPT_GLOBAL: c_int = 0x01;
 pub(crate) const OPT_LOCAL: c_int = 0x02;
+pub(crate) const PREFIX_NONE: set_prefix_T = 1;
 pub(crate) const kOptScopeGlobal: OptScope = 0;
 pub(crate) const kOptScopeWin: OptScope = 1;
 pub(crate) const kOptScopeBuf: OptScope = 2;
+pub(crate) const kOptScopeTab: OptScope = 3;
 pub(crate) const kOptInvalid: OptIndex = -1;
+pub(crate) const OP_NONE: set_op_T = 0;
+pub(crate) const OP_ADDING: set_op_T = 1;
+pub(crate) const OP_PREPENDING: set_op_T = 2;
+pub(crate) const OP_REMOVING: set_op_T = 3;
+pub(crate) const kOptBufhidden: OptIndex = 27;
+pub(crate) const kOptBuftype: OptIndex = 29;
+pub(crate) const kOptFiletype: OptIndex = 97;
+pub(crate) const kOptModeline: OptIndex = 192;
+pub(crate) const kOptSwapfile: OptIndex = 301;
 
-use crate::api::autocmd::{
-    kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
-};
-use crate::api::buffer::NUL;
 use crate::api::ui::NO_SCREEN;
-use crate::api::vim::{BCO_ENTER, BCO_NOHELP, ERR_BUFLEN, MAXPATHL, kFalse, kNone, kTrue};
+use crate::api::vim::ERR_BUFLEN;
 use crate::api::win_config::kCtxNoDisplay;
+use crate::buffer::{BCO_ENTER, BCO_NOHELP};
+use crate::charset::NUL;
 use crate::drawline::{
     kOptCuloptFlagLine, kOptCuloptFlagNumber, kOptCuloptFlagScreenline, kOptFlagInsecure,
 };
+use crate::eval::typval::{
+    kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
+};
 use crate::ex_cmds::{OPT_WINONLY, kOptFoldcolumn};
 use crate::ex_cmds2::BF_SYN_SET;
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::file_search::{kBufOptIncludeexpr, kOptIncludeexpr};
 use crate::help::kOptIskeyword;
 use crate::insert::{BS_EOL, BS_NOSTOP, BS_START};
+use crate::os::fs::MAXPATHL;
 use crate::state::MODE_TERMINAL;
 
 const OPT_ONECOLUMN: c_int = 0x20;

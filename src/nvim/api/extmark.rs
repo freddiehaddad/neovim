@@ -17,101 +17,69 @@ use crate::api::private::helpers::{
     has_key, integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
-    api_err_range,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
+    api_err_invalid, api_err_range,
 };
 use crate::api::tabpage::{Buffer, Window};
 use crate::buffer::buf_T;
-use crate::charset::{transstr, vim_isprintc};
+use crate::charset::{NUL, transstr, vim_isprintc};
 use crate::decoration::{
-    DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
-    VirtLines, VirtText, VirtTextChunk, VirtTextPos, clear_virtlines, clear_virttext, decor_free,
-    decor_put_sh, decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
-    decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kVPosEndOfLine,
+    DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
+    DecorVirtTextData, HLGroupID, NS, VirtLine, VirtLines, VirtText, VirtTextChunk,
+    clear_virtlines, clear_virttext, decor_free, decor_put_sh, decor_put_vt, decor_range_add_sh,
+    decor_range_add_virt, decor_sh_from_inline, decor_to_dict_legacy, hl_group_name,
+    kHlModeUnknown, kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff,
+    kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll,
+    kVLOverflowTrunc, kVLOverflowWrap, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline,
+    kVPosOverlay, kVPosRightAlign, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove,
+    kVTRepeatLinebreak,
 };
-use crate::decoration_provider::{decor_provider_clear, get_decor_provider};
+use crate::decoration_provider::{decor_provider_clear, get_decor_provider, kDecorProviderActive};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
-use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
+use crate::extmark::{
+    ExtmarkType, extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set,
+    kExtmarkNone,
+};
 use crate::globals::*;
 use crate::grid::schar_high;
 use crate::highlight::{OptionalKeys, set_destroy};
-use crate::kvec::KVec;
-use crate::lua::converter::{Boolean, LuaRef};
+use crate::lua::converter::{Boolean, LUA_NOREF, LuaRef};
 use crate::map::{
-    Set, map_put_ref_String_int, mh_delete_uint32_t, mh_get_String, mh_get_ptr_t, mh_get_uint32_t,
-    mh_put_ptr_t, mh_put_uint32_t, ptr_t,
+    MH_TOMBSTONE, MHPutStatus, MapHash, Set, map_put_ref_String_int, mh_delete_uint32_t,
+    mh_get_String, mh_get_ptr_t, mh_get_uint32_t, mh_put_ptr_t, mh_put_uint32_t, ptr_t,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT,
-    MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair, MarkTreeIter, mt_decor,
-    mt_inspect, mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
+    MT_FLAG_DECOR_VIRT_LINES, MT_FLAG_DECOR_VIRT_TEXT_INLINE, MTPair, mt_decor, mt_inspect,
+    mt_invalid, mt_invalidate, mt_no_undo, mt_paired, mt_right,
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena, strequal_str as strequal, xfree};
 use crate::r#move::changed_window_setting;
-use crate::msgpack_rpc::packer::{Integer, handle_T};
+use crate::msgpack_rpc::packer::Integer;
 use crate::sign::init_sign_text;
 use crate::window::win_T;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-pub type NS = handle_T;
-pub type HLGroupID = Integer;
-use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::cursor::{colnr_T, linenr_T};
-pub type DecorPriority = u16;
-pub type ExtmarkType = c_int;
-pub type ExtmarkInfoArray = KVec<MTPair>;
 
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
-pub(crate) const kExtmarkNone: ExtmarkType = 0x1;
 const kExtmarkSign: ExtmarkType = 0x2;
 const kExtmarkVirtText: ExtmarkType = 0x8;
 const kExtmarkVirtLines: ExtmarkType = 0x10;
 const kExtmarkHighlight: ExtmarkType = 0x20;
 
-pub(crate) const kVPosEndOfLineRightAlign: VirtTextPos = 1;
-pub(crate) const kVPosInline: VirtTextPos = 2;
-pub(crate) const kVPosOverlay: VirtTextPos = 3;
-pub(crate) const kVPosRightAlign: VirtTextPos = 4;
-pub(crate) const kVPosWinCol: VirtTextPos = 5;
-
-pub(crate) const kVLLeftcol: c_int = 1;
-
-pub(crate) const kVLOverflowTrunc: VirtLineOverflow = 0;
-pub(crate) const kVLOverflowScroll: VirtLineOverflow = 1;
-pub(crate) const kVLOverflowWrap: VirtLineOverflow = 2;
-pub(crate) const kVLOverflowAuto: VirtLineOverflow = 3;
-
 const kHlModeReplace: u8 = 1;
 const kHlModeCombine: u8 = 2;
 const kHlModeBlend: u8 = 3;
 
-pub(crate) const kSHIsSign: u16 = 1;
-pub(crate) const kSHHlEol: u16 = 2;
-pub(crate) const kSHUIWatched: u16 = 4;
-pub(crate) const kSHUIWatchedOverlay: u16 = 8;
-pub(crate) const kSHSpellOn: u16 = 16;
-pub(crate) const kSHSpellOff: u16 = 32;
-pub(crate) const kSHConceal: u16 = 64;
-pub(crate) const kSHConcealLines: u16 = 128;
-pub(crate) const kSHConcealOff: u16 = 256;
-
-pub(crate) const kVTIsLines: u8 = 1;
-pub(crate) const kVTHide: u8 = 2;
-pub(crate) const kVTLinesAbove: u8 = 4;
-pub(crate) const kVTRepeatLinebreak: u8 = 8;
-
-pub(crate) const kDecorProviderActive: c_int = 1;
-
 const KEYSET_OPTIDX_get_extmark__hl_name: u64 = 2;
-
 const KEYSET_OPTIDX_get_extmarks__type: u64 = 1;
 const KEYSET_OPTIDX_get_extmarks__limit: u64 = 2;
 const KEYSET_OPTIDX_get_extmarks__hl_name: u64 = 4;
@@ -140,119 +108,6 @@ const KEYSET_OPTIDX_set_extmark__virt_text_win_col: u64 = 31;
 const KEYSET_OPTIDX_set_extmark__virt_lines_overflow: u64 = 34;
 
 const KEYSET_OPTIDX_ns_opts__wins: u64 = 1;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct DecorSignHighlight {
-    pub flags: u16,
-    pub priority: DecorPriority,
-    pub hl_id: c_int,
-    pub text: [u32; 2],
-    pub sign_name: *mut c_char,
-    pub sign_add_id: c_int,
-    pub number_hl_id: c_int,
-    pub line_hl_id: c_int,
-    pub cursorline_hl_id: c_int,
-    pub next: u32,
-    pub url: *const c_char,
-}
-
-pub const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
-    flags: 0,
-    priority: DECOR_PRIORITY_BASE,
-    hl_id: 0,
-    text: [0, 0],
-    sign_name: ptr::null_mut(),
-    sign_add_id: 0,
-    number_hl_id: 0,
-    line_hl_id: 0,
-    cursorline_hl_id: 0,
-    next: DECOR_ID_INVALID,
-    url: ptr::null(),
-};
-
-#[repr(C)]
-pub struct DecorProvider {
-    pub ns_id: NS,
-    pub state: c_int,
-    pub win_skip_row: c_int,
-    pub win_skip_col: c_int,
-    pub redraw_start: LuaRef,
-    pub redraw_buf: LuaRef,
-    pub redraw_win: LuaRef,
-    pub redraw_line: LuaRef,
-    pub redraw_range: LuaRef,
-    pub redraw_end: LuaRef,
-    pub hl_def: LuaRef,
-    pub spell_nav: LuaRef,
-    pub conceal_line: LuaRef,
-    pub hl_valid: c_int,
-    pub hl_cached: bool,
-    pub error_count: u8,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct DecorRangeUI {
-    pub ns_id: u32,
-    pub mark_id: u32,
-    pub pos: VirtTextPos,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union DecorRangeData {
-    pub sh: DecorSignHighlight,
-    pub vt: *mut DecorVirtText,
-    pub ui: DecorRangeUI,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct DecorRange {
-    pub start_row: c_int,
-    pub start_col: c_int,
-    pub end_row: c_int,
-    pub end_col: c_int,
-    pub ordering: c_int,
-    pub priority_internal: u32,
-    pub owned: bool,
-    pub kind: u8,
-    pub data: DecorRangeData,
-    pub attr_id: c_int,
-    pub draw_col: c_int,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub union DecorRangeSlot {
-    pub range: DecorRange,
-    pub next_free_i: c_int,
-}
-
-#[repr(C)]
-pub struct DecorState {
-    pub itr: [MarkTreeIter; 1],
-    pub slots: KVec<DecorRangeSlot>,
-    pub ranges_i: KVec<c_int>,
-    pub current_end: c_int,
-    pub future_begin: c_int,
-    pub free_slot_i: c_int,
-    pub new_range_ordering: c_int,
-    pub win: *mut win_T,
-    pub top_row: c_int,
-    pub row: c_int,
-    pub col_last: c_int,
-    pub current: c_int,
-    pub current_hl_eol: c_int,
-    pub eol_col: c_int,
-    pub conceal: c_int,
-    pub conceal_char: u32,
-    pub conceal_attr: c_int,
-    pub spell: c_int,
-    pub running_decor_provider: bool,
-    pub itr_valid: bool,
-}
 
 #[repr(C)]
 pub struct KeyDict_get_extmark {

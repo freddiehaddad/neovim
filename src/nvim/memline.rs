@@ -10,7 +10,7 @@
 )]
 
 use crate::api::private::helpers::{HLF_E, cstr_as_string};
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
 use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
@@ -23,21 +23,19 @@ use crate::charset::ascii_isalpha;
 use crate::cursor::{check_cursor, coladvance, colnr_T, linenr_T, pos_T};
 use crate::dialog::do_dialog;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
-use crate::eval::fs::{FileInfo, SEEK_END};
 use crate::eval::typval::{
     dict_T, list_T, tv_clear, tv_dict_add_nr, tv_dict_add_str_len, tv_list_alloc_ret,
     tv_list_append_allocated_string, tv_list_first, tv_list_len, typval_T,
 };
 use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
-    EOL_DOS, O_RDONLY, READ_NEW, buf_store_file_info, kOptFileencoding, modname, off_T, read_eintr,
-    readfile, vim_deltempdir, vim_rename, vim_tempname,
+    EOL_DOS, O_RDONLY, READ_NEW, SEEK_END, buf_store_file_info, kOptFileencoding, modname, off_T,
+    read_eintr, readfile, vim_deltempdir, vim_rename, vim_tempname,
 };
 use crate::globals::*;
 use crate::input::flush_buffers;
 use crate::lua::executor::nlua_call_typval;
 use crate::main_init::getout;
-use crate::map_glyph_cache::NvimString;
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
 use crate::memfile::{
@@ -55,8 +53,8 @@ use crate::option::{copy_option_part, get_fileformat, set_fileformat, set_option
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_hostname, os_get_pid};
 use crate::os::fs::{
-    O_RDWR, os_fileinfo, os_fileinfo_inode, os_fileinfo_link, os_fileinfo_size, os_fileinfo2,
-    os_isdir, os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_cloexec,
+    FileInfo, O_RDWR, os_fileinfo, os_fileinfo_inode, os_fileinfo_link, os_fileinfo_size,
+    os_fileinfo2, os_isdir, os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_cloexec,
 };
 use crate::os::input::{line_breakcheck, os_char_avail};
 use crate::os::proc::os_proc_running;
@@ -98,6 +96,8 @@ pub struct memline_T {
     pub ml_numchunks: c_int,
     pub ml_usedchunks: c_int,
 }
+
+pub(crate) const ML_LINE_DIRTY: c_int = 0x02;
 
 #[cfg(unix)]
 use crate::os::users::os_get_uname;
@@ -283,24 +283,24 @@ static e_line_number_out_of_range_nr_past_the_end: &CStr =
 static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
 static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
 
-use crate::api::buffer::{ML_LINE_DIRTY, NL, NUL};
-use crate::api::command::CMOD_NOSWAPFILE;
-use crate::api::options::{BF_DUMMY, IOSIZE};
-use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
+use crate::buffer::BF_DUMMY;
+use crate::charset::{NL, NUL};
 use crate::eval::buffer::SEA_READONLY;
 use crate::eval::funcs::VIM_WARNING;
 use crate::event::r#loop::uv_strerror as os_strerror;
-use crate::ex_docmd::FLUSH_TYPEAHEAD;
+use crate::ex_docmd::{CMOD_NOSWAPFILE, FLUSH_TYPEAHEAD};
 #[cfg(unix)]
 use crate::fileio::readlink;
 #[cfg(windows)]
 use crate::fileio::{_close as close, _lseeki64 as vim_lseek};
 #[cfg(not(windows))]
 use crate::fileio::{close, lseek as vim_lseek};
+use crate::globals::IOSIZE;
 use crate::insert::ML_ALLOCATED;
 use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
+use crate::os::fs::MAXPATHL;
 #[cfg(unix)]
 const EINVAL: c_int = 22;
 use crate::regexp::MAXCOL;

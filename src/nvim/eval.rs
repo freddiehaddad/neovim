@@ -20,23 +20,25 @@ use crate::charset::{
     skipwhite, vim_str2nr,
 };
 use crate::eval::typval::{
-    Callback, EvalFuncData, TV_CSTRING, TypvalVval, VarType, dict_T, dict_watchers_queue,
-    dictitem_T, float_T, list_T, listitem_T, listwatch_T, tv_blob_alloc, tv_blob_alloc_ret,
-    tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal, tv_blob_get,
-    tv_blob_len, tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index, tv_blob_unref,
-    tv_check_lock, tv_check_num, tv_check_str, tv_clear, tv_copy, tv_dict_add, tv_dict_add_nr,
-    tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find, tv_dict_free, tv_dict_free_contents,
-    tv_dict_free_dict, tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di, tv_dict_item_alloc,
-    tv_dict_item_free, tv_dict_unref, tv_dict_watcher_node_data, tv_dict_watcher_notify,
-    tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float, tv_get_number,
-    tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
-    tv_in_free_unref_items, tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret,
-    tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string, tv_list_assign_range,
-    tv_list_check_range_index_one, tv_list_check_range_index_two, tv_list_concat, tv_list_copy,
-    tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first, tv_list_free,
-    tv_list_free_contents, tv_list_free_list, tv_list_join, tv_list_last, tv_list_len, tv_list_ref,
-    tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index, tv_list_unref, tv_list_watch_add,
-    tv_list_watch_remove, tv2bool, typval_T, value_check_lock,
+    Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T,
+    dict_watchers_queue, dictitem_T, float_T, kCallbackExpr, kCallbackFuncref, kCallbackLua,
+    kCallbackNone, kCallbackPartial, list_T, listitem_T, listwatch_T, partial_T, tv_blob_alloc,
+    tv_blob_alloc_ret, tv_blob_check_index, tv_blob_check_range, tv_blob_copy, tv_blob_equal,
+    tv_blob_get, tv_blob_len, tv_blob_set_append, tv_blob_set_range, tv_blob_slice_or_index,
+    tv_blob_unref, tv_check_lock, tv_check_num, tv_check_str, tv_clear, tv_copy, tv_dict_add,
+    tv_dict_add_nr, tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find, tv_dict_free,
+    tv_dict_free_contents, tv_dict_free_dict, tv_dict_get_callback, tv_dict_get_number,
+    tv_dict_hi2di, tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref, tv_dict_watcher_node_data,
+    tv_dict_watcher_notify, tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float,
+    tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
+    tv_get_string_chk, tv_in_free_unref_items, tv_initial_value, tv_is_func, tv_list_alloc,
+    tv_list_alloc_ret, tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string,
+    tv_list_assign_range, tv_list_check_range_index_one, tv_list_check_range_index_two,
+    tv_list_concat, tv_list_copy, tv_list_equal, tv_list_find, tv_list_find_nr, tv_list_first,
+    tv_list_free, tv_list_free_contents, tv_list_free_list, tv_list_join, tv_list_last,
+    tv_list_len, tv_list_ref, tv_list_set_lock, tv_list_set_ret, tv_list_slice_or_index,
+    tv_list_unref, tv_list_watch_add, tv_list_watch_remove, tv2bool, typval_T, value_check_lock,
+    varnumber_T,
 };
 use crate::eval::vars::tv_init;
 #[cfg(not(test))]
@@ -77,12 +79,13 @@ use crate::eval::userfunc::{
     func_unref, funcexe_T, get_func_tv, get_funccal_args_ht, get_lambda_tv,
     get_scriptlocal_funcname, make_partial, restore_funccal, save_funccal, set_ref_in_call_stack,
     set_ref_in_func, set_ref_in_func_args, set_ref_in_functions, set_ref_in_previous_funccal,
+    ufunc_T,
 };
 #[cfg(not(test))]
 use crate::eval::vars::opt_to_tv;
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{check_nextcmd, cmd_has_expr_args, ends_excmd};
+use crate::ex_docmd::{check_nextcmd, cmd_has_expr_args, ends_excmd, exarg_T};
 #[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline, set_ref_in_findfunc};
 #[cfg(not(test))]
@@ -111,12 +114,13 @@ use crate::option_vars::*;
 use crate::quickfix::set_ref_in_quickfix;
 #[cfg(not(test))]
 use crate::regexp::{
-    RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, vim_regcomp, vim_regexec_nl, vim_regfree,
-    vim_regsub,
+    RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, regmatch_T, vim_regcomp, vim_regexec_nl,
+    vim_regfree, vim_regsub,
 };
 use crate::register::{get_reg_contents, kGRegExprSrc, op_global_reg_iter, yankreg_T};
 use crate::runtime::{
-    exestack, free_autoload_scriptnames, free_scriptnames, script_autoload, sourcing_a_script,
+    exestack, free_autoload_scriptnames, free_scriptnames, script_autoload, sctx_T,
+    sourcing_a_script,
 };
 #[cfg(not(test))]
 use crate::runtime::{get_scriptname, script_is_lua};
@@ -125,13 +129,11 @@ use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::api::command::exarg_T;
-use crate::api::private::converter::{VAR_UNLOCKED, partial_T, sctx_T, ufunc_T};
 #[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
 #[cfg(not(test))]
 use crate::api::private::validate::{Error, ErrorType};
-use crate::api::private::validate::{Object, ObjectData, ObjectType};
+use crate::api::private::validate::{NvimString, Object, ObjectData, ObjectType};
 use crate::autocmd::funccal_entry_T;
 use crate::channel::{CallbackReader, Channel, kChannelStreamProc};
 use crate::cmdexpand::{
@@ -139,11 +141,10 @@ use crate::cmdexpand::{
     EXPAND_SETTINGS, EXPAND_USER_VARS, cmdidx_T,
 };
 use crate::cursor::{colnr_T, linenr_T, pos_T};
-use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
 use crate::eval::encode::encode_tv2echo;
 use crate::eval::encode::{encode_list_write, encode_tv2string};
-use crate::eval::executor::{blob_T, eexe_mod_op};
+use crate::eval::executor::eexe_mod_op;
 use crate::eval::gc::{gc_first_dict, gc_first_list};
 #[cfg(not(test))]
 use crate::eval::userfunc::get_current_funccal;
@@ -177,8 +178,7 @@ use crate::keycodes::{
 };
 #[cfg(not(test))]
 use crate::map::map_del_uint64_t_ptr_t;
-use crate::map::{Map, Set, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t, ptr_t};
-use crate::map_glyph_cache::{MapHash, NvimString};
+use crate::map::{Map, MapHash, Set, map_put_ref_uint64_t_ptr_t, map_ref_uint64_t_ptr_t, ptr_t};
 use crate::mark::{mark_get, mark_global_iter, xfmark_T};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -205,20 +205,15 @@ use crate::os::lang::free_locales;
 use crate::os::shell::shell_argv_to_str;
 use crate::os::shell::{os_system, shell_build_argv, shell_free_argv};
 use crate::profile::{estack_T, prof_child_enter, prof_child_exit, proftime_T};
-#[cfg(not(test))]
-use crate::regexp::regmatch_T;
 use crate::state::save_v_event_T;
 use crate::tag::set_ref_in_tagfunc;
 use crate::window::win_T;
 
-use crate::api::autocmd::{
-    kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
-};
-use crate::api::buffer::{NL, NUL};
-use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, PROF_YES};
 use crate::change::TAB;
+use crate::charset::{NL, NUL};
+use crate::globals::IOSIZE;
 #[cfg(not(test))]
 use crate::option::kOptInvalid;
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};

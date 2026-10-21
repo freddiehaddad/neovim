@@ -14,7 +14,7 @@ use crate::api::private::helpers::{
     float_obj, int_obj, str_obj, win_obj,
 };
 use crate::api::private::validate::{
-    Array, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
+    Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::{
     kLineFlagWrap, kUIExtCount, kUIHlState, kUILinegrid, kUITermColors,
@@ -44,8 +44,10 @@ use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
-use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
-use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
+use crate::map::{
+    MH_TOMBSTONE, Map, MapHash, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t,
+    mh_get_uint32_t,
+};
 use crate::memory::{Arena, arena_finish, arena_mem_free, xcalloc, xfree};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
@@ -90,14 +92,14 @@ const kMouseCommand: c_int = b'c' as c_int;
 const kMouseHelp: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
-use crate::api::buffer::NUL;
-use crate::api::vim::MAXPATHL;
 use crate::change::HLF_W;
+use crate::charset::NUL;
 use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
 use crate::mouse::kMouseVisual;
 use crate::msgpack_rpc::channel::RemoteUI;
+use crate::os::fs::MAXPATHL;
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_INSERT, MODE_SETWSIZE,
 };

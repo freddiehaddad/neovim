@@ -15,7 +15,7 @@ use crate::api::private::helpers::{
     api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 #[cfg(not(test))]
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
@@ -48,10 +48,7 @@ use crate::kvec::KVec;
 #[cfg(not(test))]
 use crate::log::logmsg;
 #[cfg(not(test))]
-use crate::map::mh_get_uint64_t;
-#[cfg(not(test))]
-use crate::map_glyph_cache::MH_TOMBSTONE;
-use crate::map_glyph_cache::NvimString;
+use crate::map::{MH_TOMBSTONE, mh_get_uint64_t};
 use crate::memory::{
     ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, arena_memdupz,
     free_block, xcalloc, xfree, xmalloc,

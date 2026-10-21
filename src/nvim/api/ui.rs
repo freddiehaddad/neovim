@@ -16,7 +16,7 @@ use crate::api::private::helpers::{
     cstr_as_string, dict_obj, error_set, int_obj, str_obj, string_to_cstr, win_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
 };
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{do_autocmd_focusgained, may_trigger_vim_suspend_resume};
@@ -31,9 +31,9 @@ use crate::highlight::{hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, Float};
 use crate::map::{
-    HlAttrs, Map, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t, mh_get_uint64_t,
+    HlAttrs, MH_TOMBSTONE, Map, MapHash, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t,
+    mh_get_uint64_t,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::mbyte::utf_ambiguous_width;
 use crate::memory::{
     Arena, alloc_block, arena_finish, arena_mem_free, free_block, strequal, xcalloc, xfree,

@@ -9,8 +9,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_CONFIRM, CMOD_HIDE, CMOD_KEEPALT, exarg_T};
-use crate::api::options::{BF_DUMMY, IOSIZE};
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
 use crate::api::win_config::{UIExtension, kCtxNoDisplay, kWinStyleMinimal};
 use crate::arglist::{ML_EMPTY, alist_T, check_arg_idx};
@@ -36,15 +34,16 @@ use crate::diff::{diff_buf_add, diff_buf_delete, diff_mode_buf, diffopt_hiddenof
 use crate::digraph::{keymap_ga_clear, keymap_init};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawing, status_redraw_all};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
     TypvalVval, VarType, callback_free, tv_dict_add, tv_dict_alloc, tv_dict_find,
-    tv_dict_item_copy, tv_dict_watcher_notify, typval_T,
+    tv_dict_item_copy, tv_dict_watcher_notify, typval_T, varnumber_T,
 };
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::ex_cmds::{ECMD_FORCEIT, ECMD_ONE, do_ecmd, getfile};
 use crate::ex_cmds2::{autowrite, can_abandon, dialog_changed, dialog_close_terminal};
-use crate::ex_docmd::{do_cmdline_cmd, ex_errmsg, tabpage_new};
+use crate::ex_docmd::{
+    CMOD_CONFIRM, CMOD_HIDE, CMOD_KEEPALT, do_cmdline_cmd, ex_errmsg, exarg_T, tabpage_new,
+};
 use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
 use crate::ex_getln::text_or_buf_locked;
 use crate::extmark::extmark_free_all;
@@ -56,6 +55,7 @@ use crate::fileio::{
 use crate::fold::{clearFolding, cloneFoldGrowArray, deleteFoldRecurse, foldUpdateAll};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{hash_find, hash_init, hash_remove};
 use crate::help::get_local_additions;
@@ -65,8 +65,7 @@ use crate::input::vgetc;
 use crate::insexpand::clear_cpt_callbacks;
 use crate::kvec::StringBuilder;
 use crate::main_init::getout;
-use crate::map::{Map, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int, ptr_t};
-use crate::map_glyph_cache::MH_TOMBSTONE;
+use crate::map::{MH_TOMBSTONE, Map, map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int, ptr_t};
 use crate::mapping::map_clear_mode;
 use crate::mark::{
     WinInfo, clear_fmark, clrallmarks, fmark_T, fmarks_check_names, free_fmark, mark_adjust_buf,
@@ -126,15 +125,18 @@ use crate::window::{
     WSP_BELOW, WSP_ROOM, WSP_VERT, check_can_set_curbuf_forceit, check_colorcolumn, close_windows,
     free_wininfo, global_stl_height, goto_tabpage_tp, goto_tabpage_win, last_window,
     lastwin_nofloating, one_window, reset_binding, swbuf_goto_win_with_buf, tabline_height,
-    tabpage_index, update_cwd, win_close, win_enter, win_locked, win_move_after, win_split,
-    win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
+    tabpage_T, tabpage_index, update_cwd, win_T, win_close, win_enter, win_locked, win_move_after,
+    win_split, win_valid, win_valid_any_tab, window_layout_lock, window_layout_unlock,
 };
-use crate::window::{tabpage_T, win_T};
 use crate::winfloat::{win_float_update_preview, win_set_minimal_style};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
 pub type MetaIndex = usize;
+
+pub(crate) const BCO_ENTER: c_int = 1;
+pub(crate) const BCO_NOHELP: c_int = 4;
+pub(crate) const BF_DUMMY: c_int = 0x80;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -249,7 +251,7 @@ pub struct buf_T {
     pub b_kmap_state: i16,
     pub b_kmap_ga: garray_T,
     pub b_p_initialized: bool,
-    pub b_p_script_ctx: [crate::api::private::converter::sctx_T; 93],
+    pub b_p_script_ctx: [crate::runtime::sctx_T; 93],
     pub b_p_ac: c_int,
     pub b_p_ai: c_int,
     pub b_p_ai_nopaste: c_int,
@@ -533,9 +535,10 @@ const kOptTitlestring: OptIndex = 331;
 pub(crate) const SID_MODELINE: c_int = -1;
 pub(crate) const OPT_MODELINE: c_int = 0x04;
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NL, NUL};
-use crate::api::vim::{BCO_ENTER, BCO_NOHELP, MAXPATHL};
+use crate::charset::{NL, NUL};
+use crate::eval::typval::kCallbackNone;
+use crate::os::fs::MAXPATHL;
+use crate::search::FORWARD;
 
 #[repr(C)]
 struct memfile_head_T {

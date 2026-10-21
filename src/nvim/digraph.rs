@@ -8,9 +8,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::charset::{
-    ascii_isdigit, char2cells, getdigits_int, is_special, skiptowhite, skipwhite,
+    NUL, ascii_isdigit, char2cells, getdigits_int, is_special, skiptowhite, skipwhite,
 };
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
@@ -20,7 +19,7 @@ use crate::eval::typval::{
     tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_list,
     tv_list_append_string, tv_list_first, tv_list_len, typval_T,
 };
-use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
+use crate::ex_docmd::{do_cmdline_cmd, exarg_T, getline_equal};
 use crate::ex_getln::putcmdline;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -40,7 +39,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type result_T = c_int;
-use crate::api::buffer::NUL;
 use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;

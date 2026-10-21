@@ -18,7 +18,7 @@ use crate::message::{semsg, smsg};
 use std::ffi::c_void;
 use std::ffi::{CStr, c_char};
 
-use crate::api::command::exarg_T;
+use crate::ex_docmd::exarg_T;
 
 /// Read a file securely via `vim.secure.read(path)` (`nlua_read_secure`).
 #[unsafe(no_mangle)]

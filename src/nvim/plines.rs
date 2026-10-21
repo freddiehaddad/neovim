@@ -7,11 +7,13 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::extmark::{kVPosInline, kVTIsLines, ns_in_win};
+use crate::api::extmark::ns_in_win;
 use crate::buffer::buf_T;
-use crate::charset::{vim_isprintc, vim_strsize};
+use crate::charset::{NUL, vim_isprintc, vim_strsize};
 use crate::cursor::{colnr_T, linenr_T, lt, ltoreq, pos_T};
-use crate::decoration::{DecorVirtText, decor_conceal_line, decor_virt_lines, kMTFilterSelect};
+use crate::decoration::{
+    DecorVirtText, decor_conceal_line, decor_virt_lines, kMTFilterSelect, kVPosInline, kVTIsLines,
+};
 use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
 use crate::globals::*;
@@ -30,7 +32,6 @@ use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
-use crate::api::buffer::NUL;
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
 use crate::insert::kCharsizeFast;
 use crate::regexp::MAXCOL;

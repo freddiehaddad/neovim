@@ -6,14 +6,12 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
-use crate::api::command::exarg_T;
-use crate::api::options::IOSIZE;
 use crate::api::private::helpers::boolean_obj;
 use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
 use crate::buffer::{buf_T, buf_is_empty, bufref_T, bufref_valid, set_bufref};
 use crate::change::{TAB, inserted_bytes};
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex,
+    NUL, ascii_isalpha, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex,
     skipwhite, vim_is_fname_char,
 };
 use crate::cursor::{colnr_T, get_cursor_line_len, get_cursor_line_ptr, linenr_T, pos_T};
@@ -24,10 +22,11 @@ use crate::decoration_provider::decor_providers_invoke_spell;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::errors::*;
 use crate::ex_cmds::do_sub_msg;
-use crate::ex_docmd::do_cmdline_cmd;
+use crate::ex_docmd::{do_cmdline_cmd, exarg_T};
 use crate::ex_getln::hlf_T;
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
     hash_T, hash_add_item, hash_clear_all, hash_find, hash_hash, hash_init, hash_lookup,
@@ -52,7 +51,7 @@ use crate::option::{
     set_option_value_give_err, shortmess, valid_name,
 };
 use crate::option_vars::*;
-use crate::os::fs::os_remove;
+use crate::os::fs::{MAXPATHL, os_remove};
 use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
@@ -62,7 +61,7 @@ use crate::regexp::{
     vim_regfree,
 };
 use crate::runtime::{DIP_ALL, do_in_runtimepath};
-use crate::search::{Direction, do_search, kShmSearch};
+use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
@@ -77,8 +76,6 @@ use crate::window::{win_T, win_valid_any_tab};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 pub type smt_T = c_int;
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::vim::{BACKWARD, MAXPATHL, kFalse, kNone, kTrue};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_COUNT, SMT_ALL, kOptSpoFlagNoplainbuffer};
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR, SEARCH_KEEP};

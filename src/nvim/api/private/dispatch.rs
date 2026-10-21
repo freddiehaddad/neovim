@@ -57,7 +57,9 @@ use crate::api::private::helpers::{
     api_set_error, api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj,
     integer_obj, string_obj, tabpage_obj, window_obj,
 };
-use crate::api::private::validate::{Array, Dict, Error, ErrorType, Object, ObjectType};
+use crate::api::private::validate::{
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType,
+};
 use crate::api::tabpage::{
     Buffer, KeyDict_tabpage_config, Tabpage, Window, nvim_open_tabpage, nvim_tabpage_del_var,
     nvim_tabpage_get_number, nvim_tabpage_get_var, nvim_tabpage_get_win, nvim_tabpage_is_valid,
@@ -115,7 +117,6 @@ use crate::lua::converter::{
     nlua_push_handle as nlua_push_Tabpage, nlua_push_handle as nlua_push_Window, nlua_push_keydict,
 };
 use crate::lua::xdiff::KeyDict_xdl_diff;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::shada::{

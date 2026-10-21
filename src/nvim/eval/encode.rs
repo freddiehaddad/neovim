@@ -5,13 +5,14 @@
 
 #[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
-use crate::api::private::converter::{VAR_UNLOCKED, partial_T};
+#[cfg(not(test))]
+use crate::api::private::validate::NvimString;
 use crate::buffer::NOTDONE;
 #[cfg(not(test))]
 use crate::eval::decode::{K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR};
-use crate::eval::executor::blob_T;
 use crate::eval::typval::{
-    TypvalVval, VarType, dict_T, list_T, listitem_T, tv_list_first, typval_T,
+    TypvalVval, VAR_UNLOCKED, VarType, blob_T, dict_T, list_T, listitem_T, partial_T,
+    tv_list_first, typval_T,
 };
 #[cfg(not(test))]
 use crate::eval::typval::{
@@ -30,8 +31,6 @@ use crate::hashtab::hashitem_T;
 use crate::hashtab::hashitem_empty;
 #[cfg(not(test))]
 use crate::keycodes::{BS, CAR};
-#[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 #[cfg(not(test))]
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};

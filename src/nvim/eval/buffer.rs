@@ -21,19 +21,19 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
-    Callback, EvalFuncData, TypvalVval, VarType, callback_free, dict_T, list_T, listitem_T,
-    tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
+    Callback, EvalFuncData, TypvalVval, VarType, callback_free, dict_T, kCallbackNone, list_T,
+    listitem_T, tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
     tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_number, tv_list_append_string, tv_list_first,
-    tv_list_item_remove, tv_list_last, tv_list_len, typval_T,
+    tv_list_item_remove, tv_list_last, tv_list_len, typval_T, varnumber_T,
 };
 use crate::eval::window::win_has_winnr;
 use crate::eval::{
     callback_call, callback_from_typval, kListLenMayKnow, prompt_get_input, typval_tostring,
 };
 use crate::ex_cmds::check_secure;
-use crate::extmark::extmark_splice_cols;
+use crate::extmark::{extmark_splice_cols, kExtmarkUndo};
 use crate::globals::*;
 use crate::insert::buf_prompt_text;
 use crate::mark::mark_adjust_buf;
@@ -51,9 +51,7 @@ use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub type varnumber_T = i64;
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{NUL, kExtmarkUndo};
+use crate::charset::NUL;
 use crate::math::{FAIL, OK};
 
 pub(crate) const SEA_READONLY: c_int = 4;

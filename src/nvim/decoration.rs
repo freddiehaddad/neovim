@@ -8,28 +8,20 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 
-use crate::api::extmark::{
-    DECOR_SIGN_HIGHLIGHT_INIT, DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot,
-    DecorRangeUI, DecorSignHighlight, DecorState, kSHConceal, kSHConcealLines, kSHConcealOff,
-    kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol,
-    kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap, kVPosInline,
-    kVPosOverlay, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak, ns_in_win,
-    virt_text_to_array,
-};
+use crate::api::extmark::{ns_in_win, virt_text_to_array};
 use crate::api::private::helpers::{
     arena_array, array_obj, boolean_obj, cstr_as_obj, cstr_to_arena_obj, integer_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::ui::MAX_SCHAR_SIZE;
-use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::buffer::{buf_T, buf_meta_total};
 use crate::change::{TAB, changed_lines_invalidate_buf};
 use crate::cursor::{colnr_T, lpos_T};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
-use crate::extmark::{TriState, extmark_set};
+use crate::extmark::{TriState, extmark_set, kFalse, kNone, kTrue};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::grid::{schar_T, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
@@ -57,6 +49,9 @@ use std::cmp::Ordering;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+pub type NS = crate::msgpack_rpc::packer::handle_T;
+pub type HLGroupID = Integer;
+pub type DecorPriority = u16;
 pub type DecorPriorityInternal = u32;
 pub type DecorRangeKind = u8;
 pub type VirtTextPos = c_int;
@@ -65,6 +60,126 @@ pub type VirtLineOverflow = c_int;
 pub(crate) const DECOR_ID_INVALID: u32 = u32::MAX;
 pub(crate) const kHlModeUnknown: u8 = 0;
 pub(crate) const kVPosEndOfLine: VirtTextPos = 0;
+pub(crate) const kVPosEndOfLineRightAlign: VirtTextPos = 1;
+pub(crate) const kVPosInline: VirtTextPos = 2;
+pub(crate) const kVPosOverlay: VirtTextPos = 3;
+pub(crate) const kVPosRightAlign: VirtTextPos = 4;
+pub(crate) const kVPosWinCol: VirtTextPos = 5;
+
+pub(crate) const kVLLeftcol: c_int = 1;
+
+pub(crate) const kVLOverflowTrunc: VirtLineOverflow = 0;
+pub(crate) const kVLOverflowScroll: VirtLineOverflow = 1;
+pub(crate) const kVLOverflowWrap: VirtLineOverflow = 2;
+pub(crate) const kVLOverflowAuto: VirtLineOverflow = 3;
+
+pub(crate) const kSHIsSign: u16 = 1;
+pub(crate) const kSHHlEol: u16 = 2;
+pub(crate) const kSHUIWatched: u16 = 4;
+pub(crate) const kSHUIWatchedOverlay: u16 = 8;
+pub(crate) const kSHSpellOn: u16 = 16;
+pub(crate) const kSHSpellOff: u16 = 32;
+pub(crate) const kSHConceal: u16 = 64;
+pub(crate) const kSHConcealLines: u16 = 128;
+pub(crate) const kSHConcealOff: u16 = 256;
+
+pub(crate) const kVTIsLines: u8 = 1;
+pub(crate) const kVTHide: u8 = 2;
+pub(crate) const kVTLinesAbove: u8 = 4;
+pub(crate) const kVTRepeatLinebreak: u8 = 8;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DecorSignHighlight {
+    pub flags: u16,
+    pub priority: DecorPriority,
+    pub hl_id: c_int,
+    pub text: [u32; 2],
+    pub sign_name: *mut c_char,
+    pub sign_add_id: c_int,
+    pub number_hl_id: c_int,
+    pub line_hl_id: c_int,
+    pub cursorline_hl_id: c_int,
+    pub next: u32,
+    pub url: *const c_char,
+}
+
+pub const DECOR_SIGN_HIGHLIGHT_INIT: DecorSignHighlight = DecorSignHighlight {
+    flags: 0,
+    priority: crate::marktree::DECOR_PRIORITY_BASE,
+    hl_id: 0,
+    text: [0, 0],
+    sign_name: ptr::null_mut(),
+    sign_add_id: 0,
+    number_hl_id: 0,
+    line_hl_id: 0,
+    cursorline_hl_id: 0,
+    next: DECOR_ID_INVALID,
+    url: ptr::null(),
+};
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DecorRangeUI {
+    pub ns_id: u32,
+    pub mark_id: u32,
+    pub pos: VirtTextPos,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DecorRangeData {
+    pub sh: DecorSignHighlight,
+    pub vt: *mut DecorVirtText,
+    pub ui: DecorRangeUI,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct DecorRange {
+    pub start_row: c_int,
+    pub start_col: c_int,
+    pub end_row: c_int,
+    pub end_col: c_int,
+    pub ordering: c_int,
+    pub priority_internal: u32,
+    pub owned: bool,
+    pub kind: u8,
+    pub data: DecorRangeData,
+    pub attr_id: c_int,
+    pub draw_col: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union DecorRangeSlot {
+    pub range: DecorRange,
+    pub next_free_i: c_int,
+}
+
+#[repr(C)]
+pub struct DecorState {
+    pub itr: [MarkTreeIter; 1],
+    pub slots: KVec<DecorRangeSlot>,
+    pub ranges_i: KVec<c_int>,
+    pub current_end: c_int,
+    pub future_begin: c_int,
+    pub free_slot_i: c_int,
+    pub new_range_ordering: c_int,
+    pub win: *mut win_T,
+    pub top_row: c_int,
+    pub row: c_int,
+    pub col_last: c_int,
+    pub current: c_int,
+    pub current_hl_eol: c_int,
+    pub eol_col: c_int,
+    pub conceal: c_int,
+    pub conceal_char: u32,
+    pub conceal_attr: c_int,
+    pub spell: c_int,
+    pub running_decor_provider: bool,
+    pub itr_valid: bool,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]

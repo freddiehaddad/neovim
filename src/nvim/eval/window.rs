@@ -9,7 +9,7 @@
 )]
 
 use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
-use crate::charset::getdigits_int;
+use crate::charset::{NUL, getdigits_int};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::errors::*;
@@ -19,7 +19,7 @@ use crate::eval::typval::{
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc, tv_dict_alloc_ret,
     tv_dict_find, tv_dict_get_bool, tv_dict_get_number, tv_get_bool, tv_get_number,
     tv_get_number_chk, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict,
-    tv_list_append_list, tv_list_append_number, tv_list_append_string, typval_T,
+    tv_list_append_list, tv_list_append_number, tv_list_append_string, typval_T, varnumber_T,
 };
 use crate::ex_getln::text_or_buf_locked;
 use crate::garray::{ga_append, ga_concat_len, ga_init, garray_T};
@@ -43,11 +43,9 @@ use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
 
-use crate::api::buffer::NUL;
 use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::drawscreen::{FR_LEAF, FR_ROW};
-use crate::eval::buffer::varnumber_T;
 use crate::eval::{kListLenMayKnow, kListLenUnknown};
 use crate::math::{FAIL, OK};
 pub type dictitem_T = ScopeDictDictItem;

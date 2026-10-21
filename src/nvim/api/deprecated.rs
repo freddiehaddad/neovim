@@ -11,7 +11,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{NL, NUL, nvim_buf_get_lines, nvim_buf_set_lines};
+use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
@@ -21,10 +21,12 @@ use crate::api::private::helpers::{
     static_cstr_as_string, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid, api_err_range,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
+    api_err_range,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
+use crate::charset::{NL, NUL};
 use crate::cursor::colnr_T;
 use crate::decoration::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, clear_virttext,
@@ -38,7 +40,6 @@ use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn
 use crate::kvec::StringBuilder;
 use crate::lua::converter::Boolean;
 use crate::lua::executor::{kRetObject, nlua_exec};
-use crate::map_glyph_cache::NvimString;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DECOR_PRIORITY_BASE, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL,
 };

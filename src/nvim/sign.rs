@@ -8,20 +8,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
-use crate::api::extmark::{
-    DECOR_SIGN_HIGHLIGHT_INIT, DecorPriority, DecorSignHighlight, NS, describe_ns, kSHIsSign,
-    nvim_create_namespace,
-};
+use crate::api::extmark::{describe_ns, nvim_create_namespace};
 use crate::api::private::helpers::cstr_as_string;
+use crate::api::private::validate::NvimString;
 use crate::buffer::{buf_T, buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
 use crate::charset::{
-    ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite, skiptowhite_esc,
-    skipwhite, vim_isprintc,
+    NUL, ascii_isdigit, ascii_iswhite, backslash_halve, getdigits_int, skiptowhite,
+    skiptowhite_esc, skipwhite, vim_isprintc,
 };
 use crate::cursor::{check_cursor_lnum, linenr_T};
 use crate::decoration::{
-    DecorInline, SIGN_WIDTH, SignItem, decor_find_sign, decor_put_sh, sign_item_cmp,
+    DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorSignHighlight, NS, SIGN_WIDTH,
+    SignItem, decor_find_sign, decor_put_sh, kSHIsSign, sign_item_cmp,
 };
 use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
@@ -35,6 +33,7 @@ use crate::eval::typval::{
     tv_list_append_number, typval_T,
 };
 use crate::ex_cmds::{BL_WHITE, ECMD_HIDE, do_ecmd};
+use crate::ex_docmd::exarg_T;
 use crate::extmark::{extmark_del, extmark_del_id, extmark_set};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
@@ -43,10 +42,9 @@ use crate::highlight_group::{get_highlight_name_ext, syn_check_group};
 use crate::insert::beginline;
 use crate::kvec::KVec;
 use crate::map::{
-    Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_String_int,
-    map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
+    MH_TOMBSTONE, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t,
+    map_ref_String_int, map_ref_cstr_t_ptr_t, mh_get_cstr_t, ptr_t,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
 use crate::mark::setpcmark;
 use crate::marktree::{
     DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair,
@@ -96,7 +94,6 @@ pub struct sign_T {
     pub sn_priority: c_int,
 }
 
-use crate::api::buffer::NUL;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::cmdexpand::{
     EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN, HLF_D,

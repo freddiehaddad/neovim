@@ -2,7 +2,6 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-use crate::api::command::exarg_T;
 #[cfg(not(test))]
 use crate::charset::vim_strsize;
 use crate::eval::typval::{EvalFuncData, typval_T};
@@ -12,6 +11,7 @@ use crate::eval::typval::{
 };
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
+use crate::ex_docmd::exarg_T;
 #[cfg(not(test))]
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 #[cfg(not(test))]
@@ -69,9 +69,9 @@ pub struct histentry_T {
 }
 
 #[cfg(not(test))]
-use crate::api::command::CMOD_KEEPPATTERNS;
+use crate::ex_docmd::CMOD_KEEPPATTERNS;
 #[cfg(not(test))]
-use crate::api::options::IOSIZE;
+use crate::globals::IOSIZE;
 
 #[cfg(not(test))]
 #[inline]

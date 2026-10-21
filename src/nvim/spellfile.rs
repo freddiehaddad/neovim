@@ -8,17 +8,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::api::private::helpers::cstr_as_obj;
 use crate::arglist::get_arglist_exp;
 use crate::buffer::{buf_T, buflist_findname_exp};
-use crate::charset::{ascii_isdigit, getdigits_int, skipdigits, skipwhite};
+use crate::charset::{NUL, ascii_isdigit, getdigits_int, skipdigits, skipwhite};
 use crate::cursor::linenr_T;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
+use crate::ex_docmd::exarg_T;
 use crate::fileio::{
-    EOF, FILE, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell, fwrite, get2c,
-    get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets, vim_tempname,
+    EOF, FILE, SEEK_SET, buf_reload, fclose, feof, ferror, fgetc, fputc, fread, fseek, ftell,
+    fwrite, get2c, get3c, get4c, get8ctime, put_bytes, put_time, read_string, vim_fgets,
+    vim_tempname,
 };
 use crate::garray::{ga_append, ga_clear, ga_concat, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -40,7 +41,7 @@ use crate::message::{
 use crate::option::{OPT_LOCAL, copy_option_part, kOptSpellfile, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::env::home_replace;
-use crate::os::fs::{os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
+use crate::os::fs::{MAXPATHL, os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
 use crate::os::time::{Timestamp, c_time as time, os_time, time_t};
@@ -73,11 +74,8 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type SpellAddType = c_int;
-use crate::api::buffer::NUL;
-use crate::api::options::IOSIZE;
-use crate::api::vim::MAXPATHL;
 use crate::change::TAB;
-use crate::eval::fs::SEEK_SET;
+use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 use crate::viml::parser::parser::CONV_NONE;
 

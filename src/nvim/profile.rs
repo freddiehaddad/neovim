@@ -2,20 +2,20 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
-use crate::api::command::exarg_T as exarg_Full;
-use crate::api::command::exarg_T;
-use crate::api::private::converter::ufunc_T;
 use crate::charset::{skiptowhite, skipwhite};
 #[cfg(not(test))]
 use crate::debugger::ex_breakadd;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
+use crate::eval::userfunc::ufunc_T;
 #[cfg(not(test))]
 use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal};
 #[cfg(not(test))]
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
 #[cfg(not(test))]
 use crate::event::r#loop::uv_err_name;
+#[cfg(not(test))]
+use crate::ex_docmd::exarg_T as exarg_Full;
+use crate::ex_docmd::exarg_T;
 #[cfg(not(test))]
 use crate::fileio::{FILE, fclose, fopen, fprintf, vim_fgets};
 #[cfg(not(test))]
@@ -109,16 +109,14 @@ pub struct scriptitem_T {
 }
 
 #[cfg(not(test))]
-use crate::api::buffer::NL;
-#[cfg(not(test))]
-use crate::api::options::IOSIZE;
-#[cfg(not(test))]
 use crate::autocmd::PROF_YES;
+#[cfg(not(test))]
+use crate::charset::NL;
 use crate::cmdexpand::{EXPAND_FILES, EXPAND_NOTHING, EXPAND_PROFILE, EXPAND_USER_FUNC};
 use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
 #[cfg(not(test))]
-use crate::globals::PROF_NONE;
+use crate::globals::{IOSIZE, PROF_NONE};
 #[cfg(not(test))]
 use crate::keycodes::K_SPECIAL;
 use crate::os::env::expand_T;

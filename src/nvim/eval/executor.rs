@@ -5,14 +5,14 @@
 
 #[cfg(not(test))]
 use crate::errors::*;
-use crate::eval::typval::{TypvalVval, VarType, typval_T};
+use crate::eval::typval::{TypvalVval, VarType, blob_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     tv_clear, tv_get_number, tv_get_string, tv_get_string_buf, tv_list_extend,
 };
 #[cfg(not(test))]
 use crate::eval::{grow_string_tv, num_divide, num_modulus};
-use crate::garray::{ga_grow, garray_T};
+use crate::garray::ga_grow;
 use crate::math::{FAIL, OK};
 #[cfg(not(test))]
 use crate::message::semsg;
@@ -20,14 +20,6 @@ use crate::regexp::NUMBUFLEN;
 #[cfg(not(test))]
 use crate::strings::concat_str;
 use std::ffi::{c_char, c_int, c_void};
-
-#[repr(C)]
-#[allow(non_camel_case_types)]
-pub struct blob_T {
-    pub bv_ga: garray_T,
-    pub bv_refcount: c_int,
-    pub bv_lock: c_int,
-}
 
 unsafe fn tv_op_blob(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     if op != b'+' || tv2.v_type != VarType::VAR_BLOB {

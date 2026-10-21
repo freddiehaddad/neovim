@@ -7,20 +7,18 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::buffer::NUL;
-use crate::api::command::exarg_T;
 use crate::api::private::helpers::api_free_object;
-use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::api::win_config::kUIMultigrid;
 use crate::buffer::{buf_is_empty, kUIMessages};
-use crate::charset::{ascii_isdigit, vim_strsize};
+use crate::charset::{NUL, ascii_isdigit, vim_strsize};
 use crate::drawscreen::screenclear;
+use crate::ex_docmd::exarg_T;
 use crate::globals::*;
 use crate::grid::{GridView, grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
 use crate::lua::executor::{kRetObject, nlua_exec};
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
 use crate::memory::{xfree, xmallocz};
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};

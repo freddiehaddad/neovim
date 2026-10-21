@@ -10,12 +10,13 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::options::kOptBuftype;
+use crate::option::{OPT_LOCAL, OptInt, SB_MAX, kOptBuftype, set_option_value};
 
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj, str_obj,
 };
+use crate::api::private::validate::NvimString;
 #[cfg(not(test))]
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -110,10 +111,10 @@ use crate::keycodes::{
 #[cfg(not(test))]
 use crate::kvec::KVec;
 #[cfg(not(test))]
-use crate::map::{HlAttrs, Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t, ptr_t};
-use crate::map_glyph_cache::NvimString;
-#[cfg(not(test))]
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash};
+use crate::map::{
+    HlAttrs, MH_TOMBSTONE, MHPutStatus, MapHash, Set, mh_delete_ptr_t, mh_get_ptr_t, mh_put_ptr_t,
+    ptr_t,
+};
 #[cfg(not(test))]
 use crate::mark::{WinInfo, kMarkAdjustTerm, mark_adjust_buf};
 #[cfg(not(test))]
@@ -132,8 +133,6 @@ use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
 use crate::ops::clear_oparg;
-#[cfg(not(test))]
-use crate::option::{OPT_LOCAL, OptInt, SB_MAX, set_option_value};
 #[cfg(not(test))]
 use crate::option_vars::*;
 #[cfg(not(test))]
@@ -196,9 +195,7 @@ use crate::vterm::vterm::{
 };
 use crate::window::win_T;
 #[cfg(not(test))]
-use crate::window::winopt_T;
-#[cfg(not(test))]
-use crate::window::{may_trigger_win_scrolled_resized, win_valid};
+use crate::window::{may_trigger_win_scrolled_resized, win_valid, winopt_T};
 #[cfg(not(test))]
 use std::ffi::CStr;
 #[cfg(not(test))]
@@ -207,9 +204,9 @@ use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 #[cfg(not(test))]
-use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
-#[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
+#[cfg(not(test))]
+use crate::charset::NUL;
 #[cfg(not(test))]
 use crate::cmdexpand::Ctrl_N;
 #[cfg(not(test))]
@@ -223,7 +220,11 @@ use crate::eval::funcs::{
 use crate::ex_cmds::Ctrl_C;
 #[cfg(not(test))]
 use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
+#[cfg(not(test))]
+use crate::extmark::kExtmarkUndo;
 use crate::kvec::StringBuilder;
+#[cfg(not(test))]
+use crate::search::FORWARD;
 
 #[cfg(not(test))]
 const REFRESH_DELAY: u64 = 10;

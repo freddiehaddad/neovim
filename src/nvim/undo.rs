@@ -8,8 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
-use crate::api::options::IOSIZE;
+use crate::api::private::validate::NvimString;
 use crate::autocmd::{HLF_T, block_autocmds, unblock_autocmds};
 use crate::buffer::{
     MAXLNUM, NMARKS, NO_LOCAL_UNDOLEVEL, bt_dontwrite, bt_prompt, buf_T, buf_get_changedtick,
@@ -26,18 +25,18 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later, redrawWinline};
 use crate::errors::*;
-use crate::eval::fs::FileInfo;
 use crate::eval::funcs::get_buf_arg;
 use crate::eval::typval::{
     EvalFuncData, VarType, list_T, tv_dict_add_list, tv_dict_add_nr, tv_dict_alloc,
-    tv_dict_alloc_ret, tv_get_string, tv_list_alloc, tv_list_append_dict, typval_T,
+    tv_dict_alloc_ret, tv_get_string, tv_list_alloc, tv_list_append_dict, typval_T, varnumber_T,
 };
 use crate::event::r#loop::uv_strerror;
-use crate::ex_docmd::{UNDO_HASH_SIZE, expr_map_locked};
+use crate::ex_docmd::{UNDO_HASH_SIZE, exarg_T, expr_map_locked};
 use crate::ex_getln::{text_locked, text_locked_msg};
 use crate::extmark::{
     ExtmarkMove, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
-    extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkSplice,
+    extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkNOOP,
+    kExtmarkSplice, kExtmarkUndo,
 };
 #[cfg(unix)]
 use crate::fileio::getuid;
@@ -47,12 +46,12 @@ use crate::fileio::{
 };
 use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::beep_flush;
 use crate::input_cmdatom::{atom_did_global_op, atom_origin_pos};
 use crate::insert::beginline;
 use crate::kvec::KVec;
-use crate::map_glyph_cache::NvimString;
 use crate::mark::{fmark_T, free_fmark, mark_adjust, setpcmark};
 use crate::mbyte::utfc_ptr2len;
 use crate::mcursor::mc_undo_time;
@@ -69,9 +68,9 @@ use crate::normal::visualinfo_T;
 use crate::option::{OptInt, copy_option_part, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::{
-    O_CREAT, O_EXCL, O_NOFOLLOW, O_WRONLY, os_close, os_fileinfo_fd, os_fileinfo_size, os_fopen,
-    os_free_acl, os_fsync, os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_open,
-    os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
+    FileInfo, MAXPATHL, O_CREAT, O_EXCL, O_NOFOLLOW, O_WRONLY, os_close, os_fileinfo_fd,
+    os_fileinfo_size, os_fopen, os_free_acl, os_fsync, os_get_acl, os_getperm, os_isdir,
+    os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 use crate::os::input::fast_breakcheck;
 use crate::os::time::{Timestamp, Tm, c_time, os_localtime_r, os_time, strftime, time_t};
@@ -91,10 +90,8 @@ use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 #[cfg(unix)]
 use crate::os::fs::{os_fchown, os_fileinfo};
 
-use crate::api::buffer::{NUL, kExtmarkNOOP, kExtmarkUndo};
-use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
-use crate::eval::buffer::varnumber_T;
+use crate::charset::NUL;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_SOL, kCpoUndo};
 use crate::math::{FAIL, OK};

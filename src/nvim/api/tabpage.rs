@@ -19,14 +19,13 @@ use crate::api::private::helpers::{
 use crate::api::private::helpers::{nil_obj, window_obj};
 #[cfg(not(test))]
 use crate::api::private::validate::ErrorType;
-use crate::api::private::validate::{Array, Error, Object};
+use crate::api::private::validate::{Array, Error, NvimString, Object};
 #[cfg(not(test))]
 use crate::api::vim::nvim_get_current_win;
 #[cfg(not(test))]
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 #[cfg(not(test))]

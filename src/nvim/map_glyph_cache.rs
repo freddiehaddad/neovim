@@ -2,39 +2,12 @@
 //! NUL-separated `char` array (`src/nvim/map_glyph_cache.c`).
 
 use crate::api::private::helpers::cstr_as_string;
-use crate::map::{mh_is_del, mh_is_either, mh_is_empty, mh_realloc};
+use crate::api::private::validate::NvimString;
+use crate::map::{
+    MH_TOMBSTONE, MHPutStatus, MapHash, mh_is_del, mh_is_either, mh_is_empty, mh_realloc,
+};
 use crate::memory::xrealloc;
 use std::ffi::{c_char, c_void};
-
-pub const MH_TOMBSTONE: u32 = u32::MAX;
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct NvimString {
-    pub data: *mut c_char,
-    pub size: usize,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(non_camel_case_types)]
-pub enum MHPutStatus {
-    kMHExisting = 0,
-    kMHNewKeyDidFit = 1,
-    kMHNewKeyRealloc = 2,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct MapHash {
-    pub n_buckets: u32,
-    pub size: u32,
-    pub n_occupied: u32,
-    pub upper_bound: u32,
-    pub n_keys: u32,
-    pub keys_capacity: u32,
-    pub hash: *mut u32,
-}
 
 #[repr(C)]
 #[derive(Debug)]

@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::charset::{ascii_isdigit, skipwhite};
 use crate::cursor::linenr_T;
 use crate::debugger::dbg_check_skipped;
@@ -22,7 +21,7 @@ use crate::eval::{
     clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
     free_for_info, next_for_item,
 };
-use crate::ex_docmd::{ends_excmd, find_nextcmd, handle_did_throw, modifier_len};
+use crate::ex_docmd::{ends_excmd, exarg_T, find_nextcmd, handle_did_throw, modifier_len};
 use crate::globals::*;
 use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
@@ -158,8 +157,8 @@ pub struct exception_state_T {
     pub estate_did_emsg: c_int,
 }
 
-use crate::api::buffer::NUL;
-use crate::api::options::IOSIZE;
+use crate::charset::NUL;
+use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 
 static mut cause_abort: bool = false;

@@ -15,7 +15,7 @@ use crate::api::private::helpers::{
 };
 #[cfg(not(test))]
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 #[cfg(not(test))]
 use crate::api::ui::remote_ui_wait_for_attach;
@@ -49,10 +49,9 @@ use crate::drawscreen::{
 #[cfg(not(test))]
 use crate::errors::*;
 #[cfg(not(test))]
-use crate::eval::buffer::varnumber_T;
-#[cfg(not(test))]
 use crate::eval::typval::{
     tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_append_string, tv_list_set_lock,
+    varnumber_T,
 };
 #[cfg(not(test))]
 use crate::eval::userfunc::invoke_all_defer;
@@ -112,8 +111,6 @@ use crate::lua::executor::{
     get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
     nlua_init_defaults, nlua_pcall,
 };
-#[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mark::setpcmark;
 #[cfg(not(test))]
@@ -210,11 +207,9 @@ use crate::ui_compositor::ui_comp_syn_init;
 #[cfg(not(test))]
 use crate::version::{list_version, main_exitfree};
 #[cfg(not(test))]
-use crate::window::tabpage_T;
-#[cfg(not(test))]
 use crate::window::{
-    goto_tabpage, make_tabpages, make_windows, only_one_window, win_alloc_first, win_close,
-    win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
+    goto_tabpage, make_tabpages, make_windows, only_one_window, tabpage_T, win_alloc_first,
+    win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
 };
 #[cfg(not(test))]
 use std::ffi::CStr;
@@ -332,11 +327,9 @@ static mut ARGV0: *mut c_char = ptr::null_mut();
 static mut REALLY_EXITING: bool = false;
 
 #[cfg(not(test))]
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 #[cfg(not(test))]
-use crate::api::options::IOSIZE;
-#[cfg(not(test))]
-use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
+use crate::extmark::{kFalse, kNone, kTrue};
 #[cfg(not(test))]
 #[cfg(all(not(test), windows))]
 use crate::fileio::_close as close;
@@ -345,6 +338,10 @@ use crate::fileio::_close as close;
 use crate::fileio::close;
 #[cfg(all(not(test), windows))]
 use crate::fileio::dup2;
+#[cfg(not(test))]
+use crate::globals::IOSIZE;
+#[cfg(not(test))]
+use crate::os::fs::MAXPATHL;
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "system" {

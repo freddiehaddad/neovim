@@ -8,8 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
-use crate::api::private::converter::{VAR_UNLOCKED, partial_T, ufunc_T};
+use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED, PROF_YES, apply_autocmds,
     funccal_entry_T,
@@ -21,7 +20,6 @@ use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, kUICmdline};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::funcs::{
     MAX_FUNC_ARGS, TFN_INT, TFN_NO_DEREF, call_internal_func, call_internal_method,
@@ -30,10 +28,10 @@ use crate::eval::funcs::{
 #[cfg(not(test))]
 use crate::eval::typval::tv_dict_hi2di;
 use crate::eval::typval::{
-    Callback, EvalFuncData, TV_CSTRING, VarType, dict_T, dictitem_T, listitem_T, tv_clear, tv_copy,
-    tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_dict_item_remove, tv_dict_unref,
-    tv_get_number_chk, tv_is_func, tv_list_append, tv_list_init_static, tv_list_set_lock, typval_T,
-    value_check_lock,
+    Callback, EvalFuncData, TV_CSTRING, VAR_UNLOCKED, VarType, dict_T, dictitem_T, listitem_T,
+    partial_T, tv_clear, tv_copy, tv_dict_add, tv_dict_item_alloc, tv_dict_item_alloc_len,
+    tv_dict_item_remove, tv_dict_unref, tv_get_number_chk, tv_is_func, tv_list_append,
+    tv_list_init_static, tv_list_set_lock, typval_T, value_check_lock, varnumber_T,
 };
 use crate::eval::vars::{
     VV_TESTING, evalarg_T, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr, init_var_dict,
@@ -47,7 +45,7 @@ use crate::eval::{
     last_set_msg, partial_name, partial_unref, set_ref_in_ht, set_ref_in_item,
     set_ref_in_list_items, skip_expr,
 };
-use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, skip_range};
+use crate::ex_docmd::{check_nextcmd, checkforcmd, do_cmdline, ends_excmd, exarg_T, skip_range};
 use crate::ex_eval::{
     CSTP_RETURN, aborted_in_try, aborting, cleanup_conditionals, cstack_T, exception_state_T,
     exception_state_clear, exception_state_restore, exception_state_save, report_make_pending,
@@ -63,11 +61,10 @@ use crate::hashtab::{
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
-use crate::lua::converter::LuaRef;
+use crate::lua::converter::{LUA_NOREF, LuaRef};
 #[cfg(not(test))]
 use crate::lua::executor::api_free_luaref;
 use crate::lua::executor::{nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx};
-use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
 use crate::memory::{
@@ -110,10 +107,42 @@ pub type FnameTransError = c_int;
 pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
 pub type ArgvFunc =
     Option<unsafe extern "C" fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
-use crate::api::buffer::{LUA_NOREF, NUL};
-use crate::api::options::IOSIZE;
+
+#[repr(C)]
+pub struct ufunc_T {
+    pub uf_varargs: c_int,
+    pub uf_flags: c_int,
+    pub uf_calls: c_int,
+    pub uf_cleared: bool,
+    pub uf_args: garray_T,
+    pub uf_def_args: garray_T,
+    pub uf_lines: garray_T,
+    pub uf_profiling: c_int,
+    pub uf_prof_initialized: c_int,
+    pub uf_luaref: c_int,
+    pub uf_tm_count: c_int,
+    pub uf_tm_total: u64,
+    pub uf_tm_self: u64,
+    pub uf_tm_children: u64,
+    pub uf_tml_count: *mut c_int,
+    pub uf_tml_total: *mut u64,
+    pub uf_tml_self: *mut u64,
+    pub uf_tml_start: u64,
+    pub uf_tml_children: u64,
+    pub uf_tml_wait: u64,
+    pub uf_tml_idx: c_int,
+    pub uf_tml_execed: c_int,
+    pub uf_script_ctx: crate::runtime::sctx_T,
+    pub uf_refcount: c_int,
+    pub uf_scoped: *mut c_void,
+    pub uf_name_exp: *mut c_char,
+    pub uf_namelen: usize,
+    pub uf_name: [c_char; 1],
+}
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
+use crate::charset::NUL;
+use crate::globals::IOSIZE;
 
 pub const FC_ABORT: c_int = 0x01;
 pub const FC_RANGE: c_int = 0x02;

@@ -8,21 +8,19 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::extmark::{NS, kVPosWinCol};
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::buffer::{
     MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, buf_T, buf_meta_total, kUIMessages,
     maketitle,
 };
-use crate::charset::{vim_isprintc, vim_strsize};
+use crate::charset::{NUL, vim_isprintc, vim_strsize};
 use crate::cmdexpand::{cmdline_pum_display, kUICmdline};
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::decoration::{
-    DecorVirtText, DecorVirtTextData, SCL_NUM, VirtText, VirtTextChunk, buf_signcols_count_range,
-    decor_conceal_line, decor_range_add_virt, decor_redraw_reset, decor_virt_lines,
-    win_lines_concealed,
+    DecorVirtText, DecorVirtTextData, NS, SCL_NUM, VirtText, VirtTextChunk,
+    buf_signcols_count_range, decor_conceal_line, decor_range_add_virt, decor_redraw_reset,
+    decor_virt_lines, kVPosWinCol, win_lines_concealed,
 };
 use crate::decoration_provider::{
     decor_providers_invoke_buf, decor_providers_invoke_end, decor_providers_invoke_win,
@@ -31,7 +29,7 @@ use crate::decoration_provider::{
 use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
 use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
-use crate::eval::buffer::varnumber_T;
+use crate::eval::typval::{kCallbackNone, varnumber_T};
 use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{
     cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, hlf_T, redrawcmdline,
@@ -102,11 +100,12 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::buffer::NUL;
 use crate::api::ui::NO_SCREEN;
-use crate::api::vim::{HLF_N, HLF_SC, MAXPATHL, kFalse};
+use crate::api::vim::{HLF_N, HLF_SC};
 use crate::api::win_config::{FR_COL, kUIMultigrid};
+use crate::extmark::kFalse;
 use crate::math::{FAIL, OK};
+use crate::os::fs::MAXPATHL;
 
 pub const UPD_VALID: c_int = 10;
 pub const UPD_INVERTED: c_int = 20;

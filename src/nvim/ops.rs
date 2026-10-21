@@ -9,8 +9,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{NUL, bcount_t, kExtmarkUndo};
 use crate::buffer::{buf_T, buf_get_changedtick, col_print, modifiable};
 use crate::change::{
     COM_END, appended_lines_mark, changed_bytes, changed_lines, del_bytes, del_char, del_lines,
@@ -18,7 +16,7 @@ use crate::change::{
     truncate_line,
 };
 use crate::charset::{
-    STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, ascii_isalpha, ascii_isbdigit, ascii_isdigit,
+    NUL, STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, ascii_isalpha, ascii_isbdigit, ascii_isdigit,
     ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit, getwhitecols,
     getwhitecols_curline, skipwhite, uvarnumber_T, vim_str2nr,
 };
@@ -31,14 +29,16 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later, update_screen};
 use crate::errors::*;
-use crate::eval::buffer::varnumber_T;
 use crate::eval::typval::{
-    TypvalVval, VarType, callback_free, dict_T, tv_clear, tv_dict_add_nr, typval_T,
+    TypvalVval, VarType, callback_free, dict_T, kCallbackNone, tv_clear, tv_dict_add_nr, typval_T,
+    varnumber_T,
 };
 use crate::eval::{callback_call, set_ref_in_callback};
-use crate::ex_docmd::do_cmdline;
+use crate::ex_docmd::{CMOD_LOCKMARKS, do_cmdline};
 use crate::ex_getln::{Ctrl_A, K_LUA, getexline};
-use crate::extmark::{TriState, extmark_splice, extmark_splice_cols};
+use crate::extmark::{
+    TriState, bcount_t, extmark_splice, extmark_splice_cols, kExtmarkUndo, kNone,
+};
 use crate::fold::{deleteFold, foldCreate, foldOpenCursor, hasFolding, opFoldRange};
 use crate::globals::*;
 use crate::indent::{
@@ -98,15 +98,13 @@ use crate::undo::{u_clearline, u_save, u_save_cursor};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_ulong};
 use std::ptr;
 
-use crate::api::command::CMOD_LOCKMARKS;
-use crate::api::options::IOSIZE;
-use crate::api::vim::kNone;
 use crate::arglist::ML_EMPTY;
 use crate::diff::kOptBoFlagOperator;
 use crate::drawline::{VALID_WCOL, VALID_WROW};
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise};
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::fileio::EOL_DOS;
+use crate::globals::IOSIZE;
 use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
 
 pub const OP_NOP: c_int = 0;

@@ -135,6 +135,7 @@ use std::mem::zeroed;
 use std::ptr;
 
 pub type WinKind = c_int;
+pub(crate) const VALID_BOTLINE_AP: c_int = 0x40;
 
 const K_WIN_OPT_COUNT: usize = 53;
 
@@ -264,7 +265,7 @@ pub struct winopt_T {
     pub wo_wbr_flags: u32,
     pub wo_fde_flags: u32,
     pub wo_fdt_flags: u32,
-    pub wo_script_ctx: [crate::api::private::converter::sctx_T; K_WIN_OPT_COUNT],
+    pub wo_script_ctx: [crate::runtime::sctx_T; K_WIN_OPT_COUNT],
 }
 
 #[repr(C)]
@@ -507,16 +508,19 @@ pub struct tabpage_T {
     pub tp_prevdir: *mut c_char,
 }
 
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::command::CMOD_CONFIRM;
-use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::vim::{BCO_ENTER, BCO_NOHELP, MAXPATHL, kCdScopeGlobal};
+use crate::api::vim::kCdScopeGlobal;
 use crate::api::window::kCtxKeepCwd;
+use crate::buffer::{BCO_ENTER, BCO_NOHELP};
+use crate::charset::NUL;
 use crate::drawline::{VALID_CROW, VALID_WCOL};
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
+use crate::eval::typval::VAR_UNLOCKED;
+use crate::ex_docmd::CMOD_CONFIRM;
 use crate::insexpand::Ctrl_I;
+use crate::os::fs::MAXPATHL;
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::runtime::SID_WINLAYOUT;
+use crate::search::FORWARD;
 
 pub const WSP_ROOM: c_int = 0x01;
 pub const WSP_VERT: c_int = 0x02;

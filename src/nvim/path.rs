@@ -9,8 +9,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::NUL;
-use crate::api::vim::MAXPATHL;
+use crate::api::private::validate::NvimString;
+use crate::charset::NUL;
 #[cfg(not(test))]
 use crate::charset::{backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
 #[cfg(not(test))]
@@ -19,7 +19,6 @@ use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE, globpath};
 use crate::diff::kShellOptSilent;
 #[cfg(not(test))]
 use crate::eval::eval_to_string;
-use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
 use crate::ex_docmd::eval_vars;
 #[cfg(not(test))]
@@ -29,7 +28,6 @@ use crate::garray::{ga_append_via_ptr, garray_T};
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_init, ga_remove_duplicate_strings};
 #[cfg(not(test))]
 use crate::globals::*;
-use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 #[cfg(all(not(test), unix))]
 use crate::mbyte::mb_isalpha;
@@ -50,7 +48,8 @@ use crate::os::fs::{
     os_fileinfo_id_equal, os_scandir, os_scandir_next,
 };
 use crate::os::fs::{
-    os_can_exe, os_dirname, os_fileinfo_link, os_isdir, os_path_exists, os_realpath,
+    FileInfo, MAXPATHL, os_can_exe, os_dirname, os_fileinfo_link, os_isdir, os_path_exists,
+    os_realpath,
 };
 #[cfg(not(test))]
 use crate::os::input::os_breakcheck;

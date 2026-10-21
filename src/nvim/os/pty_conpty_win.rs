@@ -192,7 +192,7 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
-use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::extmark::{kFalse, kNone, kTrue};
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 

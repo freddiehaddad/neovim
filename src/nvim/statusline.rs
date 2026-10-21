@@ -11,7 +11,7 @@
 use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
-use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::buffer::{
     append_arg_number, bt_quickfix, buf_T, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
 };
@@ -24,9 +24,8 @@ use crate::cursor::{colnr_T, linenr_T};
 use crate::digraph::get_keymap_str;
 use crate::drawline::{HLF_CLF, HLF_FC, fill_foldcolumn, use_cursor_line_highlight};
 use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing, w_endcol, w_endrow};
-use crate::eval::buffer::varnumber_T;
 use crate::eval::eval_to_string_safe;
-use crate::eval::typval::{TypvalVval, VarType, typval_T};
+use crate::eval::typval::{TypvalVval, VarType, typval_T, varnumber_T};
 use crate::eval::vars::{
     VV_LNUM, VV_RELNUM, VV_VIRTNUM, do_unlet, get_vim_var_nr, set_internal_string_var, set_var,
     set_vim_var_nr,
@@ -40,7 +39,6 @@ use crate::grid::{
 use crate::highlight::{hl_attr, hl_combine_attr, win_hl_attr};
 use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::map::{map_put_ref_int_StcClick, map_put_ref_int_StcClicks};
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_find_line_or_offset, ml_get_buf, ml_get_buf_len};
 use crate::memory::{
@@ -200,14 +198,14 @@ pub struct foldinfo_T {
     pub fi_lines: linenr_T,
 }
 
-use crate::api::buffer::NUL;
-use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
+use crate::charset::NUL;
 use crate::cmdexpand::kUIWildmenu;
 use crate::decoration::{SCL_NUM, SIGN_WIDTH, SignTextAttrs};
 use crate::keycodes::CAR;
 use crate::option::{OPT_LOCAL, kOptInvalid};
+use crate::os::fs::MAXPATHL;
 use crate::runtime::SID_ERROR;
 use crate::state::MODE_INSERT;
 

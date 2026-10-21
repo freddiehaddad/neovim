@@ -3,13 +3,13 @@
 #![cfg_attr(test, allow(unused_mut))]
 #![allow(non_snake_case, clippy::missing_safety_doc)]
 
+use crate::api::private::validate::NvimString;
 #[cfg(not(test))]
 use crate::eval::typval::{
     VarType, list_T, tv_list_alloc, tv_list_append_list, tv_list_append_string,
 };
 #[cfg(not(test))]
 use crate::eval::{eval_call_provider, eval_has_provider};
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mcursor::mc_replaying;
 use crate::memory::xstrdup;

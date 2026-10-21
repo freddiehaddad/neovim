@@ -12,14 +12,14 @@
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::fmt::Write as _;
 
+use crate::api::private::validate::NvimString;
 use crate::garray::{ga_concat_len, ga_init, garray_T};
 use crate::kvec::KVec;
 use crate::map::{
-    MTDamage, MTDamagePair, Map, map_del_uint64_t_ptr_t, map_put_ref_ptr_t_ptr_t,
+    MH_TOMBSTONE, MTDamage, MTDamagePair, Map, map_del_uint64_t_ptr_t, map_put_ref_ptr_t_ptr_t,
     map_put_ref_uint64_t_MTDamagePair, map_put_ref_uint64_t_ptr_t, mh_get_ptr_t, mh_get_uint64_t,
     ptr_t,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdup, xrealloc};
 
 use crate::cursor::colnr_T;

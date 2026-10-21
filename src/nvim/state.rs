@@ -65,8 +65,8 @@ pub struct VimState {
     pub execute: state_execute_callback,
 }
 
-use crate::api::vim::kNone;
 use crate::cursor::kOptVeFlagAll;
+use crate::extmark::kNone;
 use crate::regexp::Ctrl_V;
 
 #[repr(C)]

@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     EVENT_CURSORHOLD, EVENT_CURSORHOLDI, PROF_YES, apply_autocmds, trigger_cursorhold,
 };
@@ -27,7 +28,6 @@ use crate::keycodes::{
     KS_SPECIAL, get_mouse_button, trans_special,
 };
 use crate::main_init::getout;
-use crate::map_glyph_cache::NvimString;
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
@@ -35,7 +35,7 @@ use crate::state::{MODE_INSERT, get_real_state};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use crate::eval::buffer::varnumber_T;
+use crate::eval::typval::varnumber_T;
 
 const READ_BUFFER_SIZE: usize = 0xfff;
 const MAX_KEY_CODE_LEN: usize = 6;

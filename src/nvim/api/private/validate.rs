@@ -3,8 +3,14 @@
 use std::ffi::{CStr, c_char, c_int};
 
 use crate::kvec::KVec;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::xmallocz;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct NvimString {
+    pub data: *mut c_char,
+    pub size: usize,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -8,26 +8,15 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{LUA_NOREF, NUL};
-use crate::api::command::{
-    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
-    CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
-    CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
-    CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG,
-    EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, UC_BUFFER, cmdmod_T, exarg_T,
-    ucmd_T,
-};
-use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{
     arena_dict, boolean_obj, cstr_as_obj, dict_obj, dict_put_cstr, integer_obj, luaref_obj,
     nil_obj, string_obj,
 };
-use crate::api::private::validate::{Dict, KeyValuePair, Object};
+use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
 use crate::buffer::buf_T;
 use crate::charset::{
-    ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
+    NUL, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isupper, ascii_iswhite, getdigits_int,
     skiptowhite, skipwhite,
 };
 use crate::cmdexpand::{
@@ -46,13 +35,21 @@ use crate::cmdexpand::{
 use crate::eval::funcs::DOCMD_KEYTYPED;
 use crate::eval::last_set_msg;
 use crate::eval::typval::nlua_clear_ref;
-use crate::ex_docmd::{EX_BUFNAME, do_cmdline, ends_excmd};
+use crate::ex_docmd::{
+    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
+    CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
+    CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
+    CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_BUFNAME, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT,
+    EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, cmdmod_T, do_cmdline,
+    ends_excmd, exarg_T,
+};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::keycodes::{K_SPECIAL, KS_SPECIAL, replace_termcodes};
-use crate::lua::converter::LuaRef;
+use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_new_luaref, nlua_do_ucmd, nlua_funcref_str, nlua_set_sctx};
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::set_context_in_map_cmd;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_copy_char, utfc_ptr2len};
@@ -75,7 +72,25 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
+pub(crate) const UC_BUFFER: c_int = 1;
 const KE_FILLER: c_char = b'X' as c_char;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ucmd_T {
+    pub uc_name: *mut c_char,
+    pub uc_argt: u32,
+    pub uc_rep: *mut c_char,
+    pub uc_def: i64,
+    pub uc_compl: c_int,
+    pub uc_addr_type: cmd_addr_T,
+    pub uc_script_ctx: crate::runtime::sctx_T,
+    pub uc_compl_arg: *mut c_char,
+    pub uc_compl_luaref: LuaRef,
+    pub uc_preview_luaref: LuaRef,
+    pub uc_luaref: LuaRef,
+    pub uc_desc: *mut c_char,
+}
 
 const E_ARGUMENT_REQUIRED_FOR_STR: &CStr = c"E179: Argument required for %s";
 const E_NO_SUCH_USER_DEFINED_COMMAND_STR: &CStr = c"E184: No such user-defined command: %s";

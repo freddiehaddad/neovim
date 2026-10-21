@@ -9,9 +9,9 @@
 
 #[cfg(not(test))]
 use crate::api::private::helpers::{api_clear_error, api_free_string, api_set_error};
-use crate::api::private::validate::Object;
 #[cfg(not(test))]
 use crate::api::private::validate::{Error, ErrorType, ObjectData, ObjectType};
+use crate::api::private::validate::{NvimString, Object};
 #[cfg(not(test))]
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::base64::lua_State;
@@ -24,7 +24,6 @@ use crate::lua::converter::{
 };
 #[cfg(not(test))]
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::{strequal, xfree};
 #[cfg(not(test))]
@@ -127,8 +126,6 @@ struct HunkPriv {
 }
 
 #[cfg(not(test))]
-use crate::api::buffer::LUA_NOREF;
-#[cfg(not(test))]
 use crate::api::private::dispatch::KeyDict_xdl_diff_get_field;
 #[cfg(not(test))]
 use crate::diff::{
@@ -137,6 +134,8 @@ use crate::diff::{
 };
 #[cfg(not(test))]
 use crate::lua::base64::LUA_TSTRING;
+#[cfg(not(test))]
+use crate::lua::converter::LUA_NOREF;
 
 #[cfg(not(test))]
 unsafe fn lua_pushhunk(

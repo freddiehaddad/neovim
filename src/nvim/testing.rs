@@ -8,15 +8,13 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::options::IOSIZE;
-#[cfg(not(test))]
-use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, VAR_UNLOCKED};
+use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
 #[cfg(not(test))]
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{EvalFuncData, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    TypvalVval, VarType, dict_T, dictitem_T, tv_check_for_float_or_nr_arg,
+    TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T, tv_check_for_float_or_nr_arg,
     tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_opt_string_or_list_arg,
     tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find,
     tv_equal, tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
@@ -36,6 +34,8 @@ use crate::fileio::{fclose, fgetc};
 #[cfg(not(test))]
 use crate::garray::ga_concat;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, garray_T};
+#[cfg(not(test))]
+use crate::globals::IOSIZE;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]

@@ -8,15 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{
-    ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE,
-    CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS,
-    CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGOPT, EX_BANG,
-    EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_NEEDARG, EX_NOSPC, EX_RANGE, EX_REGSTR, EX_SBOXOK,
-    EX_TRLBAR, EX_XFILE, EX_ZEROR, cmdmod_T, exarg_T, is_user_cmdidx,
-};
-use crate::api::options::{BF_DUMMY, IOSIZE, SID_NONE, kOptFiletype};
+use crate::api::command::is_user_cmdidx;
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
@@ -38,10 +30,11 @@ use crate::autocmd::{
     kOptEventignore, may_trigger_vim_suspend_resume,
 };
 use crate::buffer::{
-    DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD, DOBUF_WIPE,
-    MAXLNUM, bt_prompt, bt_quickfix, buf_hide, buf_spname, buflist_findnr, buflist_findpat,
-    buflist_list, bufref_T, bufref_valid, do_bufdel, do_modelines, ex_buffer_all, get_highest_fnum,
-    goto_buffer, maketitle, no_write_message, otherfile, set_bufref, setaltfname, setfname,
+    BF_DUMMY, DOBUF_CURRENT, DOBUF_DEL, DOBUF_FIRST, DOBUF_LAST, DOBUF_MOD, DOBUF_UNLOAD,
+    DOBUF_WIPE, MAXLNUM, bt_prompt, bt_quickfix, buf_hide, buf_spname, buflist_findnr,
+    buflist_findpat, buflist_list, bufref_T, bufref_valid, do_bufdel, do_modelines, ex_buffer_all,
+    get_highest_fnum, goto_buffer, maketitle, no_write_message, otherfile, set_bufref, setaltfname,
+    setfname,
 };
 use crate::channel::{CallbackReader, channel_event, channel_job_start, kChannelStdinPipe};
 use crate::charset::{
@@ -137,6 +130,7 @@ use crate::file_search::{
 use crate::fileio::{FILE, fclose, readfile, shorten_fnames};
 use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
 use crate::garray::{ga_append_via_ptr, ga_clear, ga_init, garray_T};
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::help::{ex_exusage, ex_help, ex_helpclose, ex_helptags, ex_viusage};
 use crate::highlight_group::{do_highlight, load_colors};
@@ -188,7 +182,7 @@ use crate::ops::{
     OP_DELETE, OP_LSHIFT, OP_RSHIFT, OP_YANK, clear_oparg, do_join, op_delete, op_shift,
 };
 use crate::option::{
-    OPT_LOCAL, OptInt, ex_set, get_findfunc, get_option_sctx, get_scrolloff_value,
+    OPT_LOCAL, OptInt, ex_set, get_findfunc, get_option_sctx, get_scrolloff_value, kOptFiletype,
     set_option_direct, set_option_value_give_err,
 };
 use crate::option_vars::*;
@@ -223,6 +217,7 @@ use crate::register::{
     PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE, do_execreg, do_put, ex_display, op_yank, set_expr_line,
     valid_yank_reg, write_reg_contents,
 };
+use crate::runtime::SID_NONE;
 use crate::runtime::{
     DIP_ALL, ESTACK_SCRIPT, ESTACK_SFILE, ESTACK_STACK, ETYPE_EXCEPT, do_finish, estack_pop,
     estack_push, estack_sfile, ex_finish, ex_options, ex_packadd, ex_packloadall, ex_runtime,
@@ -262,12 +257,11 @@ use crate::usercmd::{
 use crate::version::{ex_intro, ex_version};
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, check_can_set_curbuf_forceit,
-    close_others, do_window, find_tabpage, goto_tabpage, only_one_window, tabpage_index,
-    tabpage_move, trigger_tabclosedpre, update_cwd, valid_tabpage, win_close, win_close_othertab,
-    win_enter, win_goto, win_new_tabpage, win_setheight_win, win_setwidth_win, win_split,
-    win_valid, window_layout_locked,
+    close_others, do_window, find_tabpage, goto_tabpage, only_one_window, tabpage_T, tabpage_index,
+    tabpage_move, trigger_tabclosedpre, update_cwd, valid_tabpage, win_T, win_close,
+    win_close_othertab, win_enter, win_goto, win_new_tabpage, win_setheight_win, win_setwidth_win,
+    win_split, win_valid, window_layout_locked,
 };
-use crate::window::{tabpage_T, win_T};
 use crate::winfloat::{win_float_close, win_float_remove};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
@@ -281,17 +275,131 @@ use crate::os::fs::os_isdir;
 #[cfg(windows)]
 use crate::path::slash_adjust;
 
-use crate::eval::buffer::varnumber_T;
+use crate::eval::typval::varnumber_T;
 use crate::extmark::TriState;
 pub type CdScope = c_int;
 pub type ex_func_T = unsafe extern "C" fn(*mut exarg_T);
 pub type ex_preview_func_T = Option<unsafe extern "C" fn(*mut exarg_T, c_int, handle_T) -> c_int>;
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::vim::{
-    BACKWARD, MAXPATHL, REMAP_NONE, REMAP_YES, kCdScopeGlobal, kFalse, kNone, kTrue,
-};
+
+pub(crate) const CMD_SIZE: c_int = 564;
+pub(crate) const CMD_USER: c_int = -1;
+pub(crate) const CMD_USER_BUF: c_int = -2;
+
+pub(crate) const EX_RANGE: u32 = 0x001;
+pub(crate) const EX_BANG: u32 = 0x002;
+pub(crate) const EX_EXTRA: u32 = 0x004;
+pub(crate) const EX_XFILE: u32 = 0x008;
+pub(crate) const EX_NOSPC: u32 = 0x010;
+pub(crate) const EX_DFLALL: u32 = 0x020;
+pub(crate) const EX_NEEDARG: u32 = 0x080;
+pub(crate) const EX_TRLBAR: u32 = 0x100;
+pub(crate) const EX_REGSTR: u32 = 0x200;
+pub(crate) const EX_COUNT: u32 = 0x400;
+pub(crate) const EX_ZEROR: u32 = 0x1000;
+pub(crate) const EX_CMDARG: u32 = 0x4000;
+pub(crate) const EX_ARGOPT: u32 = 0x20000;
+pub(crate) const EX_SBOXOK: u32 = 0x40000;
+pub(crate) const EX_KEEPSCRIPT: u32 = 0x4000000;
+pub(crate) const EX_PREVIEW: u32 = 0x8000000;
+pub(crate) const EX_ARGSPACE: u32 = 0x40000000;
+
+pub(crate) const ADDR_LINES: cmd_addr_T = 0;
+pub(crate) const ADDR_WINDOWS: cmd_addr_T = 1;
+pub(crate) const ADDR_ARGUMENTS: cmd_addr_T = 2;
+pub(crate) const ADDR_LOADED_BUFFERS: cmd_addr_T = 3;
+pub(crate) const ADDR_BUFFERS: cmd_addr_T = 4;
+pub(crate) const ADDR_TABS: cmd_addr_T = 5;
+pub(crate) const ADDR_QUICKFIX: cmd_addr_T = 8;
+pub(crate) const ADDR_OTHER: cmd_addr_T = 10;
+pub(crate) const ADDR_NONE: cmd_addr_T = 11;
+
+pub(crate) const CMOD_SANDBOX: c_int = 0x0001;
+pub(crate) const CMOD_SILENT: c_int = 0x0002;
+pub(crate) const CMOD_ERRSILENT: c_int = 0x0004;
+pub(crate) const CMOD_UNSILENT: c_int = 0x0008;
+pub(crate) const CMOD_NOAUTOCMD: c_int = 0x0010;
+pub(crate) const CMOD_HIDE: c_int = 0x0020;
+pub(crate) const CMOD_BROWSE: c_int = 0x0040;
+pub(crate) const CMOD_CONFIRM: c_int = 0x0080;
+pub(crate) const CMOD_KEEPALT: c_int = 0x0100;
+pub(crate) const CMOD_KEEPMARKS: c_int = 0x0200;
+pub(crate) const CMOD_KEEPJUMPS: c_int = 0x0400;
+pub(crate) const CMOD_LOCKMARKS: c_int = 0x0800;
+pub(crate) const CMOD_KEEPPATTERNS: c_int = 0x1000;
+pub(crate) const CMOD_NOSWAPFILE: c_int = 0x2000;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ExMagic {
+    pub file: bool,
+    pub bar: bool,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct exarg_T {
+    pub arg: *mut c_char,
+    pub args: *mut *mut c_char,
+    pub arglens: *mut usize,
+    pub argc: usize,
+    pub nextcmd: *mut c_char,
+    pub cmd: *mut c_char,
+    pub cmdlinep: *mut *mut c_char,
+    pub cmdline_tofree: *mut c_char,
+    pub cmdidx: c_int,
+    pub argt: u32,
+    pub skip: c_int,
+    pub forceit: c_int,
+    pub addr_count: c_int,
+    pub line1: linenr_T,
+    pub line2: linenr_T,
+    pub addr_type: cmd_addr_T,
+    pub flags: c_int,
+    pub do_ecmd_cmd: *mut c_char,
+    pub do_ecmd_lnum: linenr_T,
+    pub append: c_int,
+    pub usefilter: c_int,
+    pub amount: c_int,
+    pub regname: c_int,
+    pub force_bin: c_int,
+    pub read_edit: c_int,
+    pub mkdir_p: c_int,
+    pub force_ff: c_int,
+    pub force_enc: c_int,
+    pub bad_char: c_int,
+    pub useridx: c_int,
+    pub errmsg: *mut c_char,
+    pub ea_getline: LineGetter,
+    pub cookie: *mut c_void,
+    pub cstack: *mut c_void,
+    pub magic: ExMagic,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct cmdmod_T {
+    pub cmod_flags: c_int,
+    pub cmod_split: c_int,
+    pub cmod_tab: c_int,
+    pub cmod_filter_pat: *mut c_char,
+    pub cmod_filter_regmatch: regmatch_T,
+    pub cmod_filter_force: bool,
+    pub cmod_verbose: c_int,
+    pub cmod_save_ei: *mut c_char,
+    pub cmod_did_sandbox: c_int,
+    pub cmod_verbose_save: i64,
+    pub cmod_save_msg_silent: c_int,
+    pub cmod_save_msg_scroll: c_int,
+    pub cmod_did_esilent: c_int,
+}
+use crate::api::vim::kCdScopeGlobal;
+use crate::charset::NUL;
+use crate::eval::typval::kCallbackNone;
+use crate::extmark::{kFalse, kNone, kTrue};
 use crate::keycodes::{K_SPECIAL, KS_SPECIAL};
+use crate::mapping::{REMAP_NONE, REMAP_YES};
+use crate::os::fs::MAXPATHL;
+use crate::search::{BACKWARD, FORWARD};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

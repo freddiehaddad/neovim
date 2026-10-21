@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::cursor::{check_cursor, gchar_cursor, pos_T};
@@ -20,7 +19,9 @@ use crate::eval::typval::{
     tv_list_append_string, typval_T,
 };
 use crate::eval::vars::del_menutrans_vars;
-use crate::ex_docmd::{ends_excmd, exec_normal_cmd, restore_current_state, save_current_state};
+use crate::ex_docmd::{
+    ends_excmd, exarg_T, exec_normal_cmd, restore_current_state, save_current_state,
+};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, tasave_T};
@@ -108,15 +109,16 @@ struct menutrans_T {
     to: *mut c_char,
 }
 
-use crate::api::buffer::NUL;
-use crate::api::vim::{REMAP_NONE, REMAP_YES, kFalse, kNone, kTrue};
 use crate::change::{MB_MAXCHAR, TAB};
+use crate::charset::NUL;
 use crate::cmdexpand::{
     EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL, HLF_D,
 };
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{MENU_ALL_MODES, MENU_INDEX_TIP};
 use crate::eval::kListLenMayKnow;
+use crate::extmark::{kFalse, kNone, kTrue};
+use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::math::{FAIL, OK};
 use crate::regexp::{MAXCOL, NUMBUFLEN};
 

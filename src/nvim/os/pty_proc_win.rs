@@ -596,7 +596,7 @@ mod win_impl {
 }
 
 #[cfg(any(test, windows))]
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 #[cfg(windows)]
 pub use win_impl::*;
 

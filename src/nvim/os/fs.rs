@@ -14,7 +14,6 @@ use crate::api::private::helpers::cstr_as_string;
 #[cfg(not(test))]
 use crate::errors::*;
 
-use crate::eval::fs::{FileInfo, uv_stat_t};
 #[cfg(all(not(test), windows))]
 use crate::event::r#loop::uv_guess_handle;
 #[cfg(not(test))]
@@ -59,8 +58,10 @@ use crate::ui::ui_call_chdir;
 use std::ffi::CStr;
 #[cfg(all(not(test), windows))]
 use std::ffi::c_uint;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_char, c_int, c_long, c_void};
 use std::ptr;
+
+pub(crate) const MAXPATHL: usize = 4096;
 
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::os_redirect_stdin_to_conin;
@@ -70,6 +71,44 @@ use crate::os::os_win_console::os_redirect_stdin_to_conin;
 pub struct FileID {
     pub inode: u64,
     pub device_id: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct uv_timespec_t {
+    pub tv_sec: c_long,
+    pub tv_nsec: c_long,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct uv_stat_t {
+    pub st_dev: u64,
+    pub st_mode: u64,
+    pub st_nlink: u64,
+    pub st_uid: u64,
+    pub st_gid: u64,
+    pub st_rdev: u64,
+    pub st_ino: u64,
+    pub st_size: u64,
+    pub st_blksize: u64,
+    pub st_blocks: u64,
+    pub st_flags: u64,
+    pub st_gen: u64,
+    pub st_atim: uv_timespec_t,
+    pub st_mtim: uv_timespec_t,
+    pub st_ctim: uv_timespec_t,
+    pub st_birthtim: uv_timespec_t,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct FileInfo {
+    pub stat: uv_stat_t,
+    pub prefix_off: usize,
+    pub root_off: usize,
+    pub rest_off: usize,
+    pub r#type: c_int,
 }
 
 #[repr(C)]
@@ -301,9 +340,8 @@ struct IPersistFile {
 }
 
 #[cfg(not(test))]
-use crate::api::buffer::NUL;
-#[cfg(all(not(test), windows))]
-use crate::api::vim::MAXPATHL;
+use crate::charset::NUL;
+
 #[cfg(not(test))]
 use crate::bufwrite::NODE_WRITABLE;
 #[cfg(not(test))]

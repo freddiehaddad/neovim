@@ -8,13 +8,13 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{
-    EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE, exarg_T, is_user_cmdidx,
-};
+use crate::api::command::is_user_cmdidx;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, cstr_as_string, cstrn_to_string,
 };
-use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{
+    Array, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
+};
 use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
@@ -41,7 +41,8 @@ use crate::eval::vars::get_user_var_name;
 use crate::eval::{call_func_retlist, call_func_retstr, set_context_for_expression};
 use crate::ex_cmds::skip_vimgrep_pat;
 use crate::ex_docmd::{
-    ends_excmd, excmd_get_argt, excmd_get_cmdidx, expand_argopt, expand_findfunc, find_nextcmd,
+    EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE, ends_excmd, exarg_T,
+    excmd_get_argt, excmd_get_cmdidx, expand_argopt, expand_findfunc, find_nextcmd,
     get_command_name, set_no_hlsearch, skip_cmd_arg, skip_range,
 };
 use crate::ex_getln::{
@@ -67,7 +68,6 @@ use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::lua::executor::{
     kRetObject, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{mb_tolower, utf_head_off, utf_ptr2cells, utf_ptr2char, utfc_ptr2len};
@@ -709,12 +709,13 @@ pub enum cmdidx_T {
     CMD_USER_BUF = -2,
 }
 
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::vim::{BACKWARD, MAXPATHL};
 use crate::change::TAB;
+use crate::charset::NUL;
 #[cfg(unix)]
 use crate::ex_getln::VSE_SHELL;
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
+use crate::os::fs::MAXPATHL;
+use crate::search::{BACKWARD, FORWARD};
 
 #[repr(C)]
 #[derive(Clone, Copy)]

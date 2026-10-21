@@ -2,14 +2,35 @@
 
 #![allow(clippy::missing_safety_doc)]
 
-use crate::api::vim::MAXPATHL;
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
+use crate::api::private::validate::NvimString;
 use crate::memory::{xcalloc, xfree, xrealloc};
-use crate::os::fs::CASE_INSENSITIVE_FILENAME;
+use crate::os::fs::{CASE_INSENSITIVE_FILENAME, MAXPATHL};
 use crate::path::{path_cmp, path_fold_char, vim_ispathsep, vim_ispathsep_nocolon};
 use std::ffi::{CStr, c_char, c_int, c_void};
 
 const UPPER_FILL: f64 = 0.77;
+pub const MH_TOMBSTONE: u32 = u32::MAX;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub enum MHPutStatus {
+    kMHExisting = 0,
+    kMHNewKeyDidFit = 1,
+    kMHNewKeyRealloc = 2,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct MapHash {
+    pub n_buckets: u32,
+    pub size: u32,
+    pub n_occupied: u32,
+    pub upper_bound: u32,
+    pub n_keys: u32,
+    pub keys_capacity: u32,
+    pub hash: *mut u32,
+}
 
 #[allow(non_camel_case_types)]
 pub type cstr_t = *const c_char;

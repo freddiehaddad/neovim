@@ -8,9 +8,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::buffer::buf_T;
-use crate::charset::{ascii_iswhite, skiptowhite, skipwhite};
+use crate::charset::{NUL, ascii_iswhite, skiptowhite, skipwhite};
 use crate::drawscreen::{UPD_SOME_VALID, UPD_VALID, redraw_later, redraw_win_range_later};
 use crate::errors::*;
 use crate::eval::funcs::get_optional_window;
@@ -20,10 +19,10 @@ use crate::eval::typval::{
     tv_dict_get_string_buf, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
     tv_list_append_string, tv_list_append_tv, tv_list_first, tv_list_idx_of_item, tv_list_len,
-    tv_list_ref, tv_list_unref, typval_T,
+    tv_list_ref, tv_list_unref, typval_T, varnumber_T,
 };
 use crate::eval::window::find_win_by_nr_or_id;
-use crate::ex_docmd::{ends_excmd, ex_errmsg, find_nextcmd, set_no_hlsearch};
+use crate::ex_docmd::{ends_excmd, ex_errmsg, exarg_T, find_nextcmd, set_no_hlsearch};
 use crate::fold::hasFolding;
 use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name2id};
@@ -42,10 +41,8 @@ use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::NUL;
 use crate::change::MB_MAXCHAR;
 use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::buffer::varnumber_T;
 use crate::eval::kListLenMayKnow;
 use crate::math::{FAIL, OK};
 

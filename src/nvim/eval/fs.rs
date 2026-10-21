@@ -16,14 +16,13 @@ use crate::cmdexpand::{
     WILD_ICASE, WILD_KEEP_ALL, WILD_SILENT, WILD_USE_NL, globpath,
 };
 use crate::errors::*;
-use crate::eval::executor::blob_T;
 use crate::eval::typval::{
-    EvalFuncData, TypvalVval, VarType, list_T, tv_blob_alloc_ret, tv_blob_free, tv_blob_len,
-    tv_check_for_nonempty_string_arg, tv_check_for_string_arg, tv_check_str_or_nr, tv_clear,
-    tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string, tv_get_string_buf,
-    tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret, tv_list_append_owned_tv,
-    tv_list_append_string, tv_list_first, tv_list_item_remove, tv_list_len, tv_list_set_ret,
-    typval_T,
+    EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, blob_T, list_T, tv_blob_alloc_ret,
+    tv_blob_free, tv_blob_len, tv_check_for_nonempty_string_arg, tv_check_for_string_arg,
+    tv_check_str_or_nr, tv_clear, tv_get_bool_chk, tv_get_number, tv_get_number_chk, tv_get_string,
+    tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk, tv_list_alloc_ret,
+    tv_list_append_owned_tv, tv_list_append_string, tv_list_first, tv_list_item_remove,
+    tv_list_len, tv_list_set_ret, typval_T, varnumber_T,
 };
 use crate::eval::userfunc::{add_defer, can_add_defer};
 use crate::eval::vars::{VV_VAL, prepare_vimvar, restore_vimvar, set_vim_var_string};
@@ -38,8 +37,8 @@ use crate::file_search::{
 #[cfg(not(windows))]
 use crate::fileio::readlink;
 use crate::fileio::{
-    FILE, c_fileno, delete_recursive, fclose, file_pat_to_reg_pat, fread, off_T, readdir_core,
-    vim_copyfile, vim_fseek, vim_rename, vim_tempname,
+    FILE, SEEK_END, SEEK_SET, c_fileno, delete_recursive, fclose, file_pat_to_reg_pat, fread,
+    off_T, readdir_core, vim_copyfile, vim_fseek, vim_rename, vim_tempname,
 };
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -56,9 +55,10 @@ use crate::os::fileio::{
     file_flush, file_open, file_write,
 };
 use crate::os::fs::{
-    os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
-    os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_fopen, os_getperm, os_isdir,
-    os_mkdir_recurse, os_remove, os_rmdir, s_isblk, s_isdir, s_isfifo, s_islnk, s_isreg, s_issock,
+    FileInfo, MAXPATHL, os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable,
+    os_fileinfo, os_fileinfo_fd, os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_fopen,
+    os_getperm, os_isdir, os_mkdir_recurse, os_remove, os_rmdir, s_isblk, s_isdir, s_isfifo,
+    s_islnk, s_isreg, s_issock,
 };
 #[cfg(windows)]
 use crate::os::fs::{os_is_reparse_point_include, os_realpath, os_resolve_shortcut};
@@ -75,10 +75,13 @@ use crate::runtime::script_is_lua;
 use crate::strings::concat_str;
 use crate::strings::{gettext, strlen as c_strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
 use crate::window::{find_tabpage, tabpage_T, win_T};
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::eval::buffer::varnumber_T;
+use crate::api::vim::kCdScopeGlobal;
+use crate::charset::{NL, NUL};
+use crate::regexp::NUMBUFLEN;
+
 pub type CheckItem =
     Option<unsafe extern "C" fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
 
@@ -89,9 +92,6 @@ pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 pub(crate) const VALID_PATH: c_int = 1;
 pub(crate) const VALID_HEAD: c_int = 2;
 
-pub(crate) const SEEK_SET: c_int = 0;
-pub(crate) const SEEK_END: c_int = 2;
-
 const kCdScopeInvalid: c_int = -1;
 pub(crate) const kCdScopeBuffer: c_int = 0;
 pub(crate) const kCdScopeWindow: c_int = 1;
@@ -101,50 +101,6 @@ const S_IFMT_MASK: u64 = 0xF000;
 const S_IFCHR_VAL: u64 = 0x2000;
 
 const E_ERROR_WHILE_WRITING_STR: &CStr = c"E80: Error while writing: %s";
-
-use crate::api::buffer::{NL, NUL};
-use crate::api::options::IOSIZE;
-use crate::api::private::converter::VAR_UNLOCKED;
-use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
-use crate::regexp::NUMBUFLEN;
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct uv_timespec_t {
-    pub tv_sec: c_long,
-    pub tv_nsec: c_long,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct uv_stat_t {
-    pub st_dev: u64,
-    pub st_mode: u64,
-    pub st_nlink: u64,
-    pub st_uid: u64,
-    pub st_gid: u64,
-    pub st_rdev: u64,
-    pub st_ino: u64,
-    pub st_size: u64,
-    pub st_blksize: u64,
-    pub st_blocks: u64,
-    pub st_flags: u64,
-    pub st_gen: u64,
-    pub st_atim: uv_timespec_t,
-    pub st_mtim: uv_timespec_t,
-    pub st_ctim: uv_timespec_t,
-    pub st_birthtim: uv_timespec_t,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct FileInfo {
-    pub stat: uv_stat_t,
-    pub prefix_off: usize,
-    pub root_off: usize,
-    pub rest_off: usize,
-    pub r#type: c_int,
-}
 
 #[inline]
 fn s_ischr(m: u64) -> bool {

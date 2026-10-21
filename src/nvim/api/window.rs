@@ -16,7 +16,7 @@ use crate::api::private::helpers::{
     normalize_index, put_c, try_wrap,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
     api_err_invalid, api_err_range, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
@@ -30,7 +30,6 @@ use crate::highlight::OptionalKeys;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
-use crate::map_glyph_cache::NvimString;
 use crate::memory::{Arena, strequal_str as strequal};
 use crate::message::emsg;
 use crate::r#move::{update_topline, validate_cursor};

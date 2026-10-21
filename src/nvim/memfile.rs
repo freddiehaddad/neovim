@@ -12,30 +12,28 @@ use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, buf_T};
 #[cfg(not(test))]
 use crate::errors::*;
 #[cfg(not(test))]
-use crate::eval::fs::FileInfo;
-#[cfg(not(test))]
 use crate::event::r#loop::loop_recursive_ptr;
-use crate::fileio::{close_fd, off_T, vim_lseek};
+use crate::fileio::{SEEK_END, SEEK_SET, close_fd, off_T, vim_lseek};
 #[cfg(not(test))]
 use crate::fileio::{read_eintr, write_eintr};
 #[cfg(not(test))]
 use crate::globals::*;
 use crate::map::{
-    Map, Set, map_del_int64_t_int64_t, map_del_int64_t_ptr_t, map_put_ref_int64_t_int64_t,
-    map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t, mh_get_int64_t, ptr_t,
+    MH_TOMBSTONE, Map, MapHash, Set, map_del_int64_t_int64_t, map_del_int64_t_ptr_t,
+    map_put_ref_int64_t_int64_t, map_put_ref_int64_t_ptr_t, map_ref_int64_t_int64_t,
+    mh_get_int64_t, ptr_t,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash};
 #[cfg(not(test))]
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
 use crate::memory::{xfree, xmalloc};
 #[cfg(not(test))]
 use crate::message::{emsg, iemsg, semsg};
-use crate::os::fs::{O_CREAT, O_EXCL, O_RDWR, O_TRUNC};
 #[cfg(not(test))]
 use crate::os::fs::{
-    O_NOFOLLOW, os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync, os_open,
-    os_remove, os_set_cloexec,
+    FileInfo, O_NOFOLLOW, os_fileinfo_blocksize, os_fileinfo_fd, os_fileinfo_link, os_fsync,
+    os_open, os_remove, os_set_cloexec,
 };
+use crate::os::fs::{O_CREAT, O_EXCL, O_RDWR, O_TRUNC};
 #[cfg(not(test))]
 use crate::os::input::os_breakcheck;
 use crate::os::input::os_char_avail;
@@ -48,7 +46,6 @@ use std::ptr;
 
 pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;
-use crate::eval::fs::{SEEK_END, SEEK_SET};
 use crate::math::{FAIL, OK};
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;

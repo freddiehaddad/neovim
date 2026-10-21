@@ -19,8 +19,8 @@ use crate::api::private::helpers::{
     string_obj, try_wrap,
 };
 use crate::api::private::validate::{
-    Array, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
-    api_err_required,
+    Array, Error, ErrorType, NvimString, Object, ObjectType, api_err_conflict, api_err_exp,
+    api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Window};
 use crate::autocmd::{EVENT_WINNEW, apply_autocmds_win, block_autocmds, unblock_autocmds};
@@ -36,7 +36,6 @@ use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
 use crate::memory::{Arena, strequal, strequal_str};
 use crate::r#move::changed_window_setting;
@@ -125,8 +124,8 @@ const KEYSET_OPTIDX_win_config__title_pos: u64 = 22;
 const KEYSET_OPTIDX_win_config__footer_pos: u64 = 23;
 const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
 
-use crate::api::buffer::NUL;
 use crate::api::ui::MAX_SCHAR_SIZE;
+use crate::charset::NUL;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

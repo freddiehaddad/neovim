@@ -10,7 +10,6 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::has_key;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
@@ -19,7 +18,7 @@ use crate::api::private::helpers::{
     error_set, find_buffer_by_handle, integer_obj, luaref_obj, put_c, string_obj, try_enter,
     try_leave,
 };
-use crate::api::private::validate::{Array, Error, Object};
+use crate::api::private::validate::{Array, Error, NvimString, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{
     ErrorType, ObjectType, api_err_conflict, api_err_exp, api_err_invalid, api_err_required,
@@ -31,42 +30,34 @@ use crate::autocmd::{
     apply_autocmds_group, au_get_autocmds_for_event, aucmd_del_for_event_and_group,
     aucmd_span_pattern, augroup_add, augroup_del, augroup_del_by_id, augroup_exists, augroup_find,
     augroup_name, aupat_get_buflocal_nr, aupat_is_buflocal, aupat_normalize_buflocal_pat,
-    autocmd_delete_id, autocmd_register, do_autocmd_event, event_name2nr_str, event_nr2name,
+    autocmd_delete_id, autocmd_register, do_autocmd_event, event_T, event_name2nr_str,
+    event_nr2name,
 };
 #[cfg(not(test))]
 use crate::buffer::do_modelines;
-use crate::eval::typval::Callback;
 #[cfg(not(test))]
-use crate::eval::typval::{callback_free, callback_to_string};
+use crate::eval::typval::{
+    Callback, callback_free, callback_to_string, kCallbackFuncref, kCallbackLua, kCallbackNone,
+    kCallbackPartial,
+};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
-use crate::lua::converter::LuaRef;
+use crate::lua::converter::{LUA_NOREF, LuaRef};
 #[cfg(not(test))]
 use crate::lua::executor::{api_new_luaref, nlua_ref_is_function};
-use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
 use crate::memory::{arena_memdupz, xfree, xstrndup};
 use crate::msgpack_rpc::packer::Integer;
 #[cfg(not(test))]
-use std::ffi::CStr;
-#[cfg(not(test))]
-use std::ffi::c_void;
-use std::ffi::{c_char, c_int};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
 use crate::api::tabpage::Buffer;
-pub type event_T = c_int;
 use crate::highlight::OptionalKeys;
 
 #[cfg(not(test))]
 const AUCMD_MAX_PATTERNS: usize = 256;
-
-pub const kCallbackNone: c_int = 0;
-pub const kCallbackFuncref: c_int = 1;
-pub const kCallbackPartial: c_int = 2;
-pub const kCallbackLua: c_int = 3;
-pub const kCallbackExpr: c_int = 4;
 
 #[cfg(not(test))]
 const KEYSET_OPTIDX_get_autocmds__id: u64 = 1;
@@ -111,38 +102,6 @@ const KEYSET_OPTIDX_exec_autocmds__pattern: u64 = 5;
 #[cfg(not(test))]
 const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
 
-#[repr(C)]
-pub struct AutoPat {
-    pub refcount: usize,
-    pub pat: *mut c_char,
-    pub reg_prog: *mut crate::regexp::regprog_T,
-    pub group: c_int,
-    pub patlen: c_int,
-    pub buflocal_nr: c_int,
-    pub allow_dirs: c_char,
-}
-
-#[repr(C)]
-pub struct AutoCmd {
-    pub pat: *mut AutoPat,
-    pub id: i64,
-    pub desc: *mut c_char,
-    pub handler_cmd: *mut c_char,
-    pub handler_fn: Callback,
-    pub script_ctx: sctx_T,
-    pub once: bool,
-    pub nested: bool,
-}
-
-#[repr(C)]
-pub struct AutoCmdVec {
-    pub size: usize,
-    pub capacity: usize,
-    pub items: *mut AutoCmd,
-}
-
-#[cfg(not(test))]
-use crate::api::buffer::LUA_NOREF;
 #[cfg(not(test))]
 use crate::math::FAIL;
 

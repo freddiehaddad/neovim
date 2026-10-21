@@ -12,12 +12,10 @@
 )]
 
 use crate::api::buffer::{
-    FORWARD, INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, LUA_NOREF, NL, NUL,
-    api_buf_ensure_loaded, nvim_buf_del_keymap,
+    INTERNAL_CALL_MASK, KeyDict_keymap, KeyDict_keymap_del, api_buf_ensure_loaded,
+    nvim_buf_del_keymap,
 };
 use crate::api::deprecated::{KeyDict_empty, buffer_del_line, buffer_get_line, buffer_set_line};
-use crate::api::extmark::NS;
-use crate::api::options::{kOptBufhidden, kOptBuftype};
 use crate::api::private::converter::vim_to_object;
 use crate::api::private::helpers::{
     ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
@@ -29,8 +27,8 @@ use crate::api::private::helpers::{
     try_enter, try_leave, window_obj,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
-    api_err_required,
+    Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
+    api_err_invalid, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::autocmd::{
@@ -38,19 +36,21 @@ use crate::autocmd::{
     may_trigger_vim_suspend_resume, unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, buf_T, buf_close_terminal,
-    buf_get_changedtick, buflist_new, buflist_nr2name, bufref_T, bufref_valid, do_buffer,
-    read_buffer_into, set_bufref,
+    BCO_ENTER, BCO_NOHELP, BLN_LISTED, BLN_NEW, BLN_NOOPT, DOBUF_FIRST, DOBUF_GOTO, buf_T,
+    buf_close_terminal, buf_get_changedtick, buflist_new, buflist_nr2name, bufref_T, bufref_valid,
+    do_buffer, read_buffer_into, set_bufref,
 };
 use crate::channel::{
     Channel, InternalState, TerminalOptions, channel_all_info, channel_alloc, channel_decref,
     channel_event, channel_incref, channel_info, channel_send,
 };
+use crate::charset::{NL, NUL};
 use crate::context::{
     CONTEXT_INIT, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
+    kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxRegs, kCtxSFuncs,
 };
 use crate::cursor::{get_cursor_rel_lnum, linenr_T};
-use crate::decoration::{SignTextAttrs, decor_redraw_signs};
+use crate::decoration::{NS, SignTextAttrs, decor_redraw_signs};
 use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::{
     UPD_CLEAR, UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_buf_later,
@@ -85,14 +85,13 @@ use crate::keycodes::{
     vim_strsave_escape_ks,
 };
 use crate::kvec::StringBuilder;
-use crate::lua::converter::{Boolean, Float, LuaRef};
+use crate::lua::converter::{Boolean, Float, LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
     nlua_is_deferred_safe,
 };
 use crate::map::HlAttrs;
-use crate::map_glyph_cache::NvimString;
-use crate::mapping::{MAPTYPE_MAP, keymap_array, modify_keymap};
+use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
@@ -111,7 +110,9 @@ use crate::msgpack_rpc::channel::{
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
-use crate::option::{OPT_LOCAL, buf_copy_options, kOptScopeBuf, set_option_direct_for};
+use crate::option::{
+    OPT_LOCAL, buf_copy_options, kOptBufhidden, kOptBuftype, kOptScopeBuf, set_option_direct_for,
+};
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, check_stl_option};
 use crate::os::input::{input_blocking, input_enqueue, input_enqueue_mouse, input_enqueue_raw};
@@ -124,6 +125,7 @@ use crate::runtime::{
     DIP_ALL, DIP_DIRFILE, DOSO_NONE, do_in_runtimepath, do_source, get_lib_dir, runtime_get_named,
     runtime_inspect, script_autoload,
 };
+use crate::search::{BACKWARD, FORWARD};
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
     build_stl_str_hl, draw_tabline, fillchar_status, foldinfo_T, statuscol_T, stl_hlrec_t,
@@ -143,34 +145,18 @@ use std::ptr;
 #[cfg(windows)]
 use crate::os::proc::os_proc_info;
 
-pub(crate) const MAXPATHL: usize = 4096;
+use crate::extmark::{kFalse, kNone, kTrue};
+use crate::os::fs::MAXPATHL;
+
 pub(crate) const ERR_BUFLEN: usize = 256;
 pub(crate) const SIGN_SHOW_MAX: usize = 9;
 
-pub(crate) const BACKWARD: c_int = -1;
-
-pub(crate) const REMAP_YES: c_int = 0;
-pub(crate) const REMAP_NONE: c_int = -1;
-
 pub(crate) const kCdScopeGlobal: c_int = 3;
-
-pub(crate) const BCO_ENTER: c_int = 1;
-pub(crate) const BCO_NOHELP: c_int = 4;
 
 pub(crate) const kOptCotFlagPopup: c_uint = 0x100;
 
 pub(crate) const kChannelStreamInternal: ChannelStreamType = 4;
 
-pub(crate) const kNone: c_int = -1;
-pub(crate) const kFalse: c_int = 0;
-pub(crate) const kTrue: c_int = 1;
-
-pub(crate) const kCtxRegs: CtxStateFlags = 1;
-pub(crate) const kCtxJumps: CtxStateFlags = 2;
-pub(crate) const kCtxBufs: CtxStateFlags = 4;
-pub(crate) const kCtxGVars: CtxStateFlags = 8;
-pub(crate) const kCtxSFuncs: CtxStateFlags = 16;
-pub(crate) const kCtxFuncs: CtxStateFlags = 32;
 const kCtxAll: CtxStateFlags = kCtxRegs | kCtxJumps | kCtxBufs | kCtxGVars | kCtxSFuncs | kCtxFuncs;
 
 pub(crate) const HLF_N: c_int = 12;

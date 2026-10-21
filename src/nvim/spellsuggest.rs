@@ -8,7 +8,7 @@
 )]
 use crate::buffer::buf_T;
 use crate::change::{MB_MAXCHAR, inserted_bytes};
-use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{NUL, ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
 use crate::cursor::{check_cursor, colnr_T, get_cursor_line_len, get_cursor_line_ptr};
 use crate::errors::*;
 use crate::eval::typval::{
@@ -38,7 +38,7 @@ use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
 use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
 use crate::option_vars::*;
-use crate::os::fs::os_fopen;
+use crate::os::fs::{MAXPATHL, os_fopen};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::spell::{
@@ -61,14 +61,13 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 pub type idx_T = c_int;
 pub type salfirst_T = c_int;
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::options::IOSIZE;
-use crate::api::vim::MAXPATHL;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::ex_getln::hlf_T;
+use crate::globals::IOSIZE;
 use crate::keycodes::ESC;
 use crate::math::{FAIL, OK};
+use crate::search::FORWARD;
 const TAB: u8 = b'\t';
 const WF_MIXCAP: c_int = 0x20;
 const SCORE_SPLIT: c_int = 149;

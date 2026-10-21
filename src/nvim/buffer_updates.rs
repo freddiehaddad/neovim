@@ -8,14 +8,16 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, bcount_t, buf_collect_lines};
+use crate::api::buffer::{LUA_INTERNAL_CALL, buf_collect_lines};
 use crate::api::private::helpers::{
     NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
 };
 use crate::api::private::validate::{Array, Object, ObjectType};
 use crate::buffer::{BufUpdateCallbacks, buf_T, buf_get_changedtick};
+use crate::extmark::bcount_t;
 use crate::globals::*;
 use crate::log::logmsg;
+use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref};
 use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};

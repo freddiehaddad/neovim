@@ -9,9 +9,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
-#[cfg(not(test))]
-use crate::api::options::IOSIZE;
 #[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
@@ -40,8 +37,6 @@ use crate::drawscreen::status_redraw_all;
 #[cfg(not(test))]
 use crate::errors::*;
 #[cfg(not(test))]
-use crate::eval::fs::FileInfo;
-#[cfg(not(test))]
 use crate::eval::vars::{FORCE_BIN, eval_charconvert};
 #[cfg(not(test))]
 use crate::event::r#loop::uv_strerror;
@@ -49,6 +44,7 @@ use crate::event::r#loop::uv_strerror;
 use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
+use crate::ex_docmd::exarg_T;
 #[cfg(not(test))]
 use crate::ex_eval::{aborting, should_abort};
 #[cfg(not(test))]
@@ -62,6 +58,8 @@ use crate::fileio::{FIO_ENDIAN_L, FIO_LATIN1, FIO_UCS2, FIO_UCS4, FIO_UTF8, FIO_
 #[cfg(not(windows))]
 #[cfg(not(test))]
 use crate::fileio::{getgid, getuid};
+#[cfg(not(test))]
+use crate::globals::IOSIZE;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -78,11 +76,11 @@ use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, short
 use crate::option_vars::*;
 #[cfg(not(test))]
 use crate::os::fs::{
-    O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close, os_copy, os_copy_xattr,
-    os_errno as iconv_errno, os_file_is_writable, os_fileinfo, os_fileinfo_hardlinks,
-    os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync, os_get_acl, os_getperm,
-    os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists, os_remove, os_set_acl,
-    os_setperm, vim_acl_T,
+    FileInfo, MAXPATHL, O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_TRUNC, O_WRONLY, os_close,
+    os_copy, os_copy_xattr, os_errno as iconv_errno, os_file_is_writable, os_fileinfo,
+    os_fileinfo_hardlinks, os_fileinfo_id_equal, os_fileinfo_link, os_free_acl, os_fsync,
+    os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_nodetype, os_open, os_path_exists,
+    os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 #[cfg(all(not(test), unix))]
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
@@ -106,21 +104,15 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 #[cfg(not(test))]
-use crate::api::autocmd::kCallbackNone;
-#[cfg(not(test))]
-use crate::api::buffer::NUL;
-#[cfg(not(test))]
-use crate::api::command::CMOD_LOCKMARKS;
-#[cfg(not(test))]
 use crate::api::private::helpers::HLF_E;
-#[cfg(not(test))]
-use crate::api::vim::MAXPATHL;
 #[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
 #[cfg(not(test))]
-use crate::charset::EOL_MAC;
+use crate::charset::{EOL_MAC, NUL};
 #[cfg(not(test))]
-use crate::ex_docmd::UNDO_HASH_SIZE;
+use crate::eval::typval::kCallbackNone;
+#[cfg(not(test))]
+use crate::ex_docmd::{CMOD_LOCKMARKS, UNDO_HASH_SIZE};
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;

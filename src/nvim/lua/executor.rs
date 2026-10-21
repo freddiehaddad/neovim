@@ -11,17 +11,15 @@
 
 #[cfg(not(test))]
 use crate::api::command::is_user_cmdidx;
-use crate::api::command::{cmdmod_T, exarg_T, ucmd_T};
 #[cfg(not(test))]
 use crate::api::extmark::ns_initialized;
-use crate::api::private::converter::sctx_T;
 use crate::api::private::helpers::OBJECT_NIL;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     HlMessageChunk, TryState, api_clear_error, api_free_array, api_set_error, api_set_sctx,
     arena_array, error_set, string_to_cstr, try_enter, try_leave,
 };
-use crate::api::private::validate::{Array, Error, Object};
+use crate::api::private::validate::{Array, Error, NvimString, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, ObjectData, ObjectType};
 #[cfg(not(test))]
@@ -51,6 +49,7 @@ use crate::event::multiqueue::{
 };
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
+use crate::ex_docmd::{cmdmod_T, exarg_T};
 #[cfg(not(test))]
 use crate::ex_docmd::{do_cmdline, get_command_name};
 #[cfg(not(test))]
@@ -97,7 +96,6 @@ use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::{nlua_treesitter_free, nlua_treesitter_init};
 #[cfg(not(test))]
 use crate::main_init::{getout, os_exit, preserve_exit};
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::math::{FAIL, OK};
 #[cfg(not(test))]
@@ -128,6 +126,7 @@ use crate::os::fileio::{FileDescriptor, file_close, file_open_stdin, file_read};
 use crate::path::fix_fname;
 #[cfg(not(test))]
 use crate::profile::{proftime_T, scriptitem_T, time_msg, time_pop, time_push};
+use crate::runtime::sctx_T;
 #[cfg(not(test))]
 use crate::runtime::{
     cmd_source_buffer, find_script_by_name, new_script_item, runtime_get_named_thread,
@@ -139,6 +138,7 @@ use crate::strings::{gettext, vim_snprintf};
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 #[cfg(not(test))]
 use crate::undo::u_save;
+use crate::usercmd::ucmd_T;
 #[cfg(not(test))]
 use crate::usercmd::{uc_mods, uc_split_args_iter};
 #[cfg(not(test))]
@@ -446,22 +446,24 @@ unsafe extern "system" {
 }
 
 #[cfg(not(test))]
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::LUA_NOREF;
+use crate::api::buffer::LUA_INTERNAL_CALL;
 #[cfg(not(test))]
-use crate::api::buffer::{LUA_INTERNAL_CALL, NUL};
+use crate::buffer::VAR_FIXED;
 #[cfg(not(test))]
-use crate::api::command::{
+use crate::charset::NUL;
+#[cfg(not(test))]
+use crate::cmdexpand::{MB_MAXBYTES, kUICmdline};
+#[cfg(not(test))]
+use crate::eval::typval::kCallbackNone;
+#[cfg(not(test))]
+use crate::ex_docmd::{
     CMD_SIZE, CMOD_BROWSE, CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS,
     CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE,
     CMOD_SANDBOX, CMOD_SILENT, CMOD_UNSILENT, EX_ARGSPACE, EX_EXTRA, EX_NEEDARG, EX_NOSPC,
 };
 #[cfg(not(test))]
-use crate::api::options::IOSIZE;
-#[cfg(not(test))]
-use crate::buffer::VAR_FIXED;
-#[cfg(not(test))]
-use crate::cmdexpand::{MB_MAXBYTES, kUICmdline};
+use crate::globals::IOSIZE;
+use crate::lua::converter::LUA_NOREF;
 #[cfg(not(test))]
 use crate::version::main_exitfree;
 #[cfg(not(test))]
@@ -3372,7 +3374,8 @@ pub unsafe extern "C" fn nlua_func_exists(lua_funcname: *const c_char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::command::{CMD_USER, CMD_USER_BUF, is_user_cmdidx};
+    use crate::api::command::is_user_cmdidx;
+    use crate::ex_docmd::{CMD_USER, CMD_USER_BUF};
 
     #[test]
     fn mode_ret_and_user_cmdidx_helpers_work() {

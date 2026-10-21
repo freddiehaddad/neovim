@@ -2,99 +2,38 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
-#[cfg(not(test))]
-use crate::api::buffer::LUA_NOREF;
 use crate::api::private::helpers::nil_obj;
 #[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
 #[cfg(not(test))]
-use crate::api::private::validate::{Array, Dict};
+use crate::api::private::validate::{Array, Dict, NvimString};
 use crate::api::private::validate::{Error, Object, ObjectData, ObjectType};
 use crate::eval::decode::decode_string;
-#[cfg(not(test))]
-use crate::eval::executor::blob_T;
-use crate::eval::typval::{TypvalVval, VarType, dict_T, typval_T};
+use crate::eval::typval::{TypvalVval, VAR_UNLOCKED, VarType, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
-    dictitem_T, list_T, listitem_T, tv_dict_add, tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc,
-    tv_list_append_owned_tv,
+    blob_T, dict_T, dictitem_T, list_T, listitem_T, partial_T, tv_dict_add, tv_dict_alloc,
+    tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
 };
 #[cfg(not(test))]
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 #[cfg(not(test))]
 use crate::eval::{get_copyID, partial_name};
-use crate::garray::garray_T;
 #[cfg(not(test))]
 use crate::hashtab::{hashitem_T, hashitem_empty};
 #[cfg(not(test))]
-use crate::lua::executor::api_new_luaref;
+use crate::lua::converter::LUA_NOREF;
 #[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
+use crate::lua::executor::api_new_luaref;
 use crate::memory::Arena;
 #[cfg(not(test))]
 use crate::memory::{arena_memdupz, xstrdup};
 #[cfg(not(test))]
-use std::ffi::CStr;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{CStr, c_char, c_int, c_void};
 
-pub(crate) const VAR_UNLOCKED: c_int = 0;
 pub(crate) const K_SPECIAL_VAR_NULL: i64 = 0;
 pub(crate) const K_BOOL_VAR_FALSE: i64 = 0;
 pub(crate) const K_BOOL_VAR_TRUE: i64 = 1;
-
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct sctx_T {
-    pub sc_sid: c_int,
-    pub sc_seq: c_int,
-    pub sc_lnum: i32,
-    pub sc_chan: u64,
-}
-
-#[repr(C)]
-pub struct ufunc_T {
-    pub uf_varargs: c_int,
-    pub uf_flags: c_int,
-    pub uf_calls: c_int,
-    pub uf_cleared: bool,
-    pub uf_args: garray_T,
-    pub uf_def_args: garray_T,
-    pub uf_lines: garray_T,
-    pub uf_profiling: c_int,
-    pub uf_prof_initialized: c_int,
-    pub uf_luaref: c_int,
-    pub uf_tm_count: c_int,
-    pub uf_tm_total: u64,
-    pub uf_tm_self: u64,
-    pub uf_tm_children: u64,
-    pub uf_tml_count: *mut c_int,
-    pub uf_tml_total: *mut u64,
-    pub uf_tml_self: *mut u64,
-    pub uf_tml_start: u64,
-    pub uf_tml_children: u64,
-    pub uf_tml_wait: u64,
-    pub uf_tml_idx: c_int,
-    pub uf_tml_execed: c_int,
-    pub uf_script_ctx: sctx_T,
-    pub uf_refcount: c_int,
-    pub uf_scoped: *mut c_void,
-    pub uf_name_exp: *mut c_char,
-    pub uf_namelen: usize,
-    pub uf_name: [c_char; 1],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct partial_T {
-    pub pt_refcount: c_int,
-    pub pt_copyID: c_int,
-    pub pt_name: *mut c_char,
-    pub pt_func: *mut ufunc_T,
-    pub pt_auto: bool,
-    pub pt_argc: c_int,
-    pub pt_argv: *mut typval_T,
-    pub pt_dict: *mut dict_T,
-}
 
 #[cfg(not(test))]
 #[inline]

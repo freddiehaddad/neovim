@@ -8,7 +8,8 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::private::converter::sctx_T;
+#[cfg(not(test))]
+use crate::api::private::validate::NvimString;
 use crate::buffer::buf_T;
 use crate::charset::skipwhite;
 #[cfg(unix)]
@@ -23,8 +24,6 @@ use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
 #[cfg(not(test))]
 use crate::globals::*;
 use crate::lua::converter::LuaRef;
-#[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::mbyte::{mb_stricmp, utf_isalnum, utf_ptr2char, utf_ptr2len};
 #[cfg(all(not(test), windows))]
@@ -50,6 +49,7 @@ use crate::path::{
     path_tail_with_sep,
 };
 use crate::path::{to_slash, to_slash_save, vim_ispathsep};
+use crate::runtime::sctx_T;
 #[cfg(not(test))]
 use crate::strings::vim_strsave_escaped;
 #[cfg(all(not(test), windows))]
@@ -167,12 +167,12 @@ unsafe extern "C" {
     fn gethostname(name: *mut c_char, len: usize) -> c_int;
 }
 
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 #[cfg(all(not(test), unix))]
-use crate::api::options::IOSIZE;
-use crate::api::vim::MAXPATHL;
+use crate::globals::IOSIZE;
 #[cfg(not(test))]
 use crate::math::OK;
+use crate::os::fs::MAXPATHL;
 #[cfg(all(not(test), windows))]
 use crate::os::os_win_console::GetLastError;
 

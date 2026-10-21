@@ -8,15 +8,12 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
-use crate::api::options::IOSIZE;
-use crate::api::private::converter::{sctx_T, ufunc_T};
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
     boolean_obj, cstr_as_obj, cstr_as_string, cstr_literal, cstr_to_string, dict_obj, integer_obj,
     put_c, string_obj,
 };
-use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
+use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
     AutoPatCmd, DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST,
     EVENT_SOURCEPRE, PROF_YES, apply_autocmds, funccal_entry_T, has_autocmd,
@@ -32,12 +29,14 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_alloc, tv_dict_alloc_lock,
     tv_dict_copy, tv_dict_find, tv_dict_get_string, tv_get_number_chk, tv_get_string,
     tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_string,
-    tv_list_append_tv, typval_T,
+    tv_list_append_tv, typval_T, varnumber_T,
 };
-use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal};
+use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal, ufunc_T};
 use crate::eval::vars::{SID_STR, new_script_vars, scid_T};
 use crate::eval::{eval_to_number, get_copyID};
-use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, getline_cookie, getline_equal};
+use crate::ex_docmd::{
+    do_cmdline, do_cmdline_cmd, do_exedit, exarg_T, getline_cookie, getline_equal,
+};
 use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, report_make_pending};
 #[cfg(not(windows))]
 use crate::fileio::fdopen;
@@ -48,6 +47,7 @@ use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear, ga_clear_strings, ga_concat, ga_concat_len, ga_grow,
     ga_init, ga_remove_duplicate_strings, ga_set_growsize, garray_T,
 };
+use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::input::openscript;
@@ -56,9 +56,9 @@ use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
 };
 use crate::map::{
-    Map, Set, map_put_ref_String_int, map_ref_String_int, mh_get_String, mh_put_String,
+    MH_TOMBSTONE, MHPutStatus, Map, MapHash, Set, map_put_ref_String_int, map_ref_String_int,
+    mh_get_String, mh_put_String,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, vimconv_T,
@@ -104,7 +104,16 @@ use std::sync::Mutex;
 
 pub type etype_T = c_int;
 pub type estack_arg_T = c_int;
-use crate::eval::buffer::varnumber_T;
+pub(crate) const SID_NONE: scid_T = -6;
+
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct sctx_T {
+    pub sc_sid: c_int,
+    pub sc_seq: c_int,
+    pub sc_lnum: i32,
+    pub sc_chan: u64,
+}
 use crate::extmark::TriState;
 pub type DoInRuntimepathCB = Option<
     unsafe extern "C" fn(
@@ -267,9 +276,10 @@ static mut APP_ADD_DIR: c_int = 0;
 static mut APP_LOAD: c_int = 0;
 static mut APP_BOTH: c_int = 0;
 
-use crate::api::buffer::NUL;
-use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
+use crate::charset::NUL;
+use crate::extmark::{kFalse, kNone, kTrue};
+use crate::os::fs::MAXPATHL;
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
 

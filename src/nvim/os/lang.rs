@@ -8,7 +8,6 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::command::exarg_T;
 #[cfg(not(test))]
 use crate::buffer::maketitle;
 #[cfg(not(test))]
@@ -19,6 +18,7 @@ use crate::charset::{
 use crate::eval::vars::{
     VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH, get_vim_var_str, set_vim_var_string,
 };
+use crate::ex_docmd::exarg_T;
 #[cfg(all(not(test), unix))]
 use crate::garray::{ga_grow, ga_init, garray_T};
 #[cfg(not(test))]
@@ -111,11 +111,11 @@ unsafe extern "C" {
 }
 
 #[cfg(not(test))]
-use crate::api::buffer::NUL;
-#[cfg(not(test))]
-use crate::api::vim::MAXPATHL;
+use crate::charset::NUL;
 #[cfg(all(not(test), unix))]
 use crate::diff::kShellOptSilent;
+#[cfg(not(test))]
+use crate::os::fs::MAXPATHL;
 #[cfg(not(windows))]
 #[cfg(not(test))]
 use crate::strings::strtok_r;

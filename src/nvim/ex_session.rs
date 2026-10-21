@@ -8,16 +8,15 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::exarg_T;
 use crate::arglist::{aentry_T, alist_T, alist_name};
 use crate::autocmd::{EVENT_SESSIONWRITEPOST, EVENT_SESSIONWRITEPRE, apply_autocmds};
 use crate::buffer::{bt_help, bt_nofilename, bt_normal, bt_terminal, buf_T, buflist_findnr};
-use crate::charset::ascii_isdigit;
+use crate::charset::{NUL, ascii_isdigit};
 use crate::errors::*;
 use crate::eval::typval::{VarType, dictitem_T, tv_get_string};
 use crate::eval::vars::{VV_THIS_SESSION, get_globvar_dict, set_vim_var_string};
 use crate::eval::{VAR_FLAVOUR_SESSION, var_flavour};
-use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
+use crate::ex_docmd::{exarg_T, open_exfile, vim_mkdir_emsg};
 use crate::ex_getln::{VSE_NONE, vim_strsave_fnameescape};
 use crate::file_search::vim_chdirfile;
 use crate::fileio::{FILE, fclose, fputc, fputs, fwrite, shorten_fnames};
@@ -33,7 +32,7 @@ use crate::message::{emsg, semsg};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
 use crate::os::env::home_replace_save;
-use crate::os::fs::{os_chdir, os_dirname, os_isdir};
+use crate::os::fs::{MAXPATHL, os_chdir, os_dirname, os_isdir};
 use crate::path::{add_pathsep, vim_FullName, vim_ispathsep};
 use crate::runtime::{DOSO_NONE, do_source};
 use crate::strings::{gettext, vim_strsave_escaped};
@@ -41,8 +40,6 @@ use crate::window::{frame_T, tabpage_T, tabpage_index, win_T};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::buffer::NUL;
-use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
 use crate::drawscreen::FR_LEAF;
 use crate::math::{FAIL, OK};

@@ -3,8 +3,6 @@
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
 #[cfg(not(test))]
-use crate::api::vim::REMAP_YES;
-#[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
 #[cfg(not(test))]
 use crate::eval::typval::Callback;
@@ -18,6 +16,8 @@ use crate::globals::*;
 use crate::input::ins_typebuf;
 #[cfg(not(test))]
 use crate::keycodes::{CAR, ESC};
+#[cfg(not(test))]
+use crate::mapping::REMAP_YES;
 #[cfg(not(test))]
 use crate::mbyte::{mb_tolower, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len};
 #[cfg(not(test))]

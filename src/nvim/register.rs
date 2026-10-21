@@ -8,10 +8,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{FORWARD, NL, NUL, bcount_t, kExtmarkNOOP, kExtmarkUndo};
-use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::helpers::{api_clear_string, cbuf_as_string, cbuf_to_string};
-use crate::api::vim::{BACKWARD, REMAP_NONE, REMAP_YES};
+use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
     EVENT_TEXTYANKPOST, HLF_8, apply_autocmds, has_event,
@@ -22,7 +20,7 @@ use crate::buffer::{
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{SIN_NOMARK, changed_bytes, changed_lines, del_chars, kOptVeFlagOnemore};
-use crate::charset::{ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
+use crate::charset::{NL, NUL, ascii_iswhite, getdigits_int, skipwhite, transchar, vim_strsize};
 use crate::clipboard::{adjust_clipboard_name, get_clipboard, set_clipboard};
 use crate::cmdexpand::Ctrl_P;
 use crate::cursor::{
@@ -41,8 +39,9 @@ use crate::eval::typval::{
 use crate::eval::{eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
+use crate::ex_docmd::{CMOD_LOCKMARKS, exarg_T};
 use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str, getcmdline};
-use crate::extmark::{extmark_splice, extmark_splice_cols};
+use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::hasFolding;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, ga_set_growsize, garray_T};
@@ -57,7 +56,7 @@ use crate::insexpand::{ins_compl_delete, ins_compl_preinsert_effect};
 use crate::keycodes::{
     K_COMMAND, K_SPECIAL, KE_COMMAND, KS_EXTRA, vim_strsave_escape_ks, vim_unescape_ks,
 };
-use crate::map_glyph_cache::NvimString;
+use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::mark::mark_adjust;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
@@ -82,7 +81,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_realtime};
 use crate::plines::{CSType, CharsizeArg, getvcol, init_charsize_arg, win_charsize};
 use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
-use crate::search::{Direction, last_search_pat, set_last_search_pat};
+use crate::search::{BACKWARD, Direction, FORWARD, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, save_v_event_T};
 use crate::strings::{
     atoi, gettext, ngettext, strncmp, vim_snprintf, vim_snprintf_safelen, vim_strchr,

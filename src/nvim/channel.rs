@@ -9,13 +9,13 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{event_T, kCallbackNone};
 #[cfg(not(test))]
 use crate::api::private::converter::object_to_vim;
 #[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
 use crate::api::private::helpers::{cstr_as_string, dict_put_cstr};
-use crate::api::private::validate::{Array, Dict, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{Array, Dict, NvimString, Object, ObjectData, ObjectType};
+use crate::autocmd::event_T;
 #[cfg(not(test))]
 use crate::autocmd::{apply_autocmds, has_event};
 use crate::buffer::buf_T;
@@ -23,7 +23,7 @@ use crate::buffer::buf_T;
 use crate::errors::*;
 #[cfg(not(test))]
 use crate::eval::encode::encode_list_write;
-use crate::eval::typval::{Callback, TypvalVval, VarType, dict_T, list_T, typval_T};
+use crate::eval::typval::{Callback, TypvalVval, VarType, dict_T, kCallbackNone, list_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     callback_free, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
@@ -64,10 +64,7 @@ use crate::lua::converter::LuaRef;
 #[cfg(not(test))]
 use crate::lua::executor::api_free_luaref;
 #[cfg(not(test))]
-use crate::map::{Map, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t};
-#[cfg(not(test))]
-use crate::map_glyph_cache::MapHash;
-use crate::map_glyph_cache::NvimString;
+use crate::map::{Map, MapHash, Set, map_del_uint64_t_ptr_t, map_put_ref_uint64_t_ptr_t};
 use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree, xmemdup, xstrdup};
 #[cfg(not(test))]
 use crate::memory::{arena_finish, arena_mem_free};
@@ -122,7 +119,7 @@ pub struct CallbackReader {
     pub reader_type: *const c_char,
 }
 
-use crate::eval::buffer::varnumber_T;
+use crate::eval::typval::{VAR_UNLOCKED, varnumber_T};
 use crate::option::OptInt;
 
 const CHAN_STDERR: u64 = 2;
@@ -183,13 +180,12 @@ pub struct TerminalOptions {
     pub force_crlf: bool,
 }
 
-use crate::api::buffer::LUA_NOREF;
-use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::{CHAN_STDIO, kChannelPartAll};
 use crate::api::vim::kChannelStreamInternal;
 use crate::autocmd::{EVENT_CHANCLOSE, EVENT_CHANOPEN};
 #[cfg(all(not(test), not(windows)))]
 use crate::fileio::dup2;
+use crate::lua::converter::LUA_NOREF;
 
 #[cfg(not(test))]
 unsafe extern "C" {

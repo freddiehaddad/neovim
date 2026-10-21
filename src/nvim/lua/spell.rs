@@ -21,7 +21,7 @@ use crate::syntax::synblock_T;
 use std::ffi::c_int;
 use std::ptr;
 
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 use crate::drawline::HLF_COUNT;
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
 use crate::ex_getln::hlf_T;

@@ -18,56 +18,39 @@ use crate::api::private::helpers::{
     static_cstr_as_obj, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
+    Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType, api_err_conflict,
+    api_err_exp,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::autocmd::{
     EVENT_FILETYPE, block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds,
 };
 use crate::buffer::{
-    BLN_DUMMY, buf_T, buflist_new, bufref_T, bufref_valid, set_bufref, wipe_buffer,
+    BF_DUMMY, BLN_DUMMY, buf_T, buflist_new, bufref_T, bufref_valid, set_bufref, wipe_buffer,
 };
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
-use crate::map_glyph_cache::NvimString;
 use crate::memline::ml_open;
 use crate::memory::{Arena, arena_memdupz, strequal_str as strequal, xfree, xmalloc, xstrdup};
 use crate::option::{
-    OPT_GLOBAL, OPT_LOCAL, OptScope, copy_option_part, escape_option_str_cmdline, find_option,
-    free_option_prepared, get_all_options_info, get_option, get_option_info, get_option_newval,
-    get_option_value_for, get_option_varp_scope_from, get_varp_from, kOptFlagColon, kOptFlagComma,
-    kOptFlagFlagList, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin, opt_from_varp,
-    option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own, set_op_T,
-    set_option_direct, set_option_value_for, set_prefix_T, validate_and_prepare_option_value,
+    OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, OPT_GLOBAL, OPT_LOCAL, OptScope, PREFIX_NONE,
+    copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
+    get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
+    get_option_varp_scope_from, get_varp_from, kOptBufhidden, kOptBuftype, kOptFiletype,
+    kOptFlagColon, kOptFlagComma, kOptFlagFlagList, kOptInvalid, kOptModeline, kOptScopeBuf,
+    kOptScopeGlobal, kOptScopeTab, kOptScopeWin, kOptSwapfile, opt_from_varp, option_has_scope,
+    option_has_type, optval_free, optval_from_obj, optval_own, set_op_T, set_option_direct,
+    set_option_value_for, validate_and_prepare_option_value,
 };
 use crate::strings::{strchr, strlen};
 use crate::window::{close_windows, win_T};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-use crate::eval::vars::scid_T;
 use crate::highlight::OptionalKeys;
 use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, optset_T};
-
-pub(crate) const IOSIZE: usize = 1024 + 1;
-pub(crate) const SID_NONE: scid_T = -6;
-pub(crate) const BF_DUMMY: c_int = 0x80;
-
-pub(crate) const PREFIX_NONE: set_prefix_T = 1;
-
-pub(crate) const kOptScopeTab: OptScope = 3;
-
-pub(crate) const OP_NONE: set_op_T = 0;
-pub(crate) const OP_ADDING: set_op_T = 1;
-pub(crate) const OP_PREPENDING: set_op_T = 2;
-pub(crate) const OP_REMOVING: set_op_T = 3;
-
-pub(crate) const kOptBufhidden: OptIndex = 27;
-pub(crate) const kOptBuftype: OptIndex = 29;
-pub(crate) const kOptFiletype: OptIndex = 97;
-pub(crate) const kOptModeline: OptIndex = 192;
-pub(crate) const kOptSwapfile: OptIndex = 301;
+use crate::runtime::SID_NONE;
 
 const KEYSET_OPTIDX_option__buf: u64 = 1;
 const KEYSET_OPTIDX_option__tab: u64 = 2;
@@ -77,7 +60,7 @@ const KEYSET_OPTIDX_option__dry_run: u64 = 5;
 const KEYSET_OPTIDX_option__filetype: u64 = 6;
 const KEYSET_OPTIDX_option__operation: u64 = 7;
 
-use crate::api::buffer::NUL;
+use crate::charset::NUL;
 use crate::math::{FAIL, OK};
 use crate::memfile::memfile_T;
 

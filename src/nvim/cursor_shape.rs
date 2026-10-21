@@ -6,7 +6,9 @@
 use crate::api::private::helpers::{arena_array, arena_dict, cstr_as_nvim_string};
 use crate::api::private::validate::Array;
 #[cfg(not(test))]
-use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{
+    Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+};
 #[cfg(not(test))]
 use crate::charset::getdigits_int;
 #[cfg(not(test))]
@@ -17,8 +19,6 @@ use crate::globals::*;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 #[cfg(not(test))]
 use crate::log::{LOGLVL_WRN, logmsg};
-#[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
 use crate::option_vars::*;

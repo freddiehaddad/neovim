@@ -8,20 +8,20 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::converter::{VAR_UNLOCKED, partial_T, ufunc_T};
-use crate::charset::vim_str2nr;
+use crate::charset::{NUL, vim_str2nr};
+use crate::eval::userfunc::{call_func, func_ref, funcexe_T, ufunc_T};
 
 use crate::cursor::linenr_T;
 use crate::errors::*;
 
+use crate::api::private::validate::NvimString;
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, buf_T};
 use crate::eval::encode::{
     MPConvPartialStage, MPConvStackData, MPConvStackVal, MPConvStackValType, encode_bool_var_names,
     encode_special_var_names, encode_tv2echo, encode_tv2string,
 };
-use crate::eval::executor::{blob_T, eexe_mod_op};
+use crate::eval::executor::eexe_mod_op;
 use crate::eval::gc::{gc_first_dict, gc_first_list};
-use crate::eval::userfunc::{call_func, func_ref, funcexe_T};
 #[cfg(not(test))]
 use crate::eval::userfunc::{func_unref, get_funccal_local_ht};
 #[cfg(not(test))]
@@ -39,11 +39,10 @@ use crate::hashtab::{
     hash_add, hash_clear, hash_find, hash_find_len, hash_init, hash_lock, hash_remove, hash_unlock,
     hashitem_T, hashitem_empty,
 };
-use crate::lua::converter::LuaRef;
+use crate::lua::converter::{LUA_NOREF, LuaRef};
 #[cfg(not(test))]
 use crate::lua::executor::api_free_luaref;
 use crate::lua::executor::{api_new_luaref, nlua_funcref_str};
-use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len, vimconv_T};
 use crate::memory::{
     Arena, strequal, xcalloc, xfree, xmalloc, xmallocz, xmemdup, xmemdupz, xstrdup, xstrlcpy,
@@ -64,22 +63,47 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::mem::offset_of;
 use std::ptr;
 
-use crate::api::autocmd::{
-    kCallbackExpr, kCallbackFuncref, kCallbackLua, kCallbackNone, kCallbackPartial,
-};
-use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-use crate::eval::buffer::varnumber_T;
+
 use crate::eval::funcs::kSpecialVarNull;
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 pub type float_T = f64;
+pub type varnumber_T = i64;
 pub type VarLockStatus = c_int;
 pub type BoolVarValue = c_int;
 pub type EvalFuncData = *mut c_void;
+
+pub(crate) const VAR_UNLOCKED: c_int = 0;
+pub const kCallbackNone: c_int = 0;
+pub const kCallbackFuncref: c_int = 1;
+pub const kCallbackPartial: c_int = 2;
+pub const kCallbackLua: c_int = 3;
+pub const kCallbackExpr: c_int = 4;
+
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub struct blob_T {
+    pub bv_ga: garray_T,
+    pub bv_refcount: c_int,
+    pub bv_lock: c_int,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct partial_T {
+    pub pt_refcount: c_int,
+    pub pt_copyID: c_int,
+    pub pt_name: *mut c_char,
+    pub pt_func: *mut ufunc_T,
+    pub pt_auto: bool,
+    pub pt_argc: c_int,
+    pub pt_argv: *mut typval_T,
+    pub pt_dict: *mut dict_T,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]

@@ -13,7 +13,9 @@ use crate::api::extmark::set_has_ptr;
 use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
 };
-use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
+use crate::api::private::validate::{
+    Dict, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
+};
 use crate::arglist::alist_T;
 use crate::buffer::{
     BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buf_T, buflist_findnr, buflist_new,
@@ -27,7 +29,6 @@ use crate::context::INIT_FMARKV;
 use crate::cursor::{colnr_T, linenr_T, pos_T};
 use crate::eval::decode::{decode_string, unpack_typval};
 use crate::eval::encode::encode_vim_to_msgpack;
-use crate::eval::fs::FileInfo;
 use crate::eval::typval::{
     TypvalVval, VarType, tv_clear, tv_copy, tv_dict_hi2di, tv_list_alloc,
     tv_list_append_allocated_string, tv_list_len, typval_T,
@@ -49,10 +50,10 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::highlight::{OptionalKeys, map_destroy, set_destroy};
 use crate::lua::converter::Boolean;
 use crate::map::{
-    Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t,
-    mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t, mh_put_path_t, mh_put_ptr_t, path_t, ptr_t,
+    MH_TOMBSTONE, MHPutStatus, Map, MapHash, Set, cstr_t, map_del_cstr_t_ptr_t,
+    map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t, mh_get_cstr_t, mh_get_path_t, mh_put_cstr_t,
+    mh_put_path_t, mh_put_ptr_t, path_t, ptr_t,
 };
-use crate::map_glyph_cache::{MH_TOMBSTONE, MHPutStatus, MapHash, NvimString};
 use crate::mark::{
     EXTRA_MARKS, cleanup_jumplist, fmark_T, free_fmark, free_xfmark, mark_buffer_iter, mark_get,
     mark_global_iter, mark_jumplist_iter, mark_set_global, mark_set_local, set_last_cursor,
@@ -82,7 +83,9 @@ use crate::os::fileio::{
     K_FILE_TRUNCATE, file_close, file_flush, file_open, file_open_buffer, file_read, file_skip,
     file_try_read_buffered,
 };
-use crate::os::fs::{UV_ENOENT, os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove};
+use crate::os::fs::{
+    FileInfo, UV_ENOENT, os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove,
+};
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{
@@ -613,10 +616,10 @@ use crate::api::private::dispatch::{
     KeyDict__shada_search_pat_get_field as shada_search_pat_get_field_cb,
 };
 
-use crate::api::buffer::NUL;
-use crate::api::vim::MAXPATHL;
+use crate::charset::NUL;
 use crate::eval::funcs::MPACK_EOF;
 use crate::event::r#loop::{NS_PER_SEC, uv_strerror as os_strerror};
+use crate::os::fs::MAXPATHL;
 use crate::version::longVersion;
 
 #[inline]

@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::charset::{ascii_iswhite, skipwhite};
+use crate::charset::{NUL, ascii_iswhite, skipwhite};
 use crate::cursor::{
     clearpos, coladvance, colnr_T, dec_cursor, equalpos, gchar_cursor, get_cursor_line_ptr,
     get_cursor_pos_ptr, inc_cursor, linenr_T, lt, ltoreq, pos_T,
@@ -26,15 +26,15 @@ use crate::memory::{xfree, xmalloc};
 use crate::r#move::adjust_skipcol;
 use crate::normal::{FM_FORWARD, lineempty, unadjust_for_sel};
 use crate::option_vars::*;
-use crate::search::{Direction, findmatch, findmatchlimit, kCpoMatchbsl, linewhite};
+use crate::search::{
+    BACKWARD, Direction, FORWARD, findmatch, findmatchlimit, kCpoMatchbsl, linewhite,
+};
 use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::vim::BACKWARD;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 

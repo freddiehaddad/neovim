@@ -16,7 +16,7 @@ use crate::event::socket::{
     ADDRESS_MAX_SIZE, SocketWatcher, socket_watcher_close, socket_watcher_init,
     socket_watcher_start, socket_watcher_uv_size, watcher_addr,
 };
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kNone, kTrue};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
@@ -36,9 +36,8 @@ const MAX_CONNECTIONS: c_int = 32;
 const ENV_LISTEN: &CStr = c"NVIM_LISTEN_ADDRESS";
 const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
-use crate::api::options::IOSIZE;
-use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::event::stream::UV_TCP;
+use crate::globals::IOSIZE;
 
 static mut watchers: garray_T = garray_T {
     ga_len: 0,

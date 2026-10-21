@@ -8,21 +8,21 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{cmdidx_T, exarg_T};
 use crate::buffer::{
     BLN_CURBUF, BLN_LISTED, buf_hide, buf_is_empty, buf_set_name, buflist_add, buflist_findnr,
     bufref_T, bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
 };
-use crate::charset::{ascii_isspace, rem_backslash, skipwhite};
+use crate::charset::{NUL, ascii_isspace, rem_backslash, skipwhite};
 use crate::context::is_ctx_win;
 use crate::errors::*;
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_list_alloc_ret,
-    tv_list_append_string, typval_T,
+    tv_list_append_string, typval_T, varnumber_T,
 };
 use crate::eval::window::{find_tabwin, find_win_by_nr_or_id};
 use crate::ex_cmds::{ECMD_FORCEIT, ECMD_HIDE, ECMD_LAST, ECMD_OLDBUF, ECMD_ONE, do_ecmd};
 use crate::ex_cmds2::{autowrite, check_changed};
+use crate::ex_docmd::exarg_T;
 use crate::ex_getln::gotocmdline;
 use crate::fileio::file_pat_to_reg_pat;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
@@ -50,8 +50,6 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::buffer::NUL;
-use crate::eval::buffer::varnumber_T;
 use crate::math::{FAIL, OK};
 use crate::option::OptInt;
 use crate::os::env::expand_T;
@@ -60,6 +58,7 @@ const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
 const AL_DEL: c_int = 3;
 
+type cmdidx_T = c_int;
 const CMD_args: cmdidx_T = 7;
 pub(crate) const CMD_argdo: cmdidx_T = 10;
 const CMD_argglobal: cmdidx_T = 13;

@@ -19,11 +19,11 @@ use std::ffi::c_void;
 
 #[cfg(target_os = "windows")]
 use crate::api::private::validate::Dict;
-#[cfg(all(not(test), windows))]
-use crate::api::private::validate::{KeyValuePair, Object, ObjectData, ObjectType};
 #[cfg(target_os = "windows")]
 #[cfg(not(test))]
-use crate::map_glyph_cache::NvimString;
+use crate::api::private::validate::NvimString;
+#[cfg(all(not(test), windows))]
+use crate::api::private::validate::{KeyValuePair, Object, ObjectData, ObjectType};
 
 #[cfg(target_os = "windows")]
 const UV_ESRCH: c_int = -4040;

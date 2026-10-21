@@ -19,7 +19,7 @@ use crate::api::private::helpers::{
     try_leave,
 };
 use crate::api::private::helpers::{cstr_as_string, nil_obj};
-use crate::api::private::validate::{Array, Dict, Error, Object};
+use crate::api::private::validate::{Array, Dict, Error, NvimString, Object};
 #[cfg(not(test))]
 use crate::api::private::validate::{ErrorType, KeyValuePair, ObjectType, api_err_exp};
 #[cfg(not(test))]
@@ -37,7 +37,6 @@ use crate::globals::*;
 #[cfg(not(test))]
 use crate::kvec::KVecWithInit;
 use crate::lua::converter::Boolean;
-use crate::map_glyph_cache::NvimString;
 use crate::memory::Arena;
 #[cfg(not(test))]
 use crate::memory::{xfree, xmemdupz};

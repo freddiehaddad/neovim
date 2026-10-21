@@ -18,7 +18,8 @@ use crate::api::private::helpers::{
     integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, api_err_invalid, api_err_range, check_string_array,
+    Array, Dict, Error, ErrorType, NvimString, Object, api_err_invalid, api_err_range,
+    check_string_array,
 };
 use crate::api::tabpage::Buffer;
 use crate::buffer::{
@@ -31,19 +32,20 @@ use crate::cursor::{
     check_cursor_col, check_cursor_lnum, check_visual_pos, colnr_T, linenr_T, pos_T,
 };
 use crate::ex_cmds::rename_buffer;
-use crate::extmark::{ExtmarkOp, extmark_splice};
+use crate::extmark::{bcount_t, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::base64::lua_State;
-use crate::lua::converter::{Boolean, LuaRef, lua_createtable, lua_pushlstring, lua_rawseti};
+use crate::lua::converter::{
+    Boolean, LUA_NOREF, LuaRef, lua_createtable, lua_pushlstring, lua_rawseti,
+};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
-use crate::map_glyph_cache::NvimString;
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
-use crate::mark::{MarkAdjustMode, MarkGet, mark_adjust_buf, mark_get};
+use crate::mark::{kMarkAdjustApi, kMarkAllNoResolve, mark_adjust_buf, mark_get};
 use crate::marktree::kMTMetaLines;
 use crate::memline::{
-    ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len,
-    ml_replace_buf,
+    ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf,
+    ml_get_buf_len, ml_replace_buf,
 };
 use crate::memory::{
     Arena, arena_alloc, arena_allocz, arena_memdupz, memchrsub, strchrsub, xfree, xmemdupz,
@@ -53,15 +55,12 @@ use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
 use crate::undo::{u_header_T, u_save_buf};
-use crate::window::win_T;
+use crate::window::{VALID_BOTLINE_AP, win_T};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub type bcount_t = isize;
-use crate::search::Direction;
-
-pub(crate) const NUL: c_char = 0;
-pub(crate) const NL: c_char = b'\n' as c_char;
+use crate::charset::{NL, NUL};
+use crate::search::FORWARD;
 
 const MAXLNUM: i64 = 0x7fffffff;
 const MAXCOL: i64 = 0x7fffffff;
@@ -69,19 +68,6 @@ const MAXCOL: i64 = 0x7fffffff;
 pub(crate) const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
 pub(crate) const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
 pub(crate) const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
-
-pub(crate) const LUA_NOREF: LuaRef = -2;
-
-pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
-pub(crate) const kExtmarkUndo: ExtmarkOp = 1;
-
-pub(crate) const kMarkAdjustApi: MarkAdjustMode = 1;
-pub(crate) const kMarkAllNoResolve: MarkGet = 2;
-
-pub(crate) const FORWARD: Direction = 1;
-
-pub(crate) const ML_LINE_DIRTY: c_int = 0x02;
-pub(crate) const VALID_BOTLINE_AP: c_int = 0x40;
 
 const KEYSET_OPTIDX_buf_attach__on_bytes: u64 = 2;
 const KEYSET_OPTIDX_buf_attach__on_lines: u64 = 3;

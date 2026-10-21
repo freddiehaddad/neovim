@@ -9,30 +9,25 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NUL};
-use crate::api::extmark::{
-    DecorRange, NS, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLineRightAlign,
-    kVPosInline, kVPosRightAlign, kVPosWinCol, kVTRepeatLinebreak,
-};
 use crate::api::vim::{
-    HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, MAXPATHL, SIGN_SHOW_MAX, STL_FOLDCOL,
-    STL_SIGNCOL, kFalse, kTrue,
+    HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX, STL_FOLDCOL, STL_SIGNCOL,
 };
 use crate::autocmd::HLF_8;
 use crate::buffer::{bt_quickfix, buf_T, buf_meta_total};
 use crate::change::TAB;
 use crate::charset::{
-    ascii_isdigit, ascii_iswhite, kOptDyFlagUhex, rl_mirror_ascii, skiptowhite, skipwhite,
+    NUL, ascii_isdigit, ascii_iswhite, kOptDyFlagUhex, rl_mirror_ascii, skiptowhite, skipwhite,
     transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
 };
 use crate::cursor::{VALID_VIRTCOL, colnr_T, get_cursor_rel_lnum, linenr_T, ltoreq, pos_T};
 use crate::decoration::{
-    DecorVirtText, SCL_NUM, SignTextAttrs, VirtLine, VirtLines, VirtText, clear_virttext,
-    decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
-    decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
-    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, kDecorKindUIWatched, kDecorKindVirtText,
-    kVPosEndOfLine, next_virt_text_chunk,
+    DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLine, VirtLines, VirtText,
+    clear_virttext, decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col,
+    decor_redraw_col, decor_redraw_eol, decor_redraw_line, decor_redraw_signs,
+    decor_virt_line_rows, decor_virt_lines, decor_virt_pos, decor_virt_pos_kind,
+    kDecorKindUIWatched, kDecorKindVirtText, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll,
+    kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosRightAlign, kVPosWinCol,
+    kVTRepeatLinebreak, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -42,8 +37,9 @@ use crate::diff::{
 use crate::drawscreen::{
     WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, spellvars_T, win_draw_end,
 };
+use crate::eval::typval::kCallbackNone;
 use crate::ex_getln::{disptick_T, hlf_T};
-use crate::extmark::TriState;
+use crate::extmark::{TriState, kFalse, kTrue};
 use crate::fold::{FOLD_TEXT_LEN, get_foldtext};
 use crate::globals::*;
 use crate::grid::{
@@ -72,12 +68,14 @@ use crate::r#move::{set_empty_rows, validate_virtcol, win_col_off, win_col_off2}
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
 use crate::optionstr::CharBuf;
+use crate::os::fs::MAXPATHL;
 use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg,
     init_charsize_arg_skip_cur_text, vim_isbreak, win_charsize,
 };
 use crate::quickfix::qf_current_entry;
 use crate::regexp::{Ctrl_V, MAXCOL};
+use crate::search::FORWARD;
 use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, spell_to_word_end};
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::statusline::{build_statuscol_str, foldinfo_T, statuscol_T};

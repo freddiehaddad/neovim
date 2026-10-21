@@ -8,8 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::LUA_NOREF;
-use crate::api::extmark::{DecorProvider, NS, describe_ns, kDecorProviderActive};
+use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, api_object_to_bool, buffer_obj, error_init,
     error_set, integer_obj, window_obj,
@@ -17,12 +16,12 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Array, ObjectType};
 use crate::buffer::buf_T;
 use crate::cursor::linenr_T;
-use crate::decoration::decor_check_to_be_deleted;
+use crate::decoration::{NS, decor_check_to_be_deleted};
 use crate::globals::*;
 use crate::highlight::hl_check_ns;
 use crate::kvec::KVec;
 use crate::log::{LOGLVL_ERR, logmsg};
-use crate::lua::converter::LuaRef;
+use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, kRetMulti, kRetNilBool, nlua_call_ref};
 use crate::memory::{xfree, xrealloc};
 use crate::message::msg_schedule_semsg_multiline;
@@ -33,10 +32,30 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 pub(crate) const CB_MAX_ERROR: u8 = 3;
-
+pub(crate) const kDecorProviderActive: c_int = 1;
 const kDecorProviderWinDisabled: c_int = 2;
 const kDecorProviderRedrawDisabled: c_int = 3;
 const kDecorProviderDisabled: c_int = 4;
+
+#[repr(C)]
+pub struct DecorProvider {
+    pub ns_id: NS,
+    pub state: c_int,
+    pub win_skip_row: c_int,
+    pub win_skip_col: c_int,
+    pub redraw_start: LuaRef,
+    pub redraw_buf: LuaRef,
+    pub redraw_win: LuaRef,
+    pub redraw_line: LuaRef,
+    pub redraw_range: LuaRef,
+    pub redraw_end: LuaRef,
+    pub hl_def: LuaRef,
+    pub spell_nav: LuaRef,
+    pub conceal_line: LuaRef,
+    pub hl_valid: c_int,
+    pub hl_cached: bool,
+    pub error_count: u8,
+}
 
 static mut decor_providers: KVec<DecorProvider> = KVec {
     size: 0,

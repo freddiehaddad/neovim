@@ -8,7 +8,7 @@ use crate::charset::vim_str2nr;
 use crate::eval::encode::encode_list_write;
 #[cfg(not(test))]
 use crate::eval::string2float;
-use crate::eval::typval::{TypvalVval, VarType, list_T, typval_T};
+use crate::eval::typval::{TypvalVval, VAR_UNLOCKED, VarType, list_T, typval_T};
 #[cfg(not(test))]
 use crate::eval::typval::{
     dict_T, dictitem_T, tv_blob_alloc_ret, tv_clear, tv_dict_add, tv_dict_alloc, tv_dict_find,
@@ -59,7 +59,6 @@ use crate::mpack::object::mpack_parser_t;
 #[cfg(not(test))]
 use crate::mpack::object::{mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_init};
 
-use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 #[cfg(not(test))]
