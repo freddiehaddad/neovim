@@ -2,11 +2,10 @@
 
 use crate::event::r#loop::loop_poll_events;
 use crate::globals::*;
+use crate::memory::xstrlcpy;
 #[cfg(unix)]
 use crate::os::env::os_getenv_noalloc;
 use crate::os::input::os_input_ready;
-#[cfg(unix)]
-use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
 pub type Timestamp = u64;
@@ -24,12 +23,7 @@ pub struct Tm {
 }
 
 #[cfg(unix)]
-struct TzCache(UnsafeCell<[u8; 64]>);
-#[cfg(unix)]
-unsafe impl Sync for TzCache {}
-
-#[cfg(unix)]
-static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
+static mut TZ_CACHE: [u8; 64] = [0u8; 64];
 
 unsafe extern "C" {
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
@@ -130,7 +124,8 @@ pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -
         } else {
             CStr::from_ptr(tz_ptr).to_bytes()
         };
-        let cache = &mut *TZ_CACHE.0.get();
+        let cache_ptr = &raw mut TZ_CACHE;
+        let cache = &mut *cache_ptr;
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);
         if cache_len != cmp_len || cache[..cache_len] != tz_bytes[..cmp_len] {
@@ -162,19 +157,6 @@ pub unsafe extern "C" fn os_localtime(result: *mut Tm) -> *mut Tm {
     unsafe { os_localtime_r(&rawtime, result) }
 }
 
-unsafe fn copy_str_clamped(dst: *mut c_char, max_size: usize, src: &[u8]) {
-    if dst.is_null() || max_size == 0 {
-        return;
-    }
-    let n = src.len().min(max_size - 1);
-    unsafe {
-        if n > 0 {
-            std::ptr::copy_nonoverlapping(src.as_ptr(), dst.cast::<u8>(), n);
-        }
-        *dst.add(n) = 0;
-    }
-}
-
 /// Format `clock` as local time into `result[..result_len]` (`os_ctime_r`).
 ///
 /// # Safety
@@ -198,7 +180,7 @@ pub unsafe extern "C" fn os_ctime_r(
                 ptr,
             ) == 0
         {
-            copy_str_clamped(result, result_len.saturating_sub(1), b"(Invalid)");
+            xstrlcpy(result, c"(Invalid)".as_ptr(), result_len);
         }
     }
 

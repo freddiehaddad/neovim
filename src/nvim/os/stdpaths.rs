@@ -5,25 +5,17 @@ use crate::garray::K_PATH_CMP_LITERAL;
 use crate::globals::*;
 #[cfg(unix)]
 use crate::memory::xstrdup;
-use crate::memory::{xfree, xmallocz, xrealloc};
+use crate::memory::{xfree, xmemdupz, xrealloc};
 #[cfg(unix)]
 use crate::os::env::os_env_exists;
 use crate::os::env::{expand_env_save, os_getenv, os_getenv_noalloc};
-use crate::os::fs::MAXPATHL;
 #[cfg(windows)]
 use crate::os::fs::os_realpath;
+use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
+#[cfg(windows)]
+use crate::path::path_to_slash;
 use crate::path::{concat_fnames_realloc, path_equal, path_is_absolute};
 use std::ffi::{CStr, CString, c_char, c_void};
-
-#[cfg(target_os = "windows")]
-const ENV_SEP_BYTE: u8 = b';';
-#[cfg(not(target_os = "windows"))]
-const ENV_SEP_BYTE: u8 = b':';
-
-#[cfg(target_os = "windows")]
-const PATHSEP_BYTE: u8 = b'\\';
-#[cfg(not(target_os = "windows"))]
-const PATHSEP_BYTE: u8 = b'/';
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,36 +73,6 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
     Some(c"/usr/local/share/:/usr/share/"),
 ];
 
-#[inline]
-unsafe fn to_slash_in_place(p: *mut c_char) {
-    #[cfg(target_os = "windows")]
-    if !p.is_null() {
-        let mut cur = p.cast::<u8>();
-        unsafe {
-            while *cur != 0 {
-                if *cur == b'\\' {
-                    *cur = b'/';
-                }
-                cur = cur.add(1);
-            }
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    let _ = p;
-}
-
-#[inline]
-unsafe fn c_bytes_to_xmallocz(bytes: &[u8]) -> *mut c_char {
-    let ptr = unsafe { xmallocz(bytes.len()).cast::<u8>() };
-    unsafe {
-        if !bytes.is_empty() {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len());
-        }
-        *ptr.add(bytes.len()) = 0;
-    }
-    ptr.cast::<c_char>()
-}
-
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 #[unsafe(no_mangle)]
 pub extern "C" fn get_appname(namelike: bool) -> *const c_char {
@@ -120,7 +82,8 @@ pub extern "C" fn get_appname(namelike: bool) -> *const c_char {
         if env_val.is_null() {
             name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5);
         }
-        to_slash_in_place(name_buff.cast::<c_char>());
+        #[cfg(windows)]
+        path_to_slash(name_buff.cast::<c_char>());
         if namelike {
             for i in 0..MAXPATHL {
                 let b = *name_buff.add(i);
@@ -187,7 +150,7 @@ unsafe fn xdg_remove_duplicate(ret: *mut c_char, sep: u8) -> *mut c_char {
         }
         joined.extend_from_slice(tok.as_bytes());
     }
-    unsafe { c_bytes_to_xmallocz(&joined) }
+    unsafe { xmemdupz(joined.as_ptr().cast(), joined.len()).cast::<c_char>() }
 }
 
 /// Return allocated XDG variable value for `idx` (`stdpaths_get_xdg_var`).
@@ -223,7 +186,10 @@ pub extern "C" fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
             }
         }
 
-        to_slash_in_place(env_val);
+        #[cfg(windows)]
+        if !env_val.is_null() {
+            path_to_slash(env_val);
+        }
 
         let mut ret: *mut c_char = if !env_val.is_null() {
             env_val
@@ -237,13 +203,13 @@ pub extern "C" fn stdpaths_get_xdg_var(idx: XDGVarType) -> *mut c_char {
                 CStr::from_ptr(tempdir).to_bytes()
             };
             let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
-            c_bytes_to_xmallocz(&raw[..trimmed_len])
+            xmemdupz(raw.as_ptr().cast(), trimmed_len).cast::<c_char>()
         } else {
             std::ptr::null_mut()
         };
 
         if matches!(idx, XDGVarType::kXDGDataDirs | XDGVarType::kXDGConfigDirs) && !ret.is_null() {
-            ret = xdg_remove_duplicate(ret, ENV_SEP_BYTE);
+            ret = xdg_remove_duplicate(ret, ENV_SEPCHAR);
         }
 
         ret
@@ -326,7 +292,7 @@ pub unsafe extern "C" fn stdpaths_user_state_subpath(
             let p = ret.cast::<u8>();
             *p.add(newlen) = 0;
             if trailing_pathseps > 0 {
-                std::ptr::write_bytes(p.add(len + numcommas), PATHSEP_BYTE, trailing_pathseps);
+                std::ptr::write_bytes(p.add(len + numcommas), PATHSEP as u8, trailing_pathseps);
             }
             newlen -= trailing_pathseps;
 
@@ -356,7 +322,7 @@ mod tests {
         unsafe {
             let p = stdpaths_user_state_subpath(c"a,b".as_ptr(), 2, true);
             let s = CStr::from_ptr(p).to_bytes();
-            let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP_BYTE, PATHSEP_BYTE];
+            let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP as u8, PATHSEP as u8];
             assert!(s.ends_with(&expected_suffix));
             xfree(p.cast::<c_void>());
         }

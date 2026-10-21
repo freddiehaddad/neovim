@@ -6,29 +6,27 @@ use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::math::{FAIL, OK};
 #[cfg(windows)]
 use crate::mbyte::utf16_to_utf8;
+#[cfg(unix)]
+use crate::memory::xstrlcpy;
 use crate::memory::{xfree, xstrdup};
 #[cfg(windows)]
 use crate::message::semsg;
 #[cfg(unix)]
 use crate::os::env::os_getenv_noalloc;
-use std::cell::UnsafeCell;
+use crate::strings::vim_snprintf;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::event::r#loop::uv_uid_t;
 
-struct StaticUsers(UnsafeCell<garray_T>);
-unsafe impl Sync for StaticUsers {}
-
-static GA_USERS: StaticUsers = StaticUsers(UnsafeCell::new(garray_T {
+static mut GA_USERS: garray_T = garray_T {
     ga_len: 0,
     ga_maxlen: 0,
     ga_itemsize: 0,
     ga_growsize: 1,
     ga_data: std::ptr::null_mut(),
-}));
+};
 
-static LAZY_INIT_DONE: AtomicBool = AtomicBool::new(false);
+static mut LAZY_INIT_DONE: bool = false;
 
 #[cfg(all(
     unix,
@@ -223,19 +221,6 @@ pub unsafe extern "C" fn os_get_username(s: *mut c_char, len: usize) -> c_int {
     unsafe { os_get_uname(uid, s, len) }
 }
 
-unsafe fn copy_cstr_truncated(dst: *mut c_char, dst_len: usize, src: &[u8]) {
-    if dst.is_null() || dst_len == 0 {
-        return;
-    }
-    let count = src.len().min(dst_len - 1);
-    unsafe {
-        if count > 0 {
-            std::ptr::copy_nonoverlapping(src.as_ptr(), dst.cast::<u8>(), count);
-        }
-        *dst.add(count) = 0;
-    }
-}
-
 /// Get the username associated with `uid` (`os_get_uname`).
 ///
 /// # Safety
@@ -246,15 +231,13 @@ pub unsafe extern "C" fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize)
     unsafe {
         let pw = getpwuid(uid);
         if !pw.is_null() && !(*pw).pw_name.is_null() && *(*pw).pw_name != 0 {
-            let name_bytes = CStr::from_ptr((*pw).pw_name).to_bytes();
-            copy_cstr_truncated(s, len, name_bytes);
+            xstrlcpy(s, (*pw).pw_name, len);
             return OK;
         }
     }
 
-    let formatted = format!("{}", uid as c_int);
     unsafe {
-        copy_cstr_truncated(s, len, formatted.as_bytes());
+        vim_snprintf!(s, len, c"%d".as_ptr(), uid as c_int);
     }
     FAIL
 }
@@ -288,16 +271,17 @@ pub unsafe extern "C" fn os_get_userdir(name: *const c_char) -> *mut c_char {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn free_users() {
     unsafe {
-        ga_clear_strings(GA_USERS.0.get());
+        ga_clear_strings(&raw mut GA_USERS);
     }
 }
 
 unsafe fn init_users() {
-    if LAZY_INIT_DONE.swap(true, Ordering::Relaxed) {
-        return;
-    }
     unsafe {
-        os_get_usernames(GA_USERS.0.get());
+        if LAZY_INIT_DONE {
+            return;
+        }
+        LAZY_INIT_DONE = true;
+        os_get_usernames(&raw mut GA_USERS);
     }
 }
 
@@ -309,9 +293,8 @@ unsafe fn init_users() {
 pub unsafe extern "C" fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         init_users();
-        let ga = &*GA_USERS.0.get();
-        if idx >= 0 && idx < ga.ga_len {
-            *ga.ga_data.cast::<*mut c_char>().add(idx as usize)
+        if idx >= 0 && idx < GA_USERS.ga_len {
+            *GA_USERS.ga_data.cast::<*mut c_char>().add(idx as usize)
         } else {
             std::ptr::null_mut()
         }
@@ -327,11 +310,10 @@ pub unsafe extern "C" fn match_user(name: *mut c_char) -> c_int {
     unsafe {
         init_users();
         let target = CStr::from_ptr(name).to_bytes();
-        let ga = &*GA_USERS.0.get();
-        let items = ga.ga_data.cast::<*mut c_char>();
+        let items = GA_USERS.ga_data.cast::<*mut c_char>();
         let mut result = 0;
 
-        for i in 0..ga.ga_len.max(0) as usize {
+        for i in 0..GA_USERS.ga_len.max(0) as usize {
             let entry = CStr::from_ptr(*items.add(i)).to_bytes();
             if entry == target {
                 return 2;
