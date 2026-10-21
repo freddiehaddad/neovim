@@ -1,6 +1,7 @@
 //! Built-in `assert_*` and `test_*` functions (`src/nvim/testing.c`).
 
 use crate::api::private::converter::{K_BOOL_VAR_FALSE, K_BOOL_VAR_TRUE};
+use crate::errors::e_cant_read_file_str;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
     EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, dict_T, dictitem_T,
@@ -482,7 +483,7 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
             iobuflen = vim_snprintf_safelen!(
                 iobuf.as_mut_ptr(),
                 IOSIZE,
-                c"E485: Can't read file %s".as_ptr(),
+                e_cant_read_file_str.as_ptr(),
                 fname1,
             );
         } else {
@@ -492,7 +493,7 @@ unsafe fn assert_equalfile(argvars: *mut typval_T) -> c_int {
                 iobuflen = vim_snprintf_safelen!(
                     iobuf.as_mut_ptr(),
                     IOSIZE,
-                    c"E485: Can't read file %s".as_ptr(),
+                    e_cant_read_file_str.as_ptr(),
                     fname2,
                 );
             } else {

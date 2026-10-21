@@ -1666,7 +1666,7 @@ pub unsafe extern "C" fn buf_write(
                                     );
                                     if buf_get_changedtick(buf) != write_tick {
                                         err = set_err(gettext(
-                                            c"E787: Buffer changed unexpectedly".as_ptr(),
+                                            e_buffer_changed_unexpectedly.as_ptr(),
                                         ));
                                         end = 0;
                                         break;

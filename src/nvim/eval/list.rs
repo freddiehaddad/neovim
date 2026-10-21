@@ -238,7 +238,7 @@ unsafe fn filter_map_blob(
             if filtermap != FilterMap::ForEach {
                 if newtv.v_type != VarType::VAR_NUMBER && newtv.v_type != VarType::VAR_BOOL {
                     tv_clear(&mut newtv);
-                    emsg(c"E978: Invalid operation for Blob".as_ptr());
+                    emsg(e_invalblob.as_ptr());
                     break;
                 }
                 if filtermap != FilterMap::Filter {
@@ -311,7 +311,7 @@ unsafe fn filter_map_string(
                 if newtv.v_type != VarType::VAR_STRING {
                     tv_clear(&mut newtv);
                     tv_clear(&mut tv);
-                    emsg(c"E928: String required".as_ptr());
+                    emsg(e_string_required.as_ptr());
                     break;
                 } else {
                     ga_concat(&mut ga, newtv.vval.v_string);
@@ -553,7 +553,7 @@ pub unsafe extern "C" fn f_add(argvars: *mut typval_T, rettv: *mut typval_T, _fp
                 }
             }
         } else {
-            emsg(c"E897: List or Blob required".as_ptr());
+            emsg(e_listblobreq.as_ptr());
         }
     }
 }
@@ -675,7 +675,7 @@ pub unsafe extern "C" fn f_count(
             let d = arg0.vval.v_ptr.cast::<dict_T>();
             if !d.is_null() {
                 if arg2.v_type != VarType::VAR_UNKNOWN && arg3.v_type != VarType::VAR_UNKNOWN {
-                    emsg(c"E474: Invalid argument".as_ptr());
+                    emsg(e_invarg.as_ptr());
                 } else {
                     n = count_dict(d, arg1, ic);
                 }
@@ -732,7 +732,7 @@ unsafe fn extend_dict(
                     if is_new {
                         tv_dict_unref(d1);
                     }
-                    semsg!(c"E475: Invalid argument: %s".as_ptr(), action);
+                    semsg!(e_invarg2.as_ptr(), action);
                     return;
                 }
             }
@@ -827,7 +827,7 @@ unsafe fn extend_impl(
             extend_dict(argvars, arg_errmsg, is_new, rettv);
         } else {
             semsg!(
-                c"E712: Argument of %s must be a List or Dictionary".as_ptr(),
+                e_listdictarg.as_ptr(),
                 if is_new {
                     c"extendnew()".as_ptr()
                 } else {
@@ -892,7 +892,7 @@ pub unsafe extern "C" fn f_insert(
                     return;
                 }
                 if before < 0 || before > len {
-                    semsg!(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg2));
+                    semsg!(e_invarg2.as_ptr(), tv_get_string(arg2));
                     return;
                 }
             }
@@ -901,7 +901,7 @@ pub unsafe extern "C" fn f_insert(
                 return;
             }
             if !(0..=255).contains(&val) {
-                semsg!(c"E475: Invalid argument: %s".as_ptr(), tv_get_string(arg1));
+                semsg!(e_invarg2.as_ptr(), tv_get_string(arg1));
                 return;
             }
 
@@ -917,10 +917,7 @@ pub unsafe extern "C" fn f_insert(
 
             tv_copy(argvars, rettv);
         } else if arg0.v_type != VarType::VAR_LIST {
-            semsg!(
-                c"E899: Argument of %s must be a List or Blob".as_ptr(),
-                c"insert()".as_ptr(),
-            );
+            semsg!(e_listblobarg.as_ptr(), c"insert()".as_ptr());
         } else {
             let mut l = arg0.vval.v_list;
             if value_check_lock(
@@ -969,10 +966,7 @@ pub unsafe extern "C" fn f_remove(
             VarType::VAR_BLOB => tv_blob_remove(argvars, rettv, arg_errmsg),
             VarType::VAR_LIST => tv_list_remove(argvars, rettv, arg_errmsg),
             _ => {
-                semsg!(
-                    c"E896: Argument of %s must be a List, Dictionary or Blob".as_ptr(),
-                    c"remove()".as_ptr(),
-                );
+                semsg!(e_listdictblobarg.as_ptr(), c"remove()".as_ptr());
             }
         }
     }

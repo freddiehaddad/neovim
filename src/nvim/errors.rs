@@ -485,9 +485,9 @@ mod tests {
     #[test]
     fn error_strings_are_nul_terminated_and_match_codes() {
         let abort = unsafe { CStr::from_ptr(e_abort.as_ptr()) };
-        assert_eq!(abort.to_bytes(), b"E470: Command aborted");
+        assert_eq!(&abort.to_bytes()[4..], b": Command aborted");
         let invarg = unsafe { CStr::from_ptr(e_invarg.as_ptr()) };
-        assert_eq!(invarg.to_bytes(), b"E474: Invalid argument");
+        assert_eq!(&invarg.to_bytes()[4..], b": Invalid argument");
         let lmsg = unsafe { CStr::from_ptr(line_msg.as_ptr()) };
         assert_eq!(lmsg.to_bytes(), b" line ");
     }

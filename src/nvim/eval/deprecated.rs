@@ -12,6 +12,7 @@ use crate::garray::garray_T;
 use crate::globals::*;
 use crate::memory::{xmalloc, xstrdup};
 use crate::api::private::converter::K_BOOL_VAR_TRUE;
+use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
 use crate::message::{emsg, semsg};
 use std::ffi::{c_char, c_int, c_void};
 
@@ -65,7 +66,7 @@ pub unsafe extern "C" fn f_rpcstart(
         if arg0.v_type != VarType::VAR_STRING
             || (arg1.v_type != VarType::VAR_LIST && arg1.v_type != VarType::VAR_UNKNOWN)
         {
-            emsg(c"E474: Invalid argument".as_ptr());
+            emsg(e_invarg.as_ptr());
             return;
         }
 
@@ -95,7 +96,7 @@ pub unsafe extern "C" fn f_rpcstart(
 
         let prog = arg0.vval.v_string;
         if prog.is_null() || *prog == 0 {
-            emsg(c"E903: Could not spawn API job".as_ptr());
+            emsg(e_api_spawn_failed.as_ptr());
             return;
         }
 
@@ -154,7 +155,7 @@ pub unsafe extern "C" fn f_rpcstop(
 
         let arg0 = &*argvars;
         if arg0.v_type != VarType::VAR_NUMBER {
-            emsg(c"E474: Invalid argument".as_ptr());
+            emsg(e_invarg.as_ptr());
             return;
         }
 
@@ -213,10 +214,7 @@ pub unsafe extern "C" fn f_termopen(
         }
 
         if arg1.v_type != VarType::VAR_DICT {
-            semsg!(
-                c"E475: Invalid argument: %s".as_ptr(),
-                c"expected dictionary".as_ptr(),
-            );
+            semsg!(e_invarg2.as_ptr(), c"expected dictionary".as_ptr());
             return;
         }
 

@@ -6855,7 +6855,7 @@ unsafe fn qf_add_entry_from_dict(
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             if !did_bufnr_emsg {
                 did_bufnr_emsg = true;
-                semsg!(gettext(c"E92: Buffer %d not found".as_ptr()), bufnum);
+                semsg!(gettext(e_buffer_nr_not_found.as_ptr()), bufnum);
             }
             valid = false;
             bufnum = 0;

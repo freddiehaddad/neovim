@@ -71,20 +71,13 @@ const RP_MAKE: c_int = 0;
 const RP_RESUME: c_int = 1;
 const RP_DISCARD: c_int = 2;
 
+use crate::errors::{
+    e_argreq, e_endfor, e_endif, e_endtry, e_endwhile, e_for, e_invarg2, e_invexpr2, e_outofmem,
+    e_str_not_inside_function, e_trailing_arg, e_while,
+};
+
 const E_MULTIPLE_ELSE: &CStr = c"E583: Multiple :else";
 const E_MULTIPLE_FINALLY: &CStr = c"E607: Multiple :finally";
-const E_INVEXPR2: &CStr = c"E15: Invalid expression: \"%s\"";
-const E_OUTOFMEM: &CStr = c"E41: Out of memory!";
-const E_ENDEVAL_ENDIF: &CStr = c"E171: Missing :endif";
-const E_ENDEVAL_ENDTRY: &CStr = c"E600: Missing :endtry";
-const E_ENDEVAL_ENDWHILE: &CStr = c"E170: Missing :endwhile";
-const E_ENDEVAL_ENDFOR: &CStr = c"E170: Missing :endfor";
-const E_WHILE: &CStr = c"E588: :endwhile without :while";
-const E_FOR: &CStr = c"E588: :endfor without :for";
-const E_ARGREQ: &CStr = c"E471: Argument required";
-const E_TRAILING_ARG: &CStr = c"E488: Trailing characters: %s";
-const E_INVARG2: &CStr = c"E475: Invalid argument: %s";
-const E_STR_NOT_INSIDE_FUNCTION: &CStr = c"E193: %s not inside a function";
 
 #[repr(C)]
 pub struct eslist_T {
@@ -445,7 +438,7 @@ unsafe fn throw_exception(
         if (*excp).value.is_null() && should_free {
             xfree(excp.cast());
             suppress_errthrow = true;
-            emsg(gettext(E_OUTOFMEM.as_ptr()));
+            emsg(gettext(e_outofmem.as_ptr()));
             current_exception = ptr::null_mut();
             return FAIL;
         }
@@ -914,7 +907,7 @@ pub unsafe extern "C" fn ex_else(eap: *mut exarg_T) {
                 && *(*eap).arg != b'"' as c_char
                 && ends_excmd(c_int::from(*(*eap).arg as u8)) != 0
             {
-                semsg!(gettext(E_INVEXPR2.as_ptr()), (*eap).arg);
+                semsg!(gettext(e_invexpr2.as_ptr()), (*eap).arg);
             } else {
                 result = eval_to_bool((*eap).arg, &mut error, eap, skip, false);
             }
@@ -1040,9 +1033,9 @@ pub unsafe extern "C" fn ex_endwhile(eap: *mut exarg_T) {
     unsafe {
         let cstack = (*eap).cstack.cast::<cstack_T>();
         let (err, csf) = if (*eap).cmdidx == CMD_endwhile {
-            (E_WHILE.as_ptr(), CSF_WHILE)
+            (e_while.as_ptr(), CSF_WHILE)
         } else {
-            (E_FOR.as_ptr(), CSF_FOR)
+            (e_for.as_ptr(), CSF_FOR)
         };
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
@@ -1058,9 +1051,9 @@ pub unsafe extern "C" fn ex_endwhile(eap: *mut exarg_T) {
             }
             if (fl & (CSF_WHILE | CSF_FOR)) == 0 {
                 if (fl & CSF_TRY) == 0 {
-                    (*eap).errmsg = gettext(E_ENDEVAL_ENDIF.as_ptr());
+                    (*eap).errmsg = gettext(e_endif.as_ptr());
                 } else if (fl & CSF_FINALLY) != 0 {
-                    (*eap).errmsg = gettext(E_ENDEVAL_ENDTRY.as_ptr());
+                    (*eap).errmsg = gettext(e_endtry.as_ptr());
                 }
                 let mut idx = (*cstack).cs_idx;
                 while idx > 0 {
@@ -1095,7 +1088,7 @@ pub unsafe extern "C" fn ex_throw(eap: *mut exarg_T) {
         let value = if *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
             eval_to_string_skip(arg, eap, (*eap).skip != 0)
         } else {
-            emsg(gettext(E_ARGREQ.as_ptr()));
+            emsg(gettext(e_argreq.as_ptr()));
             ptr::null_mut()
         };
 
@@ -1225,7 +1218,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
                     && *end != NUL
                     && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
-                    semsg!(gettext(E_TRAILING_ARG.as_ptr()), end);
+                    semsg!(gettext(e_trailing_arg.as_ptr()), end);
                     return;
                 }
 
@@ -1247,7 +1240,7 @@ pub unsafe extern "C" fn ex_catch(eap: *mut exarg_T) {
                     }
                     p_cpo = save_cpo;
                     if regmatch.regprog.is_null() {
-                        semsg!(gettext(E_INVARG2.as_ptr()), pat);
+                        semsg!(gettext(e_invarg2.as_ptr()), pat);
                     } else {
                         let prev_got_int = got_int;
                         got_int = false;
@@ -1645,12 +1638,12 @@ unsafe fn get_end_emsg(cstack: *const cstack_T) -> *mut c_char {
     unsafe {
         let fl = (*cstack).cs_flags[(*cstack).cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
-            return gettext(E_ENDEVAL_ENDWHILE.as_ptr());
+            return gettext(e_endwhile.as_ptr());
         }
         if (fl & CSF_FOR) != 0 {
-            return gettext(E_ENDEVAL_ENDFOR.as_ptr());
+            return gettext(e_endfor.as_ptr());
         }
-        gettext(E_ENDEVAL_ENDIF.as_ptr())
+        gettext(e_endif.as_ptr())
     }
 }
 
@@ -1679,7 +1672,7 @@ pub unsafe extern "C" fn rewind_conditionals(
 pub unsafe extern "C" fn ex_endfunction(_eap: *mut exarg_T) {
     unsafe {
         semsg!(
-            gettext(E_STR_NOT_INSIDE_FUNCTION.as_ptr()),
+            gettext(e_str_not_inside_function.as_ptr()),
             c":endfunction".as_ptr(),
         );
     }

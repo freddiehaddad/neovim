@@ -3443,7 +3443,7 @@ pub unsafe extern "C" fn ex_diffgetput(eap: *mut exarg_T) {
             if (*curbuf).b_changed == 0 {
                 change_warning(curbuf, 0);
                 if diff_buf_idx(curbuf, curtab) != idx_to as c_int {
-                    emsg(gettext(c"E787: Buffer changed unexpectedly".as_ptr()));
+                    emsg(gettext(e_buffer_changed_unexpectedly.as_ptr()));
                     ctx_restore(&raw mut aco);
                     break 'theend;
                 }

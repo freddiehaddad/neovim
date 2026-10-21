@@ -2,6 +2,7 @@
 
 use crate::charset::{getdigits_int32, skipwhite};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
+use crate::errors::{e_invarg2, e_noname};
 use crate::eval::typval::{Callback, tv_free, typval_T};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, exarg_T};
@@ -528,7 +529,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
             if (*curbuf).b_ffname.is_null() {
-                emsg(c"E32: No file name".as_ptr());
+                emsg(e_noname.as_ptr());
                 return FAIL;
             }
             bp.dbg_type = DBG_FILE;
@@ -536,7 +537,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
         } else if !is_prof && p_bytes.starts_with(b"expr") {
             bp.dbg_type = DBG_EXPR;
         } else {
-            semsg!(c"E475: Invalid argument: %s".as_ptr(), p);
+            semsg!(e_invarg2.as_ptr(), p);
             return FAIL;
         }
         p = skipwhite(p.add(4));
@@ -555,7 +556,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, gap: *mut garray_T) -> c_int {
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
         {
-            semsg!(c"E475: Invalid argument: %s".as_ptr(), arg);
+            semsg!(e_invarg2.as_ptr(), arg);
             return FAIL;
         }
 

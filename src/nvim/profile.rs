@@ -2,6 +2,7 @@
 
 use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
+use crate::errors::e_notopen;
 use crate::eval::typval::{dict_T, dictitem_T, list_T, listitem_T, typval_T};
 use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal, ufunc_T};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
@@ -876,7 +877,7 @@ pub unsafe extern "C" fn profile_dump() {
 
         let fd = os_fopen(PROFILE_FNAME, c"w".as_ptr());
         if fd.is_null() {
-            semsg!(c"E484: Can't open file %s".as_ptr(), PROFILE_FNAME);
+            semsg!(e_notopen.as_ptr(), PROFILE_FNAME);
         } else {
             script_dump_profile(fd);
             func_dump_profile(fd);

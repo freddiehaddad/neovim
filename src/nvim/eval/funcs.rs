@@ -1565,7 +1565,7 @@ pub unsafe extern "C" fn get_buf_arg(arg: *mut typval_T) -> *mut buf_T {
         emsg_off -= 1;
         if buf.is_null() {
             semsg!(
-                gettext(c"E158: Invalid buffer name: %s".as_ptr()),
+                gettext(e_invalid_buffer_name_str.as_ptr()),
                 tv_get_string(arg),
             );
         }

@@ -1,6 +1,7 @@
 //! Command-line history (`src/nvim/cmdhist.c`).
 
 use crate::charset::vim_strsize;
+use crate::errors::{e_trailing_arg, e_val_too_large};
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
     typval_T,
@@ -699,7 +700,7 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {
-                    semsg!(c"E488: Trailing characters: %s".as_ptr(), arg);
+                    semsg!(e_trailing_arg.as_ptr(), arg);
                     return;
                 }
             } else {
@@ -709,9 +710,9 @@ pub unsafe extern "C" fn ex_history(eap: *mut exarg_T) {
 
         if get_list_range(&mut end, &mut hisidx1, &mut hisidx2) == 0 || *end != 0 {
             if *end != 0 {
-                semsg!(c"E488: Trailing characters: %s".as_ptr(), end);
+                semsg!(e_trailing_arg.as_ptr(), end);
             } else {
-                semsg!(c"E1510: Value too large: %s".as_ptr(), arg);
+                semsg!(e_val_too_large.as_ptr(), arg);
             }
             return;
         }

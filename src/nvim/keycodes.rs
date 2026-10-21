@@ -4,6 +4,7 @@ use crate::api::private::validate::NvimString;
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, is_special, transchar, vim_isprintc, vim_str2nr,
 };
+use crate::errors::{e_invarg, e_usingsid};
 use crate::eval::vars::{get_var_value, scid_T};
 use crate::globals::*;
 use crate::mbyte::{
@@ -2517,7 +2518,7 @@ pub unsafe extern "C" fn find_special_key(
                         std::ptr::null_mut(),
                     );
                     if l == 0 {
-                        emsg(c"E474: Invalid argument".as_ptr());
+                        emsg(e_invarg.as_ptr());
                         return 0;
                     }
                     bp = bp.add(l as usize + 5);
@@ -2566,7 +2567,7 @@ pub unsafe extern "C" fn find_special_key(
                         std::ptr::null_mut(),
                     );
                     if l == 0 {
-                        emsg(c"E474: Invalid argument".as_ptr());
+                        emsg(e_invarg.as_ptr());
                         return 0;
                     }
                     key = n as c_int;
@@ -2740,7 +2741,7 @@ pub unsafe extern "C" fn replace_termcodes(
                 // for script-local user functions.
                 if rem >= 5 && vim_strnicmp_asc(src, c"<SID>".as_ptr(), 5) == 0 {
                     if sid_arg < 0 || (sid_arg == 0 && current_sctx.sc_sid <= 0) {
-                        emsg(c"E81: Using <SID> not in a script context".as_ptr());
+                        emsg(e_usingsid.as_ptr());
                     } else {
                         let sid: scid_T = if sid_arg != 0 {
                             sid_arg

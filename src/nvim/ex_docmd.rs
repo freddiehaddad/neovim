@@ -504,45 +504,7 @@ const e_no_line_number_to_use_for_sflnum: &CStr = c"E961: No line number to use 
 const e_no_script_file_name_to_substitute_for_script: &CStr =
     c"E1274: No script file name to substitute for \"<script>\"";
 
-const e_argreq: &CStr = c"E471: Argument required";
-const e_backslash: &CStr = c"E10: \\ should be followed by /, ? or &";
-const e_curdir: &CStr = c"E12: Command not allowed in secure mode in current dir or tag search";
-const e_command_too_recursive: &CStr = c"E169: Command too recursive";
-const e_endif: &CStr = c"E171: Missing :endif";
-const e_endtry: &CStr = c"E600: Missing :endtry";
-const e_endwhile: &CStr = c"E170: Missing :endwhile";
-const e_endfor: &CStr = c"E170: Missing :endfor";
-const e_failed: &CStr = c"E472: Command failed";
-const e_invarg: &CStr = c"E474: Invalid argument";
-const e_invarg2: &CStr = c"E475: Invalid argument: %s";
-const e_invargval: &CStr = c"E475: Invalid value for argument %s";
-const e_invrange: &CStr = c"E16: Invalid range";
-const e_invcmd: &CStr = c"E476: Invalid command";
-#[cfg(unix)]
-const e_isadir2: &CStr = c"E17: \"%s\" is a directory";
-const e_mkdir: &CStr = c"E739: Cannot create directory %s: %s";
-const e_modifiable: &CStr = c"E21: Cannot make changes, 'modifiable' is off";
-const e_nobang: &CStr = c"E477: No ! allowed";
-const e_norange: &CStr = c"E481: No range allowed";
-const e_notopen: &CStr = c"E484: Can't open file %s";
-const e_no_errors: &CStr = c"E42: No Errors";
-const e_sandbox: &CStr = c"E48: Not allowed in sandbox";
-const e_secure: &CStr = c"E523: Not allowed here";
-const e_screenmode: &CStr = c"E359: Screen mode setting not supported";
-const e_shellempty: &CStr = c"E91: 'shell' option is empty";
-const e_trailing_arg: &CStr = c"E488: Trailing characters: %s";
-const e_zerocount: &CStr = c"E939: Positive count required";
-const e_usingsid: &CStr = c"E81: Using <SID> not in a script context";
-const e_empty_buffer: &CStr = c"E749: Empty buffer";
-const e_autocmd_close: &CStr = c"E813: Cannot close autocmd window";
-const e_noui: &CStr = c"E5768: No UI attached";
-const e_cant_find_file_str_in_path: &CStr = c"E345: Can't find file \"%s\" in path";
-const e_no_more_file_str_found_in_path: &CStr = c"E347: No more file \"%s\" found in path";
-const e_line_number_out_of_range: &CStr = c"E1247: Line number out of range";
-const e_undobang_cannot_redo_or_move_branch: &CStr =
-    c"E5767: Cannot use :undo! to redo or move to a different undo branch";
-const e_invalid_return_type_from_findfunc: &CStr = c"E1514: 'findfunc' did not return a List type";
-const e_restart_failed_cmd_no_quit: &CStr = c"E5201: Restart failed: +cmd did not quit server: %s";
+use crate::errors::*;
 
 const COMMAND_COUNT: c_int = 564;
 const CMD_SIZE_I32: c_int = cmdidx_T::CMD_SIZE as c_int;

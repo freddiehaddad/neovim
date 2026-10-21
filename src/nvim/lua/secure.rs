@@ -1,6 +1,7 @@
 //! Secure file reading and `:trust` command (`src/nvim/lua/secure.c`).
 
 use crate::charset::{skiptowhite, skipwhite};
+use crate::errors::{e_invarg2, e_trustfile};
 use crate::lua::converter::{
     LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
     lua_settable, lua_settop, lua_toboolean, lua_tolstring,
@@ -84,7 +85,7 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
                     smsg!(0, c"Removed from trust database: \"%s\"".as_ptr(), msg);
                 }
             } else {
-                semsg!(c"E5570: Cannot update trust file: %s".as_ptr(), msg);
+                semsg!(e_trustfile.as_ptr(), msg);
             }
         }
 
@@ -110,7 +111,7 @@ pub unsafe extern "C" fn ex_trust(eap: *mut exarg_T) {
         } else if arg1_bytes == b"++remove" {
             action = c"remove".as_ptr();
         } else if !arg1_bytes.is_empty() {
-            semsg!(c"E475: Invalid argument: %s".as_ptr(), arg1);
+            semsg!(e_invarg2.as_ptr(), arg1);
             xfree(arg1.cast::<c_void>());
             return;
         }
