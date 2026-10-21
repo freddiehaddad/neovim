@@ -320,37 +320,7 @@ unsafe fn db_idx_ptr(dp: *mut DataBlock, idx: usize) -> *mut c_uint {
     unsafe { (&raw mut (*dp).db_index).cast::<c_uint>().add(idx) }
 }
 
-#[inline]
-unsafe fn vim_stricmp(mut a: *const c_char, mut b: *const c_char) -> c_int {
-    unsafe {
-        loop {
-            let ca = (*a as u8).to_ascii_lowercase();
-            let cb = (*b as u8).to_ascii_lowercase();
-            if ca != cb || ca == 0 {
-                return c_int::from(ca) - c_int::from(cb);
-            }
-            a = a.add(1);
-            b = b.add(1);
-        }
-    }
-}
-
-#[inline]
-unsafe fn vim_strnicmp(mut a: *const c_char, mut b: *const c_char, mut len: usize) -> c_int {
-    unsafe {
-        while len > 0 {
-            let ca = (*a as u8).to_ascii_lowercase();
-            let cb = (*b as u8).to_ascii_lowercase();
-            if ca != cb || ca == 0 {
-                return c_int::from(ca) - c_int::from(cb);
-            }
-            a = a.add(1);
-            b = b.add(1);
-            len -= 1;
-        }
-        0
-    }
-}
+use crate::strings::{vim_stricmp, vim_strnicmp};
 
 #[inline]
 unsafe fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
@@ -3011,9 +2981,9 @@ pub unsafe extern "C" fn ml_firstmarked() -> linenr_T {
                 return 0;
             }
             let dp = (*hp).bh_data.cast::<DataBlock>();
-            let mut i = (lnum - (*curbuf).b_ml.ml_locked_low) as usize;
+            let mut i = (lnum - (*curbuf).b_ml.ml_locked_low) as isize;
             while lnum <= (*curbuf).b_ml.ml_locked_high {
-                let idx_p = db_idx_ptr(dp, i);
+                let idx_p = (&raw mut (*dp).db_index).cast::<c_uint>().offset(i);
                 if (*idx_p & DB_MARKED) != 0 {
                     *idx_p &= DB_INDEX_MASK;
                     (*curbuf).b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -3044,9 +3014,9 @@ pub unsafe extern "C" fn ml_clearmarked() {
                 return;
             }
             let dp = (*hp).bh_data.cast::<DataBlock>();
-            let mut i = (lnum - (*curbuf).b_ml.ml_locked_low) as usize;
+            let mut i = (lnum - (*curbuf).b_ml.ml_locked_low) as isize;
             while lnum <= (*curbuf).b_ml.ml_locked_high {
-                let idx_p = db_idx_ptr(dp, i);
+                let idx_p = (&raw mut (*dp).db_index).cast::<c_uint>().offset(i);
                 if (*idx_p & DB_MARKED) != 0 {
                     *idx_p &= DB_INDEX_MASK;
                     (*curbuf).b_ml.ml_flags |= ML_LOCKED_DIRTY;
