@@ -13,8 +13,6 @@ local repos = {
   'luajit/luajit',
   'libuv/libuv',
   'luvit/luv',
-  'neovim/unibilium',
-  'juliastrings/utf8proc',
   'tree-sitter/tree-sitter',
   'tree-sitter/tree-sitter-c',
   'tree-sitter-grammars/tree-sitter-diff',

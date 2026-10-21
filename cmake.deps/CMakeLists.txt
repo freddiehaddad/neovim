@@ -35,8 +35,6 @@ option(USE_BUNDLED_LUAJIT "Use the bundled version of luajit." ${USE_BUNDLED})
 option(USE_BUNDLED_LUV "Use the bundled version of luv." ${USE_BUNDLED})
 option(USE_BUNDLED_TS "Use the bundled treesitter runtime." ${USE_BUNDLED})
 option(USE_BUNDLED_TS_PARSERS "Use the bundled treesitter parsers." ${USE_BUNDLED})
-option(USE_BUNDLED_UNIBILIUM "Use the bundled unibilium." ${USE_BUNDLED})
-option(USE_BUNDLED_UTF8PROC "Use the bundled utf8proc library." ${USE_BUNDLED})
 
 if(USE_BUNDLED AND MSVC)
   option(USE_BUNDLED_GETTEXT "Use the bundled version of gettext." ON)
@@ -118,10 +116,6 @@ else()
   endif()
 endif()
 
-if(USE_BUNDLED_UNIBILIUM)
-  include(BuildUnibilium)
-endif()
-
 if(USE_BUNDLED_LIBUV)
   include(BuildLibuv)
 endif()
@@ -156,10 +150,6 @@ endif()
 
 if(USE_BUNDLED_TS)
   include(BuildTreesitter)
-endif()
-
-if(USE_BUNDLED_UTF8PROC)
-  include(BuildUTF8proc)
 endif()
 
 if(WIN32)
