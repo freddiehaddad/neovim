@@ -1736,7 +1736,7 @@ pub unsafe extern "C" fn os_realpath(
     }
 }
 
-#[cfg_attr(windows, unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_char {
     #[cfg(windows)]
     unsafe {
@@ -1814,7 +1814,7 @@ pub unsafe extern "C" fn os_resolve_shortcut(fname: *const c_char) -> *mut c_cha
     }
 }
 
-#[cfg_attr(windows, unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_is_reparse_point_include(path: *const c_char) -> bool {
     #[cfg(windows)]
     unsafe {

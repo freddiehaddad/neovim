@@ -893,7 +893,7 @@ pub unsafe extern "C-unwind" fn nlua_state_add_stdlib(lstate: *mut lua_State, is
         {
             let top = lua_gettop(lstate);
             let _ = crate::bit::nvim_luaopen_bit(lstate);
-            lua_settop(lstate, top);
+            crate::lua::converter::lua_settop(lstate, top);
         }
     }
 }

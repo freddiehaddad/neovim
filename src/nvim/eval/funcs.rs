@@ -378,11 +378,7 @@ const REQUIRED_ENV_VARS: &[&CStr] = &[];
 #[cfg(windows)]
 pub(crate) const PROCESS_ALL_ACCESS: u32 = 0x001F0FFF;
 #[cfg(windows)]
-use crate::os::os_win_console::{CloseHandle, OpenProcess};
-#[cfg(windows)]
-unsafe extern "system" {
-    fn DebugBreakProcess(Process: *mut c_void) -> c_int;
-}
+use crate::os::os_win_console::{CloseHandle, DebugBreakProcess, OpenProcess};
 
 const fn compute_build_has_flags() -> u32 {
     let mut flags = 0u32;

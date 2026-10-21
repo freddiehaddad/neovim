@@ -208,37 +208,22 @@ pub struct mparm_T {
     pub had_stdin_file: bool,
 }
 
-#[cfg(windows)]
-#[repr(C)]
-struct OsVersionInfoA {
-    dwOSVersionInfoSize: u32,
-    dwMajorVersion: u32,
-    dwMinorVersion: u32,
-    dwBuildNumber: u32,
-    dwPlatformId: u32,
-    szCSDVersion: [c_char; 128],
-}
-
 static mut ARGV0: *mut c_char = ptr::null_mut();
 static mut REALLY_EXITING: bool = false;
 
 use crate::charset::NUL;
 use crate::extmark::{kFalse, kNone, kTrue};
 #[cfg(windows)]
-use crate::fileio::{close_fd, dup2};
-use crate::globals::IOSIZE;
-use crate::os::fs::MAXPATHL;
-
-#[cfg(windows)]
-unsafe extern "system" {
-    fn GetVersionExA(lpVersionInformation: *mut OsVersionInfoA) -> c_int;
-}
-
-#[cfg(windows)]
 use crate::fileio::_setmode;
 use crate::fileio::setbuf;
 #[cfg(unix)]
 use crate::fileio::tcdrain;
+#[cfg(windows)]
+use crate::fileio::{close_fd, dup2};
+use crate::globals::IOSIZE;
+use crate::os::fs::MAXPATHL;
+#[cfg(windows)]
+use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 
 #[inline]
 unsafe fn time_msg_if_enabled(s: *const c_char) {
@@ -1049,12 +1034,12 @@ pub unsafe extern "C" fn preserve_exit(errmsg: *const c_char) -> ! {
     }
 }
 
-#[cfg_attr(not(windows), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn __ubsan_default_options() -> *const c_char {
     c"print_stacktrace=1".as_ptr()
 }
 
-#[cfg_attr(not(windows), unsafe(no_mangle))]
+#[unsafe(no_mangle)]
 pub extern "C" fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }

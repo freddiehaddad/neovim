@@ -82,6 +82,17 @@ static mut H_ORIG_ICON: HICON = std::ptr::null_mut();
 static mut CONSOLE_INHERITED: bool = false;
 
 #[cfg(windows)]
+#[repr(C)]
+pub struct OsVersionInfoA {
+    pub dwOSVersionInfoSize: u32,
+    pub dwMajorVersion: u32,
+    pub dwMinorVersion: u32,
+    pub dwBuildNumber: u32,
+    pub dwPlatformId: u32,
+    pub szCSDVersion: [c_char; 128],
+}
+
+#[cfg(windows)]
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn SetConsoleCtrlHandler(HandlerRoutine: *const c_void, Add: BOOL) -> BOOL;
@@ -107,6 +118,9 @@ unsafe extern "system" {
     pub fn GetProcessId(Process: HANDLE) -> DWORD;
     pub fn OpenProcess(dwDesiredAccess: DWORD, bInheritHandle: BOOL, dwProcessId: DWORD) -> HANDLE;
     pub fn TerminateProcess(hProcess: HANDLE, uExitCode: u32) -> BOOL;
+    pub fn DebugBreakProcess(Process: *mut c_void) -> c_int;
+    pub fn ExitThread(dwExitCode: u32) -> !;
+    pub fn GetVersionExA(lpVersionInformation: *mut OsVersionInfoA) -> c_int;
 }
 
 #[cfg(windows)]

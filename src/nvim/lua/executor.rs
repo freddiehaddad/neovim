@@ -337,18 +337,8 @@ static mut EXPAND_RESULT_ARRAY: garray_T = garray_T {
     ga_data: ptr::null_mut(),
 };
 
-unsafe extern "C-unwind" {
-    fn luaopen_luv(L: *mut lua_State) -> c_int;
-}
-
-use crate::api::private::dispatch::nlua_add_api_functions;
-
-#[cfg(windows)]
-unsafe extern "system" {
-    fn ExitThread(dwExitCode: u32) -> !;
-}
-
 use crate::api::buffer::LUA_INTERNAL_CALL;
+use crate::api::private::dispatch::nlua_add_api_functions;
 use crate::buffer::VAR_FIXED;
 use crate::charset::NUL;
 use crate::cmdexpand::{MB_MAXBYTES, kUICmdline};
@@ -360,8 +350,14 @@ use crate::ex_docmd::{
 };
 use crate::globals::IOSIZE;
 use crate::lua::converter::LUA_NOREF;
+#[cfg(windows)]
+use crate::os::os_win_console::ExitThread;
 use crate::version::main_exitfree;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
+
+unsafe extern "C-unwind" {
+    fn luaopen_luv(L: *mut lua_State) -> c_int;
+}
 
 unsafe extern "C" {
     fn luv_set_loop(L: *mut lua_State, loop_: *mut c_void);
