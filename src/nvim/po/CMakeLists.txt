@@ -46,27 +46,26 @@ if(ENABLE_LIBINTL AND GETTEXT_FOUND AND XGETTEXT_PRG AND ICONV_PRG)
   set(ENV{OLD_PO_FILE_OUTPUT} yes)
 
   file(GLOB_RECURSE NVIM_PO_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/nvim/*.rs)
-  set(NVIM_RELATIVE_SOURCES)
-  foreach(SRC ${NVIM_PO_SOURCES})
-    file(RELATIVE_PATH RELATIVE_SRC ${CMAKE_CURRENT_SOURCE_DIR} ${SRC})
-    list(APPEND NVIM_RELATIVE_SOURCES ${RELATIVE_SRC})
-  endforeach()
-
+  set(NVIM_PO_EXTRACTED_C ${CMAKE_CURRENT_BINARY_DIR}/nvim_po_strings.c)
   set(NVIM_POT ${CMAKE_CURRENT_BINARY_DIR}/nvim.pot)
 
-  list(SORT NVIM_RELATIVE_SOURCES)
   add_custom_command(
     OUTPUT ${NVIM_POT}
-    COMMAND ${XGETTEXT_PRG} -o ${NVIM_POT} --default-domain=nvim --language=C
+    COMMAND ${CMAKE_COMMAND}
+      -D NVIM_BIN_FILE=${NVIM_BIN_FILE}
+      -D SRC_DIR=${PROJECT_SOURCE_DIR}/src/nvim
+      -D OUTPUT_FILE=${NVIM_PO_EXTRACTED_C}
+      -P ${PROJECT_SOURCE_DIR}/cmake/ExtractPoStrings.cmake
+    COMMAND ${XGETTEXT_PRG} -o ${NVIM_POT} --from-code=UTF-8 --default-domain=nvim --language=C
       --keyword=_ --keyword=N_ --keyword=NGETTEXT:1,2 --keyword=gettext --keyword=ngettext:1,2
       --no-location
       -D ${CMAKE_CURRENT_SOURCE_DIR} -D ${CMAKE_CURRENT_BINARY_DIR}
-      ${NVIM_RELATIVE_SOURCES} ${PROJECT_SOURCE_DIR}/runtime/scripts/optwin.lua
+      ${NVIM_PO_EXTRACTED_C} ${PROJECT_SOURCE_DIR}/runtime/scripts/optwin.lua
       ${PROJECT_SOURCE_DIR}/runtime/lua/vim/_core/ex_cmd.lua
       ${PROJECT_SOURCE_DIR}/runtime/lua/vim/_core/time.lua
       ${PROJECT_SOURCE_DIR}/runtime/lua/vim/pack.lua
     VERBATIM
-    DEPENDS ${NVIM_PO_SOURCES} nvim_bin nvim_runtime_deps)
+    DEPENDS ${NVIM_PO_SOURCES} ${PROJECT_SOURCE_DIR}/cmake/ExtractPoStrings.cmake nvim_bin nvim_runtime_deps)
 
   set(LANGUAGE_MO_FILES)
   set(UPDATE_PO_TARGETS)
