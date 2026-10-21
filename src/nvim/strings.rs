@@ -72,7 +72,6 @@ pub struct keyvalue_T {
 }
 
 unsafe extern "C" {
-    pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
     pub fn tolower(c: c_int) -> c_int;
@@ -597,6 +596,157 @@ pub unsafe fn strtoll(
         } else {
             acc as c_longlong
         }
+    }
+}
+
+pub unsafe fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
+    unsafe {
+        let mut s = nptr;
+        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = s.add(1);
+        }
+        let neg = if *s == b'-' as c_char {
+            s = s.add(1);
+            true
+        } else {
+            if *s == b'+' as c_char {
+                s = s.add(1);
+            }
+            false
+        };
+
+        let starts_with_ci = |p: *const c_char, lit: &[u8]| -> bool {
+            for (i, &b) in lit.iter().enumerate() {
+                let c = *p.add(i) as u8;
+                if c.to_ascii_lowercase() != b {
+                    return false;
+                }
+            }
+            true
+        };
+
+        if starts_with_ci(s, b"inf") {
+            s = s.add(3);
+            if starts_with_ci(s, b"inity") {
+                s = s.add(5);
+            }
+            if !endptr.is_null() {
+                *endptr = s.cast_mut();
+            }
+            return if neg { -f64::INFINITY } else { f64::INFINITY };
+        }
+
+        if starts_with_ci(s, b"nan") {
+            s = s.add(3);
+            if *s == b'(' as c_char {
+                let mut p = s.add(1);
+                while (*p as u8).is_ascii_alphanumeric() || *p == b'_' as c_char {
+                    p = p.add(1);
+                }
+                if *p == b')' as c_char {
+                    s = p.add(1);
+                }
+            }
+            if !endptr.is_null() {
+                *endptr = s.cast_mut();
+            }
+            return if neg { -f64::NAN } else { f64::NAN };
+        }
+
+        if *s == b'0' as c_char && matches!(*s.add(1) as u8, b'x' | b'X') {
+            let mut p = s.add(2);
+            let mut mant: f64 = 0.0;
+            let mut exp2: i32 = 0;
+            let mut any_hex = false;
+            while let Some(d) = (*p as u8 as char).to_digit(16) {
+                any_hex = true;
+                mant = mant * 16.0 + f64::from(d);
+                p = p.add(1);
+            }
+            if *p == b'.' as c_char {
+                p = p.add(1);
+                while let Some(d) = (*p as u8 as char).to_digit(16) {
+                    any_hex = true;
+                    mant = mant * 16.0 + f64::from(d);
+                    exp2 = exp2.saturating_sub(4);
+                    p = p.add(1);
+                }
+            }
+            if any_hex {
+                if matches!(*p as u8, b'p' | b'P') {
+                    let mut ep = p.add(1);
+                    let exp_neg = if *ep == b'-' as c_char {
+                        ep = ep.add(1);
+                        true
+                    } else {
+                        if *ep == b'+' as c_char {
+                            ep = ep.add(1);
+                        }
+                        false
+                    };
+                    if (*ep as u8).is_ascii_digit() {
+                        let mut p_exp: i32 = 0;
+                        while (*ep as u8).is_ascii_digit() {
+                            p_exp = p_exp
+                                .saturating_mul(10)
+                                .saturating_add(i32::from((*ep as u8) - b'0'));
+                            ep = ep.add(1);
+                        }
+                        exp2 = if exp_neg {
+                            exp2.saturating_sub(p_exp)
+                        } else {
+                            exp2.saturating_add(p_exp)
+                        };
+                        p = ep;
+                    }
+                }
+                if !endptr.is_null() {
+                    *endptr = p.cast_mut();
+                }
+                let val = mant * 2.0f64.powi(exp2);
+                return if neg { -val } else { val };
+            }
+        }
+
+        let num_start = s;
+        let mut digits = 0usize;
+        while (*s as u8).is_ascii_digit() {
+            s = s.add(1);
+            digits += 1;
+        }
+        if *s == b'.' as c_char {
+            s = s.add(1);
+            while (*s as u8).is_ascii_digit() {
+                s = s.add(1);
+                digits += 1;
+            }
+        }
+        if digits == 0 {
+            if !endptr.is_null() {
+                *endptr = nptr.cast_mut();
+            }
+            return 0.0;
+        }
+        if matches!(*s as u8, b'e' | b'E') {
+            let mut ep = s.add(1);
+            if matches!(*ep as u8, b'+' | b'-') {
+                ep = ep.add(1);
+            }
+            if (*ep as u8).is_ascii_digit() {
+                while (*ep as u8).is_ascii_digit() {
+                    ep = ep.add(1);
+                }
+                s = ep;
+            }
+        }
+        if !endptr.is_null() {
+            *endptr = s.cast_mut();
+        }
+        let len = (s as usize) - (num_start as usize);
+        let slice = std::slice::from_raw_parts(num_start.cast::<u8>(), len);
+        let num_str = std::str::from_utf8_unchecked(slice);
+        let val = num_str.parse::<f64>().unwrap_or(0.0);
+        if neg { -val } else { val }
     }
 }
 
@@ -3994,6 +4144,11 @@ mod tests {
                 strtoll(c"99999999999999999999999".as_ptr(), &raw mut end, 10),
                 i64::MAX
             );
+            assert_eq!(strtod(c"  -12.5e2px".as_ptr(), &raw mut end), -1250.0);
+            assert_eq!(*end as u8, b'p');
+            assert_eq!(strtod(c"0x1.8p+2".as_ptr(), &raw mut end), 6.0);
+            assert!(strtod(c"-INF".as_ptr(), &raw mut end).is_infinite());
+            assert!(strtod(c"NaN".as_ptr(), &raw mut end).is_nan());
             unsafe extern "C" fn cmp_i32(a: *const c_void, b: *const c_void) -> c_int {
                 let x = unsafe { *a.cast::<i32>() };
                 let y = unsafe { *b.cast::<i32>() };
