@@ -209,8 +209,8 @@ pub(crate) const VARNUMBER_MAX: varnumber_T = i64::MAX;
 
 pub(crate) const VAR_DEF_SCOPE: c_int = 2;
 
-const kBoolVarFalse: varnumber_T = 0;
-const kBoolVarTrue: varnumber_T = 1;
+pub(crate) const kBoolVarFalse: varnumber_T = 0;
+pub(crate) const kBoolVarTrue: varnumber_T = 1;
 
 pub(crate) const kListLenUnknown: isize = -1;
 pub(crate) const kListLenShouldKnow: isize = -2;

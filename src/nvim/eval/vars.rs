@@ -126,7 +126,7 @@ pub struct lval_T {
     pub ll_blob: *mut blob_T,
 }
 
-const MAXCOL: varnumber_T = 0x7fffffff;
+pub(crate) const MAXCOL: varnumber_T = 0x7fffffff;
 
 const VIMVAR_KEY_LEN: usize = 16;
 

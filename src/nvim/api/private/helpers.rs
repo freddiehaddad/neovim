@@ -12,6 +12,7 @@ use crate::eval::typval::{
     dict_T, dictitem_T, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
     tv_dict_item_remove, tv_dict_watcher_notify, typval_T,
 };
+use crate::eval::vars::MAXCOL;
 use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
 use crate::ex_docmd::CAR;
 use crate::ex_eval::{
@@ -40,7 +41,6 @@ use std::mem::{size_of, zeroed};
 use std::ptr;
 
 pub(crate) const MAXLNUM: i64 = 0x7fffffff;
-pub(crate) const MAXCOL: i64 = 0x7fffffff;
 
 pub(crate) const DI_FLAGS_RO: u8 = 1;
 pub(crate) const DI_FLAGS_FIX: u8 = 4;

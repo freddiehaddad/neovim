@@ -93,7 +93,7 @@ const BELL: c_int = 0x07;
 pub(crate) const kZIndexMessages: c_int = 200;
 
 pub(crate) const HLF_M: c_int = 10;
-const HLF_MSG: c_int = 63;
+pub(crate) const HLF_MSG: c_int = 63;
 
 const kOptBoFlagMess: c_uint = 0x1000;
 const kOptBoFlagShell: c_uint = 0x10000;

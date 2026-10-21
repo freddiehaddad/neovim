@@ -44,12 +44,13 @@ pub type PathCmpFlags = c_int;
 const MAXSUFLEN: usize = 30;
 
 pub(crate) const PATHSEP: c_char = b'/' as c_char;
-const PATHSEPSTR: &[u8] = b"/\0";
+pub(crate) const PATHSEPSTR: &[u8] = b"/\0";
 
-#[cfg(windows)]
-const ENV_SEPCHAR: c_char = b';' as c_char;
-#[cfg(not(windows))]
-pub(crate) const ENV_SEPCHAR: c_char = b':' as c_char;
+pub(crate) const ENV_SEPCHAR: c_char = if cfg!(windows) {
+    b';' as c_char
+} else {
+    b':' as c_char
+};
 
 #[cfg(windows)]
 const PATH_ESC_WILDCARDS: *const c_char = c"*?[".as_ptr();

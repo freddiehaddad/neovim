@@ -107,9 +107,9 @@ pub(crate) const kOptCuloptFlagNumber: u8 = 0x04;
 pub(crate) const kOptSpoFlagNoplainbuffer: u32 = 0x02;
 pub(crate) const kCpoNumcol: c_int = b'n' as c_int;
 
-const kHlModeReplace: HlMode = 1;
-const kHlModeCombine: HlMode = 2;
-const kHlModeBlend: HlMode = 3;
+pub(crate) const kHlModeReplace: HlMode = 1;
+pub(crate) const kHlModeCombine: HlMode = 2;
+pub(crate) const kHlModeBlend: HlMode = 3;
 
 pub(crate) const HL_UNDERLINE_MASK: i32 = 0x38;
 pub(crate) const HL_STRIKETHROUGH: i32 = 0x0080;

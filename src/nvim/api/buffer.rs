@@ -2,10 +2,10 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
-    MAXCOL, MAXLNUM, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict,
-    boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
-    find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
-    static_cstr_as_obj, string_obj, try_wrap,
+    MAXLNUM, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj,
+    buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle,
+    has_key, integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj,
+    try_wrap,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, api_err_invalid, api_err_range,
@@ -21,6 +21,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     check_cursor_col, check_cursor_lnum, check_visual_pos, colnr_T, linenr_T, pos_T,
 };
+use crate::eval::vars::MAXCOL;
 use crate::ex_cmds::rename_buffer;
 use crate::extmark::{bcount_t, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
 use crate::globals::*;

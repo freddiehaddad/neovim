@@ -28,6 +28,8 @@ use crate::eval::typval::{
 use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal, ufunc_T};
 use crate::eval::vars::{SID_STR, new_script_vars, scid_T};
 use crate::eval::{eval_to_number, get_copyID};
+#[cfg(windows)]
+use crate::ex_docmd::Ctrl_Z;
 use crate::ex_docmd::{
     do_cmdline, do_cmdline_cmd, do_exedit, exarg_T, getline_cookie, getline_equal,
 };
@@ -81,12 +83,11 @@ use crate::os::fs::O_BINARY;
 use crate::os::fs::{errno_ptr, os_file_is_readable, os_isdir, os_open, os_set_cloexec};
 use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
-#[cfg(not(windows))]
-use crate::path::ENV_SEPCHAR;
 use crate::path::{
-    EW_DIR, EW_FILE, EW_NOBREAK, FreeWild, PATHSEP, add_pathsep, after_pathsep, append_path,
-    concat_fnames, fix_fname, gen_expand_wildcards, get_past_head, kPathCmpLiteral, path_cmp,
-    path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
+    ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, FreeWild, PATHSEP, add_pathsep, after_pathsep,
+    append_path, concat_fnames, fix_fname, gen_expand_wildcards, get_past_head, kPathCmpLiteral,
+    path_cmp, path_equal, path_tail, path_with_extension, to_slash, vim_ispathsep,
+    vim_ispathsep_nocolon,
 };
 use crate::profile::{
     estack_T, prof_child_enter, prof_child_exit, profile_add, profile_end, profile_init,
@@ -122,12 +123,6 @@ pub type DoInRuntimepathCB = Option<
         cookie: *mut c_void,
     ) -> bool,
 >;
-
-#[cfg(windows)]
-const Ctrl_Z: c_char = 26;
-
-#[cfg(windows)]
-const ENV_SEPCHAR: c_char = b';' as c_char;
 
 pub const ETYPE_TOP: etype_T = 0;
 pub const ETYPE_SCRIPT: etype_T = 1;

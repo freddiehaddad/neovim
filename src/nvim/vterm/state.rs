@@ -60,8 +60,8 @@ const VTERM_PROP_MOUSE_CLICK: c_int = 1;
 const VTERM_PROP_MOUSE_DRAG: c_int = 2;
 const VTERM_PROP_MOUSE_MOVE: c_int = 3;
 
-const VTERM_SELECTION_CLIPBOARD: u16 = 1 << 0;
-const VTERM_SELECTION_PRIMARY: u16 = 1 << 1;
+pub(crate) const VTERM_SELECTION_CLIPBOARD: u16 = 1 << 0;
+pub(crate) const VTERM_SELECTION_PRIMARY: u16 = 1 << 1;
 const VTERM_SELECTION_SECONDARY: u16 = 1 << 2;
 const VTERM_SELECTION_SELECT: u16 = 1 << 3;
 const VTERM_SELECTION_CUT0: u16 = 1 << 4;

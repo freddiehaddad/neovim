@@ -19,8 +19,6 @@ use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdupz, xmemrchr, xstrdup, xstrl
 use crate::message::semsg;
 use crate::message::{emsg, internal_error};
 use crate::option_vars::*;
-#[cfg(not(windows))]
-use crate::os::fs::ENV_SEPCHAR;
 use crate::os::fs::{UV_EINVAL, os_isdir};
 #[cfg(unix)]
 use crate::os::fs::{os_dirname, os_realpath};
@@ -42,21 +40,13 @@ const INIT_SIZE: usize = 64;
 const RUNTIME_DIRNAME: &CStr = c"runtime";
 
 #[cfg(windows)]
-const ENV_SEPCHAR: u8 = b';';
-#[cfg(windows)]
-const ENV_SEPSTR: &CStr = c";";
-#[cfg(windows)]
-const PATHSEPSTR: &CStr = c"\\";
-#[cfg(windows)]
-const MAX_ENVPATHLEN: usize = 8192;
-
-#[cfg(not(windows))]
-const ENV_SEPSTR: &CStr = c":";
-#[cfg(windows)]
-#[cfg(not(windows))]
-const PATHSEPSTR: &CStr = c"/";
-#[cfg(not(windows))]
-const MAX_ENVPATHLEN: usize = c_int::MAX as usize;
+use crate::os::fs::PATHSEPSTR;
+use crate::os::fs::{ENV_SEPCHAR, ENV_SEPSTR};
+const MAX_ENVPATHLEN: usize = if cfg!(windows) {
+    8192
+} else {
+    c_int::MAX as usize
+};
 #[cfg(windows)]
 const UV_ENOBUFS: c_int = -4060;
 #[cfg(target_os = "linux")]

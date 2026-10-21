@@ -9,6 +9,7 @@ use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
 use crate::buffer::buf_T;
 use crate::charset::NUL;
+use crate::context::kCtxKeepDirs;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 use crate::cursor::linenr_T;
 use crate::eval::typval::{
@@ -57,8 +58,6 @@ use crate::viml::parser::parser::CONV_NONE;
 use crate::window::{win_T, win_find_tabpage};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
-
-const kCtxKeepDirs: c_int = 2;
 
 static REGEX_META: [luaL_Reg; 5] = [
     luaL_Reg {

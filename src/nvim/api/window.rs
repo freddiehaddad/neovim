@@ -1,7 +1,7 @@
 //! Window API functions (`src/nvim/api/window.c`).
 
 use crate::api::private::helpers::{
-    MAXCOL, NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
+    NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
     dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj,
     normalize_index, put_c, try_wrap,
 };
@@ -14,6 +14,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
+use crate::eval::vars::MAXCOL;
 use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;

@@ -6,6 +6,8 @@ use crate::charset::{
     NUL, ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
 };
 use crate::errors::*;
+use crate::eval::kBoolVarFalse;
+use crate::eval::kBoolVarTrue;
 use crate::eval::typval::{TypvalVval, VarType, tv_clear, typval_T};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, exarg_T};
@@ -43,8 +45,6 @@ pub(crate) const TAG_NO_TAGFUNC: c_int = 256;
 
 pub(crate) const kOptIskeyword: OptIndex = 155;
 
-const kBoolVarFalse: i64 = 0;
-const kBoolVarTrue: i64 = 1;
 const kSpecialVarNull: i64 = 0;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).

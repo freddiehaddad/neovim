@@ -1,10 +1,9 @@
 //! Extmark and namespace API functions (`src/nvim/api/extmark.c`).
 
 use crate::api::private::helpers::{
-    MAXCOL, MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj,
-    boolean_obj, copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle,
-    find_window_by_handle, has_key, integer_obj, object_to_hl_id, put_c, string_obj,
-    string_to_cstr,
+    MAXLNUM, add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
+    copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
+    has_key, integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -25,7 +24,11 @@ use crate::decoration::{
     kVTRepeatLinebreak,
 };
 use crate::decoration_provider::{decor_provider_clear, get_decor_provider, kDecorProviderActive};
+use crate::drawline::kHlModeBlend;
+use crate::drawline::kHlModeCombine;
+use crate::drawline::kHlModeReplace;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
+use crate::eval::vars::MAXCOL;
 use crate::extmark::{
     ExtmarkType, extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set,
     kExtmarkNone,
@@ -62,10 +65,6 @@ const kExtmarkSign: ExtmarkType = 0x2;
 const kExtmarkVirtText: ExtmarkType = 0x8;
 const kExtmarkVirtLines: ExtmarkType = 0x10;
 const kExtmarkHighlight: ExtmarkType = 0x20;
-
-const kHlModeReplace: u8 = 1;
-const kHlModeCombine: u8 = 2;
-const kHlModeBlend: u8 = 3;
 
 const KEYSET_OPTIDX_get_extmark__hl_name: u64 = 2;
 const KEYSET_OPTIDX_get_extmarks__type: u64 = 1;

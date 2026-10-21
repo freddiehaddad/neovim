@@ -181,9 +181,7 @@ use crate::os::stdpaths::{XDGVarType, get_appname, get_xdg_home, stdpaths_get_xd
 use crate::os::time::{
     NS_PER_SEC, Tm, c_time, os_hrtime, os_localtime_r, os_strptime, strftime, time_t,
 };
-#[cfg(not(windows))]
-use crate::path::ENV_SEPCHAR;
-use crate::path::{concat_fnames_realloc, to_slash_save, vim_FullName};
+use crate::path::{ENV_SEPCHAR, concat_fnames_realloc, to_slash_save, vim_FullName};
 use crate::plines::{getvvcol, win_chartabsize};
 use crate::popupmenu::{pum_set_event_info, pum_visible};
 use crate::profile::{
@@ -314,9 +312,6 @@ pub(crate) const HL_NOCOMBINE: c_int = 0x0400;
 pub(crate) const HL_BLINK: c_int = 0x8000;
 pub(crate) const HL_CONCEALED: c_int = 0x10000;
 
-#[cfg(windows)]
-const ENV_SEPCHAR: c_char = b';' as c_char;
-
 const E_INVALID_SUBMATCH_NUMBER_NR: &CStr = c"E935: Invalid submatch number: %d";
 pub(crate) const E_STRING_LIST_OR_BLOB_REQUIRED: &CStr = c"E1098: String, List or Blob required";
 const E_MISSING_FUNCTION_ARGUMENT: &CStr = c"E1132: Missing function argument";
@@ -386,7 +381,7 @@ const REQUIRED_ENV_VARS: &[&CStr] = &[
 const REQUIRED_ENV_VARS: &[&CStr] = &[];
 
 #[cfg(windows)]
-const PROCESS_ALL_ACCESS: u32 = 0x001F0FFF;
+pub(crate) const PROCESS_ALL_ACCESS: u32 = 0x001F0FFF;
 #[cfg(windows)]
 use crate::os::os_win_console::{CloseHandle, OpenProcess};
 #[cfg(windows)]

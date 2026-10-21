@@ -38,6 +38,7 @@ use crate::memory::{
     Arena, arena_finish, arena_mem_free, xcalloc, xfree, xmalloc, xmemdupz, xrealloc, xstrdup,
     xstrlcpy,
 };
+use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
     StlClickDefinition, kStlClickDisabled, kStlClickFuncRun, kStlClickTabClose, kStlClickTabSwitch,
@@ -78,7 +79,6 @@ const HLF_SNC: hlf_T = 20;
 const HLF_TP: hlf_T = 52;
 const HLF_TPS: hlf_T = 53;
 const HLF_TPF: hlf_T = 54;
-const HLF_MSG: hlf_T = 63;
 const HLF_WBR: hlf_T = 65;
 const HLF_WBRNC: hlf_T = 66;
 

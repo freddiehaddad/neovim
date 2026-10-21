@@ -47,6 +47,8 @@ use crate::ex_cmds::{
     skip_vimgrep_pat,
 };
 use crate::ex_cmds2::{CMD_cdo, CMD_cfdo, CMD_ldo, CMD_lfdo, autowrite_all, can_abandon};
+#[cfg(windows)]
+use crate::ex_docmd::CAR;
 use crate::ex_docmd::{CMOD_HIDE, do_cmdline_cmd, ex_cd, exarg_T, is_loclist_cmd};
 use crate::ex_eval::{aborting, cleanup_T, enter_cleanup, leave_cleanup};
 use crate::ex_getln::get_list_range;
@@ -129,9 +131,6 @@ use crate::diff::kOptFoldmethod;
 use crate::drawline::HLF_QFL;
 use crate::eval::funcs::{SEARCH_KEEP, kOptCpoptions};
 use crate::viml::parser::parser::CONV_NONE;
-
-#[cfg(windows)]
-const CAR: c_char = 0x0d;
 
 const INVALID_QFIDX: c_int = -1;
 const INVALID_QFBUFNR: c_int = 0;

@@ -29,7 +29,7 @@ pub(crate) const VTERM_KEY_TAB: c_int = 2;
 pub(crate) const VTERM_KEY_BACKSPACE: c_int = 3;
 pub(crate) const VTERM_KEY_FUNCTION_0: c_int = 256;
 const VTERM_KEY_FUNCTION_MAX: c_int = VTERM_KEY_FUNCTION_0 + 255;
-const VTERM_KEY_KP_0: c_int = VTERM_KEY_FUNCTION_MAX + 1;
+pub(crate) const VTERM_KEY_KP_0: c_int = VTERM_KEY_FUNCTION_MAX + 1;
 
 const MODE_KEYPAD_BIT: u32 = 1 << 0;
 const MODE_CURSOR_BIT: u32 = 1 << 1;

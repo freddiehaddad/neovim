@@ -190,15 +190,8 @@ const BASENAMELEN: usize = 260 - 5;
 #[cfg(not(windows))]
 const BASENAMELEN: usize = 255 - 5;
 
-#[cfg(windows)]
-const PATHSEPSTR: &CStr = c"\\";
-#[cfg(not(windows))]
-const PATHSEPSTR: &CStr = c"/";
-
-#[cfg(windows)]
-const BACKSLASH_IN_FILENAME_BOOL: bool = true;
-#[cfg(not(windows))]
-const BACKSLASH_IN_FILENAME_BOOL: bool = false;
+use crate::os::fs::PATHSEPSTR;
+const BACKSLASH_IN_FILENAME_BOOL: bool = cfg!(windows);
 
 #[cfg(unix)]
 const LOCK_SH: c_int = 1;

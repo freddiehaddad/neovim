@@ -34,8 +34,8 @@ use crate::strings::strerror;
 use crate::strings::{gettext, strlen as c_strlen};
 use crate::ui::ui_call_chdir;
 #[cfg(windows)]
-use std::ffi::{CStr, c_uint};
-use std::ffi::{c_char, c_int, c_long, c_void};
+use std::ffi::c_uint;
+use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
 pub(crate) const MAXPATHL: usize = 4096;
@@ -175,17 +175,14 @@ pub(crate) const CASE_INSENSITIVE_FILENAME: bool =
 
 #[cfg(windows)]
 pub(crate) const O_BINARY: c_int = 0x8000;
-#[cfg(windows)]
-const ENV_SEPCHAR: u8 = b';';
-#[cfg(windows)]
-const ENV_SEPSTR: &CStr = c";";
-#[cfg(windows)]
-pub(crate) const PATHSEP: c_char = b'\\' as c_char;
-
-#[cfg(not(windows))]
-pub(crate) const ENV_SEPCHAR: u8 = b':';
-#[cfg(not(windows))]
-pub(crate) const PATHSEP: c_char = b'/' as c_char;
+pub(crate) const ENV_SEPCHAR: u8 = if cfg!(windows) { b';' } else { b':' };
+pub(crate) const ENV_SEPSTR: &CStr = if cfg!(windows) { c";" } else { c":" };
+pub(crate) const PATHSEP: c_char = if cfg!(windows) {
+    b'\\' as c_char
+} else {
+    b'/' as c_char
+};
+pub(crate) const PATHSEPSTR: &CStr = if cfg!(windows) { c"\\" } else { c"/" };
 #[cfg(not(windows))]
 const F_GETFD: c_int = 1;
 #[cfg(not(windows))]

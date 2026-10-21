@@ -1,6 +1,9 @@
 //! VT220/xterm-like terminal emulator (`src/nvim/terminal.c`).
 
 use crate::option::{OPT_LOCAL, OptInt, SB_MAX, kOptBuftype, set_option_value};
+use crate::vterm::keyboard::VTERM_KEY_KP_0;
+use crate::vterm::state::VTERM_SELECTION_CLIPBOARD;
+use crate::vterm::state::VTERM_SELECTION_PRIMARY;
 
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, dict_get_value, dict_set_var, int_obj, str_obj,
@@ -164,9 +167,6 @@ const kOptTpfFlagC1: c_uint = 0x40;
 
 const VTERM_UNDERLINE_OFF: u32 = 0;
 
-const VTERM_SELECTION_CLIPBOARD: VTermSelectionMask = 1 << 0;
-const VTERM_SELECTION_PRIMARY: VTermSelectionMask = 1 << 1;
-
 const VTERM_KEY_ESCAPE: VTermKey = 4;
 const VTERM_KEY_UP: VTermKey = 5;
 const VTERM_KEY_DOWN: VTermKey = 6;
@@ -178,7 +178,6 @@ const VTERM_KEY_HOME: VTermKey = 11;
 const VTERM_KEY_END: VTermKey = 12;
 const VTERM_KEY_PAGEUP: VTermKey = 13;
 const VTERM_KEY_PAGEDOWN: VTermKey = 14;
-const VTERM_KEY_KP_0: VTermKey = 512;
 const VTERM_KEY_KP_1: VTermKey = 513;
 const VTERM_KEY_KP_2: VTermKey = 514;
 const VTERM_KEY_KP_3: VTermKey = 515;
@@ -2201,7 +2200,7 @@ unsafe extern "C" fn term_clipboard_set(argv: *mut *mut c_void) {
         let mask = (*argv.add(0) as isize) as VTermSelectionMask;
         let data = (*argv.add(1)).cast::<c_char>();
 
-        let regname: c_char = match mask {
+        let regname: c_char = match mask as u16 {
             VTERM_SELECTION_CLIPBOARD => b'+' as c_char,
             VTERM_SELECTION_PRIMARY => b'*' as c_char,
             _ => b'+' as c_char,

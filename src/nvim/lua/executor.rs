@@ -81,6 +81,7 @@ use crate::runtime::{
     runtime_search_path_validate, script_is_lua, sctx_T,
 };
 use crate::strings::{gettext, vim_snprintf};
+use crate::ui::kUIGlobalCount;
 use crate::ui::{ui_add_cb, ui_flush, ui_has, ui_remove_cb};
 use crate::undo::u_save;
 use crate::usercmd::{uc_mods, uc_split_args_iter, ucmd_T};
@@ -126,8 +127,6 @@ const LUVF_CALLBACK_NOEXIT: c_int = 0x01;
 const kCallback: isize = 0;
 const kThread: isize = 1;
 const kThreadCallback: isize = 2;
-
-const kUIGlobalCount: usize = 5;
 
 const CMD_equal: c_int = 559;
 

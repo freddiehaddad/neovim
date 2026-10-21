@@ -4,7 +4,7 @@ use crate::api::buffer::{nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
 use crate::api::private::helpers::{
-    MAXCOL, MAXLNUM, NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
+    MAXLNUM, NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename,
     arena_array, array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var,
     error_set, find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
     static_cstr_as_string, string_obj, try_wrap, with_script_context,
@@ -21,6 +21,7 @@ use crate::decoration::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, clear_virttext,
     decor_find_virttext, kHlModeUnknown, kVPosEndOfLine,
 };
+use crate::eval::vars::MAXCOL;
 use crate::eval::vars::get_globvar_dict;
 use crate::extmark::extmark_set;
 use crate::globals::*;

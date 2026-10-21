@@ -2,6 +2,8 @@
 
 #[cfg(windows)]
 use crate::api::private::helpers::{arena_dict, arena_string};
+#[cfg(windows)]
+use crate::eval::funcs::PROCESS_ALL_ACCESS;
 use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
@@ -25,8 +27,6 @@ const SIGKILL_NUM: c_int = 9;
 
 #[cfg(target_os = "windows")]
 const TH32CS_SNAPPROCESS: u32 = 0x0000_0002;
-#[cfg(target_os = "windows")]
-const PROCESS_ALL_ACCESS: u32 = 0x001F_FFFF;
 #[cfg(target_os = "windows")]
 const INVALID_HANDLE_VALUE: *mut c_void = (-1isize) as *mut c_void;
 

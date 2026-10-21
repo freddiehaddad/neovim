@@ -65,7 +65,7 @@ const MAX_UI_COUNT: usize = 16;
 const SHAPE_IDX_N: c_int = 0;
 const SHAPE_IDX_R: c_int = 3;
 
-const kUIGlobalCount: usize = kUILinegrid;
+pub(crate) const kUIGlobalCount: usize = kUILinegrid;
 const kUIFloatDebug: usize = 9;
 
 pub(crate) const kLineFlagInvalid: c_int = 2;
