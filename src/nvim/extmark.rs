@@ -25,7 +25,7 @@ use crate::marktree::{
 };
 use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 use crate::memline::ml_find_line_or_offset;
-use crate::memory::{xfree, xrealloc};
+use crate::memory::xfree;
 use crate::undo::u_force_get_undo_header;
 use std::ffi::c_int;
 use std::ptr;
@@ -108,22 +108,6 @@ pub struct ExtmarkUndoObject {
 }
 
 #[inline]
-unsafe fn kv_push_val<T>(v: *mut KVec<T>, val: T) {
-    unsafe {
-        if (*v).size == (*v).capacity {
-            (*v).capacity = if (*v).capacity > 0 {
-                (*v).capacity * 2
-            } else {
-                8
-            };
-            (*v).items = xrealloc((*v).items.cast(), (*v).capacity * size_of::<T>()).cast();
-        }
-        ptr::write((*v).items.add((*v).size), val);
-        (*v).size += 1;
-    }
-}
-
-#[inline]
 unsafe fn map_destroy_u32_u32(map: *mut Map<u32, u32>) {
     unsafe {
         xfree((*map).set.h.hash.cast());
@@ -147,22 +131,19 @@ unsafe fn extmark_push_savepos(
         if uhp.is_null() {
             return;
         }
-        kv_push_val(
-            &raw mut (*uhp).uh_extmark,
-            ExtmarkUndoObject {
-                type_: kExtmarkSavePos,
-                data: ExtmarkUndoData {
-                    savepos: ExtmarkSavePos {
-                        mark,
-                        undo_row,
-                        undo_col,
-                        redo_row,
-                        redo_col,
-                        invalidated: false,
-                    },
+        (*uhp).uh_extmark.push(ExtmarkUndoObject {
+            type_: kExtmarkSavePos,
+            data: ExtmarkUndoData {
+                savepos: ExtmarkSavePos {
+                    mark,
+                    undo_row,
+                    undo_col,
+                    redo_row,
+                    redo_col,
+                    invalidated: false,
                 },
             },
-        );
+        });
     }
 }
 
@@ -616,7 +597,7 @@ unsafe fn push_mark(
             }
         }
 
-        kv_push_val(array, mark);
+        (*array).push(mark);
     }
 }
 
@@ -801,13 +782,10 @@ pub unsafe extern "C" fn extmark_splice_delete(
                     redo_row: -1,
                     redo_col: -1,
                 };
-                kv_push_val(
-                    uvp,
-                    ExtmarkUndoObject {
-                        type_: kExtmarkSavePos,
-                        data: ExtmarkUndoData { savepos: pos },
-                    },
-                );
+                (*uvp).push(ExtmarkUndoObject {
+                    type_: kExtmarkSavePos,
+                    data: ExtmarkUndoData { savepos: pos },
+                });
             }
 
             marktree_itr_next((*buf).b_marktree.as_mut_ptr(), &raw mut itr);
@@ -1099,13 +1077,10 @@ pub unsafe extern "C" fn extmark_splice_impl(
                     old_byte,
                     new_byte,
                 };
-                kv_push_val(
-                    &raw mut (*uhp).uh_extmark,
-                    ExtmarkUndoObject {
-                        type_: kExtmarkSplice,
-                        data: ExtmarkUndoData { splice },
-                    },
-                );
+                (*uhp).uh_extmark.push(ExtmarkUndoObject {
+                    type_: kExtmarkSplice,
+                    data: ExtmarkUndoData { splice },
+                });
             }
         }
     }
@@ -1211,13 +1186,40 @@ pub unsafe extern "C" fn extmark_move_region(
                 extent_byte,
                 new_byte,
             };
-            kv_push_val(
-                &raw mut (*uhp).uh_extmark,
-                ExtmarkUndoObject {
-                    type_: kExtmarkMove,
-                    data: ExtmarkUndoData { move_ },
+            (*uhp).uh_extmark.push(ExtmarkUndoObject {
+                type_: kExtmarkMove,
+                data: ExtmarkUndoData { move_ },
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extmark_undo_vec_and_map_destroy_work() {
+        unsafe {
+            let mut v = extmark_undo_vec_t::new();
+            v.push(ExtmarkUndoObject {
+                type_: kExtmarkSavePos,
+                data: ExtmarkUndoData {
+                    savepos: ExtmarkSavePos {
+                        mark: 10,
+                        undo_row: 1,
+                        undo_col: 2,
+                        redo_row: 3,
+                        redo_col: 4,
+                        invalidated: false,
+                    },
                 },
-            );
+            });
+            assert_eq!(v.size, 1);
+            v.destroy();
+
+            let mut map: Map<u32, u32> = std::mem::zeroed();
+            map_destroy_u32_u32(&raw mut map);
         }
     }
 }

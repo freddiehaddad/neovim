@@ -1928,3 +1928,21 @@ unsafe fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
         add_c(&mut *arr, dict_obj(item));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hl_font_interning_handles_null_and_roundtrips() {
+        unsafe {
+            assert_eq!(hl_add_font_idx(ptr::null()), -1);
+            assert_eq!(hl_add_font_idx(c"".as_ptr()), -1);
+            let idx = hl_add_font_idx(c"Monospace:h12".as_ptr());
+            assert!(idx >= 0);
+            assert_eq!(hl_add_font_idx(c"Monospace:h12".as_ptr()), idx);
+            let got = hl_get_font(idx);
+            assert_eq!(CStr::from_ptr(got).to_bytes(), b"Monospace:h12");
+        }
+    }
+}

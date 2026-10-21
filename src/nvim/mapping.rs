@@ -3323,3 +3323,20 @@ pub unsafe extern "C" fn keymap_array(
         arena_take_arraybuilder(arena, &mut mappings)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_mode_to_chars_and_langmap_init_work() {
+        unsafe {
+            let mut buf = [0 as c_char; 16];
+            map_mode_to_chars(MODE_NORMAL | MODE_VISUAL, buf.as_mut_ptr());
+            assert_eq!(CStr::from_ptr(buf.as_ptr()).to_bytes(), b"nx");
+
+            langmap_init();
+            assert_eq!(langmap_adjust_mb(b'a' as c_int), b'a' as c_int);
+        }
+    }
+}

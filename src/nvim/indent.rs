@@ -2027,3 +2027,23 @@ pub unsafe extern "C" fn f_lispindent(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tabstop_set_padding_and_at_work() {
+        unsafe {
+            let mut vts: *mut colnr_T = ptr::null_mut();
+            assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &raw mut vts, ptr::null()).is_null());
+            assert!(!vts.is_null());
+            assert_eq!(tabstop_count(vts), 2);
+            assert_eq!(tabstop_first(vts), 4);
+            assert_eq!(tabstop_padding(0, 8, vts), 4);
+            assert_eq!(tabstop_padding(4, 8, vts), 8);
+            assert_eq!(tabstop_at(0, 8, vts, false), 4);
+            xfree(vts.cast());
+        }
+    }
+}

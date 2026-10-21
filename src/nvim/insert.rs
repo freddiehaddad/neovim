@@ -4138,3 +4138,22 @@ pub unsafe extern "C" fn ins_apply_autocmds(event: event_T) -> c_int {
         r
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_spaces_and_can_cindent_work() {
+        unsafe {
+            let mut line = *b"hello   \0";
+            truncate_spaces(line.as_mut_ptr().cast(), 8);
+            assert_eq!(CStr::from_ptr(line.as_ptr().cast()).to_bytes(), b"hello");
+
+            set_can_cindent(true);
+            assert!(get_can_cindent());
+            set_can_cindent(false);
+            assert!(!get_can_cindent());
+        }
+    }
+}

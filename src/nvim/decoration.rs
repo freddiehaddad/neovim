@@ -2035,3 +2035,30 @@ pub unsafe extern "C" fn hl_group_name(hl_id: c_int, hl_name: bool) -> Object {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decor_sh_from_inline_and_type_flags_work() {
+        unsafe {
+            let inline = DecorHighlightInline {
+                flags: 0,
+                priority: 50,
+                hl_id: 7,
+                conceal_char: 0x41,
+            };
+            let sh = decor_sh_from_inline(inline);
+            assert_eq!(sh.priority, 50);
+            assert_eq!(sh.hl_id, 7);
+            assert_eq!(sh.text[0], 0x41);
+
+            let di = DecorInline {
+                ext: false,
+                data: DecorInlineData { hl: inline },
+            };
+            assert_eq!(decor_type_flags(di), kExtmarkHighlight);
+        }
+    }
+}

@@ -610,3 +610,23 @@ pub unsafe extern "C" fn ex_helptags(eap: *mut exarg_T) {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_help_lang_and_help_heuristic_work() {
+        unsafe {
+            let mut buf = *b"options@en\0";
+            let lang = check_help_lang(buf.as_mut_ptr().cast());
+            assert!(!lang.is_null());
+            assert_eq!(CStr::from_ptr(lang).to_bytes(), b"en");
+            assert_eq!(CStr::from_ptr(buf.as_ptr().cast()).to_bytes(), b"options");
+
+            let exact = help_heuristic(c"help".as_ptr().cast_mut(), 0, false);
+            let wrong_case = help_heuristic(c"Help".as_ptr().cast_mut(), 0, true);
+            assert!(wrong_case > exact);
+        }
+    }
+}

@@ -5907,3 +5907,20 @@ unsafe fn expand_pattern_in_buf(
         OK
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_init_and_cleanup_work() {
+        unsafe {
+            let mut xp: expand_T = std::mem::zeroed();
+            ExpandInit(&raw mut xp);
+            assert_eq!(xp.xp_context, EXPAND_NOTHING);
+            assert_eq!(xp.xp_backslash, XP_BS_NONE);
+            ExpandCleanup(&raw mut xp);
+            assert!(!cmdline_pum_active());
+        }
+    }
+}

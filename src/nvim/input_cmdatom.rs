@@ -2128,3 +2128,28 @@ pub unsafe extern "C" fn atom_cmd_end(ca: *mut cmdarg_T, old: *mut CmdFrame) {
         cur_frame = (*old).parent;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sb_concat_and_atoms_free_work() {
+        unsafe {
+            let mut sb = StringBuilder::new();
+            sb.init();
+            sb_concat(&mut sb, c"abc".as_ptr());
+            sb_concat(&mut sb, c"def".as_ptr());
+            assert_eq!(sb.size, 6);
+            assert_eq!(
+                std::slice::from_raw_parts(sb.items.cast::<u8>(), 6),
+                b"abcdef"
+            );
+            sb.destroy();
+
+            let mut v = CmdAtomVec::new();
+            atoms_free(&raw mut v);
+            assert_eq!(v.size, 0);
+        }
+    }
+}

@@ -1470,3 +1470,20 @@ pub unsafe extern "C" fn f_argv(argvars: *mut typval_T, rettv: *mut typval_T, _f
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alist_init_and_clear_work() {
+        unsafe {
+            let mut al: alist_T = std::mem::zeroed();
+            alist_init(&raw mut al);
+            assert_eq!(al.al_ga.ga_len, 0);
+            assert_eq!(al.al_ga.ga_itemsize, size_of::<aentry_T>() as c_int);
+            alist_clear(&raw mut al);
+            assert_eq!(al.al_ga.ga_len, 0);
+        }
+    }
+}
