@@ -1679,16 +1679,6 @@ static mut MEM_FOR_METADATA: ArenaMem = ptr::null_mut();
 static mut METADATA_OBJ: Object = OBJECT_NIL;
 
 #[rustfmt::skip]
-static PACKED_API_METADATA_PREFIX: &[u8] = &[
-    134, 167, 118, 101, 114, 115, 105, 111, 110, 136, 165, 109, 97, 106, 111, 114,
-    0, 165, 109, 105, 110, 111, 114, 13, 165, 112, 97, 116, 99, 104, 0, 170,
-    112, 114, 101, 114, 101, 108, 101, 97, 115, 101, 195, 169, 97, 112, 105, 95,
-    108, 101, 118, 101, 108, 15, 174, 97, 112, 105, 95, 99, 111, 109, 112, 97,
-    116, 105, 98, 108, 101, 0, 174, 97, 112, 105, 95, 112, 114, 101, 114, 101,
-    108, 101, 97, 115, 101, 195, 165, 98, 117, 105, 108, 100,
-];
-
-#[rustfmt::skip]
 static PACKED_API_METADATA_SUFFIX: &[u8] = &[
     169, 102, 117, 110, 99, 116, 105, 111, 110, 115, 220, 1, 7, 133, 166, 109,
     101, 116, 104, 111, 100, 194, 170, 112, 97, 114, 97, 109, 101, 116, 101, 114,
@@ -3739,32 +3729,76 @@ static PACKED_API_METADATA_SUFFIX: &[u8] = &[
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
 use crate::charset::{NL, NUL};
-use crate::version::nvim_version_build;
+use crate::version::{
+    nvim_api_level, nvim_api_level_compat, nvim_api_prerelease, nvim_version_build,
+    nvim_version_major, nvim_version_minor, nvim_version_patch, nvim_version_prerelease,
+};
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();
+
+#[inline]
+fn mpack_push_str(out: &mut Vec<u8>, s: &[u8]) {
+    if s.len() <= 31 {
+        out.push(0xa0 | (s.len() as u8));
+    } else if s.len() <= u8::MAX as usize {
+        out.push(0xd9);
+        out.push(s.len() as u8);
+    } else {
+        out.push(0xda);
+        out.extend_from_slice(&(s.len() as u16).to_be_bytes());
+    }
+    out.extend_from_slice(s);
+}
+
+#[inline]
+fn mpack_push_uint(out: &mut Vec<u8>, val: u32) {
+    if val <= 0x7f {
+        out.push(val as u8);
+    } else if val <= u8::MAX as u32 {
+        out.push(0xcc);
+        out.push(val as u8);
+    } else if val <= u16::MAX as u32 {
+        out.push(0xcd);
+        out.extend_from_slice(&(val as u16).to_be_bytes());
+    } else {
+        out.push(0xce);
+        out.extend_from_slice(&val.to_be_bytes());
+    }
+}
+
+#[inline]
+fn mpack_push_bool(out: &mut Vec<u8>, val: bool) {
+    out.push(if val { 0xc3 } else { 0xc2 });
+}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
     let bytes = PACKED_API_METADATA.get_or_init(|| {
-        let mut out = Vec::with_capacity(
-            PACKED_API_METADATA_PREFIX.len() + 64 + PACKED_API_METADATA_SUFFIX.len(),
-        );
-        out.extend_from_slice(PACKED_API_METADATA_PREFIX);
+        let mut out = Vec::with_capacity(160 + PACKED_API_METADATA_SUFFIX.len());
+        out.push(0x86); // fixmap(6)
+        mpack_push_str(&mut out, b"version");
+        out.push(0x88); // fixmap(8)
+        mpack_push_str(&mut out, b"major");
+        mpack_push_uint(&mut out, nvim_version_major as u32);
+        mpack_push_str(&mut out, b"minor");
+        mpack_push_uint(&mut out, nvim_version_minor as u32);
+        mpack_push_str(&mut out, b"patch");
+        mpack_push_uint(&mut out, nvim_version_patch as u32);
+        mpack_push_str(&mut out, b"prerelease");
+        mpack_push_bool(&mut out, nvim_version_prerelease);
+        mpack_push_str(&mut out, b"api_level");
+        mpack_push_uint(&mut out, nvim_api_level as u32);
+        mpack_push_str(&mut out, b"api_compatible");
+        mpack_push_uint(&mut out, nvim_api_level_compat as u32);
+        mpack_push_str(&mut out, b"api_prerelease");
+        mpack_push_bool(&mut out, nvim_api_prerelease);
+        mpack_push_str(&mut out, b"build");
         let build_ptr = unsafe { nvim_version_build };
         if build_ptr.is_null() {
             out.push(0xc0);
         } else {
             let b = unsafe { CStr::from_ptr(build_ptr) }.to_bytes();
-            if b.len() <= 31 {
-                out.push(0xa0 | (b.len() as u8));
-            } else if b.len() <= u8::MAX as usize {
-                out.push(0xd9);
-                out.push(b.len() as u8);
-            } else {
-                out.push(0xda);
-                out.extend_from_slice(&(b.len() as u16).to_be_bytes());
-            }
-            out.extend_from_slice(b);
+            mpack_push_str(&mut out, b);
         }
         out.extend_from_slice(PACKED_API_METADATA_SUFFIX);
         out.into_boxed_slice()

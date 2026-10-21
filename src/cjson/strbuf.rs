@@ -17,7 +17,7 @@ pub struct strbuf_t {
     pub debug: c_int,
 }
 
-use crate::memory::{crt_free as free, crt_malloc as malloc, crt_realloc as realloc};
+use crate::memory::{xfree, xmalloc, xrealloc};
 
 fn die(msg: &str) -> ! {
     eprintln!("{msg}");
@@ -159,10 +159,7 @@ pub unsafe extern "C" fn strbuf_init(s: *mut strbuf_t, len: usize) {
         (*s).reallocs = 0;
         (*s).debug = 0;
 
-        (*s).buf = malloc(size).cast::<c_char>();
-        if (*s).buf.is_null() {
-            die("Out of memory");
-        }
+        (*s).buf = xmalloc(size).cast::<c_char>();
 
         strbuf_ensure_null(s);
     }
@@ -171,10 +168,7 @@ pub unsafe extern "C" fn strbuf_init(s: *mut strbuf_t, len: usize) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strbuf_new(len: usize) -> *mut strbuf_t {
     unsafe {
-        let s = malloc(size_of::<strbuf_t>()).cast::<strbuf_t>();
-        if s.is_null() {
-            die("Out of memory");
-        }
+        let s = xmalloc(size_of::<strbuf_t>()).cast::<strbuf_t>();
 
         strbuf_init(s, len);
         (*s).dynamic = 1;
@@ -188,11 +182,11 @@ pub unsafe extern "C" fn strbuf_free(s: *mut strbuf_t) {
         debug_stats(s);
 
         if !(*s).buf.is_null() {
-            free((*s).buf.cast::<c_void>());
+            xfree((*s).buf.cast::<c_void>());
             (*s).buf = ptr::null_mut();
         }
         if (*s).dynamic != 0 {
-            free(s.cast::<c_void>());
+            xfree(s.cast::<c_void>());
         }
     }
 }
@@ -209,7 +203,7 @@ pub unsafe extern "C" fn strbuf_free_to_string(s: *mut strbuf_t, len: *mut usize
         }
 
         if (*s).dynamic != 0 {
-            free(s.cast::<c_void>());
+            xfree(s.cast::<c_void>());
         }
 
         buf
@@ -263,10 +257,7 @@ pub unsafe extern "C" fn strbuf_resize(s: *mut strbuf_t, len: usize) {
         }
 
         (*s).size = newsize;
-        (*s).buf = realloc((*s).buf.cast::<c_void>(), (*s).size).cast::<c_char>();
-        if (*s).buf.is_null() {
-            die(&format!("Out of memory, len: {len}"));
-        }
+        (*s).buf = xrealloc((*s).buf.cast::<c_void>(), (*s).size).cast::<c_char>();
         (*s).reallocs += 1;
     }
 }

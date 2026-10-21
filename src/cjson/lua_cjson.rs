@@ -244,7 +244,7 @@ const fn init_char2escape() -> [*const c_char; 256] {
 
 const CHAR2ESCAPE: [*const c_char; 256] = init_char2escape();
 
-use crate::memory::{crt_free as free, crt_malloc as malloc, crt_realloc as realloc};
+use crate::memory::{try_malloc, xfree, xrealloc};
 use crate::strings::{memcmp, qsort, strncmp, strtoll};
 use std::process::abort;
 
@@ -359,7 +359,7 @@ unsafe fn json_encode_exception(
 
         if (*(*ctx).options).sort_keys != 0 {
             strbuf_free(&mut (*(*ctx).options).keybuf.buf);
-            free((*(*ctx).options).keybuf.keys.cast::<c_void>());
+            xfree((*(*ctx).options).keybuf.keys.cast::<c_void>());
         }
 
         luaL_error(
@@ -619,15 +619,11 @@ unsafe fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current
                 has_items = true;
                 if (*keybuf).size == (*keybuf).capacity {
                     (*keybuf).capacity *= 2;
-                    let tmp = realloc(
+                    (*keybuf).keys = xrealloc(
                         (*keybuf).keys.cast::<c_void>(),
                         (*keybuf).capacity * size_of::<key_entry_t>(),
                     )
                     .cast::<key_entry_t>();
-                    if tmp.is_null() {
-                        json_encode_exception(l, ctx, -1, c"out of memory".as_ptr());
-                    }
-                    (*keybuf).keys = tmp;
                 }
 
                 let keytype = lua_type(l, -2);
@@ -939,7 +935,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
                         options.keybuf.size = 0;
                         options.keybuf.capacity = KEYBUF_DEFAULT_CAPACITY;
                         options.keybuf.keys =
-                            malloc(options.keybuf.capacity * size_of::<key_entry_t>())
+                            try_malloc(options.keybuf.capacity * size_of::<key_entry_t>())
                                 .cast::<key_entry_t>();
                         if options.keybuf.keys.is_null() {
                             return luaL_error(l, c"out of memory".as_ptr());
@@ -975,7 +971,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
 
         if options.sort_keys != 0 {
             strbuf_free(&mut options.keybuf.buf);
-            free(options.keybuf.keys.cast::<c_void>());
+            xfree(options.keybuf.keys.cast::<c_void>());
         }
 
         1

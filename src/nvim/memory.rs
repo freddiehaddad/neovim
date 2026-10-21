@@ -51,13 +51,13 @@ pub struct Arena {
 
 unsafe extern "C" {
     #[link_name = "malloc"]
-    pub(crate) fn crt_malloc(size: usize) -> *mut c_void;
+    fn crt_malloc(size: usize) -> *mut c_void;
     #[link_name = "free"]
-    pub(crate) fn crt_free(ptr: *mut c_void);
+    fn crt_free(ptr: *mut c_void);
     #[link_name = "calloc"]
-    pub(crate) fn crt_calloc(count: usize, size: usize) -> *mut c_void;
+    fn crt_calloc(count: usize, size: usize) -> *mut c_void;
     #[link_name = "realloc"]
-    pub(crate) fn crt_realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
+    fn crt_realloc(ptr: *mut c_void, size: usize) -> *mut c_void;
 }
 
 /// Unit-testable `malloc` hook (`mem_malloc`).

@@ -17,7 +17,7 @@ use crate::lua::converter::{
     luaL_checklstring, luaL_checknumber, luaL_checkudata, luaL_error, luaL_getmetatable,
     luaL_newmetatable, luaL_prepbuffer, luaL_pushresult, luaL_ref, luaL_register, luaL_unref,
 };
-use crate::memory::{crt_free as free, crt_malloc as malloc};
+use crate::memory::{try_malloc, xfree};
 use crate::mpack::conv::{
     mpack_pack_array, mpack_pack_bin, mpack_pack_boolean, mpack_pack_chunk, mpack_pack_ext,
     mpack_pack_map, mpack_pack_nil, mpack_pack_number, mpack_pack_str, mpack_unpack_boolean,
@@ -139,11 +139,12 @@ unsafe fn lmpack_grow_parser(parser: *mut mpack_parser_t) -> *mut mpack_parser_t
     unsafe {
         let old = parser;
         let new_capacity = (*old).capacity * 2;
-        let new_parser = malloc(mpack_parser_struct_size(new_capacity)).cast::<mpack_parser_t>();
+        let new_parser =
+            try_malloc(mpack_parser_struct_size(new_capacity)).cast::<mpack_parser_t>();
         if !new_parser.is_null() {
             mpack_parser_init(new_parser, new_capacity);
             mpack_parser_copy(new_parser, old);
-            free(old.cast::<c_void>());
+            xfree(old.cast::<c_void>());
         }
         new_parser
     }
@@ -154,11 +155,11 @@ unsafe fn lmpack_grow_session(session: *mut mpack_rpc_session_t) -> *mut mpack_r
         let old = session;
         let new_capacity = (*old).capacity * 2;
         let new_session =
-            malloc(mpack_rpc_session_struct_size(new_capacity)).cast::<mpack_rpc_session_t>();
+            try_malloc(mpack_rpc_session_struct_size(new_capacity)).cast::<mpack_rpc_session_t>();
         if !new_session.is_null() {
             mpack_rpc_session_init(new_session, new_capacity);
             mpack_rpc_session_copy(new_session, old);
-            free(old.cast::<c_void>());
+            xfree(old.cast::<c_void>());
         }
         new_session
     }
@@ -252,7 +253,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_new(l: *mut lua_State) -> c_int {
         }
 
         let rv = lua_newuserdata(l, size_of::<LmpackUnpacker>()).cast::<LmpackUnpacker>();
-        (*rv).parser = malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
+        (*rv).parser = try_malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
         if (*rv).parser.is_null() {
             return luaL_error(l, c"Failed to allocate memory".as_ptr());
         }
@@ -293,7 +294,7 @@ unsafe extern "C-unwind" fn lmpack_unpacker_delete(l: *mut lua_State) -> c_int {
             lmpack_unref(l, (*unpacker).reg, (*unpacker).ext);
         }
         luaL_unref(l, LUA_REGISTRYINDEX, (*unpacker).reg);
-        free((*unpacker).parser.cast::<c_void>());
+        xfree((*unpacker).parser.cast::<c_void>());
         0
     }
 }
@@ -326,7 +327,8 @@ unsafe extern "C-unwind" fn lmpack_parse_enter(
                 );
             }
             MPACK_TOKEN_BIN | MPACK_TOKEN_STR | MPACK_TOKEN_EXT => {
-                (*unpacker).string_buffer = malloc((*node).tok.length as usize).cast::<c_char>();
+                (*unpacker).string_buffer =
+                    try_malloc((*node).tok.length as usize).cast::<c_char>();
                 if (*unpacker).string_buffer.is_null() {
                     luaL_error(l, c"Failed to allocate memory".as_ptr());
                 }
@@ -352,7 +354,7 @@ unsafe extern "C-unwind" fn lmpack_parse_exit(
         match (*node).tok.r#type {
             MPACK_TOKEN_BIN | MPACK_TOKEN_STR | MPACK_TOKEN_EXT => {
                 lua_pushlstring(l, (*unpacker).string_buffer, (*node).tok.length as usize);
-                free((*unpacker).string_buffer.cast::<c_void>());
+                xfree((*unpacker).string_buffer.cast::<c_void>());
                 (*unpacker).string_buffer = ptr::null_mut();
                 if (*node).tok.r#type == MPACK_TOKEN_EXT && (*unpacker).ext != LUA_NOREF {
                     lmpack_geti(l, (*unpacker).reg, (*unpacker).ext);
@@ -509,7 +511,7 @@ unsafe extern "C-unwind" fn lmpack_packer_new(l: *mut lua_State) -> c_int {
         }
 
         let rv = lua_newuserdata(l, size_of::<Packer>()).cast::<Packer>();
-        (*rv).parser = malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
+        (*rv).parser = try_malloc(size_of::<mpack_parser_t>()).cast::<mpack_parser_t>();
         if (*rv).parser.is_null() {
             return luaL_error(l, c"failed to allocate parser memory".as_ptr());
         }
@@ -569,7 +571,7 @@ unsafe extern "C-unwind" fn lmpack_packer_delete(l: *mut lua_State) -> c_int {
             lmpack_unref(l, (*packer).reg, (*packer).ext);
         }
         luaL_unref(l, LUA_REGISTRYINDEX, (*packer).reg);
-        free((*packer).parser.cast::<c_void>());
+        xfree((*packer).parser.cast::<c_void>());
         0
     }
 }
@@ -808,7 +810,7 @@ unsafe extern "C-unwind" fn lmpack_packer_pack(l: *mut lua_State) -> c_int {
 unsafe extern "C-unwind" fn lmpack_session_new(l: *mut lua_State) -> c_int {
     unsafe {
         let rv = lua_newuserdata(l, size_of::<Session>()).cast::<Session>();
-        (*rv).session = malloc(size_of::<mpack_rpc_session_t>()).cast::<mpack_rpc_session_t>();
+        (*rv).session = try_malloc(size_of::<mpack_rpc_session_t>()).cast::<mpack_rpc_session_t>();
         if (*rv).session.is_null() {
             return luaL_error(l, c"Failed to allocate memory".as_ptr());
         }
@@ -844,7 +846,7 @@ unsafe extern "C-unwind" fn lmpack_session_delete(l: *mut lua_State) -> c_int {
         let session = lmpack_check_session(l, 1);
         lmpack_unref(l, (*session).reg, (*session).unpacker);
         luaL_unref(l, LUA_REGISTRYINDEX, (*session).reg);
-        free((*session).session.cast::<c_void>());
+        xfree((*session).session.cast::<c_void>());
         0
     }
 }

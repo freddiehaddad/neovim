@@ -7,7 +7,7 @@ pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
 static mut LOCALE_DECIMAL_POINT: c_char = b'.' as c_char;
 
-use crate::memory::{crt_free as free, crt_malloc as malloc};
+use crate::memory::{xfree, xmalloc};
 use crate::strings::{snprintf, strchr, strtod};
 use std::process::abort;
 
@@ -58,12 +58,7 @@ pub unsafe extern "C" fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_
 
         let mut localbuf = [0 as c_char; FPCONV_G_FMT_BUFSIZE];
         let buf = if (buflen as usize) >= FPCONV_G_FMT_BUFSIZE {
-            let p = malloc((buflen as usize) + 1).cast::<c_char>();
-            if p.is_null() {
-                eprint!("Out of memory");
-                abort();
-            }
-            p
+            xmalloc((buflen as usize) + 1).cast::<c_char>()
         } else {
             localbuf.as_mut_ptr()
         };
@@ -80,7 +75,7 @@ pub unsafe extern "C" fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_
         let value = strtod(buf, &mut endbuf);
         *endptr = nptr.offset(endbuf.offset_from(buf)).cast_mut();
         if (buflen as usize) >= FPCONV_G_FMT_BUFSIZE {
-            free(buf.cast::<c_void>());
+            xfree(buf.cast::<c_void>());
         }
 
         value

@@ -2,9 +2,31 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+fn parse_cmake_var(cmake_text: &str, name: &str) -> Option<String> {
+    let prefix = format!("set({name} ");
+    for line in cmake_text.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix(&prefix)
+            && let Some(end) = rest.find(')')
+        {
+            let val = rest[..end].trim().trim_matches('"');
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
 fn main() {
+    println!("cargo:rerun-if-changed=CMakeLists.txt");
     println!("cargo:rerun-if-env-changed=DEPS_PREFIX");
     println!("cargo:rerun-if-env-changed=VTERM_TEST_FILE");
+    println!("cargo:rerun-if-env-changed=NVIM_VERSION_MAJOR");
+    println!("cargo:rerun-if-env-changed=NVIM_VERSION_MINOR");
+    println!("cargo:rerun-if-env-changed=NVIM_VERSION_PATCH");
+    println!("cargo:rerun-if-env-changed=NVIM_VERSION_PRERELEASE");
+    println!("cargo:rerun-if-env-changed=NVIM_API_LEVEL");
+    println!("cargo:rerun-if-env-changed=NVIM_API_LEVEL_COMPAT");
+    println!("cargo:rerun-if-env-changed=NVIM_API_PRERELEASE");
     println!("cargo:rerun-if-env-changed=NVIM_VERSION_LONG");
     println!("cargo:rerun-if-env-changed=NVIM_VERSION_BUILD");
     println!("cargo:rerun-if-env-changed=NVIM_BUILD_TYPE");
@@ -16,6 +38,48 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NVIM_HAVE_UNIBILIUM");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let cmake_text =
+        std::fs::read_to_string(manifest_dir.join("CMakeLists.txt")).unwrap_or_default();
+
+    let ver_major = env::var("NVIM_VERSION_MAJOR")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_MAJOR"))
+        .or_else(|| env::var("CARGO_PKG_VERSION_MAJOR").ok())
+        .unwrap_or_else(|| "0".to_string());
+    let ver_minor = env::var("NVIM_VERSION_MINOR")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_MINOR"))
+        .or_else(|| env::var("CARGO_PKG_VERSION_MINOR").ok())
+        .unwrap_or_else(|| "13".to_string());
+    let ver_patch = env::var("NVIM_VERSION_PATCH")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_PATCH"))
+        .or_else(|| env::var("CARGO_PKG_VERSION_PATCH").ok())
+        .unwrap_or_else(|| "0".to_string());
+    let ver_prerelease = env::var("NVIM_VERSION_PRERELEASE")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_VERSION_PRERELEASE"))
+        .unwrap_or_else(|| "-dev".to_string());
+    let api_level = env::var("NVIM_API_LEVEL")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_API_LEVEL"))
+        .unwrap_or_else(|| "15".to_string());
+    let api_compat = env::var("NVIM_API_LEVEL_COMPAT")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_API_LEVEL_COMPAT"))
+        .unwrap_or_else(|| "0".to_string());
+    let api_prerelease = env::var("NVIM_API_PRERELEASE")
+        .ok()
+        .or_else(|| parse_cmake_var(&cmake_text, "NVIM_API_PRERELEASE"))
+        .unwrap_or_else(|| "true".to_string());
+
+    println!("cargo:rustc-env=NVIM_VERSION_MAJOR={ver_major}");
+    println!("cargo:rustc-env=NVIM_VERSION_MINOR={ver_minor}");
+    println!("cargo:rustc-env=NVIM_VERSION_PATCH={ver_patch}");
+    println!("cargo:rustc-env=NVIM_VERSION_PRERELEASE={ver_prerelease}");
+    println!("cargo:rustc-env=NVIM_API_LEVEL={api_level}");
+    println!("cargo:rustc-env=NVIM_API_LEVEL_COMPAT={api_compat}");
+    println!("cargo:rustc-env=NVIM_API_PRERELEASE={api_prerelease}");
 
     if env::var("VTERM_TEST_FILE").is_err() {
         let vterm_test_file = manifest_dir
@@ -29,7 +93,8 @@ fn main() {
     }
 
     if env::var("NVIM_VERSION_LONG").is_err() {
-        let mut version = String::from("v0.13.0-dev");
+        let base_ver = format!("v{ver_major}.{ver_minor}.{ver_patch}");
+        let mut version = format!("{base_ver}{ver_prerelease}");
         let mut build = String::new();
         if let Ok(out) = Command::new("git")
             .args([
@@ -52,19 +117,22 @@ fn main() {
                 } else {
                     build = tag.clone();
                 }
-                let rest = tag
-                    .strip_prefix("v0.13.0-")
-                    .or_else(|| {
-                        let first_dash = tag.find('-')?;
-                        Some(&tag[first_dash + 1..])
-                    })
-                    .unwrap_or(&tag);
-                let formatted = if let Some((commits, hash)) = rest.split_once('-') {
-                    format!("{commits}+{hash}")
-                } else {
-                    rest.to_string()
-                };
-                version = format!("v0.13.0-dev-{formatted}");
+                if !ver_prerelease.is_empty() {
+                    let prefix = format!("{base_ver}-");
+                    let rest = tag
+                        .strip_prefix(&prefix)
+                        .or_else(|| {
+                            let first_dash = tag.find('-')?;
+                            Some(&tag[first_dash + 1..])
+                        })
+                        .unwrap_or(&tag);
+                    let formatted = if let Some((commits, hash)) = rest.split_once('-') {
+                        format!("{commits}+{hash}")
+                    } else {
+                        rest.to_string()
+                    };
+                    version = format!("{base_ver}{ver_prerelease}-{formatted}");
+                }
             }
         }
         println!("cargo:rustc-env=NVIM_VERSION_LONG=NVIM {version}");

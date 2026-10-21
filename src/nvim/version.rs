@@ -3768,9 +3768,34 @@ const fn make_cstr_buf_or<const N: usize>(opt: Option<&str>, fallback: &str) -> 
 
 const fn env_flag_enabled(opt: Option<&str>, default: bool) -> bool {
     match opt {
-        Some(s) => !s.is_empty() && s.as_bytes()[0] != b'0',
+        Some(s) => {
+            !s.is_empty()
+                && s.as_bytes()[0] != b'0'
+                && !matches!(s.as_bytes(), b"false" | b"FALSE" | b"off" | b"OFF")
+        }
         None => default,
     }
+}
+
+const fn parse_version_int(opt: Option<&str>, fallback: c_int) -> c_int {
+    let Some(s) = opt else {
+        return fallback;
+    };
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
+        return fallback;
+    }
+    let mut val: c_int = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b < b'0' || b > b'9' {
+            return fallback;
+        }
+        val = val * 10 + (b - b'0') as c_int;
+        i += 1;
+    }
+    val
 }
 
 static VERSION_BUILDTYPE_BUF: [u8; 256] =
@@ -3785,11 +3810,18 @@ static LONG_VERSION_BUF: [u8; 256] =
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
 #[unsafe(no_mangle)]
-pub static nvim_version_major: c_int = 0;
+pub static nvim_version_major: c_int = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
 #[unsafe(no_mangle)]
-pub static nvim_version_minor: c_int = 13;
+pub static nvim_version_minor: c_int = parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
 #[unsafe(no_mangle)]
-pub static nvim_version_patch: c_int = 0;
+pub static nvim_version_patch: c_int = parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
+pub const nvim_version_prerelease: bool = match option_env!("NVIM_VERSION_PRERELEASE") {
+    Some(s) => !s.is_empty(),
+    None => true,
+};
+pub const nvim_api_level: c_int = parse_version_int(option_env!("NVIM_API_LEVEL"), 15);
+pub const nvim_api_level_compat: c_int = parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
+pub const nvim_api_prerelease: bool = env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
 
 #[unsafe(no_mangle)]
 pub static mut version_buildtype: *mut c_char = (&raw const VERSION_BUILDTYPE_BUF)
