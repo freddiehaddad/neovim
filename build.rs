@@ -139,6 +139,25 @@ fn main() {
         println!("cargo:rustc-env=NVIM_VERSION_BUILD={build}");
     }
 
+    let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
+    if env::var("NVIM_BUILD_TYPE").is_err() {
+        let bt = if profile == "release" {
+            "Release"
+        } else {
+            "Debug"
+        };
+        println!("cargo:rustc-env=NVIM_BUILD_TYPE=Build type: {bt}");
+    }
+    if env::var("NVIM_VERSION_CFLAGS").is_err() && profile != "release" {
+        let unibilium = match env::var("NVIM_HAVE_UNIBILIUM").as_deref() {
+            Ok("0" | "false" | "OFF" | "off") => "0",
+            _ => "1",
+        };
+        println!(
+            "cargo:rustc-env=NVIM_VERSION_CFLAGS=Compilation: cargo -DHAVE_UNIBILIUM={unibilium}"
+        );
+    }
+
     let deps_prefix = env::var("DEPS_PREFIX")
         .map(PathBuf::from)
         .unwrap_or_else(|_| manifest_dir.join(".deps").join("usr"));

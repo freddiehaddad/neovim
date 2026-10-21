@@ -9,7 +9,10 @@
 # Version should match the tested CMAKE_URL in .github/workflows/build.yml.
 cmake_minimum_required(VERSION 3.16)
 
-project(nvim C)
+project(nvim NONE)
+if(NOT DEFINED CMAKE_SIZEOF_VOID_P)
+  set(CMAKE_SIZEOF_VOID_P 8)
+endif()
 
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
