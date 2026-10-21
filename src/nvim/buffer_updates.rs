@@ -8,9 +8,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, buf_collect_lines};
-use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::{arena_array, array_obj, boolean_obj, buffer_obj, integer_obj};
+use crate::api::buffer::{LUA_INTERNAL_CALL, LUA_NOREF, bcount_t, buf_collect_lines};
+use crate::api::private::helpers::{
+    NIL, arena_array, array_obj, boolean_obj, buffer_obj, integer_obj,
+};
 use crate::api::private::validate::{Array, Object, ObjectType};
 use crate::buffer::buf_get_changedtick;
 use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
@@ -30,9 +31,7 @@ const ARENA_EMPTY: Arena = Arena {
     size: 0,
 };
 
-pub use crate::api::buffer::bcount_t;
-pub use crate::cursor::{colnr_T, linenr_T};
-pub use crate::lua::executor::LuaRetMode;
+use crate::cursor::{colnr_T, linenr_T};
 
 const LOG_ERROR: c_int = 3;
 

@@ -8,11 +8,13 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::buffer::{VALID_TOPLINE, VAR_FIXED, bt_prompt, bt_quickfix};
 use crate::charset::{ascii_iswhite, vim_iswordc};
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
-use crate::cursor::{coladvance, equalpos, get_cursor_pos_ptr, lt, ltoreq, set_leftcol};
+use crate::cursor::{
+    coladvance, colnr_T, equalpos, get_cursor_pos_ptr, linenr_T, lt, ltoreq, set_leftcol,
+};
 use crate::decoration::{decor_conceal_line, decor_virt_lines};
 use crate::diff::diff_check_fill;
 use crate::drawscreen::{
@@ -20,6 +22,7 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redraw_statuslines, setcursor, update_screen,
 };
 use crate::eval::buffer::varnumber_T;
+use crate::eval::deprecated::{EvalFuncData, pos_T};
 use crate::eval::typval::{tv_clear, tv_dict_add_nr, tv_dict_alloc_ret};
 use crate::eval::vars::{VV_LNUM, VV_VIRTNUM, get_vim_var_nr, set_vim_var_nr};
 use crate::eval::{call_vim_function, eval_has_provider};
@@ -43,7 +46,9 @@ use crate::keycodes::{
 };
 use crate::map::{Map, StcClick, StcClicks, mh_get_int};
 use crate::map_glyph_cache::MH_TOMBSTONE;
-use crate::mbyte::{mb_get_class, utf_head_off, utf8len_tab, utfc_ptr2len};
+use crate::mbyte::{
+    mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf8len_tab, utfc_ptr2len,
+};
 use crate::mcursor::mc_toggle;
 use crate::memline::{gchar_pos, inc, ml_get, ml_get_buf};
 use crate::menu::show_popupmenu;
@@ -56,9 +61,8 @@ use crate::ops::{OP_NOP, clear_oparg};
 use crate::option::get_scrolloff_value;
 use crate::option_vars::*;
 use crate::plines::{
-    CSType, CharsizeArg, colnr_T, getvcol, getvcols, init_charsize_arg, linenr_T, plines_win,
-    plines_win_nofill, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize, win_chartabsize,
-    win_get_fill,
+    CSType, CharsizeArg, getvcol, getvcols, init_charsize_arg, plines_win, plines_win_nofill,
+    win_charsize, win_chartabsize, win_get_fill,
 };
 use crate::popupmenu::pum_visible;
 use crate::register::{PUT_CURSEND, PUT_FIXINDENT, do_put, insert_reg, yank_register_mline};
@@ -80,13 +84,11 @@ use crate::api::buffer::{FORWARD, NUL, VALID_BOTLINE_AP};
 use crate::api::vim::{BACKWARD, kNone};
 use crate::cmdexpand::Ctrl_P;
 use crate::drawline::{VALID_CROW, VALID_WROW};
-pub use crate::eval::deprecated::EvalFuncData;
 use crate::eval::funcs::{kMTCharWise, kMTLineWise};
 use crate::ex_getln::{Ctrl_G, Ctrl_O, Ctrl_R, Ctrl_RSB, Ctrl_T};
 use crate::insexpand::kWinInfo;
 use crate::math::FAIL;
 use crate::regexp::Ctrl_V;
-pub use crate::search::Direction;
 
 pub const IN_UNKNOWN: c_int = 0;
 pub const IN_BUFFER: c_int = 1;

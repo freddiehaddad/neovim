@@ -16,6 +16,7 @@ use crate::charset::{
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
+use crate::eval::deprecated::EvalFuncData;
 use crate::eval::eval_to_string;
 use crate::eval::typval::{
     tv_check_for_opt_bool_arg, tv_get_bool, tv_get_string_buf_chk, tv_get_string_chk,
@@ -26,7 +27,6 @@ use crate::ex_docmd::{do_cmdline_cmd, getline_equal};
 use crate::ex_getln::putcmdline;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::indent::EvalFuncData;
 use crate::input::plain_vgetc;
 use crate::keycodes::{ESC, K_BS};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, do_map};
@@ -46,8 +46,7 @@ use crate::api::buffer::NUL;
 use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;
-pub use crate::cmdexpand::LineGetter;
-pub use crate::eval::buffer::varnumber_T;
+use crate::cmdexpand::LineGetter;
 use crate::math::{FAIL, OK};
 use crate::regexp::{Ctrl_H, NUMBUFLEN};
 use crate::state::MODE_LANGMAP;

@@ -8,7 +8,8 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::buffer::{FORWARD, NUL, bcount_t, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::tabpage::win_T;
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
     BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, buf_inc_changedtick, buf_meta_total,
@@ -20,17 +21,17 @@ use crate::charset::{
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
-    check_cursor_lnum, check_visual_pos, coladvance_force, get_cursor_line_len,
-    get_cursor_line_ptr, get_cursor_pos_ptr, getviscol,
+    check_cursor_lnum, check_visual_pos, coladvance_force, colnr_T, get_cursor_line_len,
+    get_cursor_line_ptr, get_cursor_pos_ptr, getviscol, linenr_T,
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_VALID, redraw_buf_status_later, redraw_later, redrawWinline,
     set_must_redraw, showmode,
 };
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
-use crate::extmark::{bcount_t, extmark_adjust, extmark_splice, extmark_splice_cols};
+use crate::extmark::{extmark_adjust, extmark_splice, extmark_splice_cols};
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
 use crate::globals::*;
 use crate::grid::wline_T;
@@ -41,8 +42,7 @@ use crate::indent::{
 use crate::indent_c::{check_linecomment, cin_is_cinword, do_c_expr_indent, in_cinkeys};
 use crate::insert::{prompt_text, replace_push, replace_push_nul, truncate_spaces};
 use crate::insexpand::ins_compl_active;
-use crate::mark::reset_fmark;
-use crate::mark::{mark_adjust, mark_col_adjust, mark_view_make};
+use crate::mark::{mark_adjust, mark_col_adjust, mark_view_make, reset_fmark};
 use crate::marktree::{kMTMetaInline, kMTMetaLines};
 use crate::mbyte::{
     mb_adjust_cursor, ptr2cells, utf_char2bytes, utf_composinglike, utf_head_off,
@@ -64,28 +64,22 @@ use crate::r#move::{
 };
 use crate::option::{copy_option_part, get_ve_flags};
 use crate::option_vars::*;
-use crate::plines::{colnr_T, getvcol, linenr_T, linetabsize_eol, win_chartabsize};
+use crate::plines::{getvcol, linetabsize_eol, win_chartabsize};
 use crate::search::{findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::strings::tr;
-use crate::strings::{concat_str, vim_strchr, xstrnsave};
+use crate::strings::{concat_str, tr, vim_strchr, xstrnsave};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
-pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
-use crate::api::buffer::{FORWARD, NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::api::vim::BACKWARD;
-pub use crate::api::win_config::UIExtension;
 use crate::arglist::ML_EMPTY;
-pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
-pub use crate::mbyte::GraphemeState;
 use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 
 pub const OPENLINE_DELSPACES: c_int = 0x01;

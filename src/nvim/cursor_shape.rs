@@ -78,8 +78,6 @@ pub struct cursorentry_T {
 
 unsafe impl Sync for cursorentry_T {}
 
-pub use crate::api::buffer::VisualState;
-pub use crate::eval::deprecated::pos_T;
 #[cfg(not(test))]
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_SHOWMATCH, MODE_TERMINAL, REPLACE_FLAG, VREPLACE_FLAG,

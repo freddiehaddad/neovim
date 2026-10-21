@@ -2,6 +2,7 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
+use crate::api::command::exarg_T;
 #[cfg(not(test))]
 use crate::charset::vim_strsize;
 #[cfg(not(test))]
@@ -16,7 +17,6 @@ use crate::ex_cmds::check_secure;
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 #[cfg(not(test))]
 use crate::globals::*;
-use crate::lua::secure::exarg_T;
 use crate::math::{FAIL, OK};
 use crate::memory::{xfree, xmallocz};
 #[cfg(not(test))]
@@ -28,8 +28,8 @@ use crate::message::{
 };
 #[cfg(not(test))]
 use crate::option_vars::*;
+use crate::os::env::expand_T;
 use crate::os::time::os_time;
-use crate::profile::expand_T;
 #[cfg(not(test))]
 use crate::regexp::{
     NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
@@ -71,9 +71,10 @@ pub struct histentry_T {
 
 #[cfg(not(test))]
 use crate::api::command::CMOD_KEEPPATTERNS;
-pub use crate::api::command::{cmdmod_T, regmatch_T};
 #[cfg(not(test))]
 use crate::api::options::IOSIZE;
+#[cfg(not(test))]
+use crate::regexp::regmatch_T;
 
 #[cfg(not(test))]
 #[inline]

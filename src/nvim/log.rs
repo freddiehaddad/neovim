@@ -14,6 +14,7 @@
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 #[cfg(not(test))]
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
+use crate::fileio::FILE;
 #[cfg(all(not(test), unix))]
 use crate::fileio::fgets;
 #[cfg(not(test))]
@@ -36,7 +37,6 @@ use crate::os::stdpaths::{get_xdg_home, stdpaths_user_state_subpath};
 use crate::os::time::{Tm, os_localtime, strftime};
 #[cfg(not(test))]
 use crate::path::{concat_fnames_realloc, path_tail};
-use crate::profile::FILE;
 #[cfg(not(test))]
 use crate::strings::strerror;
 #[cfg(not(test))]

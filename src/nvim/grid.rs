@@ -38,9 +38,9 @@ pub type sattr_T = i32;
 pub type sscratch_T = i32;
 use crate::api::buffer::NUL;
 use crate::api::ui::MAX_SCHAR_SIZE;
-pub use crate::api::win_config::{AlignTextPos, BorderTextType, UIExtension};
 use crate::api::win_config::{
-    kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter, kBorderTextTitle, kUIMultigrid,
+    AlignTextPos, BorderTextType, kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter,
+    kBorderTextTitle, kUIMultigrid,
 };
 use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
 use crate::drawscreen::DEFAULT_GRID_HANDLE;

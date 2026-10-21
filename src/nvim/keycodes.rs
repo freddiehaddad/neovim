@@ -7,9 +7,9 @@
     clippy::missing_safety_doc
 )]
 
+use crate::charset::is_special;
 #[cfg(not(test))]
 use crate::charset::{ascii_isalpha, ascii_isdigit, transchar, vim_isprintc, vim_str2nr};
-pub use crate::charset::{is_special, to_special};
 #[cfg(not(test))]
 use crate::eval::vars::get_var_value;
 #[cfg(not(test))]
@@ -27,7 +27,7 @@ use crate::message::emsg;
 use crate::strings::{vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_uint};
 
-pub use crate::eval::vars::scid_T;
+use crate::eval::vars::scid_T;
 
 pub const NUL: u8 = 0;
 pub const BS: c_int = 0x08;

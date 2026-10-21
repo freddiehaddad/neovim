@@ -72,7 +72,7 @@ use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::funcs::kSpecialVarNull;
 use crate::math::{FAIL, OK};
 use crate::regexp::NUMBUFLEN;

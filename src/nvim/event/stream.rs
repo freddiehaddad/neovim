@@ -8,8 +8,8 @@
 )]
 
 use crate::event::r#loop::{
-    UV_RUN_NOWAIT, uv_close, uv_guess_handle, uv_handle_size, uv_is_closing, uv_loop_close,
-    uv_loop_init, uv_pipe_init, uv_pipe_open, uv_run,
+    Loop, UV_RUN_NOWAIT, uv_close, uv_guess_handle, uv_handle_size, uv_handle_t, uv_is_closing,
+    uv_loop_close, uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open, uv_run,
 };
 #[cfg(windows)]
 use crate::event::r#loop::{uv_tty_init, uv_tty_set_mode};
@@ -33,7 +33,6 @@ const UV_TTY_MODE_RAW: c_int = 1;
 #[cfg(windows)]
 const ENABLE_VIRTUAL_TERMINAL_INPUT: u32 = 0x0200;
 
-pub use crate::event::r#loop::{Loop, uv_close_cb, uv_handle_t, uv_loop_t};
 pub type Stream = c_void;
 pub type uv_stream_t = c_void;
 pub type uv_pipe_t = c_void;

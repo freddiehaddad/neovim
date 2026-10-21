@@ -9,7 +9,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::options::Buffer;
 #[cfg(not(test))]
 use crate::api::options::{CtxSwitch, kOptBuftype};
 #[cfg(not(test))]
@@ -20,9 +19,9 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::tabpage::win_T;
 #[cfg(not(test))]
-use crate::api::tabpage::{pos_T as tab_pos_T, winopt_T};
+use crate::api::tabpage::winopt_T;
+use crate::api::tabpage::{Buffer, win_T};
 #[cfg(not(test))]
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_TERMCLOSE, EVENT_TERMENTER, EVENT_TERMLEAVE, EVENT_TERMOPEN,
@@ -33,9 +32,9 @@ use crate::autocmd::{
 use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_get_changedtick, do_buffer};
 #[cfg(not(test))]
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
-#[cfg(not(test))]
-use crate::channel::OptInt;
 use crate::channel::TerminalOptions;
+#[cfg(not(test))]
+use crate::charset::is_special;
 #[cfg(not(test))]
 use crate::context::{ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win};
 #[cfg(not(test))]
@@ -51,6 +50,8 @@ use crate::drawscreen::{
     update_screen,
 };
 use crate::eval::deprecated::buf_T;
+#[cfg(not(test))]
+use crate::eval::deprecated::pos_T as tab_pos_T;
 #[cfg(not(test))]
 use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_list,
@@ -105,7 +106,7 @@ use crate::keycodes::{
     K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP, K_NOP, K_PAGEDOWN, K_PAGEUP,
     K_RIGHT, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_TAB, K_UP, K_X1DRAG, K_X1MOUSE,
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
-    MOD_MASK_SHIFT, TAB, is_special, unsimplify_key,
+    MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
 #[cfg(not(test))]
 use crate::kvec::KVec;
@@ -133,6 +134,8 @@ use crate::msgpack_rpc::packer::handle_T;
 #[cfg(not(test))]
 use crate::ops::clear_oparg;
 #[cfg(not(test))]
+use crate::option::OptInt;
+#[cfg(not(test))]
 use crate::option::{SB_MAX, set_option_value};
 #[cfg(not(test))]
 use crate::option_vars::*;
@@ -152,6 +155,8 @@ use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_mode_info_set, vim_beep,
 };
 #[cfg(not(test))]
+use crate::vterm::keyboard::VTermModifier;
+#[cfg(not(test))]
 use crate::vterm::keyboard::{
     VTERM_KEY_BACKSPACE, VTERM_KEY_ENTER, VTERM_KEY_FUNCTION_0, VTERM_KEY_NONE, VTERM_KEY_TAB,
     VTERM_MOD_ALT, VTERM_MOD_CTRL, VTERM_MOD_NONE, VTERM_MOD_SHIFT, VTermColor,
@@ -160,7 +165,7 @@ use crate::vterm::keyboard::{
 };
 use crate::vterm::mouse::VTerm;
 #[cfg(not(test))]
-use crate::vterm::mouse::{VTermModifier, VTermPos, vterm_mouse_button, vterm_mouse_move};
+use crate::vterm::mouse::{VTermPos, vterm_mouse_button, vterm_mouse_move};
 use crate::vterm::parser::VTermTerminator;
 #[cfg(not(test))]
 use crate::vterm::parser::{VTERM_TERMINATOR_BEL, VTermStringFragment, vterm_input_write};
@@ -207,12 +212,11 @@ use std::ptr;
 use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
 #[cfg(not(test))]
 use crate::api::deprecated::OPT_LOCAL;
-pub use crate::api::deprecated::StringBuilder;
+use crate::api::deprecated::StringBuilder;
 #[cfg(not(test))]
 use crate::arglist::ML_EMPTY;
 #[cfg(not(test))]
 use crate::cmdexpand::Ctrl_N;
-pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, kOptCuloptFlagNumber};
 #[cfg(not(test))]
@@ -224,7 +228,8 @@ use crate::eval::funcs::{
 use crate::ex_cmds::Ctrl_C;
 #[cfg(not(test))]
 use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
-pub use crate::vterm::keyboard::VTermKey;
+#[cfg(not(test))]
+use crate::vterm::keyboard::VTermKey;
 
 #[cfg(not(test))]
 const REFRESH_DELAY: u64 = 10;

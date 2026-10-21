@@ -6,7 +6,7 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
-use crate::api::command::{exarg_T, regmatch_T};
+use crate::api::command::exarg_T;
 use crate::api::options::{IOSIZE, bufref_T};
 use crate::api::private::helpers::boolean_obj;
 use crate::api::tabpage::win_T;
@@ -27,7 +27,7 @@ use crate::errors::*;
 use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
 use crate::ex_cmds::do_sub_msg;
 use crate::ex_docmd::do_cmdline_cmd;
-pub use crate::ex_getln::hlf_T;
+use crate::ex_getln::hlf_T;
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -37,11 +37,10 @@ use crate::hashtab::{
 };
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
 use crate::log::logmsg;
-use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
     mb_charlen_len, mb_cptr2char_adv, mb_get_class, mb_islower, mb_isupper, mb_ptr_adv,
-    mb_ptr2char_adv, mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class, utf_fold,
-    utf_head_off, utf_ptr2char, utfc_ptr2len,
+    mb_ptr_back, mb_ptr2char_adv, mb_stricmp, mb_strnicmp, mb_toupper, utf_char2bytes, utf_class,
+    utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
@@ -60,9 +59,12 @@ use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
-use crate::regexp::{MAXCOL, RE_MAGIC, vim_regcomp, vim_regexec, vim_regexec_prog, vim_regfree};
+use crate::regexp::{
+    MAXCOL, RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regexec_prog,
+    vim_regfree,
+};
 use crate::runtime::{DIP_ALL, do_in_runtimepath};
-use crate::search::{do_search, kShmSearch};
+use crate::search::{Direction, do_search, kShmSearch};
 use crate::spellfile::spell_load_file;
 use crate::spellsuggest::{
     fromto_T, idx_T, langp_T, salitem_T, slang_T, spell_suggest_list, spelltab_T, wordcount_T,
@@ -77,7 +79,6 @@ use crate::window::win_valid_any_tab;
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 pub type smt_T = c_int;
-pub use crate::api::autocmd::event_T;
 use crate::api::buffer::{FORWARD, NUL};
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{BACKWARD, MAXPATHL, kFalse, kNone, kTrue};
@@ -86,9 +87,6 @@ use crate::drawline::{HLF_COUNT, SMT_ALL, kOptSpoFlagNoplainbuffer};
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR, SEARCH_KEEP};
 use crate::math::{FAIL, OK};
 use crate::normal::{SMT_BAD, SMT_RARE};
-pub use crate::optionstr::OptIndex;
-pub use crate::regexp::regprog_T;
-pub use crate::search::Direction;
 pub(crate) const MAXWLEN: usize = 254;
 const REGION_ALL: c_int = 0xff;
 const MAXWORDCOUNT: u16 = 0xffff;

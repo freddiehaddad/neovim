@@ -11,38 +11,33 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::options::CtxSwitch;
-use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::put_c;
-use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
-    cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, integer_obj,
-    normalize_index, set_mark, static_cstr_as_obj, string_obj,
+    NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj, buf_get_text,
+    cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle, has_key,
+    integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj, try_wrap,
 };
-use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, api_err_invalid, check_string_array,
+    Array, Dict, Error, ErrorType, Object, api_err_invalid, api_err_range, check_string_array,
 };
-use crate::api::tabpage::{Buffer, pos_T, win_T};
+use crate::api::tabpage::{Buffer, win_T};
 use crate::buffer::{DOBUF_FIRST, DOBUF_UNLOAD, DOBUF_WIPE, buf_ensure_loaded, do_buffer};
 use crate::buffer_updates::{buf_updates_register, buf_updates_unregister};
 use crate::change::changed_lines;
 use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos};
-use crate::eval::deprecated::{BufUpdateCallbacks, buf_T};
+use crate::cursor::{check_cursor_col, check_cursor_lnum, check_visual_pos, colnr_T, linenr_T};
+use crate::eval::deprecated::{BufUpdateCallbacks, buf_T, pos_T};
 use crate::ex_cmds::rename_buffer;
-use crate::extmark::extmark_splice;
+use crate::extmark::{ExtmarkOp, extmark_splice};
 use crate::globals::*;
+use crate::highlight::OptionalKeys;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef, lua_createtable, lua_pushlstring, lua_rawseti};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
-use crate::mark::{mark_adjust_buf, mark_get};
+use crate::mark::{MarkAdjustMode, MarkGet, mark_adjust_buf, mark_get};
 use crate::marktree::kMTMetaLines;
 use crate::memline::{
     ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf, ml_get_buf_len,
@@ -55,16 +50,12 @@ use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topli
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
-use crate::undo::u_save_buf;
+use crate::undo::{u_header_T, u_save_buf};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub use crate::cursor::{colnr_T, linenr_T};
 pub type bcount_t = isize;
-pub use crate::extmark::{ExtmarkOp, u_header_T};
-pub use crate::lua::executor::LuaRetMode;
-pub use crate::mark::{MarkAdjustMode, MarkGet};
-pub use crate::search::Direction;
+use crate::search::Direction;
 
 pub(crate) const NUL: c_char = 0;
 pub(crate) const NL: c_char = b'\n' as c_char;

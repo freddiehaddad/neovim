@@ -31,9 +31,12 @@ use crate::decoration_provider::{
 use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
 use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
+use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
-use crate::ex_getln::{cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, redrawcmdline};
+use crate::ex_getln::{
+    cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, hlf_T, redrawcmdline,
+};
 use crate::fold::{fold_info, foldmethodIsSyntax, hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::grid::{
@@ -49,7 +52,7 @@ use crate::highlight_group::highlight_changed;
 use crate::input::char_avail;
 use crate::insexpand::ins_compl_show_pum;
 use crate::marktree::{DECOR_PRIORITY_BASE, kMTMetaSignText};
-use crate::r#match::{init_search_hl, matchitem_T, prepare_search_hl, varnumber_T};
+use crate::r#match::{init_search_hl, matchitem_T, prepare_search_hl};
 use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::{
@@ -64,7 +67,7 @@ use crate::r#move::{
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::normal::{clear_showcmd, do_check_scrollbind};
-use crate::option::{get_ve_flags, shortmess};
+use crate::option::{OptInt, get_ve_flags, shortmess};
 use crate::option_vars::*;
 use crate::plines::{getvcols, getvvcol, plines_m_win, plines_win, win_get_fill, win_may_fill};
 use crate::popupmenu::{pum_check_clear, pum_drawn, pum_invalidate, pum_redraw};
@@ -78,7 +81,7 @@ use crate::state::{
     get_real_state,
 };
 use crate::statusline::{
-    draw_tabline, foldinfo_T, hlf_T, redraw_ruler, stl_alloc_click_defs, stl_clear_click_defs,
+    draw_tabline, foldinfo_T, redraw_ruler, stl_alloc_click_defs, stl_clear_click_defs,
     win_redr_status, win_redr_winbar,
 };
 use crate::strings::{gettext, vim_strchr};
@@ -104,9 +107,7 @@ use crate::api::buffer::NUL;
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{HLF_N, HLF_SC, MAXPATHL, kFalse};
 use crate::api::win_config::{FR_COL, kUIMultigrid};
-pub use crate::ex_getln::disptick_T;
 use crate::math::{FAIL, OK};
-pub use crate::option::OptInt;
 
 pub const UPD_VALID: c_int = 10;
 pub const UPD_INVERTED: c_int = 20;

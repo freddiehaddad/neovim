@@ -9,14 +9,14 @@
 )]
 
 use crate::api::buffer::LUA_NOREF;
-use crate::api::extmark::{DecorProvider, NS, describe_ns, kDecorProviderActive, linenr_T};
-use crate::api::private::helpers::error_set;
+use crate::api::extmark::{DecorProvider, NS, describe_ns, kDecorProviderActive};
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_object, api_object_to_bool, buffer_obj, error_init,
-    integer_obj, window_obj,
+    error_set, integer_obj, window_obj,
 };
 use crate::api::private::validate::{Array, ObjectType};
 use crate::api::tabpage::win_T;
+use crate::cursor::linenr_T;
 use crate::decoration::decor_check_to_be_deleted;
 use crate::eval::deprecated::buf_T;
 use crate::globals::*;

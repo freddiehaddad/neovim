@@ -17,8 +17,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object};
 use crate::api::tabpage::win_T;
-use crate::api::win_config::WIN_CONFIG_INIT;
-use crate::api::win_config::{kUIMultigrid, parse_winborder};
+use crate::api::win_config::{WIN_CONFIG_INIT, kUIMultigrid, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
 use crate::charset::{transstr, vim_strsize};
@@ -83,10 +82,8 @@ use crate::api::vim::kOptCotFlagPopup;
 use crate::change::TAB;
 use crate::diff::kOptDiff;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-pub use crate::ex_getln::hlf_T;
+use crate::ex_getln::hlf_T;
 use crate::math::OK;
-pub use crate::option::OptInt;
-pub use crate::optionstr::OptIndex;
 use crate::regexp::MAXCOL;
 use crate::state::MODE_CMDLINE;
 

@@ -24,7 +24,7 @@ use crate::eval::{VAR_FLAVOUR_SESSION, var_flavour};
 use crate::ex_docmd::{open_exfile, vim_mkdir_emsg};
 use crate::ex_getln::{VSE_NONE, vim_strsave_fnameescape};
 use crate::file_search::vim_chdirfile;
-use crate::fileio::{fclose, fputc, fputs, fwrite, shorten_fnames};
+use crate::fileio::{FILE, fclose, fputc, fputs, fwrite, shorten_fnames};
 use crate::fold::put_folds;
 use crate::garray::garray_T;
 use crate::globals::*;
@@ -49,7 +49,6 @@ use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::MAXPATHL;
 use crate::api::win_config::FR_COL;
 use crate::drawscreen::FR_LEAF;
-pub use crate::fileio::FILE;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
 

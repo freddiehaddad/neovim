@@ -8,10 +8,9 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::buffer::{FORWARD, NL, NUL, kExtmarkNOOP, kExtmarkUndo};
+use crate::api::buffer::{FORWARD, NL, NUL, bcount_t, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
-use crate::api::private::helpers::api_clear_string;
-use crate::api::private::helpers::{cbuf_as_string, cbuf_to_string};
+use crate::api::private::helpers::{api_clear_string, cbuf_as_string, cbuf_to_string};
 use crate::api::vim::{BACKWARD, REMAP_NONE, REMAP_YES};
 use crate::autocmd::{
     EVENT_RECORDINGENTER, EVENT_RECORDINGLEAVE, EVENT_TEXTPUTPOST, EVENT_TEXTPUTPRE,
@@ -47,7 +46,7 @@ use crate::eval::{eval_to_string, get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::ex_cmds2::check_fname;
 use crate::ex_getln::{Ctrl_A, Ctrl_F, Ctrl_L, Ctrl_R, Ctrl_W, cmdline_paste_str, getcmdline};
-use crate::extmark::{bcount_t, extmark_splice, extmark_splice_cols};
+use crate::extmark::{extmark_splice, extmark_splice_cols};
 use crate::file_search::{FNAME_EXP, FNAME_HYP, FNAME_MESS, file_name_at_cursor};
 use crate::fold::hasFolding;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_init, ga_set_growsize, garray_T};
@@ -66,7 +65,8 @@ use crate::map_glyph_cache::NvimString;
 use crate::mark::mark_adjust;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_head_off, utfc_ptr2len,
+    mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_ClusterInfo, utf_head_off,
+    utf_ptr2StrCharInfo, utfc_ptr2len,
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
@@ -84,10 +84,7 @@ use crate::option::get_ve_flags;
 use crate::option_vars::*;
 use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_realtime};
-use crate::plines::{
-    CSType, CharsizeArg, getvcol, init_charsize_arg, utf_ClusterInfo, utf_ptr2StrCharInfo,
-    win_charsize,
-};
+use crate::plines::{CSType, CharsizeArg, getvcol, init_charsize_arg, win_charsize};
 use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::search::{Direction, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, save_v_event_T};

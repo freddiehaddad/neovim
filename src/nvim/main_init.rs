@@ -10,6 +10,8 @@
 )]
 
 #[cfg(not(test))]
+use crate::api::options::bufref_T;
+#[cfg(not(test))]
 use crate::api::private::helpers::{
     api_free_object, api_metadata_raw, bool_obj, cstr_as_string, cstr_obj, int_obj,
 };
@@ -36,9 +38,8 @@ use crate::autocmd::{
 #[cfg(not(test))]
 use crate::buffer::{
     BLN_LISTED, MAXLNUM, SEA_DIALOG, SEA_NONE, SEA_QUIT, VAR_FIXED, buf_get_changedtick,
-    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_T, bufref_valid,
-    do_autochdir, do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref,
-    set_curbuf, setfname,
+    buf_is_empty, buf_set_changedtick, buf_valid, buflist_new, bufref_valid, do_autochdir,
+    do_modelines, handle_swap_exists, open_buffer, set_buflisted, set_bufref, set_curbuf, setfname,
 };
 #[cfg(not(test))]
 use crate::channel::{
@@ -66,10 +67,10 @@ use crate::eval::typval::{tv_clear, tv_list_alloc, tv_list_alloc_ret, tv_list_ap
 use crate::eval::userfunc::invoke_all_defer;
 #[cfg(not(test))]
 use crate::eval::vars::{
-    OptIndex, OptInt, VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH,
-    VV_SEND_SERVER, VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT,
-    get_vim_var_list, get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr,
-    set_vim_var_string, set_vim_var_type,
+    VV_ARGF, VV_EXITING, VV_EXITREASON, VV_OLDFILES, VV_PROGNAME, VV_PROGPATH, VV_SEND_SERVER,
+    VV_STARTTIME, VV_SWAPCOMMAND, VV_VIM_DID_ENTER, VV_VIM_DID_INIT, get_vim_var_list,
+    get_vim_var_str, set_reg_var, set_vim_var_list, set_vim_var_nr, set_vim_var_string,
+    set_vim_var_type,
 };
 #[cfg(not(test))]
 use crate::eval::{
@@ -96,6 +97,8 @@ use crate::ex_getln::cmdline_init;
 #[cfg(not(test))]
 use crate::extmark::TriState;
 #[cfg(not(test))]
+use crate::fileio::FILE;
+#[cfg(not(test))]
 use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
 #[cfg(not(test))]
 use crate::garray::ga_grow;
@@ -114,11 +117,13 @@ use crate::keycodes::K_NOP;
 #[cfg(not(test))]
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, log_init, logmsg_str};
 #[cfg(not(test))]
+use crate::lua::converter::LUA_GLOBALSINDEX;
+#[cfg(not(test))]
 use crate::lua::converter::{lua_getfield, lua_pushstring, lua_tolstring};
 #[cfg(not(test))]
 use crate::lua::executor::{
-    LUA_GLOBALSINDEX, get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file,
-    nlua_init, nlua_init_defaults, nlua_pcall,
+    get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
+    nlua_init_defaults, nlua_pcall,
 };
 #[cfg(not(test))]
 use crate::map_glyph_cache::NvimString;
@@ -149,12 +154,16 @@ use crate::normal::{
     check_scrollbind, init_normal_cmds, kOptCbFlagUnnamed, kOptCbFlagUnnamedplus, normal_enter,
 };
 #[cfg(not(test))]
+use crate::option::OptInt;
+#[cfg(not(test))]
 use crate::option::{
     kOptArabic, kOptKeymap, kOptRightleft, kOptWindow, reset_modifiable, set_init_1, set_init_2,
     set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err, set_options_bin,
 };
 #[cfg(not(test))]
 use crate::option_vars::*;
+#[cfg(not(test))]
+use crate::optionstr::OptIndex;
 #[cfg(not(test))]
 use crate::os::env::{
     env_init, init_homedir, os_get_pid, os_getenv, os_getenv_noalloc, os_hint_priority,
@@ -188,7 +197,7 @@ use crate::path::{
     vim_FullName,
 };
 #[cfg(not(test))]
-use crate::profile::{FILE, profile_dump, time_finish, time_init, time_msg, time_start};
+use crate::profile::{profile_dump, time_finish, time_init, time_msg, time_start};
 #[cfg(not(test))]
 use crate::quickfix::{kOptErrorfile, qf_init, qf_init_stack, qf_jump};
 #[cfg(not(test))]

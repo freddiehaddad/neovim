@@ -56,10 +56,11 @@ use std::ffi::CStr;
 use std::ffi::c_void;
 use std::ffi::{c_char, c_int};
 
-pub use crate::api::tabpage::Buffer;
+use crate::api::tabpage::Buffer;
 pub type event_T = c_int;
-pub use crate::api::private::helpers::{ArrayBuilder, TryState};
-pub use crate::highlight::OptionalKeys;
+#[cfg(not(test))]
+use crate::api::private::helpers::{ArrayBuilder, TryState};
+use crate::highlight::OptionalKeys;
 
 #[cfg(not(test))]
 const AUCMD_MAX_PATTERNS: usize = 256;

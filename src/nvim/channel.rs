@@ -9,12 +9,12 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::autocmd::{event_T, kCallbackNone};
 #[cfg(not(test))]
 use crate::api::private::converter::object_to_vim;
-use crate::api::private::helpers::cstr_as_string;
-use crate::api::private::helpers::dict_put_cstr;
 #[cfg(not(test))]
 use crate::api::private::helpers::{arena_array, arena_dict};
+use crate::api::private::helpers::{cstr_as_string, dict_put_cstr};
 use crate::api::private::validate::{Array, Dict, Object, ObjectData, ObjectType};
 #[cfg(not(test))]
 use crate::autocmd::{apply_autocmds, has_event};
@@ -22,7 +22,7 @@ use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 #[cfg(not(test))]
 use crate::errors::*;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, CallbackReader, buf_T};
+use crate::eval::deprecated::{Callback, CallbackReader, Channel, buf_T};
 #[cfg(not(test))]
 use crate::eval::encode::encode_list_write;
 #[cfg(not(test))]
@@ -77,8 +77,8 @@ use crate::message::semsg;
 #[cfg(not(test))]
 use crate::msgpack_rpc::channel::rpc_free;
 use crate::msgpack_rpc::channel::{
-    Channel, ChannelPart, ChannelStreamType, channel_instream, channel_prefix, channel_size,
-    channel_stream_ptr, channel_tail, event_T, find_channel, rpc_close, rpc_init, rpc_start,
+    ChannelPart, ChannelStreamType, channel_instream, channel_prefix, channel_size,
+    channel_stream_ptr, channel_tail, find_channel, rpc_close, rpc_init, rpc_start,
 };
 use crate::msgpack_rpc::packer::Integer;
 use crate::msgpack_rpc::server::server_owns_pipe_address;
@@ -110,9 +110,8 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 pub type ChannelStdinMode = c_int;
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::option::OptInt;
-pub use crate::terminal::Terminal;
+use crate::eval::buffer::varnumber_T;
+use crate::option::OptInt;
 
 const CHAN_STDERR: u64 = 2;
 
@@ -172,7 +171,6 @@ pub struct TerminalOptions {
     pub force_crlf: bool,
 }
 
-use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::LUA_NOREF;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::ui::{CHAN_STDIO, kChannelPartAll};

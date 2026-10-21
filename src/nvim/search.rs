@@ -9,8 +9,8 @@
     clippy::useless_conversion
 )]
 
-use crate::api::command::{CMOD_KEEPPATTERNS, regmatch_T};
-use crate::api::tabpage::{lpos_T, pos_T, win_T};
+use crate::api::command::CMOD_KEEPPATTERNS;
+use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::buffer::{buf_get_changedtick, kUIMessages};
 use crate::change::{TAB, get_leader_len};
@@ -28,7 +28,7 @@ use crate::drawscreen::{
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
     tv_check_for_nonnull_dict_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_dict_find,
     tv_dict_get_bool, tv_get_number_chk, tv_get_string_chk, tv_list_find, tv_list_len,
@@ -44,7 +44,7 @@ use crate::extmark::TriState;
 use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
-use crate::fileio::{fclose, vim_fgets};
+use crate::fileio::{FILE, fclose, vim_fgets};
 use crate::fold::{foldOpenCursor, hasFolding};
 use crate::globals::*;
 use crate::indent_c::{FM_BACKWARD, FM_BLOCKSTOP, FM_SKIPCOMM, check_linecomment};
@@ -56,7 +56,7 @@ use crate::insexpand::{
     ins_compl_interrupted, ins_compl_len, kShmCompletionscan,
 };
 use crate::mark::setpcmark;
-use crate::r#match::{kCpoSearch, regmmatch_T};
+use crate::r#match::kCpoSearch;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_head_off, utf_iscomposing_first,
@@ -75,7 +75,7 @@ use crate::normal::{
     FM_FORWARD, SEARCH_ECHO, SEARCH_MARK, SEARCH_REV, kCpoMatch, kOptFdoFlagSearch,
     kShmSearchcount, may_start_select,
 };
-use crate::option::shortmess;
+use crate::option::{OptInt, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
@@ -84,16 +84,14 @@ use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fna
 use crate::plines::getvcol;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::regexp::{
-    MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, skip_regexp_ex, vim_regcomp, vim_regexec,
-    vim_regexec_multi, vim_regfree,
+    MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, magic_T, regmatch_T, regmmatch_T, skip_regexp_ex,
+    vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::state::MODE_SHOWMATCH;
-use crate::strings::tr;
-use crate::strings::{atol, reverse_text, strncmp, vim_snprintf, vim_strchr, xstrnsave};
+use crate::strings::{atol, reverse_text, strncmp, tr, vim_snprintf, vim_strchr, xstrnsave};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
-use crate::window::reset_binding;
-use crate::window::{win_enter, win_split, win_valid};
+use crate::window::{reset_binding, win_enter, win_split, win_valid};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
@@ -102,12 +100,8 @@ use crate::api::buffer::{FORWARD, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{BACKWARD, HLF_N, kFalse, kNone, kTrue};
-pub use crate::api::win_config::UIExtension;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, kMTLineWise};
-pub use crate::fileio::FILE;
-pub use crate::option::OptInt;
-pub use crate::regexp::magic_T;
 pub type AdditionalData = c_void;
 
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;

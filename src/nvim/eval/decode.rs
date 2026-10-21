@@ -55,13 +55,10 @@ const SURROGATE_LO_END: u64 = 0xDFFF;
 #[cfg(not(test))]
 pub(crate) const SURROGATE_FIRST_CHAR: c_int = 0x10000;
 
-pub use crate::mpack::mpack_core::{
-    MPACK_MAX_TOKEN_LEN, MPACK_OK, mpack_tokbuf_t, mpack_token_data_t, mpack_token_t,
-    mpack_token_type_t, mpack_value_t,
-};
-pub use crate::mpack::object::{
-    MPACK_MAX_OBJECT_DEPTH, mpack_data_t, mpack_node_t, mpack_parser_t, mpack_walk_cb,
-};
+use crate::mpack::mpack_core::{MPACK_OK, mpack_token_type_t};
+#[cfg(not(test))]
+use crate::mpack::object::mpack_node_t;
+use crate::mpack::object::mpack_parser_t;
 
 use crate::api::private::converter::VAR_UNLOCKED;
 #[cfg(not(test))]

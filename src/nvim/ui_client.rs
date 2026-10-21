@@ -8,11 +8,9 @@
 )]
 
 use crate::api::private::dispatch::KeyDict_highlight_get_field as highlight_get_field_cb;
-use crate::api::private::helpers::OBJECT_NIL;
-use crate::api::private::helpers::cstr_obj;
 use crate::api::private::helpers::{
-    api_dict_to_keydict, api_free_array, api_metadata, api_set_error, bool_obj, copy_array,
-    cstr_as_string, int_obj,
+    OBJECT_NIL, api_dict_to_keydict, api_free_array, api_metadata, api_set_error, bool_obj,
+    copy_array, cstr_as_string, cstr_obj, int_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -81,7 +79,6 @@ unsafe extern "C" {
 }
 
 use crate::api::ui::kLineFlagWrap;
-pub use crate::fileio::FILE;
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn ui_client_start_server(

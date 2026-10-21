@@ -26,7 +26,8 @@ use std::ptr;
 
 pub type unibi_term = c_void;
 use crate::api::buffer::NUL;
-pub use crate::api::deprecated::StringBuilder;
+#[cfg(not(test))]
+use crate::api::deprecated::StringBuilder;
 
 pub const kTerm_carriage_return: usize = 0;
 pub const kTerm_change_scroll_region: usize = 1;

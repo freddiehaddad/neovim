@@ -11,6 +11,7 @@
     clippy::unnecessary_cast
 )]
 
+use crate::api::deprecated::StringBuilder;
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, arena_array, array_obj, boolean_obj, cstr_as_obj, dict_obj,
     static_cstr_as_obj, static_cstr_as_string, string_obj,
@@ -24,8 +25,8 @@ use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry
 use crate::event::r#loop::uv_tty_set_mode;
 use crate::event::r#loop::{
     Loop, UV_RUN_DEFAULT, loop_poll_events, loop_purge, loop_queues, loop_size, uv_chdir, uv_close,
-    uv_is_closing, uv_loop_close, uv_loop_init, uv_pipe_init, uv_pipe_open, uv_run, uv_strerror,
-    uv_timer_init, uv_timer_start, uv_tty_init, uv_write,
+    uv_handle_t, uv_is_closing, uv_loop_close, uv_loop_init, uv_loop_t, uv_pipe_init, uv_pipe_open,
+    uv_run, uv_strerror, uv_timer_init, uv_timer_start, uv_timer_t, uv_tty_init, uv_write,
 };
 #[cfg(windows)]
 use crate::event::r#loop::{uv_handle_get_type, uv_handle_size};
@@ -37,12 +38,13 @@ use crate::event::signal::{
 };
 #[cfg(windows)]
 use crate::event::stream::{UV_STREAM, UV_TTY, stream_uv_ptr};
-use crate::event::stream::{stream_set_blocking, uv_handle_t, uv_loop_t, uv_tty_t};
-use crate::event::time::uv_timer_t;
+use crate::event::stream::{stream_set_blocking, uv_tty_t};
 use crate::event::wstream::uv_buf_t;
-use crate::fileio::{fclose, fopen, fwrite};
-use crate::globals::*;
-use crate::grid::{schar_cache_clear_if_full, schar_get, schar_get_ascii};
+use crate::fileio::{FILE, fclose, fopen, fwrite};
+use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
+use crate::grid::{
+    sattr_T, schar_T, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
+};
 use crate::kvec::KVec;
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, g_min_log_level, logmsg};
 use crate::lua::executor::{kRetObject, nlua_exec};
@@ -54,6 +56,7 @@ use crate::memory::{
     xrealloc, xstrdup,
 };
 use crate::msgpack_rpc::channel::rpc_send_event;
+use crate::option::OptInt;
 #[cfg(windows)]
 use crate::os::env::os_setenv;
 use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
@@ -62,14 +65,13 @@ use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
 use crate::os::time::{os_hrtime, uv_sleep};
 use crate::tui::input::{
-    OptInt, TermInput, input_loop_ptr, input_prefix, input_read_stream, input_suffix,
-    kKeyEncodingKitty, kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy, tinput_init,
-    tinput_start, tinput_stop,
+    TermInput, input_loop_ptr, input_prefix, input_read_stream, input_suffix, kKeyEncodingKitty,
+    kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy, tinput_init, tinput_start, tinput_stop,
 };
 use crate::tui::termkey::driver_ti::{TerminfoEntry, kTermCount, kTerminfoFuncKeyMax};
 use crate::tui::ugrid::{
-    UCell, UGrid, sattr_T, schar_T, schar_from_ascii, ugrid_clear, ugrid_clear_chunk, ugrid_free,
-    ugrid_goto, ugrid_init, ugrid_resize, ugrid_scroll,
+    UCell, UGrid, ugrid_clear, ugrid_clear_chunk, ugrid_free, ugrid_goto, ugrid_init, ugrid_resize,
+    ugrid_scroll,
 };
 use crate::ui_client::ui_client_set_size;
 #[cfg(unix)]
@@ -81,10 +83,7 @@ use std::ptr;
 use crate::os::os_win_console::{GetConsoleMode, os_tty_guess_term};
 use crate::tui::terminfo::*;
 
-pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_write_cb};
-pub use crate::fileio::FILE;
-pub use crate::lua::executor::LuaRetMode;
-pub use crate::msgpack_rpc::packer::Integer;
+use crate::msgpack_rpc::packer::Integer;
 pub type TermMode = c_int;
 pub type TermModeState = c_int;
 pub type ModeShape = c_int;
@@ -298,7 +297,6 @@ use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_STANDOUT, HL_UNDERCURL,
     HL_UNDERDASHED, HL_UNDERDOTTED, HL_UNDERDOUBLE, HL_UNDERLINE,
 };
-use crate::globals::{DFLT_COLS, DFLT_ROWS};
 use crate::highlight::{HL_ALTFONT, HL_BG_INDEXED, HL_FG_INDEXED};
 #[cfg(unix)]
 use crate::os::pty_proc_unix as unix_termios;

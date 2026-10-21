@@ -11,16 +11,16 @@ use crate::api::private::converter::{object_to_vim, sctx_T, vim_to_object};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType, api_err_exp,
 };
-use crate::api::tabpage::{Buffer, Tabpage, Window, pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
 use crate::clipboard::typval_T;
 use crate::cursor::{colnr_T, linenr_T};
 use crate::eval::decode::{dict_T, dictitem_T};
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::typval::{
     tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len, tv_dict_item_remove,
     tv_dict_watcher_notify,
 };
-use crate::eval::vars::{LuaRef, before_set_vvar, get_vimvar_dict, scid_T};
+use crate::eval::vars::{before_set_vvar, get_vimvar_dict, scid_T};
 use crate::ex_eval::{
     ET_ERROR, discard_current_exception, except_T, free_global_msglist, get_exception_string,
     msglist_T,
@@ -28,7 +28,7 @@ use crate::ex_eval::{
 use crate::garray::garray_T;
 use crate::globals::*;
 use crate::highlight_group::{highlight_num_groups, syn_check_group, syn_id2name};
-use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, OptKeySet};
+use crate::lua::converter::{Boolean, FieldHashfn, Float, KeySetLink, LuaRef, OptKeySet};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map::{Map, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
@@ -204,7 +204,7 @@ pub struct HlMessageChunk {
     pub hl_id: c_int,
 }
 
-pub use crate::api::vim::HlMessage;
+use crate::api::vim::HlMessage;
 
 #[cfg_attr(not(test), unsafe(no_mangle))]
 pub unsafe extern "C" fn api_set_error_str(

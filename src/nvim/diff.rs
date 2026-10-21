@@ -6,7 +6,6 @@
     clippy::missing_safety_doc,
     clippy::too_many_arguments
 )]
-pub use crate::api::autocmd::event_T;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::command::{ADDR_LINES, CMOD_LOCKMARKS, cmdidx_T, exarg_T};
 use crate::api::options::{CtxSwitch, bufref_T};
@@ -26,18 +25,16 @@ use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::decoration::decor_conceal_line;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
 use crate::eval::fs::FileInfo;
 use crate::eval::typval::{tv_get_lnum, tv_get_number};
 use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
 use crate::ex_docmd::{do_cmdline_cmd, do_exedit, get_address};
-pub use crate::ex_getln::hlf_T;
-use crate::extmark::extmark_adjust;
-pub use crate::extmark::{ExtmarkOp, TriState};
-pub use crate::fileio::FILE;
-use crate::fileio::{buf_check_timestamp, fclose, fwrite, vim_fgets, vim_tempname};
+use crate::ex_getln::hlf_T;
+use crate::extmark::{TriState, extmark_adjust};
+use crate::fileio::{FILE, buf_check_timestamp, fclose, fwrite, vim_fgets, vim_tempname};
 #[cfg(unix)]
 use crate::fileio::{shorten_fnames, vim_gettempdir};
 use crate::fold::{
@@ -45,7 +42,7 @@ use crate::fold::{
 };
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::linematch::{linematch_nbuffers, mmfile_t};
+use crate::linematch::linematch_nbuffers;
 use crate::mark::{mark_adjust, setpcmark};
 use crate::mbyte::{
     mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold, utf_head_off,
@@ -59,11 +56,9 @@ use crate::r#move::{
     invalidate_botline_win, validate_cursor,
 };
 use crate::normal::check_scrollbind;
-pub use crate::option::OptScope;
 use crate::option::{set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
-pub use crate::optionstr::{OptIndex, OptKeyDict_dip};
-use crate::optionstr::{free_string_option, opt_keyset};
+use crate::optionstr::{OptIndex, OptKeyDict_dip, free_string_option, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
@@ -78,7 +73,7 @@ use crate::window::{
     window_layout_lock, window_layout_unlock,
 };
 use crate::xdiff::xdiffi::xdl_diff;
-use crate::xdiff::{xdemitcb_t, xdemitconf_t, xpparam_t};
+use crate::xdiff::{mmfile_t, xdemitcb_t, xdemitconf_t, xpparam_t};
 use std::ffi::{c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 const DB_COUNT: usize = 8;

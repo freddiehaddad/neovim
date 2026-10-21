@@ -9,15 +9,15 @@
 )]
 
 use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{ScopeDictDictItem, frame_T, tabpage_T, win_T};
+use crate::api::tabpage::{frame_T, tabpage_T, win_T};
 use crate::buffer::{bt_cmdwin, bt_quickfix, bt_terminal, first_win_in_tab};
 use crate::charset::getdigits_int;
 use crate::clipboard::{VarType, list_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
-use crate::cursor::check_cursor;
+use crate::cursor::{check_cursor, colnr_T, linenr_T};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::EvalFuncData;
+use crate::eval::deprecated::{EvalFuncData, ScopeDictDictItem};
 use crate::eval::funcs::execute_common;
 use crate::eval::typval::{
     tv_check_for_nonnull_dict_arg, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
@@ -50,9 +50,8 @@ use std::ptr;
 use crate::api::buffer::NUL;
 use crate::api::win_config::kCtxNoDisplay;
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
-pub use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::{FR_LEAF, FR_ROW};
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::{kListLenMayKnow, kListLenUnknown};
 use crate::math::{FAIL, OK};
 pub type dictitem_T = ScopeDictDictItem;

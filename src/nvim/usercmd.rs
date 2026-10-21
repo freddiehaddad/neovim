@@ -15,13 +15,13 @@ use crate::api::command::{
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
     CMOD_UNSILENT, EX_ARGSPACE, EX_BANG, EX_COUNT, EX_DFLALL, EX_EXTRA, EX_KEEPSCRIPT, EX_NEEDARG,
-    EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, UC_BUFFER, cmd_addr_T, cmdmod_T,
-    exarg_T, ucmd_T,
+    EX_NOSPC, EX_RANGE, EX_REGSTR, EX_TRLBAR, EX_XFILE, EX_ZEROR, UC_BUFFER, cmdmod_T, exarg_T,
+    ucmd_T,
 };
 use crate::api::options::IOSIZE;
-use crate::api::private::helpers::dict_put_cstr;
 use crate::api::private::helpers::{
-    arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, string_obj,
+    arena_dict, boolean_obj, cstr_as_obj, dict_obj, dict_put_cstr, integer_obj, luaref_obj,
+    nil_obj, string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
@@ -40,7 +40,7 @@ use crate::cmdexpand::{
     EXPAND_SHELLCMD, EXPAND_SHELLCMDLINE, EXPAND_SIGN, EXPAND_SYNTIME, EXPAND_TAGS,
     EXPAND_TAGS_LISTFILES, EXPAND_UNSUCCESSFUL, EXPAND_USER, EXPAND_USER_ADDR_TYPE,
     EXPAND_USER_CMD_FLAGS, EXPAND_USER_COMMANDS, EXPAND_USER_COMPLETE, EXPAND_USER_DEFINED,
-    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS, HLF_D,
+    EXPAND_USER_LIST, EXPAND_USER_LUA, EXPAND_USER_NARGS, EXPAND_USER_VARS, HLF_D, cmd_addr_T,
 };
 use crate::eval::deprecated::buf_T;
 use crate::eval::funcs::DOCMD_KEYTYPED;
@@ -63,9 +63,9 @@ use crate::message::{
     msg_puts, msg_puts_hl, msg_puts_title, semsg,
 };
 use crate::option_vars::*;
+use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
-use crate::sign::expand_T;
 use crate::strings::{
     gettext, strcat, strchr, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
 };

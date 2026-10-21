@@ -15,8 +15,7 @@ use crate::eval::deprecated::buf_T;
 use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
 use crate::event::r#loop::loop_recursive_ptr;
-use crate::fileio::close_fd;
-use crate::fileio::vim_lseek;
+use crate::fileio::{close_fd, off_T, vim_lseek};
 #[cfg(not(test))]
 use crate::fileio::{read_eintr, write_eintr};
 #[cfg(not(test))]
@@ -51,7 +50,6 @@ pub type blocknr_T = i64;
 pub type mfdirty_T = c_int;
 use crate::buffer::{MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
 use crate::eval::fs::{SEEK_END, SEEK_SET};
-pub use crate::fileio::off_T;
 use crate::math::{FAIL, OK};
 
 const MEMFILE_PAGE_SIZE: c_uint = 4096;

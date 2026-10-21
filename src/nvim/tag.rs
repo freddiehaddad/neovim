@@ -45,9 +45,7 @@ use crate::ex_docmd::{
 use crate::file_search::{
     FINDFILE_FILE, vim_findfile, vim_findfile_cleanup, vim_findfile_init, vim_findfile_stopdir,
 };
-use crate::fileio::vim_fseek;
-use crate::fileio::vim_ftell;
-use crate::fileio::{fclose, vim_fgets};
+use crate::fileio::{FILE, fclose, off_T, vim_fgets, vim_fseek, vim_ftell};
 use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear, ga_clear_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -70,7 +68,7 @@ use crate::message::{
     smsg, verbose_enter, verbose_leave, wait_return,
 };
 use crate::r#move::{set_topline, validate_cursor};
-use crate::option::copy_option_part;
+use crate::option::{OptInt, copy_option_part};
 use crate::option_vars::*;
 use crate::optionstr::free_string_option;
 use crate::os::fs::{os_fopen, os_path_exists};
@@ -81,7 +79,7 @@ use crate::path::{
 };
 use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
 use crate::regexp::{
-    MAXCOL, NSUBEXP, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
+    MAXCOL, NSUBEXP, RE_MAGIC, regmatch_T, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
 };
 use crate::runtime::{DIP_ALL, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
@@ -97,12 +95,7 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::eval::funcs::SpecialVarValue;
-pub use crate::eval::typval::{BoolVarValue, VarLockStatus};
-pub use crate::fileio::{FILE, off_T};
-pub use crate::option::OptInt;
-pub use crate::regexp::regprog_T;
+use crate::eval::buffer::varnumber_T;
 
 const LSIZE: c_int = 512;
 const TAGSTACKSIZE: c_int = 20;
@@ -156,10 +149,6 @@ pub struct tagname_T {
     pub tn_search_ctx: *mut c_void,
 }
 
-pub use crate::api::command::regmatch_T;
-
-pub use crate::r#match::SearchState;
-
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::NUL;
 use crate::api::options::IOSIZE;
@@ -170,7 +159,7 @@ use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::fs::{SEEK_END, SEEK_SET};
 use crate::eval::funcs::{SEARCH_KEEP, kSpecialVarNull};
 use crate::math::{FAIL, OK};
-pub use crate::os::env::expand_T;
+use crate::os::env::expand_T;
 use crate::viml::parser::parser::CONV_NONE;
 
 #[derive(Clone, Copy)]

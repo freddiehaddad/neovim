@@ -14,22 +14,21 @@ use crate::eval::deprecated::buf_T;
 use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::mbyte::{
-    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_char2bytes, utf_char2cells,
-    utf_char2len, utf_class_tab, utf_printable, utf_ptr2char, utf_ptr2len, utf8len_tab,
-    utfc_ptr2len,
+    mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_ClusterInfo, utf_char2bytes,
+    utf_char2cells, utf_char2len, utf_class_tab, utf_printable, utf_ptr2StrCharInfo, utf_ptr2char,
+    utf_ptr2len, utf8len_tab, utfc_ptr2len,
 };
 use crate::memory::{xmalloc, xstrchrnul};
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use crate::plines::{utf_ClusterInfo, utf_ptr2StrCharInfo};
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
 use crate::api::buffer::{NL, NUL};
-pub use crate::api::deprecated::StringBuilder;
+use crate::api::deprecated::StringBuilder;
 use crate::change::TAB;
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::keycodes::CAR;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;

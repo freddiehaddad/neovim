@@ -19,8 +19,7 @@ use crate::buffer::{
 };
 use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::clipboard::list_T;
-use crate::context::INIT_FMARK;
-use crate::context::INIT_FMARKV;
+use crate::context::{INIT_FMARK, INIT_FMARKV};
 use crate::cursor::{check_cursor, colnr_T, equalpos, linenr_T, lt};
 use crate::diff::diff_mark_adjust;
 use crate::errors::*;
@@ -29,7 +28,7 @@ use crate::eval::typval::{
     tv_dict_add_list, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_list_alloc,
     tv_list_append_dict, tv_list_append_number,
 };
-use crate::extmark::extmark_adjust;
+use crate::extmark::{ExtmarkOp, extmark_adjust};
 use crate::fold::{foldMarkAdjust, hasFolding};
 use crate::garray::garray_T;
 use crate::globals::*;
@@ -72,9 +71,7 @@ use crate::change::TAB;
 use crate::cmdexpand::HLF_D;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
-pub use crate::extmark::ExtmarkOp;
 use crate::math::{FAIL, OK};
-pub use crate::path::PathCmpFlags;
 use crate::regexp::{MAXCOL, kMarkBufLocal};
 
 #[repr(C)]

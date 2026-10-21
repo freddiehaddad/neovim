@@ -129,11 +129,10 @@ pub struct debuggy {
     pub dbg_level: c_int,
 }
 
-pub use crate::api::command::exarg_T as exarg_Full;
+use crate::api::command::exarg_T as exarg_Full;
 
-pub use crate::api::tabpage::win_T;
-pub use crate::eval::deprecated::buf_T;
-pub use crate::input::tasave_T;
+#[cfg(not(test))]
+use crate::input::tasave_T;
 
 #[cfg(not(test))]
 use crate::api::vim::MAXPATHL;
@@ -141,7 +140,6 @@ use crate::api::vim::MAXPATHL;
 use crate::autocmd::DOCMD_VERBOSE;
 #[cfg(not(test))]
 use crate::cmdexpand::EXPAND_NOTHING;
-pub use crate::cmdexpand::LineGetter;
 #[cfg(not(test))]
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 #[cfg(not(test))]

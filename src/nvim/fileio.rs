@@ -10,9 +10,8 @@
 )]
 
 use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
-use crate::api::options::{CtxSwitch, IOSIZE};
+use crate::api::options::{CtxSwitch, IOSIZE, bufref_T};
 use crate::api::private::helpers::{HLF_E, cstr_as_obj};
-use crate::api::tabpage::pos_T;
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFNEW, EVENT_BUFNEWFILE, EVENT_BUFREADCMD,
     EVENT_BUFREADPOST, EVENT_BUFREADPRE, EVENT_BUFWIPEOUT, EVENT_FILECHANGEDSHELL,
@@ -23,8 +22,8 @@ use crate::autocmd::{
 use crate::buffer::{
     BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC,
     NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty,
-    buflist_new, bufref_T, bufref_valid, do_modelines, kShmFileinfo, kShmRo, kUIMessages,
-    set_bufref, setfname, wipe_buffer,
+    buflist_new, bufref_valid, do_modelines, kShmFileinfo, kShmRo, kUIMessages, set_bufref,
+    setfname, wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
 use crate::change::{HLF_W, appended_lines_mark, save_file_ff, unchanged};
@@ -37,8 +36,8 @@ use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
 use crate::errors::*;
-use crate::eval::deprecated::buf_T;
-use crate::eval::fs::{FileInfo, SEEK_SET};
+use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::fs::{CheckItem, FileInfo, SEEK_SET};
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_FCS_CHOICE, VV_FCS_REASON, VV_WARNINGMSG,
     eval_charconvert, get_vim_var_str, set_vim_var_string,
@@ -46,6 +45,8 @@ use crate::eval::vars::{
 #[cfg(not(test))]
 use crate::eval::vars::{VV_TESTING, get_vim_var_nr};
 use crate::event::r#loop::uv_strerror;
+#[cfg(unix)]
+use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 use crate::ex_eval::aborting;
 use crate::fold::{foldUpdateAll, foldmethodIsManual};
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
@@ -78,18 +79,15 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_env_exists};
-use crate::os::fs::TEMP_FILE_PATH_MAXLEN;
-use crate::os::fs::UV_ENOENT;
-use crate::os::fs::os_errno as get_errno;
-use crate::os::fs::os_set_errno as set_errno;
 use crate::os::fs::{
-    Directory, os_closedir, os_copy, os_dirname, os_file_is_writable, os_file_owned, os_fileinfo,
-    os_fileinfo_fd, os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm,
-    os_isdir, os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename,
-    os_rmdir, os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, vim_acl_T,
+    Directory, TEMP_FILE_PATH_MAXLEN, UV_ENOENT, os_closedir, os_copy, os_dirname,
+    os_errno as get_errno, os_file_is_writable, os_file_owned, os_fileinfo, os_fileinfo_fd,
+    os_fileinfo_id_equal, os_fileinfo_size, os_free_acl, os_get_acl, os_getperm, os_isdir,
+    os_isrealdir, os_mkdir, os_mkdtemp, os_open, os_path_exists, os_remove, os_rename, os_rmdir,
+    os_scandir, os_scandir_next, os_set_acl, os_set_cloexec, os_set_errno as set_errno, vim_acl_T,
 };
 #[cfg(unix)]
-use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, s_islnk, uv_gid_t, uv_uid_t};
+use crate::os::fs::{os_fchown, os_fileinfo_link, os_setperm, s_islnk};
 use crate::os::input::os_breakcheck;
 use crate::os::time::{os_hrtime, time_t};
 use crate::os::users::os_get_username;
@@ -97,7 +95,7 @@ use crate::path::{
     add_pathsep, after_pathsep, dir_of_file_exists, kPathCmpLiteral, path_equal, path_is_absolute,
     path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
 };
-use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
@@ -115,13 +113,9 @@ use std::ptr;
 #[cfg(windows)]
 use crate::os::os_win_console::os_open_conin_fd;
 
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::option::OptInt;
 pub type off_T = i64;
 pub type iconv_t = isize;
 pub type FILE = c_void;
-pub use crate::eval::fs::CheckItem;
-pub use crate::regexp::regprog_T;
 
 pub const READ_NEW: c_int = 0x01;
 pub const READ_FILTER: c_int = 0x02;
@@ -230,7 +224,6 @@ static mut VIM_TEMPDIR_DP: *mut c_void = ptr::null_mut();
 
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{NL, NUL};
-pub use crate::api::command::regmatch_T;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;

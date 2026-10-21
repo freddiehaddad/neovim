@@ -12,13 +12,13 @@ use crate::api::autocmd::{event_T, kCallbackNone};
 use crate::api::command::{ADDR_LINES, CMOD_NOSWAPFILE, EX_PREVIEW, EX_RANGE, cmdmod_T, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::{CtxSwitch, SID_NONE};
-use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::{
-    HLF_E, add_c, api_clear_error, api_free_array, arena_array, array_obj, cbuf_as_string,
-    cstr_as_obj, cstr_as_string, error_init, integer_obj, string_obj, try_enter, try_leave,
+    HLF_E, TryState, add_c, api_clear_error, api_free_array, arena_array, array_obj,
+    cbuf_as_string, cstr_as_obj, cstr_as_string, error_init, error_set, integer_obj, string_obj,
+    try_enter, try_leave,
 };
 use crate::api::private::validate::{Array, Object};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::api::vim::{BACKWARD, REMAP_NONE, nvim_create_buf};
 use crate::autocmd::{
     DOCMD_NOWAIT, EVENT_CMDLINECHANGED, EVENT_CMDLINEENTER, EVENT_CMDLINELEAVE,
@@ -29,8 +29,8 @@ use crate::buffer::{
     DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, buf_clear, buf_valid, buflist_findnr, do_buffer, kUIMessages,
 };
 use crate::charset::{
-    ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, skipwhite, vim_isIDc, vim_isprintc,
-    vim_iswordc, vim_str2nr,
+    ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_iswhite, is_special, skipwhite, vim_isIDc,
+    vim_isprintc, vim_iswordc, vim_str2nr,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::cmdexpand::{
@@ -57,7 +57,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
+use crate::eval::deprecated::{Callback, EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
     callback_free, tv_check_for_opt_number_arg, tv_check_for_string_arg, tv_clear, tv_copy,
     tv_dict_add_bool, tv_dict_add_nr, tv_dict_add_str, tv_dict_find, tv_dict_get_callback,
@@ -94,7 +94,7 @@ use crate::keycodes::{
     K_RIGHT, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_S_DOWN, K_S_END, K_S_HOME, K_S_LEFT,
     K_S_RIGHT, K_S_TAB, K_S_UP, K_SPECIAL, K_UP, K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG,
     K_X2MOUSE, K_X2RELEASE, K_ZERO, KE_EVENT, KE_FILLER, KE_LUA, KE_WILD, KS_EXTRA, MOD_MASK_CTRL,
-    MOD_MASK_SHIFT, NL, get_special_key_name, is_special, termcap2key,
+    MOD_MASK_SHIFT, NL, get_special_key_name, termcap2key,
 };
 use crate::kvec::KVec;
 use crate::lua::executor::nlua_call_typval;
@@ -106,7 +106,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_cptr2char_adv, mb_get_class, mb_off_next, mb_prevptr, mb_tolower, ptr2cells, utf_char2bytes,
     utf_char2len, utf_head_off, utf_iscomposing_first, utf_ptr2cells, utf_ptr2char,
-    utf8len_tab_zero, utfc_ptr2len,
+    utf8len_tab_zero, utfc_ptr2len, vimconv_T,
 };
 use crate::memline::{decl, incl};
 use crate::memory::{
@@ -126,15 +126,19 @@ use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::normal::bt_cmdwin;
 #[cfg(unix)]
 use crate::option::csh_like_shell;
-use crate::option::{set_iminsert_global, set_imsearch_global, set_option_direct, string_to_key};
+use crate::option::{
+    OptInt, set_iminsert_global, set_imsearch_global, set_option_direct, string_to_key,
+};
 use crate::option_vars::*;
-use crate::optionstr::{TryState, optset_T};
+use crate::optionstr::optset_T;
 use crate::os::env::{expand_T, home_replace_save};
 use crate::os::input::line_breakcheck;
 use crate::path::vim_ispathsep;
 use crate::popupmenu::pum_check_clear;
 use crate::profile::{profile_setlimit, proftime_T};
-use crate::regexp::{Ctrl_H, Ctrl_V, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, skip_regexp_ex};
+use crate::regexp::{
+    Ctrl_H, Ctrl_V, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, magic_T, skip_regexp_ex,
+};
 use crate::register::{
     cmdline_paste_reg, get_expr_line, get_expr_register, get_spec_reg, is_literal_register,
     valid_yank_reg,
@@ -148,9 +152,9 @@ use crate::state::{
     MODE_CMDLINE, MODE_LANGMAP, VimState, may_trigger_modechanged, may_trigger_safestate,
     save_v_event_T, state_enter, state_handle_k_event,
 };
-use crate::strings::strnicmp_c;
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, strrchr, vim_strchr, vim_strsave_escaped, xstrnsave,
+    gettext, strcmp, strcpy, strlen, strncmp, strnicmp_c, strrchr, vim_strchr, vim_strsave_escaped,
+    xstrnsave,
 };
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,
@@ -164,7 +168,7 @@ use crate::viml::parser::expressions::{
 };
 use crate::viml::parser::parser::{
     CONV_NONE, ParserHighlight, ParserHighlightChunk, ParserInputReader, ParserLine,
-    ParserPosition, ParserState, parser_simple_get_line, vimconv_T, viml_parser_destroy,
+    ParserPosition, ParserState, parser_simple_get_line, viml_parser_destroy,
 };
 use crate::window::{
     WSP_BOT, close_windows, global_stl_height, lastwin_nofloating,
@@ -176,15 +180,10 @@ use std::ptr;
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 
-pub use crate::api::win_config::UIExtension;
-pub use crate::option::OptInt;
-pub use crate::regexp::magic_T;
 pub type hlf_T = c_int;
 pub type disptick_T = u64;
 use crate::api::buffer::{FORWARD, NUL};
-pub use crate::cmdexpand::LineGetter;
 use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_KEEP};
-pub use crate::eval::typval::BoolVarValue;
 
 pub(crate) const Ctrl_A: c_int = 1;
 pub(crate) const Ctrl_B: c_int = 2;

@@ -17,7 +17,7 @@ use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-pub use crate::event::r#loop::uv_uid_t;
+use crate::event::r#loop::uv_uid_t;
 
 struct StaticUsers(UnsafeCell<garray_T>);
 unsafe impl Sync for StaticUsers {}

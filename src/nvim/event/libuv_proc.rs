@@ -9,13 +9,13 @@
 
 use crate::channel::STDERR_FILENO;
 use crate::eval::typval::tv_dict_to_env;
-use crate::event::r#loop::{uv_close, uv_gid_t, uv_handle_size, uv_pipe_open, uv_uid_t};
+use crate::event::r#loop::{
+    uv_close, uv_gid_t, uv_handle_size, uv_handle_t, uv_loop_t, uv_pipe_open, uv_uid_t,
+};
 use crate::event::proc::{
     LibuvProc, Proc, libuv_proc_uv, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
 };
-use crate::event::stream::{
-    stream_closed_ptr, stream_uv_ptr, uv_handle_t, uv_loop_t, uv_pipe_t, uv_stream_t,
-};
+use crate::event::stream::{stream_closed_ptr, stream_uv_ptr, uv_pipe_t, uv_stream_t};
 use crate::globals::*;
 use crate::os::env::os_free_fullenv;
 #[cfg(windows)]

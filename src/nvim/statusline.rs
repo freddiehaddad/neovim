@@ -8,7 +8,6 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::options::CharBuf;
 use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
@@ -23,11 +22,10 @@ use crate::charset::{
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::context::ctx_saved_curwin;
+use crate::cursor::{colnr_T, linenr_T};
 use crate::digraph::get_keymap_str;
 use crate::drawline::{HLF_CLF, HLF_FC, fill_foldcolumn, use_cursor_line_highlight};
-use crate::drawscreen::w_endcol;
-use crate::drawscreen::w_endrow;
-use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing};
+use crate::drawscreen::{HLF_C, compute_foldcolumn, redrawing, w_endcol, w_endrow};
 use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::buf_T;
 use crate::eval::eval_to_string_safe;
@@ -61,22 +59,22 @@ use crate::option::{
     optval_free_read, set_option_direct, was_set_insecurely,
 };
 use crate::option_vars::*;
+use crate::optionstr::{
+    CharBuf, OptIndex, STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL,
+};
 use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
-use crate::plines::{colnr_T, linenr_T};
 use crate::sign::describe_sign_text;
-use crate::strings::tr;
-use crate::strings::{atoi, toupper, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{atoi, toupper, tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
 use crate::window::{global_stl_height, lastwin_nofloating, tabline_height};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub use crate::ex_getln::hlf_T;
-pub use crate::optionstr::OptIndex;
+use crate::ex_getln::hlf_T;
 pub type StlFlag = c_int;
-pub use crate::api::win_config::UIExtension;
+use crate::api::win_config::{FR_COL, UIExtension};
 
 const NL: c_int = 0x0a;
 const TMPLEN: usize = 70;
@@ -207,14 +205,11 @@ pub struct foldinfo_T {
 use crate::api::buffer::NUL;
 use crate::api::deprecated::{OPT_LOCAL, kOptInvalid};
 use crate::api::vim::MAXPATHL;
-use crate::api::win_config::FR_COL;
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
 use crate::cmdexpand::kUIWildmenu;
-pub use crate::decoration::SignTextAttrs;
-use crate::decoration::{SCL_NUM, SIGN_WIDTH};
+use crate::decoration::{SCL_NUM, SIGN_WIDTH, SignTextAttrs};
 use crate::keycodes::CAR;
-use crate::optionstr::{STL_ALL, STL_HIGHLIGHT, STL_SEPARATE, STL_TRUNCMARK, STL_USER_HL};
 use crate::runtime::SID_ERROR;
 use crate::state::MODE_INSERT;
 

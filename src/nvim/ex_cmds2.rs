@@ -9,8 +9,7 @@
 )]
 
 use crate::api::command::{CMOD_CONFIRM, cmdidx_T, exarg_T};
-use crate::api::options::CtxSwitch;
-use crate::api::win_config::bufref_T;
+use crate::api::options::{CtxSwitch, bufref_T};
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_argdo, ML_EMPTY, aentry_T, alist_T,
     do_argfile, editing_arg_idx, ex_all, ex_rewind, set_arglist,
@@ -62,11 +61,10 @@ use crate::window::{
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-pub use crate::api::autocmd::event_T;
 use crate::api::buffer::{FORWARD, NUL};
 use crate::api::vim::MAXPATHL;
-pub use crate::cursor::linenr_T;
-pub use crate::eval::buffer::varnumber_T;
+use crate::cursor::linenr_T;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::funcs::VIM_QUESTION;
 use crate::math::{FAIL, OK};
 

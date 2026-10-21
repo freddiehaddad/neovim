@@ -36,13 +36,11 @@ use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
 use crate::file_search::{
     FINDFILE_DIR, FINDFILE_FILE, find_file_in_path_option, vim_findfile_cleanup,
 };
-use crate::fileio::c_fileno;
 #[cfg(not(windows))]
 use crate::fileio::readlink;
-use crate::fileio::vim_fseek;
 use crate::fileio::{
-    delete_recursive, fclose, file_pat_to_reg_pat, fread, readdir_core, vim_copyfile, vim_rename,
-    vim_tempname,
+    FILE, c_fileno, delete_recursive, fclose, file_pat_to_reg_pat, fread, off_T, readdir_core,
+    vim_copyfile, vim_fseek, vim_rename, vim_tempname,
 };
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_grow, ga_init, garray_T};
 use crate::globals::*;
@@ -53,19 +51,15 @@ use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstrdup, xstrlcpy};
 use crate::memory::{xmallocz, xstrlcat};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
-use crate::os::env::{expand_env_save, home_replace};
+use crate::os::env::{expand_T, expand_env_save, home_replace};
 use crate::os::fileio::{
     FileDescriptor, K_FILE_APPEND, K_FILE_CREATE, K_FILE_MK_DIR, K_FILE_TRUNCATE, file_close,
     file_flush, file_open, file_write,
 };
-use crate::os::fs::s_isdir;
-use crate::os::fs::s_isfifo;
-use crate::os::fs::s_islnk;
-use crate::os::fs::s_isreg;
 use crate::os::fs::{
     os_can_exe, os_dirname, os_file_is_readable, os_file_is_writable, os_fileinfo, os_fileinfo_fd,
     os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_fopen, os_getperm, os_isdir,
-    os_mkdir_recurse, os_remove, os_rmdir,
+    os_mkdir_recurse, os_remove, os_rmdir, s_isblk, s_isdir, s_isfifo, s_islnk, s_isreg, s_issock,
 };
 #[cfg(windows)]
 use crate::os::fs::{os_is_reparse_point_include, os_realpath, os_resolve_shortcut};
@@ -78,7 +72,6 @@ use crate::path::{
 #[cfg(windows)]
 use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
-use crate::sign::expand_T;
 #[cfg(unix)]
 use crate::strings::concat_str;
 use crate::strings::{gettext, strlen as c_strlen, vim_strchr, vim_strsave_shellescape, xstrnsave};
@@ -86,8 +79,7 @@ use crate::window::find_tabpage;
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::fileio::{FILE, off_T};
+use crate::eval::buffer::varnumber_T;
 pub type CheckItem =
     Option<unsafe extern "C" fn(expr: *mut c_void, name: *const c_char) -> varnumber_T>;
 
@@ -115,7 +107,6 @@ use crate::api::buffer::{NL, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
-use crate::os::fs::{s_isblk, s_issock};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]

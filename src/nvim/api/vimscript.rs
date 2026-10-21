@@ -11,9 +11,9 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::autocmd::TryState;
-#[cfg(not(test))]
 use crate::api::private::converter::{object_to_vim, vim_to_object};
+#[cfg(not(test))]
+use crate::api::private::helpers::TryState;
 #[cfg(not(test))]
 use crate::api::private::helpers::put_c;
 #[cfg(not(test))]
@@ -78,11 +78,10 @@ pub struct KeyDict_exec_opts {
     pub output: Boolean,
 }
 
-pub use crate::eval::vars::evalarg_T;
-
 #[cfg(not(test))]
 use crate::eval::funcs::MAX_FUNC_ARGS;
-pub use crate::eval::userfunc::funcexe_T;
+#[cfg(not(test))]
+use crate::eval::userfunc::funcexe_T;
 #[cfg(not(test))]
 use crate::math::{FAIL, OK};
 

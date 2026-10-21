@@ -18,14 +18,13 @@ use crate::clipboard::typval_T;
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T};
 #[cfg(not(test))]
 use crate::cursor::equalpos;
-use crate::cursor_shape::pos_T;
 #[cfg(not(test))]
 use crate::eval::callback_call;
 #[cfg(not(test))]
 use crate::eval::decode::{K_LIST_LEN_MAY_KNOW, dict_T};
 #[cfg(not(test))]
 use crate::eval::deprecated::Callback;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 #[cfg(not(test))]
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 #[cfg(not(test))]

@@ -9,13 +9,11 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::regmatch_T;
 use crate::api::private::converter::sctx_T;
-use crate::api::private::helpers::{api_clear_error, try_enter, try_leave};
+use crate::api::private::helpers::{TryState, api_clear_error, try_enter, try_leave};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{fcs_chars_T, lcs_chars_T, pos_T, win_T};
-use crate::api::win_config::WIN_CONFIG_INIT;
-use crate::api::win_config::parse_winborder;
+use crate::api::tabpage::{fcs_chars_T, lcs_chars_T, win_T};
+use crate::api::win_config::{WIN_CONFIG_INIT, parse_winborder};
 use crate::autocmd::{check_ei, get_event_name_no_group};
 use crate::buffer::{MAXLNUM, STL_IN_ICON, STL_IN_TITLE, kUIMessages, modifiable};
 use crate::charset::{
@@ -33,7 +31,7 @@ use crate::drawscreen::{
     redraw_curbuf_later, redraw_later, redrawWinline, status_redraw_buf,
 };
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, synblock_T};
+use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T, synblock_T};
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_getln::{B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim};
 use crate::fold::{
@@ -46,9 +44,8 @@ use crate::highlight_group::{get_highlight_name, init_highlight};
 use crate::indent::{briopt_check, kOptBreakindentopt, tabstop_set};
 use crate::indent_c::parse_cino;
 use crate::insexpand::{LSIZE, set_cpt_callbacks};
-use crate::lua::converter::Boolean;
+use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::map_glyph_cache::NvimString;
-use crate::r#match::regprog_T;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     enc_canonize, get_encoding_name, utf_ptr2cells, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar,
@@ -69,7 +66,7 @@ use crate::option::{
 };
 use crate::option_vars::*;
 use crate::os::env::{expand_T, vim_unsetenv_ext};
-use crate::regexp::{vim_regexec, vim_regfree};
+use crate::regexp::{regmatch_T, regprog_T, vim_regexec, vim_regfree};
 use crate::spell::{
     compile_cap_prog, did_set_spell_option, spell_reload, valid_spellfile, valid_spelllang,
 };
@@ -88,10 +85,7 @@ use std::ptr;
 
 pub type OptIndex = c_int;
 pub type OptScopeFlags = u8;
-pub use crate::api::win_config::UIExtension;
-pub use crate::eval::vars::scid_T;
-pub use crate::highlight::OptionalKeys;
-pub use crate::lua::converter::{FieldHashfn, KeySetLink, OptKeySet};
+use crate::highlight::OptionalKeys;
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -207,7 +201,6 @@ pub struct vimoption_T {
 use crate::api::buffer::NUL;
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::options::{IOSIZE, SID_NONE};
-pub use crate::api::private::helpers::TryState;
 use crate::decoration::SCL_NUM;
 use crate::ex_cmds::B_IMODE_LMAP;
 use crate::ex_session::{kOptSsopFlagCurdir, kOptSsopFlagSesdir};

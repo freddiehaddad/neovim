@@ -13,8 +13,6 @@ use crate::api::command::exarg_T;
 #[cfg(not(test))]
 use crate::api::options::{CtxSwitch, IOSIZE, bufref_T};
 #[cfg(not(test))]
-use crate::api::tabpage::pos_T;
-#[cfg(not(test))]
 use crate::autocmd::{
     EVENT_BUFWRITECMD, EVENT_BUFWRITEPOST, EVENT_BUFWRITEPRE, EVENT_FILEAPPENDCMD,
     EVENT_FILEAPPENDPOST, EVENT_FILEAPPENDPRE, EVENT_FILEWRITECMD, EVENT_FILEWRITEPOST,
@@ -39,11 +37,15 @@ use crate::drawscreen::status_redraw_all;
 use crate::errors::*;
 use crate::eval::deprecated::buf_T;
 #[cfg(not(test))]
+use crate::eval::deprecated::pos_T;
+#[cfg(not(test))]
 use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
 use crate::eval::vars::{FORCE_BIN, eval_charconvert};
 #[cfg(not(test))]
 use crate::event::r#loop::uv_strerror;
+#[cfg(all(not(test), unix))]
+use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 #[cfg(not(test))]
 use crate::ex_cmds::check_secure;
 #[cfg(not(test))]
@@ -91,9 +93,7 @@ use crate::os::fs::{
     os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 #[cfg(all(not(test), unix))]
-use crate::os::fs::{
-    os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg, uv_gid_t, uv_uid_t,
-};
+use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
 #[cfg(not(test))]
 use crate::os::input::os_breakcheck;
 #[cfg(not(test))]
@@ -127,10 +127,10 @@ use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
 #[cfg(not(test))]
 use crate::charset::EOL_MAC;
-pub use crate::eval::buffer::varnumber_T;
 #[cfg(not(test))]
 use crate::ex_docmd::UNDO_HASH_SIZE;
-pub use crate::fileio::iconv_t;
+#[cfg(not(test))]
+use crate::fileio::iconv_t;
 use crate::math::FAIL;
 #[cfg(not(test))]
 use crate::math::OK;
@@ -138,7 +138,6 @@ use crate::math::OK;
 use crate::optionstr::{kOptBkcFlagAuto, kOptBkcFlagYes};
 #[cfg(all(not(test), windows))]
 use crate::os::fs::NODE_OTHER;
-pub use crate::path::PathCmpFlags;
 
 #[cfg(not(test))]
 const NL: u32 = b'\n' as u32;

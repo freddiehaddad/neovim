@@ -8,13 +8,13 @@
 )]
 
 use crate::event::r#loop::{
-    uv_err_name, uv_fs_cb, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop,
-    uv_handle_get_type, uv_strerror,
+    Loop, uv_err_name, uv_fs_cb, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop,
+    uv_handle_get_type, uv_handle_t, uv_loop_t, uv_strerror,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_put_event};
 use crate::event::stream::{
-    Loop, Stream, UV_TTY, stream_close_handle, stream_closed_ptr, stream_fields, stream_init,
-    stream_may_close, stream_size, stream_uv_ptr, uv_handle_t, uv_idle_t, uv_loop_t, uv_stream_t,
+    Stream, UV_TTY, stream_close_handle, stream_closed_ptr, stream_fields, stream_init,
+    stream_may_close, stream_size, stream_uv_ptr, uv_idle_t, uv_stream_t,
 };
 use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};

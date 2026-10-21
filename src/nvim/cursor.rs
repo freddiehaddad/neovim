@@ -17,7 +17,7 @@ use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
 use crate::math::{FAIL, OK};
-use crate::mbyte::{utf_head_off, utf_ptr2char};
+use crate::mbyte::{utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char};
 use crate::memline::{
     dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_len, ml_replace,
 };
@@ -27,7 +27,7 @@ use crate::option::{get_sidescrolloff_value, get_ve_flags};
 use crate::option_vars::*;
 use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg, linetabsize,
-    linetabsize_eol, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize,
+    linetabsize_eol, win_charsize,
 };
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};

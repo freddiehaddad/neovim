@@ -9,11 +9,10 @@
 )]
 
 use crate::api::private::converter::sctx_T;
-use crate::api::tabpage::pos_T;
 use crate::charset::skipwhite;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 #[cfg(not(test))]
 use crate::eval::fs::modify_fname;
 #[cfg(not(test))]

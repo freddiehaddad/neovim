@@ -8,7 +8,8 @@
 )]
 
 use crate::event::r#loop::{
-    uv_close, uv_handle_size, uv_loop_size, uv_timer_init, uv_timer_start, uv_timer_stop,
+    Loop, uv_close, uv_handle_size, uv_handle_t, uv_loop_size, uv_timer_init, uv_timer_start,
+    uv_timer_stop, uv_timer_t,
 };
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_put_event,
@@ -17,9 +18,6 @@ use std::ffi::c_void;
 use std::ptr;
 
 use crate::eval::funcs::UV_TIMER;
-pub use crate::event::r#loop::{
-    Loop, uv_close_cb, uv_handle_t, uv_loop_t, uv_timer_cb, uv_timer_t,
-};
 pub type TimeWatcher = c_void;
 
 pub type time_cb = Option<unsafe extern "C" fn(watcher: *mut TimeWatcher, data: *mut c_void)>;

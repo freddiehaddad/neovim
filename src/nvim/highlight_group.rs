@@ -17,6 +17,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectType};
 use crate::api::ui::HLATTRS_DICT_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
+use crate::api::win_config::UIExtension;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::buffer::kUIMessages;
 use crate::change::HLF_W;
@@ -39,13 +40,11 @@ use crate::ex_docmd::ends_excmd;
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
-use crate::grid::UIExtension;
-use crate::highlight::empty_map_hash;
 use crate::highlight::{
     HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_INACTIVE, HLF_NONE, KEYSET_OPTIDX_highlight__bg,
     KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font, KEYSET_OPTIDX_highlight__sp,
-    KeyDict_highlight, OptionalKeys, RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr,
-    hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
+    KeyDict_highlight, OptionalKeys, RgbValue, empty_map_hash, hl_add_font_idx, hl_get_font,
+    hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict, ns_get_hl, syn_attr2entry,
 };
 use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;

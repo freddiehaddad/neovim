@@ -9,11 +9,11 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{AutoCmd, AutoCmdVec, AutoPat, Buffer, event_T, kCallbackLua};
+use crate::api::autocmd::{AutoCmd, AutoCmdVec, AutoPat, event_T, kCallbackLua};
 use crate::api::buffer::NUL;
 use crate::api::command::exarg_T;
 use crate::api::deprecated::OPT_LOCAL;
-use crate::api::options::{CtxSwitch, SID_NONE};
+use crate::api::options::{CtxSwitch, SID_NONE, bufref_T};
 use crate::api::private::converter::{object_to_vim, sctx_T};
 use crate::api::private::helpers::{
     HLF_E, api_clear_error, api_free_object, api_free_string, boolean_obj, copy_object,
@@ -23,15 +23,16 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType,
 };
-use crate::api::tabpage::win_T;
+use crate::api::tabpage::{Buffer, win_T};
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{MAXPATHL, kFalse, kNone, kTrue};
 use crate::buffer::{bt_nofile, buflist_findnr, bufref_valid, do_modelines, set_bufref};
-use crate::charset::{ascii_iswhite, getdigits_int, skipdigits, skipwhite, varnumber_T};
+use crate::charset::{ascii_iswhite, getdigits_int, skipdigits, skipwhite};
 use crate::clipboard::typval_T;
 use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{Callback, buf_T};
 use crate::eval::typval::{
     callback_copy, callback_free, callback_to_string, tv_clear, tv_dict_add_nr, tv_dict_add_tv,
@@ -53,7 +54,6 @@ use crate::extmark::TriState;
 use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
 use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
-use crate::input_cmdatom::bufref_T;
 use crate::insexpand::ins_compl_active;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
@@ -63,11 +63,8 @@ use crate::map::{
 };
 use crate::map_glyph_cache::{MapHash, NvimString};
 use crate::math::{FAIL, OK};
-use crate::mbyte::mb_strcmp_ic;
-use crate::mbyte::vim_strchr;
-use crate::mbyte::vim_strnicmp_asc;
-use crate::memory::xstrnsave;
-use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup};
+use crate::mbyte::{mb_strcmp_ic, vim_strchr, vim_strnicmp_asc};
+use crate::memory::{xcalloc, xfree, xmalloc, xmallocz, xmemdupz, xrealloc, xstrdup, xstrnsave};
 use crate::message::{
     emsg, give_warning, msg_advance, msg_clr_eos, msg_end, msg_ext_set_kind, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, msg_start, semsg, smsg, verbose_enter,

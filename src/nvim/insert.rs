@@ -11,8 +11,8 @@
 use crate::api::autocmd::{event_T, kCallbackNone};
 use crate::api::buffer::{FORWARD, ML_LINE_DIRTY, NUL};
 use crate::api::command::CMOD_KEEPJUMPS;
-use crate::api::options::CtxSwitch;
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::options::{CtxSwitch, bufref_T};
+use crate::api::tabpage::win_T;
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{
@@ -52,7 +52,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::userfunc::ascii_iswhite_nl_or_nul;
 use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
 use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y};
@@ -78,14 +78,13 @@ use crate::indent::{
     tabstop_start,
 };
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
-use crate::input::mb_byte2len_check;
 use crate::input::{
     K_COMPLETE_DELAY, K_PASTE_START, char_avail, getcmdkeycmd, kInsNone, langmap_adjust,
-    map_execute_lua, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
-    redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins, stuff_empty,
-    stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
+    map_execute_lua, mb_byte2len_check, merge_modifiers, paste_repeat, plain_vgetc, prep_redo,
+    redo_append_char, redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins,
+    stuff_empty, stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
 };
-use crate::input_cmdatom::{CmdSpec, bufref_T};
+use crate::input_cmdatom::CmdSpec;
 use crate::insexpand::{
     check_compl_option, compl_status_clear, compl_status_local, ctrl_x_mode_cmdline,
     ctrl_x_mode_dictionary, ctrl_x_mode_files, ctrl_x_mode_function, ctrl_x_mode_line_or_eval,
@@ -115,19 +114,17 @@ use crate::keycodes::{
 use crate::kvec::KVec;
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{check_abbr, map_to_exists_mode};
-use crate::mark::mark_view_make;
-use crate::mark::reset_fmark;
+use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::kMTMetaInline;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_char2bytes, utf_char2len,
-    utf_composinglike, utf_head_off, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len,
+    GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_ClusterInfo, utf_char2bytes,
+    utf_char2len, utf_composinglike, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
+    utf8len_tab, utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
-use crate::memory::strnequal;
-use crate::memory::xstrnsave;
-use crate::memory::{xfree, xmalloc, xmemdupz, xstrdup};
+use crate::memory::{strnequal, xfree, xmalloc, xmemdupz, xstrdup, xstrnsave};
 use crate::message::{emsg, msg_check_for_delay};
 use crate::mouse::{
     MSCR_DOWN, MSCR_LEFT, MSCR_RIGHT, MSCR_UP, ins_mouse, ins_mousescroll, setmouse,
@@ -149,7 +146,7 @@ use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::plines::{
     CSType, CharsizeArg, charsize_nowrap, getvcol, getvcol_nolist, init_charsize_arg,
-    linetabsize_col, utf_ClusterInfo, utf_ptr2StrCharInfo, win_charsize, win_chartabsize,
+    linetabsize_col, win_charsize, win_chartabsize,
 };
 use crate::popupmenu::{pum_check_clear, pum_visible};
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};

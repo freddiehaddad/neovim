@@ -8,18 +8,15 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::TryState;
-use crate::api::options::{CtxSwitch, optset_T};
-use crate::api::private::helpers::error_set;
+use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, cstr_as_string, dict_obj, find_window_by_handle, integer_obj,
-    try_enter, try_leave,
+    TryState, api_clear_error, api_set_error, cstr_as_string, dict_obj, error_set,
+    find_window_by_handle, integer_obj, try_enter, try_leave,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
-use crate::api::tabpage::{GridView, ScreenGrid, WinConfig, frame_T, pos_T, tabpage_T, win_T};
-use crate::api::win_config::WIN_CONFIG_INIT;
+use crate::api::tabpage::{GridView, ScreenGrid, WinConfig, frame_T, tabpage_T, win_T};
 use crate::api::win_config::{
-    FR_COL, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
+    FR_COL, WIN_CONFIG_INIT, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
     kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kUIMultigrid,
     kWinStyleMinimal,
 };
@@ -34,13 +31,13 @@ use crate::autocmd::{
 use crate::buffer::{
     BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, MAXLNUM, NOTDONE, VALID_TOPLINE,
     VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, buf_hide, buf_valid, buflist_findname_exp,
-    buflist_findnr, buflist_getfile, buflist_new, bufref_T, bufref_valid, close_buffer,
-    do_autochdir, do_buffer, kUIMessages, maketitle, set_bufref,
+    buflist_findnr, buflist_getfile, buflist_new, bufref_valid, close_buffer, do_autochdir,
+    do_buffer, kUIMessages, maketitle, set_bufref,
 };
 use crate::charset::{ascii_isdigit, getdigits_int};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, cmdidx_T};
-use crate::context::{ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
+use crate::context::{CdCause, ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
 use crate::cursor::{check_cursor, check_cursor_lnum, colnr_T, equalpos, linenr_T};
 use crate::decoration::{clear_virttext, decor_conceal_line};
 use crate::diff::{diff_clear, diffopt_closeoff};
@@ -50,7 +47,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::typval::{
     tv_dict_add_dict, tv_dict_add_list, tv_dict_add_tv, tv_dict_alloc, tv_dict_extend,
     tv_dict_set_keys_readonly, tv_dict_unref, tv_list_alloc, tv_list_append_owned_tv,
@@ -60,7 +57,9 @@ use crate::eval::window::win_has_winnr;
 use crate::eval::{get_v_event, restore_v_event};
 use crate::ex_cmds::{BL_FIX, BL_SOL, Ctrl_C, ECMD_HIDE, ECMD_LASTL, do_ecmd};
 use crate::ex_cmds2::{can_abandon, dialog_changed};
-use crate::ex_docmd::{ACTION_SPLIT, FIND_ANY, FIND_DEFINE, do_cmdline_cmd, tabpage_close};
+use crate::ex_docmd::{
+    ACTION_SPLIT, CdScope, FIND_ANY, FIND_DEFINE, do_cmdline_cmd, tabpage_close,
+};
 use crate::ex_eval::aborting;
 use crate::ex_getln::{
     Ctrl__, Ctrl_B, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K, Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R,
@@ -76,8 +75,7 @@ use crate::garray::{ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc};
 use crate::hashtab::hash_init;
-use crate::input::langmap_adjust;
-use crate::input::{beep_flush, plain_vgetc};
+use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
 use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::kvec::KVec;
@@ -103,10 +101,11 @@ use crate::normal::{
     reset_VIsual_and_resel,
 };
 use crate::option::{
-    buf_copy_options, clear_winopt, get_scrolloff_value, kOptCmdheight, kOptWindow, option_was_set,
-    set_option_value, win_copy_options,
+    OptInt, buf_copy_options, clear_winopt, get_scrolloff_value, kOptCmdheight, kOptWindow,
+    option_was_set, set_option_value, win_copy_options,
 };
 use crate::option_vars::*;
+use crate::optionstr::optset_T;
 use crate::os::fs::{os_chdir, os_dirname};
 use crate::path::{kPathCmpLiteral, path_equal};
 use crate::plines::{plines_win, plines_win_col, plines_win_nofill, win_text_height};
@@ -137,19 +136,14 @@ use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::mem::zeroed;
 use std::ptr;
 
-pub use crate::option::OptInt;
-pub use crate::optionstr::OptIndex;
 pub type WinKind = c_int;
 use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::CMOD_CONFIRM;
 use crate::api::private::converter::VAR_UNLOCKED;
 use crate::api::vim::{BCO_ENTER, BCO_NOHELP, MAXPATHL, kCdScopeGlobal};
 use crate::api::window::kCtxKeepCwd;
-pub use crate::context::CdCause;
 use crate::drawline::{VALID_CROW, VALID_WCOL};
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
-pub use crate::eval::vars::scid_T;
-pub use crate::ex_docmd::CdScope;
 use crate::insexpand::Ctrl_I;
 use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::runtime::SID_WINLAYOUT;

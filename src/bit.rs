@@ -5,8 +5,7 @@
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-pub use crate::lua::base64::{lua_CFunction, lua_State, luaL_Reg};
-pub use crate::lua::converter::lua_Number;
+use crate::lua::base64::{lua_State, luaL_Reg};
 #[cfg(not(test))]
 use crate::lua::converter::{
     LUA_TNONE, lua_gettop, lua_isnumber, lua_pushlstring, lua_pushnumber, lua_tonumber, lua_type,

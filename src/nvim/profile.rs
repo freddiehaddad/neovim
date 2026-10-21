@@ -2,12 +2,14 @@
 
 #![allow(non_camel_case_types, non_snake_case, clippy::missing_safety_doc)]
 
+#[cfg(not(test))]
+use crate::api::command::exarg_T as exarg_Full;
+use crate::api::command::exarg_T;
 use crate::api::private::converter::ufunc_T;
-use crate::charset::skiptowhite;
-use crate::charset::skipwhite;
+use crate::charset::{skiptowhite, skipwhite};
 use crate::clipboard::{list_T, listitem_T, typval_T};
 #[cfg(not(test))]
-use crate::debugger::{ex_breakadd, exarg_Full};
+use crate::debugger::ex_breakadd;
 use crate::eval::decode::{dict_T, dictitem_T};
 #[cfg(not(test))]
 use crate::eval::userfunc::{func_tbl_get, funcline, get_current_funccal};
@@ -24,7 +26,6 @@ use crate::garray::{ga_init, garray_T};
 use crate::globals::*;
 #[cfg(not(test))]
 use crate::hashtab::hashitem_empty;
-use crate::lua::secure::exarg_T;
 use crate::memory::xcalloc;
 #[cfg(not(test))]
 use crate::memory::{xfree, xmalloc};
@@ -43,7 +44,8 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
 pub type proftime_T = u64;
-pub use crate::fileio::FILE;
+#[cfg(not(test))]
+use crate::fileio::FILE;
 
 const NS_PER_SEC: f64 = 1_000_000_000.0;
 #[cfg(not(test))]
@@ -122,7 +124,7 @@ use crate::eval::userfunc::{FIXVAR_CNT, VAR_SHORT_LEN};
 use crate::globals::PROF_NONE;
 #[cfg(not(test))]
 use crate::keycodes::K_SPECIAL;
-pub use crate::os::env::expand_T;
+use crate::os::env::expand_T;
 
 #[repr(C)]
 pub struct estack_T {

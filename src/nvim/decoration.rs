@@ -13,17 +13,16 @@ use crate::api::deprecated::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, VirtLine, VirtLineOverflow, VirtLines, VirtText,
     VirtTextPos, kVPosEndOfLine,
 };
-use crate::api::extmark::DECOR_SIGN_HIGHLIGHT_INIT;
 use crate::api::extmark::{
-    DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot, DecorRangeUI, DecorSignHighlight,
-    DecorState, colnr_T, kSHConceal, kSHConcealLines, kSHConcealOff, kSHHlEol, kSHIsSign,
-    kSHSpellOff, kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol, kVLOverflowAuto,
-    kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap, kVPosInline, kVPosOverlay, kVPosWinCol,
-    kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak, ns_in_win, virt_text_to_array,
+    DECOR_SIGN_HIGHLIGHT_INIT, DecorPriority, DecorRange, DecorRangeData, DecorRangeSlot,
+    DecorRangeUI, DecorSignHighlight, DecorState, kSHConceal, kSHConcealLines, kSHConcealOff,
+    kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay, kVLLeftcol,
+    kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap, kVPosInline,
+    kVPosOverlay, kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak, ns_in_win,
+    virt_text_to_array,
 };
-use crate::api::private::helpers::cstr_to_arena_obj;
 use crate::api::private::helpers::{
-    arena_array, array_obj, boolean_obj, cstr_as_obj, integer_obj, put_c,
+    arena_array, array_obj, boolean_obj, cstr_as_obj, cstr_to_arena_obj, integer_obj, put_c,
 };
 use crate::api::private::validate::{Dict, Object};
 use crate::api::tabpage::{lpos_T, win_T};
@@ -31,6 +30,7 @@ use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::buffer::buf_meta_total;
 use crate::change::{TAB, changed_lines_invalidate_buf};
+use crate::cursor::colnr_T;
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
 use crate::eval::deprecated::buf_T;

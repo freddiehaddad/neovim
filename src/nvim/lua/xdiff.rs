@@ -13,7 +13,7 @@ use crate::api::private::validate::Object;
 #[cfg(not(test))]
 use crate::api::private::validate::{Error, ErrorType, ObjectData, ObjectType};
 #[cfg(not(test))]
-use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers, mmfile_t};
+use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::converter::{
@@ -37,6 +37,8 @@ use crate::xdiff::XDF_INDENT_HEURISTIC;
 use crate::xdiff::XDF_NEED_MINIMAL;
 #[cfg(not(test))]
 use crate::xdiff::XDF_PATIENCE_DIFF;
+#[cfg(not(test))]
+use crate::xdiff::mmfile_t;
 #[cfg(not(test))]
 use crate::xdiff::xdiffi::xdl_diff;
 #[cfg(not(test))]

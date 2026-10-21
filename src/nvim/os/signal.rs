@@ -14,8 +14,7 @@ use crate::event::signal::{
     signal_watcher_stop,
 };
 use crate::ex_cmds2::autowrite_all;
-use crate::globals::main_loop;
-use crate::globals::*;
+use crate::globals::{main_loop, *};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
 #[cfg(unix)]

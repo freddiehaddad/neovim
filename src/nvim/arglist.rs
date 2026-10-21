@@ -9,15 +9,14 @@
 )]
 
 use crate::api::command::{cmdidx_T, exarg_T};
+use crate::api::options::bufref_T;
 use crate::api::tabpage::{tabpage_T, win_T};
-use crate::api::win_config::bufref_T;
 use crate::buffer::{
     BLN_CURBUF, BLN_LISTED, buf_hide, buf_is_empty, buf_set_name, buflist_add, buflist_findnr,
     bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
 };
 use crate::charset::{ascii_isspace, rem_backslash, skipwhite};
 use crate::clipboard::{VarType, typval_T};
-use crate::cmdhist::regmatch_T;
 use crate::context::is_ctx_win;
 use crate::errors::*;
 use crate::eval::deprecated::EvalFuncData;
@@ -42,7 +41,7 @@ use crate::path::{
     expand_wildcards, fix_fname, gen_expand_wildcards, kPathCmpExpand, kPathCmpFull,
     kPathCmpLiteral, path_equal,
 };
-use crate::regexp::{RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
 use crate::undo::bufIsChanged;
 use crate::version::list_in_columns;
@@ -54,13 +53,10 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::NUL;
-pub use crate::cursor::{colnr_T, linenr_T};
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::math::{FAIL, OK};
-pub use crate::option::OptInt;
-pub use crate::os::env::expand_T;
-pub use crate::path::PathCmpFlags;
-pub use crate::regexp::regprog_T;
+use crate::option::OptInt;
+use crate::os::env::expand_T;
 
 const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;

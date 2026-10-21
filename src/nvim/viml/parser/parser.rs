@@ -1,13 +1,11 @@
 //! VimL parser input reader and state lifecycle (`src/nvim/viml/parser/parser.c`).
 
 use crate::kvec::KVecWithInit;
-use crate::mbyte::string_convert;
+use crate::mbyte::{string_convert, vimconv_T};
 use crate::memory::xfree;
 use std::ffi::{c_char, c_int, c_void};
 
 pub const CONV_NONE: c_int = 0;
-
-pub use crate::mbyte::vimconv_T;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

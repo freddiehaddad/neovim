@@ -8,8 +8,8 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::cstr_as_string;
+use crate::api::private::dispatch::MsgpackRpcRequestHandler;
+use crate::api::private::helpers::{NIL, cstr_as_string};
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict,
@@ -19,12 +19,12 @@ use crate::api::private::validate::{
 };
 #[cfg(not(test))]
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
-use crate::channel::put_event_1;
 #[cfg(not(test))]
 use crate::channel::{
     channel_close, channel_decref, channel_event, channel_incref, kChannelPartRpc,
 };
-use crate::eval::deprecated::{Callback, CallbackReader};
+use crate::channel::{kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio, put_event_1};
+use crate::eval::deprecated::{Callback, CallbackReader, Channel};
 #[cfg(not(test))]
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_handle_size, uv_strerror};
 use crate::event::multiqueue::{
@@ -60,8 +60,7 @@ use crate::msgpack_rpc::packer::{
     mpack_str, mpack_uint, mpack_w,
 };
 use crate::msgpack_rpc::unpacker::{
-    MessageType, MsgpackRpcRequestHandler, Unpacker, unpacker_advance, unpacker_init,
-    unpacker_teardown,
+    MessageType, Unpacker, unpacker_advance, unpacker_init, unpacker_teardown,
 };
 use crate::os::input::input_blocking;
 #[cfg(all(not(test), windows))]
@@ -71,11 +70,9 @@ use crate::ui_client::{ui_client_attach_to_restarted_server, ui_client_event_raw
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::eval::deprecated::Channel;
 pub type ClientType = c_int;
 pub type ChannelStreamType = c_int;
 pub type ChannelPart = c_int;
-pub use crate::api::autocmd::event_T;
 
 #[cfg(windows)]
 const UV_EPIPE: c_int = -4047;
@@ -220,7 +217,6 @@ use crate::api::ui::kUIExtCount;
 use crate::api::vim::kChannelStreamInternal;
 #[cfg(not(test))]
 use crate::autocmd::EVENT_CHANINFO;
-use crate::channel::{kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio};
 #[cfg(not(test))]
 use crate::event::libuv_proc::UV_PROCESS;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};

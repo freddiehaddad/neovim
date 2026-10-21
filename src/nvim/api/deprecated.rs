@@ -11,23 +11,17 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::buffer::{NL, NUL, nvim_buf_get_lines, nvim_buf_set_lines};
 use crate::api::extmark::{nvim_buf_clear_namespace, nvim_create_namespace, parse_virt_text};
-use crate::api::options::{OptIndex, OptScope};
 use crate::api::private::dispatch::msgpack_rpc_get_handler_for;
-use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::try_wrap;
-use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_free_object, api_set_error, api_typename, arena_array, array_obj,
-    copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var, error_set,
+    NIL, add_c, api_clear_error, api_free_object, api_set_error, api_typename, arena_array,
+    array_obj, copy_object, copy_string, cstr_as_string, dict_obj, dict_set_var, error_set,
     find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, integer_obj,
-    static_cstr_as_string, string_obj,
+    static_cstr_as_string, string_obj, try_wrap, with_script_context,
 };
-use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
-    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid,
+    Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid, api_err_range,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
@@ -35,6 +29,7 @@ use crate::decoration::{clear_virttext, decor_find_virttext};
 use crate::eval::vars::get_globvar_dict;
 use crate::extmark::extmark_set;
 use crate::globals::*;
+use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
 use crate::kvec::KVec;
 use crate::lua::converter::Boolean;
@@ -47,14 +42,15 @@ use crate::memory::{Arena, xmalloc, xrealloc};
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
-    find_option, get_option_info, get_option_value_for, option_has_scope, set_option_value_for,
+    OptScope, find_option, get_option_info, get_option_value_for, option_has_scope,
+    set_option_value_for,
 };
+use crate::optionstr::OptIndex;
 use crate::window::{win_setheight_win, win_setwidth_win};
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::cursor::colnr_T;
-pub use crate::lua::executor::LuaRetMode;
+use crate::cursor::colnr_T;
 pub type VirtTextPos = c_int;
 pub type VirtLineOverflow = c_int;
 pub type StringBuilder = KVec<c_char>;
@@ -126,8 +122,6 @@ pub struct DecorVirtText {
 pub struct KeyDict_empty {
     pub is_set__empty_: OptionalKeys,
 }
-
-pub use crate::api::private::dispatch::ApiDispatchWrapper;
 
 static mut OUT_LINE_BUF: StringBuilder = StringBuilder::new();
 static mut ERR_LINE_BUF: StringBuilder = StringBuilder::new();

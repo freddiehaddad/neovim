@@ -8,15 +8,13 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::is_user_cmdidx;
 use crate::api::command::{
-    EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE, regmatch_T,
+    EX_ARGOPT, EX_CMDARG, EX_EXTRA, EX_NOSPC, EX_TRLBAR, EX_XFILE, exarg_T, is_user_cmdidx,
 };
 use crate::api::private::helpers::{
     api_clear_error, api_free_object, cstr_as_string, cstrn_to_string,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::pos_T;
 use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
@@ -32,7 +30,7 @@ use crate::cmdhist::get_history_arg;
 use crate::cursor::ltoreq;
 use crate::drawscreen::{redraw_statuslines, update_screen, win_redraw_last_status};
 use crate::errors::*;
-use crate::eval::deprecated::{Callback, EvalFuncData};
+use crate::eval::deprecated::{Callback, EvalFuncData, pos_T};
 use crate::eval::funcs::{get_expr_name, get_function_name};
 use crate::eval::typval::{
     tv_check_for_string_arg, tv_clear, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str_len,
@@ -49,7 +47,7 @@ use crate::ex_docmd::{
 };
 use crate::ex_getln::{
     VSE_BUFFER, VSE_NONE, cmd_screencol, cursorcmd, escape_fname, get_cmdline_info,
-    get_cmdline_last_prompt_id, parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff,
+    get_cmdline_last_prompt_id, hlf_T, parse_pattern_and_range, put_on_cmdline, realloc_cmdbuff,
     redrawcmd, tilde_replace, vim_strsave_fnameescape,
 };
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
@@ -84,8 +82,8 @@ use crate::message::{
 #[cfg(unix)]
 use crate::option::csh_like_shell;
 use crate::option::{
-    ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, copy_option_part,
-    get_findfunc, set_context_in_set_cmd,
+    ExpandOldSetting, ExpandSettingSubtract, ExpandSettings, ExpandStringSetting, OptInt,
+    copy_option_part, get_findfunc, set_context_in_set_cmd,
 };
 use crate::option_vars::*;
 use crate::os::env::{
@@ -104,20 +102,18 @@ use crate::popupmenu::{
 };
 use crate::profile::{get_profile_name, set_context_in_profile_cmd};
 use crate::regexp::{
-    RE_MAGIC, RE_STRING, skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl, vim_regfree,
+    RE_MAGIC, RE_STRING, regmatch_T, skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl,
+    vim_regfree,
 };
-use crate::runtime::script_id_valid;
-use crate::runtime::script_item;
 use crate::runtime::{
-    DIP_OPT, DIP_START, ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd,
-    set_context_in_runtime_cmd,
+    DIP_OPT, DIP_START, ExpandPackAddDir, ExpandRTDir, expand_runtime_cmd, script_id_valid,
+    script_item, set_context_in_runtime_cmd,
 };
 use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
-use crate::strings::c_strcpy;
 use crate::strings::{
-    gettext, qsort, sort_strings, strcase_save, strcmp as c_strcmp, strlen as c_strlen,
+    c_strcpy, gettext, qsort, sort_strings, strcase_save, strcmp as c_strcmp, strlen as c_strlen,
     strncmp as c_strncmp, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::syntax::{
@@ -135,15 +131,12 @@ use crate::window::{global_stl_height, last_status};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-pub use crate::api::win_config::UIExtension;
-pub use crate::ex_getln::hlf_T;
-pub use crate::option::OptInt;
+use crate::api::win_config::UIExtension;
 pub type xp_prefix_T = c_int;
 pub type CompleteListItemGetter = Option<unsafe extern "C" fn(*mut expand_T, c_int) -> *mut c_char>;
 type user_expand_func_T = unsafe extern "C" fn(*const c_char, c_int, *mut typval_T) -> *mut c_void;
 pub type LineGetter = Option<unsafe extern "C" fn(c_int, *mut c_void, c_int, bool) -> *mut c_char>;
 pub type cmd_addr_T = c_int;
-pub use crate::lua::executor::LuaRetMode;
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -718,7 +711,6 @@ pub enum cmdidx_T {
 }
 
 use crate::api::buffer::{FORWARD, NUL};
-pub use crate::api::command::{ExMagic as ExArgMagic, exarg_T};
 use crate::api::deprecated::{OPT_GLOBAL, OPT_LOCAL};
 use crate::api::vim::{BACKWARD, MAXPATHL};
 use crate::change::TAB;

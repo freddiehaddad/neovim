@@ -35,8 +35,8 @@ use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
 use crate::regexp::{
-    MAXCOL, NUMBUFLEN, RE_MAGIC, re_multiline, skip_regexp, vim_regcomp, vim_regexec_multi,
-    vim_regfree,
+    MAXCOL, NUMBUFLEN, RE_MAGIC, re_multiline, regmmatch_T, regprog_T, skip_regexp, vim_regcomp,
+    vim_regexec_multi, vim_regfree,
 };
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int};
@@ -44,13 +44,10 @@ use std::ptr;
 
 use crate::api::buffer::NUL;
 use crate::change::MB_MAXCHAR;
-pub use crate::cursor::{colnr_T, linenr_T};
-pub use crate::eval::buffer::varnumber_T;
+use crate::cursor::{colnr_T, linenr_T};
+use crate::eval::buffer::varnumber_T;
 use crate::eval::kListLenMayKnow;
-pub use crate::eval::window::dictitem_T;
 use crate::math::{FAIL, OK};
-pub use crate::option::OptInt;
-pub use crate::regexp::{regmmatch_T, regprog_T};
 
 const SEARCH_HL_PRIORITY: c_int = 0;
 

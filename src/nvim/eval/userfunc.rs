@@ -8,6 +8,7 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::command::exarg_T;
 use crate::api::private::converter::{VAR_UNLOCKED, partial_T, ufunc_T};
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED, PROF_YES, apply_autocmds,
@@ -17,7 +18,7 @@ use crate::charset::{
     ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite, vim_strsize,
 };
 use crate::clipboard::{VarType, listitem_T, typval_T};
-use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, exarg_T, kUICmdline};
+use crate::cmdexpand::{EXPAND_USER_FUNC, cmdidx_T, kUICmdline};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
@@ -37,8 +38,8 @@ use crate::eval::typval::{
     tv_list_init_static, tv_list_set_lock, value_check_lock,
 };
 use crate::eval::vars::{
-    LuaRef, VV_TESTING, evalarg_T, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr,
-    init_var_dict, list_hashtable_vars, lval_T, skip_var_list, vars_clear, vars_clear_ext,
+    VV_TESTING, evalarg_T, find_var, find_var_ht, find_var_in_ht, get_vim_var_nr, init_var_dict,
+    list_hashtable_vars, lval_T, skip_var_list, vars_clear, vars_clear_ext,
 };
 use crate::eval::{
     AUTOLOAD_CHAR, EVAL_EVALUATE, FNE_CHECK_START, FNE_INCL_BR, GLV_READ_ONLY, TFN_NO_AUTOLOAD,
@@ -64,10 +65,10 @@ use crate::hashtab::{
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
+use crate::lua::converter::LuaRef;
 #[cfg(not(test))]
 use crate::lua::executor::api_free_luaref;
 use crate::lua::executor::{nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx};
-use crate::lua::stdlib::regmatch_T;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
@@ -91,23 +92,22 @@ use crate::profile::{
     profile_add, profile_end, profile_self, profile_start, profile_sub_wait, profile_zero,
     proftime_T, script_prof_restore, script_prof_save,
 };
-use crate::regexp::{NUMBUFLEN, RE_MAGIC, skip_regexp, vim_regcomp, vim_regexec, vim_regfree};
-use crate::runtime::set_sourcing_lnum;
+use crate::regexp::{
+    NUMBUFLEN, RE_MAGIC, regmatch_T, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
+};
 use crate::runtime::{
     autoload_name, estack_pop, estack_push_ufunc, exestack, get_sourced_lnum, script_autoload,
-    script_items, sourcing_lnum, sourcing_name,
+    script_items, set_sourcing_lnum, sourcing_lnum, sourcing_name,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
-use crate::strings::strcpy_raw;
 use crate::strings::{
-    concat_str, gettext, memchr, strchr, strcmp, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
-    xstrnsave,
+    concat_str, gettext, memchr, strchr, strcmp, strcpy_raw, strlen, strncmp, strstr, vim_snprintf,
+    vim_strchr, xstrnsave,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::option::OptInt;
 pub type FnameTransError = c_int;
 pub type VimLFunc = Option<unsafe extern "C" fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
 pub type ArgvFunc =
@@ -116,7 +116,6 @@ use crate::api::buffer::{LUA_NOREF, NUL};
 use crate::api::options::IOSIZE;
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
-pub use crate::cmdexpand::LineGetter;
 
 pub const FC_ABORT: c_int = 0x01;
 pub const FC_RANGE: c_int = 0x02;

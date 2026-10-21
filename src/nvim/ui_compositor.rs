@@ -11,7 +11,9 @@
 
 use crate::api::tabpage::ScreenGrid;
 use crate::globals::*;
-use crate::grid::{kOptRdbFlagInvalid, schar_from_ascii, schar_from_buf, schar_from_char};
+use crate::grid::{
+    kOptRdbFlagInvalid, sattr_T, schar_T, schar_from_ascii, schar_from_buf, schar_from_char,
+};
 use crate::highlight::hl_blend_attrs;
 use crate::highlight_group::{syn_check_group, syn_id2attr};
 use crate::kvec::KVec;
@@ -28,9 +30,7 @@ use crate::ui::{
 use std::ffi::{c_int, c_uint};
 use std::ptr;
 
-pub use crate::grid::{sattr_T, schar_T};
-pub use crate::option::OptInt;
-pub use crate::tui::tui::LineFlags;
+use crate::tui::tui::LineFlags;
 
 const kOptRdbFlagCompositor: c_uint = 0x01;
 
@@ -38,7 +38,7 @@ const HLF_MSGSEP: usize = 61;
 
 use crate::api::ui::kLineFlagWrap;
 use crate::api::win_config::kUIMultigrid;
-pub use crate::msgpack_rpc::channel::RemoteUI;
+use crate::msgpack_rpc::channel::RemoteUI;
 
 static mut composed_uis: c_int = 0;
 static mut layers: KVec<*mut ScreenGrid> = KVec {

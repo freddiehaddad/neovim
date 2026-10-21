@@ -8,11 +8,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::regmatch_T;
 use crate::api::private::helpers::{
     HLF_E, api_clear_string, cbuf_as_string, cbuf_to_string, copy_string,
 };
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
@@ -40,7 +39,7 @@ use crate::drawscreen::{
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
+use crate::eval::deprecated::{Callback, EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
     callback_copy, callback_free, tv_clear, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list,
     tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_add_tv, tv_dict_alloc,
@@ -89,11 +88,10 @@ use crate::kvec::KVec;
 use crate::lua::executor::nlua_expand_pat;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
-use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
-    mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr2char_adv, mb_tolower, mb_toupper,
-    ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len, utf8len_tab,
-    utfc_ptr2len,
+    mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr_back, mb_ptr2char_adv, mb_tolower,
+    mb_toupper, ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
+    utf8len_tab, utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{
@@ -105,7 +103,7 @@ use crate::message::{
 };
 use crate::r#move::{changed_cline_bef_curs, curs_columns, validate_cursor};
 use crate::option::{
-    can_bs, copy_option_part, option_set_callback_func, shortmess, was_set_insecurely,
+    OptInt, can_bs, copy_option_part, option_set_callback_func, shortmess, was_set_insecurely,
 };
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, optset_T};
@@ -120,7 +118,7 @@ use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
     pumitem_T,
 };
-use crate::regexp::{Ctrl_V, MAXCOL, RE_MAGIC, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{Ctrl_V, MAXCOL, RE_MAGIC, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::register::{
     NUM_REGISTERS, copy_register, free_register, get_register_name, valid_yank_reg,
 };
@@ -141,14 +139,10 @@ use crate::tag::find_tags;
 use crate::textformat::auto_format;
 use crate::ui::{ui_flush, ui_has, vim_beep};
 use crate::undo::undo_allowed;
-use crate::window::win_valid;
-use crate::winfloat::{WinKind, win_float_find};
+use crate::window::{WinKind, win_valid};
+use crate::winfloat::win_float_find;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
-
-pub use crate::api::win_config::UIExtension;
-pub use crate::ex_getln::hlf_T;
-pub use crate::option::OptInt;
 
 #[repr(i32)]
 #[derive(Clone, Copy, PartialEq, Eq)]

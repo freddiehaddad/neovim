@@ -8,13 +8,14 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::api_clear_string;
-use crate::api::private::helpers::{cbuf_to_string, copy_string, cstr_as_string, cstr_to_string};
+use crate::api::private::helpers::{
+    api_clear_string, cbuf_to_string, copy_string, cstr_as_string, cstr_to_string,
+};
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
 use crate::charset::{getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
 use crate::clipboard::typval_T;
 use crate::context::{CdCause, kCdCauseWindow};
-use crate::cursor::get_cursor_line_ptr;
+use crate::cursor::{get_cursor_line_ptr, linenr_T};
 use crate::errors::*;
 use crate::eval::typval::{
     tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly, tv_get_string,
@@ -40,17 +41,13 @@ use crate::path::{
 };
 #[cfg(windows)]
 use crate::path::{path_to_slash, vim_FullName};
-use crate::plines::linenr_T;
 use crate::state::save_v_event_T;
-use crate::strings::tr;
-use crate::strings::{vim_snprintf, vim_strchr, xstrnsave};
+use crate::strings::{tr, vim_snprintf, vim_strchr, xstrnsave};
 use std::ffi::{CStr, c_char, c_int, c_long, c_void};
 use std::ptr;
 
-pub use crate::api::autocmd::event_T;
-pub use crate::ex_docmd::CdScope;
-pub use crate::optionstr::OptIndex;
-pub use crate::path::PathCmpFlags;
+use crate::ex_docmd::{CdScope, kCdCauseManual};
+use crate::optionstr::OptIndex;
 
 pub const FINDFILE_FILE: c_int = 0;
 pub const FINDFILE_DIR: c_int = 1;
@@ -86,9 +83,8 @@ use crate::api::buffer::NUL;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::vim::{MAXPATHL, kCdScopeGlobal};
 use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
-pub use crate::eval::deprecated::FileID;
+use crate::eval::deprecated::FileID;
 use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
-use crate::ex_docmd::kCdCauseManual;
 use crate::ex_session::kCdCauseOther;
 use crate::math::{FAIL, OK};
 

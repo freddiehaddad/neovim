@@ -9,6 +9,9 @@
 
 use crate::api::private::helpers::{boolean_obj, integer_obj, string_obj};
 use crate::api::private::validate::Array;
+use crate::event::r#loop::Loop;
+#[cfg(not(test))]
+use crate::event::r#loop::uv_timer_t;
 #[cfg(not(test))]
 use crate::event::r#loop::{
     loop_schedule_fast, uv_close, uv_handle_size, uv_timer_init, uv_timer_start, uv_timer_stop,
@@ -20,9 +23,6 @@ use crate::event::rstream::{
 };
 #[cfg(not(test))]
 use crate::event::rstream::{rstream_available, rstream_consume, rstream_fields};
-use crate::event::stream::Loop;
-#[cfg(not(test))]
-use crate::event::time::uv_timer_t;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -63,8 +63,8 @@ use std::ptr;
 use crate::channel::STDIN_FILENO;
 #[cfg(not(test))]
 use crate::eval::funcs::UV_TIMER;
-pub use crate::option::OptInt;
-pub use crate::tui::tui::{TUIData, TermMode, TermModeState};
+use crate::option::OptInt;
+use crate::tui::tui::TUIData;
 pub type TermInput = c_void;
 pub type KeyEncoding = c_int;
 

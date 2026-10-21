@@ -35,9 +35,7 @@ use crate::state::{MODE_INSERT, get_real_state};
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::event::r#loop::Loop;
-pub use crate::option::OptInt;
+use crate::eval::buffer::varnumber_T;
 
 const READ_BUFFER_SIZE: usize = 0xfff;
 const MAX_KEY_CODE_LEN: usize = 6;
@@ -59,8 +57,6 @@ const MOD_MASK_4CLICK: u8 = 0x60;
 const Ctrl_C: u8 = 3;
 
 const BREAKCHECK_SKIP: c_int = 1000;
-
-pub use crate::mapping::typebuf_T;
 
 static mut input_buffer: [c_char; INPUT_BUFFER_SIZE] = [0; INPUT_BUFFER_SIZE];
 static mut input_read_pos: *mut c_char = ptr::null_mut();

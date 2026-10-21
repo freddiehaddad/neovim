@@ -10,19 +10,18 @@
 )]
 
 use crate::api::buffer::VisualState;
-use crate::api::private::helpers::cstr_as_obj;
-use crate::api::private::helpers::cstr_to_obj;
 use crate::api::private::helpers::{
-    api_free_dict, api_free_string, array_obj, boolean_obj, cstr_to_string, dict_obj, integer_obj,
+    api_free_dict, api_free_string, array_obj, boolean_obj, cstr_as_obj, cstr_to_obj,
+    cstr_to_string, dict_obj, integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::autocmd::{AUGROUP_ALL, EVENT_CMDATOM, aucmd_defer, has_event};
 use crate::buffer::{buf_get_changedtick, bufref_valid, set_bufref};
 use crate::charset::is_special;
 use crate::cursor::equalpos;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::eval::vars::{VV_OP, get_vim_var_str};
 use crate::extmark::TriState;
 use crate::globals::*;
@@ -61,11 +60,11 @@ use crate::window::win_valid;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
 use std::ptr;
 
-pub use crate::api::deprecated::StringBuilder;
+use crate::api::deprecated::StringBuilder;
 pub type CmdAtomVec = KVec<CmdAtom>;
-pub use crate::os::time::Timestamp;
+use crate::os::time::Timestamp;
 
-pub use crate::api::options::bufref_T;
+use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::cmdexpand::MB_MAXBYTES;

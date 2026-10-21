@@ -8,10 +8,12 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::buffer::{VALID_TOPLINE, buf_get_changedtick, buf_is_empty};
 use crate::clipboard::typval_T;
-use crate::cursor::{VALID_VIRTCOL, check_cursor, check_cursor_lnum, coladvance, equalpos};
+use crate::cursor::{
+    VALID_VIRTCOL, check_cursor, check_cursor_lnum, coladvance, colnr_T, equalpos, linenr_T,
+};
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::diff::diff_get_corresponding_line;
 use crate::drawscreen::{
@@ -21,7 +23,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::{
     tv_check_for_number_arg, tv_dict_add_nr, tv_dict_alloc_ret, tv_get_number, tv_get_number_chk,
 };
@@ -38,15 +40,15 @@ use crate::message::semsg;
 use crate::mouse::vcol2col;
 use crate::normal::{nv_g_home_m_cmd, nv_screengo};
 use crate::option::{
-    get_scrolloff_value, get_scrolloffpad_value, get_showbreak_value, get_sidescrolloff_value,
+    OptInt, get_scrolloff_value, get_scrolloffpad_value, get_showbreak_value,
+    get_sidescrolloff_value,
 };
 use crate::option_vars::*;
 use crate::plines::{
-    colnr_T, getvcol, getvvcol, linenr_T, linetabsize_eol, plines_m_win, plines_win,
-    plines_win_full, plines_win_nofill, win_get_fill, win_may_fill,
+    getvcol, getvvcol, linetabsize_eol, plines_m_win, plines_win, plines_win_full,
+    plines_win_nofill, win_get_fill, win_may_fill,
 };
-use crate::strings::tr;
-use crate::strings::vim_strchr;
+use crate::strings::{tr, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::window::win_fdccol_count;
 use crate::winfloat::win_check_anchored_floats;
@@ -58,12 +60,10 @@ use crate::api::vim::BACKWARD;
 use crate::drawline::{
     VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
 };
-pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::math::{FAIL, OK};
-pub use crate::option::OptInt;
 use crate::regexp::MAXCOL;
-pub use crate::search::Direction;
+use crate::search::Direction;
 
 const SIGN_WIDTH: c_int = 2;
 

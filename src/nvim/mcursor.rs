@@ -9,30 +9,27 @@
 )]
 
 use crate::api::buffer::{LUA_INTERNAL_CALL, VisualState, nvim_buf_set_text};
-use crate::api::deprecated::{DecorInline, OPT_LOCAL};
+use crate::api::deprecated::{DecorInline, OPT_LOCAL, StringBuilder};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::private::helpers::{
     api_clear_error, api_free_string, boolean_obj, cstr_as_string, cstr_to_string, string_to_array,
 };
 use crate::api::private::validate::{Error, ErrorType};
-use crate::api::tabpage::pos_T;
 use crate::api::vim::{REMAP_NONE, kCtxRegs, kFalse, kNone, kTrue, nvim_feedkeys};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{MAXLNUM, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::{TypvalVval, VarType, set_clipboard, typval_T};
-use crate::context::CONTEXT_INIT;
-use crate::context::INIT_POS;
 use crate::context::{
-    Context, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor, kCtxMarks, kCtxMergeReg,
-    kCtxVisual,
+    CONTEXT_INIT, Context, INIT_POS, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor,
+    kCtxMarks, kCtxMergeReg, kCtxVisual,
 };
 use crate::cursor::{
     check_cursor, check_cursor_col, check_pos, colnr_T, equalpos, getvpos, linenr_T, lt, ltoreq,
 };
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::eval::buffer::varnumber_T;
-use crate::eval::deprecated::{buf_T, visualinfo_T};
+use crate::eval::deprecated::{buf_T, pos_T, visualinfo_T};
 use crate::eval::vars::{VV_CASCADING, get_vim_var_tv, set_vim_var_bool};
 use crate::eval::window::viewstate_T;
 use crate::ex_docmd::{
@@ -40,19 +37,18 @@ use crate::ex_docmd::{
 };
 use crate::extmark::{
     TriState, extmark_clear, extmark_del_id, extmark_from_id, extmark_get_pos, extmark_set,
-    extmark_set_pos, u_header_T,
+    extmark_set_pos,
 };
 use crate::globals::*;
 use crate::highlight_group::syn_check_group;
 use crate::input::{
-    beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
+    RedoState, beep_flush, block_on_key, redo_keys, restore_redobuff, save_redobuff, unblock_on_key,
 };
-use crate::input_cmdatom::sb_concat;
 use crate::input_cmdatom::{
-    CmdAtom, CmdOrigin, StringBuilder, Timestamp, atom_cmd_spec, atom_composite_active,
-    atom_composite_queued, atom_did_global_op, atom_key_class, atom_lhs_replay_queue,
-    atom_push_raw, atom_suppress, atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T,
-    g_atoms, kAInsertSpan, kAMotion, kAVisualSpan, kKeyInsFlush,
+    CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
+    atom_did_global_op, atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress,
+    atom_visual_reset, atom_visual_span, atoms_free, cmdarg_T, g_atoms, kAInsertSpan, kAMotion,
+    kAVisualSpan, kKeyInsFlush, sb_concat,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL};
@@ -77,20 +73,19 @@ use crate::ops::{getregionpos_line, getregionpos_prep};
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
-use crate::os::time::os_realtime;
+use crate::os::time::{Timestamp, os_realtime};
 use crate::plines::getvcols;
 use crate::popupmenu::pum_visible;
-use crate::register::op_reg_index;
 use crate::register::{
-    get_reg_contents, get_unname_register, get_y_previous, get_y_register, reg_max_ts,
-    write_reg_contents_ex,
+    get_reg_contents, get_unname_register, get_y_previous, get_y_register, op_reg_index,
+    reg_max_ts, write_reg_contents_ex,
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
 use crate::strings::{memcmp, strchr, strlen, strncmp, vim_snprintf};
 use crate::textformat::{InsState, MotionType, oparg_T};
-use crate::undo::{u_forget_unchanged, u_save};
+use crate::undo::{u_forget_unchanged, u_header_T, u_save};
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
@@ -113,7 +108,6 @@ use crate::api::command::CMOD_KEEPJUMPS;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{kMTBlockWise, kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::ex_getln::K_LUA;
-pub use crate::input::RedoState;
 use crate::math::FAIL;
 use crate::regexp::{Ctrl_V, MAXCOL};
 
@@ -153,7 +147,7 @@ struct McStart {
 
 static mut mc_ins_span: McInsSpan = McInsSpan {
     origin: CmdOrigin {
-        buf: crate::input_cmdatom::bufref_T {
+        buf: crate::api::options::bufref_T {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,

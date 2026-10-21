@@ -12,7 +12,7 @@ use crate::api::deprecated::VirtText;
 use crate::api::extmark::parse_virt_text;
 use crate::api::private::helpers::{api_clear_error, api_free_object};
 use crate::api::private::validate::{Error, ErrorType, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
 use crate::charset::{ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
@@ -24,16 +24,16 @@ use crate::drawscreen::{
     UPD_INVERTED, UPD_NOT_VALID, redraw_buf_later, redraw_later, redraw_win_range_later,
 };
 use crate::errors::*;
-use crate::eval::deprecated::{EvalFuncData, buf_T};
+use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::tv_get_lnum;
 use crate::eval::vars::{
     VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM, get_vim_var_nr,
     get_vim_var_str, set_vim_var_nr, set_vim_var_string,
 };
 use crate::eval::{eval_foldexpr, eval_foldtext};
-use crate::ex_session::{FILE, put_eol, put_line};
-use crate::extmark::extmark_splice_cols;
-use crate::fileio::fputs;
+use crate::ex_session::{put_eol, put_line};
+use crate::extmark::{TriState, extmark_splice_cols};
+use crate::fileio::{FILE, fputs};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::wline_T;
@@ -62,8 +62,7 @@ use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{FORWARD, NUL, kExtmarkUndo};
 use crate::api::vim::{kFalse, kNone, kTrue};
 use crate::buffer::MAXLNUM;
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::extmark::{ExtmarkOp, TriState};
+use crate::eval::buffer::varnumber_T;
 use crate::state::MODE_INSERT;
 
 pub const FOLD_TEXT_LEN: usize = 51;

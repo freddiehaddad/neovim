@@ -9,19 +9,16 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::{ArrayBuilder, Buffer};
 use crate::api::buffer::{KeyDict_keymap, LUA_NOREF, NUL};
 use crate::api::command::exarg_T;
-use crate::api::options::optset_T;
 use crate::api::private::converter::{VAR_UNLOCKED, object_to_vim_take_luaref, sctx_T};
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
-    api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
-    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, find_buffer_by_handle,
-    integer_obj, luaref_obj, string_obj, string_to_cstr,
+    ArrayBuilder, api_clear_error, api_free_object, api_set_error, api_set_sctx, arena_dict,
+    arena_take_arraybuilder, cstr_as_obj, cstr_as_string, dict_obj, find_buffer_by_handle, has_key,
+    integer_obj, luaref_obj, put_c, string_obj, string_to_cstr,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
+use crate::api::tabpage::Buffer;
 use crate::charset::{
     ascii_isspace, ascii_iswhite, is_special, k_second, skipwhite, to_special, transchar,
     vim_iswordp,
@@ -31,18 +28,17 @@ use crate::cmdexpand::{EXPAND_MAPPINGS, EXPAND_NOTHING, MB_MAXBYTES, cmdline_fuz
 use crate::errors::*;
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{EvalFuncData, buf_T};
-use crate::eval::typval::nlua_clear_ref;
 use crate::eval::typval::{
-    tv_check_for_dict_arg, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool, tv_dict_get_number,
-    tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk,
-    tv_list_alloc_ret, tv_list_append_dict,
+    nlua_clear_ref, tv_check_for_dict_arg, tv_dict_alloc_ret, tv_dict_find, tv_dict_get_bool,
+    tv_dict_get_number, tv_dict_get_string, tv_get_bool, tv_get_string, tv_get_string_buf,
+    tv_get_string_buf_chk, tv_list_alloc_ret, tv_list_append_dict,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func};
-use crate::eval::vars::set_vim_var_char;
+use crate::eval::vars::{scid_T, set_vim_var_char};
 use crate::eval::{eval_to_string, kListLenUnknown, last_set_msg};
 use crate::ex_cmds::check_secure;
-use crate::ex_session::{FILE, put_eol};
-use crate::fileio::{fputc, fputs};
+use crate::ex_session::put_eol;
+use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{FUZZY_SCORE_NONE, fuzmatch_str_T, fuzzy_match_str, fuzzymatches_to_strmatches};
 use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear, ga_concat, ga_grow, ga_init, garray_T,
@@ -73,16 +69,15 @@ use crate::message::{
 };
 use crate::option::opt_error;
 use crate::option_vars::*;
-use crate::regexp::{Ctrl_V, NUMBUFLEN, vim_regexec};
+use crate::optionstr::optset_T;
+use crate::os::env::expand_T;
+use crate::regexp::{Ctrl_V, NUMBUFLEN, regmatch_T, vim_regexec};
 use crate::runtime::sourcing_lnum;
-use crate::sign::expand_T;
 use crate::strings::{atoi, gettext, sort_strings, strpbrk, strstr, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::cursor::linenr_T;
-pub use crate::eval::vars::scid_T;
-pub use crate::extmark::TriState;
+use crate::cursor::linenr_T;
 
 pub const MAXMAPLEN: usize = 50;
 pub const MAX_MAPHASH: usize = 256;
@@ -136,7 +131,6 @@ pub struct typebuf_T {
     pub tb_change_cnt: c_int,
 }
 
-pub use crate::api::command::regmatch_T;
 use crate::api::vim::{REMAP_NONE, REMAP_YES, kFalse, kNone};
 use crate::autocmd::HLF_8;
 use crate::ex_getln::{ABBR_OFF, Ctrl_RSB};

@@ -11,12 +11,9 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::arr_obj;
-use crate::api::private::helpers::str_obj;
-use crate::api::private::helpers::win_obj;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, api_typename, arena_array, arena_dict, bool_obj,
-    cstr_as_string, dict_obj, error_set, int_obj, string_to_cstr,
+    api_clear_error, api_set_error, api_typename, arena_array, arena_dict, arr_obj, bool_obj,
+    cstr_as_string, dict_obj, error_set, int_obj, str_obj, string_to_cstr, win_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp,

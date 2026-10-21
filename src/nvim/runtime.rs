@@ -9,13 +9,12 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::options::{IOSIZE, optset_T};
+use crate::api::options::IOSIZE;
 use crate::api::private::converter::{sctx_T, ufunc_T};
-use crate::api::private::helpers::cstr_literal;
-use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
     SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_obj, cstr_as_string, cstr_to_string, dict_obj, integer_obj, string_obj,
+    boolean_obj, cstr_as_obj, cstr_as_string, cstr_literal, cstr_to_string, dict_obj, integer_obj,
+    put_c, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, ObjectType};
 use crate::autocmd::{
@@ -24,7 +23,7 @@ use crate::autocmd::{
 };
 use crate::charset::{skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len};
 use crate::clipboard::{TypvalVval, VarType, list_T, typval_T};
-use crate::cmdexpand::{EXPAND_RUNTIME, WILD_ADD_SLASH, globpath};
+use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
 use crate::cursor::linenr_T;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
@@ -38,16 +37,15 @@ use crate::eval::typval::{
     tv_list_append_tv,
 };
 use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal};
-use crate::eval::vars::{SID_STR, new_script_vars};
+use crate::eval::vars::{SID_STR, new_script_vars, scid_T};
 use crate::eval::{eval_to_number, get_copyID};
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, getline_cookie, getline_equal};
 use crate::ex_eval::{CSTP_FINISH, aborting, cleanup_conditionals, cstack_T, report_make_pending};
-use crate::ex_session::FILE;
 #[cfg(not(windows))]
 use crate::fileio::fdopen;
 #[cfg(windows)]
 use crate::fileio::{_fdopen, EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
-use crate::fileio::{EINTR, O_RDONLY, fclose, fgets};
+use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fgets};
 use crate::garray::{
     ga_append, ga_append_via_ptr, ga_clear, ga_clear_strings, ga_concat, ga_concat_len, ga_grow,
     ga_init, ga_remove_duplicate_strings, ga_set_growsize, garray_T,
@@ -59,7 +57,6 @@ use crate::kvec::KVec;
 use crate::lua::executor::{
     kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_ga, nlua_is_deferred_safe,
 };
-use crate::lua::stdlib::regmatch_T;
 use crate::map::{
     Map, Set, map_put_ref_String_int, map_ref_String_int, mh_get_String, mh_put_String,
 };
@@ -82,12 +79,12 @@ use crate::message::{
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{copy_option_part, kOptRuntimepath, set_option_value_give_err, vimrc_found};
 use crate::option_vars::*;
+use crate::optionstr::optset_T;
 use crate::os::env::{
-    expand_env, expand_env_save, home_replace, home_replace_save, os_setenv, vim_env_iter,
-    vim_env_iter_rev, vim_get_prefix_from_exepath, vim_getenv,
+    expand_T, expand_env, expand_env_save, home_replace, home_replace_save, os_setenv,
+    vim_env_iter, vim_env_iter_rev, vim_get_prefix_from_exepath, vim_getenv,
 };
-use crate::os::fs::errno_ptr;
-use crate::os::fs::{os_file_is_readable, os_isdir, os_open, os_set_cloexec};
+use crate::os::fs::{errno_ptr, os_file_is_readable, os_isdir, os_open, os_set_cloexec};
 use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
 use crate::path::{
@@ -100,20 +97,17 @@ use crate::profile::{
     profile_reset, profile_self, profile_start, profile_sub_wait, profile_zero, proftime_T,
     script_line_end, script_line_start, scriptitem_T, time_msg, time_pop, time_push,
 };
-use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp, vim_regexec, vim_regfree};
-use crate::sign::expand_T;
+use crate::regexp::{RE_MAGIC, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::{gettext, strstr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::usercmd::add_win_cmd_modifiers;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Mutex;
 
-pub use crate::eval::vars::scid_T;
 pub type etype_T = c_int;
 pub type estack_arg_T = c_int;
-pub use crate::cmdexpand::LineGetter;
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::extmark::TriState;
+use crate::eval::buffer::varnumber_T;
+use crate::extmark::TriState;
 pub type DoInRuntimepathCB = Option<
     unsafe extern "C" fn(
         num_fnames: c_int,

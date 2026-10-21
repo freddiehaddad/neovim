@@ -8,11 +8,13 @@
     clippy::too_many_arguments
 )]
 
+use crate::api::deprecated::StringBuilder;
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType};
-use crate::api::vim::is_internal_call;
-use crate::api::vim::{MAXPATHL, REMAP_NONE, REMAP_YES, kFalse, kNone, nvim_paste};
-use crate::charset::{ascii_iswhite, skipwhite, to_special};
+use crate::api::vim::{
+    MAXPATHL, REMAP_NONE, REMAP_YES, is_internal_call, kFalse, kNone, nvim_paste,
+};
+use crate::charset::{ascii_iswhite, is_special, skipwhite, to_special};
 use crate::clipboard::{VarType, typval_T};
 use crate::cursor::{colnr_T, get_cursor_line_ptr, linenr_T};
 use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
@@ -39,9 +41,8 @@ use crate::fileio::fputc;
 use crate::garray::{ga_append, ga_clear, ga_concat_len, ga_grow, ga_init, garray_T};
 use crate::globals::*;
 use crate::input_cmdatom::{
-    CmdSpec, StringBuilder, atom_cmdline_set, atom_composite_abort, atom_map_start,
-    atom_payload_end, atom_payload_start, atom_redo_cancel, atom_redo_prepped, atom_typed_add,
-    atom_typed_del,
+    CmdSpec, atom_cmdline_set, atom_composite_abort, atom_map_start, atom_payload_end,
+    atom_payload_start, atom_redo_cancel, atom_redo_prepped, atom_typed_add, atom_typed_del,
 };
 use crate::insert::{edit_putchar, edit_unputchar};
 use crate::insexpand::{
@@ -54,21 +55,18 @@ use crate::keycodes::{
     K_MOUSEMOVE, K_RIGHT, K_S_END, K_S_HOME, K_SNR, K_SPECIAL, K_UP, K_XDOWN, K_XEND, K_XHOME,
     K_XLEFT, K_XRIGHT, K_XUP, K_ZEND, K_ZERO, K_ZHOME, KE_COMPLETE_DELAY, KE_FILLER, KE_IGNORE,
     KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, KS_SPECIAL, KS_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
-    MOD_MASK_SHIFT, NL, TAB, is_special, key2termcap0, key2termcap1, special_to_buf, termcap2key,
+    MOD_MASK_SHIFT, NL, TAB, key2termcap0, key2termcap1, special_to_buf, termcap2key,
 };
-use crate::kvec::KVec;
-use crate::kvec::kv_concat_len;
-use crate::kvec::kv_destroy;
-use crate::kvec::kv_push;
+use crate::kvec::{KVec, kv_concat_len, kv_destroy, kv_push};
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
 use crate::map_glyph_cache::NvimString;
 use crate::mapping::{
     MAXMAPLEN, eval_map_expr, get_buf_maphash_list, get_maphash_list, langmap_adjust_mb,
-    map_luaid_get, mapblock_T,
+    map_luaid_get, mapblock_T, typebuf_T,
 };
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo,
-    utf_ptr2cells, utf_ptr2char,
+    mb_cptr2char_adv, mb_unescape, utf_ClusterInfo, utf_byte2len, utf_char2bytes, utf_head_off,
+    utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char,
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_sync_all;
@@ -86,12 +84,12 @@ use crate::os::fileio::{
 };
 use crate::os::input::{input_available, input_get, line_breakcheck, os_breakcheck};
 use crate::plines::{
-    CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, utf_ClusterInfo, win_charsize,
+    CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, win_charsize,
 };
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
     MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
-    state_no_longer_safe, typebuf_T,
+    state_no_longer_safe,
 };
 use crate::strings::{atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
@@ -100,10 +98,9 @@ use crate::undo::u_sync;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint, c_void};
 use std::ptr;
 
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::option::OptInt;
+use crate::eval::buffer::varnumber_T;
+use crate::option::OptInt;
 pub type flush_buffers_T = c_int;
-pub use crate::fileio::FILE;
 
 const NUL: c_int = 0;
 
@@ -223,8 +220,6 @@ pub struct tasave_T {
     pub save_readbuf1: StuffBuf,
     pub save_readbuf2: StuffBuf,
 }
-
-pub use crate::textformat::InsState;
 
 #[derive(Clone, Copy)]
 struct gotchars_state_T {

@@ -16,8 +16,7 @@ use crate::api::extmark::{
     DecorRange, NS, kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVPosEndOfLineRightAlign,
     kVPosInline, kVPosRightAlign, kVPosWinCol, kVTRepeatLinebreak,
 };
-use crate::api::options::CharBuf;
-use crate::api::tabpage::{GridView, pos_T, win_T};
+use crate::api::tabpage::{GridView, win_T};
 use crate::api::vim::{
     HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, MAXPATHL, SIGN_SHOW_MAX, STL_FOLDCOL,
     STL_SIGNCOL, kFalse, kTrue,
@@ -44,8 +43,8 @@ use crate::diff::{
 use crate::drawscreen::{
     WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, spellvars_T, win_draw_end,
 };
-use crate::eval::deprecated::{buf_T, synblock_T};
-use crate::ex_getln::disptick_T;
+use crate::eval::deprecated::{buf_T, pos_T, synblock_T};
+use crate::ex_getln::{disptick_T, hlf_T};
 use crate::extmark::TriState;
 use crate::fold::{FOLD_TEXT_LEN, get_foldtext};
 use crate::globals::*;
@@ -65,24 +64,24 @@ use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
-    mb_charlen, mb_off_next, mb_ptr2char_adv, mb_string2cells, utf_head_off, utf_ptr2cells,
-    utfc_ptr2len, utfc_ptr2schar,
+    mb_charlen, mb_off_next, mb_ptr2char_adv, mb_string2cells, utf_ClusterInfo, utf_head_off,
+    utf_ptr2StrCharInfo, utf_ptr2cells, utfc_ptr2len, utfc_ptr2schar,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
 use crate::memory::{xfree, xmalloc, xstrlcpy};
 use crate::r#move::{set_empty_rows, validate_virtcol, win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
+use crate::optionstr::CharBuf;
 use crate::plines::{
     CSType, CharSize, CharsizeArg, getvcol, getvvcol, init_charsize_arg,
-    init_charsize_arg_skip_cur_text, utf_ClusterInfo, utf_ptr2StrCharInfo, vim_isbreak,
-    win_charsize,
+    init_charsize_arg_skip_cur_text, vim_isbreak, win_charsize,
 };
 use crate::quickfix::qf_current_entry;
 use crate::regexp::{Ctrl_V, MAXCOL};
 use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, spell_to_word_end};
 use crate::state::{MODE_INSERT, virtual_active};
-use crate::statusline::{build_statuscol_str, foldinfo_T, hlf_T, statuscol_T};
+use crate::statusline::{build_statuscol_str, foldinfo_T, statuscol_T};
 use crate::strings::{vim_snprintf, vim_strchr};
 use crate::syntax::{
     HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present, syntax_start,

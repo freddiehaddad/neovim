@@ -9,20 +9,17 @@
 )]
 
 use crate::api::deprecated::{OPT_LOCAL, kOptScopeBuf};
-use crate::api::private::helpers::error_set;
-use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, cstr_as_obj, error_init, find_buffer_by_handle,
-    find_window_by_handle,
+    api_clear_error, api_set_error, cstr_as_obj, error_init, error_set, find_buffer_by_handle,
+    find_window_by_handle, has_key,
 };
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::tabpage::{WinConfig, tabpage_T, win_T};
 use crate::api::vim::{MAXPATHL, nvim_create_buf};
-use crate::api::win_config::WIN_CONFIG_INIT;
 use crate::api::win_config::{
-    kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth, kFloatRelativeCursor,
-    kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse, kFloatRelativeWindow,
-    kUIMultigrid, kWinStyleMinimal, parse_bordertext, parse_winborder,
+    WIN_CONFIG_INIT, kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth,
+    kFloatRelativeCursor, kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse,
+    kFloatRelativeWindow, kUIMultigrid, kWinStyleMinimal, parse_bordertext, parse_winborder,
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::decoration::clear_virttext;
@@ -39,25 +36,21 @@ use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
 use crate::option::{parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
-use crate::optionstr::{free_string_option, kOptPreviewpopup, opt_keyset};
+use crate::optionstr::{OptKeyDict_pvp, free_string_option, kOptPreviewpopup, opt_keyset};
 use crate::os::fs::os_dirname;
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext, qsort};
 use crate::ui::ui_has;
 use crate::window::{
-    STATUS_HEIGHT, last_status, lastwin_nofloating, merge_win_config, tabpage_win_valid, win_alloc,
-    win_append, win_close, win_comp_pos, win_enter, win_find_tabpage, win_free, win_init,
-    win_remove, win_remove_status_line, win_set_buf, win_set_inner_size, win_valid,
+    STATUS_HEIGHT, WinKind, last_status, lastwin_nofloating, merge_win_config, tabpage_win_valid,
+    win_alloc, win_append, win_close, win_comp_pos, win_enter, win_find_tabpage, win_free,
+    win_init, win_remove, win_remove_status_line, win_set_buf, win_set_inner_size, win_valid,
     winframe_remove,
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::cursor::linenr_T;
-pub use crate::eval::vars::scid_T;
-pub use crate::option::{OptInt, OptScope};
-pub use crate::optionstr::{OptIndex, OptKeyDict_pvp};
-pub use crate::window::WinKind;
+use crate::cursor::linenr_T;
 
 const KEYSET_OPTIDX_pvp__width: u64 = 1;
 const KEYSET_OPTIDX_pvp__border: u64 = 2;

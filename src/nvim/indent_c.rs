@@ -19,12 +19,10 @@ use crate::charset::{
 };
 use crate::clipboard::typval_T;
 use crate::cursor::{colnr_T, get_cursor_line_ptr, get_cursor_pos_ptr, linenr_T, lt};
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::typval::tv_get_lnum;
 use crate::globals::*;
-use crate::indent::{
-    EvalFuncData, fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value,
-};
+use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value};
 use crate::keycodes::get_special_key_code;
 use crate::math::{FAIL, OK, trim_to_int};
 use crate::mbyte::{mb_prevptr, mb_strnicmp, utfc_ptr2len};

@@ -11,18 +11,14 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{VirtText, VirtTextChunk};
 use crate::api::extmark::{parse_virt_text, virt_text_to_array};
-use crate::api::options::CtxSwitch;
-use crate::api::private::helpers::cstr_to_obj;
-use crate::api::private::helpers::cstrn_as_string;
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::try_wrap;
+use crate::api::options::{CtxSwitch, bufref_T};
 use crate::api::private::helpers::{
     add_c, api_clear_error, api_free_array, api_free_object, api_set_error, api_typename,
-    arena_array, array_obj, cbuf_to_string, cstr_as_string, error_set, find_buffer_by_handle,
-    find_window_by_handle, integer_obj, object_to_hl_id, string_obj,
+    arena_array, array_obj, cbuf_to_string, cstr_as_string, cstr_to_obj, cstrn_as_string,
+    error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj, object_to_hl_id,
+    string_obj, try_wrap,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp, api_err_invalid,
@@ -37,12 +33,12 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_later, set_must_redraw};
 use crate::errors::*;
 use crate::ex_docmd::expr_map_locked;
 use crate::globals::*;
+use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
-use crate::memory::strequal_str;
-use crate::memory::{Arena, strequal};
+use crate::memory::{Arena, strequal, strequal_str};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::didset_window_options;
@@ -69,8 +65,6 @@ pub type WinSplit = c_int;
 pub type WinStyle = c_int;
 pub type AlignTextPos = c_int;
 pub type BorderTextType = c_int;
-pub use crate::api::autocmd::event_T;
-pub use crate::api::command::cmdidx_T;
 pub type UIExtension = c_int;
 
 pub(crate) const kUIMultigrid: UIExtension = 6;
@@ -132,7 +126,6 @@ const KEYSET_OPTIDX_win_config__footer_pos: u64 = 23;
 const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
 
 use crate::api::buffer::NUL;
-pub use crate::api::options::bufref_T;
 use crate::api::ui::MAX_SCHAR_SIZE;
 
 #[repr(C)]

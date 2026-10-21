@@ -13,7 +13,7 @@ use crate::api::command::exarg_T;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::private::helpers::{array_obj, boolean_obj, cstr_as_obj, integer_obj};
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::api::vim::{BACKWARD, kFalse, kNone, kTrue};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
@@ -26,8 +26,8 @@ use crate::change::{
     deleted_lines, get_leader_len, ins_char, ins_char_bytes, kOptVeFlagOnemore, open_line,
 };
 use crate::charset::{
-    ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, skipwhite, transchar, vim_isprintc,
-    vim_iswordp, vim_strsize,
+    ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, is_special, skipwhite, transchar,
+    vim_isprintc, vim_iswordp, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T, yankreg_T};
 use crate::cmdexpand::{Ctrl_N, Ctrl_P, RE_LAST, SEARCH_OPT, SEARCH_START};
@@ -50,7 +50,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::{prompt_invoke_callback, varnumber_T};
-use crate::eval::deprecated::{buf_T, fmark_T, synblock_T, visualinfo_T};
+use crate::eval::deprecated::{buf_T, fmark_T, pos_T, synblock_T, visualinfo_T};
 use crate::eval::funcs::{kMTCharWise, kMTLineWise, kMTUnknown};
 use crate::eval::kMarkAll;
 use crate::eval::typval::tv_clear;
@@ -82,9 +82,8 @@ use crate::globals::*;
 use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::help::ex_help;
 use crate::indent_c::{FM_BACKWARD, FM_SKIPCOMM, check_linecomment};
-use crate::input::langmap_adjust;
 use crate::input::{
-    K_PASTE_START, beep_flush, char_avail, getcmdkeycmd, gotchars_ignore, kInsNone,
+    K_PASTE_START, beep_flush, char_avail, getcmdkeycmd, gotchars_ignore, kInsNone, langmap_adjust,
     map_execute_lua, paste_repeat, plain_vgetc, prep_redo, readbuf1_empty, redo_append_char,
     redo_append_str, requeue_key, safe_vgetc, start_redo, stuff_empty, stuffReadbuff,
     stuffcharReadbuff, stuffnumReadbuff, typebuf_maplen, typebuf_typed, vgetc, vpeekc, vungetc,
@@ -108,7 +107,7 @@ use crate::keycodes::{
     K_MOUSERIGHT, K_MOUSEUP, K_NOP, K_PAGEDOWN, K_PAGEUP, K_RIGHT, K_RIGHTDRAG, K_RIGHTMOUSE,
     K_RIGHTRELEASE, K_S_DOWN, K_S_END, K_S_HOME, K_S_LEFT, K_S_RIGHT, K_S_UP, K_UNDO, K_UP,
     K_X1DRAG, K_X1MOUSE, K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_XF1, K_ZERO,
-    MOD_MASK_SHIFT, NL, TAB, is_special, simplify_key,
+    MOD_MASK_SHIFT, NL, TAB, simplify_key,
 };
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::add_map;
@@ -145,15 +144,16 @@ use crate::r#move::{
 };
 use crate::ops::{
     OP_CHANGE, OP_COLON, OP_DELETE, OP_FOLD, OP_FORMAT, OP_LOWER, OP_LSHIFT, OP_MCURSOR, OP_NOP,
-    OP_NR_ADD, OP_NR_SUB, OP_ROT13, OP_RSHIFT, OP_TILDE, OP_UPPER, OP_YANK, OptInt,
-    adjust_cursor_eol, clear_oparg, cursor_pos_info, do_join, do_pending_operator,
-    get_extra_op_char, get_op_char, get_op_type, op_addsub, op_is_change, swapchar,
+    OP_NR_ADD, OP_NR_SUB, OP_ROT13, OP_RSHIFT, OP_TILDE, OP_UPPER, OP_YANK, adjust_cursor_eol,
+    clear_oparg, cursor_pos_info, do_join, do_pending_operator, get_extra_op_char, get_op_char,
+    get_op_type, op_addsub, op_is_change, swapchar,
 };
 use crate::option::{
-    copy_option_part, get_showbreak_value, get_sidescrolloff_value, get_ve_flags, set_option_value,
-    shortmess,
+    OptInt, copy_option_part, get_showbreak_value, get_sidescrolloff_value, get_ve_flags,
+    set_option_value, shortmess,
 };
 use crate::option_vars::*;
+use crate::optionstr::OptIndex;
 use crate::os::input::line_breakcheck;
 use crate::os::time::c_time as time;
 use crate::plines::{
@@ -179,10 +179,9 @@ use crate::state::{
     MODE_SELECT, MODE_TERMINAL, VimState, get_real_state, may_trigger_modechanged,
     may_trigger_safestate, state_enter, state_handle_k_event, state_no_longer_safe, virtual_active,
 };
-use crate::statusline::{OptIndex, draw_tabline, win_redr_status};
-use crate::strings::tr;
+use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    qsort, strcat, strchr, strcmp, strcpy, strlen, vim_snprintf, vim_strchr,
+    qsort, strcat, strchr, strcmp, strcpy, strlen, tr, vim_snprintf, vim_strchr,
     vim_strsave_shellescape, xstrnsave,
 };
 use crate::syntax::syn_stack_free_all;

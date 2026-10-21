@@ -8,11 +8,10 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::extmark::NS;
-use crate::api::private::helpers::put_c;
+use crate::api::extmark::{HLGroupID, NS};
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, arena_array, arena_dict, boolean_obj, cstr_as_obj,
-    cstr_as_string, dict_obj, integer_obj, string_obj,
+    cstr_as_string, dict_obj, integer_obj, put_c, string_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_exp, api_err_invalid,
@@ -47,8 +46,7 @@ use std::ptr;
 
 pub type RgbValue = i32;
 pub type OptionalKeys = u64;
-pub use crate::api::extmark::HLGroupID;
-pub use crate::msgpack_rpc::channel::RemoteUI;
+use crate::msgpack_rpc::channel::RemoteUI;
 pub type HlKind = c_int;
 
 const MAX_TYPENR: u32 = 65535;

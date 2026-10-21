@@ -9,18 +9,18 @@
 
 use crate::charset::try_getdigits;
 use crate::event::r#loop::{
-    loop_poll_events, main_loop_ptr, uv_close, uv_freeaddrinfo, uv_handle_get_loop,
-    uv_handle_get_type, uv_handle_size, uv_pipe_connect, uv_pipe_init, uv_req_size, uv_strerror,
+    Loop, loop_poll_events, main_loop_ptr, uv_close, uv_connect_cb, uv_connect_t, uv_freeaddrinfo,
+    uv_handle_get_loop, uv_handle_get_type, uv_handle_size, uv_handle_t, uv_loop_t,
+    uv_pipe_connect, uv_pipe_init, uv_req_size, uv_strerror,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 use crate::event::stream::{
     Stream, UV_NAMED_PIPE, UV_TCP, stream_fields, stream_init, stream_may_close, stream_uv_ptr,
+    uv_pipe_t, uv_stream_t,
 };
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{xfree, xstrdup, xstrlcpy};
-use crate::os::fs::UV_EINVAL;
-use crate::os::fs::UV_ENOENT;
-use crate::os::fs::{os_path_exists, os_remove};
+use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
 use crate::strings::{gettext, strlen as c_strlen, strrchr, vim_snprintf};
@@ -56,13 +56,9 @@ const UV_EADDRINUSE: c_int = -98;
 #[cfg(not(any(windows, target_os = "linux")))]
 const UV_EADDRINUSE: c_int = -48;
 
-pub use crate::event::r#loop::{
-    Loop, uv_close_cb, uv_connect_cb, uv_connect_t, uv_handle_t, uv_loop_t,
-};
 pub type SocketWatcher = c_void;
 use crate::api::buffer::NUL;
-pub use crate::event::rstream::RStream;
-pub use crate::event::stream::{uv_pipe_t, uv_stream_t};
+use crate::event::rstream::RStream;
 pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 

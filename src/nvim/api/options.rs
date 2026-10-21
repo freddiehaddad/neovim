@@ -11,51 +11,44 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::try_wrap;
-use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
-    add_c, api_free_object, api_set_error, api_typename, arena_array, arena_dict, arena_string,
-    array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, put_c, static_cstr_as_obj,
-    string_obj,
+    NIL, add_c, api_free_object, api_set_error, api_typename, arena_array, arena_dict,
+    arena_string, array_obj, boolean_obj, copy_object, cstr_as_string, dict_obj, error_set,
+    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, has_key, put_c,
+    static_cstr_as_obj, string_obj, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType, api_err_conflict, api_err_exp,
 };
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{Buffer, Tabpage, Window, tabpage_T, win_T};
 use crate::autocmd::{
     EVENT_FILETYPE, block_autocmds, do_filetype_autocmd, has_event, unblock_autocmds,
 };
 use crate::buffer::{BLN_DUMMY, buflist_new, bufref_valid, set_bufref, wipe_buffer};
 use crate::context::{ctx_restore, ctx_switch};
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::globals::*;
 use crate::lua::converter::Boolean;
 use crate::map_glyph_cache::NvimString;
 use crate::memline::ml_open;
-use crate::memory::strequal_str as strequal;
-use crate::memory::{Arena, arena_memdupz, xfree, xmalloc, xstrdup};
+use crate::memory::{Arena, arena_memdupz, strequal_str as strequal, xfree, xmalloc, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option::{
-    copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
+    OptScope, copy_option_part, escape_option_str_cmdline, find_option, free_option_prepared,
     get_all_options_info, get_option, get_option_info, get_option_newval, get_option_value_for,
     get_option_varp_scope_from, get_varp_from, kOptFlagColon, kOptFlagComma, kOptFlagFlagList,
     opt_from_varp, option_has_scope, option_has_type, optval_free, optval_from_obj, optval_own,
-    set_option_direct, set_option_value_for, validate_and_prepare_option_value,
+    set_op_T, set_option_direct, set_option_value_for, set_prefix_T,
+    validate_and_prepare_option_value,
 };
 use crate::strings::{strchr, strlen};
 use crate::window::close_windows;
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::api::autocmd::event_T;
-pub use crate::api::tabpage::{Buffer, Tabpage, Window};
-pub use crate::cursor::{colnr_T, linenr_T};
-pub use crate::eval::vars::scid_T;
-pub use crate::highlight::OptionalKeys;
-pub use crate::option::{OptScope, set_op_T, set_prefix_T};
-pub use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, optset_T, vimoption_T};
+use crate::eval::vars::scid_T;
+use crate::highlight::OptionalKeys;
+use crate::optionstr::{CharBuf, OptIndex, OptSetPrep, optset_T};
 
 pub(crate) const IOSIZE: usize = 1024 + 1;
 pub(crate) const SID_NONE: scid_T = -6;
@@ -88,9 +81,8 @@ use crate::api::buffer::NUL;
 use crate::api::deprecated::{
     OPT_GLOBAL, OPT_LOCAL, kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin,
 };
-pub use crate::eval::deprecated::{buf_T, memline_T};
 use crate::math::{FAIL, OK};
-pub use crate::memfile::memfile_T;
+use crate::memfile::memfile_T;
 
 #[repr(C)]
 #[derive(Clone, Copy)]

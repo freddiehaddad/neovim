@@ -77,6 +77,8 @@ use crate::lua::base64::lua_State;
 #[cfg(not(test))]
 use crate::lua::base64::{LUA_TSTRING, lua_CFunction};
 #[cfg(not(test))]
+use crate::lua::converter::LUA_REGISTRYINDEX;
+#[cfg(not(test))]
 use crate::lua::converter::{
     K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_TBOOLEAN, LUA_TFUNCTION, LUA_TTABLE,
     lua_Integer, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable, lua_error,
@@ -92,8 +94,7 @@ use crate::lua::converter::{
     nlua_init_types, nlua_pop_Array, nlua_pop_Integer, nlua_pop_Object, nlua_pop_typval,
     nlua_push_Array, nlua_push_Object, nlua_push_typval,
 };
-pub use crate::lua::converter::{LUA_GLOBALSINDEX, LUA_MULTRET, LUA_REGISTRYINDEX};
-use crate::lua::converter::{LuaRef, nlua_ref_state_t};
+use crate::lua::converter::{LUA_MULTRET, LuaRef, nlua_ref_state_t};
 #[cfg(not(test))]
 use crate::lua::stdlib::nlua_state_add_stdlib;
 #[cfg(not(test))]
@@ -153,8 +154,8 @@ use std::io::Write;
 use std::mem::{size_of, zeroed};
 use std::ptr;
 
-pub use crate::api::vim::HlMessage;
-pub use crate::cmdexpand::LineGetter;
+#[cfg(not(test))]
+use crate::api::vim::HlMessage;
 pub type LuaRetMode = c_int;
 
 #[cfg(not(test))]
@@ -440,7 +441,8 @@ unsafe extern "C-unwind" {
     fn luaopen_luv(L: *mut lua_State) -> c_int;
 }
 
-pub use crate::api::private::dispatch::nlua_add_api_functions;
+#[cfg(not(test))]
+use crate::api::private::dispatch::nlua_add_api_functions;
 
 #[cfg(all(windows, not(test)))]
 unsafe extern "system" {

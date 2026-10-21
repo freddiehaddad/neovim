@@ -9,16 +9,16 @@
 )]
 
 use crate::api::command::exarg_T;
-use crate::api::options::optset_T;
 use crate::api::private::helpers::{
-    HLF_E, api_free_array, copy_string, cstr_as_string, cstr_to_string, ga_take_string,
+    HLF_E, HlMessageChunk, api_free_array, copy_string, cstr_as_string, cstr_to_string,
+    ga_take_string,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::vim::{HLF_N, HlMessage, HlMessageChunk, MessageData, kFalse, kTrue};
+use crate::api::vim::{HLF_N, HlMessage, MessageData, kFalse, kTrue};
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
-    ascii_iswhite, ascii2cells, char2cells, k_second, skipwhite, to_special, transchar_buf,
-    transchar_byte_buf, vim_isprintc, vim_strsize,
+    ascii_iswhite, ascii2cells, char2cells, is_special, k_second, skipwhite, to_special,
+    transchar_buf, transchar_byte_buf, vim_isprintc, vim_strsize,
 };
 use crate::clipboard::{TypvalVval, VarType, typval_T};
 use crate::dialog::{confirm_buttons, confirm_msg, prompt_for_input};
@@ -36,8 +36,8 @@ use crate::event::r#loop::loop_schedule_deferred;
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_process_events};
 use crate::ex_docmd::do_sleep;
 use crate::ex_eval::cause_errthrow;
-use crate::ex_session::FILE;
-use crate::fileio::{check_timestamps, fclose, fprintf, fputc, fputs, printf};
+use crate::extmark::TriState;
+use crate::fileio::{FILE, check_timestamps, fclose, fprintf, fputc, fputs, printf};
 use crate::garray::{ga_append, ga_concat, ga_concat_len, ga_init, garray_T};
 use crate::globals::*;
 use crate::grid::{
@@ -57,8 +57,8 @@ use crate::keycodes::{
     BS, CAR, ESC, K_BS, K_DOWN, K_IGNORE, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTRELEASE, K_MIDDLEDRAG,
     K_MIDDLEMOUSE, K_MIDDLERELEASE, K_MOUSEDOWN, K_MOUSELEFT, K_MOUSEMOVE, K_MOUSERIGHT, K_MOUSEUP,
     K_PAGEDOWN, K_PAGEUP, K_RIGHTDRAG, K_RIGHTMOUSE, K_RIGHTRELEASE, K_SPECIAL, K_UP, K_X1MOUSE,
-    K_X2MOUSE, KE_FILLER, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, is_special,
-    key2termcap1, keychord,
+    K_X2MOUSE, KE_FILLER, KS_MODIFIER, MOD_MASK_SHIFT, NL, TAB, get_special_key, key2termcap1,
+    keychord,
 };
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::map_glyph_cache::NvimString;
@@ -75,14 +75,14 @@ use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
 use crate::option_vars::*;
-use crate::optionstr::{OptKeyDict_mopt, opt_keyset};
+use crate::optionstr::{OptKeyDict_mopt, opt_keyset, optset_T};
 use crate::os::env::home_replace_save;
 use crate::os::fs::os_fopen;
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_delay;
 use crate::regexp::vim_regexec;
 use crate::register::write_reg_contents;
-use crate::runtime::{ESTACK_NONE, TriState, estack_sfile, exestack, sourcing_lnum, sourcing_name};
+use crate::runtime::{ESTACK_NONE, estack_sfile, exestack, sourcing_lnum, sourcing_name};
 use crate::state::{MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_SETWSIZE};
 use crate::strings::{gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{
@@ -96,7 +96,6 @@ use std::mem::{offset_of, size_of};
 use std::ptr;
 
 pub type MsgID = Object;
-pub use crate::option::OptInt;
 
 const BELL: c_int = 0x07;
 

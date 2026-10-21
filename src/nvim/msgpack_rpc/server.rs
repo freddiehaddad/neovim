@@ -9,11 +9,12 @@
 
 use crate::channel::channel_from_connection;
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str, set_vim_var_string};
-use crate::event::r#loop::{uv_freeaddrinfo, uv_handle_get_type, uv_handle_size, uv_strerror};
-use crate::event::socket::socket_watcher_uv_size;
-use crate::event::socket::watcher_addr;
+use crate::event::r#loop::{
+    uv_freeaddrinfo, uv_handle_get_type, uv_handle_size, uv_handle_t, uv_strerror,
+};
 use crate::event::socket::{
-    ADDRESS_MAX_SIZE, socket_watcher_close, socket_watcher_init, socket_watcher_start,
+    ADDRESS_MAX_SIZE, SocketWatcher, socket_watcher_close, socket_watcher_init,
+    socket_watcher_start, socket_watcher_uv_size, watcher_addr,
 };
 use crate::extmark::TriState;
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
@@ -37,8 +38,6 @@ const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 
 use crate::api::options::IOSIZE;
 use crate::api::vim::{kFalse, kNone, kTrue};
-pub use crate::event::r#loop::{Loop, uv_handle_t};
-pub use crate::event::socket::{SocketWatcher, socket_cb, socket_close_cb};
 use crate::event::stream::UV_TCP;
 
 static mut watchers: garray_T = garray_T {

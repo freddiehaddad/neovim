@@ -13,6 +13,7 @@
 use crate::api::private::helpers::cstr_as_string;
 #[cfg(not(test))]
 use crate::errors::*;
+use crate::eval::deprecated::FileID;
 use crate::eval::fs::{FileInfo, uv_stat_t};
 #[cfg(all(not(test), windows))]
 use crate::event::r#loop::uv_guess_handle;
@@ -20,7 +21,6 @@ use crate::event::r#loop::uv_guess_handle;
 use crate::event::r#loop::{
     uv_chdir, uv_cwd, uv_fs_req_cleanup, uv_req_size, uv_strerror, uv_translate_sys_error,
 };
-use crate::file_search::FileID;
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(all(not(test), unix))]
@@ -71,7 +71,7 @@ pub struct Directory {
 }
 pub type vim_acl_T = *mut c_void;
 pub type uv_fs_buf_t = [u64; 80];
-pub use crate::event::r#loop::{uv_gid_t, uv_uid_t};
+use crate::event::r#loop::{uv_gid_t, uv_uid_t};
 
 const NODE_NORMAL: c_int = 0;
 #[cfg(any(not(test), unix))]

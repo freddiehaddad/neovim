@@ -8,11 +8,12 @@
 )]
 
 use crate::event::r#loop::{
-    uv_fs_get_result, uv_fs_req_cleanup, uv_handle_get_loop, uv_req_size, uv_write,
+    Loop, uv_fs_cb, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_loop_t,
+    uv_req_size, uv_write,
 };
 use crate::event::stream::{
-    Loop, Stream, stream_close_handle, stream_closed_ptr, stream_fields, stream_init,
-    stream_uv_ptr, stream_write_cb, uv_loop_t, uv_stream_t,
+    Stream, stream_close_handle, stream_closed_ptr, stream_fields, stream_init, stream_uv_ptr,
+    stream_write_cb, uv_stream_t,
 };
 use crate::memory::{xfree, xmalloc};
 #[cfg(windows)]
@@ -28,7 +29,6 @@ const UV_ENOMEM: c_int = -4057;
 #[cfg(not(windows))]
 const UV_ENOMEM: c_int = -12;
 
-pub use crate::event::r#loop::{uv_fs_cb, uv_fs_t, uv_write_cb};
 pub type uv_write_t = c_void;
 pub type wbuffer_data_finalizer = Option<unsafe extern "C" fn(data: *mut c_void)>;
 

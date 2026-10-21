@@ -75,7 +75,7 @@ use crate::api::buffer::{FORWARD, NUL};
 use crate::api::command::CMOD_LOCKMARKS;
 use crate::api::deprecated::OPT_LOCAL;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
-pub use crate::extmark::TriState;
+use crate::extmark::TriState;
 use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_NORMAL, VREPLACE_FLAG};

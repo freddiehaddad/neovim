@@ -9,12 +9,9 @@
 )]
 
 use crate::api::extmark::describe_ns;
-use crate::api::private::helpers::arr_obj;
-use crate::api::private::helpers::str_obj;
-use crate::api::private::helpers::win_obj;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, arena_array, arena_dict, bool_obj, cstr_as_string, float_obj,
-    int_obj,
+    api_clear_error, api_set_error, arena_array, arena_dict, arr_obj, bool_obj, cstr_as_string,
+    float_obj, int_obj, str_obj, win_obj,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
@@ -37,7 +34,6 @@ use crate::autocmd::do_autocmd_uienter;
 use crate::buffer::resettitle;
 use crate::cursor_shape::{cursor_get_mode_idx, cursorentry_T, mode_style_array, shape_table};
 use crate::drawscreen::{DEFAULT_GRID_HANDLE, conceal_check_cursor_line, screen_resize};
-use crate::eval::vars::LuaRef;
 use crate::event::r#loop::uv_cwd;
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, multiqueue_free, multiqueue_put_event,
@@ -47,6 +43,7 @@ use crate::globals::*;
 use crate::grid::{get_win_by_grid_handle, sattr_T, schar_T};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
+use crate::lua::converter::LuaRef;
 use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
 use crate::map::{Map, Set, map_del_uint32_t_ptr_t, map_put_ref_uint32_t_ptr_t, mh_get_uint32_t};
 use crate::map_glyph_cache::{MH_TOMBSTONE, MapHash, NvimString};
@@ -101,7 +98,7 @@ use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
 use crate::mouse::kMouseVisual;
-pub use crate::msgpack_rpc::channel::RemoteUI;
+use crate::msgpack_rpc::channel::RemoteUI;
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_EXTERNCMD, MODE_HITRETURN, MODE_INSERT, MODE_SETWSIZE,
 };

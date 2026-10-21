@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{EX_NOSPC, EX_XFILE, exarg_T, regmatch_T};
+use crate::api::command::{EX_NOSPC, EX_XFILE, exarg_T};
 use crate::api::tabpage::{lpos_T, win_T};
 use crate::autocmd::{EVENT_SYNTAX, apply_autocmds};
 use crate::buffer::{MAXLNUM, buf_get_changedtick};
@@ -37,9 +37,9 @@ use crate::highlight_group::{
     syn_id2attr, syn_list_header, syn_name2id, syn_name2id_len,
 };
 use crate::indent_c::find_start_comment;
-use crate::r#match::regmmatch_T;
-use crate::mbyte::mb_ptr_back;
-use crate::mbyte::{mb_ptr_adv, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len};
+use crate::mbyte::{
+    mb_ptr_adv, mb_ptr_back, mb_strcmp_ic, utf_head_off, utf_ptr2char, utfc_ptr2len,
+};
 use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xstrdup};
 use crate::message::{
@@ -58,22 +58,21 @@ use crate::profile::{
     profile_zero, proftime_T,
 };
 use crate::regexp::{
-    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, ref_extmatch, skip_regexp, unref_extmatch,
-    vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi, vim_regfree,
+    MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, ref_extmatch, reg_extmatch_T, regmatch_T,
+    regmmatch_T, regprog_T, skip_regexp, unref_extmatch, vim_regcomp, vim_regcomp_had_eol,
+    vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
-use crate::strings::stricmp_c;
-use crate::strings::strnicmp_c;
 use crate::strings::{
-    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp,
-    strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up, xstrnsave,
+    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, stricmp_c, strlen,
+    strncmp, strnicmp_c, strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up,
+    xstrnsave,
 };
 use std::ffi::{c_char, c_int, c_void};
 use std::mem::{offset_of, size_of};
 use std::ptr;
 
-pub use crate::ex_getln::disptick_T;
-pub use crate::regexp::{reg_extmatch_T, regprog_T};
+use crate::ex_getln::disptick_T;
 
 pub const HL_CONTAINED: c_int = 0x01;
 pub const HL_TRANSP: c_int = 0x02;

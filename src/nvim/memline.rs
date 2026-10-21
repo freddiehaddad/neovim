@@ -33,7 +33,7 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
-    EOL_DOS, O_RDONLY, READ_NEW, buf_store_file_info, kOptFileencoding, modname, read_eintr,
+    EOL_DOS, O_RDONLY, READ_NEW, buf_store_file_info, kOptFileencoding, modname, off_T, read_eintr,
     readfile, vim_deltempdir, vim_rename, vim_tempname,
 };
 use crate::globals::*;
@@ -43,14 +43,12 @@ use crate::main_init::getout;
 use crate::map_glyph_cache::NvimString;
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_adjust_cursor, mb_utflen, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memfile::pmap_get_bhdr;
 use crate::memfile::{
     BH_DIRTY, MFS_ALL, MFS_STOP, MFS_ZERO, bhdr_T, blocknr_T, memfile_T, mf_close, mf_close_file,
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
-    mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, off_T,
+    mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::xstrnsave;
-use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy};
+use crate::memory::{xfree, xmalloc, xmemdupz, xrealloc, xstpcpy, xstrdup, xstrlcpy, xstrnsave};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -59,10 +57,9 @@ use crate::message::{
 use crate::option::{copy_option_part, get_fileformat, set_fileformat, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_hostname, os_get_pid};
-use crate::os::fs::O_RDWR;
 use crate::os::fs::{
-    os_fileinfo, os_fileinfo_inode, os_fileinfo_link, os_fileinfo_size, os_fileinfo2, os_isdir,
-    os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_cloexec,
+    O_RDWR, os_fileinfo, os_fileinfo_inode, os_fileinfo_link, os_fileinfo_size, os_fileinfo2,
+    os_isdir, os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_cloexec,
 };
 use crate::os::input::{line_breakcheck, os_char_avail};
 use crate::os::proc::os_proc_running;
@@ -77,8 +74,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::tr;
-use crate::strings::{gettext, strcmp as c_strcmp, strlen as c_strlen, vim_strchr};
+use crate::strings::{gettext, strcmp as c_strcmp, strlen as c_strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};

@@ -2,10 +2,7 @@
 //! NUL-separated `char` array (`src/nvim/map_glyph_cache.c`).
 
 use crate::api::private::helpers::cstr_as_string;
-use crate::map::mh_is_del;
-use crate::map::mh_is_either;
-use crate::map::mh_is_empty;
-use crate::map::mh_realloc;
+use crate::map::{mh_is_del, mh_is_either, mh_is_empty, mh_realloc};
 use crate::memory::xrealloc;
 use std::ffi::{c_char, c_void};
 

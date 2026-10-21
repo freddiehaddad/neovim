@@ -18,12 +18,12 @@ use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE, globpath};
 #[cfg(not(test))]
 use crate::diff::kShellOptSilent;
 #[cfg(not(test))]
+use crate::eval::deprecated::FileID;
+#[cfg(not(test))]
 use crate::eval::eval_to_string;
 use crate::eval::fs::FileInfo;
 #[cfg(not(test))]
 use crate::ex_docmd::eval_vars;
-#[cfg(not(test))]
-use crate::file_search::FileID;
 #[cfg(not(test))]
 use crate::fileio::{file_pat_to_reg_pat, match_file_list};
 use crate::garray::{ga_append_via_ptr, garray_T};
@@ -31,8 +31,6 @@ use crate::garray::{ga_append_via_ptr, garray_T};
 use crate::garray::{ga_clear_strings, ga_concat_strings, ga_init, ga_remove_duplicate_strings};
 #[cfg(not(test))]
 use crate::globals::*;
-#[cfg(not(test))]
-use crate::lua::stdlib::regmatch_T;
 use crate::map_glyph_cache::NvimString;
 use crate::math::{FAIL, OK};
 #[cfg(all(not(test), unix))]
@@ -62,6 +60,8 @@ use crate::os::input::os_breakcheck;
 use crate::os::shell::get_cmd_output;
 #[cfg(all(not(test), unix))]
 use crate::os::shell::os_expand_wildcards;
+#[cfg(not(test))]
+use crate::regexp::regmatch_T;
 #[cfg(not(test))]
 use crate::regexp::{RE_MAGIC, RE_NOBREAK, RE_STRING, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::vim_strchr;

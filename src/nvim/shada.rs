@@ -14,7 +14,7 @@ use crate::api::private::helpers::{
     api_free_dict, api_free_string, copy_string, cstr_as_string, static_cstr_as_string,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::tabpage::{pos_T, xfmark_T};
+use crate::api::tabpage::xfmark_T;
 use crate::arglist::alist_T;
 use crate::buffer::{
     BLN_LISTED, JUMPLISTSIZE, NMARKS, bt_quickfix, bt_terminal, buflist_findnr, buflist_new,
@@ -27,8 +27,8 @@ use crate::cmdhist::{
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{colnr_T, linenr_T};
-use crate::eval::decode::{MPACK_OK, decode_string, unpack_typval};
-use crate::eval::deprecated::{buf_T, fmark_T};
+use crate::eval::decode::{decode_string, unpack_typval};
+use crate::eval::deprecated::{buf_T, fmark_T, pos_T};
 use crate::eval::encode::encode_vim_to_msgpack;
 use crate::eval::fs::FileInfo;
 use crate::eval::typval::{
@@ -39,7 +39,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{
     VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, kListLenUnknown,
-    set_ref_in_ht, set_ref_in_list_items, var_flavour, var_set_global,
+    set_ref_in_ht, set_ref_in_list_items, var_flavour, var_flavour_T, var_set_global,
 };
 use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
 use crate::ex_docmd::set_no_hlsearch;
@@ -48,8 +48,7 @@ use crate::fileio::{S_IFDIR, S_IFMT, modname, vim_rename};
 use crate::fileio::{getgid, getuid};
 use crate::globals::*;
 use crate::hashtab::{hashitem_T, hashitem_empty};
-use crate::highlight::map_destroy;
-use crate::highlight::set_destroy;
+use crate::highlight::{OptionalKeys, map_destroy, set_destroy};
 use crate::lua::converter::Boolean;
 use crate::map::{
     Map, Set, cstr_t, map_del_cstr_t_ptr_t, map_put_ref_cstr_t_ptr_t, map_ref_cstr_t_ptr_t,
@@ -63,8 +62,11 @@ use crate::mark::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup};
+use crate::memory::{
+    ARENA_BLOCK_SIZE, strequal, xcalloc, xfree, xmalloc, xmemdup, xmemdupz, xrealloc, xstrdup,
+};
 use crate::message::{semsg, siemsg, smsg, verbose_enter, verbose_leave};
+use crate::mpack::mpack_core::MPACK_OK;
 use crate::msgpack_rpc::packer::{
     Integer, MPACK_ITEM_SIZE, PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer,
     mpack_integer, mpack_map, mpack_raw, mpack_str, mpack_uint, mpack_uint64, packer_string_buffer,
@@ -78,12 +80,11 @@ use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env, home_replace, home_replace_save, os_get_pid};
 use crate::os::fileio::{
-    ARENA_BLOCK_SIZE, FileDescriptor, K_FILE_CREATE, K_FILE_CREATE_ONLY, K_FILE_NO_SYMLINK,
-    K_FILE_READ_ONLY, K_FILE_TRUNCATE, file_close, file_flush, file_open, file_open_buffer,
-    file_read, file_skip, file_try_read_buffered,
+    FileDescriptor, K_FILE_CREATE, K_FILE_CREATE_ONLY, K_FILE_NO_SYMLINK, K_FILE_READ_ONLY,
+    K_FILE_TRUNCATE, file_close, file_flush, file_open, file_open_buffer, file_read, file_skip,
+    file_try_read_buffered,
 };
-use crate::os::fs::UV_ENOENT;
-use crate::os::fs::{os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove};
+use crate::os::fs::{UV_ENOENT, os_fileinfo, os_getperm, os_isdir, os_mkdir_recurse, os_remove};
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{
@@ -94,7 +95,7 @@ use crate::register::{
     NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set, reg_empty,
 };
 use crate::search::{
-    SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_timestamp,
+    AdditionalData, SearchOffset, SearchPattern, get_search_pattern, get_search_pattern_timestamp,
     get_substitute_pattern, search_pattern_cleared, search_was_last_used, set_last_used_pattern,
     set_search_pattern, set_substitute_pattern,
 };
@@ -108,11 +109,7 @@ use crate::os::fs::os_fchown;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 
-pub use crate::highlight::OptionalKeys;
-pub use crate::option::OptInt;
-pub use crate::search::AdditionalData;
 pub type ShaDaReadFileFlags = c_int;
-pub use crate::eval::var_flavour_T;
 
 pub const kShaDaWantInfo: c_int = 1;
 pub const kShaDaWantMarks: c_int = 2;

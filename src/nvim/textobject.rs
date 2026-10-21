@@ -25,10 +25,9 @@ use crate::mbyte::{mb_prevptr, utf_class, utf_head_off, utfc_ptr2len};
 use crate::memline::{dec, decl, gchar_pos, inc, incl, ml_get, ml_get_len, ml_get_pos};
 use crate::memory::{xfree, xmalloc};
 use crate::r#move::adjust_skipcol;
-use crate::normal::lineempty;
-use crate::normal::{FM_FORWARD, unadjust_for_sel};
+use crate::normal::{FM_FORWARD, lineempty, unadjust_for_sel};
 use crate::option_vars::*;
-use crate::search::{findmatch, findmatchlimit, kCpoMatchbsl, linewhite};
+use crate::search::{Direction, findmatch, findmatchlimit, kCpoMatchbsl, linewhite};
 use crate::strings::vim_strchr;
 use crate::textformat::oparg_T;
 use std::ffi::{CStr, c_char, c_int};
@@ -39,7 +38,6 @@ use crate::api::buffer::{FORWARD, NUL};
 use crate::api::vim::BACKWARD;
 use crate::math::{FAIL, OK};
 use crate::regexp::MAXCOL;
-pub use crate::search::Direction;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
 

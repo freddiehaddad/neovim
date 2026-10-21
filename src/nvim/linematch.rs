@@ -8,9 +8,9 @@ const LN_MAX_BUFS: usize = 8;
 const LN_DECISION_MAX: usize = (1 << LN_MAX_BUFS) - 1;
 const MATCH_CHAR_MAX_LEN: usize = 800;
 
-pub use crate::cursor::linenr_T;
+use crate::cursor::linenr_T;
 
-pub use crate::xdiff::mmfile_t;
+use crate::xdiff::mmfile_t;
 
 struct DiffCmpPath {
     df_lev_score: c_int,

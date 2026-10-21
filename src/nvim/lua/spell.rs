@@ -24,7 +24,7 @@ use std::ptr;
 use crate::api::buffer::NUL;
 use crate::drawline::HLF_COUNT;
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR};
-pub use crate::ex_getln::hlf_T;
+use crate::ex_getln::hlf_T;
 
 /// Check spelling in `str` (`nlua_spell_check`).
 #[cfg_attr(not(test), unsafe(no_mangle))]

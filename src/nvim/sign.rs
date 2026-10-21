@@ -10,9 +10,9 @@
 
 use crate::api::command::exarg_T;
 use crate::api::deprecated::DecorInline;
-use crate::api::extmark::DECOR_SIGN_HIGHLIGHT_INIT;
 use crate::api::extmark::{
-    DecorPriority, DecorSignHighlight, NS, describe_ns, kSHIsSign, linenr_T, nvim_create_namespace,
+    DECOR_SIGN_HIGHLIGHT_INIT, DecorPriority, DecorSignHighlight, NS, describe_ns, kSHIsSign,
+    nvim_create_namespace,
 };
 use crate::api::private::helpers::cstr_as_string;
 use crate::buffer::{buf_hide, buf_meta_total, buflist_findname_exp, buflist_findnr};
@@ -21,7 +21,7 @@ use crate::charset::{
     skipwhite, vim_isprintc,
 };
 use crate::clipboard::{VarType, list_T, typval_T};
-use crate::cursor::check_cursor_lnum;
+use crate::cursor::{check_cursor_lnum, linenr_T};
 use crate::decoration::{SIGN_WIDTH, SignItem, decor_find_sign, decor_put_sh, sign_item_cmp};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
@@ -105,7 +105,7 @@ use crate::cmdexpand::{
 use crate::eval::kListLenMayKnow;
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::math::{FAIL, OK};
-pub use crate::os::env::expand_T;
+use crate::os::env::expand_T;
 
 static mut sign_map: Map<cstr_t, ptr_t> = Map {
     set: Set {

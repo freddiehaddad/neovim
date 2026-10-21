@@ -11,11 +11,12 @@
 
 use crate::api::tabpage::win_T;
 use crate::arabic::arabic_combine;
-use crate::charset::{ascii_iswhite, ascii2cells, varnumber_T, vim_isprintc, vim_iswordc_tab};
+use crate::charset::{ascii_iswhite, ascii2cells, vim_isprintc, vim_iswordc_tab};
 use crate::clipboard::{VarType, list_T, listitem_T, typval_T};
 use crate::cursor::{colnr_T, get_cursor_pos_ptr};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::*;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::deprecated::{EvalFuncData, pos_T};
 use crate::eval::typval::{
     tv_check_for_string_arg, tv_get_string, tv_get_string_buf, tv_list_alloc, tv_list_alloc_ret,
@@ -45,8 +46,7 @@ use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::os::fs::os_errno as iconv_errno;
 use crate::os::lang::LC_CTYPE;
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::strmove_c;
-use crate::strings::{setlocale, tolower, toupper};
+use crate::strings::{setlocale, strmove_c, tolower, toupper};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 use std::ptr;
 

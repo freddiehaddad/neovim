@@ -41,8 +41,8 @@ use crate::undo::u_force_get_undo_header;
 use std::ffi::c_int;
 use std::ptr;
 
-pub use crate::api::buffer::bcount_t;
-pub use crate::cursor::{colnr_T, linenr_T};
+use crate::api::buffer::{bcount_t, kExtmarkUndo};
+use crate::cursor::{colnr_T, linenr_T};
 pub type ExtmarkOp = c_int;
 pub type UndoObjectType = c_int;
 pub type TriState = c_int;
@@ -106,10 +106,8 @@ pub struct ExtmarkUndoObject {
     pub data: ExtmarkUndoData,
 }
 
-use crate::api::buffer::kExtmarkUndo;
 use crate::api::vim::{kNone, kTrue};
 use crate::buffer::{MAXLNUM, kExtmarkNoUndo};
-pub use crate::undo::u_header_T;
 
 #[inline]
 unsafe fn kv_push_val<T>(v: *mut KVec<T>, val: T) {

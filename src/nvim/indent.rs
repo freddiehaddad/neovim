@@ -9,13 +9,13 @@
 )]
 
 use crate::api::autocmd::kCallbackNone;
-use crate::api::command::{CMOD_LOCKMARKS, exarg_T, regmatch_T};
+use crate::api::command::{CMOD_LOCKMARKS, exarg_T};
 use crate::api::private::helpers::{cstr_as_obj, integer_obj};
 use crate::api::tabpage::win_T;
 use crate::buffer::{buf_get_changedtick, modifiable};
-use crate::change::replace_normal;
 use crate::change::{
     SIN_INSERT, SIN_NOMARK, TAB, changed_bytes, changed_lines, get_leader_len, ins_bytes, ins_str,
+    replace_normal,
 };
 use crate::charset::{
     ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
@@ -27,7 +27,7 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later};
 use crate::errors::*;
-use crate::eval::deprecated::{buf_T, pos_T};
+use crate::eval::deprecated::{EvalFuncData, buf_T, pos_T};
 use crate::eval::eval_expr_option_number;
 use crate::eval::typval::tv_get_lnum;
 use crate::eval::vars::{VV_LNUM, set_vim_var_nr};
@@ -38,26 +38,26 @@ use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
-use crate::mbyte::utfc_ptr2len;
+use crate::mbyte::{utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos, ml_replace};
 use crate::memory::{xfree, xmalloc, xmallocz, xmemdupz, xstrdup};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
 use crate::option::{
-    copy_option_part, get_flp_value, get_showbreak_value, opt_error, set_option_value,
+    OptInt, copy_option_part, get_flp_value, get_showbreak_value, opt_error, set_option_value,
     was_set_insecurely,
 };
 use crate::option_vars::*;
-use crate::optionstr::opt_keyset;
+use crate::optionstr::{CharBuf, OptIndex, OptKeyDict_briopt, opt_keyset};
 use crate::os::input::line_breakcheck;
 use crate::plines::{
     CSType, CharInfo, CharsizeArg, ClusterInfo, StrCharInfo, getvcol, getvcol_nolist,
-    init_charsize_arg, utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo, win_charsize,
-    win_chartabsize,
+    init_charsize_arg, win_charsize, win_chartabsize,
 };
 use crate::regexp::{
-    MAXCOL, RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING, vim_regcomp, vim_regexec, vim_regfree,
+    MAXCOL, RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING, regmatch_T, vim_regcomp, vim_regexec,
+    vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
 use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr, xstrnsave};
@@ -66,18 +66,14 @@ use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::extmark::ExtmarkOp;
-pub use crate::msgpack_rpc::packer::handle_T;
-pub use crate::option::OptInt;
-pub use crate::optionstr::{CharBuf, OptIndex, OptKeyDict_briopt};
+use crate::eval::buffer::varnumber_T;
+use crate::msgpack_rpc::packer::handle_T;
 pub type IndentGetter = unsafe extern "C" fn() -> c_int;
 pub type Indenter = unsafe extern "C" fn() -> c_int;
 
 use crate::api::buffer::{NUL, kExtmarkUndo};
 use crate::api::deprecated::OPT_LOCAL;
 use crate::api::options::IOSIZE;
-pub use crate::eval::deprecated::EvalFuncData;
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::math::{FAIL, OK};
 use crate::state::{MODE_INSERT, VREPLACE_FLAG};

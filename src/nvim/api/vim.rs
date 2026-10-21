@@ -16,27 +16,26 @@ use crate::api::buffer::{
     api_buf_ensure_loaded, nvim_buf_del_keymap,
 };
 use crate::api::deprecated::{
-    KeyDict_empty, OPT_LOCAL, buffer_del_line, buffer_get_line, buffer_set_line, kOptScopeBuf,
+    KeyDict_empty, OPT_LOCAL, StringBuilder, buffer_del_line, buffer_get_line, buffer_set_line,
+    kOptScopeBuf,
 };
 use crate::api::extmark::NS;
-use crate::api::options::{CharBuf, kOptBufhidden, kOptBuftype};
+use crate::api::options::{bufref_T, kOptBufhidden, kOptBuftype};
 use crate::api::private::converter::vim_to_object;
-use crate::api::private::helpers::cstr_to_arena_obj;
-use crate::api::private::helpers::error_set;
 use crate::api::private::helpers::{
-    add_c, api_metadata, api_set_error, api_set_sctx, api_typename, arena_array, arena_dict,
-    arena_take_arraybuilder, array_obj, boolean_obj, buffer_obj, copy_array, copy_dict,
-    copy_object, copy_string, cstr_as_obj, cstr_as_string, dict_get_value, dict_obj, dict_set_var,
-    find_buffer_by_handle, find_tab_by_handle, find_window_by_handle, get_default_stl_hl,
-    integer_obj, nil_obj, parse_hl_msg, put_c, set_mark, static_cstr_as_string, string_obj,
-    string_to_array, tabpage_obj, try_enter, try_leave, window_obj,
+    ArrayBuilder, HlMessageChunk, TryState, add_c, api_metadata, api_set_error, api_set_sctx,
+    api_typename, arena_array, arena_dict, arena_take_arraybuilder, array_obj, boolean_obj,
+    buffer_obj, copy_array, copy_dict, copy_object, copy_string, cstr_as_obj, cstr_as_string,
+    cstr_to_arena_obj, dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
+    find_tab_by_handle, find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj,
+    parse_hl_msg, put_c, set_mark, static_cstr_as_string, string_obj, string_to_array, tabpage_obj,
+    try_enter, try_leave, window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
     api_err_required,
 };
 use crate::api::tabpage::{Buffer, ScreenGrid, Tabpage, Window, win_T};
-use crate::api::win_config::bufref_T;
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFNEW, EVENT_CHANINFO, apply_autocmds, block_autocmds,
     may_trigger_vim_suspend_resume, unblock_autocmds,
@@ -51,22 +50,24 @@ use crate::channel::{
     channel_incref, channel_info, channel_send,
 };
 use crate::clipboard::yankreg_T;
-use crate::context::CONTEXT_INIT;
-use crate::context::{CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict};
+use crate::context::{
+    CONTEXT_INIT, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
+};
 use crate::cursor::{get_cursor_rel_lnum, linenr_T};
-use crate::decoration::decor_redraw_signs;
+use crate::decoration::{SignTextAttrs, decor_redraw_signs};
 use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::{
     UPD_CLEAR, UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_buf_later,
     redraw_buf_range_later, redraw_later, setcursor_mayforce, update_screen, win_update_cursorline,
 };
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{Channel, buf_T};
 use crate::eval::typval::tv_dict_find;
 use crate::eval::vars::{
     VV_LNUM, VV_RELNUM, VV_VIRTNUM, get_globvar_dict, get_vimvar_dict, set_vim_var_nr,
 };
 use crate::ex_docmd::{do_chdir, exec_normal};
 use crate::ex_eval::aborting;
+use crate::ex_getln::hlf_T;
 use crate::fold::fold_info;
 use crate::globals::*;
 use crate::grid::{get_win_by_grid_handle, schar_T, schar_cache_clear, schar_get, win_grid_alloc};
@@ -79,7 +80,6 @@ use crate::highlight_group::{
     syn_id2name,
 };
 use crate::input::{ins_typebuf, paste_store};
-use crate::input_cmdatom::StringBuilder;
 use crate::insexpand::get_cot_flags;
 use crate::keycodes::{
     KE_LEFTDRAG, KE_LEFTMOUSE, KE_LEFTRELEASE, KE_MIDDLEMOUSE, KE_MOUSEDOWN, KE_MOUSELEFT,
@@ -107,7 +107,7 @@ use crate::message::{
 };
 use crate::r#move::{changed_window_setting, update_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::channel::{
-    Channel, ChannelStreamType, channel_prefix, channel_stream_ptr, channel_tail, find_channel,
+    ChannelStreamType, channel_prefix, channel_stream_ptr, channel_tail, find_channel,
     rpc_set_client_info,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
@@ -115,7 +115,7 @@ use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
 use crate::option::{buf_copy_options, set_option_direct_for};
 use crate::option_vars::*;
-use crate::optionstr::check_stl_option;
+use crate::optionstr::{CharBuf, check_stl_option};
 use crate::os::input::{input_blocking, input_enqueue, input_enqueue_mouse, input_enqueue_raw};
 use crate::os::proc::os_proc_children;
 use crate::popupmenu::{pum_ext_select_item, pum_set_info};
@@ -128,8 +128,8 @@ use crate::runtime::{
 };
 use crate::state::{MODE_MAX_LENGTH, get_mode};
 use crate::statusline::{
-    SignTextAttrs, build_stl_str_hl, draw_tabline, fillchar_status, foldinfo_T, hlf_T, statuscol_T,
-    stl_hlrec_t, win_redr_status, win_redr_winbar,
+    build_stl_str_hl, draw_tabline, fillchar_status, foldinfo_T, statuscol_T, stl_hlrec_t,
+    win_redr_status, win_redr_winbar,
 };
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_check_size, terminal_destroy, terminal_open,
@@ -288,10 +288,6 @@ pub struct KeyDict_redraw {
     pub win: Window,
     pub buf: Buffer,
 }
-
-pub use crate::api::private::helpers::{ArrayBuilder, HlMessageChunk, TryState};
-
-pub use crate::mapping::typebuf_T;
 
 pub type HlMessage = crate::kvec::KVec<HlMessageChunk>;
 use crate::api::ui::MAX_SCHAR_SIZE;

@@ -51,12 +51,11 @@ use crate::api::options::{
     KeyDict_option, nvim__option_to_object, nvim_get_all_options_info, nvim_get_option_info2,
     nvim_get_option_value, nvim_set_option_value,
 };
-use crate::api::private::helpers::OBJECT_NIL;
 use crate::api::private::helpers::{
-    api_clear_error, api_dict_to_keydict, api_free_dict, api_free_object, api_free_string,
-    api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object, api_set_error,
-    api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj, integer_obj,
-    string_obj, tabpage_obj, window_obj,
+    OBJECT_NIL, api_clear_error, api_dict_to_keydict, api_free_dict, api_free_object,
+    api_free_string, api_keydict_to_dict, api_luarefs_free_keydict, api_luarefs_free_object,
+    api_set_error, api_set_error_str, array_obj, boolean_obj, buffer_obj, dict_obj, float_obj,
+    integer_obj, string_obj, tabpage_obj, window_obj,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, Object, ObjectType};
 use crate::api::tabpage::{

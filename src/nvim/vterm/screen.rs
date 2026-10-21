@@ -27,7 +27,7 @@ use crate::vterm::vterm::{
     vterm_allocator_free, vterm_allocator_malloc, vterm_get_size, vterm_scroll_rect,
 };
 
-pub use crate::grid::schar_T;
+use crate::grid::schar_T;
 pub type VTermDamageSize = c_int;
 
 const VTERM_DAMAGE_CELL: VTermDamageSize = 0;

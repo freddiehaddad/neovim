@@ -27,10 +27,10 @@ use crate::hashtab::{
 use crate::input::{beep_flush, prep_redo, redo_append_char, redo_append_lit, vgetc};
 use crate::input_cmdatom::CmdSpec;
 use crate::lua::executor::nlua_call_typval;
-use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
-    mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_stricmp, utf_byte2len, utf_char2bytes,
-    utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    mb_charlen, mb_cptr2char_adv, mb_ptr_adv, mb_ptr_back, mb_stricmp, utf_byte2len,
+    utf_char2bytes, utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len,
+    utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_replace};
 use crate::memory::{xfree, xmalloc, xmallocz, xmemcpyz, xmemdupz, xstrdup, xstrlcpy};
@@ -41,20 +41,17 @@ use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::profile::{profile_passed_limit, profile_setlimit, proftime_T};
-use crate::spell::langp_entry;
-use crate::spell::spell_isupper;
-use crate::spell::spell_tofold;
 use crate::spell::{
     MAXWLEN, WF_ALLCAP, WF_BANNED, WF_CAPMASK, WF_KEEPCAP, WF_NEEDCOMP, WF_ONECAP, WF_RARE,
     WF_RAREPFX, WF_REGION, allcap_copy, byte_in_str, can_compound, captype, check_need_cap,
-    make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len, parse_spelllang,
-    repl_from, repl_to, spell_casefold, spell_check, spell_iswordp, spell_iswordp_nmw,
-    spell_move_to, spell_soundfold, spell_valid_case, valid_word_prefix,
+    langp_entry, make_case_word, match_checkcompoundpattern, match_compoundrule, nofold_len,
+    parse_spelllang, repl_from, repl_to, spell_casefold, spell_check, spell_isupper, spell_iswordp,
+    spell_iswordp_nmw, spell_move_to, spell_soundfold, spell_tofold, spell_valid_case,
+    valid_word_prefix,
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
-use crate::strings::strmove;
 use crate::strings::{
-    atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strncmp, strncpy, vim_snprintf,
+    atoi, gettext, qsort, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy, vim_snprintf,
     vim_strchr, xstrnsave,
 };
 use crate::ui::vim_beep;
@@ -68,12 +65,9 @@ use crate::api::options::IOSIZE;
 use crate::api::vim::MAXPATHL;
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::drawline::{HLF_COUNT, SMT_ALL};
-pub use crate::eval::buffer::varnumber_T;
-pub use crate::ex_getln::hlf_T;
-pub use crate::fileio::FILE;
+use crate::ex_getln::hlf_T;
 use crate::keycodes::ESC;
 use crate::math::{FAIL, OK};
-pub use crate::spell::smt_T;
 const TAB: u8 = b'\t';
 const WF_MIXCAP: c_int = 0x20;
 const SCORE_SPLIT: c_int = 149;

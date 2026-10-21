@@ -8,7 +8,7 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{exarg_T, regmatch_T};
+use crate::api::command::exarg_T;
 use crate::charset::{ascii_isdigit, skipwhite};
 use crate::clipboard::{list_T, typval_T};
 use crate::cursor::linenr_T;
@@ -17,7 +17,7 @@ use crate::errors::*;
 use crate::eval::typval::{tv_clear, tv_free, tv_list_ref, tv_list_unref};
 use crate::eval::userfunc::{do_return, get_return_cmd};
 use crate::eval::vars::{
-    VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, set_vim_var_list, set_vim_var_string,
+    VV_EXCEPTION, VV_STACKTRACE, VV_THROWPOINT, evalarg_T, set_vim_var_list, set_vim_var_string,
 };
 use crate::eval::{
     clear_evalarg, eval_for_line, eval_to_bool, eval_to_string_skip, eval0, fill_evalarg_from_eap,
@@ -29,7 +29,7 @@ use crate::memory::{xfree, xmalloc, xrealloc, xstrdup, xstrlcpy};
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
 use crate::regexp::{
-    RE_MAGIC, RE_STRING, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
+    RE_MAGIC, RE_STRING, regmatch_T, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{
@@ -38,8 +38,6 @@ use crate::strings::{
 };
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
-
-pub use crate::option::OptInt;
 
 const CSTACK_LEN: usize = 50;
 
@@ -163,7 +161,6 @@ pub struct exception_state_T {
 
 use crate::api::buffer::NUL;
 use crate::api::options::IOSIZE;
-pub use crate::eval::vars::evalarg_T;
 use crate::math::{FAIL, OK};
 
 static mut cause_abort: bool = false;

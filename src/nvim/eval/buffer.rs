@@ -21,7 +21,7 @@ use crate::change::{
 };
 use crate::clipboard::{TypvalVval, VarType, list_T, listitem_T, typval_T};
 use crate::context::{ctx_restore, ctx_switch};
-use crate::cursor::check_cursor_col;
+use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
 use crate::eval::decode::dict_T;
 use crate::eval::deprecated::{Callback, EvalFuncData, buf_T};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
@@ -57,9 +57,6 @@ use std::ptr;
 pub type varnumber_T = i64;
 use crate::api::autocmd::kCallbackNone;
 use crate::api::buffer::{NUL, kExtmarkUndo};
-pub use crate::cursor::{colnr_T, linenr_T};
-pub use crate::extmark::ExtmarkOp;
-pub use crate::mark::MarkAdjustMode;
 use crate::math::{FAIL, OK};
 
 pub(crate) const SEA_READONLY: c_int = 4;

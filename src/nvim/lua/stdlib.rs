@@ -9,9 +9,9 @@
 )]
 
 #[cfg(not(test))]
-use crate::api::autocmd::TryState;
-#[cfg(not(test))]
 use crate::api::options::CtxSwitch;
+#[cfg(not(test))]
+use crate::api::private::helpers::TryState;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, dict_check_writable, find_buffer_by_handle, find_tab_by_handle,
@@ -96,7 +96,8 @@ use std::ffi::c_char;
 use std::ffi::c_int;
 use std::ptr;
 
-pub use crate::regexp::regprog_T;
+#[cfg(not(test))]
+use crate::regexp::regprog_T;
 
 #[cfg(not(test))]
 const NUL: c_char = 0;
@@ -147,8 +148,10 @@ const kCtxNoDisplay: c_int = 4;
 #[cfg(not(test))]
 const kCtxValidate: c_int = 16;
 
-pub use crate::api::command::regmatch_T;
-pub use crate::mbyte::vimconv_T;
+#[cfg(not(test))]
+use crate::mbyte::vimconv_T;
+#[cfg(not(test))]
+use crate::regexp::regmatch_T;
 
 static REGEX_META: [luaL_Reg; 5] = [
     luaL_Reg {

@@ -9,8 +9,7 @@
 )]
 
 use crate::buffer::{kUIMessages, read_buffer_into};
-use crate::charset::skipwhite;
-use crate::charset::{ascii_iswhite, backslash_halve};
+use crate::charset::{ascii_iswhite, backslash_halve, skipwhite};
 use crate::errors::*;
 use crate::eval::vars::{VV_SHELL_ERROR, set_vim_var_nr};
 use crate::event::r#loop::{
@@ -53,7 +52,7 @@ use crate::path::{
     EW_DIR, EW_EXEC, EW_FILE, EW_KEEPDOLLAR, EW_NOTFOUND, EW_SHELLCMD, EW_SILENT, add_pathsep,
     path_has_wildcard, path_tail,
 };
-use crate::profile::{prof_child_enter, prof_child_exit};
+use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::strings::{
     gettext, strcat, strcpy, strlen as c_strlen, strstr, vim_snprintf, vim_strchr,
     vim_strnsave_unquoted, vim_strsave_escaped_ext,
@@ -64,18 +63,14 @@ use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
 use crate::api::buffer::{NL, NUL};
-pub use crate::api::deprecated::StringBuilder;
+use crate::api::deprecated::StringBuilder;
 use crate::api::vim::MAXPATHL;
 use crate::autocmd::PROF_YES;
 use crate::change::TAB;
 use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
-pub use crate::cursor::linenr_T;
 use crate::diff::{kShellOptDoOut, kShellOptSilent};
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::fs::{SEEK_END, SEEK_SET};
-pub use crate::fileio::FILE;
-pub use crate::option::OptInt;
-pub use crate::profile::proftime_T;
 use crate::state::MODE_EXTERNCMD;
 
 const CAR: c_char = b'\r' as c_char;

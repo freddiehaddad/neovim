@@ -10,11 +10,10 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::autocmd::OptionalKeys;
-#[cfg(not(test))]
-use crate::api::autocmd::TryState;
 use crate::api::deprecated::VirtText;
 use crate::api::private::converter::sctx_T;
+#[cfg(not(test))]
+use crate::api::private::helpers::TryState;
 #[cfg(not(test))]
 use crate::api::private::helpers::{
     api_clear_error, api_set_error, arena_array, dict_get_value, dict_set_var, error_set,
@@ -28,10 +27,11 @@ use crate::api::private::validate::{Array, Error, Object};
 #[cfg(not(test))]
 use crate::api::vim::nvim_get_current_win;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::{Callback, buf_T, fmark_T};
+use crate::eval::deprecated::{Callback, ScopeDictDictItem, buf_T, fmark_T, pos_T};
 use crate::garray::garray_T;
 #[cfg(not(test))]
 use crate::globals::*;
+use crate::highlight::OptionalKeys;
 use crate::lua::converter::Boolean;
 use crate::map::{Map, Set, StcClicks};
 use crate::map_glyph_cache::NvimString;
@@ -42,8 +42,6 @@ use crate::window::{
     tabpage_index, tabpage_win_valid, valid_tabpage, win_goto, win_new_tabpage, win_set_buf,
 };
 use std::ffi::{c_char, c_int, c_uint, c_void};
-
-pub use crate::eval::deprecated::{ScopeDictDictItem, pos_T};
 
 pub type Buffer = handle_T;
 pub type Window = handle_T;

@@ -917,11 +917,10 @@ pub unsafe extern "C" fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char)
 pub unsafe extern "C" fn free_all_mem() {
     use crate::api::command::exarg_T;
     use crate::api::extmark::api_extmark_free_all_mem;
+    use crate::api::options::bufref_T;
     use crate::arglist::alist_clear;
     use crate::autocmd::{autocmd_free_all_mem, block_autocmds, free_all_autocmds};
-    use crate::buffer::{
-        DOBUF_WIPE, bufref_T, bufref_valid, close_buffer, free_titles, set_bufref,
-    };
+    use crate::buffer::{DOBUF_WIPE, bufref_valid, close_buffer, free_titles, set_bufref};
     use crate::channel::channel_free_all_mem;
     use crate::cmdhist::init_history;
     use crate::decoration_provider::decor_free_all_mem;

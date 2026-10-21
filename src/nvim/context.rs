@@ -10,20 +10,18 @@
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::CtxSwitch;
 use crate::api::private::converter::object_to_vim;
-use crate::api::private::helpers::cstr_literal;
-use crate::api::private::helpers::put_c;
 use crate::api::private::helpers::{
     api_clear_error, api_free_array, api_free_string, api_set_error, arena_dict, array_obj,
-    copy_array, copy_object, error_set, string_obj, string_to_array,
+    copy_array, copy_object, cstr_literal, error_set, put_c, string_obj, string_to_array,
 };
 use crate::api::private::validate::{Array, Dict, Error, ErrorType, ObjectType};
-use crate::api::tabpage::{pos_T, tabpage_T, win_T};
+use crate::api::tabpage::{tabpage_T, win_T};
 use crate::api::vimscript::{KeyDict_exec_opts, exec_impl};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{MAXLNUM, bt_prompt, bufref_valid, do_autochdir, set_bufref};
 use crate::clipboard::{VarType, typval_T};
-use crate::cursor::{check_cursor, check_pos, equalpos};
-use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, visualinfo_T};
+use crate::cursor::{check_cursor, check_pos, colnr_T, equalpos};
+use crate::eval::deprecated::{buf_T, fmark_T, fmarkv_T, pos_T, visualinfo_T};
 use crate::eval::encode::encode_vim_list_to_buf;
 use crate::eval::typval::tv_clear;
 use crate::eval::userfunc::func_tbl_get;
@@ -35,8 +33,7 @@ use crate::globals::*;
 use crate::hashtab::{hash_init, hashitem_empty};
 use crate::map::{map_del_int_ptr_t, map_put_ref_int_ptr_t, mh_get_int};
 use crate::map_glyph_cache::{MH_TOMBSTONE, NvimString};
-use crate::memory::strequal_str as strequal;
-use crate::memory::{Arena, xfree, xstrdup};
+use crate::memory::{Arena, strequal_str as strequal, xfree, xstrdup};
 use crate::msgpack_rpc::packer::handle_T;
 use crate::option::buf_copy_options;
 use crate::option_vars::*;
@@ -62,7 +59,6 @@ use crate::api::vim::{
 };
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
 use crate::api::window::{kCtxKeepCwd, kCtxValidate};
-pub use crate::cursor::colnr_T;
 use crate::keycodes::K_SPECIAL;
 use crate::math::OK;
 pub type CtxStateFlags = c_int;

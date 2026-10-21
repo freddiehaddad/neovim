@@ -11,22 +11,18 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, VirtLine, VirtLineOverflow,
     VirtLines, VirtText, VirtTextChunk, VirtTextPos, kHlModeUnknown, kVPosEndOfLine,
 };
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::put_c;
-use crate::api::private::helpers::string_to_cstr;
 use crate::api::private::helpers::{
     add_c, api_set_error, api_typename, arena_array, arena_dict, array_obj, boolean_obj,
     copy_string, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, find_window_by_handle,
-    integer_obj, object_to_hl_id, string_obj,
+    has_key, integer_obj, object_to_hl_id, put_c, string_obj, string_to_cstr,
 };
-use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectType, api_err_exp, api_err_invalid,
+    api_err_range,
 };
 use crate::api::tabpage::{Buffer, Window, win_T};
 use crate::charset::{transstr, vim_isprintc};
@@ -40,7 +36,7 @@ use crate::eval::deprecated::buf_T;
 use crate::extmark::{extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set};
 use crate::globals::*;
 use crate::grid::schar_high;
-use crate::highlight::set_destroy;
+use crate::highlight::{OptionalKeys, set_destroy};
 use crate::kvec::KVec;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::map::{
@@ -56,8 +52,7 @@ use crate::marktree::{
 };
 use crate::mbyte::{mb_string2cells, utfc_ptr2schar};
 use crate::memline::ml_get_buf_len;
-use crate::memory::strequal_str as strequal;
-use crate::memory::{Arena, xfree};
+use crate::memory::{Arena, strequal_str as strequal, xfree};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::sign::init_sign_text;
@@ -67,7 +62,7 @@ use std::ptr;
 pub type NS = handle_T;
 pub type HLGroupID = Integer;
 use crate::api::buffer::{LUA_NOREF, NUL};
-pub use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::{colnr_T, linenr_T};
 pub type DecorPriority = u16;
 pub type ExtmarkType = c_int;
 pub type ExtmarkInfoArray = KVec<MTPair>;

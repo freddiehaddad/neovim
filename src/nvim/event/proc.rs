@@ -11,7 +11,8 @@ use crate::eval::decode::dict_T;
 use crate::event::libuv_proc::{libuv_proc_close, libuv_proc_spawn};
 use crate::event::r#loop::{
     Loop, loop_children_kill_timer, loop_exit_delay_timer, loop_poll_events, loop_queues,
-    main_loop_ptr, uv_close, uv_handle_get_loop, uv_pipe_init, uv_timer_start, uv_timer_stop,
+    main_loop_ptr, uv_close, uv_handle_get_loop, uv_handle_t, uv_pipe_init, uv_timer_start,
+    uv_timer_stop, uv_timer_t,
 };
 use crate::event::multiqueue::{
     EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_empty, multiqueue_process_events,
@@ -20,7 +21,7 @@ use crate::event::multiqueue::{
 use crate::event::rstream::{RStream, RStreamFields, rstream_fields, rstream_may_close};
 use crate::event::stream::{
     Stream, stream_closed_ptr, stream_fields, stream_init, stream_may_close, stream_size,
-    stream_uv_ptr, uv_handle_t,
+    stream_uv_ptr,
 };
 use crate::globals::*;
 use crate::main_init::{os_exit, preserve_exit};
@@ -41,7 +42,6 @@ const SIGKILL: c_int = 9;
 pub(crate) const SIGTERM: c_int = 15;
 
 use crate::channel::{kProcTypePty, kProcTypeUv};
-pub use crate::event::r#loop::{uv_close_cb, uv_timer_cb, uv_timer_t};
 pub type Proc = c_void;
 pub type LibuvProc = c_void;
 pub type PtyProc = c_void;

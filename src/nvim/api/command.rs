@@ -12,24 +12,16 @@
     clippy::useless_conversion
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::deprecated::{KeyDict_empty, StringBuilder};
 use crate::api::private::converter::sctx_T;
 use crate::api::private::dispatch::{
     KeyDict_cmd_magic_get_field, KeyDict_cmd_mods_filter_get_field, KeyDict_cmd_mods_get_field,
 };
-use crate::api::private::helpers::cbuf_to_arena_str;
-use crate::api::private::helpers::cstr_literal;
-use crate::api::private::helpers::cstrn_as_string;
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::put_c;
-use crate::api::private::helpers::string_to_cstr;
-use crate::api::private::helpers::try_wrap;
-use crate::api::private::helpers::with_script_context;
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_string, dict_obj, error_set, find_buffer_by_handle, integer_obj,
-    string_obj,
+    boolean_obj, cbuf_to_arena_str, cstr_as_string, cstr_literal, cstrn_as_string, dict_obj,
+    error_set, find_buffer_by_handle, has_key, integer_obj, put_c, string_obj, string_to_cstr,
+    try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -37,9 +29,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
-use crate::charset::skiptowhite;
-use crate::charset::skipwhite;
-use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_long};
+use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_long, skiptowhite, skipwhite};
 use crate::ex_docmd::{
     excmd_get_argt, execute_cmd, find_ex_command, get_command_name, getargcmd, getargopt,
     invalid_range, is_cmd_ni, is_map_cmd, parse_cmdline, replace_makeprg, set_cmd_count,
@@ -48,14 +38,14 @@ use crate::ex_docmd::{
 use crate::ex_eval::aborting;
 use crate::garray::{ga_clear, ga_init, garray_T};
 use crate::globals::*;
+use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::map_glyph_cache::NvimString;
 use crate::mbyte::mb_islower;
-use crate::memory::strequal_str as strequal;
-use crate::memory::{Arena, arena_alloc, arena_memdupz, xcalloc, xfree};
+use crate::memory::{Arena, arena_alloc, arena_memdupz, strequal_str as strequal, xcalloc, xfree};
 use crate::msgpack_rpc::packer::Integer;
-use crate::regexp::{RE_MAGIC, vim_regcomp};
+use crate::regexp::{RE_MAGIC, regmatch_T, vim_regcomp};
 use crate::register::valid_yank_reg;
 use crate::usercmd::{
     commands_array, free_ucmd, get_user_command_name, parse_addr_type_arg, parse_compl_arg,
@@ -64,10 +54,9 @@ use crate::usercmd::{
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::ptr;
 
-pub use crate::cursor::{colnr_T, linenr_T};
+use crate::cursor::linenr_T;
 pub type cmdidx_T = c_int;
-pub use crate::api::autocmd::event_T;
-pub use crate::cmdexpand::cmd_addr_T;
+use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, cmd_addr_T};
 
 pub(crate) const UC_BUFFER: c_int = 1;
 
@@ -192,16 +181,14 @@ pub struct exarg_T {
     pub bad_char: c_int,
     pub useridx: c_int,
     pub errmsg: *mut c_char,
-    pub ea_getline: crate::eval::vars::LineGetter,
+    pub ea_getline: crate::cmdexpand::LineGetter,
     pub cookie: *mut c_void,
     pub cstack: *mut c_void,
     pub magic: ExMagic,
 }
 
 use crate::api::buffer::{LUA_NOREF, NUL};
-use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA};
 use crate::math::{FAIL, OK};
-pub use crate::regexp::regmatch_T;
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
 #[repr(C)]

@@ -9,12 +9,12 @@
 
 use crate::api::deprecated::DecorVirtText;
 use crate::api::extmark::{kVPosInline, kVTIsLines, ns_in_win};
-use crate::api::tabpage::{pos_T, win_T};
+use crate::api::tabpage::win_T;
 use crate::charset::{vim_isprintc, vim_strsize};
-use crate::cursor::{lt, ltoreq};
+use crate::cursor::{colnr_T, linenr_T, lt, ltoreq};
 use crate::decoration::{decor_conceal_line, decor_virt_lines, kMTFilterSelect};
 use crate::diff::{diff_check_fill, diffopt_filler};
-use crate::eval::deprecated::buf_T;
+use crate::eval::deprecated::{buf_T, pos_T};
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
 use crate::globals::*;
 use crate::indent::{get_breakindent_win, tabstop_padding};
@@ -22,8 +22,7 @@ use crate::marktree::{
     MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines, marktree_itr_current,
     marktree_itr_get_filter, marktree_itr_next_filter, mt_decor, mt_invalid, mt_right,
 };
-use crate::mbyte::{ptr2cells, utf_ptr2char, utfc_ptr2len};
-pub use crate::mbyte::{utf_ClusterInfo, utf_ptr2CharInfo, utf_ptr2StrCharInfo};
+use crate::mbyte::{ptr2cells, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::r#move::{win_col_off, win_col_off2};
 use crate::option::get_showbreak_value;
@@ -33,7 +32,6 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::api::buffer::NUL;
-pub use crate::cursor::{colnr_T, linenr_T};
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
 use crate::insert::kCharsizeFast;
 use crate::regexp::MAXCOL;

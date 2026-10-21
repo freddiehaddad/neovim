@@ -41,13 +41,11 @@ use crate::extmark::{
     ExtmarkMove, ExtmarkSplice, ExtmarkUndoData, ExtmarkUndoObject, UndoObjectType,
     extmark_apply_undo, extmark_splice_cols, extmark_undo_vec_t, kExtmarkMove, kExtmarkSplice,
 };
-use crate::fileio::c_fdopen;
-use crate::fileio::c_fileno;
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::fileio::vim_ftell;
 use crate::fileio::{
-    EOF, O_RDONLY, fclose, feof, fflush, fgetc, fread, fwrite, get2c, get4c, get8ctime, read_eintr,
+    EOF, FILE, O_RDONLY, c_fdopen, c_fileno, fclose, feof, fflush, fgetc, fread, fwrite, get2c,
+    get4c, get8ctime, off_T, read_eintr, vim_ftell,
 };
 use crate::fold::foldOpenCursor;
 use crate::garray::{ga_clear_strings, ga_grow, ga_init, garray_T};
@@ -69,15 +67,12 @@ use crate::message::{
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
     verbose_leave,
 };
-use crate::option::{copy_option_part, shortmess};
+use crate::option::{OptInt, copy_option_part, shortmess};
 use crate::option_vars::*;
-use crate::os::fs::O_CREAT;
-use crate::os::fs::O_EXCL;
-use crate::os::fs::O_NOFOLLOW;
 use crate::os::fs::{
-    O_WRONLY, os_close, os_fileinfo_fd, os_fileinfo_size, os_fopen, os_free_acl, os_fsync,
-    os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_open, os_path_exists, os_remove,
-    os_set_acl, os_setperm, vim_acl_T,
+    O_CREAT, O_EXCL, O_NOFOLLOW, O_WRONLY, os_close, os_fileinfo_fd, os_fileinfo_size, os_fopen,
+    os_free_acl, os_fsync, os_get_acl, os_getperm, os_isdir, os_mkdir_recurse, os_open,
+    os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 use crate::os::input::fast_breakcheck;
 use crate::os::time::{Timestamp, Tm, c_time, os_localtime_r, os_time, strftime, time_t};
@@ -93,17 +88,17 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong, c_void};
 use std::ptr;
 
 #[cfg(unix)]
-use crate::os::fs::{os_fchown, os_fileinfo, uv_gid_t, uv_uid_t};
+use crate::event::r#loop::{uv_gid_t, uv_uid_t};
+#[cfg(unix)]
+use crate::os::fs::{os_fchown, os_fileinfo};
 
 use crate::api::buffer::{NUL, kExtmarkNOOP, kExtmarkUndo};
 use crate::api::vim::MAXPATHL;
 use crate::arglist::ML_EMPTY;
-pub use crate::eval::buffer::varnumber_T;
+use crate::eval::buffer::varnumber_T;
 use crate::eval::kListLenMayKnow;
 use crate::ex_cmds::{BL_FIX, BL_SOL, kCpoUndo};
-pub use crate::fileio::{FILE, off_T};
 use crate::math::{FAIL, OK};
-pub use crate::option::OptInt;
 
 const UH_CHANGED: c_int = 0x01;
 const UH_EMPTYBUF: c_int = 0x02;

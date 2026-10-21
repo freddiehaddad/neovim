@@ -8,17 +8,17 @@
     clippy::too_many_arguments
 )]
 
-use crate::api::command::{CMOD_NOSWAPFILE, regmatch_T};
+use crate::api::command::{CMOD_NOSWAPFILE, exarg_T};
 use crate::api::extmark::nvim_create_namespace;
 use crate::api::options::{
     CtxSwitch, IOSIZE, OP_ADDING, OP_NONE, OP_PREPENDING, OP_REMOVING, PREFIX_NONE, SID_NONE,
     kOptBufhidden, kOptBuftype, kOptFiletype, kOptModeline, kOptScopeTab, kOptSwapfile,
 };
 use crate::api::private::converter::sctx_T;
-use crate::api::private::helpers::cstr_to_obj;
 use crate::api::private::helpers::{
     api_free_string, api_set_error, arena_dict, boolean_obj, copy_object, cstr_as_obj,
-    cstr_as_string, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c, string_obj,
+    cstr_as_string, cstr_to_obj, dict_obj, error_set, integer_obj, luaref_obj, nil_obj, put_c,
+    string_obj,
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::api::tabpage::{tabpage_T, win_T, winopt_T};
@@ -31,20 +31,19 @@ use crate::buffer::{
     do_autochdir, free_buf_options, maketitle,
 };
 use crate::change::{HLF_W, save_file_ff};
-use crate::charset::is_special;
 #[cfg(windows)]
 use crate::charset::vim_isfilec;
 use crate::charset::{
     EOL_MAC, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_iswhite, buf_init_isk_chartab,
-    init_isf_chartab, init_isi_chartab, skiptowhite_esc, skipwhite, trans_characters, transchar,
-    vim_str2nr, vim_strsize,
+    init_isf_chartab, init_isi_chartab, is_special, skiptowhite_esc, skipwhite, trans_characters,
+    transchar, vim_str2nr, vim_strsize,
 };
 use crate::clipboard::typval_T;
 use crate::cmdexpand::{
     EXPAND_BOOL_SETTINGS, EXPAND_DIRECTORIES, EXPAND_FILES, EXPAND_FILETYPE, EXPAND_KEYMAP,
     EXPAND_NOTHING, EXPAND_OLD_SETTING, EXPAND_OWNSYNTAX, EXPAND_SETTING_SUBTRACT, EXPAND_SETTINGS,
     EXPAND_STRING_SETTING, EXPAND_UNSUCCESSFUL, XP_BS_COMMA, XP_BS_ONE, XP_BS_THREE, XP_PREFIX_INV,
-    XP_PREFIX_NO, cmdidx_T, cmdline_fuzzy_complete, exarg_T,
+    XP_PREFIX_NO, cmdidx_T, cmdline_fuzzy_complete,
 };
 use crate::context::{ctx_restore, ctx_switch};
 use crate::cursor_shape::{SHAPE_CURSOR, parse_shape_opt};
@@ -63,21 +62,20 @@ use crate::eval::typval::{
     callback_copy, callback_free, callback_put, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_free,
 };
 use crate::eval::userfunc::get_scriptlocal_funcname;
-use crate::eval::vars::tristate_from_int;
 use crate::eval::vars::{
     FORCE_BIN, VV_OPTION_COMMAND, VV_OPTION_NEW, VV_OPTION_OLD, VV_OPTION_OLDGLOBAL,
     VV_OPTION_OLDLOCAL, VV_OPTION_TYPE, VV_WARNINGMSG, get_vim_var_str, kOptFlagFunc, opt_to_tv,
-    reset_v_option_vars, set_vim_var_string, set_vim_var_tv,
+    reset_v_option_vars, scid_T, set_vim_var_string, set_vim_var_tv, tristate_from_int,
 };
 use crate::eval::{STR2NR_ALL, callback_from_typval, eval_expr, last_set_msg};
 use crate::ex_docmd::{UNDO_HASH_SIZE, free_findfunc_option, kOptFindfunc, set_no_hlsearch};
 use crate::ex_getln::{
     B_IMODE_NONE, B_IMODE_USE_INSERT, check_opt_wim, did_set_cedit, gotocmdline,
 };
-use crate::ex_session::{FILE, OPT_SKIPRTP, put_eol, put_line};
+use crate::ex_session::{OPT_SKIPRTP, put_eol, put_line};
 #[cfg(unix)]
 use crate::fileio::getuid;
-use crate::fileio::{EOL_DOS, EOL_UNIX, fprintf, fputs, kOptFileencoding};
+use crate::fileio::{EOL_DOS, EOL_UNIX, FILE, fprintf, fputs, kOptFileencoding};
 use crate::fold::{
     foldUpdateAll, foldmethodIsDiff, foldmethodIsIndent, foldmethodIsSyntax, newFoldLevel,
 };
@@ -93,10 +91,9 @@ use crate::indent::{
 use crate::indent_c::parse_cino;
 use crate::input_cmdatom::atom_follow_changed;
 use crate::insexpand::{VAR_STRING, kOptComplete, set_buflocal_cpt_callbacks};
-use crate::keycodes::termcap2key;
 use crate::keycodes::{
     FSK_KEEP_X_KEY, FSK_KEYCODE, FSK_SIMPLIFY, K_KENTER, K_ZERO, find_special_key,
-    find_special_key_in_table, get_special_key_code, get_special_key_name,
+    find_special_key_in_table, get_special_key_code, get_special_key_name, termcap2key,
 };
 use crate::log::logmsg;
 use crate::lua::converter::LuaRef;
@@ -109,9 +106,9 @@ use crate::mbyte::{enc_locale, utfc_ptr2len};
 use crate::mcursor::{kOptFollow, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::strnequal;
 use crate::memory::{
-    Arena, strequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup, xstrlcpy,
+    Arena, strequal, strnequal, xcalloc, xfree, xmalloc, xmemcpyz, xmemdupz, xrealloc, xstrdup,
+    xstrlcpy,
 };
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
@@ -126,7 +123,7 @@ use crate::optionstr::{
     CharBuf, CharsOption, OptIndex, OptScopeFlags, check_buf_options, check_illegal_path_names,
     check_signcolumn, check_string_option, clear_string_option, did_set_breakat,
     didset_string_options, free_string_option, opt_dict_schema, opt_strings_check, optexpand_T,
-    optset_T, scid_T, set_chars_option, vimoption_T,
+    optset_T, set_chars_option, vimoption_T,
 };
 use crate::os::env::{
     expand_T, expand_env_esc, home_replace, os_env_exists, os_getenv, os_setenv, vim_getenv,
@@ -139,13 +136,12 @@ use crate::path::{
 };
 use crate::popupmenu::{pum_drawn, pum_redraw};
 use crate::quickfix::{ll_resize_stack, qf_resize_stack};
-use crate::regexp::{MAXCOL, NUMBUFLEN, vim_regexec};
+use crate::regexp::{MAXCOL, NUMBUFLEN, regmatch_T, vim_regexec};
 use crate::runtime::{DIP_ALL, runtimepath_default, source_runtime_vim_lua, sourcing_lnum};
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
-use crate::strings::c_strcpy;
 use crate::strings::{
-    concat_str, gettext, gettext as tr, sort_strings, strchr, strcmp as c_strcmp,
+    c_strcpy, concat_str, gettext, gettext as tr, sort_strings, strchr, strcmp as c_strcmp,
     strlen as c_strlen, strncmp as c_strncmp, strstr, vim_snprintf, vim_snprintf_safelen,
     vim_strchr, vim_strsave_escaped,
 };
@@ -183,7 +179,7 @@ use crate::drawline::{
 };
 use crate::ex_cmds::{OPT_WINONLY, kOptFoldcolumn};
 use crate::ex_cmds2::BF_SYN_SET;
-pub use crate::extmark::TriState;
+use crate::extmark::TriState;
 use crate::file_search::{kBufOptIncludeexpr, kOptIncludeexpr};
 use crate::help::kOptIskeyword;
 use crate::insert::{BS_EOL, BS_NOSTOP, BS_START};

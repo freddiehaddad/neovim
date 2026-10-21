@@ -67,7 +67,6 @@ pub struct VimState {
 
 use crate::api::vim::kNone;
 use crate::cursor::kOptVeFlagAll;
-pub use crate::mapping::typebuf_T;
 use crate::regexp::Ctrl_V;
 
 #[repr(C)]

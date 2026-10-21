@@ -10,34 +10,29 @@
     clippy::missing_safety_doc
 )]
 
-use crate::api::autocmd::OptionalKeys;
 use crate::api::options::CtxSwitch;
-use crate::api::private::helpers::NIL;
-use crate::api::private::helpers::has_key;
-use crate::api::private::helpers::put_c;
-use crate::api::private::helpers::try_wrap;
 use crate::api::private::helpers::{
-    add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value, dict_set_var,
-    error_set, find_buffer_by_handle, find_window_by_handle, integer_obj, normalize_index,
+    NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, dict_get_value,
+    dict_set_var, error_set, find_buffer_by_handle, find_window_by_handle, has_key, integer_obj,
+    normalize_index, put_c, try_wrap,
 };
-use crate::api::private::validate::api_err_range;
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectType, api_err_conflict, api_err_exp,
-    api_err_invalid, api_err_required,
+    api_err_invalid, api_err_range, api_err_required,
 };
 use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::context::{ctx_restore, ctx_switch, is_ctx_win};
-use crate::cursor::check_cursor_col;
+use crate::cursor::{check_cursor_col, colnr_T, linenr_T};
 use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
+use crate::highlight::OptionalKeys;
 use crate::lua::base64::lua_State;
 use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
 use crate::map_glyph_cache::NvimString;
-use crate::memory::Arena;
-use crate::memory::strequal_str as strequal;
+use crate::memory::{Arena, strequal_str as strequal};
 use crate::message::emsg;
 use crate::r#move::{update_topline, validate_cursor};
 use crate::msgpack_rpc::packer::Integer;
@@ -51,8 +46,6 @@ use std::ffi::c_int;
 use std::ptr;
 
 use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
-pub use crate::cursor::{colnr_T, linenr_T};
-pub use crate::lua::executor::LuaRetMode;
 
 const MAXCOL: i64 = 0x7fffffff;
 

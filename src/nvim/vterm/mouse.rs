@@ -13,8 +13,7 @@ use crate::math::xctz;
 use crate::tui::termkey::termkey::fill_utf8;
 use crate::vterm::vterm::vterm_push_output_ctrl_bytes;
 
-use crate::vterm::keyboard::C1_CSI;
-pub use crate::vterm::keyboard::VTermModifier;
+use crate::vterm::keyboard::{C1_CSI, VTermModifier};
 
 const CSI_ARGS_MAX: usize = 32;
 pub(crate) const CSI_LEADER_MAX: usize = 16;

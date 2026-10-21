@@ -15,7 +15,7 @@ use crate::clipboard::{VarType, list_T, typval_T};
 use crate::cursor::{check_cursor, gchar_cursor};
 use crate::errors::*;
 use crate::eval::decode::dict_T;
-use crate::eval::deprecated::pos_T;
+use crate::eval::deprecated::{EvalFuncData, pos_T};
 use crate::eval::typval::{
     tv_dict_add_allocated_str, tv_dict_add_bool, tv_dict_add_dict, tv_dict_add_list,
     tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len, tv_dict_alloc, tv_dict_alloc_ret,
@@ -25,8 +25,7 @@ use crate::eval::vars::del_menutrans_vars;
 use crate::ex_docmd::{ends_excmd, exec_normal_cmd, restore_current_state, save_current_state};
 use crate::garray::{ga_clear, ga_grow, ga_init, garray_T};
 use crate::globals::*;
-use crate::indent::EvalFuncData;
-use crate::input::{REMAP_SCRIPT, ins_typebuf};
+use crate::input::{REMAP_SCRIPT, ins_typebuf, tasave_T};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::{utf_char2bytes, utfc_ptr2len};
 use crate::memory::{xcalloc, xfree, xmalloc, xmemdupz, xstrdup, xstrlcpy};
@@ -35,16 +34,15 @@ use crate::message::{
     msg_puts_title, semsg, str2special_save,
 };
 use crate::option_vars::*;
+use crate::os::env::expand_T;
 use crate::popupmenu::pum_show_popupmenu;
-use crate::sign::expand_T;
 use crate::state::{
     MODE_ASKMORE, MODE_CMDLINE, MODE_HITRETURN, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL,
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
-use crate::strings::stricmp_c;
-use crate::strings::strmove;
 use crate::strings::{
-    gettext, strcat, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc, xstrnsave,
+    gettext, strcat, strcmp, strcpy, stricmp_c, strmove, strncmp, vim_strchr, vim_strnicmp_asc,
+    xstrnsave,
 };
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
@@ -121,8 +119,6 @@ use crate::cmdexpand::{
 use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
 use crate::eval::funcs::{MENU_ALL_MODES, MENU_INDEX_TIP};
 use crate::eval::kListLenMayKnow;
-pub use crate::input::{RedoState, StuffBuf, UngotKey, tasave_T};
-pub use crate::mapping::typebuf_T;
 use crate::math::{FAIL, OK};
 use crate::regexp::{MAXCOL, NUMBUFLEN};
 

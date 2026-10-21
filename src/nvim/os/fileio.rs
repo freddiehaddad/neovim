@@ -93,7 +93,7 @@ pub struct FileDescriptor {
 #[cfg(unix)]
 use crate::os::fs::iovec as IoVec;
 
-pub use crate::memory::ARENA_BLOCK_SIZE;
+use crate::memory::ARENA_BLOCK_SIZE;
 #[cfg(all(not(test), unix))]
 use crate::os::fs::os_readv;
 #[cfg(not(test))]

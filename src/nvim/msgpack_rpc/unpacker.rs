@@ -8,9 +8,6 @@ use crate::api::private::helpers::{api_set_error, nil_obj};
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::eval::decode::{
-    MPACK_OK, mpack_node_t, mpack_parser_t, mpack_tokbuf_t, mpack_token_t, mpack_token_type_t,
-};
 #[cfg(not(test))]
 use crate::globals::*;
 #[cfg(not(test))]
@@ -23,6 +20,12 @@ use crate::map_glyph_cache::NvimString;
 #[cfg(not(test))]
 use crate::memory::xstrdup;
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
+use crate::mpack::mpack_core::{
+    MPACK_OK, mpack_rtoken, mpack_tokbuf_t, mpack_token_t, mpack_token_type_t,
+};
+use crate::mpack::object::{
+    mpack_node_t, mpack_parent_node, mpack_parse, mpack_parser_init, mpack_parser_t,
+};
 use crate::msgpack_rpc::packer::{EXT_OBJECT_TYPE_SHIFT, Integer};
 #[cfg(not(test))]
 use crate::ui_client::{
@@ -38,7 +41,6 @@ const K_UNPACK_TYPE_STRING_ARRAY: c_int = -1;
 
 pub type AdditionalDataBuilder = KVec<c_char>;
 pub type StringArray = KVec<NvimString>;
-pub use crate::grid::{sattr_T, schar_T};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,8 +52,8 @@ pub enum MessageType {
     kMessageTypeRedrawEvent = 3,
 }
 
-pub use crate::api::private::dispatch::MsgpackRpcRequestHandler;
-pub use crate::ui_client::UIClientHandler;
+use crate::api::private::dispatch::MsgpackRpcRequestHandler;
+use crate::ui_client::UIClientHandler;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -99,10 +101,8 @@ use crate::eval::funcs::{MPACK_EOF, MPACK_ERROR, MPACK_NOMEM};
 use crate::mpack::conv::{
     mpack_unpack_boolean, mpack_unpack_float_fast, mpack_unpack_sint, mpack_unpack_uint,
 };
-use crate::mpack::mpack_core::mpack_rtoken;
 #[cfg(not(test))]
 use crate::mpack::mpack_core::{mpack_read, mpack_tokbuf_init};
-use crate::mpack::object::{mpack_parent_node, mpack_parse, mpack_parser_init};
 
 #[cfg(not(test))]
 #[inline]

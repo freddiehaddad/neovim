@@ -24,32 +24,28 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::funcexe_T;
 use crate::garray::{ga_append_via_ptr, ga_clear, ga_grow, ga_init, ga_set_growsize, garray_T};
-pub(super) use crate::globals::*;
+use crate::globals::*;
 use crate::keycodes::{BS, CAR, ESC, K_SPECIAL};
 use crate::mark::mark_get;
-pub(super) use crate::mbyte::mb_ptr_back;
 use crate::mbyte::{
-    GraphemeState, mb_get_class_tab, mb_islower, mb_isupper, mb_ptr2char_adv, mb_strnicmp,
-    mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_composinglike, utf_fold,
+    GraphemeState, mb_get_class_tab, mb_islower, mb_isupper, mb_ptr_back, mb_ptr2char_adv,
+    mb_strnicmp, mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_composinglike, utf_fold,
     utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-pub(super) use crate::memory::xstrnsave;
-use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xrealloc, xstrdup};
-pub(super) use crate::message::{
-    emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave,
-};
-pub(super) use crate::option_vars::*;
+use crate::memory::{xcalloc, xfree, xmalloc, xmemcpyz, xrealloc, xstrdup, xstrnsave};
+use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
+use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
-pub(super) use crate::strings::tr;
+use crate::strings::tr;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{size_of, zeroed};
 use std::ptr;
 
 pub(super) mod libc {
-    pub use crate::strings::{strcpy, strlen, strncmp, strncpy};
+    pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
 }
 
 #[path = "regexp_bt.rs"]
@@ -61,7 +57,7 @@ use self::bt::*;
 use self::nfa::*;
 
 use crate::math::{FAIL, OK};
-pub use crate::option::OptInt;
+use crate::option::OptInt;
 pub type magic_T = c_int;
 pub type reg_getline_flags_T = c_uint;
 
@@ -925,10 +921,10 @@ pub(super) fn nfa_regengine_ptr() -> *mut regengine_T {
 
 static mut regexp_engine: c_int = 0;
 
-pub(super) use crate::eval::partial_name;
-pub(super) use crate::eval::typval::tv_get_string_buf_chk;
-pub(super) use crate::eval::userfunc::call_func;
-pub(super) use crate::strings::{vim_strchr, vim_strsave_escaped};
+use crate::eval::partial_name;
+use crate::eval::typval::tv_get_string_buf_chk;
+use crate::eval::userfunc::call_func;
+use crate::strings::{vim_strchr, vim_strsave_escaped};
 
 #[inline]
 pub(super) const fn ascii_isdigit(c: c_int) -> bool {

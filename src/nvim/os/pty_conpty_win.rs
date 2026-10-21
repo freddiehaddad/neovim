@@ -25,14 +25,14 @@ use crate::memory::xfree;
 use crate::memory::{xcalloc, xmalloc, xstrdup};
 
 #[cfg(windows)]
-pub use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
+use crate::os::os_win_console::{BOOL, DWORD, HANDLE};
 #[cfg(windows)]
 pub type HPCON = *mut c_void;
 #[cfg(windows)]
 pub type HRESULT = c_long;
 
 #[cfg(windows)]
-pub use crate::extmark::TriState;
+use crate::extmark::TriState;
 
 #[cfg(all(not(test), windows))]
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;

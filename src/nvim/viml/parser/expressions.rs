@@ -8,7 +8,9 @@
     clippy::too_many_arguments
 )]
 
-use crate::charset::{ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, vim_str2nr};
+use crate::charset::{
+    ascii_isalpha, ascii_isdigit, ascii_iswhite, ascii_isxdigit, uvarnumber_T, vim_str2nr,
+};
 use crate::keycodes::{FSK_IN_STRING, FSK_KEYCODE, FSK_SIMPLIFY, trans_special};
 use crate::kvec::KVecWithInit;
 use crate::mbyte::{mb_copy_char, utf_char2bytes, utf_char2len, utfc_ptr2len_len};
@@ -22,9 +24,8 @@ use crate::viml::parser::parser::{
 use std::ffi::CStr;
 use std::ffi::{c_char, c_int};
 
-pub use crate::charset::uvarnumber_T;
 use crate::eval::STR2NR_ALL;
-pub use crate::eval::typval::float_T;
+use crate::eval::typval::float_T;
 use crate::testing::FF;
 
 const NUL: u8 = 0;
