@@ -34,12 +34,6 @@ option(USE_BUNDLED_LUV "Use the bundled version of luv." ${USE_BUNDLED})
 option(USE_BUNDLED_TS "Use the bundled treesitter runtime." ${USE_BUNDLED})
 option(USE_BUNDLED_TS_PARSERS "Use the bundled treesitter parsers." ${USE_BUNDLED})
 
-if(USE_BUNDLED AND MSVC)
-  option(USE_BUNDLED_LIBICONV "Use the bundled version of libiconv." ON)
-else()
-  option(USE_BUNDLED_LIBICONV "Use the bundled version of libiconv." OFF)
-endif()
-
 option(ENABLE_WASMTIME "Use treesitter with wasmtime support." OFF)
 if(ENABLE_WASMTIME)
   if(USE_BUNDLED)
@@ -126,10 +120,6 @@ endif()
 
 if(USE_BUNDLED_LUV)
   include(BuildLuv)
-endif()
-
-if(USE_BUNDLED_LIBICONV)
-  include(BuildLibiconv)
 endif()
 
 if(USE_BUNDLED_TS_PARSERS)

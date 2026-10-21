@@ -171,8 +171,6 @@ fn main() {
         println!("cargo:rustc-link-search=native={}", deps_lib.display());
         for lib in [
             "luv",
-            "libiconv",
-            "libcharset",
             "tree-sitter",
             "lua51",
             "libuv",
