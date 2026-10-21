@@ -8,10 +8,9 @@ use crate::strings::vim_snprintf;
 use crate::tui::termkey::driver_ti::{
     TerminfoEntry, kTermCount, kTermKeyCount, kTerminfoFuncKeyMax,
 };
-use std::ffi::{CStr, c_char, c_int, c_long, c_void};
+use std::ffi::{CStr, c_char, c_int, c_long};
+use std::io::Read;
 use std::ptr;
-
-pub type unibi_term = c_void;
 
 pub const kTerm_carriage_return: usize = 0;
 pub const kTerm_change_scroll_region: usize = 1;
@@ -2209,17 +2208,397 @@ static FKEY_NAMES: [&str; kTerminfoFuncKeyMax] = [
     "f55", "f56", "f57", "f58", "f59", "f60", "f61", "f62", "f63",
 ];
 
-unsafe extern "C" {
-    fn unibi_from_term(name: *const c_char) -> *mut unibi_term;
-    fn unibi_destroy(ut: *mut unibi_term);
-    fn unibi_get_bool(ut: *const unibi_term, v: unibi_boolean) -> c_int;
-    fn unibi_get_num(ut: *const unibi_term, v: unibi_numeric) -> c_int;
-    fn unibi_get_str(ut: *const unibi_term, v: unibi_string) -> *const c_char;
-    fn unibi_count_ext_bool(ut: *const unibi_term) -> usize;
-    fn unibi_get_ext_bool_name(ut: *const unibi_term, i: usize) -> *const c_char;
-    fn unibi_count_ext_str(ut: *const unibi_term) -> usize;
-    fn unibi_get_ext_str_name(ut: *const unibi_term, i: usize) -> *const c_char;
-    fn unibi_get_ext_str(ut: *const unibi_term, i: usize) -> *const c_char;
+const MAGIC_16BIT: u16 = 0o0432;
+const MAGIC_32BIT: u16 = 0o1036;
+const MAX15BITS: u16 = 0x7fff;
+const MAX31BITS: u32 = 0x7fff_ffff;
+const UNIBI_MAX_BUF: usize = 32768;
+const UNIBI_BOOL_COUNT: usize =
+    (unibi_boolean::unibi_boolean_end_ as usize) - (unibi_boolean::unibi_boolean_begin_ as usize) - 1;
+const UNIBI_NUM_COUNT: usize =
+    (unibi_numeric::unibi_numeric_end_ as usize) - (unibi_numeric::unibi_numeric_begin_ as usize) - 1;
+const UNIBI_STR_COUNT: usize =
+    (unibi_string::unibi_string_end_ as usize) - (unibi_string::unibi_string_begin_ as usize) - 1;
+
+const UNIBI_TERMINFO: &str = if cfg!(windows) {
+    ""
+} else {
+    "/usr/share/terminfo"
+};
+
+const UNIBI_TERMINFO_DIRS: &str = if cfg!(windows) {
+    ""
+} else {
+    "/etc/terminfo:/lib/terminfo:/usr/share/terminfo:/usr/lib/terminfo:/usr/local/share/terminfo:/usr/local/lib/terminfo"
+};
+
+struct UnibiTerm {
+    bools: [bool; UNIBI_BOOL_COUNT],
+    nums: [c_int; UNIBI_NUM_COUNT],
+    str_offs: [i16; UNIBI_STR_COUNT],
+    str_table: Vec<u8>,
+    ext_bool_count: usize,
+    ext_num_count: usize,
+    ext_str_offs: Vec<i16>,
+    ext_name_offs: Vec<usize>,
+    ext_table: Vec<u8>,
+}
+
+#[inline]
+fn get_u16_le(buf: &[u8], off: usize) -> u16 {
+    u16::from_le_bytes([buf[off], buf[off + 1]])
+}
+
+#[inline]
+fn get_short16(buf: &[u8], off: usize) -> i16 {
+    let n = get_u16_le(buf, off);
+    if n <= MAX15BITS { n as i16 } else { -1 }
+}
+
+#[inline]
+fn get_int32(buf: &[u8], off: usize) -> c_int {
+    let n = u32::from_le_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
+    if n <= MAX31BITS { n as c_int } else { -1 }
+}
+
+impl UnibiTerm {
+    fn from_mem(data: &[u8]) -> Option<Self> {
+        if data.len() < 12 {
+            return None;
+        }
+        let magic = get_u16_le(data, 0);
+        if magic != MAGIC_16BIT && magic != MAGIC_32BIT {
+            return None;
+        }
+        let numsize: usize = if magic == MAGIC_16BIT { 2 } else { 4 };
+        let namlen = get_u16_le(data, 2) as usize;
+        let boollen = get_u16_le(data, 4) as usize;
+        let numlen = get_u16_le(data, 6) as usize;
+        let strslen = get_u16_le(data, 8) as usize;
+        let tablsz = get_u16_le(data, 10) as usize;
+
+        let mut pos = 12usize;
+        if data.len() - pos < namlen {
+            return None;
+        }
+        pos += namlen;
+
+        if data.len() - pos < boollen {
+            return None;
+        }
+        let mut bools = [false; UNIBI_BOOL_COUNT];
+        for (i, slot) in bools.iter_mut().enumerate().take(boollen) {
+            *slot = data[pos + i] != 0;
+        }
+        pos += boollen;
+        if !(namlen + boollen).is_multiple_of(2) && pos < data.len() {
+            pos += 1;
+        }
+
+        if data.len() - pos < numlen * numsize {
+            return None;
+        }
+        let mut nums = [-1; UNIBI_NUM_COUNT];
+        for (i, slot) in nums.iter_mut().enumerate().take(numlen) {
+            *slot = if numsize == 2 {
+                c_int::from(get_short16(data, pos + i * 2))
+            } else {
+                get_int32(data, pos + i * 4)
+            };
+        }
+        pos += numlen * numsize;
+
+        if data.len() - pos < strslen * 2 {
+            return None;
+        }
+        let mut str_offs = [-1i16; UNIBI_STR_COUNT];
+        for (i, slot) in str_offs.iter_mut().enumerate().take(strslen) {
+            *slot = get_short16(data, pos + i * 2);
+        }
+        pos += strslen * 2;
+
+        if data.len() - pos < tablsz {
+            return None;
+        }
+        let mut str_table = data[pos..pos + tablsz].to_vec();
+        if let Some(last) = str_table.last_mut() {
+            *last = 0;
+        }
+        pos += tablsz;
+        if !tablsz.is_multiple_of(2) && pos < data.len() {
+            pos += 1;
+        }
+
+        let mut ext_bool_count = 0usize;
+        let mut ext_num_count = 0usize;
+        let mut ext_str_offs = Vec::new();
+        let mut ext_name_offs = Vec::new();
+        let mut ext_table = Vec::new();
+
+        if data.len() - pos >= 10 {
+            let extboollen = get_u16_le(data, pos);
+            let extnumlen = get_u16_le(data, pos + 2);
+            let extstrslen = get_u16_le(data, pos + 4);
+            let extofflen = get_u16_le(data, pos + 6);
+            let exttablsz = get_u16_le(data, pos + 8);
+
+            if extboollen <= MAX15BITS
+                && extnumlen <= MAX15BITS
+                && extstrslen <= MAX15BITS
+                && extofflen <= MAX15BITS
+                && exttablsz <= MAX15BITS
+            {
+                pos += 10;
+                let eb = extboollen as usize;
+                let en = extnumlen as usize;
+                let es = extstrslen as usize;
+                let et = exttablsz as usize;
+                let extalllen = eb + en + es;
+                let needed = eb + (eb % 2) + en * numsize + es * 2 + extalllen * 2 + et;
+                if data.len() - pos < needed {
+                    return None;
+                }
+
+                ext_bool_count = eb;
+                pos += eb + (eb % 2);
+
+                ext_num_count = en;
+                pos += en * numsize;
+
+                let tbl1_pos = pos + (es + extalllen) * 2;
+                let tbl1 = &data[tbl1_pos..tbl1_pos + et];
+                let mut s_max = 0usize;
+                let mut s_sum = 0usize;
+
+                ext_str_offs.reserve(es);
+                for i in 0..es {
+                    let v = get_short16(data, pos + i * 2);
+                    if v < 0 || (v as usize) >= et {
+                        ext_str_offs.push(-1);
+                    } else {
+                        let start = v as usize;
+                        let rem = &tbl1[start..];
+                        let end_off = match rem.iter().position(|&b| b == 0) {
+                            Some(nul_idx) => start + nul_idx + 1,
+                            None => et,
+                        };
+                        s_sum += end_off - start;
+                        s_max = s_max.max(end_off);
+                        ext_str_offs.push(v);
+                    }
+                }
+                pos += es * 2;
+
+                if s_max != s_sum {
+                    return None;
+                }
+
+                let tblsz2 = et - s_sum;
+                ext_name_offs.reserve(extalllen);
+                for i in 0..extalllen {
+                    let v = get_short16(data, pos + i * 2);
+                    if v < 0 || (v as usize) >= tblsz2 {
+                        return None;
+                    }
+                    ext_name_offs.push(s_sum + (v as usize));
+                }
+
+                ext_table = tbl1.to_vec();
+                if let Some(last) = ext_table.last_mut() {
+                    *last = 0;
+                }
+            }
+        }
+
+        Some(Self {
+            bools,
+            nums,
+            str_offs,
+            str_table,
+            ext_bool_count,
+            ext_num_count,
+            ext_str_offs,
+            ext_name_offs,
+            ext_table,
+        })
+    }
+
+    #[inline]
+    fn get_bool(&self, v: unibi_boolean) -> bool {
+        let idx = (v as usize)
+            .wrapping_sub((unibi_boolean::unibi_boolean_begin_ as usize) + 1);
+        self.bools.get(idx).copied().unwrap_or(false)
+    }
+
+    #[inline]
+    fn get_num(&self, v: unibi_numeric) -> c_int {
+        let idx = (v as usize)
+            .wrapping_sub((unibi_numeric::unibi_numeric_begin_ as usize) + 1);
+        self.nums.get(idx).copied().unwrap_or(-1)
+    }
+
+    #[inline]
+    fn get_str(&self, v: unibi_string) -> *const c_char {
+        let idx = (v as usize)
+            .wrapping_sub((unibi_string::unibi_string_begin_ as usize) + 1);
+        let off = self.str_offs.get(idx).copied().unwrap_or(-1);
+        if off < 0 || (off as usize) >= self.str_table.len() {
+            ptr::null()
+        } else {
+            unsafe { self.str_table.as_ptr().add(off as usize).cast::<c_char>() }
+        }
+    }
+
+    #[inline]
+    fn count_ext_bool(&self) -> usize {
+        self.ext_bool_count
+    }
+
+    #[inline]
+    fn get_ext_bool_name(&self, i: usize) -> *const c_char {
+        if i >= self.ext_bool_count {
+            return ptr::null();
+        }
+        let off = self.ext_name_offs[i];
+        unsafe { self.ext_table.as_ptr().add(off).cast::<c_char>() }
+    }
+
+    #[inline]
+    fn count_ext_str(&self) -> usize {
+        self.ext_str_offs.len()
+    }
+
+    #[inline]
+    fn get_ext_str_name(&self, i: usize) -> *const c_char {
+        if i >= self.ext_str_offs.len() {
+            return ptr::null();
+        }
+        let off = self.ext_name_offs[self.ext_bool_count + self.ext_num_count + i];
+        unsafe { self.ext_table.as_ptr().add(off).cast::<c_char>() }
+    }
+
+    #[inline]
+    fn get_ext_str(&self, i: usize) -> *const c_char {
+        let off = self.ext_str_offs.get(i).copied().unwrap_or(-1);
+        if off < 0 || (off as usize) >= self.ext_table.len() {
+            ptr::null()
+        } else {
+            unsafe { self.ext_table.as_ptr().add(off as usize).cast::<c_char>() }
+        }
+    }
+}
+
+fn unibi_from_file(path: &str) -> Result<Option<UnibiTerm>, std::io::ErrorKind> {
+    let mut f = std::fs::File::open(path).map_err(|e| e.kind())?;
+    let mut buf = Vec::with_capacity(4096);
+    f.by_ref()
+        .take(UNIBI_MAX_BUF as u64)
+        .read_to_end(&mut buf)
+        .map_err(|e| e.kind())?;
+    Ok(UnibiTerm::from_mem(&buf))
+}
+
+fn unibi_from_dir(
+    dir: &str,
+    mid: Option<&str>,
+    term: &str,
+) -> Result<Option<UnibiTerm>, std::io::ErrorKind> {
+    let first_byte = term.as_bytes()[0];
+    let first_ch = first_byte as char;
+    let prefix = match mid {
+        Some(m) => format!("{dir}/{m}"),
+        None => dir.to_string(),
+    };
+    let path1 = format!("{prefix}/{first_ch}/{term}");
+    match unibi_from_file(&path1) {
+        Ok(Some(ut)) => Ok(Some(ut)),
+        Ok(None) => Err(std::io::ErrorKind::InvalidData),
+        Err(std::io::ErrorKind::NotFound) => {
+            let path2 = format!("{prefix}/{first_byte:02x}/{term}");
+            match unibi_from_file(&path2) {
+                Ok(Some(ut)) => Ok(Some(ut)),
+                Ok(None) => Err(std::io::ErrorKind::InvalidData),
+                Err(k) => Err(k),
+            }
+        }
+        Err(k) => Err(k),
+    }
+}
+
+fn is_ignorable_dir_err(k: std::io::ErrorKind) -> bool {
+    matches!(
+        k,
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
+    )
+}
+
+fn unibi_from_dirs(list: &str, term: &str) -> Option<UnibiTerm> {
+    if list.is_empty() {
+        return None;
+    }
+    let mut unibi_terminfo_searched = UNIBI_TERMINFO.is_empty();
+    for entry in list.split(':') {
+        let res = if !entry.is_empty() {
+            unibi_from_dir(entry, None, term)
+        } else if !unibi_terminfo_searched {
+            unibi_terminfo_searched = true;
+            unibi_from_dir(UNIBI_TERMINFO, None, term)
+        } else {
+            continue;
+        };
+        match res {
+            Ok(Some(ut)) => return Some(ut),
+            Ok(None) => return None,
+            Err(k) if !is_ignorable_dir_err(k) => return None,
+            Err(_) => {}
+        }
+    }
+    None
+}
+
+unsafe fn get_env_str(name: &CStr) -> Option<String> {
+    unsafe {
+        let p = crate::os::env::os_getenv_noalloc(name.as_ptr());
+        if p.is_null() {
+            None
+        } else {
+            Some(CStr::from_ptr(p).to_string_lossy().into_owned())
+        }
+    }
+}
+
+unsafe fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
+    if termname.is_null() {
+        return None;
+    }
+    let term_bytes = unsafe { CStr::from_ptr(termname).to_bytes() };
+    if term_bytes.is_empty() || term_bytes[0] == b'.' || term_bytes.contains(&b'/') {
+        return None;
+    }
+    let term = std::str::from_utf8(term_bytes).ok()?;
+
+    if let Some(env) = unsafe { get_env_str(c"TERMINFO") }
+        && let Ok(Some(ut)) = unibi_from_dir(&env, None, term)
+    {
+        return Some(ut);
+    }
+
+    if let Some(home) = unsafe { get_env_str(c"HOME") } {
+        match unibi_from_dir(&home, Some(".terminfo"), term) {
+            Ok(Some(ut)) => return Some(ut),
+            Ok(None) => return None,
+            Err(k) if !is_ignorable_dir_err(k) => return None,
+            Err(_) => {}
+        }
+    }
+
+    if let Some(dirs) = unsafe { get_env_str(c"TERMINFO_DIRS") }
+        && let Some(ut) = unibi_from_dirs(&dirs, term)
+    {
+        return Some(ut);
+    }
+
+    unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
 #[unsafe(no_mangle)]
@@ -2334,22 +2713,21 @@ pub unsafe extern "C" fn terminfo_from_database(
     arena: *mut Arena,
 ) -> bool {
     unsafe {
-        let ut = unibi_from_term(termname);
-        if ut.is_null() {
+        let Some(ut) = unibi_from_term(termname) else {
             return false;
-        }
+        };
 
-        (*ti).back_color_erase = unibi_get_bool(ut, unibi_boolean::unibi_back_color_erase) != 0;
-        (*ti).max_colors = unibi_get_num(ut, unibi_numeric::unibi_max_colors);
-        (*ti).lines = unibi_get_num(ut, unibi_numeric::unibi_lines);
-        (*ti).columns = unibi_get_num(ut, unibi_numeric::unibi_columns);
+        (*ti).back_color_erase = ut.get_bool(unibi_boolean::unibi_back_color_erase);
+        (*ti).max_colors = ut.get_num(unibi_numeric::unibi_max_colors);
+        (*ti).lines = ut.get_num(unibi_numeric::unibi_lines);
+        (*ti).columns = ut.get_num(unibi_numeric::unibi_columns);
 
         (*ti).Tc = false;
         (*ti).RGB = false;
         (*ti).Su = false;
-        let ext_bool_count = unibi_count_ext_bool(ut);
+        let ext_bool_count = ut.count_ext_bool();
         for i in 0..ext_bool_count {
-            let n = unibi_get_ext_bool_name(ut, i);
+            let n = ut.get_ext_bool_name(i);
             if !n.is_null() {
                 let bytes = CStr::from_ptr(n).to_bytes();
                 if bytes == b"Tc" {
@@ -2363,7 +2741,7 @@ pub unsafe extern "C" fn terminfo_from_database(
         }
 
         for (i, &uni_id) in UNI_IDS.iter().enumerate() {
-            let val = unibi_get_str(ut, uni_id);
+            let val = ut.get_str(uni_id);
             (*ti).defs[i] = if !val.is_null() {
                 arena_strdup(arena, val)
             } else {
@@ -2371,12 +2749,12 @@ pub unsafe extern "C" fn terminfo_from_database(
             };
         }
 
-        let max = unibi_count_ext_str(ut);
+        let max = ut.count_ext_str();
         for (i, &name) in UNI_EXT.iter().enumerate() {
             for val in 0..max {
-                let n = unibi_get_ext_str_name(ut, val);
+                let n = ut.get_ext_str_name(val);
                 if !n.is_null() && strequal(n, name.as_ptr()) {
-                    let data = unibi_get_ext_str(ut, val);
+                    let data = ut.get_ext_str(val);
                     (*ti).defs[kTermExtOffset + i] = if !data.is_null() {
                         arena_strdup(arena, data)
                     } else {
@@ -2388,11 +2766,11 @@ pub unsafe extern "C" fn terminfo_from_database(
         }
 
         for (i, pair) in UNI_KEYS.iter().enumerate() {
-            let val = unibi_get_str(ut, pair[0]);
+            let val = ut.get_str(pair[0]);
             if !val.is_null() {
                 (*ti).keys[i][0] = arena_strdup(arena, val);
                 if pair[1] != unibi_string::unibi_string_begin_ {
-                    let sval = unibi_get_str(ut, pair[1]);
+                    let sval = ut.get_str(pair[1]);
                     (*ti).keys[i][1] = if !sval.is_null() {
                         arena_strdup(arena, sval)
                     } else {
@@ -2403,7 +2781,7 @@ pub unsafe extern "C" fn terminfo_from_database(
         }
 
         for (i, &fkey_id) in UNI_FKEYS.iter().enumerate() {
-            let val = unibi_get_str(ut, fkey_id);
+            let val = ut.get_str(fkey_id);
             (*ti).f_keys[i] = if !val.is_null() {
                 arena_strdup(arena, val)
             } else {
@@ -2411,7 +2789,6 @@ pub unsafe extern "C" fn terminfo_from_database(
             };
         }
 
-        unibi_destroy(ut);
         true
     }
 }
@@ -2917,5 +3294,66 @@ pub unsafe extern "C" fn terminfo_fmt(
             }
         }
         buf.offset_from(buf_start) as usize
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unibi_from_mem_parses_16bit_and_extended_capabilities() {
+        let mut data = Vec::new();
+        // Header: magic (0432), namlen=6 ("xterm\0"), boollen=1, numlen=1, strslen=3, tablsz=4 ("\r\0")
+        data.extend_from_slice(&MAGIC_16BIT.to_le_bytes());
+        data.extend_from_slice(&6u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&3u16.to_le_bytes());
+        data.extend_from_slice(&2u16.to_le_bytes());
+        // Name ("xterm\0") + 1 bool (1) + 1 pad byte
+        data.extend_from_slice(b"xterm\0\x01\x00");
+        // 1 numeric: columns = 80
+        data.extend_from_slice(&80u16.to_le_bytes());
+        // 3 strings: back_tab=-1, bell=-1, carriage_return=0
+        data.extend_from_slice(&0xffffu16.to_le_bytes());
+        data.extend_from_slice(&0xffffu16.to_le_bytes());
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // String table: "\r\0" (2 bytes, even)
+        data.extend_from_slice(b"\r\0");
+
+        // Extended header: extboollen=1, extnumlen=0, extstrslen=1, extofflen=3, exttablsz=12
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&0u16.to_le_bytes());
+        data.extend_from_slice(&1u16.to_le_bytes());
+        data.extend_from_slice(&3u16.to_le_bytes());
+        data.extend_from_slice(&12u16.to_le_bytes());
+        // 1 ext bool (1) + 1 pad byte
+        data.extend_from_slice(&[1, 0]);
+        // 1 ext str offset: 0 ("\x1b[0 q\0", 6 bytes)
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // 2 ext name offsets (relative to tbl2): "Tc\0" at 0, "Se\0" at 3
+        data.extend_from_slice(&0u16.to_le_bytes());
+        data.extend_from_slice(&3u16.to_le_bytes());
+        // Ext table: "\x1b[0 q\0" (6 bytes) + "Tc\0Se\0" (6 bytes) = 12 bytes
+        data.extend_from_slice(b"\x1b[0 q\0Tc\0Se\0");
+
+        let ut = UnibiTerm::from_mem(&data).expect("valid terminfo");
+        assert!(ut.get_bool(unibi_boolean::unibi_auto_left_margin));
+        assert!(!ut.get_bool(unibi_boolean::unibi_back_color_erase));
+        assert_eq!(ut.get_num(unibi_numeric::unibi_columns), 80);
+        assert_eq!(ut.get_num(unibi_numeric::unibi_max_colors), -1);
+        assert!(ut.get_str(unibi_string::unibi_back_tab).is_null());
+        unsafe {
+            assert_eq!(
+                CStr::from_ptr(ut.get_str(unibi_string::unibi_carriage_return)).to_bytes(),
+                b"\r"
+            );
+            assert_eq!(ut.count_ext_bool(), 1);
+            assert_eq!(CStr::from_ptr(ut.get_ext_bool_name(0)).to_bytes(), b"Tc");
+            assert_eq!(ut.count_ext_str(), 1);
+            assert_eq!(CStr::from_ptr(ut.get_ext_str_name(0)).to_bytes(), b"Se");
+            assert_eq!(CStr::from_ptr(ut.get_ext_str(0)).to_bytes(), b"\x1b[0 q");
+        }
     }
 }

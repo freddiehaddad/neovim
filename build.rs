@@ -87,7 +87,6 @@ fn main() {
             "tree-sitter",
             "utf8proc_static",
             "libintl",
-            "unibilium",
             "lua51",
             "libuv",
             "netapi32",
@@ -135,7 +134,6 @@ fn main() {
             ("libluv.a", "static=luv"),
             ("libtree-sitter.a", "static=tree-sitter"),
             ("libutf8proc.a", "static=utf8proc"),
-            ("libunibilium.a", "static=unibilium"),
             ("libluajit-5.1.a", "static=luajit-5.1"),
             ("libuv.a", "static=uv"),
         ] {
