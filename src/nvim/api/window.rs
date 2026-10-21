@@ -298,7 +298,15 @@ pub unsafe extern "C" fn nvim_win_del_var(win: Window, name: NvimString, err: *m
         if w.is_null() {
             return;
         }
-        dict_set_var((*w).w_vars, name, OBJECT_NIL, true, false, ptr::null_mut(), err);
+        dict_set_var(
+            (*w).w_vars,
+            name,
+            OBJECT_NIL,
+            true,
+            false,
+            ptr::null_mut(),
+            err,
+        );
     }
 }
 

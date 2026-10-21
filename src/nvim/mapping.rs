@@ -36,8 +36,8 @@ use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, ins_typebuf, noremap_keys};
 use crate::keycodes::{
     K_SPECIAL, K_ZERO, KE_LUA, KE_SNR, KS_EXTRA, KS_MODIFIER, NL, REPTERM_DO_LT, REPTERM_FROM_PART,
-    REPTERM_NO_SIMPLIFY, get_special_key_name, replace_termcodes,
-    vim_strsave_escape_ks, vim_unescape_ks,
+    REPTERM_NO_SIMPLIFY, get_special_key_name, replace_termcodes, vim_strsave_escape_ks,
+    vim_unescape_ks,
 };
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{

@@ -6,9 +6,9 @@ use crate::api::private::dispatch::{
 };
 use crate::api::private::helpers::{
     add_c, api_dict_to_keydict, api_set_error, api_typename, arena_array, arena_dict, arena_string,
-    boolean_obj, cbuf_to_arena_str, cstr_as_string, static_cstr_as_string, cstrn_as_string, dict_obj,
-    error_set, find_buffer_by_handle, has_key, integer_obj, put_c, string_obj, string_to_cstr,
-    try_wrap, with_script_context,
+    boolean_obj, cbuf_to_arena_str, cstr_as_string, cstrn_as_string, dict_obj, error_set,
+    find_buffer_by_handle, has_key, integer_obj, put_c, static_cstr_as_string, string_obj,
+    string_to_cstr, try_wrap, with_script_context,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectType, api_err_exp, api_err_invalid,
@@ -560,7 +560,11 @@ pub unsafe extern "C" fn nvim_parse_cmd(
         } else {
             c""
         };
-        put_c(&mut mods, c"split", string_obj(static_cstr_as_string(split)));
+        put_c(
+            &mut mods,
+            c"split",
+            string_obj(static_cstr_as_string(split)),
+        );
 
         result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__mods;
         result.mods = mods;

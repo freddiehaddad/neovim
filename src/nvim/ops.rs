@@ -81,7 +81,7 @@ use crate::register::{
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, yankreg_T,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
-use crate::strings::{ngettext, c_strcpy, tr, vim_snprintf, vim_strchr};
+use crate::strings::{c_strcpy, ngettext, tr, vim_snprintf, vim_strchr};
 use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, oparg_T};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};

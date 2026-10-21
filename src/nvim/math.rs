@@ -49,11 +49,7 @@ pub const FP_SUBNORMAL: c_int = if cfg!(target_os = "windows") {
     3
 };
 
-pub const FP_NORMAL: c_int = if cfg!(target_os = "windows") {
-    -1
-} else {
-    4
-};
+pub const FP_NORMAL: c_int = if cfg!(target_os = "windows") { -1 } else { 4 };
 
 /// Classify a `f64` into platform `<math.h>` `FP_*` categories (`xfpclassify`).
 #[unsafe(no_mangle)]

@@ -2,7 +2,8 @@
 
 use crate::api::private::dispatch::MsgpackRpcRequestHandler;
 use crate::api::private::helpers::{
-    OBJECT_NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict, cstr_as_string,
+    OBJECT_NIL, api_clear_error, api_free_dict, api_free_object, api_set_error, copy_dict,
+    cstr_as_string,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
@@ -27,8 +28,8 @@ use crate::kvec::KVec;
 use crate::log::logmsg;
 use crate::map::{MH_TOMBSTONE, mh_get_uint64_t};
 use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free,
-    free_block, xcalloc, xfree, xmalloc,
+    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
+    xcalloc, xfree, xmalloc,
 };
 use crate::message::semsg;
 use crate::msgpack_rpc::packer::{

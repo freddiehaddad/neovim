@@ -224,14 +224,22 @@ fn main() {
     } else if target_os != "windows" {
         println!("cargo:rustc-link-arg-bin=nvim=-rdynamic");
         println!("cargo:rustc-link-search=native={}", deps_lib.display());
-        for (archive, lib) in [
-            ("libluv.a", "static=luv"),
-            ("libtree-sitter.a", "static=tree-sitter"),
-            ("libluajit-5.1.a", "static=luajit-5.1"),
-            ("libuv.a", "static=uv"),
+        let prefer_lua = env::var("CARGO_FEATURE_VENDOR_BIT").is_ok();
+        let lua_entry = if prefer_lua && deps_lib.join("liblua.a").exists() {
+            ("liblua.a", "static=lua", "lua5.1")
+        } else {
+            ("libluajit-5.1.a", "static=luajit-5.1", "luajit-5.1")
+        };
+        for (archive, static_lib, sys_lib) in [
+            ("libluv.a", "static=luv", "luv"),
+            ("libtree-sitter.a", "static=tree-sitter", "tree-sitter"),
+            lua_entry,
+            ("libuv.a", "static=uv", "uv"),
         ] {
             if deps_lib.join(archive).exists() {
-                println!("cargo:rustc-link-lib={lib}");
+                println!("cargo:rustc-link-lib={static_lib}");
+            } else {
+                println!("cargo:rustc-link-lib={sys_lib}");
             }
         }
         for syslib in ["m", "dl", "pthread"] {

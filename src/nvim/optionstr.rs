@@ -35,9 +35,7 @@ use crate::insexpand::{LSIZE, set_cpt_callbacks};
 use crate::lua::converter::{Boolean, FieldHashfn, KeySetLink, OptKeySet};
 use crate::mark::{fmark_T, fmarkv_T};
 use crate::math::{FAIL, OK};
-use crate::mbyte::{
-    enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar,
-};
+use crate::mbyte::{enc_canonize, get_encoding_name, utf_ptr2char, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_setflags;
 use crate::memory::{xfree, xmalloc, xmemcpyz, xmemdup, xmemdupz, xstrdup};
 use crate::message::{kOptMessagesopt, msg_grid_validate, verbose_open, verbose_stop};
@@ -62,8 +60,7 @@ use crate::spell::{
 use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    atoi, gettext, strcmp, strcspn, strlen, strncmp, strpbrk,
-    strstr, vim_snprintf, vim_strchr,
+    atoi, gettext, strcmp, strcspn, strlen, strncmp, strpbrk, strstr, vim_snprintf, vim_strchr,
 };
 use crate::syntax::synblock_T;
 use crate::terminal::terminal_notify_theme;
@@ -4349,8 +4346,7 @@ pub unsafe extern "C" fn set_chars_option(
                 while i < entries {
                     let name_ptr = tab[i].name.as_ptr();
                     let name_len = tab[i].name.to_bytes().len();
-                    if !(strncmp(p, name_ptr, name_len) == 0
-                        && *p.add(name_len) == b':' as c_char)
+                    if !(strncmp(p, name_ptr, name_len) == 0 && *p.add(name_len) == b':' as c_char)
                     {
                         i += 1;
                         continue;

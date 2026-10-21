@@ -49,8 +49,8 @@ use crate::path::{
 };
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::strings::{
-    gettext, strcat, strcpy, strlen, strstr, vim_snprintf, vim_strchr,
-    vim_strnsave_unquoted, vim_strsave_escaped_ext,
+    gettext, strcat, strcpy, strlen, strstr, vim_snprintf, vim_strchr, vim_strnsave_unquoted,
+    vim_strsave_escaped_ext,
 };
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};

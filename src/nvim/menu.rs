@@ -33,7 +33,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, strcat, strcmp, strcpy, vim_stricmp, strmove, strncmp, vim_strchr, vim_strnicmp_asc,
+    gettext, strcat, strcmp, strcpy, strmove, strncmp, vim_strchr, vim_stricmp, vim_strnicmp_asc,
     xstrnsave,
 };
 use crate::ui::ui_call_update_menu;

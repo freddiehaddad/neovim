@@ -58,7 +58,10 @@ else()
   set(NVIM_RUST_CARGO_FLAGS "--release")
 endif()
 if(PREFER_LUA)
-  list(APPEND NVIM_RUST_CARGO_FLAGS "--features" "vendor-bit")
+  set(NVIM_RUST_FEATURE_FLAGS "--features" "vendor-bit")
+  list(APPEND NVIM_RUST_CARGO_FLAGS ${NVIM_RUST_FEATURE_FLAGS})
+else()
+  set(NVIM_RUST_FEATURE_FLAGS "")
 endif()
 
 set(NVIM_CARGO_BIN
@@ -143,6 +146,7 @@ add_custom_target(testrust
     "VTERM_TEST_FILE=${VTERM_TEST_FILE}"
     "${CARGO_PRG}" test
     --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
+    ${NVIM_RUST_FEATURE_FLAGS}
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   USES_TERMINAL)
 
@@ -231,6 +235,7 @@ add_custom_target(lintrust
     "VTERM_TEST_FILE=${VTERM_TEST_FILE}"
     "${CARGO_PRG}" clippy
     --manifest-path "${PROJECT_SOURCE_DIR}/Cargo.toml"
+    ${NVIM_RUST_FEATURE_FLAGS}
     --all-targets -- -D warnings
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
   USES_TERMINAL)

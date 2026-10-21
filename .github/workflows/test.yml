@@ -38,6 +38,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/setup
+
+      - name: Build third-party deps
+        run: |
+          cmake -S cmake.deps -B .deps -G Ninja
+          cmake --build .deps
+
       - name: rustfmt
         run: cargo fmt --check
 
@@ -256,7 +263,6 @@ jobs:
         run: |
           sudo apt-get install -y \
             libluajit-5.1-dev \
-            libunibilium-dev \
             libuv1-dev \
             lua-filesystem \
             lua-lpeg \

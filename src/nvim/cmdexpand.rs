@@ -108,8 +108,8 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    c_strcpy, gettext, qsort, sort_strings, strcase_save, strcmp, strlen,
-    strncmp, vim_snprintf, vim_strchr, vim_strsave_escaped, xstrnsave,
+    c_strcpy, gettext, qsort, sort_strings, strcase_save, strcmp, strlen, strncmp, vim_snprintf,
+    vim_strchr, vim_strsave_escaped, xstrnsave,
 };
 use crate::syntax::{
     get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,

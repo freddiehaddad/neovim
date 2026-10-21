@@ -2,10 +2,10 @@
 
 use crate::api::deprecated::KeyDict_empty;
 use crate::api::private::helpers::{
-    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict, boolean_obj,
-    buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set, find_buffer_by_handle,
-    has_key, integer_obj, normalize_index, put_c, set_mark, static_cstr_as_obj, string_obj,
-    try_wrap,
+    MAXLNUM, OBJECT_NIL, add_c, api_clear_error, api_set_error, arena_array, arena_dict,
+    boolean_obj, buf_get_text, cstr_as_string, dict_get_value, dict_set_var, error_set,
+    find_buffer_by_handle, has_key, integer_obj, normalize_index, put_c, set_mark,
+    static_cstr_as_obj, string_obj, try_wrap,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, api_err_invalid, api_err_range,
@@ -1363,7 +1363,15 @@ pub unsafe extern "C" fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: *m
         if b.is_null() {
             return;
         }
-        dict_set_var((*b).b_vars, name, OBJECT_NIL, true, false, ptr::null_mut(), err);
+        dict_set_var(
+            (*b).b_vars,
+            name,
+            OBJECT_NIL,
+            true,
+            false,
+            ptr::null_mut(),
+            err,
+        );
     }
 }
 

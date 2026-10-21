@@ -13,6 +13,7 @@ use crate::autocmd::{
     EVENT_CMDLINELEAVEPRE, EVENT_CURSORMOVEDC, apply_autocmds, block_autocmds, event_T, has_event,
     unblock_autocmds,
 };
+use crate::buffer::bt_cmdwin;
 use crate::buffer::{
     DOBUF_FIRST, DOBUF_GOTO, MAXLNUM, buf_T, buf_clear, buf_valid, buflist_findnr, do_buffer,
     kUIMessages,
@@ -110,7 +111,6 @@ use crate::r#move::{
     changed_cline_bef_curs, restore_viewstate, save_viewstate, update_topline, validate_cursor,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
-use crate::buffer::bt_cmdwin;
 #[cfg(unix)]
 use crate::option::csh_like_shell;
 use crate::option::{
@@ -141,8 +141,8 @@ use crate::state::{
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, vim_strnicmp, strrchr, vim_strchr, vim_strsave_escaped,
-    xstrnsave,
+    gettext, strcmp, strcpy, strlen, strncmp, strrchr, vim_strchr, vim_strnicmp,
+    vim_strsave_escaped, xstrnsave,
 };
 use crate::ui::{
     ui_busy_start, ui_busy_stop, ui_call_cmdline_block_append, ui_call_cmdline_block_hide,

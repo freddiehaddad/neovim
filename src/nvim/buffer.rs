@@ -103,7 +103,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    gettext, ngettext, qsort, strcmp, c_strcpy, strlen, strncmp, vim_snprintf,
+    c_strcpy, gettext, ngettext, qsort, strcmp, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, xstrnsave,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};

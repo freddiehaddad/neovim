@@ -85,7 +85,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    concat_str, gettext, memchr, strchr, strcmp, c_strcpy, strlen, strncmp, strstr, vim_snprintf,
+    c_strcpy, concat_str, gettext, memchr, strchr, strcmp, strlen, strncmp, strstr, vim_snprintf,
     vim_strchr, xstrnsave,
 };
 use crate::ui::ui_has;

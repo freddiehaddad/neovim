@@ -43,8 +43,7 @@ use crate::keycodes::{
 };
 use crate::mbyte::{mb_string2cells, mb_strnicmp, ptr2cells, utf_ptr2cells, utfc_ptr2len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xrealloc,
-    xstrdup,
+    Arena, arena_finish, arena_mem_free, strequal, xcalloc, xfree, xmalloc, xrealloc, xstrdup,
 };
 use crate::menu::{execute_menu, get_menu_mode_flag, menu_find, menu_is_separator, vimmenu_T};
 use crate::message::emsg;

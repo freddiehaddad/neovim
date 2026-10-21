@@ -1266,7 +1266,8 @@ pub unsafe extern "C" fn remote_ui_grid_cursor_goto(
 ) {
     unsafe {
         if (*ui).ui_ext[kUILinegrid] {
-            let mut args_items: [Object; 3] = [integer_obj(grid), integer_obj(row), integer_obj(col)];
+            let mut args_items: [Object; 3] =
+                [integer_obj(grid), integer_obj(row), integer_obj(col)];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 3,

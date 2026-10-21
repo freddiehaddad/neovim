@@ -167,8 +167,8 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    qsort, strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr,
-    vim_strsave_shellescape, xstrnsave,
+    qsort, strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
+    xstrnsave,
 };
 use crate::syntax::{syn_stack_free_all, synblock_T};
 use crate::tag::do_tag;

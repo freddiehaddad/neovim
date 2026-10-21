@@ -1,5 +1,6 @@
 //! Code for managing highlight groups (`src/nvim/highlight_group.c`).
 
+use crate::api::private::helpers::has_key;
 use crate::api::private::helpers::{
     api_set_error, arena_dict, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, put_c,
 };
@@ -27,7 +28,6 @@ use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_docmd::ends_excmd;
 use crate::extmark::{TriState, kFalse, kNone, kTrue};
-use crate::api::private::helpers::has_key;
 use crate::garray::{ga_clear, ga_grow, ga_set_growsize, garray_T};
 use crate::globals::*;
 use crate::highlight::{

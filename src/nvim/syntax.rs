@@ -54,8 +54,8 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, vim_stricmp, strlen,
-    strncmp, vim_strnicmp, strpbrk, vim_snprintf, vim_strchr, vim_strnsave_up, vim_strsave_up,
+    gettext, memcpy, memmove, memset, qsort, strcat, strchr, strcmp, strcpy, strlen, strncmp,
+    strpbrk, vim_snprintf, vim_strchr, vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
     xstrnsave,
 };
 use crate::window::win_T;
@@ -2866,7 +2866,8 @@ unsafe fn syn_cmd_spell(eap: *mut exarg_T, _syncing: c_int) {
             }
         } else if vim_strnicmp(arg, c"toplevel".as_ptr(), 8) == 0 && next.offset_from(arg) == 8 {
             (*win_s(curwin)).b_syn_spell = SYNSPL_TOP;
-        } else if vim_strnicmp(arg, c"notoplevel".as_ptr(), 10) == 0 && next.offset_from(arg) == 10 {
+        } else if vim_strnicmp(arg, c"notoplevel".as_ptr(), 10) == 0 && next.offset_from(arg) == 10
+        {
             (*win_s(curwin)).b_syn_spell = SYNSPL_NOTOP;
         } else if vim_strnicmp(arg, c"default".as_ptr(), 7) == 0 && next.offset_from(arg) == 7 {
             (*win_s(curwin)).b_syn_spell = SYNSPL_DEFAULT;

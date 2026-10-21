@@ -2213,10 +2213,12 @@ const MAGIC_32BIT: u16 = 0o1036;
 const MAX15BITS: u16 = 0x7fff;
 const MAX31BITS: u32 = 0x7fff_ffff;
 const UNIBI_MAX_BUF: usize = 32768;
-const UNIBI_BOOL_COUNT: usize =
-    (unibi_boolean::unibi_boolean_end_ as usize) - (unibi_boolean::unibi_boolean_begin_ as usize) - 1;
-const UNIBI_NUM_COUNT: usize =
-    (unibi_numeric::unibi_numeric_end_ as usize) - (unibi_numeric::unibi_numeric_begin_ as usize) - 1;
+const UNIBI_BOOL_COUNT: usize = (unibi_boolean::unibi_boolean_end_ as usize)
+    - (unibi_boolean::unibi_boolean_begin_ as usize)
+    - 1;
+const UNIBI_NUM_COUNT: usize = (unibi_numeric::unibi_numeric_end_ as usize)
+    - (unibi_numeric::unibi_numeric_begin_ as usize)
+    - 1;
 const UNIBI_STR_COUNT: usize =
     (unibi_string::unibi_string_end_ as usize) - (unibi_string::unibi_string_begin_ as usize) - 1;
 
@@ -2425,22 +2427,19 @@ impl UnibiTerm {
 
     #[inline]
     fn get_bool(&self, v: unibi_boolean) -> bool {
-        let idx = (v as usize)
-            .wrapping_sub((unibi_boolean::unibi_boolean_begin_ as usize) + 1);
+        let idx = (v as usize).wrapping_sub((unibi_boolean::unibi_boolean_begin_ as usize) + 1);
         self.bools.get(idx).copied().unwrap_or(false)
     }
 
     #[inline]
     fn get_num(&self, v: unibi_numeric) -> c_int {
-        let idx = (v as usize)
-            .wrapping_sub((unibi_numeric::unibi_numeric_begin_ as usize) + 1);
+        let idx = (v as usize).wrapping_sub((unibi_numeric::unibi_numeric_begin_ as usize) + 1);
         self.nums.get(idx).copied().unwrap_or(-1)
     }
 
     #[inline]
     fn get_str(&self, v: unibi_string) -> *const c_char {
-        let idx = (v as usize)
-            .wrapping_sub((unibi_string::unibi_string_begin_ as usize) + 1);
+        let idx = (v as usize).wrapping_sub((unibi_string::unibi_string_begin_ as usize) + 1);
         let off = self.str_offs.get(idx).copied().unwrap_or(-1);
         if off < 0 || (off as usize) >= self.str_table.len() {
             ptr::null()

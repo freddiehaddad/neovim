@@ -4,7 +4,7 @@ use crate::api::command::is_user_cmdidx;
 #[cfg(windows)]
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::helpers::{
-    HLF_E, api_clear_error, boolean_obj, cstr_as_string, cstr_as_obj, error_init, error_set,
+    HLF_E, api_clear_error, boolean_obj, cstr_as_obj, cstr_as_string, error_init, error_set,
     integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
@@ -227,8 +227,8 @@ use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
     atoi, atol, concat_str, del_trailing_spaces, gettext, ngettext, strcat, strcmp, strlen,
-    strmove, strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr,
-    vim_stricmp, vim_strsave_escaped,
+    strmove, strncmp, strpbrk, strrchr, strrep, strstr, vim_snprintf, vim_strchr, vim_stricmp,
+    vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};

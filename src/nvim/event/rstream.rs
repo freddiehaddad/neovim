@@ -12,8 +12,8 @@ use crate::event::stream::{
 use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
-use std::ffi::{c_char, c_int, c_void};
 use crate::os::fs::{UV_ENOBUFS, UV_EOF};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 pub type RStream = c_void;

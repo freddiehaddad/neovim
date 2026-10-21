@@ -32,7 +32,9 @@ use crate::mcursor::{
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
 use crate::memory::{xfree, xmemdupz, xrealloc, xstrdup};
-use crate::normal::{NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is};
+use crate::normal::{
+    NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is,
+};
 use crate::ops::{
     OP_APPEND, OP_CHANGE, OP_INSERT, OP_NOP, OP_NR_ADD, OP_NR_SUB, OP_REPLACE, get_extra_op_char,
     get_op_char, op_redoable, op_self_select,

@@ -42,8 +42,8 @@ use crate::insexpand::ins_compl_active;
 use crate::lua::converter::LuaRef;
 use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
 use crate::map::{
-    Map, map_del_String_int, map_del_int_String, map_put_ref_String_int,
-    map_put_ref_int_String, map_ref_String_int, map_ref_int_String,
+    Map, map_del_String_int, map_del_int_String, map_put_ref_String_int, map_put_ref_int_String,
+    map_ref_String_int, map_ref_int_String,
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;

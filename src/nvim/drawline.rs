@@ -2,7 +2,6 @@
 //! This is the middle level, `drawscreen.rs` is the top and `grid.rs` the lower level.
 
 use crate::api::vim::{HLF_CLN, HLF_CLS, HLF_LNA, HLF_LNB, HLF_N, HLF_SC, SIGN_SHOW_MAX};
-use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 use crate::autocmd::HLF_8;
 use crate::buffer::{bt_quickfix, buf_T, buf_meta_total};
 use crate::change::TAB;
@@ -70,6 +69,7 @@ use crate::regexp::{Ctrl_V, MAXCOL};
 use crate::search::FORWARD;
 use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, spell_to_word_end};
 use crate::state::{MODE_INSERT, virtual_active};
+use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 use crate::statusline::{build_statuscol_str, foldinfo_T, statuscol_T};
 use crate::strings::{vim_snprintf, vim_strchr};
 use crate::syntax::{

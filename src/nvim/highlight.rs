@@ -22,8 +22,8 @@ use crate::lua::executor::{kRetObject, nlua_call_ref};
 use crate::map::{
     ColorItem, ColorKey, HlAttrs, HlEntry, MHPutStatus, Map, Set, cstr_t,
     map_put_ref_ColorKey_ColorItem, map_put_ref_int_ptr_t, map_put_ref_uint64_t_int,
-    map_ref_ColorKey_ColorItem, map_ref_uint64_t_int, mh_clear, mh_get_ColorKey,
-    mh_put_HlEntry, mh_put_cstr_t, ptr_t,
+    map_ref_ColorKey_ColorItem, map_ref_uint64_t_int, mh_clear, mh_get_ColorKey, mh_put_HlEntry,
+    mh_put_cstr_t, ptr_t,
 };
 use crate::memory::{Arena, arena_finish, arena_mem_free, xfree, xmalloc, xstrdup};
 use crate::message::emsg;

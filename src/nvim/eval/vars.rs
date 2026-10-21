@@ -77,8 +77,7 @@ use crate::register::{get_reg_contents, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, script_items, scriptvar_T};
 use crate::search::set_search_direction;
 use crate::strings::{
-    c_strcpy, concat_str, gettext, strcmp, strlen, strncmp,
-    vim_snprintf, vim_strchr,
+    c_strcpy, concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{

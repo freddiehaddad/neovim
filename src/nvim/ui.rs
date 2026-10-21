@@ -2,8 +2,8 @@
 
 use crate::api::extmark::describe_ns;
 use crate::api::private::helpers::{
-    api_clear_error, api_set_error, arena_array, arena_dict, array_obj, boolean_obj, cstr_as_string,
-    float_obj, integer_obj, string_obj, window_obj,
+    api_clear_error, api_set_error, arena_array, arena_dict, array_obj, boolean_obj,
+    cstr_as_string, float_obj, integer_obj, string_obj, window_obj,
 };
 use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
@@ -1443,7 +1443,12 @@ pub unsafe extern "C" fn ui_call_set_scroll_region(
             return;
         }
         ENTERED = true;
-        let mut items = [integer_obj(top), integer_obj(bot), integer_obj(left), integer_obj(right)];
+        let mut items = [
+            integer_obj(top),
+            integer_obj(bot),
+            integer_obj(left),
+            integer_obj(right),
+        ];
         let args = Array {
             items: items.as_mut_ptr(),
             size: 4,

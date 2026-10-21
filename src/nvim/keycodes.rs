@@ -2502,9 +2502,7 @@ pub unsafe extern "C" fn find_special_key(
                 let end_minus_bp = end as usize - bp as usize;
                 if end_minus_bp > 3 && *bp == b't' as c_char && *bp.add(1) == b'_' as c_char {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
-                } else if end_minus_bp > 4
-                    && vim_strnicmp_asc(bp, c"char-".as_ptr(), 5) == 0
-                {
+                } else if end_minus_bp > 4 && vim_strnicmp_asc(bp, c"char-".as_ptr(), 5) == 0 {
                     let mut l: c_int = 0;
                     vim_str2nr(
                         bp.add(5),
@@ -2792,12 +2790,11 @@ pub unsafe extern "C" fn replace_termcodes(
                 // Replace <Leader> by the value of "mapleader".
                 // Replace <LocalLeader> by the value of "maplocalleader".
                 // If "mapleader" or "maplocalleader" isn't set use a backslash.
-                let (len, p): (usize, *mut c_char) =
-                    if rem >= 8 && vim_strnicmp_asc(src, c"<Leader>".as_ptr(), 8) == 0 {
-                        (8, get_var_value(c"g:mapleader".as_ptr()))
-                    } else if rem >= 13
-                        && vim_strnicmp_asc(src, c"<LocalLeader>".as_ptr(), 13) == 0
-                    {
+                let (len, p): (usize, *mut c_char) = if rem >= 8
+                    && vim_strnicmp_asc(src, c"<Leader>".as_ptr(), 8) == 0
+                {
+                    (8, get_var_value(c"g:mapleader".as_ptr()))
+                } else if rem >= 13 && vim_strnicmp_asc(src, c"<LocalLeader>".as_ptr(), 13) == 0 {
                     (13, get_var_value(c"g:maplocalleader".as_ptr()))
                 } else {
                     (0, std::ptr::null_mut())

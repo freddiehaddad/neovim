@@ -1,8 +1,8 @@
 //! User defined command support (`src/nvim/usercmd.c`).
 
 use crate::api::private::helpers::{
-    arena_dict, boolean_obj, cstr_as_obj, dict_obj, put_c, integer_obj, luaref_obj,
-    nil_obj, string_obj,
+    arena_dict, boolean_obj, cstr_as_obj, dict_obj, integer_obj, luaref_obj, nil_obj, put_c,
+    string_obj,
 };
 use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};

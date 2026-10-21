@@ -607,11 +607,7 @@ pub unsafe extern "C" fn expand_env_esc(
     unsafe {
         let mut at_start = true;
         let dst_start = dst;
-        let prefix_len: usize = if prefix.is_null() {
-            0
-        } else {
-            strlen(prefix)
-        };
+        let prefix_len: usize = if prefix.is_null() { 0 } else { strlen(prefix) };
 
         let mut src = skipwhite(srcp);
         dstlen -= 1;

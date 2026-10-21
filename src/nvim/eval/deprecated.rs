@@ -1,6 +1,8 @@
 //! Deprecated Vimscript evaluation functions (`src/nvim/eval/deprecated.c`).
 
+use crate::api::private::converter::K_BOOL_VAR_TRUE;
 use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
+use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 use crate::eval::typval::{
@@ -11,8 +13,6 @@ use crate::ex_cmds::check_secure;
 use crate::garray::garray_T;
 use crate::globals::*;
 use crate::memory::{xmalloc, xstrdup};
-use crate::api::private::converter::K_BOOL_VAR_TRUE;
-use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
 use crate::message::{emsg, semsg};
 use std::ffi::{c_char, c_int, c_void};
 
