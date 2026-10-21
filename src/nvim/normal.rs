@@ -141,7 +141,7 @@ use crate::option::{
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::input::line_breakcheck;
-use crate::os::time::c_time;
+use crate::os::time::{os_time, time_t};
 use crate::plines::{
     getvcol, getvcols, getvvcol, linetabsize, plines_m_win_fill, plines_win, win_get_fill,
 };
@@ -2379,7 +2379,7 @@ unsafe fn normal_redraw(_s: *mut NormalState) {
             }
         }
 
-        (*curbuf).b_last_used = c_time(ptr::null_mut());
+        (*curbuf).b_last_used = os_time() as time_t;
 
         if !keep_msg.is_null() {
             let p = xstrdup(keep_msg);

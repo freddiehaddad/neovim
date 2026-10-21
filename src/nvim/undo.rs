@@ -65,7 +65,7 @@ use crate::os::fs::{
     os_mkdir_recurse, os_open, os_path_exists, os_remove, os_set_acl, os_setperm, vim_acl_T,
 };
 use crate::os::input::fast_breakcheck;
-use crate::os::time::{Timestamp, Tm, c_time, os_localtime_r, os_time, strftime, time_t};
+use crate::os::time::{Timestamp, Tm, os_localtime_r, os_time, strftime, time_t};
 use crate::path::{FullName_save, concat_fnames, path_tail, vim_ispathsep, vim_ispathsep_nocolon};
 use crate::sha256::{context_sha256_T, sha256_finish, sha256_start, sha256_update};
 use crate::spell::spell_check_window;
@@ -377,7 +377,7 @@ pub unsafe extern "C" fn u_savecommon(
             (*buf).b_u_seq_last += 1;
             (*uhp).uh_seq = (*buf).b_u_seq_last;
             (*buf).b_u_seq_cur = (*uhp).uh_seq;
-            (*uhp).uh_time = c_time(ptr::null_mut());
+            (*uhp).uh_time = os_time() as time_t;
             (*uhp).uh_save_nr = 0;
             (*buf).b_u_time_cur = (*uhp).uh_time + 1;
 
@@ -2493,11 +2493,11 @@ unsafe fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
     unsafe {
-        let now = c_time(ptr::null_mut());
+        let now = os_time() as time_t;
         if now - tt >= 100 {
             let mut curtime = Tm { _fields: [0; 16] };
             os_localtime_r(&raw const tt, &raw mut curtime);
-            let n = if c_time(ptr::null_mut()) - tt < 60 * 60 * 12 {
+            let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
                 strftime(buf, buflen, c"%H:%M:%S".as_ptr(), &raw const curtime)
             } else {
                 strftime(

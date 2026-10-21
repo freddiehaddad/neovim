@@ -107,7 +107,7 @@ use crate::option_vars::*;
 use crate::optionstr::{OptIndex, free_string_option};
 use crate::os::env::{expand_env, os_get_pid};
 use crate::os::input::{line_breakcheck, os_breakcheck};
-use crate::os::time::{c_time, time_t};
+use crate::os::time::{os_time, time_t};
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{
@@ -5932,7 +5932,7 @@ unsafe fn vgr_process_files(
         while fi < (*cmd_args).fcount && !got_int && (*cmd_args).tomatch > 0 {
             let fname_exp = *(*cmd_args).fnames.add(fi as usize);
             let fname = path_try_shorten_fname(fname_exp);
-            let now = c_time(ptr::null_mut());
+            let now = os_time() as time_t;
             if now > seconds {
                 seconds = now;
                 vgr_display_fname(fname);

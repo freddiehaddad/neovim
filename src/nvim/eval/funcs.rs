@@ -179,7 +179,7 @@ use crate::os::pty_proc::pty_proc_resize;
 use crate::os::shell::shell_free_argv;
 use crate::os::stdpaths::{XDGVarType, get_appname, get_xdg_home, stdpaths_get_xdg_var};
 use crate::os::time::{
-    NS_PER_SEC, Tm, c_time, os_hrtime, os_localtime_r, os_strptime, strftime, time_t,
+    NS_PER_SEC, Tm, os_hrtime, os_localtime_r, os_strptime, os_time, strftime, time_t,
 };
 use crate::path::{ENV_SEPCHAR, concat_fnames_realloc, to_slash_save, vim_FullName};
 use crate::plines::{getvvcol, win_chartabsize};
@@ -407,7 +407,7 @@ use crate::cursor::clearpos;
 use crate::eval::typval::tv_dict_len;
 use crate::event::r#loop::{uv_env_item_t, uv_os_environ, uv_os_free_environ, uv_random};
 use crate::mpack::object::mpack_parser_init;
-use crate::os::time::c_mktime;
+use crate::os::time::mktime;
 use crate::terminal::{terminal_buf, terminal_open, terminal_running};
 
 #[inline]
@@ -5768,7 +5768,7 @@ pub unsafe extern "C" fn f_localtime(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        (*rettv).vval.v_number = c_time(ptr::null_mut()) as varnumber_T;
+        (*rettv).vval.v_number = (os_time() as time_t) as varnumber_T;
     }
 }
 
@@ -9505,7 +9505,7 @@ pub unsafe extern "C" fn f_strftime(
         (*rettv).v_type = VarType::VAR_STRING;
         let mut p = tv_get_string(argvars).cast_mut();
         let seconds: time_t = if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
-            c_time(ptr::null_mut())
+            os_time() as time_t
         } else {
             tv_get_number(argvars.add(1)) as time_t
         };
@@ -9571,7 +9571,7 @@ pub unsafe extern "C" fn f_strptime(
         if fmt.is_null() || os_strptime(str_, fmt, &raw mut tmval).is_null() {
             (*rettv).vval.v_number = 0;
         } else {
-            let t = c_mktime(&raw mut tmval);
+            let t = mktime(&raw mut tmval);
             (*rettv).vval.v_number = if t == -1 { 0 } else { t as varnumber_T };
         }
         if conv.vc_type != CONV_NONE {

@@ -36,7 +36,7 @@ use crate::os::env::home_replace;
 use crate::os::fs::{MAXPATHL, os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
-use crate::os::time::{Timestamp, c_time, os_time, time_t};
+use crate::os::time::{Timestamp, os_time, time_t};
 use crate::path::{
     FreeWild, dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail,
     path_tail_with_sep, vim_ispathsep,
@@ -4566,7 +4566,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc(0, fd);
             put_bytes(fd, 8, 4);
 
-            (*spin).si_sugtime = c_time(ptr::null_mut());
+            (*spin).si_sugtime = os_time() as time_t;
             put_time(fd, (*spin).si_sugtime);
         }
 

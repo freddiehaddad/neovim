@@ -32,12 +32,8 @@ unsafe impl Sync for TzCache {}
 static TZ_CACHE: TzCache = TzCache(UnsafeCell::new([0u8; 64]));
 
 unsafe extern "C" {
-    #[cfg_attr(target_os = "windows", link_name = "_time64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "time")]
-    pub fn c_time(tloc: *mut time_t) -> time_t;
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
-    pub fn c_mktime(tm: *mut Tm) -> time_t;
+    pub fn mktime(tm: *mut Tm) -> time_t;
     pub fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
 
     #[cfg(unix)]
@@ -162,7 +158,7 @@ pub unsafe extern "C" fn os_localtime_r(clock: *const time_t, result: *mut Tm) -
 /// `result` must be a valid writable pointer to `struct tm`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn os_localtime(result: *mut Tm) -> *mut Tm {
-    let rawtime = unsafe { c_time(std::ptr::null_mut()) };
+    let rawtime = os_time() as time_t;
     unsafe { os_localtime_r(&rawtime, result) }
 }
 
@@ -228,7 +224,7 @@ pub unsafe extern "C" fn os_ctime(
     result_len: usize,
     add_newline: bool,
 ) -> *mut c_char {
-    let rawtime = unsafe { c_time(std::ptr::null_mut()) };
+    let rawtime = os_time() as time_t;
     unsafe { os_ctime_r(&rawtime, result, result_len, add_newline) }
 }
 
@@ -256,7 +252,9 @@ pub unsafe extern "C" fn os_strptime(
 /// Obtain current Unix timestamp in seconds (`os_time`).
 #[unsafe(no_mangle)]
 pub extern "C" fn os_time() -> Timestamp {
-    (unsafe { c_time(std::ptr::null_mut()) }) as Timestamp
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 #[cfg(test)]
