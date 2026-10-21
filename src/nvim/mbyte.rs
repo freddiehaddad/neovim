@@ -27,9 +27,11 @@ use crate::option_vars::*;
 use crate::optionstr::check_chars_options;
 use crate::os::env::{expand_T, os_getenv_noalloc};
 use crate::os::fs::os_errno;
-use crate::os::lang::LC_CTYPE;
+#[cfg(unix)]
+use crate::os::lang::nl_langinfo;
+use crate::os::lang::{LC_CTYPE, setlocale};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::{setlocale, strmove, tolower, toupper, vim_strchr, vim_strnicmp_asc};
+use crate::strings::{strmove, tolower, toupper, vim_strchr, vim_strnicmp_asc};
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
     UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
@@ -797,8 +799,6 @@ static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
 unsafe extern "C" {
     fn towupper(wc: wint_t) -> wint_t;
     fn towlower(wc: wint_t) -> wint_t;
-    #[cfg(unix)]
-    fn nl_langinfo(item: c_int) -> *mut c_char;
 }
 
 #[cfg(windows)]

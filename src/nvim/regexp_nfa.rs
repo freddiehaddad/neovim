@@ -207,7 +207,7 @@ unsafe fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
     unsafe {
         nstate = 0;
         istate = 0;
-        let nstate_max = (libc::strlen(expr.cast()) + 1) * 25 + 1000;
+        let nstate_max = (strlen(expr.cast()) + 1) * 25 + 1000;
         let postfix_size = size_of::<c_int>() * nstate_max;
 
         if post_start.is_null() || post_start_len < nstate_max {
@@ -3187,7 +3187,7 @@ unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
             return true;
         }
         let m = (*re_extmatch_in).matches[idx];
-        let mut len = libc::strlen(m.cast()) as c_int;
+        let mut len = strlen(m.cast()) as c_int;
         if cstrncmp(m.cast(), rex.input.cast(), &raw mut len) == 0 {
             *bytelen = len;
             return true;

@@ -75,7 +75,9 @@ use crate::math::{FAIL, OK};
 use crate::mcursor::mc_init;
 use crate::memfile::memfile_T;
 use crate::memline::{ml_close_all, ml_close_notmod, ml_recover, ml_sync_all, recover_names};
-use crate::memory::{entered_free_all_mem, free_all_mem, strequal, xfree, xmalloc, xstrdup};
+use crate::memory::{
+    entered_free_all_mem, free_all_mem, strequal, striequal_str, xfree, xmalloc, xstrdup,
+};
 use crate::message::{msg_putchar, semsg, wait_return};
 use crate::mouse::setmouse;
 use crate::r#move::update_topline;
@@ -253,16 +255,6 @@ unsafe fn to_slash_if_needed(p: *mut c_char) {
 }
 
 #[inline]
-unsafe fn stricmp_ascii(a: *const c_char, b: &[u8]) -> bool {
-    unsafe {
-        if a.is_null() {
-            return false;
-        }
-        CStr::from_ptr(a).to_bytes().eq_ignore_ascii_case(b)
-    }
-}
-
-#[inline]
 unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     unsafe {
         if a.is_null() {
@@ -389,7 +381,7 @@ pub unsafe extern "C" fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int
         init_startuptime(&raw mut params);
 
         for i in 1..params.argc {
-            if stricmp_ascii(*params.argv.add(i as usize), b"--clean") {
+            if striequal_str(*params.argv.add(i as usize), "--clean") {
                 params.clean = true;
                 break;
             }
@@ -1329,13 +1321,13 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     }
                     b'-' => {
                         let sub = arg0.add(argv_idx as usize);
-                        if stricmp_ascii(sub, b"help") {
+                        if striequal_str(sub, "help") {
                             usage();
                             os_exit(0);
-                        } else if stricmp_ascii(sub, b"version") {
+                        } else if striequal_str(sub, "version") {
                             version();
                             os_exit(0);
-                        } else if stricmp_ascii(sub, b"api-info") {
+                        } else if striequal_str(sub, "api-info") {
                             #[cfg(windows)]
                             {
                                 _setmode(STDOUT_FILENO, 0x8000);
@@ -1350,9 +1342,9 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 );
                             }
                             os_exit(0);
-                        } else if stricmp_ascii(sub, b"headless") {
+                        } else if striequal_str(sub, "headless") {
                             headless_mode = true;
-                        } else if stricmp_ascii(sub, b"embed") {
+                        } else if striequal_str(sub, "embed") {
                             embedded_mode = true;
                         } else if strnicmp_ascii(sub, b"listen") {
                             want_argument = true;
@@ -1808,13 +1800,13 @@ unsafe fn init_startuptime(paramp: *mut mparm_T) {
     unsafe {
         let mut is_embed = false;
         for i in 1..((*paramp).argc - 1) {
-            if stricmp_ascii(*(*paramp).argv.add(i as usize), b"--embed") {
+            if striequal_str(*(*paramp).argv.add(i as usize), "--embed") {
                 is_embed = true;
                 break;
             }
         }
         for i in 1..((*paramp).argc - 1) {
-            if stricmp_ascii(*(*paramp).argv.add(i as usize), b"--startuptime") {
+            if striequal_str(*(*paramp).argv.add(i as usize), "--startuptime") {
                 time_init(
                     *(*paramp).argv.add((i + 1) as usize),
                     if is_embed {

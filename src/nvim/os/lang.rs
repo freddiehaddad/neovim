@@ -24,7 +24,7 @@ use crate::os::env::{expand_T, os_setenv};
 use crate::os::shell::get_cmd_output;
 use crate::path::{path_tail, path_tail_with_sep};
 use crate::profile::time_msg;
-use crate::strings::{gettext, setlocale};
+use crate::strings::gettext;
 use std::ffi::{c_char, c_int, c_ulong};
 use std::ptr;
 
@@ -79,6 +79,11 @@ static mut DID_INIT_LOCALES: bool = false;
 unsafe extern "C" {
     #[cfg(target_os = "linux")]
     static mut _nl_msg_cat_cntr: c_int;
+
+    pub(crate) fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
+
+    #[cfg(unix)]
+    pub(crate) fn nl_langinfo(item: c_int) -> *mut c_char;
 
     #[link_name = "gettext"]
     pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char;

@@ -29,16 +29,12 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
-use crate::strings::tr;
-use crate::strings::xstrnsave;
+pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
+use crate::strings::{tr, xstrnsave};
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
 pub(super) use std::mem::{size_of, zeroed};
 use std::ptr;
-
-pub(super) mod libc {
-    pub(super) use crate::strings::{strcpy, strlen, strncmp, strncpy};
-}
 
 #[path = "regexp_bt.rs"]
 mod bt;
@@ -1010,7 +1006,7 @@ pub(super) unsafe fn get_char_class(pp: *mut *mut c_char) -> c_int {
         {
             let target = p.add(2);
             for &(key, pat) in CHAR_CLASS_TAB {
-                if libc::strncmp(target.cast(), pat.as_ptr().cast(), pat.len()) == 0 {
+                if strncmp(target.cast(), pat.as_ptr().cast(), pat.len()) == 0 {
                     *pp = (*pp).add(pat.len() + 2);
                     return key;
                 }
@@ -1263,7 +1259,7 @@ pub unsafe extern "C" fn skip_regexp_ex(
             } else if *p == b'\\' as c_char && *p.add(1) != NUL as c_char {
                 if dirc == b'?' as c_int && !newp.is_null() && *p.add(1) == b'?' as c_char {
                     if startplen == 0 {
-                        startplen = libc::strlen(startp);
+                        startplen = strlen(startp);
                     }
                     if (*newp).is_null() {
                         *newp = xstrnsave(startp, startplen);
@@ -1899,14 +1895,14 @@ pub(super) unsafe fn match_with_backref(
         }
         loop {
             if rex.line != reg_tofree {
-                let mut len = libc::strlen(rex.line.cast()) as c_int;
+                let mut len = strlen(rex.line.cast()) as c_int;
                 if reg_tofree.is_null() || len >= reg_tofreelen as c_int {
                     len += 50;
                     xfree(reg_tofree.cast());
                     reg_tofree = xmalloc(len as usize).cast();
                     reg_tofreelen = len as c_uint;
                 }
-                libc::strcpy(reg_tofree.cast(), rex.line.cast());
+                strcpy(reg_tofree.cast(), rex.line.cast());
                 rex.input = reg_tofree.add(rex.input.offset_from(rex.line) as usize);
                 rex.line = reg_tofree;
             }
@@ -1979,7 +1975,7 @@ unsafe fn mb_decompose(c: c_int, c1: *mut c_int, c2: *mut c_int, c3: *mut c_int)
 pub(super) unsafe fn cstrncmp(s1: *mut c_char, s2: *mut c_char, n: *mut c_int) -> c_int {
     unsafe {
         let mut result = if !rex.reg_ic {
-            libc::strncmp(s1, s2, *n as usize)
+            strncmp(s1, s2, *n as usize)
         } else {
             let mut p = s1;
             let mut n2: c_int = 0;
@@ -2102,11 +2098,11 @@ pub unsafe extern "C" fn regtilde(source: *mut c_char, magic: c_int, preview: bo
 
         let mut p = newsub;
         while *p != NUL as c_char {
-            if libc::strncmp(p, tilde.as_ptr(), tildelen) == 0 {
+            if strncmp(p, tilde.as_ptr(), tildelen) == 0 {
                 let prefixlen = p.offset_from(newsub) as usize;
                 let postfix = p.add(tildelen);
                 if newsublen == 0 {
-                    newsublen = libc::strlen(newsub);
+                    newsublen = strlen(newsub);
                 }
                 newsublen -= tildelen;
                 let postfixlen = newsublen - prefixlen;
@@ -2122,7 +2118,7 @@ pub unsafe extern "C" fn regtilde(source: *mut c_char, magic: c_int, preview: bo
                     let tmpsub = xmalloc(tmpsublen + 1).cast::<c_char>();
                     ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen);
                     ptr::copy_nonoverlapping(reg_prev_sub, tmpsub.add(prefixlen), reg_prev_sublen);
-                    libc::strcpy(tmpsub.add(prefixlen + reg_prev_sublen), postfix);
+                    strcpy(tmpsub.add(prefixlen + reg_prev_sublen), postfix);
 
                     if newsub != source {
                         xfree(newsub.cast());
@@ -2319,9 +2315,9 @@ unsafe fn vim_regsub_both(
         if !expr.is_null() || (*source == b'\\' as c_char && *source.add(1) == b'=' as c_char) {
             if copy {
                 if !(*eval_slot).is_null() {
-                    let eval_len = libc::strlen(*eval_slot);
+                    let eval_len = strlen(*eval_slot);
                     if eval_len < destlen as usize {
-                        libc::strcpy(dest, *eval_slot);
+                        strcpy(dest, *eval_slot);
                         dst = dst.add(eval_len);
                         xfree((*eval_slot).cast());
                         *eval_slot = ptr::null_mut();
@@ -2427,7 +2423,7 @@ unsafe fn vim_regsub_both(
                         xfree((*eval_slot).cast());
                         *eval_slot = escaped;
                     }
-                    dst = dst.add(libc::strlen(*eval_slot));
+                    dst = dst.add(strlen(*eval_slot));
                 }
 
                 can_f_submatch = prev_can_f_submatch;
@@ -2746,7 +2742,7 @@ pub unsafe extern "C" fn reg_submatch(no: c_int) -> *mut c_char {
                     len = (reg_getline_submatch_len(lnum) - (*rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
-                        libc::strcpy(retval, s);
+                        strcpy(retval, s);
                         *retval.add(len as usize) = b'\n' as c_char;
                     }
                     len += 1;
@@ -2754,7 +2750,7 @@ pub unsafe extern "C" fn reg_submatch(no: c_int) -> *mut c_char {
                     while lnum < (*rsm.sm_mmatch).endpos[no].lnum {
                         s = reg_getline_submatch(lnum);
                         if round == 2 {
-                            libc::strcpy(retval.add(len as usize), s);
+                            strcpy(retval.add(len as usize), s);
                         }
                         len += reg_getline_submatch_len(lnum) as isize;
                         if round == 2 {
@@ -2764,7 +2760,7 @@ pub unsafe extern "C" fn reg_submatch(no: c_int) -> *mut c_char {
                         lnum += 1;
                     }
                     if round == 2 {
-                        libc::strncpy(
+                        strncpy(
                             retval.add(len as usize),
                             reg_getline_submatch(lnum),
                             (*rsm.sm_mmatch).endpos[no].col as usize,
@@ -3020,7 +3016,7 @@ pub unsafe extern "C" fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -
 
         regexp_engine = p_re as c_int;
 
-        if libc::strncmp(expr, c"\\%#=".as_ptr(), 4) == 0 {
+        if strncmp(expr, c"\\%#=".as_ptr(), 4) == 0 {
             let newengine = (*expr.add(4) as u8).wrapping_sub(b'0') as c_int;
             if newengine == AUTOMATIC_ENGINE
                 || newengine == BACKTRACKING_ENGINE

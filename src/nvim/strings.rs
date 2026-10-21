@@ -73,7 +73,6 @@ pub struct keyvalue_T {
 
 unsafe extern "C" {
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
     pub fn tolower(c: c_int) -> c_int;
     pub fn toupper(c: c_int) -> c_int;
     pub fn isalpha(c: c_int) -> c_int;

@@ -2131,7 +2131,7 @@ pub(super) unsafe extern "C" fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> *m
                 let mut len: c_int = 0;
                 while !scan.is_null() {
                     if OP(scan) == EXACTLY {
-                        let scanlen = libc::strlen(OPERAND(scan).cast());
+                        let scanlen = strlen(OPERAND(scan).cast());
                         if scanlen >= len as usize {
                             longest = OPERAND(scan);
                             len = scanlen as c_int;
@@ -3011,7 +3011,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                 let len = if *opnd.add(1) == NUL && !rex.reg_ic {
                                     1
                                 } else {
-                                    let mut l = libc::strlen(opnd.cast()) as c_int;
+                                    let mut l = strlen(opnd.cast()) as c_int;
                                     if cstrncmp(opnd.cast(), rex.input.cast(), &raw mut l) != 0 {
                                         status = RA_NOMATCH;
                                     }
@@ -3254,7 +3254,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                             if !re_extmatch_in.is_null() && !(*re_extmatch_in).matches[no].is_null()
                             {
                                 let m = (*re_extmatch_in).matches[no];
-                                let mut len = libc::strlen(m.cast()) as c_int;
+                                let mut len = strlen(m.cast()) as c_int;
                                 if cstrncmp(m.cast(), rex.input.cast(), &raw mut len) != 0 {
                                     status = RA_NOMATCH;
                                 } else {
@@ -3631,7 +3631,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                         (if (*rp).rs_un.regsave.rs_u.pos.lnum
                                             < behind_pos.rs_u.pos.lnum
                                         {
-                                            libc::strlen(rex.line.cast()) as colnr_T
+                                            strlen(rex.line.cast()) as colnr_T
                                         } else {
                                             behind_pos.rs_u.pos.col
                                         }) - (*rp).rs_un.regsave.rs_u.pos.col,
@@ -3648,7 +3648,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: *const proftime_T, timed_out: *mut c_i
                                     } else {
                                         reg_restore(&raw mut (*rp).rs_un.regsave, &raw mut backpos);
                                         (*rp).rs_un.regsave.rs_u.pos.col =
-                                            libc::strlen(rex.line.cast()) as colnr_T;
+                                            strlen(rex.line.cast()) as colnr_T;
                                     }
                                 } else {
                                     let line = reg_getline((*rp).rs_un.regsave.rs_u.pos.lnum);

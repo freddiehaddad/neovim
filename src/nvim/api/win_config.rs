@@ -26,7 +26,7 @@ use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_id2name};
 use crate::lua::converter::Boolean;
 use crate::mbyte::{mb_string2cells, mb_string2cells_len};
-use crate::memory::{Arena, strequal, strequal_str};
+use crate::memory::{Arena, strequal, strequal_str, striequal_str};
 use crate::r#move::changed_window_setting;
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::didset_window_options;
@@ -179,18 +179,6 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
     hide: false,
     _cmdline_offset: c_int::MAX,
 };
-
-#[inline]
-unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
-    if a.is_null() {
-        return false;
-    }
-    unsafe {
-        CStr::from_ptr(a)
-            .to_bytes()
-            .eq_ignore_ascii_case(b.as_bytes())
-    }
-}
 
 /// Opens a new split window, floating window, or external window.
 ///

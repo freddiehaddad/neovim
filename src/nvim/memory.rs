@@ -491,6 +491,19 @@ pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
     unsafe { CStr::from_ptr(a).to_bytes() == b.as_bytes() }
 }
 
+/// Return true if C string `a` equals Rust string `b` ignoring ASCII case (`striequal_str`).
+#[inline]
+pub unsafe fn striequal_str(a: *const c_char, b: &str) -> bool {
+    if a.is_null() {
+        return false;
+    }
+    unsafe {
+        CStr::from_ptr(a)
+            .to_bytes()
+            .eq_ignore_ascii_case(b.as_bytes())
+    }
+}
+
 /// Return true if C strings `a` and `b` are equal (both may be null) (`strequal`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn strequal(a: *const c_char, b: *const c_char) -> bool {
