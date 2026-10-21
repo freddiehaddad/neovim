@@ -326,9 +326,7 @@ struct spellinfo_T {
     si_newcompID: c_int,
 }
 
-unsafe extern "C" {
-    fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
-}
+use crate::fileio::ungetc;
 
 #[inline]
 const fn tolower_asc(c: c_char) -> u8 {

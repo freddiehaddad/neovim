@@ -158,9 +158,7 @@ use crate::autocmd::{EVENT_CHANCLOSE, EVENT_CHANOPEN};
 use crate::fileio::dup2;
 use crate::lua::converter::LUA_NOREF;
 
-unsafe extern "C" {
-    fn freopen(filename: *const c_char, mode: *const c_char, stream: *mut c_void) -> *mut c_void;
-}
+use crate::fileio::freopen;
 
 #[inline]
 unsafe fn redirect_stderr_to_null() {

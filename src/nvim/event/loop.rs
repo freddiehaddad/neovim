@@ -67,6 +67,42 @@ pub type uv_signal_cb = Option<unsafe extern "C" fn(handle: *mut uv_signal_t, si
 pub type uv_connect_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
 pub type uv_write_cb = Option<unsafe extern "C" fn(req: *mut c_void, status: c_int)>;
 pub type uv_fs_cb = Option<unsafe extern "C" fn(req: *mut uv_fs_t)>;
+pub type uv_alloc_cb = Option<
+    unsafe extern "C" fn(
+        handle: *mut uv_handle_t,
+        suggested_size: usize,
+        buf: *mut crate::event::wstream::uv_buf_t,
+    ),
+>;
+pub type uv_read_cb = Option<
+    unsafe extern "C" fn(
+        stream: *mut crate::event::stream::uv_stream_t,
+        nread: isize,
+        buf: *const crate::event::wstream::uv_buf_t,
+    ),
+>;
+pub type uv_idle_cb = Option<unsafe extern "C" fn(handle: *mut crate::event::stream::uv_idle_t)>;
+pub type uv_connection_cb =
+    Option<unsafe extern "C" fn(server: *mut crate::event::stream::uv_stream_t, status: c_int)>;
+pub type uv_thread_cb = Option<unsafe extern "C" fn(arg: *mut c_void)>;
+
+#[repr(C)]
+pub struct uv_env_item_t {
+    pub name: *mut std::ffi::c_char,
+    pub value: *mut std::ffi::c_char,
+}
+
+#[repr(C)]
+pub struct UvTimeval64 {
+    pub tv_sec: i64,
+    pub tv_usec: i32,
+}
+
+#[repr(C)]
+pub struct UvTimespec64 {
+    pub tv_sec: i64,
+    pub tv_nsec: i32,
+}
 
 #[repr(C)]
 pub struct LoopQueuesAndChildren {
@@ -96,6 +132,7 @@ unsafe extern "C" {
     pub fn uv_walk(loop_: *mut uv_loop_t, walk_cb: uv_walk_cb, arg: *mut c_void);
 
     pub fn uv_mutex_init(handle: *mut uv_mutex_t) -> c_int;
+    pub fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
     pub fn uv_mutex_destroy(handle: *mut uv_mutex_t);
     pub fn uv_mutex_lock(handle: *mut uv_mutex_t);
     pub fn uv_mutex_unlock(handle: *mut uv_mutex_t);
@@ -117,12 +154,22 @@ unsafe extern "C" {
         repeat: u64,
     ) -> c_int;
     pub fn uv_timer_stop(handle: *mut uv_timer_t) -> c_int;
+    pub fn uv_timer_get_due_in(handle: *const uv_timer_t) -> u64;
 
     pub fn uv_is_closing(handle: *const uv_handle_t) -> c_int;
     pub fn uv_close(handle: *mut uv_handle_t, close_cb: uv_close_cb);
+    pub fn uv_unref(handle: *mut uv_handle_t);
+    pub fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;
 
+    pub fn uv_pipe(fds: *mut c_int, read_flags: c_int, write_flags: c_int) -> c_int;
     pub fn uv_pipe_init(loop_: *mut uv_loop_t, handle: *mut c_void, ipc: c_int) -> c_int;
     pub fn uv_pipe_open(handle: *mut c_void, file: c_int) -> c_int;
+    pub fn uv_pipe_bind2(
+        handle: *mut crate::event::stream::uv_pipe_t,
+        name: *const std::ffi::c_char,
+        namelen: usize,
+        flags: std::ffi::c_uint,
+    ) -> c_int;
     pub fn uv_pipe_connect(
         req: *mut c_void,
         handle: *mut c_void,
@@ -131,12 +178,54 @@ unsafe extern "C" {
     );
     pub fn uv_tty_init(loop_: *mut uv_loop_t, tty: *mut c_void, fd: c_int, unused: c_int) -> c_int;
     pub fn uv_tty_set_mode(tty: *mut c_void, mode: c_int) -> c_int;
+    pub fn uv_tty_reset_mode() -> c_int;
+    pub fn uv_tty_get_winsize(
+        tty: *mut crate::event::stream::uv_tty_t,
+        width: *mut c_int,
+        height: *mut c_int,
+    ) -> c_int;
+    pub fn uv_tty_set_vterm_state(state: c_int);
     pub fn uv_write(
         req: *mut c_void,
         handle: *mut c_void,
         bufs: *const crate::event::wstream::uv_buf_t,
         nbufs: std::ffi::c_uint,
         cb: uv_write_cb,
+    ) -> c_int;
+    pub fn uv_read_start(
+        stream: *mut crate::event::stream::uv_stream_t,
+        alloc_cb: uv_alloc_cb,
+        read_cb: uv_read_cb,
+    ) -> c_int;
+    pub fn uv_read_stop(stream: *mut crate::event::stream::uv_stream_t) -> c_int;
+    pub fn uv_stream_set_blocking(
+        handle: *mut crate::event::stream::uv_stream_t,
+        blocking: c_int,
+    ) -> c_int;
+    pub fn uv_stream_get_write_queue_size(
+        stream: *const crate::event::stream::uv_stream_t,
+    ) -> usize;
+    pub fn uv_idle_init(loop_: *mut uv_loop_t, idle: *mut crate::event::stream::uv_idle_t)
+    -> c_int;
+    pub fn uv_idle_start(idle: *mut crate::event::stream::uv_idle_t, cb: uv_idle_cb) -> c_int;
+    pub fn uv_idle_stop(idle: *mut crate::event::stream::uv_idle_t) -> c_int;
+    pub fn uv_fs_read(
+        loop_: *mut uv_loop_t,
+        req: *mut uv_fs_t,
+        file: c_int,
+        bufs: *const crate::event::wstream::uv_buf_t,
+        nbufs: std::ffi::c_uint,
+        offset: i64,
+        cb: uv_fs_cb,
+    ) -> c_int;
+    pub fn uv_fs_write(
+        loop_: *mut uv_loop_t,
+        req: *mut uv_fs_t,
+        file: c_int,
+        bufs: *const crate::event::wstream::uv_buf_t,
+        nbufs: std::ffi::c_uint,
+        offset: i64,
+        cb: uv_fs_cb,
     ) -> c_int;
     pub fn uv_fs_req_cleanup(req: *mut c_void);
     pub fn uv_fs_get_result(req: *const c_void) -> isize;
@@ -157,7 +246,82 @@ unsafe extern "C" {
         ptr: *mut *mut c_void,
     ) -> c_int;
     pub fn uv_dlerror(lib: *const crate::os::dl::UvLib) -> *const std::ffi::c_char;
+    pub fn uv_getaddrinfo(
+        loop_: *mut uv_loop_t,
+        req: *mut crate::event::socket::uv_getaddrinfo_t,
+        getaddrinfo_cb: *mut c_void,
+        node: *const std::ffi::c_char,
+        service: *const std::ffi::c_char,
+        hints: *const crate::event::socket::addrinfo,
+    ) -> c_int;
     pub fn uv_freeaddrinfo(ai: *mut c_void);
+    pub fn uv_tcp_init(loop_: *mut uv_loop_t, handle: *mut crate::event::socket::uv_tcp_t)
+    -> c_int;
+    pub fn uv_tcp_nodelay(handle: *mut crate::event::socket::uv_tcp_t, enable: c_int) -> c_int;
+    pub fn uv_tcp_bind(
+        handle: *mut crate::event::socket::uv_tcp_t,
+        addr: *const c_void,
+        flags: std::ffi::c_uint,
+    ) -> c_int;
+    pub fn uv_tcp_getsockname(
+        handle: *const crate::event::socket::uv_tcp_t,
+        name: *mut c_void,
+        namelen: *mut c_int,
+    ) -> c_int;
+    pub fn uv_tcp_connect(
+        req: *mut uv_connect_t,
+        handle: *mut crate::event::socket::uv_tcp_t,
+        addr: *const c_void,
+        cb: uv_connect_cb,
+    ) -> c_int;
+    pub fn uv_listen(
+        stream: *mut crate::event::stream::uv_stream_t,
+        backlog: c_int,
+        cb: uv_connection_cb,
+    ) -> c_int;
+    pub fn uv_accept(
+        server: *mut crate::event::stream::uv_stream_t,
+        client: *mut crate::event::stream::uv_stream_t,
+    ) -> c_int;
+    pub fn uv_spawn(
+        loop_: *mut uv_loop_t,
+        handle: *mut crate::event::libuv_proc::uv_process_t,
+        options: *const crate::event::libuv_proc::uv_process_options_t,
+    ) -> c_int;
+    pub fn uv_process_get_pid(handle: *const crate::event::libuv_proc::uv_process_t) -> c_int;
+    pub fn uv_os_environ(envitems: *mut *mut uv_env_item_t, count: *mut c_int) -> c_int;
+    pub fn uv_os_free_environ(envitems: *mut uv_env_item_t, count: c_int);
+    pub fn uv_os_getenv(
+        name: *const std::ffi::c_char,
+        buffer: *mut std::ffi::c_char,
+        size: *mut usize,
+    ) -> c_int;
+    pub fn uv_os_setenv(name: *const std::ffi::c_char, value: *const std::ffi::c_char) -> c_int;
+    pub fn uv_os_unsetenv(name: *const std::ffi::c_char) -> c_int;
+    pub fn uv_os_homedir(buffer: *mut std::ffi::c_char, size: *mut usize) -> c_int;
+    pub fn uv_os_getpid() -> c_int;
+    pub fn uv_random(
+        loop_: *mut c_void,
+        req: *mut c_void,
+        buf: *mut c_void,
+        buflen: usize,
+        flags: u32,
+        cb: *const c_void,
+    ) -> c_int;
+    pub fn uv_print_all_handles(loop_: *mut c_void, stream: *mut crate::fileio::FILE);
+    pub fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
+    pub fn uv_uptime(uptime: *mut f64) -> c_int;
+    pub fn uv_get_total_memory() -> u64;
+    pub fn uv_sleep(msec: std::ffi::c_uint);
+    pub fn uv_hrtime() -> u64;
+    pub fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
+    pub fn uv_now(loop_ptr: *const c_void) -> u64;
+    pub fn uv_thread_self() -> uv_thread_t;
+    pub fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
+    pub fn uv_thread_create(tid: *mut uv_thread_t, entry: uv_thread_cb, arg: *mut c_void) -> c_int;
+    pub fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
+    #[cfg(unix)]
+    pub fn uv_disable_stdio_inheritance();
 }
 
 #[inline]

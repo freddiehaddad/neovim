@@ -8,8 +8,8 @@
 )]
 
 use crate::event::r#loop::{
-    Loop, uv_err_name, uv_fs_cb, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop,
-    uv_handle_get_type, uv_handle_t, uv_loop_t, uv_strerror,
+    Loop, uv_err_name, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop,
+    uv_handle_get_type, uv_handle_t, uv_strerror,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, multiqueue_put_event};
 use crate::event::stream::{
@@ -19,7 +19,7 @@ use crate::event::stream::{
 use crate::event::wstream::uv_buf_t;
 use crate::log::{LOGLVL_DBG, g_min_log_level, logmsg};
 use crate::memory::{ARENA_BLOCK_SIZE, alloc_block, free_block};
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 const UV_EOF: isize = -4095;
@@ -38,12 +38,6 @@ pub type stream_read_cb = Option<
         eof: bool,
     ) -> usize,
 >;
-type uv_alloc_cb = Option<
-    unsafe extern "C" fn(handle: *mut uv_handle_t, suggested_size: usize, buf: *mut uv_buf_t),
->;
-type uv_read_cb =
-    Option<unsafe extern "C" fn(stream: *mut uv_stream_t, nread: isize, buf: *const uv_buf_t)>;
-type uv_idle_cb = Option<unsafe extern "C" fn(handle: *mut uv_idle_t)>;
 
 #[repr(C)]
 pub struct RStreamFields {
@@ -59,24 +53,7 @@ pub struct RStreamFields {
     pub num_bytes: usize,
 }
 
-unsafe extern "C" {
-
-    fn uv_read_start(stream: *mut uv_stream_t, alloc_cb: uv_alloc_cb, read_cb: uv_read_cb)
-    -> c_int;
-    fn uv_read_stop(stream: *mut uv_stream_t) -> c_int;
-    fn uv_idle_start(idle: *mut uv_idle_t, cb: uv_idle_cb) -> c_int;
-    fn uv_idle_stop(idle: *mut uv_idle_t) -> c_int;
-    fn uv_fs_read(
-        loop_: *mut uv_loop_t,
-        req: *mut uv_fs_t,
-        file: c_int,
-        bufs: *const uv_buf_t,
-        nbufs: c_uint,
-        offset: i64,
-        cb: uv_fs_cb,
-    ) -> c_int;
-
-}
+use crate::event::r#loop::{uv_fs_read, uv_idle_start, uv_idle_stop, uv_read_start, uv_read_stop};
 
 #[inline]
 pub unsafe fn rstream_fields(stream: *mut RStream) -> *mut RStreamFields {

@@ -130,10 +130,7 @@ pub struct funccall_T {
     pub fc_ufuncs: garray_T,
 }
 
-unsafe extern "C" {
-
-    fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
-}
+use crate::fileio::setvbuf;
 
 #[inline]
 unsafe fn prl_item(si: *mut scriptitem_T, idx: c_int) -> *mut sn_prl_T {

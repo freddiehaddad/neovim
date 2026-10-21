@@ -8,8 +8,7 @@
 )]
 
 use crate::event::r#loop::{
-    Loop, uv_fs_cb, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_loop_t,
-    uv_req_size, uv_write,
+    Loop, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_req_size, uv_write,
 };
 use crate::event::stream::{
     Stream, stream_close_handle, stream_closed_ptr, stream_fields, stream_init, stream_uv_ptr,
@@ -18,7 +17,7 @@ use crate::event::stream::{
 use crate::memory::{xfree, xmalloc};
 #[cfg(windows)]
 use std::ffi::c_ulong;
-use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 const DEFAULT_MAXMEM: usize = 1024 * 1024 * 2000;
@@ -79,17 +78,7 @@ struct WRequestHeader {
     buffer: *mut WBuffer,
 }
 
-unsafe extern "C" {
-    fn uv_fs_write(
-        loop_: *mut uv_loop_t,
-        req: *mut uv_fs_t,
-        file: c_int,
-        bufs: *const uv_buf_t,
-        nbufs: c_uint,
-        offset: i64,
-        cb: uv_fs_cb,
-    ) -> c_int;
-}
+use crate::event::r#loop::uv_fs_write;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wstream_init_fd(

@@ -231,8 +231,12 @@ use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 
 unsafe extern "C" {
-
     pub fn fopen(filename: *const c_char, mode: *const c_char) -> *mut FILE;
+    pub fn freopen(
+        filename: *const c_char,
+        mode: *const c_char,
+        stream: *mut c_void,
+    ) -> *mut c_void;
     pub fn fclose(stream: *mut FILE) -> c_int;
     pub fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
     pub fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut FILE) -> usize;
@@ -240,13 +244,20 @@ unsafe extern "C" {
     pub fn fputs(s: *const c_char, stream: *mut FILE) -> c_int;
     pub fn fgetc(stream: *mut FILE) -> c_int;
     pub fn fputc(c: c_int, stream: *mut FILE) -> c_int;
+    pub fn ungetc(c: c_int, stream: *mut FILE) -> c_int;
     pub fn fprintf(stream: *mut FILE, format: *const c_char, ...) -> c_int;
     pub fn printf(format: *const c_char, ...) -> c_int;
     pub fn fflush(stream: *mut FILE) -> c_int;
+    pub fn setbuf(stream: *mut FILE, buffer: *mut c_char);
+    pub fn setvbuf(stream: *mut FILE, buffer: *mut c_char, mode: c_int, size: usize) -> c_int;
     pub fn fseek(stream: *mut FILE, offset: c_long, whence: c_int) -> c_int;
     pub fn ftell(stream: *mut FILE) -> c_long;
     pub fn ferror(stream: *mut FILE) -> c_int;
     pub fn feof(stream: *mut FILE) -> c_int;
+    #[cfg(unix)]
+    pub fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;
+    #[cfg(unix)]
+    pub fn pclose(stream: *mut FILE) -> c_int;
 
     #[cfg(windows)]
     pub fn libiconv(

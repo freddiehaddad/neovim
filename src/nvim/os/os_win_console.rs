@@ -140,14 +140,11 @@ use crate::fileio::{_close, _get_osfhandle, O_RDONLY};
 use crate::os::fs::MAXPATHL;
 
 #[cfg(windows)]
-unsafe extern "C" {
-    fn _open_osfhandle(osfhandle: isize, flags: c_int) -> c_int;
-}
+use crate::event::r#loop::uv_tty_set_vterm_state;
 
 #[cfg(windows)]
 unsafe extern "C" {
-
-    fn uv_tty_set_vterm_state(state: c_int);
+    fn _open_osfhandle(osfhandle: isize, flags: c_int) -> c_int;
 }
 
 #[cfg(windows)]

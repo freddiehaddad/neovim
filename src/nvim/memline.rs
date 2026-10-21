@@ -306,9 +306,7 @@ const EINVAL: c_int = 22;
 use crate::regexp::MAXCOL;
 use crate::version::Versions;
 
-unsafe extern "C" {
-    fn uv_uptime(uptime: *mut f64) -> c_int;
-}
+use crate::event::r#loop::uv_uptime;
 
 #[inline]
 const fn ml_simple(x: c_int) -> bool {

@@ -346,12 +346,6 @@ struct GetListLineCookie {
     li: *const listitem_T,
 }
 
-#[repr(C)]
-struct uv_env_item_t {
-    name: *mut c_char,
-    value: *mut c_char,
-}
-
 static mut INPUTSECRET_FLAG: bool = false;
 static mut GA_USERINPUT: garray_T = garray_T {
     ga_len: 0,
@@ -428,22 +422,8 @@ const fn compute_build_has_flags() -> u32 {
 
 const NVIM_BUILD_HAS_FLAGS: u32 = compute_build_has_flags();
 
-unsafe extern "C" {
-    #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
-    #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
-    fn c_mktime(tm: *mut Tm) -> time_t;
-    fn uv_os_environ(envitems: *mut *mut uv_env_item_t, count: *mut c_int) -> c_int;
-    fn uv_os_free_environ(envitems: *mut uv_env_item_t, count: c_int);
-    fn uv_random(
-        loop_: *mut c_void,
-        req: *mut c_void,
-        buf: *mut c_void,
-        buflen: usize,
-        flags: u32,
-        cb: *const c_void,
-    ) -> c_int;
-
-}
+use crate::event::r#loop::{uv_env_item_t, uv_os_environ, uv_os_free_environ, uv_random};
+use crate::os::time::c_mktime;
 
 #[inline]
 unsafe fn mpack_parser_init(parser: *mut mpack_parser_t, capacity: u32) {

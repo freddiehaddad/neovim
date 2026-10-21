@@ -1,8 +1,6 @@
 //! System memory information (`src/nvim/os/mem.c`).
 
-unsafe extern "C" {
-    fn uv_get_total_memory() -> u64;
-}
+use crate::event::r#loop::uv_get_total_memory;
 
 #[inline]
 pub const fn bytes_to_kib(bytes: u64) -> u64 {

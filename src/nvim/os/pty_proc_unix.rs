@@ -12,7 +12,7 @@ use crate::eval::typval::tv_dict_to_env;
 #[cfg(unix)]
 use crate::event::libuv_proc::proc_get_exepath;
 #[cfg(unix)]
-use crate::event::r#loop::{uv_handle_get_loop, uv_strerror};
+use crate::event::r#loop::{uv_disable_stdio_inheritance, uv_handle_get_loop, uv_strerror};
 #[cfg(unix)]
 use crate::log::logmsg;
 #[cfg(unix)]
@@ -255,8 +255,6 @@ mod unix_impl {
     use crate::os::signal::signal;
 
     unsafe extern "C" {
-        fn uv_disable_stdio_inheritance();
-
         fn forkpty(
             amaster: *mut c_int,
             name: *mut c_char,

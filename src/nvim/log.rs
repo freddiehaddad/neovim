@@ -35,12 +35,6 @@ pub const LOGLVL_INF: c_int = 2;
 pub const LOGLVL_WRN: c_int = 3;
 pub const LOGLVL_ERR: c_int = 4;
 
-#[repr(C)]
-struct UvTimeval64 {
-    tv_sec: i64,
-    tv_usec: i32,
-}
-
 #[repr(C, align(8))]
 struct UvMutex([u8; 128]);
 
@@ -54,15 +48,13 @@ static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
 #[unsafe(no_mangle)]
 pub static mut g_min_log_level: c_int = LOGLVL_WRN;
 
-unsafe extern "C" {
-    fn uv_mutex_init_recursive(handle: *mut c_void) -> c_int;
-    fn uv_print_all_handles(loop_: *mut c_void, stream: *mut FILE);
-    fn uv_gettimeofday(tv: *mut UvTimeval64) -> c_int;
+use crate::event::r#loop::{
+    UvTimeval64, uv_gettimeofday, uv_mutex_init_recursive, uv_print_all_handles,
+};
+#[cfg(unix)]
+use crate::fileio::{pclose, popen};
 
-    #[cfg(unix)]
-    fn popen(command: *const c_char, mode: *const c_char) -> *mut FILE;
-    #[cfg(unix)]
-    fn pclose(stream: *mut FILE) -> c_int;
+unsafe extern "C" {
     #[cfg(any(target_os = "linux", target_vendor = "apple"))]
     fn backtrace(buffer: *mut *mut c_void, size: c_int) -> c_int;
 

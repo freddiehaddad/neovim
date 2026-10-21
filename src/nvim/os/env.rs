@@ -124,18 +124,13 @@ static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
 
 use crate::version::{default_vim_dir, default_vimruntime_dir};
 
+use crate::event::r#loop::{uv_os_getenv, uv_os_homedir, uv_os_setenv, uv_os_unsetenv};
+
 unsafe extern "C" {
     #[cfg(target_os = "macos")]
     pub fn _NSGetEnviron() -> *mut *mut *mut c_char;
     #[cfg(all(not(windows), not(target_os = "macos")))]
     pub static mut environ: *mut *mut c_char;
-}
-
-unsafe extern "C" {
-    fn uv_os_getenv(name: *const c_char, buffer: *mut c_char, size: *mut usize) -> c_int;
-    fn uv_os_setenv(name: *const c_char, value: *const c_char) -> c_int;
-    fn uv_os_unsetenv(name: *const c_char) -> c_int;
-    fn uv_os_homedir(buffer: *mut c_char, size: *mut usize) -> c_int;
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;

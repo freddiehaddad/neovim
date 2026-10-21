@@ -10,7 +10,7 @@
 use crate::channel::STDERR_FILENO;
 use crate::eval::typval::tv_dict_to_env;
 use crate::event::r#loop::{
-    uv_close, uv_gid_t, uv_handle_size, uv_handle_t, uv_loop_t, uv_pipe_open, uv_uid_t,
+    uv_close, uv_gid_t, uv_handle_size, uv_handle_t, uv_pipe_open, uv_uid_t,
 };
 use crate::event::proc::{
     LibuvProc, Proc, libuv_proc_uv, proc_err, proc_header, proc_in, proc_out, proc_size, proc_tail,
@@ -85,17 +85,7 @@ pub(crate) struct LibuvProcTail {
     pub(crate) uvstdio: [uv_stdio_container_t; 4],
 }
 
-unsafe extern "C" {
-
-    fn uv_pipe(fds: *mut c_int, read_flags: c_int, write_flags: c_int) -> c_int;
-    fn uv_spawn(
-        loop_: *mut uv_loop_t,
-        handle: *mut uv_process_t,
-        options: *const uv_process_options_t,
-    ) -> c_int;
-    fn uv_process_get_pid(handle: *const uv_process_t) -> c_int;
-
-}
+use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 
 #[inline]
 unsafe fn libuv_proc_tail(uvproc: *mut LibuvProc) -> *mut LibuvProcTail {

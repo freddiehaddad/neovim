@@ -85,11 +85,7 @@ pub struct ProcTail {
 static mut proc_is_tearing_down: bool = false;
 static mut exit_need_delay: c_int = 0;
 
-unsafe extern "C" {
-    fn uv_unref(handle: *mut uv_handle_t);
-    fn uv_recv_buffer_size(handle: *mut uv_handle_t, value: *mut c_int) -> c_int;
-
-}
+use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
 
 #[inline]
 pub unsafe fn rstream_size() -> usize {

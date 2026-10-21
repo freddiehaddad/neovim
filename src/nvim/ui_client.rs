@@ -69,9 +69,7 @@ static mut restart_args_after_crash_exit: Array = ARRAY_INIT;
 #[cfg(windows)]
 use crate::fileio::_close as close_fd;
 
-unsafe extern "C" {
-    fn uv_os_getpid() -> c_int;
-}
+use crate::event::r#loop::uv_os_getpid;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ui_client_start_server(

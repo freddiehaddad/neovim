@@ -21,6 +21,7 @@ use crate::api::private::validate::{
 use crate::buffer_updates::ARENA_EMPTY;
 use crate::charset::getdigits_int;
 use crate::cursor_shape::{CursorShape, SHAPE_IDX_COUNT, SHAPE_IDX_N, cursorentry_T, shape_table};
+use crate::event::r#loop::uv_sleep;
 #[cfg(unix)]
 use crate::event::r#loop::uv_tty_set_mode;
 use crate::event::r#loop::{
@@ -36,9 +37,9 @@ use crate::event::signal::{
     SignalWatcher, signal_watcher_close, signal_watcher_init, signal_watcher_start,
     signal_watcher_stop,
 };
+use crate::event::stream::stream_set_blocking;
 #[cfg(windows)]
 use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY, stream_uv_ptr};
-use crate::event::stream::{stream_set_blocking, uv_tty_t};
 use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
 use crate::fileio::{FILE, fclose, fopen, fwrite};
@@ -64,7 +65,7 @@ use crate::os::env::{os_env_exists, os_getenv, os_getenv_noalloc};
 #[cfg(not(windows))]
 use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
-use crate::os::time::{os_hrtime, uv_sleep};
+use crate::os::time::os_hrtime;
 use crate::tui::input::{
     TermInput, input_loop_ptr, input_prefix, input_read_stream, input_suffix, kKeyEncodingKitty,
     kKeyEncodingLegacy, kKeyEncodingXterm, tinput_destroy, tinput_init, tinput_start, tinput_stop,
@@ -252,14 +253,12 @@ static mut urls: Set<cstr_t> = Set {
 #[cfg(unix)]
 use crate::fileio::kill;
 
+use crate::event::r#loop::{uv_tty_get_winsize, uv_tty_reset_mode};
+
+#[cfg(unix)]
 unsafe extern "C" {
-    fn uv_tty_reset_mode() -> c_int;
-    fn uv_tty_get_winsize(tty: *mut uv_tty_t, width: *mut c_int, height: *mut c_int) -> c_int;
-    #[cfg(unix)]
     fn getppid() -> c_int;
-    #[cfg(unix)]
     fn getpgid(pid: c_int) -> c_int;
-    #[cfg(unix)]
     fn getpgrp() -> c_int;
 }
 

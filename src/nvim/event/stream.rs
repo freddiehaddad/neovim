@@ -61,12 +61,7 @@ pub struct StreamFields {
     pub maxmem: usize,
 }
 
-unsafe extern "C" {
-    fn uv_stream_set_blocking(handle: *mut uv_stream_t, blocking: c_int) -> c_int;
-    fn uv_stream_get_write_queue_size(stream: *const uv_stream_t) -> usize;
-    fn uv_idle_init(loop_: *mut uv_loop_t, idle: *mut uv_idle_t) -> c_int;
-
-}
+use crate::event::r#loop::{uv_idle_init, uv_stream_get_write_queue_size, uv_stream_set_blocking};
 
 #[cfg(windows)]
 use crate::os::os_win_console::{GetConsoleMode, SetConsoleMode};

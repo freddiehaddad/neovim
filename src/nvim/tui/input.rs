@@ -99,11 +99,7 @@ pub(crate) struct TermInputSuffix {
 
 static mut LAST_PRESSED_BUTTON: c_int = 0;
 
-unsafe extern "C" {
-
-    fn uv_timer_get_due_in(handle: *const uv_timer_t) -> u64;
-
-}
+use crate::event::r#loop::uv_timer_get_due_in;
 
 #[inline]
 pub(crate) unsafe fn input_prefix(input: *mut TermInput) -> *mut TermInputPrefix {

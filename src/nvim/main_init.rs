@@ -62,7 +62,7 @@ use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd, kOptShortmess};
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
 use crate::ex_getln::cmdline_init;
 use crate::extmark::TriState;
-use crate::fileio::{FILE, READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
+use crate::fileio::{READ_NEW, READ_STDIN, fprintf, printf, readfile, shorten_fnames};
 use crate::garray::ga_grow;
 use crate::globals::*;
 use crate::hashtab::hash_debug_results;
@@ -245,9 +245,9 @@ unsafe extern "system" {
     fn GetVersionExA(lpVersionInformation: *mut OsVersionInfoA) -> c_int;
 }
 
-unsafe extern "C" {
-    fn setbuf(stream: *mut FILE, buffer: *mut c_char);
+use crate::fileio::setbuf;
 
+unsafe extern "C" {
     #[cfg(windows)]
     fn _setmode(fd: c_int, mode: c_int) -> c_int;
     #[cfg(unix)]

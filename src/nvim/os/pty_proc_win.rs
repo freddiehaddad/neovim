@@ -132,7 +132,7 @@ mod win_impl {
     };
 
     type BOOLEAN = u8;
-    type uv_thread_cb = Option<unsafe extern "C" fn(arg: *mut c_void)>;
+    use crate::event::r#loop::{uv_thread_create, uv_thread_detach};
     type WaitOrTimerCallback =
         Option<unsafe extern "system" fn(lpParameter: *mut c_void, TimerOrWaitFired: BOOLEAN)>;
 
@@ -155,11 +155,6 @@ mod win_impl {
         conpty: *mut conpty_t,
         finish_wait: HANDLE,
         proc_handle: HANDLE,
-    }
-
-    unsafe extern "C" {
-        fn uv_thread_create(tid: *mut uv_thread_t, entry: uv_thread_cb, arg: *mut c_void) -> c_int;
-        fn uv_thread_detach(tid: *mut uv_thread_t) -> c_int;
     }
 
     unsafe extern "system" {

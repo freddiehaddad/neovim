@@ -74,6 +74,22 @@ pub struct luaL_Buffer {
     pub buffer: [c_char; 8192],
 }
 
+#[repr(C)]
+pub struct lua_Debug {
+    pub event: c_int,
+    pub name: *const c_char,
+    pub namewhat: *const c_char,
+    pub what: *const c_char,
+    pub source: *const c_char,
+    pub currentline: c_int,
+    pub nups: c_int,
+    pub linedefined: c_int,
+    pub lastlinedefined: c_int,
+    pub short_src: [c_char; 60],
+    pub i_ci: c_int,
+    pub _pad: [u8; 32],
+}
+
 pub(crate) const K_NLUA_PUSH_SPECIAL: c_int = 0x01;
 const K_NLUA_PUSH_FREE_REFS: c_int = 0x02;
 
@@ -238,6 +254,8 @@ unsafe extern "C-unwind" {
     pub fn luaL_addlstring(B: *mut luaL_Buffer, s: *const c_char, l: usize);
     pub fn luaL_addvalue(B: *mut luaL_Buffer);
     pub fn luaL_pushresult(B: *mut luaL_Buffer);
+    pub fn lua_getstack(L: *mut lua_State, level: c_int, ar: *mut lua_Debug) -> c_int;
+    pub fn lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
 }
 
 #[inline]

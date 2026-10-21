@@ -9,9 +9,9 @@
 
 use crate::charset::{NUL, try_getdigits};
 use crate::event::r#loop::{
-    Loop, loop_poll_events, main_loop_ptr, uv_close, uv_connect_cb, uv_connect_t, uv_freeaddrinfo,
-    uv_handle_get_loop, uv_handle_get_type, uv_handle_size, uv_handle_t, uv_loop_t,
-    uv_pipe_connect, uv_pipe_init, uv_req_size, uv_strerror,
+    Loop, loop_poll_events, main_loop_ptr, uv_close, uv_connect_t, uv_freeaddrinfo,
+    uv_handle_get_loop, uv_handle_get_type, uv_handle_size, uv_handle_t, uv_pipe_connect,
+    uv_pipe_init, uv_req_size, uv_strerror,
 };
 use crate::event::multiqueue::{EVENT_HANDLER_MAX_ARGC, Event, MultiQueue, multiqueue_put_event};
 use crate::event::stream::{
@@ -65,7 +65,6 @@ pub type socket_cb =
     Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, result: c_int, data: *mut c_void)>;
 pub type socket_close_cb =
     Option<unsafe extern "C" fn(watcher: *mut SocketWatcher, data: *mut c_void)>;
-type uv_connection_cb = Option<unsafe extern "C" fn(server: *mut uv_stream_t, status: c_int)>;
 
 #[repr(C)]
 pub struct addrinfo {
@@ -105,39 +104,10 @@ struct UvConnectReq([u8; 512]);
 #[repr(C, align(8))]
 struct RStreamBuf([u8; 1024]);
 
-unsafe extern "C" {
-    fn uv_getaddrinfo(
-        loop_: *mut uv_loop_t,
-        req: *mut uv_getaddrinfo_t,
-        getaddrinfo_cb: *mut c_void,
-        node: *const c_char,
-        service: *const c_char,
-        hints: *const addrinfo,
-    ) -> c_int;
-
-    fn uv_tcp_init(loop_: *mut uv_loop_t, handle: *mut uv_tcp_t) -> c_int;
-    fn uv_tcp_nodelay(handle: *mut uv_tcp_t, enable: c_int) -> c_int;
-    fn uv_tcp_bind(handle: *mut uv_tcp_t, addr: *const c_void, flags: c_uint) -> c_int;
-    fn uv_tcp_getsockname(handle: *const uv_tcp_t, name: *mut c_void, namelen: *mut c_int)
-    -> c_int;
-    fn uv_tcp_connect(
-        req: *mut uv_connect_t,
-        handle: *mut uv_tcp_t,
-        addr: *const c_void,
-        cb: uv_connect_cb,
-    ) -> c_int;
-
-    fn uv_pipe_bind2(
-        handle: *mut uv_pipe_t,
-        name: *const c_char,
-        namelen: usize,
-        flags: c_uint,
-    ) -> c_int;
-
-    fn uv_listen(stream: *mut uv_stream_t, backlog: c_int, cb: uv_connection_cb) -> c_int;
-    fn uv_accept(server: *mut uv_stream_t, client: *mut uv_stream_t) -> c_int;
-
-}
+use crate::event::r#loop::{
+    uv_accept, uv_getaddrinfo, uv_listen, uv_pipe_bind2, uv_tcp_bind, uv_tcp_connect,
+    uv_tcp_getsockname, uv_tcp_init, uv_tcp_nodelay,
+};
 
 #[inline]
 pub unsafe fn socket_watcher_uv_size() -> usize {

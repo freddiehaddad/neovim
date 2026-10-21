@@ -327,21 +327,8 @@ struct ExDocmdCookie {
     got_line: bool,
 }
 
-#[repr(C)]
-struct lua_Debug {
-    event: c_int,
-    name: *const c_char,
-    namewhat: *const c_char,
-    what: *const c_char,
-    source: *const c_char,
-    currentline: c_int,
-    nups: c_int,
-    linedefined: c_int,
-    lastlinedefined: c_int,
-    short_src: [c_char; 60],
-    i_ci: c_int,
-    _pad: [u8; 32],
-}
+use crate::event::r#loop::{uv_thread_equal, uv_thread_self};
+use crate::lua::converter::{lua_Debug, lua_getinfo, lua_getstack};
 
 static mut IN_FAST_CALLBACK: c_int = 0;
 static mut GLOBAL_LSTATE: *mut lua_State = ptr::null_mut();
@@ -360,9 +347,6 @@ static mut EXPAND_RESULT_ARRAY: garray_T = garray_T {
 };
 
 unsafe extern "C-unwind" {
-    fn lua_getstack(L: *mut lua_State, level: c_int, ar: *mut lua_Debug) -> c_int;
-    fn lua_getinfo(L: *mut lua_State, what: *const c_char, ar: *mut lua_Debug) -> c_int;
-
     fn luaopen_luv(L: *mut lua_State) -> c_int;
 }
 
@@ -394,9 +378,6 @@ unsafe extern "C" {
     fn luv_set_thread(L: *mut lua_State, pcall: luv_CFpcall);
     fn luv_set_cthread(L: *mut lua_State, cpcall: luv_CFcpcall);
     fn luv_set_thread_cb(acquire: luv_acquire_vm, release: luv_release_vm);
-
-    fn uv_thread_self() -> uv_thread_t;
-    fn uv_thread_equal(t1: *const uv_thread_t, t2: *const uv_thread_t) -> c_int;
 
     #[cfg(unix)]
     fn pthread_exit(retval: *mut c_void) -> !;

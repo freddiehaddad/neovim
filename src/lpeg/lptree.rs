@@ -34,20 +34,6 @@ use crate::lua::converter::{
 
 const MAXLIM: lua_Integer = (c_int::MAX / 100) as lua_Integer;
 
-unsafe extern "C" {
-    fn isalnum(c: c_int) -> c_int;
-    fn isalpha(c: c_int) -> c_int;
-    fn iscntrl(c: c_int) -> c_int;
-    fn isdigit(c: c_int) -> c_int;
-    fn isgraph(c: c_int) -> c_int;
-    fn islower(c: c_int) -> c_int;
-    fn isprint(c: c_int) -> c_int;
-    fn ispunct(c: c_int) -> c_int;
-    fn isspace(c: c_int) -> c_int;
-    fn isupper(c: c_int) -> c_int;
-    fn isxdigit(c: c_int) -> c_int;
-}
-
 #[inline]
 unsafe fn pattern_tree_ptr(p: *mut Pattern) -> *mut TTree {
     unsafe { (&raw mut (*p).tree).cast::<TTree>() }
@@ -1235,17 +1221,13 @@ pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn createcat(
-    l: *mut lua_State,
-    catname: *const c_char,
-    catf: unsafe extern "C" fn(c_int) -> c_int,
-) {
+unsafe fn createcat(l: *mut lua_State, catname: *const c_char, catf: fn(u8) -> bool) {
     unsafe {
         let mut buff = [0 as byte; CHARSETSIZE];
         clearset(buff.as_mut_ptr());
-        for c in 0..=usize::from(u8::MAX) {
-            if catf(c as c_int) != 0 {
-                setchar(buff.as_mut_ptr(), c);
+        for c in 0..=u8::MAX {
+            if catf(c) {
+                setchar(buff.as_mut_ptr(), usize::from(c));
             }
         }
         newcharset(l, buff.as_mut_ptr());
@@ -1262,17 +1244,17 @@ unsafe extern "C-unwind" fn lp_locale(l: *mut lua_State) -> c_int {
             luaL_checktype(l, 1, LUA_TTABLE);
             lua_settop(l, 1);
         }
-        createcat(l, c"alnum".as_ptr(), isalnum);
-        createcat(l, c"alpha".as_ptr(), isalpha);
-        createcat(l, c"cntrl".as_ptr(), iscntrl);
-        createcat(l, c"digit".as_ptr(), isdigit);
-        createcat(l, c"graph".as_ptr(), isgraph);
-        createcat(l, c"lower".as_ptr(), islower);
-        createcat(l, c"print".as_ptr(), isprint);
-        createcat(l, c"punct".as_ptr(), ispunct);
-        createcat(l, c"space".as_ptr(), isspace);
-        createcat(l, c"upper".as_ptr(), isupper);
-        createcat(l, c"xdigit".as_ptr(), isxdigit);
+        createcat(l, c"alnum".as_ptr(), |b| b.is_ascii_alphanumeric());
+        createcat(l, c"alpha".as_ptr(), |b| b.is_ascii_alphabetic());
+        createcat(l, c"cntrl".as_ptr(), |b| b.is_ascii_control());
+        createcat(l, c"digit".as_ptr(), |b| b.is_ascii_digit());
+        createcat(l, c"graph".as_ptr(), |b| b.is_ascii_graphic());
+        createcat(l, c"lower".as_ptr(), |b| b.is_ascii_lowercase());
+        createcat(l, c"print".as_ptr(), |b| matches!(b, 0x20..=0x7e));
+        createcat(l, c"punct".as_ptr(), |b| b.is_ascii_punctuation());
+        createcat(l, c"space".as_ptr(), |b| matches!(b, b' ' | b'\t'..=b'\r'));
+        createcat(l, c"upper".as_ptr(), |b| b.is_ascii_uppercase());
+        createcat(l, c"xdigit".as_ptr(), |b| b.is_ascii_hexdigit());
         1
     }
 }

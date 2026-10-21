@@ -7,7 +7,7 @@ use crate::os::env::os_getenv_noalloc;
 use crate::os::input::os_input_ready;
 #[cfg(unix)]
 use std::cell::UnsafeCell;
-use std::ffi::{CStr, c_char, c_int, c_uint, c_void};
+use std::ffi::{CStr, c_char, c_int, c_uint};
 
 pub type Timestamp = u64;
 #[allow(non_camel_case_types)]
@@ -16,11 +16,7 @@ pub type time_t = i64;
 pub const NS_PER_SEC: i64 = 1_000_000_000;
 const UV_CLOCK_REALTIME: c_int = 1;
 
-#[repr(C)]
-struct UvTimespec64 {
-    tv_sec: i64,
-    tv_nsec: i32,
-}
+use crate::event::r#loop::{UvTimespec64, uv_clock_gettime, uv_hrtime, uv_now, uv_sleep};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -40,15 +36,10 @@ unsafe extern "C" {
     #[cfg_attr(target_os = "windows", link_name = "_time64")]
     #[cfg_attr(not(target_os = "windows"), link_name = "time")]
     pub fn c_time(tloc: *mut time_t) -> time_t;
+    #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
+    #[cfg_attr(not(target_os = "windows"), link_name = "mktime")]
+    pub fn c_mktime(tm: *mut Tm) -> time_t;
     pub fn strftime(s: *mut c_char, max: usize, format: *const c_char, tm: *const Tm) -> usize;
-    pub fn uv_sleep(msec: c_uint);
-}
-
-unsafe extern "C" {
-
-    fn uv_hrtime() -> u64;
-    fn uv_clock_gettime(clock_id: c_int, ts: *mut UvTimespec64) -> c_int;
-    fn uv_now(loop_ptr: *const c_void) -> u64;
 
     #[cfg(unix)]
     fn tzset();
