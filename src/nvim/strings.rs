@@ -71,7 +71,6 @@ pub struct keyvalue_T {
     pub length: usize,
 }
 
-#[cfg_attr(windows, link(name = "legacy_stdio_definitions"))]
 unsafe extern "C" {
     pub(crate) fn snprintf(s: *mut c_char, maxlen: usize, format: *const c_char, ...) -> c_int;
     #[link_name = "qsort"]
@@ -82,8 +81,21 @@ unsafe extern "C" {
         compar: Option<unsafe extern "C" fn(*const c_void, *const c_void) -> c_int>,
     );
     pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double;
+    pub fn strtoll(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> c_longlong;
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
     pub fn setlocale(category: c_int, locale: *const c_char) -> *mut c_char;
+    #[link_name = "gettext"]
+    fn c_gettext(msgid: *const c_char) -> *mut c_char;
+    #[link_name = "ngettext"]
+    fn c_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
+    #[link_name = "tolower"]
+    fn c_tolower(c: c_int) -> c_int;
+    #[link_name = "toupper"]
+    fn c_toupper(c: c_int) -> c_int;
+    #[link_name = "isalpha"]
+    fn c_isalpha(c: c_int) -> c_int;
+    #[link_name = "strerror"]
+    fn c_strerror(errnum: c_int) -> *mut c_char;
 }
 
 pub trait IntoCCharPtr {
@@ -146,13 +158,7 @@ pub unsafe fn strnicmp_c(s1: *const c_char, s2: *const c_char, n: usize) -> c_in
 
 #[inline]
 pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
-    unsafe {
-        unsafe extern "C" {
-            #[link_name = "gettext"]
-            fn c_gettext(msgid: *const c_char) -> *mut c_char;
-        }
-        c_gettext(msgid)
-    }
+    unsafe { c_gettext(msgid) }
 }
 
 pub trait IntoNgettextCount {
@@ -208,13 +214,7 @@ pub unsafe fn ngettext<N: IntoNgettextCount>(
     n: N,
 ) -> *mut c_char {
     let count = n.into_ngettext_count();
-    unsafe {
-        unsafe extern "C" {
-            #[link_name = "ngettext"]
-            fn c_ngettext(msgid1: *const c_char, msgid2: *const c_char, n: c_ulong) -> *mut c_char;
-        }
-        c_ngettext(msgid1, msgid2, count)
-    }
+    unsafe { c_ngettext(msgid1, msgid2, count) }
 }
 
 #[inline]
@@ -382,24 +382,12 @@ pub unsafe fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_
 
 #[inline]
 pub unsafe fn tolower(c: c_int) -> c_int {
-    unsafe {
-        unsafe extern "C" {
-            #[link_name = "tolower"]
-            fn c_tolower(c: c_int) -> c_int;
-        }
-        c_tolower(c)
-    }
+    unsafe { c_tolower(c) }
 }
 
 #[inline]
 pub unsafe fn isalpha(c: c_int) -> c_int {
-    unsafe {
-        unsafe extern "C" {
-            #[link_name = "isalpha"]
-            fn c_isalpha(c: c_int) -> c_int;
-        }
-        c_isalpha(c)
-    }
+    unsafe { c_isalpha(c) }
 }
 
 #[inline]
@@ -516,13 +504,7 @@ pub unsafe fn strtol(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int)
 
 #[inline]
 pub unsafe fn toupper(c: c_int) -> c_int {
-    unsafe {
-        unsafe extern "C" {
-            #[link_name = "toupper"]
-            fn c_toupper(c: c_int) -> c_int;
-        }
-        c_toupper(c)
-    }
+    unsafe { c_toupper(c) }
 }
 
 #[inline]
@@ -623,13 +605,7 @@ pub unsafe fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_i
 
 #[inline]
 pub unsafe fn strerror(errnum: c_int) -> *mut c_char {
-    unsafe {
-        unsafe extern "C" {
-            #[link_name = "strerror"]
-            fn c_strerror(errnum: c_int) -> *mut c_char;
-        }
-        c_strerror(errnum)
-    }
+    unsafe { c_strerror(errnum) }
 }
 
 #[inline]

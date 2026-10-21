@@ -99,12 +99,8 @@ static mut SCANDIR_COUNT: c_int = 0;
 static mut STARDEPTH: c_int = 0;
 static mut EXPAND_RECURSIVE: bool = false;
 
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    fn _getdrive() -> c_int;
-
-}
+#[cfg(windows)]
+use crate::fileio::_getdrive;
 
 #[inline]
 pub unsafe fn to_slash(p: *mut c_char) {

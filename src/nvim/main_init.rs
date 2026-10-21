@@ -237,14 +237,11 @@ unsafe extern "system" {
     fn GetVersionExA(lpVersionInformation: *mut OsVersionInfoA) -> c_int;
 }
 
+#[cfg(windows)]
+use crate::fileio::_setmode;
 use crate::fileio::setbuf;
-
-unsafe extern "C" {
-    #[cfg(windows)]
-    fn _setmode(fd: c_int, mode: c_int) -> c_int;
-    #[cfg(unix)]
-    fn tcdrain(fd: c_int) -> c_int;
-}
+#[cfg(unix)]
+use crate::fileio::tcdrain;
 
 #[inline]
 unsafe fn time_msg_if_enabled(s: *const c_char) {

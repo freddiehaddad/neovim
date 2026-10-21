@@ -272,11 +272,19 @@ unsafe extern "C" {
     #[cfg(windows)]
     pub fn _get_osfhandle(fd: c_int) -> isize;
     #[cfg(windows)]
+    pub fn _open_osfhandle(osfhandle: isize, flags: c_int) -> c_int;
+    #[cfg(windows)]
+    pub fn _setmode(fd: c_int, mode: c_int) -> c_int;
+    #[cfg(windows)]
+    pub fn _getdrive() -> c_int;
+    #[cfg(windows)]
     pub fn _read(fd: c_int, buf: *mut c_void, count: c_uint) -> c_int;
     #[cfg(windows)]
     pub fn _write(fd: c_int, buf: *const c_void, count: c_uint) -> c_int;
     #[cfg(windows)]
     fn _umask(pmode: c_int) -> c_int;
+    #[cfg(unix)]
+    pub fn tcdrain(fd: c_int) -> c_int;
 
     #[cfg(not(windows))]
     pub fn iconv(

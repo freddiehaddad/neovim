@@ -617,17 +617,10 @@ const SHELL_RULES: [ShellRule; 2] = [
     },
 ];
 
-unsafe extern "C" {
-
-    #[cfg(windows)]
-    fn libintl_bind_textdomain_codeset(
-        domainname: *const c_char,
-        codeset: *const c_char,
-    ) -> *mut c_char;
-    #[cfg(not(windows))]
-    fn bind_textdomain_codeset(domainname: *const c_char, codeset: *const c_char) -> *mut c_char;
-
-}
+#[cfg(not(windows))]
+use crate::os::lang::bind_textdomain_codeset;
+#[cfg(windows)]
+use crate::os::lang::libintl_bind_textdomain_codeset;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opt_error(

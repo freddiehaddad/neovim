@@ -80,7 +80,17 @@ unsafe extern "C" {
     fn libintl_bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
     #[cfg(windows)]
     fn libintl_textdomain(domainname: *const c_char) -> *mut c_char;
+    #[cfg(windows)]
+    pub fn libintl_bind_textdomain_codeset(
+        domainname: *const c_char,
+        codeset: *const c_char,
+    ) -> *mut c_char;
 
+    #[cfg(not(windows))]
+    pub fn bind_textdomain_codeset(
+        domainname: *const c_char,
+        codeset: *const c_char,
+    ) -> *mut c_char;
     #[cfg(target_os = "linux")]
     fn bindtextdomain(domainname: *const c_char, dirname: *const c_char) -> *mut c_char;
     #[cfg(target_os = "linux")]
