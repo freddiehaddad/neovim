@@ -244,6 +244,8 @@ unsafe extern "C" {
     pub fn pclose(stream: *mut FILE) -> c_int;
 
     #[cfg(windows)]
+    fn libiconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
+    #[cfg(windows)]
     pub fn libiconv(
         cd: iconv_t,
         inbuf: *mut *const c_char,
@@ -285,6 +287,8 @@ unsafe extern "C" {
     pub fn tcdrain(fd: c_int) -> c_int;
 
     #[cfg(not(windows))]
+    fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
+    #[cfg(not(windows))]
     pub fn iconv(
         cd: iconv_t,
         inbuf: *mut *const c_char,
@@ -312,6 +316,12 @@ unsafe extern "C" {
     pub fn getuid() -> u32;
     #[cfg(not(windows))]
     pub fn getgid() -> u32;
+    #[cfg(unix)]
+    pub fn getppid() -> c_int;
+    #[cfg(unix)]
+    pub fn getpgid(pid: c_int) -> c_int;
+    #[cfg(unix)]
+    pub fn getpgrp() -> c_int;
     #[cfg(not(windows))]
     pub fn read(fd: c_int, buf: *mut c_void, count: usize) -> isize;
     #[cfg(not(windows))]
@@ -410,6 +420,18 @@ pub unsafe fn vim_ftell(stream: *mut FILE) -> off_T {
     #[cfg(not(windows))]
     unsafe {
         ftello(stream)
+    }
+}
+
+#[inline]
+pub unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
+    #[cfg(windows)]
+    unsafe {
+        libiconv_open(tocode, fromcode)
+    }
+    #[cfg(not(windows))]
+    unsafe {
+        iconv_open(tocode, fromcode)
     }
 }
 

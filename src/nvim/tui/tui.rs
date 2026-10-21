@@ -240,16 +240,9 @@ static mut urls: Set<cstr_t> = Set {
 };
 
 #[cfg(unix)]
-use crate::fileio::kill;
+use crate::fileio::{getpgid, getpgrp, getppid, kill};
 
 use crate::event::r#loop::{uv_tty_get_winsize, uv_tty_reset_mode};
-
-#[cfg(unix)]
-unsafe extern "C" {
-    fn getppid() -> c_int;
-    fn getpgid(pid: c_int) -> c_int;
-    fn getpgrp() -> c_int;
-}
 
 use crate::api::ui::{MAX_SCHAR_SIZE, kLineFlagWrap};
 use crate::channel::STDOUT_FILENO;

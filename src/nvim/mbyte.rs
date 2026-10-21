@@ -14,7 +14,7 @@ use crate::eval::typval::{
 };
 #[cfg(windows)]
 use crate::event::r#loop::uv_translate_sys_error;
-use crate::fileio::{call_iconv, call_iconv_close};
+use crate::fileio::{call_iconv, call_iconv_close, call_iconv_open};
 use crate::globals::*;
 use crate::grid::{CharBoundsOff, schar_T, schar_from_buf};
 use crate::input::beep_flush;
@@ -856,13 +856,6 @@ unsafe extern "C" {
     fn towlower(wc: wint_t) -> wint_t;
     #[cfg(unix)]
     fn nl_langinfo(item: c_int) -> *mut c_char;
-
-    #[cfg(windows)]
-    fn libiconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
-
-    #[cfg(not(windows))]
-    fn iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
-
 }
 
 #[cfg(windows)]
@@ -905,18 +898,6 @@ use crate::viml::parser::parser::CONV_NONE;
 pub unsafe fn mb_ptr_adv(p: &mut *mut c_char) {
     unsafe {
         *p = (*p).add(utfc_ptr2len(*p) as usize);
-    }
-}
-
-#[inline]
-unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
-    #[cfg(windows)]
-    unsafe {
-        libiconv_open(tocode, fromcode)
-    }
-    #[cfg(not(windows))]
-    unsafe {
-        iconv_open(tocode, fromcode)
     }
 }
 
